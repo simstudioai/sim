@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-27",
+  "updatedAt": "2026-07-29",
   "integrations": [
     {
       "type": "onepassword",
@@ -13202,8 +13202,8 @@
       "type": "outlook",
       "slug": "outlook",
       "name": "Outlook",
-      "description": "Send, read, search, reply, organize, and manage Outlook email",
-      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
+      "description": "Send, read, search, reply, organize, and manage Outlook email and calendar",
+      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.",
       "bgColor": "#FFFFFF",
       "iconName": "OutlookIcon",
       "docsUrl": "https://docs.sim.ai/integrations/outlook",
@@ -13275,9 +13275,33 @@
         {
           "name": "Get Attachment",
           "description": "Get a single attachment on an Outlook message, including its file contents"
+        },
+        {
+          "name": "List Calendar Events",
+          "description": "List Outlook calendar events within a start/end time window"
+        },
+        {
+          "name": "Get Calendar Event",
+          "description": "Get a single Outlook calendar event by ID"
+        },
+        {
+          "name": "Create Event",
+          "description": "Create a new Outlook calendar event"
+        },
+        {
+          "name": "Update Event",
+          "description": "Update an existing Outlook calendar event"
+        },
+        {
+          "name": "Delete Event",
+          "description": "Delete an Outlook calendar event by ID"
+        },
+        {
+          "name": "Respond to Invite",
+          "description": "Accept, tentatively accept, or decline an Outlook calendar event invitation"
         }
       ],
-      "operationCount": 17,
+      "operationCount": 23,
       "triggers": [
         {
           "id": "outlook_poller",

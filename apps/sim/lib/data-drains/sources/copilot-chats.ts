@@ -15,8 +15,12 @@ import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/typ
  * The transcript no longer lives on `copilot_chats.messages` — it is assembled
  * per page from the normalized `copilot_messages` table, so `messages` is the
  * ordered list of message `content` objects rather than the DB column.
+ *
+ * `planArtifact` is omitted too: the column still exists only until a
+ * follow-up migration can safely drop it, and nothing writes it any more, so
+ * draining it would ship a dead field to every export consumer.
  */
-type CopilotChatRow = Omit<typeof copilotChats.$inferSelect, 'messages'> & {
+type CopilotChatRow = Omit<typeof copilotChats.$inferSelect, 'messages' | 'planArtifact'> & {
   messages: unknown[]
 }
 
@@ -31,10 +35,10 @@ const chatColumns = {
   model: copilotChats.model,
   conversationId: copilotChats.conversationId,
   previewYaml: copilotChats.previewYaml,
-  planArtifact: copilotChats.planArtifact,
   config: copilotChats.config,
   resources: copilotChats.resources,
   lastSeenAt: copilotChats.lastSeenAt,
+  autoAllowedTools: copilotChats.autoAllowedTools,
   pinned: copilotChats.pinned,
   deletedAt: copilotChats.deletedAt,
   createdAt: copilotChats.createdAt,
@@ -118,7 +122,6 @@ export const copilotChatsSource: DrainSource<CopilotChatRow> = {
       model: row.model,
       conversationId: row.conversationId,
       previewYaml: row.previewYaml,
-      planArtifact: row.planArtifact,
       config: row.config,
       resources: row.resources,
       lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,

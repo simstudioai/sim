@@ -1,0 +1,236 @@
+import type {
+  CleanedOutlookEvent,
+  CleanedOutlookEventAttendee,
+  GraphAttendee,
+  GraphDateTimeTimeZone,
+  GraphEvent,
+} from '@/tools/outlook/types'
+import type { ToolRetryConfig } from '@/tools/types'
+
+/**
+ * Shared retry config for the Outlook calendar tools.
+ *
+ * Microsoft Graph throttles a single mailbox at roughly four concurrent requests and
+ * returns 429 with a `Retry-After` header when calendar operations fan out (e.g. many
+ * parallel event creates in a workflow). `retryIdempotentOnly` is `false` so
+ * create/update/respond (POST/PATCH) retry too, rather than failing the whole workflow
+ * on a throttle.
+ *
+ * The executor retries **429 and 5xx** (`isRetryableFailure`), not 429 alone, so each
+ * non-idempotent method has to be safe against a retry that follows an already-committed
+ * write:
+ * - `create_event` (POST) sends a per-execution `transactionId`; Graph uses it to discard
+ *   the duplicate POST, so a 5xx-after-commit cannot create a second event.
+ * - `update_event` (PATCH) resends the same partial body, so replaying it is a no-op.
+ * - `respond` (POST accept/decline) is state-idempotent — the resulting `responseStatus`
+ *   is identical — but a retry after a committed write can send the organizer a second
+ *   notification email. Accepted: a duplicate notification is less harmful than failing
+ *   the response outright under throttling, and Graph exposes no transactionId for it.
+ */
+export const CALENDAR_RETRY: ToolRetryConfig = {
+  enabled: true,
+  maxRetries: 3,
+  initialDelayMs: 500,
+  maxDelayMs: 30000,
+  retryIdempotentOnly: false,
+}
+
+const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
+
+/**
+ * Build the Graph URL for a calendar-scoped collection.
+ *
+ * Graph exposes the mailbox's default calendar at `/me/{collection}` and any other calendar
+ * at `/me/calendars/{id}/{collection}`. An empty/blank `calendarId` means "default calendar".
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview
+ * @see https://learn.microsoft.com/en-us/graph/api/user-post-events
+ */
+export function buildCalendarScopedUrl(collection: 'events' | 'calendarView', calendarId?: string) {
+  const id = calendarId?.trim()
+  return id
+    ? `${GRAPH_BASE_URL}/me/calendars/${encodeURIComponent(id)}/${collection}`
+    : `${GRAPH_BASE_URL}/me/${collection}`
+}
+
+/**
+ * Build the Graph URL for a single event.
+ *
+ * Event IDs are unique within the mailbox, so `/me/events/{id}` addresses an event in any of
+ * the user's calendars — no calendar scoping is needed for get / update / delete / respond.
+ */
+export function buildEventUrl(eventId: string, suffix?: string) {
+  const base = `${GRAPH_BASE_URL}/me/events/${encodeURIComponent(eventId.trim())}`
+  return suffix ? `${base}/${suffix}` : base
+}
+
+/** Matches a trailing UTC offset (`Z`, `+02:00`, `-0800`) on an ISO datetime string. */
+const TZ_OFFSET_PATTERN = /([+-]\d{2}:?\d{2}|Z)$/
+
+/** Matches the milliseconds + `Z` suffix produced by `Date.toISOString()`. */
+const ISO_MS_ZULU_PATTERN = /\.\d{3}Z$/
+
+/** Time zone recorded when the caller supplies none and the datetime carries no offset. */
+export const DEFAULT_OUTLOOK_TIME_ZONE = 'UTC'
+
+/** Attendee category understood by Microsoft Graph. */
+export type GraphAttendeeType = 'required' | 'optional' | 'resource'
+
+/** Attendee payload shape Microsoft Graph expects on event create/update. */
+export interface GraphAttendeeInput {
+  emailAddress: { address: string }
+  type: GraphAttendeeType
+}
+
+/**
+ * Build a Microsoft Graph `{ dateTime, timeZone }` value from a user-supplied datetime.
+ *
+ * Graph expects an offset-less `dateTime` paired with a named `timeZone`, unlike Google
+ * Calendar which accepts the offset inside the string. Behavior:
+ * - Date-only input (`2025-06-03`) is pinned to midnight for an all-day event.
+ * - An input carrying a UTC offset (`...Z` or `+02:00`) is converted to the equivalent UTC
+ *   instant so Graph interprets it unambiguously.
+ * - A naive datetime is treated as wall-clock time in the provided (or default) zone.
+ */
+export function buildGraphEventDateTime(value: string, timeZone?: string): GraphDateTimeTimeZone {
+  // Accept `YYYY-MM-DD HH:MM` as well as the ISO `T` form. Without this the space variant
+  // falls through to the date-only branch and yields `2025-06-03 10:00T00:00:00`, which
+  // Graph rejects — and it is a natural thing for a caller to type.
+  const trimmed = value.trim().replace(SPACE_SEPARATED_DATETIME_PATTERN, '$1T$2')
+
+  if (!trimmed.includes('T')) {
+    return { dateTime: `${trimmed}T00:00:00`, timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE }
+  }
+
+  const offsetMatch = trimmed.match(TZ_OFFSET_PATTERN)
+  if (offsetMatch) {
+    const parsed = new Date(trimmed)
+    if (!Number.isNaN(parsed.getTime())) {
+      return { dateTime: parsed.toISOString().replace(ISO_MS_ZULU_PATTERN, ''), timeZone: 'UTC' }
+    }
+    // Unparseable offset: strip it and fall back to the caller's zone.
+    return {
+      dateTime: trimmed.slice(0, trimmed.length - offsetMatch[0].length),
+      timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE,
+    }
+  }
+
+  return { dateTime: trimmed, timeZone: timeZone || DEFAULT_OUTLOOK_TIME_ZONE }
+}
+
+/** Exactly `YYYY-MM-DD`, with no time component. */
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/** `YYYY-MM-DD HH:MM[:SS]` — a space where ISO 8601 wants `T`. */
+const SPACE_SEPARATED_DATETIME_PATTERN = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2})?)/
+
+/**
+ * True when a bound carries a date but no time (`2025-06-03`).
+ *
+ * A date-only bound has no time component, so the only coherent reading is an all-day
+ * event — the create/update tools promote such a pair rather than emitting a zero-length
+ * midnight-to-midnight timed window, which Graph rejects.
+ *
+ * Matched strictly rather than as "contains no `T`": a space-separated datetime
+ * (`2025-06-03 10:00`) also lacks a `T`, and treating it as date-only would both discard
+ * the caller's time and build a malformed `2025-06-03 10:00T00:00:00` value.
+ */
+export function isDateOnly(value: string | undefined): boolean {
+  return Boolean(value) && DATE_ONLY_PATTERN.test(value!.trim())
+}
+
+/** Extract the `YYYY-MM-DD` date portion from a date or datetime string. */
+function toDateOnly(value: string): string {
+  const trimmed = value.trim()
+  const tIndex = trimmed.indexOf('T')
+  return tIndex === -1 ? trimmed : trimmed.slice(0, tIndex)
+}
+
+/** Add one calendar day to a `YYYY-MM-DD` string. */
+function nextDay(dateOnly: string): string {
+  const d = new Date(`${dateOnly}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Build the Graph `start`/`end` pair for an all-day event.
+ *
+ * Graph requires all-day events to have midnight `dateTime` values and an **exclusive**
+ * end day strictly after the start day. Callers routinely pass the same date (or timed
+ * placeholders) for both bounds, which Graph rejects with a 400. This normalizes both
+ * bounds to midnight and advances the end to at least the day after the start.
+ */
+export function buildAllDayRange(
+  startInput: string,
+  endInput: string,
+  timeZone?: string
+): { start: GraphDateTimeTimeZone; end: GraphDateTimeTimeZone } {
+  const tz = timeZone || DEFAULT_OUTLOOK_TIME_ZONE
+  const startDate = toDateOnly(startInput)
+  let endDate = toDateOnly(endInput)
+  // `YYYY-MM-DD` strings compare correctly lexicographically.
+  if (endDate <= startDate) {
+    endDate = nextDay(startDate)
+  }
+  return {
+    start: { dateTime: `${startDate}T00:00:00`, timeZone: tz },
+    end: { dateTime: `${endDate}T00:00:00`, timeZone: tz },
+  }
+}
+
+/**
+ * Normalize a comma/newline-separated string (or array) of email addresses into the Graph
+ * attendee payload shape.
+ */
+export function normalizeAttendees(
+  attendees: string | string[] | undefined,
+  type: GraphAttendeeType = 'required'
+): GraphAttendeeInput[] {
+  if (!attendees) return []
+
+  const list = Array.isArray(attendees) ? attendees : String(attendees).split(/[,\n]/)
+
+  return list
+    .map((address) => address.trim())
+    .filter(Boolean)
+    .map((address) => ({ emailAddress: { address }, type }))
+}
+
+/** Flatten a raw Graph attendee into our cleaned attendee shape. */
+function flattenGraphAttendee(attendee: GraphAttendee): CleanedOutlookEventAttendee {
+  return {
+    name: attendee.emailAddress?.name,
+    address: attendee.emailAddress?.address,
+    type: attendee.type,
+    response: attendee.status?.response,
+  }
+}
+
+/**
+ * Flatten a raw Microsoft Graph event into the cleaned, editor-friendly event shape our
+ * tools return: `id, subject, start, end, organizer, attendees, isAllDay, onlineMeeting,
+ * webLink, bodyPreview`.
+ */
+export function flattenGraphEvent(event: GraphEvent): CleanedOutlookEvent {
+  return {
+    id: event.id,
+    subject: event.subject,
+    bodyPreview: event.bodyPreview,
+    start: event.start
+      ? { dateTime: event.start.dateTime, timeZone: event.start.timeZone }
+      : undefined,
+    end: event.end ? { dateTime: event.end.dateTime, timeZone: event.end.timeZone } : undefined,
+    isAllDay: event.isAllDay,
+    location: event.location?.displayName,
+    organizer: event.organizer?.emailAddress
+      ? {
+          name: event.organizer.emailAddress.name,
+          address: event.organizer.emailAddress.address,
+        }
+      : undefined,
+    attendees: (event.attendees ?? []).map(flattenGraphAttendee),
+    onlineMeeting: event.onlineMeeting?.joinUrl ? { joinUrl: event.onlineMeeting.joinUrl } : null,
+    webLink: event.webLink,
+  }
+}

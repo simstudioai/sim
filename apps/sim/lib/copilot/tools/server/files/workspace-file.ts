@@ -8,9 +8,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
-import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
-import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -209,9 +206,8 @@ export async function compileDocForWrite(args: {
   if (!e2bFmt && fileName.toLowerCase().endsWith('.xlsx')) {
     return {
       ok: false,
-      message: isDocSandboxEnabled
-        ? 'Excel (.xlsx) generation is currently behind the mothership-beta feature flag and is not available.'
-        : 'Excel (.xlsx) generation requires the document sandbox, which is not enabled in this environment.',
+      message:
+        'Excel (.xlsx) generation requires the document sandbox, which is not enabled in this environment.',
     }
   }
 
@@ -293,32 +289,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       let fileRecord: WorkspaceFileRecord | null = null
       let vfsPath: string | undefined
       if (target.kind === 'path') {
-        const alias = await resolveWorkflowAliasForWorkspace({
-          workspaceId: workspaceId!,
-          path: target.path,
-        })
-        if (!alias && isPlanAliasPath(target.path)) {
-          return { error: `Unsupported plan alias path or missing workflow: ${target.path}` }
-        }
-        if (alias) {
-          if (alias.kind === 'plans_dir') {
-            return { error: `Plan alias directory is not a file: ${target.path}` }
-          }
-          fileRecord = await resolveWorkspaceFileReference(workspaceId!, alias.backingPath)
-          if (!fileRecord && alias.kind === 'changelog') {
-            await ensureWorkflowAliasBacking({
-              workspaceId: workspaceId!,
-              userId: context.userId,
-              workflowId: alias.workflowId,
-              workflowName: alias.workflowName,
-            })
-            fileRecord = await resolveWorkspaceFileReference(workspaceId!, alias.backingPath)
-          }
-          vfsPath = alias.aliasPath
-        } else {
-          fileRecord = await resolveWorkspaceFileReference(workspaceId!, target.path)
-          vfsPath = target.path
-        }
+        fileRecord = await resolveWorkspaceFileReference(workspaceId!, target.path)
+        vfsPath = target.path
       } else {
         fileRecord = await getWorkspaceFile(workspaceId!, target.fileId)
       }

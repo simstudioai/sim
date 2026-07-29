@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MothershipStreamV1CompletionStatus } from '@/lib/copilot/generated/mothership-stream-v1'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { makeResumeLegContext, mergeResumeLegOutputs } from '@/lib/copilot/request/lifecycle/run'
 
@@ -16,6 +17,7 @@ describe('resume leg context isolate/merge contract', () => {
       usage: { prompt: 10, completion: 5 },
       cost: { input: 1, output: 2, total: 3 },
       errors: ['pre-existing'],
+      completionStatus: MothershipStreamV1CompletionStatus.complete,
     })
 
     const leg = makeResumeLegContext(base)
@@ -28,6 +30,7 @@ describe('resume leg context isolate/merge contract', () => {
     expect(leg.errors).toEqual([])
     expect(leg.streamComplete).toBe(false)
     expect(leg.awaitingAsyncContinuation).toBeUndefined()
+    expect(leg.completionStatus).toBeUndefined()
 
     // A leg's own errors array is a fresh array (not the shared one) so a leg's
     // retry rollback can't truncate a sibling's errors.
@@ -49,6 +52,7 @@ describe('resume leg context isolate/merge contract', () => {
     leg.usage = { prompt: 100, completion: 50 }
     leg.cost = { input: 4, output: 5, total: 9 }
     leg.errors.push('leg-err')
+    leg.completionStatus = MothershipStreamV1CompletionStatus.complete
 
     mergeResumeLegOutputs(base, leg)
 
@@ -58,6 +62,19 @@ describe('resume leg context isolate/merge contract', () => {
     expect(base.usage).toEqual({ prompt: 100, completion: 50 })
     expect(base.cost).toEqual({ input: 4, output: 5, total: 9 })
     expect(base.errors).toEqual(['pre', 'leg-err'])
+    expect(base.completionStatus).toBe(MothershipStreamV1CompletionStatus.complete)
+  })
+
+  it('leaves the turn unfinished when only child legs fold back', () => {
+    const base = createStreamingContext()
+
+    // A child leg that folds with a terminal pause never carries the turn's
+    // terminal event, so it must not report the turn as finished.
+    const childLeg = makeResumeLegContext(base)
+    childLeg.errors.push('subagent failed')
+    mergeResumeLegOutputs(base, childLeg)
+
+    expect(base.completionStatus).toBeUndefined()
   })
 
   it('does not multiply pre-fanout content across many legs (N children + one join leg)', () => {

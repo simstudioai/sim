@@ -38,7 +38,7 @@ import {
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 
 /** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
-const SALES_CAL_URL = 'https://cal.com/team/sim/enterprise' as const
+const SALES_CAL_URL = 'https://cal.com/team/sim/demo' as const
 
 /**
  * Props for {@link Upgrade}.

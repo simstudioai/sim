@@ -518,6 +518,14 @@ export async function copyForkResourceContainers(
         ...definition,
         id: childTableId,
         workspaceId: childWorkspaceId,
+        /**
+         * Folders never transit a fork edge. `folder_id` is a global id with no workspace in
+         * it, so the spread above would leave the child's table pointing at a folder owned by
+         * the SOURCE workspace — invisible in the fork, and mutated from under it if the
+         * source later deletes that folder (`ON DELETE SET NULL`). Forked tables land at the
+         * root, like forked files already do.
+         */
+        folderId: null,
         schema: remappedSchema,
         createdBy: userId,
         rowsVersion: 0,
@@ -562,6 +570,8 @@ export async function copyForkResourceContainers(
         ...base,
         id: childKbId,
         workspaceId: childWorkspaceId,
+        /** Same reasoning as the table copy above: folders do not transit a fork edge. */
+        folderId: null,
         userId,
         deletedAt: null,
         createdAt: now,

@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { getSession } from '@/lib/auth'
 import { Home } from '@/app/workspace/[workspaceId]/home/home'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { resolveTableViewsEnabled } from '@/app/workspace/[workspaceId]/home/resolve-table-views-flag'
 
 export const metadata: Metadata = {
   title: 'Chat',
@@ -16,14 +17,17 @@ interface ChatPageProps {
 }
 
 export default async function ChatPage({ params }: ChatPageProps) {
-  const [{ chatId }, session] = await Promise.all([params, getSession()])
+  const [{ workspaceId, chatId }, session] = await Promise.all([params, getSession()])
+  const userId = session?.user?.id
+  const tableViewsEnabled = await resolveTableViewsEnabled(workspaceId, userId)
   return (
     <Suspense fallback={<HomeFallback />}>
       <Home
         key={chatId}
         chatId={chatId}
         userName={session?.user?.name}
-        userId={session?.user?.id}
+        userId={userId}
+        tableViewsEnabled={tableViewsEnabled}
       />
     </Suspense>
   )

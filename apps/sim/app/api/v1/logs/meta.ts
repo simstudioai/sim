@@ -1,3 +1,4 @@
+import { buildRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
@@ -74,9 +75,7 @@ export function createApiResponse<T>(
       limits,
     },
     headers: {
-      'X-RateLimit-Limit': apiRateLimit.limit.toString(),
-      'X-RateLimit-Remaining': apiRateLimit.remaining.toString(),
-      'X-RateLimit-Reset': apiRateLimit.resetAt.toISOString(),
+      ...buildRateLimitHeaders(apiRateLimit),
     },
   }
 }

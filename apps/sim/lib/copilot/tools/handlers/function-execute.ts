@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
-import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -160,6 +158,47 @@ async function pushWorkspaceFileMount(
   mounted.buffered += buffer.length
 }
 
+/**
+ * Explains why a VFS path the agent legitimately discovered cannot be mounted, and
+ * what to do instead. Only workspace `files/` are backed by storage the sandbox can
+ * fetch from — `internal/` is served by the copilot backend and its bytes never reach
+ * Sim, `uploads/` is chat-scoped, `recently-deleted/` is archived, and the remaining
+ * namespaces are metadata views rather than stored file bytes. Returns null for
+ * `files/` references, where "not found" is the honest answer.
+ *
+ * These paths are correct and are advertised to the model as read/grep-able, so the
+ * generic not-found message ("copy the exact canonical path") is actively wrong for
+ * them: it sends the agent hunting for a path that does not exist.
+ */
+function unmountableNamespaceReason(filePath: string): string | null {
+  // Trailing slash so a bare namespace passed as a directory matches the same prefixes
+  // as a file path inside it.
+  const path = `${filePath.replace(/^\/+|\/+$/g, '')}/`
+
+  if (path.startsWith('uploads/')) {
+    return 'uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.'
+  }
+  if (path.startsWith('internal/tool-results/')) {
+    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (function_execute: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
+  }
+  if (path.startsWith('internal/')) {
+    return 'internal/ paths are served by the copilot backend, not from workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — read or grep it and inline the values you need in code instead of mounting it.'
+  }
+  if (path.startsWith('recently-deleted/')) {
+    return 'deleted resources are not mountable into the sandbox. Use restore_resource to restore it first, then mount the restored files/... path.'
+  }
+  if (path.startsWith('tables/')) {
+    return 'tables are not mounted as files. Pass the table in inputs.tables instead and it is mounted as CSV.'
+  }
+  const namespace = /^(workflows|knowledgebases|components|environment|agent|jobs|tasks)\//.exec(
+    path
+  )?.[1]
+  if (namespace) {
+    return `${namespace}/ paths are VFS metadata views, not stored file bytes, so the sandbox cannot mount them. This path is correct — read or grep it and inline the values you need in code.`
+  }
+  return null
+}
+
 interface CanonicalFileInput {
   path: string
   sandboxPath?: string
@@ -204,7 +243,6 @@ export async function resolveInputFiles(
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
   const mounted: MountedBytes = { buffered: 0, url: 0 }
-  const betaEnabled = await isFeatureEnabled('mothership-beta')
 
   if (inputFiles?.length && workspaceId) {
     if (inputFiles.length > MAX_MOUNTED_FILES) {
@@ -212,9 +250,7 @@ export async function resolveInputFiles(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const allFiles = await listWorkspaceFiles(workspaceId, {
-      includeReservedSystemFiles: betaEnabled,
-    })
+    const allFiles = await listWorkspaceFiles(workspaceId)
     for (const fileRef of inputFiles) {
       const filePath =
         typeof fileRef === 'string'
@@ -223,21 +259,11 @@ export async function resolveInputFiles(
             ? (fileRef as CanonicalFileInput).path
             : undefined
       if (!filePath) continue
-      const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: filePath })
-      if (!alias && isPlanAliasPath(filePath)) {
-        logger.warn('Unsupported plan alias input file path', { filePath })
-        continue
-      }
-      if (alias?.kind === 'plans_dir') {
-        logger.warn('Input file is a plan alias directory', { filePath })
-        continue
-      }
-      const record = findWorkspaceFileRecord(allFiles, alias?.backingPath ?? filePath)
+      const record = findWorkspaceFileRecord(allFiles, filePath)
       if (!record) {
-        if (filePath.startsWith('uploads/')) {
-          throw new Error(
-            `Cannot mount "${filePath}": uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.`
-          )
+        const unmountable = unmountableNamespaceReason(filePath)
+        if (unmountable) {
+          throw new Error(`Cannot mount "${filePath}": ${unmountable}`)
         }
         throw new Error(
           `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
@@ -247,21 +273,14 @@ export async function resolveInputFiles(
         typeof fileRef === 'object' && fileRef !== null
           ? (fileRef as CanonicalFileInput).sandboxPath
           : undefined
-      const mountPath =
-        explicitSandboxPath ||
-        (alias ? workflowAliasSandboxPath(alias.aliasPath) : getSandboxWorkspaceFilePath(record))
+      const mountPath = explicitSandboxPath || getSandboxWorkspaceFilePath(record)
       await pushWorkspaceFileMount(sandboxFiles, record, mountPath, mounted)
     }
   }
 
   if (inputDirectories?.length && workspaceId) {
-    const folders = await listWorkspaceFileFolders(workspaceId, {
-      includeReservedSystemFolders: betaEnabled,
-    })
-    const allFiles = await listWorkspaceFiles(workspaceId, {
-      folders,
-      includeReservedSystemFiles: betaEnabled,
-    })
+    const folders = await listWorkspaceFileFolders(workspaceId)
+    const allFiles = await listWorkspaceFiles(workspaceId, { folders })
     for (const dirRef of inputDirectories) {
       const dirPath =
         typeof dirRef === 'string'
@@ -270,28 +289,23 @@ export async function resolveInputFiles(
             ? (dirRef as CanonicalDirectoryInput).path
             : undefined
       if (!dirPath) continue
-      const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: dirPath })
-      if (alias && alias.kind !== 'plans_dir') {
-        throw new Error(`Input directory is a plan alias file, not a directory: ${dirPath}`)
-      }
-      if (!alias && isPlanAliasPath(dirPath)) {
-        throw new Error(`Unsupported plan alias directory: ${dirPath}`)
-      }
-      const backingDirPath = alias?.backingPath ?? dirPath
-      const folderSegments = decodeVfsPathSegments(backingDirPath.replace(/^\/?files\/?/, ''))
+      const folderSegments = decodeVfsPathSegments(dirPath.replace(/^\/?files\/?/, ''))
       const folderDisplayPath = folderSegments.join('/')
       const folder = folders.find((candidate) => candidate.path === folderDisplayPath)
       if (!folder) {
-        throw new Error(`Input directory not found: ${dirPath}`)
+        const unmountable = unmountableNamespaceReason(dirPath)
+        throw new Error(
+          unmountable
+            ? `Cannot mount "${dirPath}": ${unmountable}`
+            : `Input directory not found: "${dirPath}". Pass a canonical workspace folder path copied from glob/read (e.g. "files/Reports").`
+        )
       }
       const mountRoot =
         typeof dirRef === 'object' &&
         dirRef !== null &&
         (dirRef as CanonicalDirectoryInput).sandboxPath
           ? (dirRef as CanonicalDirectoryInput).sandboxPath!
-          : alias
-            ? workflowAliasSandboxPath(alias.aliasPath)
-            : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
+          : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
       const descendants = allFiles.filter((file) => {
         if (!file.folderPath) return false
         return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
@@ -330,11 +344,7 @@ export async function resolveInputFiles(
       for (const record of descendants) {
         const relativeFolder =
           record.folderPath?.slice(folder.path.length).replace(/^\/+/, '') ?? ''
-        const relativePath = alias
-          ? encodeVfsPathSegments(
-              [relativeFolder, record.name].filter(Boolean).join('/').split('/')
-            )
-          : [relativeFolder, record.name].filter(Boolean).join('/')
+        const relativePath = [relativeFolder, record.name].filter(Boolean).join('/')
         await pushWorkspaceFileMount(sandboxFiles, record, `${mountRoot}/${relativePath}`, mounted)
       }
     }

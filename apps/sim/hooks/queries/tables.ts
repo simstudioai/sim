@@ -39,12 +39,14 @@ import {
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
+  createTableViewContract,
   type DeleteTableRowsAsyncBody,
   deleteTableColumnContract,
   deleteTableContract,
   deleteTableRowContract,
   deleteTableRowsAsyncContract,
   deleteTableRowsContract,
+  deleteTableViewContract,
   deleteWorkflowGroupContract,
   exportDownloadContract,
   exportTableAsyncContract,
@@ -58,6 +60,7 @@ import {
   listTableJobsContract,
   listTableRowsContract,
   listTablesContract,
+  listTableViewsContract,
   type RunLimit,
   type RunMode,
   renameTableContract,
@@ -69,6 +72,8 @@ import {
   type TableLocksInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
+  type TableViewConfigInput,
+  type TableViewWire,
   type UpdateTableColumnBodyInput,
   type UpdateTableRowBodyInput,
   type UpdateWorkflowGroupBodyInput,
@@ -76,6 +81,7 @@ import {
   updateTableContract,
   updateTableMetadataContract,
   updateTableRowContract,
+  updateTableViewContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -105,6 +111,7 @@ import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
+  TABLE_VIEWS_STALE_TIME,
   type TableQueryScope,
   tableKeys,
 } from '@/hooks/queries/utils/table-keys'
@@ -632,6 +639,46 @@ export function useUpdateTableLocks(workspaceId: string) {
     onSettled: (_data, _error, { tableId }) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+/**
+ * Move a table into a folder, or to the workspace root with `folderId: null`.
+ *
+ * Optimistically repoints `folderId` in the cached active list so the row leaves
+ * the current folder the instant the move is issued; the list is the only surface
+ * that renders folder placement, so no other cache entry needs patching.
+ */
+export function useMoveTable(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ tableId, folderId }: { tableId: string; folderId: string | null }) => {
+      return requestJson(updateTableContract, {
+        params: { tableId },
+        body: { workspaceId, folderId },
+      })
+    },
+    onMutate: async ({ tableId, folderId }) => {
+      const listKey = tableKeys.list(workspaceId, 'active')
+      await queryClient.cancelQueries({ queryKey: listKey })
+      const snapshot = queryClient.getQueryData<TableDefinition[]>(listKey)
+      queryClient.setQueryData<TableDefinition[]>(listKey, (old) =>
+        old?.map((table) => (table.id === tableId ? { ...table, folderId } : table))
+      )
+      return { snapshot }
+    },
+    onError: (error, _variables, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(tableKeys.list(workspaceId, 'active'), context.snapshot)
+      }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableId }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
   })
 }
@@ -1389,6 +1436,123 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
   })
 }
 
+/**
+ * Saved views on a table. The built-in "All" entry is the absence of a view and
+ * is rendered client-side, so this list contains only user-created views and is
+ * legitimately empty for a table nobody has saved a view on.
+ */
+export function useTableViews({
+  workspaceId,
+  tableId,
+  enabled = true,
+}: RowMutationContext & {
+  /** Carries the `table-views` flag, so a gated-off table never fetches. */
+  enabled?: boolean
+}) {
+  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
+  return useQuery({
+    queryKey: tableKeys.views(tableId),
+    queryFn: async ({ signal }) => {
+      const response = await requestJson(listTableViewsContract, {
+        params: { tableId },
+        query: { workspaceId },
+        signal,
+      })
+      return response.data.views
+    },
+    enabled: enabled && Boolean(workspaceId && tableId),
+    staleTime: TABLE_VIEWS_STALE_TIME,
+  })
+}
+
+export function useCreateTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ name, config }: { name: string; config: TableViewConfigInput }) => {
+      const response = await requestJson(createTableViewContract, {
+        params: { tableId },
+        body: { workspaceId, name, config },
+      })
+      return response.data.view
+    },
+    // Seed the new view into the list before the refetch lands, so the URL can
+    // select it immediately without naming a view the dropdown doesn't have yet.
+    onSuccess: (view) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev ? [...prev, view] : [view]
+      )
+    },
+    // Returned so the mutation stays pending until the refetch settles — otherwise
+    // the Save chip re-enables and flashes dirty against a stale cached config.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
+interface UpdateTableViewParams {
+  viewId: string
+  name?: string
+  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
+  config?: TableViewConfigInput
+  /** Server-side shallow merge — used for the grid's incremental layout writes. */
+  configPatch?: TableViewConfigInput
+  isDefault?: boolean
+}
+
+/**
+ * Patches one view — overwrite its config, rename it, or promote it to default.
+ * `isDefault: true` demotes the previous default server-side, so the whole list
+ * is invalidated rather than just the edited row.
+ */
+export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
+      const response = await requestJson(updateTableViewContract, {
+        params: { tableId, viewId },
+        body: { workspaceId, name, config, configPatch, isDefault },
+      })
+      return response.data.view
+    },
+    // Without this the edited view's cached config stays stale until the refetch,
+    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    onSuccess: (view) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev?.map((existing) => {
+          if (existing.id !== view.id) return existing
+          // Layout auto-saves and an explicit Save fire concurrently, and their
+          // responses can arrive out of order. The DB merge is authoritative, so
+          // only let a row at least as new as the cached one win — otherwise a
+          // slower response rewinds the cache until the refetch lands.
+          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+        })
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
+export function useDeleteTableView({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (viewId: string) => {
+      await requestJson(deleteTableViewContract, {
+        params: { tableId, viewId },
+        body: { workspaceId },
+      })
+      return viewId
+    },
+    onSuccess: (viewId) => {
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
+        prev?.filter((view) => view.id !== viewId)
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+  })
+}
+
 interface CancelRunsParams {
   scope: 'all' | 'row'
   rowId?: string
@@ -1554,6 +1718,8 @@ export function useRestoreTable() {
 
 interface UploadCsvParams {
   workspaceId: string
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId?: string | null
   file: File
 }
 
@@ -1565,11 +1731,13 @@ export function useUploadCsvToTable() {
   const timezone = useTimezone()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
+    mutationFn: async ({ workspaceId, folderId, file }: UploadCsvParams) => {
       // Text fields must precede the file part: the server parses the body as a
-      // stream and needs workspaceId before it reaches the (large) file.
+      // stream and resolves as soon as it reaches the file, so any field appended
+      // after it is never seen.
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
+      if (folderId) formData.append('folderId', folderId)
       formData.append('timezone', timezone)
       formData.append('file', file)
 
@@ -1604,6 +1772,8 @@ export function useUploadCsvToTable() {
 
 interface ImportCsvAsyncParams {
   workspaceId: string
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId?: string | null
   file: File
   onProgress?: (percent: number) => void
 }
@@ -1636,10 +1806,10 @@ export function useImportCsvAsync() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
   return useMutation({
-    mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
+    mutationFn: async ({ workspaceId, folderId, file, onProgress }: ImportCsvAsyncParams) => {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName: file.name, timezone },
+        body: { workspaceId, folderId, fileKey, fileName: file.name, timezone },
       })
       return response.data
     },

@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
+  Cursor,
   Database,
   HexSimple,
   Key,
@@ -9,6 +10,7 @@ import {
   Lock,
   LogIn,
   Palette,
+  PanelLeft,
   Send,
   Server,
   Settings,
@@ -24,7 +26,17 @@ import {
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  isAccessControlEnabled,
+  isAuditLogsEnabled,
+  isDataDrainsEnabled,
+  isDataRetentionEnabled,
+  isHosted,
+  isInboxEnabled,
+  isSessionPoliciesEnabled,
+  isSsoEnabled,
+  isWhitelabelingEnabled,
+} from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
 
@@ -79,6 +91,9 @@ export interface SettingsNavigationItem<Section extends string = string> {
 
 export type UnifiedSettingsSection =
   | 'general'
+  | 'desktop'
+  | 'browser'
+  | 'terminal'
   | 'secrets'
   | 'access-control'
   | 'custom-blocks'
@@ -107,8 +122,16 @@ export type UnifiedNavigationSection =
   | 'subscription'
   | 'tools'
   | 'system'
+  | 'desktop'
   | 'enterprise'
   | 'superuser'
+
+/**
+ * A bridge surface the desktop shell must expose for a section to be worth
+ * showing. Gated on the surface, never on the user's device toggle — the
+ * Browser and Terminal pages are where that toggle is flipped back on.
+ */
+export type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
 export interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
@@ -124,6 +147,7 @@ export interface UnifiedSettingsNavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  requiresDesktopSurface?: DesktopSettingsSurface
   allowNonOrgAdmin?: boolean
   showWhenLocked?: boolean
   hideForEnterprise?: boolean
@@ -166,16 +190,27 @@ export interface SettingsSectionRegistryEntry {
   planes?: SettingsPlaneProjections
 }
 
+/**
+ * Which enterprise sections a self-hosted deployment may show.
+ *
+ * These read the same resolved flags the server gates use, so a section is
+ * visible exactly when its API would accept the request. Reading the raw
+ * `NEXT_PUBLIC_*` vars here instead is what previously let nav and server
+ * disagree — a feature could be reachable but hidden, or listed but rejected.
+ *
+ * `customBlocks` stays on its own var because its server gate runs through the
+ * AppConfig-backed feature-flag service rather than the entitlement resolver.
+ */
 const SETTINGS_SELF_HOSTED_OVERRIDES = {
-  accessControl: isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED')),
-  auditLogs: isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED')),
+  accessControl: isAccessControlEnabled,
+  auditLogs: isAuditLogsEnabled,
   customBlocks: isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED')),
-  dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
-  dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
-  inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
-  sessionPolicies: isTruthy(getEnv('NEXT_PUBLIC_SESSION_POLICIES_ENABLED')),
-  sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
-  whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
+  dataDrains: isDataDrainsEnabled,
+  dataRetention: isDataRetentionEnabled,
+  inbox: isInboxEnabled,
+  sessionPolicies: isSessionPoliciesEnabled,
+  sso: isSsoEnabled,
+  whitelabeling: isWhitelabelingEnabled,
 } as const
 
 export const SETTINGS_NAVIGATION_BILLING_ENABLED = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -330,6 +365,36 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     planes: {
       account: { id: 'general', group: 'account', order: 0 },
       selfhost: { id: 'general', group: 'account', order: 0 },
+    },
+  },
+  {
+    label: 'Desktop',
+    icon: PanelLeft,
+    unified: {
+      id: 'desktop',
+      description: 'Manage notifications, startup, local folders, and updates.',
+      group: 'desktop',
+      requiresDesktopSurface: 'settings',
+    },
+  },
+  {
+    label: 'Browser',
+    icon: Cursor,
+    unified: {
+      id: 'browser',
+      description: 'Control the browser Chat drives and the data it keeps.',
+      group: 'desktop',
+      requiresDesktopSurface: 'browser',
+    },
+  },
+  {
+    label: 'Terminal',
+    icon: TerminalWindow,
+    unified: {
+      id: 'terminal',
+      description: 'Control the shells Chat runs commands in.',
+      group: 'desktop',
+      requiresDesktopSurface: 'terminal',
     },
   },
   {

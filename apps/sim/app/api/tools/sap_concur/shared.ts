@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { isPrivateIpHost } from '@sim/security/ssrf'
 import { z } from 'zod'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
@@ -108,30 +109,6 @@ const FORBIDDEN_HOSTS = new Set([
   '[fd00:ec2::254]',
 ])
 
-function isPrivateIPv4(host: string): boolean {
-  const match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
-  if (!match) return false
-  const octets = match.slice(1, 5).map(Number) as [number, number, number, number]
-  if (octets.some((o) => o < 0 || o > 255)) return false
-  const [a, b] = octets
-  if (a === 10) return true
-  if (a === 172 && b >= 16 && b <= 31) return true
-  if (a === 192 && b === 168) return true
-  if (a === 127) return true
-  if (a === 169 && b === 254) return true
-  if (a === 0) return true
-  return false
-}
-
-function isPrivateOrLoopbackIPv6(host: string): boolean {
-  const stripped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
-  const lower = stripped.toLowerCase()
-  if (lower === '::' || lower === '::1') return true
-  if (/^fc[0-9a-f]{2}:/.test(lower) || /^fd[0-9a-f]{2}:/.test(lower)) return true
-  if (lower.startsWith('fe80:')) return true
-  return false
-}
-
 /** Validate a URL is https and not pointing to a private/loopback host. */
 export function assertSafeExternalUrl(rawUrl: string, label: string): URL {
   let parsed: URL
@@ -147,11 +124,8 @@ export function assertSafeExternalUrl(rawUrl: string, label: string): URL {
   if (FORBIDDEN_HOSTS.has(host) || FORBIDDEN_HOSTS.has(`[${host}]`)) {
     throw new Error(`${label} host is not allowed`)
   }
-  if (isPrivateIPv4(host)) {
+  if (isPrivateIpHost(host)) {
     throw new Error(`${label} host is not allowed (private/loopback range)`)
-  }
-  if (isPrivateOrLoopbackIPv6(host)) {
-    throw new Error(`${label} host is not allowed (IPv6 private/loopback)`)
   }
   return parsed
 }

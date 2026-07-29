@@ -12,14 +12,12 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { createLogger } from '@sim/logger'
 import type {
   PiBackendRun,
   PiLocalRunParams,
   PiRunContext,
   PiRunResult,
-  PiToolSpec,
 } from '@/executor/handlers/pi/backend'
 import { buildPiPrompt } from '@/executor/handlers/pi/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/events'
@@ -29,6 +27,7 @@ import {
   loadPiSdk,
   type PiSdk,
   resolvePiSdkModel,
+  toPiTool,
 } from '@/executor/handlers/pi/pi-sdk'
 import {
   createScrubbedPiError,
@@ -57,29 +56,6 @@ const LOCAL_GUIDANCE =
   'operate on the target repository. Do not commit, push, or open a pull request — leave your changes in the ' +
   'working tree; Sim reports them after you finish.'
 
-function isToolArguments(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function toPiTool(sdk: PiSdk, spec: PiToolSpec, secrets: readonly string[]): ToolDefinition {
-  return sdk.defineTool({
-    name: spec.name,
-    label: spec.name,
-    description: spec.description,
-    parameters: spec.parameters,
-    execute: async (_toolCallId, params) => {
-      if (!isToolArguments(params)) throw new Error('Pi tool arguments must be an object')
-      const result = await spec.execute(params).catch((error) => {
-        throw createScrubbedPiError(error, secrets, 'Pi tool failed')
-      })
-      return {
-        content: [{ type: 'text', text: scrubPiSecrets(result.text, secrets) }],
-        details: { isError: result.isError },
-      }
-    },
-  })
-}
-
 async function runLocalAgent(
   sdk: PiSdk,
   session: PiSshSession,
@@ -101,7 +77,14 @@ async function runLocalAgent(
       )
     }
 
-    const specs = [...buildSshToolSpecs(session, params.repoPath), ...params.tools]
+    // `params.search.tool` is the single arrival path for the search tool: the handler builds it
+    // (it needs the ExecutionContext, which backends never receive) and appending it here rather
+    // than into `params.tools` keeps it from being registered twice.
+    const specs = [
+      ...buildSshToolSpecs(session, params.repoPath),
+      ...params.tools,
+      ...(params.search?.tool ? [params.search.tool] : []),
+    ]
     const customTools = specs.map((spec) => toPiTool(sdk, spec, secrets))
     const { session: agentSession } = await sdk.createAgentSession({
       cwd: isolatedDir,
@@ -197,15 +180,16 @@ async function runLocalPiInternal(
 
 /**
  * Runs local Pi with boundary-specific secret redaction. The model credential can surface through
- * provider/SDK output, so agent-visible text is scrubbed against it. SSH authentication material is
- * consumed only while opening the host-side connection; keeping it out of agent-content redaction
- * avoids corrupting unrelated repository text when a password or passphrase is a short common value.
+ * provider/SDK output and the search key through a provider error, so agent-visible text is scrubbed
+ * against both. SSH authentication material is consumed only while opening the host-side connection;
+ * keeping it out of agent-content redaction avoids corrupting unrelated repository text when a
+ * password or passphrase is a short common value.
  * All credentials still participate in the outer error scrub in case connection setup echoes one.
  */
 export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context) => {
-  const agentSecrets = [params.apiKey]
+  const agentSecrets = [params.apiKey, params.search?.apiKey ?? '']
   const boundarySecrets = [
-    params.apiKey,
+    ...agentSecrets,
     params.ssh.password ?? '',
     params.ssh.privateKey ?? '',
     params.ssh.passphrase ?? '',

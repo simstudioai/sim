@@ -56,14 +56,6 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'mothership-beta': {
-    description:
-      'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler. ' +
-      'Note: userId/orgId targeting only works for WorkspaceVfs (resolved in materialize). ' +
-      'getE2BDocFormat, resolveInputFiles, and resolveWorkflowAliasForWorkspace evaluate without ' +
-      'user context — use enabled:true for global rollout rather than per-user targeting.',
-    fallback: 'MOTHERSHIP_BETA_FEATURES',
-  },
   'table-snapshot-cache': {
     description:
       'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +
@@ -128,6 +120,17 @@ const FEATURE_FLAGS = {
       'created unlocked and forks reset locks, an off flag means no table can become locked, so ' +
       'the woven-in asserts stay no-ops. Off-AppConfig falls back to TABLE_LOCKS.',
     fallback: 'TABLE_LOCKS',
+  },
+  'table-views': {
+    description:
+      'Saved table views (named filter/sort/column-visibility presets) plus the column show/hide ' +
+      'menu, in the table-detail options bar. UI-only gate: resolved in the table page (server) ' +
+      "and passed down, so the table falls back to today's Filter/Sort bar when off. The routes " +
+      'and the table_views table ship ungated — they are inert with no UI to call them, and a view ' +
+      'saved during a rollout must survive the flag being toggled back off. Embedded (mothership) ' +
+      'tables render without views regardless, since no server context resolves the flag there. ' +
+      'Off-AppConfig falls back to TABLE_VIEWS.',
+    fallback: 'TABLE_VIEWS',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

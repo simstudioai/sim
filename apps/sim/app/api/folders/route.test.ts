@@ -545,8 +545,9 @@ describe('Folders API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create workflow folder', {
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create folder', {
         error: expect.any(Error),
+        resourceType: 'workflow',
       })
     })
 
@@ -578,36 +579,6 @@ describe('Folders API Route', () => {
 
       expect(capturedValues).not.toBeNull()
       expect(capturedValues!.name).toBe('Test Folder With Spaces')
-    })
-
-    it('should use default color when not provided', async () => {
-      mockAuthenticatedUser()
-
-      let capturedValues: CapturedFolderValues | null = null
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[], []],
-          insertResult: [mockFolders[0]],
-          onInsertValues: (values) => {
-            capturedValues = values
-          },
-        })
-      )
-      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
-        capturedValues = values
-        return { returning: mockReturning }
-      })
-
-      const req = createMockRequest('POST', {
-        name: 'Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      await POST(req)
-
-      expect(capturedValues).not.toBeNull()
-      expect(capturedValues!.color).toBe('#6B7280')
     })
   })
 })

@@ -37,6 +37,8 @@ export interface GeneralSettings {
   errorNotificationsEnabled: boolean
   snapToGridSize: number
   showActionBar: boolean
+  /** Copilot tool ids the user picked "always allow" for. */
+  copilotAutoAllowedTools: string[]
   /** Saved IANA timezone, or `null` when unset (the app falls back to the browser zone). */
   timezone: string | null
 }
@@ -57,6 +59,7 @@ export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettin
     errorNotificationsEnabled: data.errorNotificationsEnabled,
     snapToGridSize: data.snapToGridSize,
     showActionBar: data.showActionBar,
+    copilotAutoAllowedTools: data.copilotAutoAllowedTools ?? [],
     timezone: data.timezone ?? null,
   }
 }

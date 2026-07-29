@@ -89,7 +89,6 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             workspaceId: workspaceIdRef.current,
             name: duplicateName,
             parentId: folder.parentId,
-            color: folder.color,
             newId: generateId(),
           })
 

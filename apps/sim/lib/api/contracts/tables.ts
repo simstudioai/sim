@@ -1,5 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import {
+  folderIdSchema,
+  requiredFieldSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import type {
@@ -17,6 +22,7 @@ import type {
   TablePredicate,
   TableRow,
   TableRowsCursor,
+  TableViewConfig,
 } from '@/lib/table'
 import {
   COLUMN_TYPES,
@@ -38,7 +44,7 @@ export const columnTypeSchema = z.enum(COLUMN_TYPES)
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
-  id: z.string().min(1, 'Option id is required'),
+  id: requiredFieldSchema('Option id is required'),
   name: z
     .string()
     .min(1, 'Option name is required')
@@ -137,12 +143,12 @@ export const tableRowParamsSchema = tableIdParamsSchema.extend({
 })
 
 export const listTablesQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   scope: tableScopeSchema.default('active'),
 })
 
 export const getTableQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
 })
 
 export const tableColumnSchema = z
@@ -174,12 +180,18 @@ export const createTableBodySchema = z.object({
         `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
       ),
   }),
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
+  /**
+   * Folder to create the table in. Omitted or `null` creates it at the workspace
+   * root — both spellings are accepted so a client can pass the current folder
+   * through unconditionally.
+   */
+  folderId: folderIdSchema.nullable().optional(),
   initialRowCount: z.number().int().min(0).max(100).optional(),
 })
 
 export const renameTableBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   name: tableNameSchema,
 })
 
@@ -192,28 +204,32 @@ export const tableLocksSchema = z.object({
 }) satisfies z.ZodType<TableLocks>
 
 /**
- * PATCH /api/table/[tableId] body. Both fields are optional but at least one
- * must be present. `name` is a `write`-level rename; `locks` is an
- * admin-only governance change (a partial — only the toggled flags are sent).
+ * PATCH /api/table/[tableId] body. Every field is optional but at least one
+ * must be present. `name` is a `write`-level rename; `folderId` is a
+ * `write`-level move (explicit `null` moves the table to the workspace root, and
+ * omission leaves the placement untouched — the tri-state is deliberate here);
+ * `locks` is an admin-only governance change (a partial — only the toggled flags
+ * are sent).
  */
 export const updateTableBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     name: tableNameSchema.optional(),
+    folderId: folderIdSchema.nullable().optional(),
     locks: tableLocksSchema.partial().optional(),
   })
   .superRefine((body, ctx) => {
-    if (body.name === undefined && body.locks === undefined) {
+    if (body.name === undefined && body.locks === undefined && body.folderId === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Provide a new name or lock changes',
+        message: 'Provide a new name, folder, or lock changes',
         path: ['name'],
       })
     }
   })
 
 export const createTableColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   column: z
     .object({
       // Optional stable id — first-party undo of a delete re-creates the column
@@ -231,7 +247,7 @@ export const createTableColumnBodySchema = z.object({
 })
 
 export const updateTableColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   columnName: columnNameSchema,
   updates: z
     .object({
@@ -246,7 +262,7 @@ export const updateTableColumnBodySchema = z.object({
 })
 
 export const deleteTableColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   columnName: columnNameSchema,
 })
 
@@ -254,10 +270,11 @@ export const tableMetadataSchema = z.object({
   columnWidths: z.record(z.string(), z.number().positive()).optional(),
   columnOrder: z.array(z.string()).optional(),
   pinnedColumns: z.array(z.string()).optional(),
+  hiddenColumns: z.array(z.string()).optional(),
 }) satisfies z.ZodType<TableMetadata>
 
 export const updateTableMetadataBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   metadata: tableMetadataSchema,
 })
 
@@ -271,7 +288,7 @@ export const tableRowSchema = domainObjectSchema<TableRow>()
  * {@link rowAnchorMutexRefine} — Zod forbids `.omit()` on a refined schema.
  */
 export const insertTableRowBodyBaseSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   data: rowDataSchema,
   position: z.number().int().min(0).optional(),
   /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
@@ -294,14 +311,14 @@ export const insertTableRowBodySchema = insertTableRowBodyBaseSchema.refine(...r
  * unique column when omitted).
  */
 export const upsertTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   data: rowDataSchema,
   conflictTarget: z.string().min(1).optional(),
 })
 
 export const batchInsertTableRowsBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     rows: z
       .array(rowDataSchema)
       .min(1, 'At least one row is required')
@@ -329,12 +346,12 @@ export const insertTableRowsBodySchema = z.union([
 ])
 
 export const updateTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   data: rowDataSchema,
 })
 
 export const batchUpdateTableRowsBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   updates: z
     .array(
       z.object({
@@ -507,12 +524,12 @@ const optionalPositiveLimit = (max: number, label: string) =>
   )
 
 export const deleteTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
 })
 
 export const deleteTableRowsBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     filter: bulkFilterSchema.optional(),
     limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
     rowIds: z
@@ -530,7 +547,7 @@ export const deleteTableRowsBodySchema = z
 
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   filter: domainObjectSchema<Filter>().optional(),
   sort: domainObjectSchema<Sort>().optional(),
   /**
@@ -577,7 +594,7 @@ export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
 )
 
 export const updateRowsByFilterBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   filter: bulkFilterSchema,
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
@@ -630,9 +647,11 @@ export const createTableContract = defineRouteContract({
  * `importing` table and runs the load in the background.
  */
 export const importTableAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  fileKey: z.string().min(1, 'fileKey is required'),
-  fileName: z.string().min(1, 'fileName is required'),
+  workspaceId: workspaceIdSchema,
+  fileKey: requiredFieldSchema('fileKey is required'),
+  fileName: requiredFieldSchema('fileName is required'),
+  /** Folder to create the imported table in; omitted or `null` imports to the workspace root. */
+  folderId: folderIdSchema.nullable().optional(),
   /**
    * Whether the source object is deleted once the import is terminal. Defaults to true (the upload
    * flow stores a single-use temp object); pass false when importing an existing workspace file
@@ -841,8 +860,8 @@ export const rowQueryContract = defineRouteContract({
 export type RowQueryResponse = ContractJsonResponse<typeof rowQueryContract>
 
 export const findTableRowsQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  q: z.string().min(1, 'Search query is required'),
+  workspaceId: workspaceIdSchema,
+  q: requiredFieldSchema('Search query is required'),
   filter: domainObjectSchema<Filter>().optional(),
   sort: domainObjectSchema<Sort>().optional(),
 })
@@ -976,6 +995,8 @@ export const csvFileSchema = z
 export const csvImportFormSchema = z.object({
   file: csvFileSchema,
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId: folderIdSchema.optional(),
 })
 
 export const csvImportModeSchema = z.enum(['append', 'replace'])
@@ -990,9 +1011,9 @@ export const csvExtensionSchema = z.enum(['csv', 'tsv'], {
  * resolved column mapping (the dialog computes them from its preview).
  */
 export const importIntoTableAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  fileKey: z.string().min(1, 'fileKey is required'),
-  fileName: z.string().min(1, 'fileName is required'),
+  workspaceId: workspaceIdSchema,
+  fileKey: requiredFieldSchema('fileKey is required'),
+  fileName: requiredFieldSchema('fileName is required'),
   mode: csvImportModeSchema,
   mapping: z.record(z.string(), z.string().nullable()).optional(),
   createColumns: z.array(z.string()).optional(),
@@ -1059,7 +1080,7 @@ export const tableExportFormatSchema = z
   .default('csv')
 
 export const exportTableAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   format: z.enum(['csv', 'json']).default('csv'),
 })
 
@@ -1095,7 +1116,7 @@ export const tableJobSummarySchema = z.object({
 export type TableJobSummary = z.output<typeof tableJobSummarySchema>
 
 export const listTableJobsQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   type: z.literal('export'),
 })
 
@@ -1115,8 +1136,8 @@ export const listTableJobsContract = defineRouteContract({
 })
 
 export const exportDownloadQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  jobId: z.string().min(1, 'Job ID is required'),
+  workspaceId: workspaceIdSchema,
+  jobId: requiredFieldSchema('Job ID is required'),
 })
 
 /** Resolves a completed export job to a short-lived presigned download URL. */
@@ -1270,7 +1291,7 @@ export const deleteTableRowsContract = defineRouteContract({
  * worker deletes in paginated batches. Omitting `filter` deletes the whole table (at the cutoff).
  */
 export const deleteTableRowsAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   filter: nonEmptyFilterSchema.optional(),
   excludeRowIds: z
     .array(z.string().min(1))
@@ -1342,7 +1363,7 @@ export const groupIdParamsSchema = tableIdParamsSchema.extend({
 })
 
 export const addWorkflowGroupBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   group: z.object({
     id: z.string().min(1),
     /** Workflow id for manual groups; `''` (or omitted) for enrichment groups. */
@@ -1387,7 +1408,7 @@ const workflowGroupMappingUpdateSchema = z.object({
 })
 
 export const updateWorkflowGroupBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   groupId: z.string().min(1),
   workflowId: z.string().min(1).optional(),
   name: z.string().optional(),
@@ -1411,7 +1432,7 @@ export const updateWorkflowGroupBodySchema = z.object({
 })
 
 export const deleteWorkflowGroupBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   groupId: z.string().min(1),
 })
 
@@ -1463,7 +1484,7 @@ export const deleteWorkflowGroupContract = defineRouteContract({
  */
 export const cancelTableRunsBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
     filter: domainObjectSchema<Filter>().optional(),
@@ -1512,8 +1533,8 @@ export const cancelTableRunsContract = defineRouteContract({
 })
 
 export const cancelTableJobBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  jobId: z.string().min(1, 'Job ID is required'),
+  workspaceId: workspaceIdSchema,
+  jobId: requiredFieldSchema('Job ID is required'),
 })
 
 /**
@@ -1564,7 +1585,7 @@ export const runLimitSchema = z.object({
 
 export const runColumnBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     groupIds: z.array(z.string().min(1)).min(1),
     runMode: z.enum(['all', 'incomplete']).default('all'),
     rowIds: z.array(z.string().min(1)).min(1).optional(),
@@ -1689,3 +1710,127 @@ export const tableEventStreamContract = defineRouteContract({
     mode: 'stream',
   },
 })
+
+/**
+ * A saved view's stored shape: `TableMetadata`'s column layout plus the row
+ * predicate and sort. Every column reference is a stable column id, so a rename
+ * never invalidates a view.
+ */
+export const tableViewConfigSchema = tableMetadataSchema.extend({
+  filter: filterSchema.nullable().optional(),
+  sort: domainObjectSchema<Sort>().nullable().optional(),
+}) satisfies z.ZodType<TableViewConfig>
+
+export const tableViewSchema = z.object({
+  id: z.string(),
+  tableId: z.string(),
+  name: z.string(),
+  config: tableViewConfigSchema,
+  isDefault: z.boolean(),
+  createdBy: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+/** Free-form display label — no character set or length restriction, unlike the
+ *  identifier-shaped table/column names. Only emptiness is rejected, since a
+ *  blank name renders as an unselectable gap in the views dropdown. */
+const viewNameSchema = z.string().trim().min(1, 'View name is required')
+
+export const tableViewParamsSchema = tableIdParamsSchema.extend({
+  viewId: z.string().min(1),
+})
+
+export const listTableViewsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+})
+
+export const listTableViewsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/views',
+  params: tableIdParamsSchema,
+  query: listTableViewsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ views: z.array(tableViewSchema) })),
+  },
+})
+
+export const createTableViewBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  name: viewNameSchema,
+  config: tableViewConfigSchema,
+})
+
+export const createTableViewContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/views',
+  params: tableIdParamsSchema,
+  body: createTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ view: tableViewSchema })),
+  },
+})
+
+/**
+ * Every field is optional so the three call sites — overwrite a view's config,
+ * rename it, promote it to default — share one endpoint and send only what they
+ * change. `isDefault: true` demotes the table's existing default server-side.
+ */
+export const updateTableViewBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    name: viewNameSchema.optional(),
+    /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
+    config: tableViewConfigSchema.optional(),
+    /**
+     * Shallow-merged into the stored config server-side (jsonb `||`), so concurrent
+     * partial writes can't clobber each other from a stale client snapshot. Use for
+     * the grid's incremental layout saves.
+     */
+    configPatch: tableViewConfigSchema.optional(),
+    isDefault: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.config !== undefined ||
+      value.configPatch !== undefined ||
+      value.isDefault !== undefined,
+    { message: 'Provide at least one of name, config, configPatch, or isDefault' }
+  )
+  .refine((value) => !(value.config !== undefined && value.configPatch !== undefined), {
+    message: 'config and configPatch are mutually exclusive',
+  })
+
+export const updateTableViewContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: updateTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ view: tableViewSchema })),
+  },
+})
+
+export const deleteTableViewBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+})
+
+export const deleteTableViewContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/table/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: deleteTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ deleted: z.literal(true) })),
+  },
+})
+
+export type TableViewWire = z.output<typeof tableViewSchema>
+export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
+export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
+export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>

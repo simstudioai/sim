@@ -19,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Table as TableIcon } from '@sim/emcn/icons'
+import { Calendar, Clock, Cursor, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -73,6 +73,33 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   generate_video: VideoIcon,
   generate_audio: TTSIcon,
   ffmpeg: Wrench,
+  browser: Cursor,
+  browser_navigate: Cursor,
+  browser_go_back: Cursor,
+  browser_go_forward: Cursor,
+  browser_open_tab: Cursor,
+  browser_switch_tab: Cursor,
+  browser_close_tab: Cursor,
+  browser_list_tabs: Cursor,
+  browser_wait_for: Cursor,
+  browser_snapshot: Eye,
+  browser_read_text: File,
+  browser_screenshot: Eye,
+  browser_extract: Search,
+  browser_click: Cursor,
+  browser_type: Pencil,
+  browser_press_key: Cursor,
+  browser_scroll: Cursor,
+  browser_select_option: Cursor,
+  browser_hover: Cursor,
+  browser_request_takeover: Cursor,
+  terminal: TerminalWindow,
+  terminal_run: TerminalWindow,
+  terminal_input: TerminalWindow,
+  terminal_read: TerminalWindow,
+  terminal_kill: TerminalWindow,
+  terminal_cwd: TerminalWindow,
+  wait: Clock,
 }
 
 export function getAgentIcon(name: string): IconComponent {
@@ -95,7 +122,7 @@ export function deriveMessagePhase({
   return 'settled'
 }
 
-type ToolDisplayState = 'spinner' | 'cancelled' | 'interrupted' | 'icon'
+type ToolDisplayState = 'spinner' | 'awaiting_approval' | 'cancelled' | 'interrupted' | 'icon'
 
 export function resolveToolDisplayState(status: ToolCallStatus): ToolDisplayState {
   // Pure projection of the tool's own status. A row spins iff it is genuinely
@@ -103,6 +130,9 @@ export function resolveToolDisplayState(status: ToolCallStatus): ToolDisplayStat
   // gating — deterministic terminals (tool `result`, turn propagation) guarantee
   // a row never lingers `executing` after its work is done.
   if (status === 'executing') return 'spinner'
+  // Waiting on a person, not on work: the row renders a permission card rather
+  // than a spinner, so it must not read as in-progress.
+  if (status === 'awaiting_approval') return 'awaiting_approval'
   if (status === 'cancelled') return 'cancelled'
   if (status === 'interrupted') return 'interrupted'
   return 'icon'

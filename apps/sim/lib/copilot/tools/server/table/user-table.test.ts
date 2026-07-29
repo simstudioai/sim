@@ -420,6 +420,37 @@ describe('userTableServerTool.import_file', () => {
     })
   })
 
+  it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'import_file',
+        args: { tableId: 'tbl_1', fileId: 'uploads/people.csv' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/materialize_file/)
+    expect(result.message).not.toMatch(/glob\("files/)
+  })
+
+  it('still tells the agent to glob files\\/ for a genuine workspace-file miss', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'import_file',
+        args: { tableId: 'tbl_1', fileId: 'files/typo.csv' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/File not found: "files\/typo\.csv"/)
+  })
+
   it('rejects a background import while another job holds the table slot', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
       name: 'big.csv',

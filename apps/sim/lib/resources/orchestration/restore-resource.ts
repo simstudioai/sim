@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -27,6 +28,33 @@ export type RestorableResourceType =
   | 'knowledgebase'
   | 'folder'
   | 'file_folder'
+  | 'knowledge_folder'
+  | 'table_folder'
+
+/**
+ * Folder trees the generic engine restores, keyed by the restorable type that names them.
+ * `'folder'` stays the workflow tree so the existing tool contract does not shift meaning;
+ * the other trees get their own names, mirroring how `file_folder` already sits beside it.
+ *
+ * `knowledge_folder` and `table_folder` are accepted here and by the tool handler, but the
+ * model cannot emit them yet: the `restore_resource` parameter enum lives in the copilot
+ * service's `contracts/tool-catalog-v1.json`, which is a different repository and is mirrored
+ * into `lib/copilot/generated/**` by `scripts/sync-tool-catalog.ts`. Widening it there makes
+ * these reachable with no further change on this side.
+ */
+type RestorableFolderType = 'folder' | 'knowledge_folder' | 'table_folder'
+
+/**
+ * Deliberately a total `Record` over the folder types, not a `Partial` one: adding a tree to
+ * `RestorableFolderType` without a mapping here has to fail the build. With a partial map the
+ * lookup would yield `undefined`, `performRestoreFolder` would fall back to its `'workflow'`
+ * default, and the restore would silently target the wrong tree.
+ */
+const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Record<RestorableFolderType, FolderResourceType> = {
+  folder: 'workflow',
+  knowledge_folder: 'knowledge_base',
+  table_folder: 'table',
+}
 
 export interface PerformRestoreResourceParams {
   type: RestorableResourceType
@@ -132,17 +160,24 @@ export async function performRestoreResource(
         ])
       }
 
-      case 'folder': {
+      case 'folder':
+      case 'knowledge_folder':
+      case 'table_folder': {
         if (!(await hasWriteAccess(userId, workspaceId, workspaceId))) {
           return { success: false, error: 'Folder not found' }
         }
 
-        const result = await performRestoreFolder({ folderId: id, workspaceId, userId })
+        const result = await performRestoreFolder({
+          folderId: id,
+          workspaceId,
+          userId,
+          resourceType: FOLDER_RESOURCE_TYPE_BY_RESTORABLE[type],
+        })
         if (!result.success) {
           return { success: false, error: result.error || 'Failed to restore folder' }
         }
 
-        logger.info('Folder restored via restore_resource', { folderId: id })
+        logger.info('Folder restored via restore_resource', { folderId: id, type })
         return success({ type, id, restoredItems: result.restoredItems })
       }
 

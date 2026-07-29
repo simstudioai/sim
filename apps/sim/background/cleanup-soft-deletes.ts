@@ -2,12 +2,12 @@ import { db, dbFor } from '@sim/db'
 import {
   copilotChats,
   document,
+  folder as folderTable,
   knowledgeBase,
   mcpServers,
   memory,
   userTableDefinitions,
   workflow,
-  workflowFolder,
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
@@ -397,6 +397,19 @@ async function cleanupExpiredKnowledgeBases(
           )
         )
         .limit(limit),
+    /**
+     * Re-asserted on the DELETE because `onBatch` hard-deletes documents first, which leaves a
+     * real window in which a restore can land.
+     *
+     * This narrows the window rather than closing it: the base row survives, but documents
+     * already hard-deleted by `onBatch` do not come back, so a restore landing mid-batch
+     * returns an emptied knowledge base. Closing it properly means holding a row lock across
+     * select → onBatch → delete.
+     */
+    deleteFilter: and(
+      isNotNull(knowledgeBase.deletedAt),
+      lt(knowledgeBase.deletedAt, retentionDate)
+    ),
     onBatch: (rows) =>
       hardDeleteKnowledgeBaseDocuments(
         rows.map(({ id }) => id),
@@ -413,10 +426,23 @@ async function cleanupExpiredKnowledgeBases(
  */
 const CLEANUP_TARGETS = [
   {
-    table: workflowFolder,
-    softDeleteCol: workflowFolder.archivedAt,
-    wsCol: workflowFolder.workspaceId,
-    name: 'workflowFolder',
+    table: folderTable,
+    softDeleteCol: folderTable.deletedAt,
+    wsCol: folderTable.workspaceId,
+    /**
+     * `folder` is shared by all four resource types, every one of which now writes here.
+     * The predicate is kept (rather than dropped) so a resource type added to the enum
+     * before its cutover lands is not silently hard-deleted by this pass. One widened
+     * predicate rather than a target per type: same table, same soft-delete column, same
+     * workspace scoping — splitting it would only multiply the batched scans.
+     */
+    additionalPredicate: inArray(folderTable.resourceType, [
+      'workflow',
+      'file',
+      'knowledge_base',
+      'table',
+    ]),
+    name: 'folder',
   },
   {
     table: userTableDefinitions,
@@ -675,6 +701,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
       retentionDate,
       tableName: `${label}/${target.name}`,
       requireTimestampNotNull: true,
+      additionalPredicate: 'additionalPredicate' in target ? target.additionalPredicate : undefined,
       dbClient: cleanupDb,
     })
     totalDeleted += result.deleted

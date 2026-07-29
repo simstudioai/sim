@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { TABLE_LOCK_FLAGS, type TableLockKind, type TableLocks } from '@/lib/table/types'
+import {
+  TABLE_LOCK_FLAGS,
+  type TableLockKind,
+  type TableLocks,
+  type TableMetadata,
+} from '@/lib/table/types'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -98,6 +103,20 @@ interface UseTableUndoProps {
   onPinnedColumnsChange?: (pinned: string[]) => void
   getPinnedColumns?: () => string[]
   getColumnWidths?: () => Record<string, number>
+  /**
+   * Sink for column-layout writes (order, widths, pinning). Defaults to the
+   * table's shared metadata; with a saved view active the caller passes the
+   * view's sink instead, so undoing a reorder unwinds it where the original
+   * reorder was stored rather than silently rewriting the "All" layout.
+   */
+  onPersistLayout?: (patch: TableMetadata) => void
+  /**
+   * Active view id (`null` for "All" or when views are disabled). Layout is
+   * view-owned, so recorded layout actions are stamped with it and dropped when
+   * the user switches away — otherwise an undo would write the outgoing view's
+   * column order into whichever view happens to be active at the time.
+   */
+  activeViewId?: string | null
 }
 
 export function useTableUndo({
@@ -110,6 +129,8 @@ export function useTableUndo({
   onPinnedColumnsChange,
   getPinnedColumns,
   getColumnWidths,
+  onPersistLayout,
+  activeViewId = null,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
   const popUndo = useTableUndoStore((s) => s.popUndo)
@@ -117,6 +138,7 @@ export function useTableUndo({
   const patchRedoRowId = useTableUndoStore((s) => s.patchRedoRowId)
   const patchUndoRowId = useTableUndoStore((s) => s.patchUndoRowId)
   const clear = useTableUndoStore((s) => s.clear)
+  const pruneLayoutActions = useTableUndoStore((s) => s.pruneLayoutActions)
   const canUndo = useTableUndoStore((s) => (s.stacks[tableId]?.undo.length ?? 0) > 0)
   const canRedo = useTableUndoStore((s) => (s.stacks[tableId]?.redo.length ?? 0) > 0)
 
@@ -130,6 +152,9 @@ export function useTableUndo({
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const renameTableMutation = useRenameTable(workspaceId)
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
+
+  const persistLayoutRef = useRef(onPersistLayout ?? updateMetadataMutation.mutate)
+  persistLayoutRef.current = onPersistLayout ?? updateMetadataMutation.mutate
 
   const onColumnOrderChangeRef = useRef(onColumnOrderChange)
   onColumnOrderChangeRef.current = onColumnOrderChange
@@ -145,20 +170,41 @@ export function useTableUndo({
   getColumnWidthsRef.current = getColumnWidths
   const getLocksRef = useRef(getLocks)
   getLocksRef.current = getLocks
+  const activeViewIdRef = useRef(activeViewId)
+  activeViewIdRef.current = activeViewId
 
   useEffect(() => {
     return () => clear(tableId)
   }, [clear, tableId])
 
+  useEffect(() => {
+    pruneLayoutActions(tableId, activeViewId)
+  }, [pruneLayoutActions, tableId, activeViewId])
+
   const pushUndo = useCallback(
-    (action: TableUndoAction) => {
-      push(tableId, action)
+    /**
+     * `owner` overrides the recorded view for actions pushed from a mutation
+     * callback — by then the active view may have changed, and stamping the
+     * destination would let a later undo apply the origin's layout to it.
+     */
+    (action: TableUndoAction, owner?: string | null) => {
+      push(tableId, action, owner === undefined ? activeViewIdRef.current : owner)
     },
     [push, tableId]
   )
 
   const executeAction = useCallback(
-    async (action: TableUndoAction, direction: 'undo' | 'redo') => {
+    async (action: TableUndoAction, direction: 'undo' | 'redo', entryViewId: string | null) => {
+      // Column create/delete are table-scoped, so they stay undoable after a view
+      // switch — but the layout they recorded belongs to the view that was active
+      // at the time. Replaying it elsewhere would write one view's order/widths
+      // into another, so the schema half runs and the layout half is dropped.
+      //
+      // Evaluated at CALL time, not here: these writes happen in mutation success
+      // callbacks, and `persistLayoutRef` is rebound on every render. A guard
+      // resolved up front would still hold from before a switch while the sink it
+      // guards already pointed at the destination view.
+      const entryOwnsLayout = () => entryViewId === activeViewIdRef.current
       try {
         switch (action.type) {
           case 'update-cell': {
@@ -293,7 +339,13 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
-                  const metadata: Record<string, unknown> = {}
+                  // Everything below is layout cleanup for the recorded view. In
+                  // any other view the grid shows that view's own layout — the
+                  // schema change has already landed and dangling width/pin keys
+                  // are pruned on read, so touching the screen OR persisting here
+                  // would push the origin view's layout onto the one on display.
+                  if (!entryOwnsLayout()) return
+                  const metadata: TableMetadata = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
                   if (colKey in currentWidths) {
                     const { [colKey]: _, ...rest } = currentWidths
@@ -306,9 +358,7 @@ export function useTableUndo({
                     onPinnedColumnsChangeRef.current?.(newPinned)
                     metadata.pinnedColumns = newPinned
                   }
-                  if (Object.keys(metadata).length > 0) {
-                    updateMetadataMutation.mutate(metadata)
-                  }
+                  if (Object.keys(metadata).length > 0) persistLayoutRef.current(metadata)
                 },
               })
             } else {
@@ -368,7 +418,12 @@ export function useTableUndo({
                         }
                       })()
                     }
-                    const metadata: Record<string, unknown> = {}
+                    // Cell restore above runs everywhere — it's row data. The
+                    // layout below belongs to the recorded view: elsewhere the
+                    // restored column still reappears via the grid's append
+                    // effect, but at the end, leaving the on-screen layout alone.
+                    if (!entryOwnsLayout()) return
+                    const metadata: TableMetadata = {}
                     if (action.previousOrder) {
                       onColumnOrderChangeRef.current?.(action.previousOrder)
                       metadata.columnOrder = action.previousOrder
@@ -398,16 +453,15 @@ export function useTableUndo({
                         }
                       }
                     }
-                    if (Object.keys(metadata).length > 0) {
-                      updateMetadataMutation.mutate(metadata)
-                    }
+                    if (Object.keys(metadata).length > 0) persistLayoutRef.current(metadata)
                   },
                 }
               )
             } else {
               deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
-                  const metadata: Record<string, unknown> = {}
+                  if (!entryOwnsLayout()) return
+                  const metadata: TableMetadata = {}
                   if (action.previousOrder) {
                     const newOrder = action.previousOrder.filter((n) => n !== colKey)
                     onColumnOrderChangeRef.current?.(newOrder)
@@ -427,9 +481,7 @@ export function useTableUndo({
                       metadata.pinnedColumns = newPinned
                     }
                   }
-                  if (Object.keys(metadata).length > 0) {
-                    updateMetadataMutation.mutate(metadata)
-                  }
+                  if (Object.keys(metadata).length > 0) persistLayoutRef.current(metadata)
                 },
               })
             }
@@ -490,8 +542,12 @@ export function useTableUndo({
                 ...restored.filter((n) => !pinnedSet.has(n)),
               ]
             }
+            // Pruning already drops these on a view switch, so a mismatch here
+            // should be unreachable; the guard keeps the invariant local rather
+            // than dependent on when the prune effect happens to run.
+            if (!entryOwnsLayout()) break
             onColumnOrderChangeRef.current?.(order)
-            updateMetadataMutation.mutate({ columnOrder: order })
+            persistLayoutRef.current({ columnOrder: order })
             break
           }
         }
@@ -515,7 +571,7 @@ export function useTableUndo({
     }
     const entry = popUndo(tableId)
     if (!entry) return
-    void runWithoutRecording(() => executeAction(entry.action, 'undo'))
+    void runWithoutRecording(() => executeAction(entry.action, 'undo', entry.viewId))
   }, [popUndo, tableId, executeAction])
 
   const redo = useCallback(() => {
@@ -529,7 +585,7 @@ export function useTableUndo({
     }
     const entry = popRedo(tableId)
     if (!entry) return
-    void runWithoutRecording(() => executeAction(entry.action, 'redo'))
+    void runWithoutRecording(() => executeAction(entry.action, 'redo', entry.viewId))
   }, [popRedo, tableId, executeAction])
 
   return { pushUndo, undo, redo, canUndo, canRedo }

@@ -392,10 +392,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
       outlook: {
         name: 'Outlook',
-        description: 'Connect to Outlook and manage emails.',
+        description: 'Connect to Outlook and manage emails and calendar events.',
         providerId: 'outlook',
         icon: OutlookIcon,
         baseProviderIcon: MicrosoftIcon,
+        /**
+         * `Calendars.ReadWrite` backs the Outlook calendar operations. Graph documents it
+         * as the sole accepted permission for creating and updating events and for
+         * accept / tentativelyAccept / decline ("Higher: Not available"), and it is
+         * supported for both work/school and personal Microsoft accounts.
+         *
+         * Do NOT add `Calendars.ReadWrite.Shared` here. This provider is shared by work
+         * and personal Outlook accounts, and the `.Shared` calendar scopes are not
+         * confirmed supported for personal Microsoft accounts — requesting one risks
+         * failing consent for personal users, which would take mail access down with it.
+         * That is the same reasoning that kept `findMeetingTimes` out of this integration.
+         * The consequence is that calendar operations target calendars the account owns;
+         * picking a calendar shared by another user may return 403 from Graph.
+         *
+         * Microsoft only grants newly-added scopes on a fresh authorization, so users who
+         * connected Outlook before `Calendars.ReadWrite` existed must reconnect
+         * (re-consent) before the calendar operations will work.
+         *
+         * @see https://learn.microsoft.com/en-us/graph/permissions-reference
+         */
         scopes: [
           'openid',
           'profile',
@@ -404,6 +424,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Mail.ReadBasic',
           'Mail.Read',
           'Mail.Send',
+          'Calendars.ReadWrite',
           'offline_access',
         ],
       },
