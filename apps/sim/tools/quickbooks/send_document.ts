@@ -1,7 +1,11 @@
 import { truncate } from '@sim/utils/string'
 import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import type { QuickBooksFileResponse, QuickBooksSendDocumentParams } from '@/tools/quickbooks/types'
-import { buildQuickBooksHeaders, buildQuickBooksSendDocumentUrl } from '@/tools/quickbooks/utils'
+import {
+  assertQuickBooksPdfResponse,
+  buildQuickBooksHeaders,
+  buildQuickBooksSendDocumentUrl,
+} from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const QUICKBOOKS_MAX_SENT_DOCUMENT_BYTES = 25 * 1024 * 1024
@@ -79,6 +83,7 @@ export const quickBooksSendDocumentTool: ToolConfig<
         `QuickBooks API error (${response.status}): ${truncate(buffer.toString('utf8'), 500) || response.statusText || 'Request failed'}`
       )
     }
+    assertQuickBooksPdfResponse(response, buffer, 'sent document')
     return {
       success: true,
       output: {

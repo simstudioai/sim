@@ -85,4 +85,30 @@ describe('QuickBooksBlock', () => {
       file,
     })
   })
+
+  it('requires full entity payloads for non-simplified deletes', () => {
+    const payload = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'payload')
+    if (!payload || typeof payload.required !== 'function') {
+      throw new Error('Expected QuickBooks payload to use conditional required state')
+    }
+
+    expect(
+      payload.required({
+        operation: 'delete_record',
+        deleteEntity: 'InventoryAdjustment',
+      })
+    ).toEqual({
+      field: 'deleteEntity',
+      value: ['Attachable', 'Deposit', 'InventoryAdjustment', 'Transfer'],
+    })
+    expect(
+      payload.required({
+        operation: 'create_record',
+        createEntity: 'Vendor',
+      })
+    ).toEqual({
+      field: 'operation',
+      value: ['create_record', 'update_record', 'update_exchange_rate', 'update_preferences'],
+    })
+  })
 })

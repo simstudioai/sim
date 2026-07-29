@@ -580,7 +580,7 @@ describe('QuickBooks generic operations', () => {
     })
 
     const documentResult = await quickBooksDownloadDocumentTool.transformResponse?.(
-      new Response(new Uint8Array([37, 80, 68, 70]), {
+      new Response(new Uint8Array([37, 80, 68, 70, 45]), {
         headers: { 'content-type': 'application/pdf' },
         status: 200,
       }),
@@ -595,15 +595,15 @@ describe('QuickBooks generic operations', () => {
       file: {
         name: 'PurchaseOrder-42.pdf',
         mimeType: 'application/pdf',
-        data: 'JVBERg==',
-        size: 4,
+        data: 'JVBERi0=',
+        size: 5,
       },
       entity: 'PurchaseOrder',
       recordId: '42',
     })
 
     const sentDocumentResult = await quickBooksSendDocumentTool.transformResponse?.(
-      new Response(new Uint8Array([37, 80, 68, 70]), {
+      new Response(new Uint8Array([37, 80, 68, 70, 45]), {
         headers: { 'content-type': 'application/octet-stream' },
         status: 200,
       }),
@@ -619,8 +619,8 @@ describe('QuickBooks generic operations', () => {
       file: {
         name: 'PurchaseOrder-42.pdf',
         mimeType: 'application/pdf',
-        data: 'JVBERg==',
-        size: 4,
+        data: 'JVBERi0=',
+        size: 5,
       },
       entity: 'PurchaseOrder',
       recordId: '42',
@@ -640,6 +640,37 @@ describe('QuickBooks generic operations', () => {
       attachmentId: '7',
       thumbnail: false,
     })
+  })
+
+  it('rejects successful document responses that are not PDFs', async () => {
+    const params = {
+      accessToken: 'token',
+      realmId: '123145',
+      entity: 'PurchaseOrder' as const,
+      recordId: '42',
+    }
+
+    await expect(
+      quickBooksDownloadDocumentTool.transformResponse?.(
+        new Response(JSON.stringify({ Fault: { Error: [{ Message: 'Unexpected response' }] } }), {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        }),
+        params
+      )
+    ).rejects.toThrow('QuickBooks PDF download returned a non-PDF response (application/json)')
+
+    await expect(
+      quickBooksSendDocumentTool.transformResponse?.(
+        new Response('', {
+          headers: { 'content-type': 'text/plain' },
+          status: 200,
+        }),
+        params
+      )
+    ).rejects.toThrow(
+      'QuickBooks sent document returned a non-PDF response (text/plain): Empty response'
+    )
   })
 
   it('transforms QuickBooks batch item responses without hiding item faults', async () => {

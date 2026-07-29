@@ -4,7 +4,11 @@ import type {
   QuickBooksDownloadDocumentParams,
   QuickBooksFileResponse,
 } from '@/tools/quickbooks/types'
-import { buildQuickBooksDocumentUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/utils'
+import {
+  assertQuickBooksPdfResponse,
+  buildQuickBooksDocumentUrl,
+  buildQuickBooksHeaders,
+} from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const QUICKBOOKS_MAX_PDF_BYTES = 25 * 1024 * 1024
@@ -76,6 +80,7 @@ export const quickBooksDownloadDocumentTool: ToolConfig<
         `QuickBooks API error (${response.status}): ${truncate(buffer.toString('utf8'), 500) || response.statusText || 'Request failed'}`
       )
     }
+    assertQuickBooksPdfResponse(response, buffer, 'PDF download')
     return {
       success: true,
       output: {

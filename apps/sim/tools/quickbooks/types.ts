@@ -119,12 +119,16 @@ export const QUICKBOOKS_SIMPLIFIED_DELETE_ENTITIES = [
   'VendorCredit',
 ] as const
 
-export const QUICKBOOKS_DELETABLE_ENTITIES = [
-  ...QUICKBOOKS_SIMPLIFIED_DELETE_ENTITIES,
+export const QUICKBOOKS_FULL_DELETE_ENTITIES = [
   'Attachable',
   'Deposit',
   'InventoryAdjustment',
   'Transfer',
+] as const
+
+export const QUICKBOOKS_DELETABLE_ENTITIES = [
+  ...QUICKBOOKS_SIMPLIFIED_DELETE_ENTITIES,
+  ...QUICKBOOKS_FULL_DELETE_ENTITIES,
 ] as const
 
 export const QUICKBOOKS_CDC_ENTITIES = QUICKBOOKS_READABLE_ENTITIES.filter(

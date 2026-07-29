@@ -7,6 +7,7 @@ import type { QuickBooksResponse } from '@/tools/quickbooks/types'
 import {
   QUICKBOOKS_CREATABLE_ENTITIES,
   QUICKBOOKS_DELETABLE_ENTITIES,
+  QUICKBOOKS_FULL_DELETE_ENTITIES,
   QUICKBOOKS_PDF_ENTITIES,
   QUICKBOOKS_QUERYABLE_ENTITIES,
   QUICKBOOKS_READABLE_ENTITIES,
@@ -199,10 +200,18 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'update_preferences',
         ],
       },
-      required: {
-        field: 'operation',
-        value: ['create_record', 'update_record', 'update_exchange_rate', 'update_preferences'],
-      },
+      required: (values) =>
+        values?.operation === 'delete_record'
+          ? { field: 'deleteEntity', value: [...QUICKBOOKS_FULL_DELETE_ENTITIES] }
+          : {
+              field: 'operation',
+              value: [
+                'create_record',
+                'update_record',
+                'update_exchange_rate',
+                'update_preferences',
+              ],
+            },
       wandConfig: {
         enabled: true,
         prompt:

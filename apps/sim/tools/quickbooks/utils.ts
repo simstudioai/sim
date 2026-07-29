@@ -81,6 +81,22 @@ export function buildQuickBooksHeaders(accessToken: string): Record<string, stri
   }
 }
 
+export function assertQuickBooksPdfResponse(
+  response: Response,
+  buffer: Buffer,
+  label: string
+): void {
+  const header = buffer.subarray(0, Math.min(buffer.length, 1024))
+  if (header.indexOf(Buffer.from('%PDF-')) >= 0) return
+
+  const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim()
+  const detail = truncate(buffer.toString('utf8').trim(), 500)
+  const contentTypeDetail = contentType ? ` (${contentType})` : ''
+  throw new Error(
+    `QuickBooks ${label} returned a non-PDF response${contentTypeDetail}: ${detail || 'Empty response'}`
+  )
+}
+
 export function buildQuickBooksQueryEndpoint(params: {
   realmId: string
   apiEnvironment?: QuickBooksEnvironment | string
