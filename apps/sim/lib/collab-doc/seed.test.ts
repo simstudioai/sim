@@ -35,6 +35,7 @@ describe('buildFileDocSeed', () => {
       name: 'note.md',
       key: 'k',
       context: 'workspace',
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     })
     // Default: no cached binary → the conversion path runs (the case these tests cover).
     mockLoadFresh.mockResolvedValue(null)

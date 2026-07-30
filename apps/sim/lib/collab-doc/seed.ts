@@ -19,6 +19,11 @@ const MAX_SEED_BYTES = 5 * 1024 * 1024
 export interface FileDocSeed {
   /** `Y.encodeStateAsUpdate` of the seeded document — apply with `Y.applyUpdate`. */
   update: Uint8Array
+  /**
+   * The file's durable `updatedAt` (epoch ms) this seed was built from — the version the relay records
+   * as what its freshly-seeded live doc is synced to, for the persist optimistic-concurrency guard.
+   */
+  version: number
 }
 
 /**
@@ -41,6 +46,10 @@ export async function buildFileDocSeed(
   const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!record) return null
 
+  // The content-scoped version (advances only on content writes, never on rename/move) is the persist
+  // If-Match token — so a metadata bump can't make a racing persist reconcile stale content and clobber
+  // live edits. `getWorkspaceFile` always maps it from the NOT NULL column; coalesce is a type guard only.
+  const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
 
   // Cold-start fast path: if we hold a cached Yjs binary derived from THIS exact markdown, apply it
@@ -54,7 +63,7 @@ export async function buildFileDocSeed(
   // block the cold open — symmetric with persist's best-effort cache write.
   try {
     const cached = await loadFreshCollabDocState(fileId, hashMarkdown(buffer))
-    if (cached) return { update: cached }
+    if (cached) return { update: cached, version }
   } catch (error) {
     logger.warn(`Failed to read cached collab doc state for file ${fileId}`, {
       error: getErrorMessage(error),
@@ -74,7 +83,7 @@ export async function buildFileDocSeed(
     // Carry the frontmatter in the doc (not the body) so it merges across clients and a later
     // server-side edit can update it — the editor re-attaches this on autosave.
     config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
-    return { update: Y.encodeStateAsUpdate(ydoc) }
+    return { update: Y.encodeStateAsUpdate(ydoc), version }
   } finally {
     ydoc.destroy()
   }

@@ -1906,6 +1906,17 @@ export const workspaceFiles = pgTable(
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    /**
+     * Content-scoped version: advances ONLY when the file's CONTENT changes (upload / content
+     * overwrite), never on metadata writes (rename, move, soft-delete, restore). It is the
+     * optimistic-concurrency validator the collaborative-document persist guards on (RFC 7232 `If-Match`
+     * semantics: validate the representation, not the row) — so a rename can't make a racing live-doc
+     * persist see a stale token, reconcile stale durable content, and clobber in-flight edits. NOT NULL
+     * with a `now()` default: Postgres applies this as a fast-default (no table rewrite), existing rows
+     * get a stable timestamp that — like every metadata write — never advances it, and every insert path
+     * is covered without per-call plumbing. Only a content write (upload / overwrite) advances it.
+     */
+    contentUpdatedAt: timestamp('content_updated_at').notNull().defaultNow(),
   },
   (table) => ({
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')

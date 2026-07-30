@@ -73,6 +73,13 @@ export interface WorkspaceFileRecord {
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
+  /**
+   * Content-scoped version (see the `content_updated_at` column): advances only on content writes, never
+   * on metadata. The collab persist's optimistic-concurrency validator. Optional on the DTO because
+   * display/mothership constructors don't carry it — the real DB mapper (the only source seed/persist
+   * read) always populates it from the NOT NULL column.
+   */
+  contentUpdatedAt?: Date | null
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
   /** Public share state, attached at the API boundary. `null` when never shared. */
@@ -165,6 +172,8 @@ async function insertWorkspaceFileMetadataInTx(
       deletedAt: null,
       uploadedAt: new Date(),
       updatedAt: new Date(),
+      // Creation IS the first content write, so stamp the content version too (metadata writes never do).
+      contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
     .returning()
@@ -701,6 +710,7 @@ function mapWorkspaceFileRecord(
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
+    contentUpdatedAt: file.contentUpdatedAt,
   }
 }
 
@@ -1017,6 +1027,18 @@ export async function fetchWorkspaceFileBuffer(
 }
 
 /**
+ * Thrown by {@link updateWorkspaceFileContent} when its `expectedUpdatedAt` optimistic-concurrency
+ * guard fails — the file changed out-of-band since the caller read it. Callers catch this to reconcile
+ * (re-read + merge) rather than overwrite. Not a failure: the durable file is left untouched.
+ */
+export class ContentVersionConflictError extends Error {
+  constructor(readonly fileId: string) {
+    super(`Workspace file ${fileId} changed since it was read (optimistic-concurrency conflict)`)
+    this.name = 'ContentVersionConflictError'
+  }
+}
+
+/**
  * Updates a workspace file through a versioned object swap. Blob I/O completes
  * before the short metadata-and-ledger transaction.
  */
@@ -1036,6 +1058,14 @@ export async function updateWorkspaceFileContent(
      * content arrives via a subsequent write.
      */
     syncLiveDoc?: boolean
+    /**
+     * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
+     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * throws {@link ContentVersionConflictError} without clobbering. Checked against the
+     * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
+     * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
+     */
+    expectedUpdatedAt?: Date
   }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
@@ -1095,14 +1125,39 @@ export async function updateWorkspaceFileContent(
           throw new Error('File not found')
         }
 
+        // Optimistic-concurrency guard: the row is `FOR UPDATE`-locked, so comparing its committed
+        // CONTENT version to the caller's expected value and then writing is atomic — a racing writer
+        // blocks here until this transaction resolves. Compare `contentUpdatedAt` (which advances only on
+        // content writes), NOT `updatedAt` (which a rename/move also bumps): guarding on `updatedAt` let a
+        // metadata bump masquerade as an out-of-band CONTENT change, so a racing live-doc persist would
+        // reconcile stale durable content and clobber in-flight edits. Coalesce to `updatedAt` for rows
+        // predating the column. A mismatch means the CONTENT changed out-of-band; abort rather than clobber.
+        if (
+          options?.expectedUpdatedAt &&
+          currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
+        ) {
+          throw new ContentVersionConflictError(fileId)
+        }
+
         const sizeDiff = content.length - currentFile.size
+        const now = new Date()
+        // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
+        // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
+        // breaking the version ordering the whole optimistic-concurrency scheme relies on (stuck If-Match,
+        // wrong reconcile). We hold this row's FOR UPDATE lock, so `currentFile.contentUpdatedAt` is the
+        // latest committed value; stamp strictly after it. (Also removes same-millisecond collisions.)
+        // `updatedAt` stays plain wall-clock — it is display/sort only, never the concurrency token.
+        const contentUpdatedAt = new Date(
+          Math.max(now.getTime(), currentFile.contentUpdatedAt.getTime() + 1)
+        )
         const [updatedFile] = await tx
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            updatedAt: new Date(),
+            updatedAt: now,
+            contentUpdatedAt,
           })
           .where(
             and(
@@ -1164,7 +1219,15 @@ export async function updateWorkspaceFileContent(
       options?.syncLiveDoc !== false &&
       isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
     ) {
-      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'))
+      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
+      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
+      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
+      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
+      await mergeEditIntoLiveFileDoc(
+        fileId,
+        content.toString('utf-8'),
+        finalized.file.contentUpdatedAt.getTime()
+      )
     }
 
     const pathPrefix = getServePathPrefix()
@@ -1187,8 +1250,13 @@ export async function updateWorkspaceFileContent(
       deletedAt: finalized.file.deletedAt,
       uploadedAt: finalized.file.uploadedAt,
       updatedAt: finalized.file.updatedAt,
+      contentUpdatedAt: finalized.file.contentUpdatedAt,
     }
   } catch (error) {
+    // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
+    // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
+    // by the inner finalization catch before it propagated here.
+    if (error instanceof ContentVersionConflictError) throw error
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
     throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
   }

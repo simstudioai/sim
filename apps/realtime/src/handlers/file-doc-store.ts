@@ -62,6 +62,18 @@ const SEED_IF_EMPTY_SCRIPT =
   "if redis.call('xlen', KEYS[1]) == 0 then redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]); return 1 else return 0 end"
 
 /**
+ * Monotonic set of the synced-version token: overwrite ONLY when the new value is greater than the
+ * stored one (or none is stored). The token is written fire-and-forget from multiple sites (seed stamp,
+ * merge, persist) and across tasks, so an out-of-order write must never REGRESS it to a version older
+ * than the live doc already incorporates — a regressed token causes spurious If-Match conflicts and, on a
+ * last-leave flush with no live room to reconcile into, a lost persist. Refreshes the TTL on both paths
+ * so a write skipped as older still keeps the (higher) value alive. Versions are monotonic epoch-ms,
+ * comfortably within a Lua double, so the numeric compare is exact.
+ */
+const SET_VERSION_IF_NEWER_SCRIPT =
+  "local c = redis.call('get', KEYS[1]); if c == false or tonumber(c) < tonumber(ARGV[1]) then redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2]) else redis.call('expire', KEYS[1], ARGV[2]) end; return 1"
+
+/**
  * The transaction origin the store stamps on updates it applies from the stream. The relay's
  * `doc.on('update')` handler uses it to distinguish an update that ARRIVED from a peer (fan out to
  * local clients, but do NOT re-publish — it is already in the stream) from a local edit (fan out AND
@@ -79,6 +91,8 @@ export const REDIS_ORIGIN = Symbol('file-doc-redis')
 export const REDIS_SNAPSHOT_ORIGIN = Symbol('file-doc-redis-snapshot')
 
 const STREAM_PREFIX = 'filedoc:stream:'
+/** Cluster-wide "durable version the live doc is synced to" (the persist If-Match token). */
+const SYNC_VERSION_PREFIX = 'filedoc:syncver:'
 const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
 const COMPACT_LOCK_PREFIX = 'filedoc:compactlock:'
 const PERSIST_LOCK_PREFIX = 'filedoc:persistlock:'
@@ -444,6 +458,56 @@ export class FileDocStore {
     return this.acquireLock(`${MERGE_LOCK_PREFIX}${name}`, ttlMs)
   }
 
+  /**
+   * The durable file version (its `updatedAt`, epoch ms) the shared live doc is synced to — the
+   * cluster-wide {@link https://www.rfc-editor.org/rfc/rfc7232 `If-Match`} token for persistence. Held
+   * in Redis (not per-task room state) so whichever task runs a debounced/last-leave persist reads the
+   * SAME version, even though the write that advanced it (a seed or a merged edit) may have run on
+   * another task. Returns `null` when unset/expired (persist then falls back to the local room's value).
+   */
+  async getSyncedVersion(name: string): Promise<number | null> {
+    if (!this.enabled || !this.write) return null
+    try {
+      const value = await this.write.get(`${SYNC_VERSION_PREFIX}${name}`)
+      const parsed = value === null ? Number.NaN : Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    } catch (error) {
+      logger.warn(`FileDocStore getSyncedVersion failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+      return null
+    }
+  }
+
+  /** Record the durable version the shared live doc is now synced to. MONOTONIC — writes only when the
+   * new value exceeds the stored one ({@link SET_VERSION_IF_NEWER_SCRIPT}), so an out-of-order
+   * fire-and-forget write can't regress the token. Best-effort; TTL-bounded like the stream so an idle
+   * file's key can't outlive its room. No-op when disabled (single-pod fallback). */
+  async setSyncedVersion(name: string, version: number): Promise<void> {
+    if (!this.enabled || !this.write) return
+    // Retry a transient failure (bounded) rather than swallow it: this token is the ONLY way a
+    // peer-seeded task learns the durable version, so a dropped write would leave that peer's persists
+    // deferring forever with the session's edits stranded in the TTL'd stream. The monotonic script makes
+    // a retry that races a newer value a no-op, never a regression.
+    for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
+      try {
+        await this.write.eval(SET_VERSION_IF_NEWER_SCRIPT, {
+          keys: [`${SYNC_VERSION_PREFIX}${name}`],
+          arguments: [String(version), String(STREAM_TTL_SEC)],
+        })
+        return
+      } catch (error) {
+        if (attempt === PUBLISH_MAX_RETRIES) {
+          logger.warn(`FileDocStore setSyncedVersion failed for ${name}`, {
+            error: getErrorMessage(error),
+          })
+          return
+        }
+        await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
+      }
+    }
+  }
+
   async releaseMergeSlot(name: string, token: string): Promise<void> {
     await this.releaseLock(`${MERGE_LOCK_PREFIX}${name}`, token)
   }
@@ -534,6 +598,9 @@ export class FileDocStore {
     if (!this.write) return
     for (const name of this.rooms.keys()) {
       await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
+      // Keep the synced-version key alive as long as its stream, so an open-but-idle doc's persist
+      // If-Match token can't expire out from under it (which would force a needless reconcile).
+      await this.write.expire(`${SYNC_VERSION_PREFIX}${name}`, STREAM_TTL_SEC).catch(() => {})
     }
   }
 }

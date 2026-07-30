@@ -28,6 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const seed = await buildFileDocSeed(workspaceId, fileId)
     return NextResponse.json({
       update: seed ? Buffer.from(seed.update).toString('base64') : null,
+      version: seed ? seed.version : null,
     })
   } catch (error) {
     logger.error('Failed to build file-doc seed', { workspaceId, fileId, error })

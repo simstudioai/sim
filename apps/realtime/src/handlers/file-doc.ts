@@ -65,6 +65,13 @@ const PERSIST_DEBOUNCE_MS = 5_000
  * would otherwise never persist until an idle pause, so force a flush at least this often — bounding how
  * many edits are unpersisted (in the stream only) if the task dies mid-burst. */
 const PERSIST_MAX_WAIT_MS = 20_000
+/** On a FINAL (last-leave/shutdown) flush the version read is the last chance to resolve the If-Match
+ * before the room is torn down; a transient Redis blip yielding no version would otherwise defer and
+ * strand the session's edits in the TTL'd stream. The version is cluster-wide and heartbeat-refreshed, so
+ * a brief bounded retry recovers a blip without stalling teardown (a genuinely-unset version never
+ * appears, so a long wait buys nothing). */
+const FINAL_VERSION_RETRIES = 2
+const FINAL_VERSION_RETRY_MS = 100
 
 /** Cross-task merge lock. The TTL must exceed the whole critical section it guards — stream fold +
  * `fetchFileDocMerge` (bounded at `mergeRequestMs`) + the awaited publish — so the lock never expires
@@ -125,6 +132,13 @@ interface FileDocRoom {
   /** Absolute time (ms) by which a debounced persist must fire even under continuous editing (the
    * max-wait cap); null when no persist is pending. */
   persistDeadline: number | null
+  /**
+   * The durable file version (its `updatedAt`, epoch ms) this live doc is known to be synced to — set
+   * on seed, advanced when a durable write is merged in (apply-edit) and on each successful persist. It
+   * is the `If-Match` token {@link flushPersist} sends so a persist can never clobber an out-of-band
+   * edit the live doc hasn't incorporated. `null` before the first seed (persist writes unconditionally).
+   */
+  syncedVersion: number | null
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
@@ -226,27 +240,99 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   // Never project a doc no user actually edited back over the file (see {@link FileDocRoom.edited}).
   if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return
   const store = getFileDocStore()
+  const workspaceId = room.workspaceId
+  const userId = room.lastEditorUserId
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
   // this yields. Only meaningful once seeded; used only when the authoritative stream state is absent.
   const localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
+
+  // Capture the AUTHORITATIVE doc state: the shared stream when enabled (a copilot merge or a peer's
+  // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
+  // local snapshot. Re-read each attempt so a post-reconcile retry projects the converged state.
+  const captureState = async (): Promise<Uint8Array | null> => {
+    if (!store.enabled) {
+      // Single-pod: re-read the live doc so a post-reconcile retry projects the CONVERGED state, not the
+      // snapshot captured before the reconcile mutated it (which — with the version already advanced —
+      // would let the If-Match pass and clobber the reconciled edit). Fall back to that snapshot once the
+      // room is torn down (last-leave), where the doc is gone and there is nothing left to reconcile.
+      return fileDocRooms.get(name) === room && isDocSeeded(room.doc)
+        ? Y.encodeStateAsUpdate(room.doc)
+        : localState
+    }
+    try {
+      return (await store.getStreamState(name)) ?? localState
+    } catch (streamError) {
+      // A transient Redis read must NOT drop the write when we already hold a valid local snapshot —
+      // else the last-disconnect flush loses the session's edits as the room is torn down. But once a
+      // reconcile has run, `localState` is NULLED (it predates the merged-in out-of-band edit), so a
+      // failed read then correctly THROWS and aborts rather than clobbering with the stale snapshot.
+      if (!localState) throw streamError
+      logger.warn(`Stream state unavailable for file ${room.fileId}; persisting local snapshot`, {
+        error: getErrorMessage(streamError),
+      })
+      return localState
+    }
+  }
+  // The If-Match token: the freshest synced version known — max of the cluster value (Redis) and the
+  // room's, so a lagging fire-and-forget `setSyncedVersion` can't let a stale read shadow a newer local
+  // value (versions are monotonic epoch-ms). Cached back into the room so a later transient Redis failure
+  // — or a peer-seeded/tail-only task that never set it locally — still resolves it. `undefined` if unknown.
+  const currentVersion = async (): Promise<number | undefined> => {
+    const shared = store.enabled ? await store.getSyncedVersion(name) : null
+    const best = Math.max(shared ?? 0, room.syncedVersion ?? 0)
+    if (best > 0) room.syncedVersion = best
+    return best > 0 ? best : undefined
+  }
+
   try {
     if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
       return
-    let docState = localState
-    if (store.enabled) {
-      try {
-        docState = (await store.getStreamState(name)) ?? localState
-      } catch (streamError) {
-        // A transient Redis read must NOT drop the write when we already hold a valid local snapshot —
-        // else the last-disconnect flush loses the session's edits as the room is torn down.
-        if (!localState) throw streamError
-        logger.warn(`Stream state unavailable for file ${room.fileId}; persisting local snapshot`, {
-          error: getErrorMessage(streamError),
-        })
-      }
+
+    // The If-Match token: the durable content version the live doc is synced to.
+    let ifMatch = await currentVersion()
+    // FINAL flush = last chance before teardown: if the version read momentarily fails (Redis blip) for a
+    // peer-seeded/tail-only task that never cached it, retry briefly rather than defer and strand the
+    // edits in the TTL'd stream (the version is cluster-wide + heartbeat-refreshed). Bounded — a genuinely
+    // unset version never appears, and the flush must not stall teardown.
+    for (
+      let i = 0;
+      ifMatch === undefined && final && store.enabled && i < FINAL_VERSION_RETRIES;
+      i++
+    ) {
+      await sleep(FINAL_VERSION_RETRY_MS)
+      ifMatch = await currentVersion()
     }
+
+    // Persist under optimistic concurrency (RFC 7232 If-Match): the write commits only if the file is
+    // still at the version the live doc synced from, so a projection can never silently clobber an
+    // out-of-band edit. A single attempt — on conflict we STOP rather than retry (see below).
+    const docState = await captureState()
     if (!docState) return // nothing seeded/authoritative to persist yet
-    await fetchFileDocPersist(room.workspaceId, room.fileId, room.lastEditorUserId, docState)
+    const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
+    if (result.status === 'missing') return // the file was deleted; nothing to write
+    if (result.status === 'deferred') {
+      // No version token available (momentarily — a Redis blip on a peer-seeded task). Leave the edits in
+      // the stream; a later persist writes them once the version is re-established.
+      logger.warn(`Persist deferred for file ${room.fileId} (no synced version available yet)`)
+      return
+    }
+    if (result.status === 'persisted') {
+      room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
+      void store.setSyncedVersion(name, result.version)
+      return
+    }
+    // status === 'conflict': the durable file advanced out-of-band since our If-Match token. We do NOT
+    // re-persist against the current stream: an external write commits durable BEFORE its chokepoint merge
+    // (`mergeEditIntoLiveFileDoc`) reaches the stream, so a re-persist landing in that window would CAS-pass
+    // with a stream that still lacks the external content and clobber the committed write. Instead leave the
+    // durable content authoritative — the chokepoint merges the change into the stream and, ONLY once it is
+    // actually there, advances the synced version (via the merge's own `recordVersion`); a later flush
+    // (a subsequent debounced persist, or the final flush) then projects the converged stream with a token
+    // that matches. The session's edits stay in the stream meanwhile. Deliberately do NOT advance the synced
+    // version here: before the stream reflects the durable content, that would let the next flush clobber it.
+    logger.warn(
+      `Persist conflict for file ${room.fileId}; durable content advanced out-of-band, left authoritative`
+    )
   } catch (error) {
     logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
   }
@@ -371,7 +457,7 @@ async function ensureServerSeed(
   }
   // We hold the seed lock — release it on EVERY exit from here (one `finally`, impossible to leak).
   try {
-    const update = await fetchFileDocSeed(workspaceId, room.fileId)
+    const seed = await fetchFileDocSeed(workspaceId, room.fileId)
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
     // Build the seed (file content + seed flag, or just the flag for an empty/missing file) and write it
     // to the shared stream ATOMICALLY, iff the stream is still empty. This — NOT the seed lock — is the
@@ -380,8 +466,22 @@ async function ensureServerSeed(
     // seeded (via the local apply) only once the seed is durably in the stream, so a failed write leaves
     // the doc unseeded and the stream empty for a clean retry. SEED_ORIGIN keeps `doc.on('update')` from
     // re-publishing it.
-    const seedUpdate = update ?? emptySeedUpdate()
+    const seedUpdate = seed?.update ?? emptySeedUpdate()
     const didSeed = await store.seedIfEmpty(name, seedUpdate)
+    // Record the durable version the moment THIS task's seed is in the stream — BEFORE the liveness/
+    // seeded guard below. Recording it only now that our seed WON (not from the fetch, before knowing who
+    // won) keeps it in step with the stream's actual content: a newer own-fetch version could otherwise
+    // shadow a peer's winning seed and let a later persist clobber an out-of-band edit. But it must not
+    // sit AFTER the guard: the tailer can integrate our just-appended seed during the await above, so
+    // `isDocSeeded` may already be true here — an early return would then leave the stream holding seed
+    // content with NO cluster If-Match token, and later persists would defer and strand session edits.
+    // Cluster-wide (Redis) so any task's persist reads it; the live room is the single-pod fallback / the
+    // read-through-cache seed. (No version for an empty/missing file — nothing durable to guard.)
+    if (didSeed && seed) {
+      const live = fileDocRooms.get(name)
+      if (live) live.syncedVersion = Math.max(live.syncedVersion ?? 0, seed.version)
+      void store.setSyncedVersion(name, seed.version)
+    }
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
     if (didSeed) {
       Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
@@ -433,15 +533,21 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
  *
  * Returns `'no-live-room'` when there is no shared state to merge against (no doc is or was recently
  * live): the caller (copilot) writes the file directly and the next open seeds from that markdown.
+ * Returns `'merge-unavailable'` when the cross-task merge lock could not be acquired (transient
+ * contention, not an absent stream) — the caller likewise falls back to a direct write, but a persist
+ * reconcile treats it distinctly (retry later) rather than as "nothing to reconcile into".
  */
 export function applyMarkdownToLiveFileDoc(
   fileId: string,
-  markdown: string
-): Promise<'applied' | 'no-live-room'> {
+  markdown: string,
+  version?: number
+): Promise<'applied' | 'no-live-room' | 'merge-unavailable'> {
   const name = roomName(fileDocRoom(fileId))
   const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
   // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
-  const run = prior.catch(() => {}).then(() => mergeMarkdownIntoRoom(name, fileId, markdown))
+  const run = prior
+    .catch(() => {})
+    .then(() => mergeMarkdownIntoRoom(name, fileId, markdown, version))
   fileDocMergeChains.set(
     name,
     run.finally(() => {
@@ -454,9 +560,23 @@ export function applyMarkdownToLiveFileDoc(
 async function mergeMarkdownIntoRoom(
   name: string,
   fileId: string,
-  markdown: string
-): Promise<'applied' | 'no-live-room'> {
+  markdown: string,
+  version?: number
+): Promise<'applied' | 'no-live-room' | 'merge-unavailable'> {
   const store = getFileDocStore()
+
+  // The durable version this merge carries is now incorporated in the live doc — record it (cluster-wide
+  // in Redis for multi-task, plus this task's room) so the persist If-Match guard treats this write as
+  // synced rather than an out-of-band conflict. Set on success below.
+  const recordVersion = () => {
+    if (version === undefined) return
+    const room = fileDocRooms.get(name)
+    // Never regress the token: merges/seeds/persists all write it (locally and via fire-and-forget
+    // Redis), so a lower value arriving out of order must not shadow a higher one the doc already
+    // incorporates (the Redis side is guarded identically by SET_VERSION_IF_NEWER_SCRIPT).
+    if (room) room.syncedVersion = Math.max(room.syncedVersion ?? 0, version)
+    void store.setSyncedVersion(name, version)
+  }
 
   if (store.enabled) {
     // Serialize merges to this file ACROSS tasks — the per-file chain above only covers this process.
@@ -472,7 +592,7 @@ async function mergeMarkdownIntoRoom(
     }
     if (!token) {
       logger.warn(`Merge lock unavailable for file ${fileId}; skipping live merge`)
-      return 'no-live-room'
+      return 'merge-unavailable'
     }
     try {
       // Compute the diff against the committed SHARED state and PUBLISH it — every task with the doc
@@ -484,6 +604,7 @@ async function mergeMarkdownIntoRoom(
       if (!base) return 'no-live-room'
       const diff = await fetchFileDocMerge(fileId, base, markdown)
       await store.publishAndWait(name, diff)
+      recordVersion()
       return 'applied'
     } finally {
       await store.releaseMergeSlot(name, token)
@@ -498,6 +619,7 @@ async function mergeMarkdownIntoRoom(
   if (fileDocRooms.get(name) !== room) return 'no-live-room'
   // No transaction origin → `doc.on('update')` relays to the WHOLE room (every editor sees copilot).
   Y.applyUpdate(room.doc, update)
+  recordVersion()
   return 'applied'
 }
 
@@ -528,6 +650,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     seededObserved: false,
     persistTimer: null,
     persistDeadline: null,
+    syncedVersion: null,
   }
   // Register synchronously BEFORE the async catch-up so a concurrent join sees this room, not a second.
   fileDocRooms.set(name, room)

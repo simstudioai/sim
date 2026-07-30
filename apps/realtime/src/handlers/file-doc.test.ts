@@ -130,11 +130,11 @@ async function flushMicrotasks(): Promise<void> {
  * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
  * `default` type plus the {@link FILE_DOC_SEED} flag, so applying it marks the doc seeded.
  */
-function encodedSeedUpdate(content: string): Uint8Array {
+function seedResult(content: string): { update: Uint8Array; version: number } {
   const doc = new Y.Doc()
   doc.getText(FILE_DOC_FIELD).insert(0, content)
   doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
-  return Y.encodeStateAsUpdate(doc)
+  return { update: Y.encodeStateAsUpdate(doc), version: 1 }
 }
 
 /** Apply a server sync reply frame (`[SYNC tag][sync message]`) into a fresh client doc. */
@@ -189,6 +189,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // Default: the merge builder returns a valid no-op (empty-doc) update. Tests exercising copilot
     // merges override it.
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
+    // Default: persist succeeds. Tests asserting conflict/reconcile override this per-case.
+    mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 1 })
   })
 
   afterEach(() => {
@@ -262,7 +264,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('does NOT persist a seeded-but-unedited doc on last disconnect (no clobber of a concurrent write)', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
@@ -276,7 +278,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('persists on last disconnect once a genuine user edit has landed', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
@@ -297,8 +299,39 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
+  it('stops on a persist conflict without clobbering (single attempt, durable left authoritative)', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+    // A persist reports an out-of-band change (If-Match conflict). The relay must NOT re-persist against
+    // the current stream (the external write commits durable before its chokepoint merge lands, so a
+    // re-persist could clobber it) — it stops after a single attempt and leaves the durable file
+    // authoritative; a later flush projects the converged stream once the merge lands.
+    mockFetchFileDocPersist.mockResolvedValue({
+      status: 'conflict',
+      version: 999,
+    })
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+
+    // The conflict is handled gracefully: the persist is attempted exactly once (never silently skipped,
+    // never retried against a possibly-behind stream) and the durable file is left authoritative.
+    cleanupFileDocForSocket('socket-1', io, true)
+    await flushMicrotasks()
+    expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
+  })
+
   it('flushAllFileDocRooms persists open EDITED rooms (graceful shutdown), skips unedited', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
@@ -324,7 +357,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('joins the room, sends sync step 1, and seeds the document from the server', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# From server'))
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
 
@@ -360,7 +393,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   it('seeds the document only once from the server across concurrent joiners of the same file', async () => {
     // Keep the first seed fetch IN FLIGHT so the doc is still unseeded when the second socket joins:
     // that forces the dedup onto `serverSeedStarted` (the in-flight guard) rather than `isDocSeeded`.
-    let resolveSeed: (v: Uint8Array | null) => void = () => {}
+    let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
     mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
     const a = setup('socket-a', io)
@@ -370,7 +403,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
     // Second join happened with the fetch still pending; only after this does the seed land.
     expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
-    resolveSeed(encodedSeedUpdate('# From server'))
+    resolveSeed(seedResult('# From server'))
     await flushMicrotasks()
     expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
   })
@@ -401,7 +434,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   it('makes one seed attempt and releases the guard on failure so a later join retries', async () => {
     mockFetchFileDocSeed
       .mockRejectedValueOnce(new Error('transport blip'))
-      .mockResolvedValueOnce(encodedSeedUpdate('# Recovered'))
+      .mockResolvedValueOnce(seedResult('# Recovered'))
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
 
@@ -428,7 +461,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('does not seed a room that was dropped while the seed fetch was in flight', async () => {
-    let resolveSeed: (v: Uint8Array | null) => void = () => {}
+    let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
     mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
@@ -437,7 +470,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // The only owner leaves → the room (and its doc) is destroyed while the fetch is still pending.
     cleanupFileDocForSocket('socket-1', io, true)
     // Resolving now must not touch the destroyed doc or throw (liveness re-check after the await).
-    resolveSeed(encodedSeedUpdate('# Too late'))
+    resolveSeed(seedResult('# Too late'))
     await expect(flushMicrotasks()).resolves.toBeUndefined()
   })
 
@@ -447,7 +480,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // edits are readiness-gated), but even if some update landed content in the doc before the seed
     // fetch resolved, the seed must still apply and set the flag — or the client's
     // `synced && initialContentLoaded` gate would never open.
-    let resolveSeed: (v: Uint8Array | null) => void = () => {}
+    let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
     mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
@@ -461,7 +494,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(placeholder))
       )
     )
-    resolveSeed(encodedSeedUpdate('# Seeded'))
+    resolveSeed(seedResult('# Seeded'))
     await flushMicrotasks()
 
     socket.emit.mockClear()
@@ -478,7 +511,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('merges a copilot edit into a seeded live room and relays it to editors', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# Original'))
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original'))
     const { io, sent } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
@@ -511,7 +544,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('serializes concurrent merges for the same file (second waits for the first)', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(encodedSeedUpdate('# Original'))
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original'))
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
