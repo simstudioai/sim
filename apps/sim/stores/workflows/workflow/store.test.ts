@@ -492,6 +492,70 @@ describe('workflow store', () => {
         expect(blocks[duplicatedId].position.x).not.toBe(0)
       }
     })
+
+    /**
+     * Regression: a duplicated trigger block that keeps the source's `triggerPath` renders the
+     * original's webhook URL and collides with it on `path_deployment_unique` at deploy.
+     */
+    it('should clear webhook runtime values when duplicating a trigger block', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+      useWorkflowRegistry.setState({ activeWorkflowId: 'wf-1' })
+      useWorkflowStore.setState({ currentWorkflowId: 'wf-1' })
+
+      addBlock(
+        'original',
+        'generic_webhook',
+        'Webhook 1',
+        { x: 0, y: 0 },
+        undefined,
+        undefined,
+        undefined,
+        {
+          triggerMode: true,
+        }
+      )
+      useSubBlockStore.setState({
+        workflowValues: {
+          'wf-1': {
+            original: { triggerPath: 'deployed-path-abc', webhookId: 'wh_original' },
+          },
+        },
+      })
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const duplicatedId = Object.keys(blocks).find((id) => id !== 'original')
+      expect(duplicatedId).toBeDefined()
+      if (!duplicatedId) return
+
+      const values = useSubBlockStore.getState().workflowValues['wf-1']
+      expect(values[duplicatedId].triggerPath).toBeNull()
+      expect(values[duplicatedId].webhookId).toBeNull()
+      // The source keeps its identity.
+      expect(values.original.triggerPath).toBe('deployed-path-abc')
+    })
+
+    it('should preserve a user-entered webhookId when duplicating a non-trigger block', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+      useWorkflowRegistry.setState({ activeWorkflowId: 'wf-1' })
+      useWorkflowStore.setState({ currentWorkflowId: 'wf-1' })
+
+      addBlock('original', 'discord', 'Discord 1', { x: 0, y: 0 })
+      useSubBlockStore.setState({
+        workflowValues: { 'wf-1': { original: { webhookId: '1234567890' } } },
+      })
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const duplicatedId = Object.keys(blocks).find((id) => id !== 'original')
+      expect(duplicatedId).toBeDefined()
+      if (!duplicatedId) return
+
+      const values = useSubBlockStore.getState().workflowValues['wf-1']
+      expect(values[duplicatedId].webhookId).toBe('1234567890')
+    })
   })
 
   describe('batchUpdatePositions', () => {

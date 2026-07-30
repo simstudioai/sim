@@ -857,3 +857,135 @@ describe('regenerateBlockIds', () => {
     expect(names).toContain('Agent 2')
   })
 })
+
+describe('regenerateBlockIds — trigger webhook identity', () => {
+  const positionOffset = { x: 50, y: 50 }
+  const sourceId = 'webhook-source'
+  const deployedPath = 'abc123deployedpath'
+
+  /**
+   * Regression: PR #1784 stripped `webhookId`/`triggerPath` on duplicate, but three later
+   * paste refactors deleted the guard. A clone that keeps `triggerPath` renders the source's
+   * webhook URL and collides with it on `path_deployment_unique` at deploy.
+   */
+  it('clears webhook runtime values on a pasted trigger block', () => {
+    const blocksToCopy = {
+      [sourceId]: createBlock({
+        id: sourceId,
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: true,
+        subBlocks: {
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
+          webhookId: { id: 'webhookId', type: 'short-input', value: 'wh_original' },
+        },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      { [sourceId]: { triggerPath: deployedPath, webhookId: 'wh_original' } },
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newId = Object.keys(result.blocks)[0]
+    expect(newId).not.toBe(sourceId)
+
+    // Both sources must be cleared: the value map wins in mergeSubblockState.
+    expect(result.blocks[newId].subBlocks.triggerPath?.value).toBeNull()
+    expect(result.blocks[newId].subBlocks.webhookId?.value).toBeNull()
+    expect(result.subBlockValues[newId].triggerPath).toBeNull()
+    expect(result.subBlockValues[newId].webhookId).toBeNull()
+  })
+
+  /**
+   * Discord, Attio, and Vercel action blocks expose a REQUIRED user-entered `webhookId`
+   * subblock. Clearing by subblock id alone would silently wipe it, so the clear is gated on
+   * the block actually acting as a trigger.
+   */
+  it('preserves the user-entered webhookId on a non-trigger action block', () => {
+    const discordId = 'discord-1'
+    const blocksToCopy = {
+      [discordId]: createBlock({
+        id: discordId,
+        type: 'discord',
+        name: 'Discord 1',
+        triggerMode: false,
+        subBlocks: {
+          webhookId: { id: 'webhookId', type: 'short-input', value: '1234567890' },
+        },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      { [discordId]: { webhookId: '1234567890' } },
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newId = Object.keys(result.blocks)[0]
+    expect(result.blocks[newId].subBlocks.webhookId?.value).toBe('1234567890')
+    expect(result.subBlockValues[newId].webhookId).toBe('1234567890')
+  })
+
+  /**
+   * Only the webhook IDENTITY is cleared. Trigger configuration — including `triggerConfig`,
+   * which can be the only home for a legacy trigger's fields — must survive the copy, or pasting
+   * a configured trigger would silently lose its setup.
+   */
+  it('preserves trigger configuration and ordinary values on a cloned trigger block', () => {
+    const blocksToCopy = {
+      [sourceId]: createBlock({
+        id: sourceId,
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: true,
+        subBlocks: {
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
+          triggerConfig: { id: 'triggerConfig', type: 'short-input', value: { labelIds: ['x'] } },
+          triggerId: { id: 'triggerId', type: 'short-input', value: 'generic_webhook' },
+          token: { id: 'token', type: 'short-input', value: 'user-secret' },
+          requireAuth: { id: 'requireAuth', type: 'switch', value: true },
+        },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {
+        [sourceId]: {
+          triggerPath: deployedPath,
+          triggerConfig: { labelIds: ['x'] },
+          triggerId: 'generic_webhook',
+          token: 'user-secret',
+          requireAuth: true,
+        },
+      },
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newId = Object.keys(result.blocks)[0]
+    expect(result.subBlockValues[newId].triggerPath).toBeNull()
+    expect(result.subBlockValues[newId].triggerConfig).toEqual({ labelIds: ['x'] })
+    expect(result.subBlockValues[newId].triggerId).toBe('generic_webhook')
+    expect(result.subBlockValues[newId].token).toBe('user-secret')
+    expect(result.subBlockValues[newId].requireAuth).toBe(true)
+    expect(result.blocks[newId].subBlocks.triggerConfig?.value).toEqual({ labelIds: ['x'] })
+    expect(result.blocks[newId].subBlocks.token?.value).toBe('user-secret')
+  })
+})

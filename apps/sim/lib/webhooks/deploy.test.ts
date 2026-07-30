@@ -49,6 +49,7 @@ import {
   buildProviderConfig,
   resolveTriggerCredentialId,
   resolveWebhookConfigForBlock,
+  validateTriggerWebhookConfigForDeploy,
 } from '@/lib/webhooks/deploy'
 import { getBlock } from '@/blocks'
 import { getTrigger } from '@/triggers'
@@ -357,5 +358,75 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result?.error?.status).toBe(400)
     expect(result?.error?.message).toContain('Could not access the connected Slack account')
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateTriggerWebhookConfigForDeploy — duplicate path guard', () => {
+  const pathTrigger = trigger([{ id: 'eventType', mode: 'trigger', required: false }])
+
+  function triggerBlockWithPath(id: string, name: string, triggerPath: string): BlockState {
+    return {
+      id,
+      name,
+      type: 'generic_webhook',
+      enabled: true,
+      triggerMode: true,
+      subBlocks: { triggerPath: { value: triggerPath } },
+    } as unknown as BlockState
+  }
+
+  beforeEach(() => {
+    ;(getBlock as Mock).mockReturnValue({ category: 'triggers' })
+    ;(getTrigger as Mock).mockReturnValue(pathTrigger)
+  })
+
+  /**
+   * The cross-workflow guards do not cover two blocks in ONE workflow sharing a path:
+   * findConflictingWebhookPathOwner ignores same-workflow owners and claimWebhookPath's CAS
+   * accepts a same-workflow re-claim. Without this guard it surfaces as an opaque 500 from the
+   * `path_deployment_unique` index.
+   */
+  it('rejects two trigger blocks in one workflow sharing a triggerPath', async () => {
+    const result = await validateTriggerWebhookConfigForDeploy({
+      'block-a': triggerBlockWithPath('block-a', 'Webhook 1', 'shared-path'),
+      'block-b': triggerBlockWithPath('block-b', 'Webhook 2', 'shared-path'),
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.status).toBe(400)
+    expect(result.error.message).toContain('shared-path')
+    expect(result.error.message).toContain('Webhook 1')
+    expect(result.error.message).toContain('Webhook 2')
+  })
+
+  it('allows distinct paths', async () => {
+    const result = await validateTriggerWebhookConfigForDeploy({
+      'block-a': triggerBlockWithPath('block-a', 'Webhook 1', 'path-a'),
+      'block-b': triggerBlockWithPath('block-b', 'Webhook 2', 'path-b'),
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('allows multiple blocks with no explicit path (each falls back to its block id)', async () => {
+    const result = await validateTriggerWebhookConfigForDeploy({
+      'block-a': triggerBlockWithPath('block-a', 'Webhook 1', ''),
+      'block-b': triggerBlockWithPath('block-b', 'Webhook 2', ''),
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('ignores a disabled block that shares a path', async () => {
+    const disabled = triggerBlockWithPath('block-b', 'Webhook 2', 'shared-path')
+    ;(disabled as { enabled: boolean }).enabled = false
+
+    const result = await validateTriggerWebhookConfigForDeploy({
+      'block-a': triggerBlockWithPath('block-a', 'Webhook 1', 'shared-path'),
+      'block-b': disabled,
+    })
+
+    expect(result.success).toBe(true)
   })
 })

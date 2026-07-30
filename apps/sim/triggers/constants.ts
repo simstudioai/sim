@@ -31,6 +31,18 @@ export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
 ]
 
 /**
+ * The subset of {@link TRIGGER_RUNTIME_SUBBLOCK_IDS} that identifies one specific deployed webhook
+ * row. A cloned trigger block must not inherit these: keeping `triggerPath` makes the clone render
+ * the source's public URL and collide with it on the `path_deployment_unique` index at deploy.
+ *
+ * Deliberately excludes `triggerConfig` and `triggerId`, which are user configuration a clone
+ * SHOULD keep. `triggerConfig` in particular can be the only home for a legacy trigger's fields
+ * (it is migrated into individual subblocks by `populateTriggerFieldsFromConfig`, which only runs
+ * once a webhook row is loaded) so clearing it could silently drop configuration.
+ */
+export const WEBHOOK_IDENTITY_SUBBLOCK_IDS: string[] = ['webhookId', 'triggerPath']
+
+/**
  * Synthesized read-only field exposing a webhook trigger block's public URL in the
  * copilot's read view of workflow state (see sanitizeForCopilot). The URL is derived
  * at read time — it is never persisted — and edit_workflow rejects writes to it.

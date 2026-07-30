@@ -200,6 +200,22 @@ export function getAllTriggerBlocks(): TriggerInfo[] {
 }
 
 /**
+ * Whether a block instance is actually acting as a trigger, so its
+ * {@link TRIGGER_RUNTIME_SUBBLOCK_IDS} values are webhook runtime metadata rather than user
+ * configuration.
+ *
+ * Deliberately narrower than {@link hasTriggerCapability}: several `category: 'tools'` blocks
+ * declare `triggers.enabled` AND expose a required user-entered `webhookId` action field
+ * (Discord, Attio, Vercel). Gating on capability would treat that field as runtime metadata and
+ * silently clear it. Mirrors the deploy-side `resolveTriggerId` gate so both sides agree on which
+ * blocks own a webhook.
+ */
+export function isBlockActingAsTrigger(block: BlockState): boolean {
+  if (block.triggerMode === true) return true
+  return getBlock(block.type)?.category === 'triggers'
+}
+
+/**
  * Check if a block has trigger capability (contains trigger mode subblocks)
  */
 export function hasTriggerCapability(block: BlockConfig): boolean {

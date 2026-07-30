@@ -17,6 +17,7 @@ import {
   getUniqueBlockName,
   mergeSubblockState,
   remapConditionIds,
+  stripWebhookIdentityForClone,
 } from '@/stores/workflows/utils'
 import type {
   Position,
@@ -598,6 +599,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
           block.type,
           id,
           newId
+        )
+
+        // A duplicated trigger block must not inherit the source's webhook identity, or it
+        // renders the original's URL and collides with it on deploy.
+        stripWebhookIdentityForClone(
+          block,
+          newSubBlocks as Record<string, SubBlockState>,
+          clonedSubBlockValues
         )
 
         const newState = {

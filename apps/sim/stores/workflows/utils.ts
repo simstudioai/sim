@@ -8,7 +8,10 @@ import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflow
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import {
+  hasTriggerCapability,
+  isBlockActingAsTrigger,
+} from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
 import { escapeRegExp, normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -22,7 +25,7 @@ import type {
   SubBlockState,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS, WEBHOOK_IDENTITY_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /** Threshold to detect viewport-based offsets vs small duplicate offsets */
 const LARGE_OFFSET_THRESHOLD = 300
@@ -249,6 +252,36 @@ function updateValueReferences(value: unknown, nameMap: Map<string, string>): un
     return result
   }
   return value
+}
+
+/**
+ * Clears the {@link WEBHOOK_IDENTITY_SUBBLOCK_IDS} a cloned trigger block must not inherit, across
+ * BOTH the sub-block structure and the sub-block value map.
+ *
+ * Both are required. `mergeSubblockStateWithValues` treats the value map as authoritative — a
+ * `null` there overrides the structure — but only creates an entry for a structure-less key when
+ * the value is non-null. So nulling the map covers the common case (`triggerPath` is written by
+ * `useWebhookManagement` into the store only, never declared as a subblock), and clearing the
+ * structure covers blocks whose subBlocks were hydrated from a merge. Either way the clone
+ * resolves no path and deploy falls back to its freshly generated block id.
+ *
+ * Gated on {@link isBlockActingAsTrigger}, NOT on the subblock id alone: Discord, Attio, and
+ * Vercel action blocks expose a required user-entered `webhookId` field that must survive a copy.
+ *
+ * Mutates both arguments in place; both are expected to be clone-owned copies.
+ */
+export function stripWebhookIdentityForClone(
+  block: BlockState,
+  subBlocks: Record<string, SubBlockState>,
+  subBlockValues: Record<string, unknown>
+): void {
+  if (!isBlockActingAsTrigger(block)) return
+
+  for (const subBlockId of WEBHOOK_IDENTITY_SUBBLOCK_IDS) {
+    const subBlock = subBlocks[subBlockId]
+    if (subBlock) subBlocks[subBlockId] = { ...subBlock, value: null }
+    if (subBlockId in subBlockValues) subBlockValues[subBlockId] = null
+  }
 }
 
 function updateBlockReferences(
@@ -563,6 +596,16 @@ export function regenerateBlockIds(
     Object.keys(blockValues).forEach((subBlockId) => {
       blockValues[subBlockId] = updateValueReferences(blockValues[subBlockId], nameMap)
     })
+  })
+
+  // Clones must not inherit the source's webhook identity: a pasted trigger block that keeps
+  // `triggerPath` renders the original's webhook URL and collides with it on deploy
+  // (`path_deployment_unique`). Deliberately a separate gated pass rather than
+  // `updateBlockReferences`' id-based `clearTriggerRuntimeValues` flag, so the import/export
+  // path that uses that flag keeps its exact current behavior.
+  Object.entries(newBlocks).forEach(([blockId, block]) => {
+    // An absent value-map entry needs no clearing: deploy treats absent and null identically.
+    stripWebhookIdentityForClone(block, block.subBlocks, newSubBlockValues[blockId] ?? {})
   })
 
   return {

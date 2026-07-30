@@ -73,10 +73,30 @@ export async function validateTriggerWebhookConfigForDeploy(
   blocks: Record<string, BlockState>
 ): Promise<TriggerSaveResult> {
   const triggerBlocks = Object.values(blocks || {}).filter((b) => b && b.enabled !== false)
+  const blockNameByPath = new Map<string, string>()
 
   for (const block of triggerBlocks) {
     const triggerId = resolveTriggerId(block)
     if (!triggerId || !isTriggerValid(triggerId)) continue
+
+    // Two blocks in ONE workflow claiming the same path is unreachable through the UI, but the
+    // cross-workflow guards do not cover it (findConflictingWebhookPathOwner ignores same-workflow
+    // owners; claimWebhookPath's CAS accepts a same-workflow re-claim). Without this it lands on
+    // the `path_deployment_unique` index as an opaque 500 instead of an actionable message.
+    const pathValue = getSubBlockValue(block, 'triggerPath')
+    if (typeof pathValue === 'string' && pathValue.length > 0) {
+      const owner = blockNameByPath.get(pathValue)
+      if (owner) {
+        return {
+          success: false,
+          error: {
+            message: `Webhook path "${pathValue}" is used by more than one trigger block ("${owner}" and "${block.name}"). Each trigger needs its own path.`,
+            status: 400,
+          },
+        }
+      }
+      blockNameByPath.set(pathValue, block.name)
+    }
 
     const triggerDef = getTrigger(triggerId)
     const { providerConfig, missingFields } = buildProviderConfig(block, triggerId, triggerDef)
