@@ -1,9 +1,25 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { tableViews } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
-import { normalizeStoredViewConfig, pruneViewConfig } from '@/lib/table/views/service'
+
+const { mockSignalTableViewsChanged } = vi.hoisted(() => ({
+  mockSignalTableViewsChanged: vi.fn(),
+}))
+vi.mock('@/lib/table/events', () => ({
+  signalTableViewsChanged: mockSignalTableViewsChanged,
+}))
+
+import {
+  createTableView,
+  deleteTableView,
+  normalizeStoredViewConfig,
+  pruneViewConfig,
+  updateTableView,
+} from '@/lib/table/views/service'
 
 const columns: ColumnDefinition[] = [
   { id: 'col_a', name: 'Name', type: 'text' },
@@ -82,5 +98,89 @@ describe('normalizeStoredViewConfig', () => {
   it('drops an unconvertible legacy filter rather than surfacing it broken', () => {
     const out = normalizeStoredViewConfig({ filter: { $bogus: [{ nested: true }] } })
     expect(out.filter).toBeNull()
+  })
+})
+
+describe('table-view mutations signal collaborators', () => {
+  const columns: ColumnDefinition[] = []
+  const viewRow = {
+    id: 'view-1',
+    tableId: 'table-1',
+    workspaceId: 'ws-1',
+    name: 'My View',
+    config: {},
+    isDefault: false,
+    createdBy: 'user-1',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('createTableView signals the table after inserting', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([viewRow])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: {},
+      userId: 'user-1',
+      columns,
+    })
+
+    expect(mockSignalTableViewsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableViewsChanged).toHaveBeenCalledWith('table-1')
+  })
+
+  it('updateTableView signals when the target view exists', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }]) // the in-transaction existence pre-check
+    dbChainMockFns.returning.mockResolvedValueOnce([viewRow]) // the update returning
+
+    const result = await updateTableView({
+      viewId: 'view-1',
+      tableId: 'table-1',
+      name: 'Renamed',
+      columns,
+    })
+
+    expect(result).not.toBeNull()
+    expect(mockSignalTableViewsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableViewsChanged).toHaveBeenCalledWith('table-1')
+  })
+
+  it('updateTableView does NOT signal a no-op update on a missing view', async () => {
+    // No queued existence row → the pre-check finds nothing → returns null before any write.
+    const result = await updateTableView({
+      viewId: 'missing',
+      tableId: 'table-1',
+      name: 'Renamed',
+      columns,
+    })
+
+    expect(result).toBeNull()
+    expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
+  })
+
+  it('deleteTableView signals when a row was actually deleted', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'view-1' }])
+
+    const deleted = await deleteTableView('view-1', 'table-1')
+
+    expect(deleted).toBe(true)
+    expect(mockSignalTableViewsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableViewsChanged).toHaveBeenCalledWith('table-1')
+  })
+
+  it('deleteTableView does NOT signal when nothing was deleted', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const deleted = await deleteTableView('missing', 'table-1')
+
+    expect(deleted).toBe(false)
+    expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
   })
 })
