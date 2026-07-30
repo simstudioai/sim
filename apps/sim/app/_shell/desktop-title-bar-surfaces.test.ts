@@ -25,6 +25,7 @@ const workspaceChrome = read(
 )
 const sidebar = read('../workspace/[workspaceId]/w/components/sidebar/sidebar.tsx')
 const globalStyles = read('../_styles/globals.css')
+const desktopTitleBar = read('../_shell/desktop-title-bar.tsx')
 const pageHeaderBar = read('../../components/page-header-bar.ts')
 const resourceHeader = read(
   '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
@@ -40,7 +41,7 @@ describe('desktop title-bar surface audit', () => {
     // rest drawing their logo beneath them; per-route gating could not cover
     // `/invite/[id]` either, so the shell owns the lane unconditionally.
     expect(authShell).toContain('desktop-title-bar-page')
-    expect(authShell).toContain('<DesktopTitleBarController />')
+    expect(authShell).toContain('<DesktopTitleBarLane />')
     expect(stripComments(authShell)).not.toContain('reserveDesktopTitleBar')
     expect(stripComments(authShell)).not.toContain('min-h-screen')
     expect(authLayout).toContain('<AuthShell>')
@@ -49,7 +50,7 @@ describe('desktop title-bar surface audit', () => {
   it('mounts a real drag surface across login and workspace title-bar lanes', () => {
     const dragRegion = globalStyles.match(/\.desktop-window-drag-region\s*\{([^}]*)\}/)?.[1]
 
-    expect(authShell).toContain('desktop-login-window-drag-region')
+    expect(desktopTitleBar).toContain('desktop-login-window-drag-region')
     expect(workspaceChrome).toContain('desktop-workspace-window-drag-region')
     expect(workspaceChrome).toContain("isCollapsed ? 'h-[var(--desktop-title-bar-height)]' : 'h-2'")
     // The sidebar's lane strip composes the same two classes instead of
@@ -165,13 +166,19 @@ describe('desktop title-bar surface audit', () => {
  */
 const LANE_EXEMPT: Record<string, string> = {
   'app/(landing)/components/landing-shell/landing-shell.tsx':
-    'Marketing chrome. The desktop shell boots straight to /login or a workspace and has no path to the landing routes.',
-  'app/(landing)/components/logo-shell/logo-shell.tsx':
-    'Marketing chrome, same reasoning as landing-shell.',
-  'app/playground/page.tsx': 'Dev-only scratch route, not shipped in the desktop shell.',
-  'app/(interfaces)/resume/[workflowId]/[executionId]/loading.tsx':
-    'Embedded interface surface rendered inside a host page, never as the desktop window root.',
+    'Marketing chrome. Verified: every consumer lives under app/(landing)/, and the desktop shell boots to /login or a workspace with no path to those routes.',
+  'app/playground/page.tsx':
+    'Verified dev-only: the page calls notFound() unless NEXT_PUBLIC_ENABLE_PLAYGROUND is set.',
 }
+
+/**
+ * Shells that reserve the lane for whatever they wrap.
+ *
+ * Matched as JSX usage (`<AuthShell`), never as a bare identifier: an import line, or a
+ * shell's own definition file mentioning its name, would otherwise self-certify as
+ * covered. Both mistakes were in the first draft of this check and made it unfailable.
+ */
+const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell)\b/
 
 describe('desktop traffic-light lane coverage', () => {
   it('leaves no full-viewport root outside workspace chrome unaccounted for', () => {
@@ -184,10 +191,30 @@ describe('desktop traffic-light lane coverage', () => {
       const source = stripComments(read(`../${file.slice('app/'.length)}`))
       const fillsViewport = /\b(min-h-screen|h-screen)\b/.test(source)
       if (!fillsViewport) return false
-      const laneAware = source.includes('desktop-title-bar-page') || source.includes('AuthShell')
+      // Composition counts: a surface is covered if it wears a shell that reserves the
+      // lane. `LogoShell` was previously allowlisted as marketing chrome — a claim that
+      // was simply false, and it hid not-found, the interfaces shell, the desktop handoff
+      // shell and the public-file access gates behind one wrong sentence.
+      const laneAware =
+        source.includes('desktop-title-bar-page') || LANE_AWARE_SHELL_USAGE.test(source)
       return !laneAware && !(file in LANE_EXEMPT)
     })
 
     expect(unaccounted).toEqual([])
+  })
+
+  it('never reserves the lane without also making it draggable', () => {
+    const appDir = new URL('../', import.meta.url)
+    const orphaned = readdirSync(appDir, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.tsx'))
+      .map((f) => `app/${f}`)
+      .filter((file) => {
+        const source = stripComments(read(`../${file.slice('app/'.length)}`))
+        // The class alone clears the lights but leaves the strip undraggable, so the
+        // window loses its title bar on that page. Shipped that way twice in this PR.
+        return source.includes('desktop-title-bar-page') && !/<DesktopTitleBarLane\b/.test(source)
+      })
+
+    expect(orphaned).toEqual([])
   })
 })
