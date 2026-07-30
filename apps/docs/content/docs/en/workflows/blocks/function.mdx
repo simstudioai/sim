@@ -100,6 +100,11 @@ pandas
 
 Then open the block's advanced options and choose the sandbox under **Sandbox**.
 
+In JavaScript the sandbox applies to code that uses `import` or `require` — that is
+what sends the block to a remote sandbox in the first place, so a block without them
+keeps running locally and ignores the selection. Python always runs remotely, so a
+selected sandbox always applies.
+
 <Callout type="info">
 Two sandboxes with the same language and the same package list share one build,
 so duplicating a set costs nothing. Editing a package list starts a new build;
