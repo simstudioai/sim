@@ -210,7 +210,10 @@ export function getAllTriggerBlocks(): TriggerInfo[] {
  * silently clear it. Mirrors the deploy-side `resolveTriggerId` gate so both sides agree on which
  * blocks own a webhook.
  */
-export function isBlockActingAsTrigger(block: BlockState): boolean {
+export function isBlockActingAsTrigger(block: {
+  type: string
+  triggerMode?: boolean | null
+}): boolean {
   if (block.triggerMode === true) return true
   return getBlock(block.type)?.category === 'triggers'
 }

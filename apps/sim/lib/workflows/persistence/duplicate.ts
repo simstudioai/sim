@@ -22,6 +22,7 @@ import {
   type SubBlockRecord,
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
+import { isBlockActingAsTrigger } from '@/lib/workflows/triggers/trigger-utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -304,7 +305,10 @@ export async function duplicateWorkflow(
           typeof updatedSubBlocks === 'object' &&
           !Array.isArray(updatedSubBlocks)
         ) {
-          updatedSubBlocks = sanitizeSubBlocksForDuplicate(updatedSubBlocks as SubBlockRecord)
+          updatedSubBlocks = sanitizeSubBlocksForDuplicate(
+            updatedSubBlocks as SubBlockRecord,
+            isBlockActingAsTrigger(block)
+          )
         }
         if (
           varIdMapping.size > 0 &&

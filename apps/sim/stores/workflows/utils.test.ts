@@ -8,7 +8,7 @@ import {
 import type { Edge } from 'reactflow'
 import { describe, expect, it } from 'vitest'
 import { normalizeName } from '@/executor/constants'
-import { getUniqueBlockName, regenerateBlockIds } from './utils'
+import { getUniqueBlockName, regenerateBlockIds, regenerateWorkflowIds } from './utils'
 
 describe('normalizeName', () => {
   it.concurrent('should convert to lowercase', () => {
@@ -987,5 +987,77 @@ describe('regenerateBlockIds — trigger webhook identity', () => {
     expect(result.subBlockValues[newId].requireAuth).toBe(true)
     expect(result.blocks[newId].subBlocks.triggerConfig?.value).toEqual({ labelIds: ['x'] })
     expect(result.blocks[newId].subBlocks.token?.value).toBe('user-secret')
+  })
+})
+
+describe('regenerateWorkflowIds — trigger webhook identity', () => {
+  function stateWith(block: Record<string, unknown>) {
+    return {
+      blocks: { 'block-1': { id: 'block-1', position: { x: 0, y: 0 }, outputs: {}, ...block } },
+      edges: [],
+      loops: {},
+      parallels: {},
+    } as never
+  }
+
+  /**
+   * Regression: import/export cleared runtime ids by subblock id alone, so an imported Discord
+   * block lost its REQUIRED user-entered `webhookId` while keeping the `webhookToken` it pairs
+   * with. Trigger blocks (below) must still be cleared.
+   */
+  it('keeps a user-entered webhookId on a non-trigger action block', () => {
+    const out = regenerateWorkflowIds(
+      stateWith({
+        type: 'discord',
+        name: 'Discord 1',
+        triggerMode: false,
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'discord_execute_webhook' },
+          webhookId: { id: 'webhookId', type: 'short-input', value: '1234567890' },
+          webhookToken: { id: 'webhookToken', type: 'short-input', value: 'tok_abc' },
+        },
+      })
+    )
+
+    const block = Object.values(out.blocks)[0]
+    expect(block.subBlocks.webhookId?.value).toBe('1234567890')
+    expect(block.subBlocks.webhookToken?.value).toBe('tok_abc')
+  })
+
+  it('still clears runtime identity on a block in trigger mode', () => {
+    const out = regenerateWorkflowIds(
+      stateWith({
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: true,
+        subBlocks: {
+          webhookId: { id: 'webhookId', type: 'short-input', value: 'wh_original' },
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: 'deployed-path' },
+          requireAuth: { id: 'requireAuth', type: 'switch', value: true },
+        },
+      })
+    )
+
+    const block = Object.values(out.blocks)[0]
+    expect(block.subBlocks.webhookId?.value).toBeNull()
+    expect(block.subBlocks.triggerPath?.value).toBeNull()
+    expect(block.subBlocks.requireAuth?.value).toBe(true)
+  })
+
+  it('leaves runtime identity alone when clearTriggerRuntimeValues is opted out', () => {
+    const out = regenerateWorkflowIds(
+      stateWith({
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: true,
+        subBlocks: {
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: 'deployed-path' },
+        },
+      }),
+      { clearTriggerRuntimeValues: false }
+    )
+
+    const block = Object.values(out.blocks)[0]
+    expect(block.subBlocks.triggerPath?.value).toBe('deployed-path')
   })
 })

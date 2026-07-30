@@ -47,11 +47,25 @@ export function isSystemSubBlockKey(key: string, ids: Set<string> | string[]): b
   return idList.some((id) => key === id || key.startsWith(`${id}_`))
 }
 
-/** Strip trigger-runtime and non-credential system subblocks for a fresh copy. */
-export function sanitizeSubBlocksForDuplicate(subBlocks: SubBlockRecord): SubBlockRecord {
+/**
+ * Strip trigger-runtime and non-credential system subblocks for a fresh copy.
+ *
+ * `isActingAsTrigger` is required, not optional, so every call site must decide: the
+ * {@link TRIGGER_RUNTIME_SUBBLOCK_IDS} strip is only correct for a block that actually owns a
+ * webhook. Discord, Attio, and Vercel action blocks expose a REQUIRED user-entered `webhookId`
+ * field, and stripping it left the copy half-configured (`webhookToken` survives while the id it
+ * pairs with vanishes). Resolve the flag with `isBlockActingAsTrigger(block)`.
+ *
+ * The display-only system subblocks are stripped unconditionally: those ids exist only on trigger
+ * definitions, so the strip is a no-op for anything else.
+ */
+export function sanitizeSubBlocksForDuplicate(
+  subBlocks: SubBlockRecord,
+  isActingAsTrigger: boolean
+): SubBlockRecord {
   const sanitized: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
-    if (isSystemSubBlockKey(key, TRIGGER_RUNTIME_SUBBLOCK_IDS)) continue
+    if (isActingAsTrigger && isSystemSubBlockKey(key, TRIGGER_RUNTIME_SUBBLOCK_IDS)) continue
     if (isSystemSubBlockKey(key, DUPLICATE_STRIPPED_SYSTEM_SUBBLOCK_IDS)) continue
     sanitized[key] = subBlock
   }

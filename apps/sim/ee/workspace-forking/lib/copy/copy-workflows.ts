@@ -13,6 +13,7 @@ import {
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import { isBlockActingAsTrigger } from '@/lib/workflows/triggers/trigger-utils'
 import {
   deriveForkBlockId,
   type ForkBlockIdResolver,
@@ -436,7 +437,10 @@ export async function copyWorkflowStateIntoTarget(
 
     // double-cast-allowed: SubBlockState is structurally a SubBlockRecord entry but lacks the open index signature SubBlockRecord declares
     const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
-    const sanitizedSource = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
+    const sanitizedSource = sanitizeSubBlocksForDuplicate(
+      sourceSubBlocks,
+      isBlockActingAsTrigger(block)
+    )
     let subBlocks: SubBlockRecord = sanitizedSource
     // Tracks the block's live `canonicalModes` through this pass, so a `tool-input` reindex
     // (a dropped custom-tool/MCP entry shifts later tools' array positions) is visible to every

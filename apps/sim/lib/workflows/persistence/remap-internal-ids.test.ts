@@ -8,6 +8,7 @@ import {
   remapConditionIdsInSubBlocks,
   remapWorkflowReferencesInSubBlocks,
   type SubBlockRecord,
+  sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 
 describe('remapWorkflowReferencesInSubBlocks', () => {
@@ -461,5 +462,80 @@ describe('coerceObjectArray', () => {
   it('returns null for non-array values', () => {
     expect(coerceObjectArray('hi')).toEqual({ array: null, wasString: false })
     expect(coerceObjectArray(42)).toEqual({ array: null, wasString: false })
+  })
+})
+
+describe('sanitizeSubBlocksForDuplicate', () => {
+  /**
+   * Regression: the strip was keyed on subblock id alone, so duplicating or forking a workflow
+   * blanked Discord/Attio/Vercel's REQUIRED user-entered `webhookId` while leaving the
+   * `webhookToken` it pairs with — a silently half-configured copy.
+   */
+  it('keeps a user-entered webhookId on a block that is not acting as a trigger', () => {
+    const discord: SubBlockRecord = {
+      operation: { type: 'dropdown', value: 'discord_execute_webhook' },
+      webhookId: { type: 'short-input', value: '1234567890' },
+      webhookToken: { type: 'short-input', value: 'tok_abc' },
+      content: { type: 'long-input', value: 'hello' },
+    }
+
+    const out = sanitizeSubBlocksForDuplicate(discord, false)
+
+    expect(out.webhookId).toEqual({ type: 'short-input', value: '1234567890' })
+    expect(out.webhookToken).toEqual({ type: 'short-input', value: 'tok_abc' })
+    expect(out.content).toBeDefined()
+    expect(out.operation).toBeDefined()
+  })
+
+  it('keeps prefixed keys on a block that is not acting as a trigger', () => {
+    const out = sanitizeSubBlocksForDuplicate(
+      {
+        webhookId_custom: { type: 'short-input', value: 'x' },
+        triggerConfig: { type: 'short-input', value: { labelIds: ['a'] } },
+      },
+      false
+    )
+
+    expect(out.webhookId_custom).toBeDefined()
+    expect(out.triggerConfig).toBeDefined()
+  })
+
+  it('still strips webhook runtime identity on a real trigger block', () => {
+    const out = sanitizeSubBlocksForDuplicate(
+      {
+        webhookId: { type: 'short-input', value: 'wh_original' },
+        triggerPath: { type: 'short-input', value: 'deployed-path' },
+        triggerConfig: { type: 'short-input', value: { labelIds: ['a'] } },
+        triggerId: { type: 'short-input', value: 'generic_webhook' },
+        requireAuth: { type: 'switch', value: true },
+      },
+      true
+    )
+
+    expect(out.webhookId).toBeUndefined()
+    expect(out.triggerPath).toBeUndefined()
+    expect(out.triggerConfig).toBeUndefined()
+    expect(out.triggerId).toBeUndefined()
+    expect(out.requireAuth).toBeDefined()
+  })
+
+  it('strips display-only system subblocks regardless of trigger status', () => {
+    for (const isTrigger of [true, false]) {
+      const out = sanitizeSubBlocksForDuplicate(
+        {
+          webhookUrlDisplay: { type: 'short-input', value: 'https://x' },
+          samplePayload: { type: 'code', value: '{}' },
+          scheduleInfo: { type: 'schedule-info', value: null },
+          triggerCredentials: { type: 'oauth-input', value: 'cred-1' },
+        },
+        isTrigger
+      )
+
+      expect(out.webhookUrlDisplay).toBeUndefined()
+      expect(out.samplePayload).toBeUndefined()
+      expect(out.scheduleInfo).toBeUndefined()
+      // triggerCredentials is deliberately preserved so a copy keeps its OAuth connection.
+      expect(out.triggerCredentials).toBeDefined()
+    }
   })
 })

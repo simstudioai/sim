@@ -290,9 +290,12 @@ function updateBlockReferences(
   clearTriggerRuntimeValues = false
 ): void {
   Object.entries(blocks).forEach(([_, block]) => {
+    // The clear is only correct for a block that actually owns a webhook — Discord, Attio, and
+    // Vercel action blocks expose a REQUIRED user-entered `webhookId` field that must survive.
+    const clearRuntimeValues = clearTriggerRuntimeValues && isBlockActingAsTrigger(block)
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
-        if (clearTriggerRuntimeValues && TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subBlockId)) {
+        if (clearRuntimeValues && TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subBlockId)) {
           block.subBlocks[subBlockId] = { ...subBlock, value: null }
           return
         }
