@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
-import { sandboxImage, workspaceSandbox } from '@sim/db/schema'
+import { sandboxImage } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, notInArray, or, sql } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import {
@@ -16,7 +16,7 @@ import {
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
 import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
-import type { SandboxImageBuild } from '@/lib/execution/remote-sandbox/types'
+import type { SandboxImageBuild, SandboxImageStatus } from '@/lib/execution/remote-sandbox/types'
 
 const logger = createLogger('SandboxImageRegistry')
 
@@ -287,15 +287,23 @@ export async function runSandboxImageBuild(payload: SandboxImageBuildPayload): P
  * image sits in provider storage until the retention sweep, which is up to
  * `SANDBOX_IMAGE_RETENTION_DAYS` of paying to store something nothing can select.
  *
- * The reference check is what makes deleting this eagerly safe. Builds are keyed
- * by content, not by workspace, so two workspaces declaring the same package list
- * share one image, and deleting on the strength of one workspace's action would
- * break the other. An in-flight build is left alone rather than raced; the sweep
- * collects it once it settles.
+ * Builds are keyed by content, not by workspace, so two workspaces declaring the
+ * same package list share one image and deleting on the strength of one
+ * workspace's action would break the other. The reference check is therefore part
+ * of the same statement that removes the row: reading references first and
+ * deleting second left a window — wide, because a provider delete is a network
+ * call — in which another workspace could adopt the hash, inherit a `ready` row,
+ * and have its next run fail against a template already on its way out. Winning
+ * the conditional delete is what proves nothing referenced the hash.
+ *
+ * Claiming the row before the provider call means a provider that then refuses
+ * would strand a template nothing points at, so the row is put back and the
+ * retention sweep inherits the retry. An in-flight build is left alone rather
+ * than raced; the sweep collects it once it settles.
  *
  * Best-effort by contract: failures are logged and swallowed, because this runs
  * after the mutation it follows has already committed and must never turn a
- * successful delete into an error. The sweep stays the backstop.
+ * successful delete into an error.
  */
 export async function releaseSandboxImage(specHash: string): Promise<void> {
   const provider = resolveProvider()
@@ -303,36 +311,52 @@ export async function releaseSandboxImage(specHash: string): Promise<void> {
   const images = provider.images
 
   try {
-    const [referenced] = await db
-      .select({ id: workspaceSandbox.id })
-      .from(workspaceSandbox)
-      .where(eq(workspaceSandbox.specHash, specHash))
-      .limit(1)
-    if (referenced) return
-
-    const [image] = await db
-      .select({
+    const [claimed] = await db
+      .delete(sandboxImage)
+      .where(
+        and(
+          eq(sandboxImage.provider, provider.id),
+          eq(sandboxImage.specHash, specHash),
+          notInArray(sandboxImage.status, ['pending', 'building']),
+          sql`not exists (select 1 from workspace_sandbox ws where ws.spec_hash = ${specHash})`
+        )
+      )
+      .returning({
         id: sandboxImage.id,
+        spec: sandboxImage.spec,
         status: sandboxImage.status,
         imageRef: sandboxImage.imageRef,
         buildId: sandboxImage.buildId,
         providerImageId: sandboxImage.providerImageId,
       })
-      .from(sandboxImage)
-      .where(and(eq(sandboxImage.provider, provider.id), eq(sandboxImage.specHash, specHash)))
-      .limit(1)
-    if (!image) return
-    if (image.status === 'pending' || image.status === 'building') return
+    if (!claimed) return
 
-    if (image.imageRef) {
-      await images.deleteImage({
-        imageRef: image.imageRef,
-        buildId: image.buildId ?? '',
-        providerImageId: image.providerImageId ?? undefined,
-      })
-    }
-    await db.delete(sandboxImage).where(eq(sandboxImage.id, image.id))
     invalidateSandboxResolution()
+
+    if (!claimed.imageRef) return
+    try {
+      await images.deleteImage({
+        imageRef: claimed.imageRef,
+        buildId: claimed.buildId ?? '',
+        providerImageId: claimed.providerImageId ?? undefined,
+      })
+    } catch (error) {
+      await db
+        .insert(sandboxImage)
+        .values({
+          id: claimed.id,
+          provider: provider.id,
+          specHash,
+          spec: claimed.spec,
+          status: claimed.status as SandboxImageStatus,
+          imageRef: claimed.imageRef,
+          buildId: claimed.buildId,
+          providerImageId: claimed.providerImageId,
+        })
+        .onConflictDoNothing()
+      throw error
+    }
+
     logger.info('Released unreferenced sandbox image', { specHash })
   } catch (error) {
     logger.warn('Failed to release sandbox image; the retention sweep will retry', {

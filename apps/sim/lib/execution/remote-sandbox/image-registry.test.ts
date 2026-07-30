@@ -8,18 +8,15 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockDelete, mockInsert, mockDeleteImage, mockProviderStrategy } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockDelete: vi.fn(),
-    mockInsert: vi.fn(),
-    mockDeleteImage: vi.fn(),
-    mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
-  })
-)
+const { mockDelete, mockInsert, mockDeleteImage, mockProviderStrategy } = vi.hoisted(() => ({
+  mockDelete: vi.fn(),
+  mockInsert: vi.fn(),
+  mockDeleteImage: vi.fn(),
+  mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+}))
 
 vi.mock('@sim/db', () => ({
-  db: { select: mockSelect, delete: mockDelete, insert: mockInsert },
+  db: { delete: mockDelete, insert: mockInsert },
 }))
 
 vi.mock('@sim/db/schema', () => ({
@@ -43,6 +40,7 @@ vi.mock('drizzle-orm', () => ({
   eq: (...args: unknown[]) => args,
   inArray: (...args: unknown[]) => args,
   lt: (...args: unknown[]) => args,
+  notInArray: (...args: unknown[]) => args,
   or: (...args: unknown[]) => args,
   sql: (...args: unknown[]) => args,
 }))
@@ -67,16 +65,6 @@ import {
   releaseSandboxImage,
 } from '@/lib/execution/remote-sandbox/image-registry'
 
-/** Queues the rows each successive `db.select()` chain resolves to. */
-function queueSelects(...results: unknown[][]) {
-  mockSelect.mockReset()
-  for (const rows of results) {
-    mockSelect.mockReturnValueOnce({
-      from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
-    })
-  }
-}
-
 const READY_IMAGE = {
   id: 'img-1',
   status: 'ready',
@@ -88,13 +76,34 @@ const READY_IMAGE = {
 beforeEach(() => {
   vi.clearAllMocks()
   mockProviderStrategy.current = 'prebuilt'
-  mockDelete.mockReturnValue({ where: () => Promise.resolve() })
+  mockDelete.mockReturnValue({ where: () => ({ returning: () => Promise.resolve([]) }) })
+  mockInsert.mockReturnValue({ values: () => ({ onConflictDoNothing: () => Promise.resolve() }) })
   mockDeleteImage.mockResolvedValue(undefined)
 })
 
+/** Serializes the mocked predicate tree so a clause can be asserted by shape. */
+function predicateText(predicate: unknown): string {
+  if (predicate == null) return ''
+  if (Array.isArray(predicate)) return predicate.map(predicateText).join(' ')
+  if (typeof predicate === 'object') return JSON.stringify(predicate)
+  return String(predicate)
+}
+
+/** Captures the conditional-delete predicate and what the claim resolves to. */
+function stubClaim(rows: unknown[]): () => unknown {
+  let captured: unknown
+  mockDelete.mockReturnValue({
+    where: (predicate: unknown) => {
+      captured = predicate
+      return { returning: () => Promise.resolve(rows) }
+    },
+  })
+  return () => captured
+}
+
 describe('releaseSandboxImage', () => {
-  it('deletes the provider image and its row when nothing references the hash', async () => {
-    queueSelects([], [READY_IMAGE])
+  it('deletes the provider image once the row is claimed', async () => {
+    stubClaim([READY_IMAGE])
 
     await releaseSandboxImage('hash-1')
 
@@ -103,64 +112,73 @@ describe('releaseSandboxImage', () => {
       buildId: 'build-1',
       providerImageId: 'tmpl-1',
     })
-    expect(mockDelete).toHaveBeenCalledTimes(1)
   })
 
   /**
-   * The case that would break a bystander: two workspaces declaring the same
-   * package list share one build, so one workspace deleting its sandbox must not
-   * delete the image out from under the other.
+   * The bystander case: two workspaces declaring the same package list share one
+   * build, so one workspace's delete must not take the image out from under the
+   * other. The guard is the conditional delete itself — reading references in a
+   * separate statement left a window, spanning a provider network call, in which
+   * another workspace could adopt the hash between the check and the delete.
    */
-  it('leaves the image alone while another sandbox still declares that package list', async () => {
-    // A releasable image IS queued behind the reference lookup on purpose: without
-    // it, dropping the guard would fault on the missing second select and get
-    // swallowed, and this test would pass for the wrong reason.
-    queueSelects([{ id: 'sbx-other' }], [READY_IMAGE])
+  it('claims only when no sandbox references the hash, in one statement', async () => {
+    const read = stubClaim([READY_IMAGE])
+
+    await releaseSandboxImage('hash-1')
+
+    const clause = predicateText(read())
+    expect(clause).toContain('not exists')
+    expect(clause).toContain('workspace_sandbox')
+  })
+
+  it('excludes an in-flight build from the claim rather than racing it', async () => {
+    const read = stubClaim([READY_IMAGE])
+
+    await releaseSandboxImage('hash-1')
+
+    const clause = predicateText(read())
+    expect(clause).toContain('pending')
+    expect(clause).toContain('building')
+  })
+
+  it('touches the provider only when the claim actually took a row', async () => {
+    stubClaim([])
 
     await releaseSandboxImage('hash-1')
 
     expect(mockDeleteImage).not.toHaveBeenCalled()
-    expect(mockDelete).not.toHaveBeenCalled()
   })
 
   it('no-ops under a runtime provider, which has no images to release', async () => {
     mockProviderStrategy.current = 'runtime'
-    queueSelects([], [READY_IMAGE])
+    stubClaim([READY_IMAGE])
 
     await releaseSandboxImage('hash-1')
 
-    expect(mockSelect).not.toHaveBeenCalled()
+    expect(mockDelete).not.toHaveBeenCalled()
     expect(mockDeleteImage).not.toHaveBeenCalled()
   })
 
-  it.each(['pending', 'building'])(
-    'leaves a %s build for the sweep rather than racing it',
-    async (status) => {
-      queueSelects([], [{ ...READY_IMAGE, status }])
-
-      await releaseSandboxImage('hash-1')
-
-      expect(mockDeleteImage).not.toHaveBeenCalled()
-      expect(mockDelete).not.toHaveBeenCalled()
-    }
-  )
-
-  it('keeps the row when the provider refuses, so the sweep retries', async () => {
-    queueSelects([], [READY_IMAGE])
+  /**
+   * Claiming before the provider call means a refusal would otherwise strand a
+   * template nothing points at, so the row goes back and the sweep inherits it.
+   */
+  it('restores the claimed row when the provider refuses', async () => {
+    stubClaim([READY_IMAGE])
     mockDeleteImage.mockRejectedValue(new Error('E2B unreachable'))
 
     await expect(releaseSandboxImage('hash-1')).resolves.toBeUndefined()
 
-    expect(mockDelete).not.toHaveBeenCalled()
+    expect(mockInsert).toHaveBeenCalledTimes(1)
   })
 
-  it('does nothing when the hash has no build row at all', async () => {
-    queueSelects([], [])
+  it('skips the provider when the claimed row never had an image', async () => {
+    stubClaim([{ ...READY_IMAGE, imageRef: null }])
 
     await releaseSandboxImage('hash-1')
 
     expect(mockDeleteImage).not.toHaveBeenCalled()
-    expect(mockDelete).not.toHaveBeenCalled()
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 })
 
