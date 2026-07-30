@@ -720,6 +720,7 @@ function EmbeddedFile({
         streamIsIncremental={streamIsIncremental}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
+        collaborative
       />
     </div>
   )
