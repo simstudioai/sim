@@ -124,6 +124,46 @@ describe('SailPoint query route', () => {
     expect(data.output.results).toEqual([{ _type: 'identity', id: 'i1' }])
   })
 
+  it('returns the total from search count', async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(
+        new Response(null, { status: 204, headers: { 'X-Total-Count': '42' } })
+      )
+
+    const request = createMockRequest('POST', {
+      ...baseCreds,
+      tenant: 'acme-count',
+      operation: 'sailpoint_search_count',
+      indices: 'identities',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.output).toEqual({ total: 42 })
+  })
+
+  it('errors instead of reporting zero when search count has no total header', async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    const request = createMockRequest('POST', {
+      ...baseCreds,
+      tenant: 'acme-count-none',
+      operation: 'sailpoint_search_count',
+      indices: 'identities',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(502)
+    expect(data.success).toBe(false)
+  })
+
   it('preserves the aggregation object returned by /search/aggregate', async () => {
     const aggregationResult = {
       aggregations: { department: { buckets: [{ key: 'Finance', count: 12 }] } },

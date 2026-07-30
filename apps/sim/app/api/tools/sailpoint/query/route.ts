@@ -145,12 +145,22 @@ async function execute(
     case 'item':
       output = { item: result.data ?? null }
       break
-    case 'count':
-      output = {
-        total:
-          readTotalCount(result.headers) ?? (typeof result.data === 'number' ? result.data : 0),
+    case 'count': {
+      const total =
+        readTotalCount(result.headers) ?? (typeof result.data === 'number' ? result.data : null)
+      // Do not report an unknown count as 0 - that reads as "no matches". Surface it as an error.
+      if (total === null) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'SailPoint did not return a total count (X-Total-Count missing)',
+          },
+          { status: 502 }
+        )
       }
+      output = { total }
       break
+    }
     case 'write':
       output = { accepted: result.ok, status: result.status }
       break

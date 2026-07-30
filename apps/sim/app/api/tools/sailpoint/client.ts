@@ -185,9 +185,12 @@ export async function getSailPointAccessToken(creds: SailPointServerCredentials)
 
   const parsedExpiry = Number(data.expires_in)
   const expiresInSec = Number.isFinite(parsedExpiry) && parsedExpiry > 0 ? parsedExpiry : 3600
+  // Use the smaller of the 60s buffer and 10% of the lifetime so a short-lived token (expires_in
+  // under ~60s) still gets cached for most of its life instead of expiring immediately.
+  const bufferMs = Math.min(TOKEN_EXPIRY_BUFFER_MS, expiresInSec * 100)
   tokenCache.set(key, {
     token: data.access_token,
-    expiresAt: Date.now() + Math.max(expiresInSec * 1000 - TOKEN_EXPIRY_BUFFER_MS, 0),
+    expiresAt: Date.now() + Math.max(expiresInSec * 1000 - bufferMs, 0),
   })
   return data.access_token
 }
