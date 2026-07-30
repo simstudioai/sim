@@ -1,30 +1,157 @@
 /**
- * Shared helpers for the Create PR and Review Code backends.
- * Keeps E2B path constants, abort racing, marker parsing, and secret scrubbing
- * in one place so the two backends cannot drift on security-sensitive details.
+ * Shared helpers for the Pi sandbox backends.
+ * Keeps E2B path constants, the finalize/push scripts, abort racing, marker
+ * parsing, and secret scrubbing in one place so the backends cannot drift on
+ * security-sensitive details.
  */
 
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
 
 export const REPO_DIR = '/workspace/repo'
 export const PROMPT_PATH = '/workspace/pi-prompt.txt'
+export const DIFF_PATH = '/workspace/pi.diff'
+export const COMMIT_MSG_PATH = '/workspace/pi-commit.txt'
+export const PUSH_ERR_PATH = '/workspace/pi-push-err.txt'
 export const CLONE_TIMEOUT_MS = 10 * 60 * 1000
-export const PI_TIMEOUT_MS = getMaxExecutionTimeout()
+export const FINALIZE_TIMEOUT_MS = 10 * 60 * 1000
+export const MAX_DIFF_BYTES = 200_000
+export const PUSH_ERROR_MAX = 1000
 
 /**
- * The Pi CLI invocation for Create PR. With no extension path it emits exactly what it always did.
+ * Floor for {@link resolvePiTimeoutMs}. Reachable whenever the sandbox lifetime
+ * is too short to reserve every surrounding command's worst-case ceiling —
+ * either a configured lifetime, or a run whose own execution deadline is shorter
+ * than those reserves. Such a run can still finish, since those ceilings are
+ * pessimistic, so the floor leaves a short turn rather than refusing one.
+ */
+export const MIN_PI_TIMEOUT_MS = 60 * 1000
+
+/**
+ * How long one Pi CLI invocation may run, given the lifetime its sandbox was
+ * created with. Without a cap a hung CLI would sit there until the provider
+ * reaped the sandbox and surface as an opaque SDK error.
+ *
+ * The reserve matters as much as the cap. The sandbox clock starts at create,
+ * and three commands bracket the agent turn: the clone before it, then the
+ * commit and the push after it, the last two sharing
+ * {@link FINALIZE_TIMEOUT_MS}. Capping at the bare lifetime would mean the
+ * sandbox always died first, taking the agent's finished work with it unpushed.
+ *
+ * Takes the lifetime as an argument rather than reading the provider ceiling
+ * itself, because that ceiling is no longer the only lifetime a run can get: a
+ * caller that narrowed it to the execution deadline has to reserve against the
+ * lifetime it actually asked for, or it re-opens exactly the bug above on every
+ * plan whose deadline is shorter than the ceiling.
+ *
+ * What is reserved is each command's timeout ceiling, not its measured elapsed
+ * time — a clone takes seconds in practice — so this is a budget that adds up,
+ * not a guarantee that the sandbox outlives the run.
+ *
+ * The reserve only applies when the provider imposes an absolute lifetime, which
+ * is E2B alone. Daytona stops on inactivity, so subtracting E2B's ceiling there
+ * would cut the agent turn to fit a limit Daytona does not have.
+ */
+export function resolvePiTimeoutMs(lifetimeMs = resolvePiSandboxLifetimeMs()): number {
+  if (lifetimeMs === undefined) return getMaxExecutionTimeout()
+  return Math.min(
+    getMaxExecutionTimeout(),
+    Math.max(lifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)
+  )
+}
+
+/**
+ * Marker carrying a digest of the cloned repository's git config. A clone script
+ * emits it as its *last* line, after any `git remote set-url` rewrite — a digest
+ * taken before that rewrite mismatches at push time and every push fails.
+ *
+ * Every phase that clones in order to push emits it. The Babysit continuation
+ * verifies it deliberately alone, because verification is not a pure
+ * tightening — a run that legitimately writes repo-local config would fail its
+ * push.
+ */
+export const GIT_CONFIG_DIGEST_MARKER = '__GIT_CONFIG_DIGEST__='
+
+/**
+ * Digests the only git-config scope a sandbox agent can still write once
+ * `GIT_CONFIG_NOSYSTEM` and `GIT_CONFIG_GLOBAL` neutralize the system and global
+ * scopes. One comparison covers every dangerous key — `url.*.insteadOf`,
+ * `url.*.pushInsteadOf`, `http.proxy`, `core.sshCommand`, `include.path` —
+ * including keys nobody enumerated. Runs with the repository as its working
+ * directory, and tolerates a missing `.git/config.worktree`.
+ */
+export const GIT_CONFIG_DIGEST_LINE = `cat .git/config .git/config.worktree 2>/dev/null | sha256sum | cut -d' ' -f1 | sed "s/^/${GIT_CONFIG_DIGEST_MARKER}/"`
+
+/**
+ * Stages, commits, and diffs without the GitHub token because repository config
+ * can execute filters, fsmonitor, external diffs, or textconv during these git
+ * operations. Commit tolerates an empty tree; the marker checks whether HEAD
+ * advanced before the separately authenticated push.
+ *
+ * The name-listing diff sets `core.quotePath=false` so a path with a non-ASCII
+ * byte reaches the `changedFiles` output as itself rather than as git's
+ * `"\303\251"`-escaped rendering.
+ */
+export const PREPARE_SCRIPT = `set -e
+cd ${REPO_DIR}
+git -c core.hooksPath=/dev/null add -A
+git -c core.hooksPath=/dev/null -c user.email="pi@sim.ai" -c user.name="Sim Pi Agent" commit -F ${COMMIT_MSG_PATH} >/dev/null 2>&1 || true
+git -c core.quotePath=false diff --name-only "$BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
+git diff "$BASE_SHA" HEAD > ${DIFF_PATH} 2>/dev/null || true
+if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "__NEEDS_PUSH__=1"; fi`
+
+/**
+ * The only token-bearing command. It neutralizes repository-configured hooks,
+ * credential helpers, and fsmonitor before pushing agent-authored changes, and
+ * must be run with `GIT_CONFIG_NOSYSTEM=1` and `GIT_CONFIG_GLOBAL=/dev/null` in
+ * its env, which the `-c` flags cannot substitute for.
+ *
+ * Be precise about what that pair buys. It closes system- and global-scope
+ * config, so it removes two of the three places a `url.*.insteadOf` rewrite
+ * could send the token's userinfo to another host. Repository-local config —
+ * the scope a root agent inside the checkout can actually write — still
+ * rewrites the push URL. Babysit compares the
+ * {@link GIT_CONFIG_DIGEST_MARKER} digest before pushing; Create PR does not,
+ * keeping the exposure it always had.
+ *
+ * Git is invoked by absolute path so a shim planted earlier on `$PATH` is not
+ * what runs. Both sandbox images apt-install git on Debian (see
+ * `scripts/pi-sandbox-packages.ts`), so this is an image-shape dependency. It
+ * reduces rather than removes exposure — every sandbox command runs as root, so
+ * the binary itself is writable too.
+ *
+ * The refspec is explicit: `HEAD:refs/heads/$BRANCH` pushes the commit that was
+ * just verified rather than whatever the local branch ref happens to point at,
+ * which differ if the agent left HEAD detached or on another branch.
+ */
+export const PUSH_SCRIPT = `cd ${REPO_DIR}
+/usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "HEAD:refs/heads/$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
+
+/**
+ * The Pi CLI invocation for the sandbox modes. With no options it emits exactly what Create PR
+ * always did.
  *
  * With one, `--no-extensions` drops any extension the cloned repository ships while leaving the
  * explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
  * a repository must not be able to register tools into a run holding the workspace's keys — but it
  * does mean enabling search also stops loading a repository's own Pi extensions, which is why the
- * flag is not passed on the no-search path.
+ * flag is not passed on Create PR's no-search path. Babysit supplies
+ * `disableRepositoryResources` in every round, which also disables repository prompt templates,
+ * skills, and project trust.
  */
-export function buildPiScript(extensionPath?: string): string {
-  const extensionArgs = extensionPath ? ` --no-extensions -e ${extensionPath}` : ''
+export function buildPiScript(
+  extensionPath?: string,
+  options?: { disableRepositoryResources?: boolean }
+): string {
+  const repositoryArgs = options?.disableRepositoryResources
+    ? ' --no-extensions --no-prompt-templates --no-skills --no-approve'
+    : extensionPath
+      ? ' --no-extensions'
+      : ''
+  const extensionArgs = extensionPath ? ` -e ${extensionPath}` : ''
   return `cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${extensionArgs} < ${PROMPT_PATH}`
+pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH}`
 }
 
 export function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {

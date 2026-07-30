@@ -89,6 +89,7 @@ export async function forgetAllCredentials(): Promise<BrowserCredentialMetadata[
 export async function revealCredential(id: string): Promise<string | null> {
   const authorized = await authorizeForSecret({
     credentialId: id,
+    operation: 'reveal',
     reason: 'show a saved password',
     action: 'Show password',
   })
@@ -106,6 +107,7 @@ export async function revealCredential(id: string): Promise<string | null> {
 export async function copyCredential(id: string): Promise<boolean> {
   const authorized = await authorizeForSecret({
     credentialId: id,
+    operation: 'copy',
     reason: 'copy a saved password',
     action: 'Copy password',
   })

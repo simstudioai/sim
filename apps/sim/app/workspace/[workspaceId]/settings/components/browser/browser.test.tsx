@@ -25,6 +25,8 @@ vi.mock('@sim/browser-protocol', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  /** `SettingsResourceRow` composes its tile classes with `cn`. */
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   Chip: ({
     children,
     disabled,
@@ -292,12 +294,21 @@ describe('Browser settings', () => {
     ])
   })
 
-  it('lists each data type inline as a standard settings row', async () => {
+  it('lists each data type as a standard settings row in one section', async () => {
     await render()
 
+    const section = container.querySelector('section[aria-label="Browsing data"]')
+    expect(section).not.toBeNull()
+
+    const labels = [...(section?.querySelectorAll('span') ?? [])].map((s) => s.textContent)
     for (const label of ['Cookies', 'Site data', 'Cached images and files']) {
-      expect(container.querySelector(`section[aria-label="${label}"]`)).not.toBeNull()
+      expect(labels).toContain(label)
     }
+    expect([...(section?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual([
+      'Delete cookies',
+      'Delete site data',
+      'Delete cached images and files',
+    ])
   })
 
   it.each([

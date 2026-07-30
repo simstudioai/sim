@@ -55,6 +55,21 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       click: deps.toggleSidebar,
     },
     { type: 'separator' },
+    /**
+     * The shell has no browser chrome, so an in-window integration connect
+     * that leaves the app origin (the IdP's consent page) is otherwise a
+     * one-way door for anyone who decides not to finish it.
+     */
+    {
+      label: 'Back',
+      accelerator: 'CmdOrCtrl+[',
+      click: withWindow((win) => {
+        const history = win.webContents.navigationHistory
+        if (history.canGoBack()) {
+          history.goBack()
+        }
+      }),
+    },
     {
       label: 'Reload',
       accelerator: 'CmdOrCtrl+R',

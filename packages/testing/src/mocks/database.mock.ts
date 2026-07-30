@@ -25,12 +25,29 @@ export function createMockSql() {
     }),
   })
 
-  // Binds a value as a single parameter — drizzle's escape hatch for passing an
-  // array to Postgres as an array rather than expanding it into a value list.
-  sqlFn.param = (value: any) => ({
-    value,
-    toSQL: () => ({ sql: '?', params: [value] }),
-  })
+  // Binds a value as a single parameter. Rejecting arrays here is the only place
+  // the unit suite can see this bug class: the app pools set `fetch_types: false`
+  // (packages/db/db.ts), which leaves postgres-js with no array serializer, so an
+  // array bound as ONE parameter fails at execution with `22P02`. Rendered SQL
+  // looks perfect (`ANY($1::text[])`), so no assertion on query text can catch it.
+  sqlFn.param = (value: any, encoder?: any) => {
+    if (encoder === undefined && Array.isArray(value)) {
+      throw new Error(
+        'sql.param(array) binds an array as one parameter, which fails under ' +
+          'fetch_types: false (packages/db/db.ts). Interpolate the array directly ' +
+          'for an expanded IN list, or build an ARRAY[...]::text[] constructor of ' +
+          'scalar binds via sql.join.'
+      )
+    }
+    if (encoder === undefined && value instanceof Date) {
+      throw new Error(
+        'sql.param(date) without an encoder reaches postgres-js as a Date object, ' +
+          'which its unsafe path cannot serialize (ERR_INVALID_ARG_TYPE). Bind ' +
+          'through the matching column: sql.param(date, table.timestampColumn).'
+      )
+    }
+    return { value, toSQL: () => ({ sql: '?', params: [value] }) }
+  }
 
   return sqlFn
 }
@@ -403,4 +420,34 @@ export const drizzleOrmMock = {
   /** Mirrors drizzle's getTableColumns for schema-mock tables (column-name maps). */
   getTableColumns: vi.fn((table: Record<string, unknown>) => ({ ...table })),
   ...createMockSqlOperators(),
+}
+
+/**
+ * Condition nodes produced by `createMockSqlOperators` — `{ type: 'eq', left, right }`,
+ * `{ type: 'isNull', column }`, and so on.
+ */
+export type MockCondition = Record<string, unknown>
+
+/**
+ * Flattens the nested `and(...)` trees `createMockSqlOperators` builds into a flat node list.
+ *
+ * Tests assert on WHERE clauses to pin filters the row-queue mocks cannot enforce — a mock
+ * returns whatever was queued regardless of the predicate, so "the query filters on X" is only
+ * testable by inspecting the condition tree. `and()` nests arbitrarily, hence the flatten.
+ */
+export function flattenMockConditions(condition: unknown): MockCondition[] {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as MockCondition
+  if (node.type === 'and' && Array.isArray(node.conditions)) {
+    return node.conditions.flatMap(flattenMockConditions)
+  }
+  return [node]
+}
+
+/** True when any node in `condition` satisfies `predicate`. */
+export function hasMockCondition(
+  condition: unknown,
+  predicate: (node: MockCondition) => boolean
+): boolean {
+  return flattenMockConditions(condition).some(predicate)
 }

@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
+import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@/app/_shell/desktop-title-bar'
+import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
 import { Sidebar, SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
+import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
@@ -14,6 +17,45 @@ const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
 /** Slide timing for the fullscreen sidebar collapse and content shift. */
 const SLIDE_TRANSITION =
   'duration-[175ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none'
+
+/**
+ * The peek card's floating chrome.
+ *
+ * Every value is an existing token: `rounded-lg` is `--radius`, matching the content
+ * pane it floats beside; `--border` is that pane's border; `shadow-overlay` and
+ * `--z-modal` are what the app's other edge-anchored panels use. The card's fill is
+ * the sidebar's own `--surface-1`, so docked and floating are the same surface.
+ *
+ * `w-auto` shrink-wraps the inner shell, which `[data-peek]` has already put at the
+ * expanded width. It must not be a length: `width` cannot interpolate to or from
+ * `auto`, so entering and leaving the peek snap instead of animating — otherwise the
+ * card widens as it appears and leaves a shrinking ghost on retract.
+ */
+const PEEK_CARD_CHROME =
+  'absolute top-[var(--desktop-title-bar-height)] bottom-2 left-2 z-[var(--z-modal)] w-auto origin-top-left rounded-lg border border-[var(--border)] shadow-overlay'
+
+/**
+ * Peek card enter/exit — the popper idiom rather than a slide, since the card is
+ * anchored to the title-bar toggle and grows out of that corner exactly as emcn's
+ * Radix surfaces do (`dropdown-menu.tsx`: `fade-in-0 zoom-in-95`).
+ *
+ * Animations rather than transitions: an animation runs from mount, so the card needs
+ * no hidden "from" frame and no `requestAnimationFrame` to step into — rAF is throttled
+ * in an unfocused window, which would strand the card mounted-but-invisible.
+ *
+ * `duration-150` must match {@link PEEK_EXIT_DURATION_MS}.
+ */
+const PEEK_CARD_ENTER = cn(
+  PEEK_CARD_CHROME,
+  'animate-in fade-in-0 zoom-in-95 duration-150 ease-out motion-reduce:animate-none'
+)
+const PEEK_CARD_EXIT = cn(
+  PEEK_CARD_CHROME,
+  'pointer-events-none animate-out fade-out-0 zoom-out-95 fill-mode-forwards duration-150 ease-out motion-reduce:animate-none'
+)
+
+/** The docked rail: in flow, width-animated by the collapse toggle. */
+const SIDEBAR_SHELL_IN_FLOW = cn('transition-[width]', SLIDE_TRANSITION)
 
 interface WorkspaceChromeProps {
   children: React.ReactNode
@@ -44,6 +86,12 @@ function isFullscreenPath(pathname: string | null): boolean {
  *
  * On a direct load of a fullscreen route the wrapper mounts already collapsed,
  * so no slide plays (CSS transitions don't run on mount).
+ *
+ * On the macOS desktop shell, where collapsing hides the rail entirely, the same
+ * wrapper doubles as the hover-peek card: hovering the title-bar sidebar toggle
+ * takes it out of flow, floats it over the content inset from the window edge, and
+ * re-points `--sidebar-width` at the restore width. The sidebar is never re-mounted
+ * or duplicated for this — see {@link useSidebarPeek}.
  */
 export function WorkspaceChrome({
   children,
@@ -55,6 +103,20 @@ export function WorkspaceChrome({
   const isFullscreen = isFullscreenPath(pathname)
 
   const setOrigin = useFullscreenOriginStore((s) => s.setOrigin)
+
+  /**
+   * Which title-bar treatment the host is using. `inset` is the macOS desktop shell,
+   * where collapsing hides the rail entirely (`--sidebar-collapsed-width: 0`) — the
+   * only host where the hover-peek applies. `null` is the web app (icon rail).
+   */
+  const [titleBarMode, setTitleBarMode] = useState<DesktopTitleBarMode>(null)
+
+  /**
+   * The search palette is the one overlay reachable from the peeked card that renders
+   * a full-screen scrim, so the card yields to it. Read from the store rather than
+   * sniffed off the DOM — the store is the modal's own source of truth.
+   */
+  const isSearchModalOpen = useSearchModalStore((s) => s.isOpen)
 
   const storeIsCollapsed = useSidebarStore((s) => s.isCollapsed)
   const hasHydrated = useSidebarStore((s) => s._hasHydrated)
@@ -70,6 +132,15 @@ export function WorkspaceChrome({
    * client render identical to the server), then the store takes over.
    */
   const isCollapsed = hasHydrated ? storeIsCollapsed : initialSidebarCollapsed
+
+  /**
+   * The hover-peek only exists where collapsing leaves nothing behind — the macOS
+   * desktop shell. The web app keeps a 51px icon rail (with its own hover flyouts),
+   * and native fullscreen falls back to that same rail.
+   */
+  const peekEnabled = isCollapsed && !isFullscreen && titleBarMode === 'inset'
+  const { isPeekActive, isPeekOpen, cardRef, triggerRef, onTriggerEnter, onTriggerLeave } =
+    useSidebarPeek(peekEnabled, isSearchModalOpen)
 
   /**
    * Suppresses sidebar transitions across the initial hydration window. The
@@ -124,17 +195,28 @@ export function WorkspaceChrome({
     })
   }, [])
 
-  useEffect(() => {
+  /**
+   * A layout effect, not a passive one: the seed below arms the peek, and a passive
+   * effect lands after paint — long enough for a `mouseenter` on the toggle to be
+   * dropped while the peek still reads disabled, with nothing to retry it until the
+   * pointer leaves and returns. Everything here is a cheap synchronous read plus a
+   * subscription; the bridge's `getState` stays async and blocks nothing.
+   */
+  useLayoutEffect(() => {
+    // Seed from the attribute the pre-paint script already wrote, rather than waiting
+    // for the async bridge below to resolve.
+    const initial = document.documentElement.getAttribute('data-sim-desktop-title-bar')
+    if (initial === 'inset' || initial === 'fullscreen') setTitleBarMode(initial)
+
     const windowState = getDesktopBridge()?.windowState
     if (!windowState) return
 
     let disposed = false
     const applyWindowState = ({ isFullScreen }: { isFullScreen: boolean }) => {
       if (!disposed) {
-        document.documentElement.setAttribute(
-          'data-sim-desktop-title-bar',
-          isFullScreen ? 'fullscreen' : 'inset'
-        )
+        const mode: DesktopTitleBarMode = isFullScreen ? 'fullscreen' : 'inset'
+        applyDesktopTitleBarMode(document.documentElement, mode)
+        setTitleBarMode(mode)
       }
     }
     const unsubscribe = windowState.onStateChange(applyWindowState)
@@ -180,13 +262,19 @@ export function WorkspaceChrome({
         )}
       />
       <div
+        ref={cardRef}
         className={cn(
-          'sidebar-shell-outer shrink-0 overflow-hidden transition-[width]',
-          SLIDE_TRANSITION,
-          isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
+          'sidebar-shell-outer shrink-0 overflow-hidden',
+          isPeekActive
+            ? isPeekOpen
+              ? PEEK_CARD_ENTER
+              : PEEK_CARD_EXIT
+            : cn(isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]', SIDEBAR_SHELL_IN_FLOW)
         )}
         data-collapsed={isCollapsed || undefined}
-        aria-hidden={isFullscreen || undefined}
+        data-peek={isPeekActive || undefined}
+        /* Also hidden mid-exit, where the card is mounted but invisible. */
+        aria-hidden={isFullscreen || (isPeekActive && !isPeekOpen) || undefined}
         suppressHydrationWarning
       >
         <div
@@ -196,7 +284,7 @@ export function WorkspaceChrome({
             isFullscreen && '-translate-x-full'
           )}
         >
-          <Sidebar isCollapsed={isCollapsed} />
+          <Sidebar isCollapsed={isCollapsed} isPeeking={isPeekActive} />
         </div>
       </div>
       <div
@@ -213,21 +301,40 @@ export function WorkspaceChrome({
         </div>
       </div>
       {!isFullscreen && (
-        <SidebarTooltip
-          label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          enabled
-          side='bottom'
-          shortcut='⌘B'
+        /**
+         * The hover region lives on this wrapper, not the button: `SidebarTooltip`
+         * returns bare `children` when disabled, so suppressing the tooltip while
+         * peeking swaps the element tree and remounts the button. A ref on the
+         * button would go null mid-hover and retract the card; the wrapper never
+         * unmounts, so it stays a stable anchor for the pointer hit-test.
+         */
+        <div
+          ref={triggerRef}
+          onMouseEnter={onTriggerEnter}
+          onMouseLeave={onTriggerLeave}
+          className='absolute top-[var(--desktop-title-bar-control-offset)] left-[var(--desktop-title-bar-inset-x)] z-30 hidden size-[var(--desktop-title-bar-control-size)] [-webkit-app-region:no-drag] [[data-sim-desktop-title-bar=inset]_&]:block'
         >
-          <button
-            type='button'
-            onClick={toggleSidebar}
-            className='absolute top-[var(--desktop-title-bar-control-offset)] left-[var(--desktop-title-bar-inset-x)] z-30 hidden size-[var(--desktop-title-bar-control-size)] items-center justify-center rounded-lg transition-colors [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:flex'
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          <SidebarTooltip
+            label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            /* Gated on `peekEnabled`, not on the card being open: hovering always
+               opens the card, so a tooltip tied to visibility would flash for the
+               dwell and then vanish under it. When peek is armed the card IS the
+               affordance; when it isn't (expanded, or web), the tooltip behaves
+               exactly as before. Stable across a hover, so no remount mid-gesture. */
+            enabled={!peekEnabled}
+            side='bottom'
+            shortcut='⌘B'
           >
-            <PanelLeft className='size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]' />
-          </button>
-        </SidebarTooltip>
+            <button
+              type='button'
+              onClick={toggleSidebar}
+              className='flex size-full items-center justify-center rounded-lg transition-colors hover-hover:bg-[var(--surface-active)]'
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <PanelLeft className='size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]' />
+            </button>
+          </SidebarTooltip>
+        </div>
       )}
     </div>
   )

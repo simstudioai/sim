@@ -31,6 +31,7 @@ export type SelectorKey =
   | 'slack.users'
   | 'gmail.labels'
   | 'outlook.folders'
+  | 'outlook.calendars'
   | 'google.calendar'
   | 'jira.issues'
   | 'jira.projects'

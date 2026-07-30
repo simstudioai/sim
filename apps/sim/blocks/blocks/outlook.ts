@@ -9,10 +9,10 @@ import { getTrigger } from '@/triggers'
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
-  description: 'Send, read, search, reply, organize, and manage Outlook email',
+  description: 'Send, read, search, reply, organize, and manage Outlook email and calendar',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/integrations/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,
@@ -42,6 +42,12 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Create Folder', id: 'create_folder_outlook' },
         { label: 'List Attachments', id: 'list_attachments_outlook' },
         { label: 'Get Attachment', id: 'get_attachment_outlook' },
+        { label: 'List Calendar Events', id: 'list_events_calendar' },
+        { label: 'Get Calendar Event', id: 'get_event_calendar' },
+        { label: 'Create Event', id: 'create_event_calendar' },
+        { label: 'Update Event', id: 'update_event_calendar' },
+        { label: 'Delete Event', id: 'delete_event_calendar' },
+        { label: 'Respond to Invite', id: 'respond_calendar' },
       ],
       value: () => 'send_outlook',
     },
@@ -388,6 +394,350 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
+    // Calendar - Calendar picker (basic). Only list/create are calendar-scoped: event IDs are
+    // unique per mailbox, so get/update/delete/respond address /me/events/{id} directly.
+    {
+      id: 'calendarSelector',
+      title: 'Calendar',
+      type: 'file-selector',
+      canonicalParamId: 'calendarId',
+      serviceId: 'outlook',
+      selectorKey: 'outlook.calendars',
+      requiredScopes: getScopesForService('outlook'),
+      placeholder: 'Select calendar (defaults to your default calendar)',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: ['list_events_calendar', 'create_event_calendar'],
+      },
+    },
+    // Calendar - Manual calendar ID (advanced)
+    {
+      id: 'manualCalendarId',
+      title: 'Calendar',
+      type: 'short-input',
+      canonicalParamId: 'calendarId',
+      placeholder: 'Enter calendar ID (leave blank for the default calendar)',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['list_events_calendar', 'create_event_calendar'],
+      },
+    },
+    // Calendar - Event ID (get / update / delete / respond)
+    {
+      id: 'calEventId',
+      title: 'Event ID',
+      type: 'short-input',
+      placeholder: 'ID of the calendar event',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_event_calendar',
+          'update_event_calendar',
+          'delete_event_calendar',
+          'respond_calendar',
+        ],
+      },
+      required: true,
+    },
+    // Calendar - Window start/end (list events). Required: calendarView needs both bounds.
+    {
+      id: 'calWindowStart',
+      title: 'Start of Window',
+      type: 'short-input',
+      placeholder: '2025-06-03T00:00:00-08:00',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset for the START of a calendar time window, based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "this week" -> Monday of the current week at 00:00:00 with local timezone offset
+- "today" -> today's date at 00:00:00 with local timezone offset
+- "the next 30 days" -> the current date and time with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the window start (e.g., "this week", "today")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'calWindowEnd',
+      title: 'End of Window',
+      type: 'short-input',
+      placeholder: '2025-06-10T00:00:00-08:00',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset for the END of a calendar time window, based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "this week" -> the Monday after the current week at 00:00:00 with local timezone offset
+- "today" -> tomorrow's date at 00:00:00 with local timezone offset
+- "the next 30 days" -> the current date plus 30 days with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the window end (e.g., "end of this week", "in 30 days")...',
+        generationType: 'timestamp',
+      },
+    },
+    // Calendar - List events options
+    {
+      id: 'calMaxResults',
+      title: 'Number of Results',
+      type: 'short-input',
+      placeholder: 'Number of events to retrieve (default: 10, max: 100)',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+    },
+    {
+      id: 'calOrderBy',
+      title: 'Order By',
+      type: 'short-input',
+      placeholder: 'start/dateTime',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      mode: 'advanced',
+    },
+    {
+      id: 'calPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'nextLink from a previous response (window fields are then ignored)',
+      condition: { field: 'operation', value: 'list_events_calendar' },
+      mode: 'advanced',
+    },
+    // Calendar - Create event (required start/end)
+    {
+      id: 'calSubject',
+      title: 'Subject',
+      type: 'short-input',
+      placeholder: 'Event title',
+      condition: { field: 'operation', value: 'create_event_calendar' },
+      required: true,
+    },
+    {
+      id: 'calStartDateTime',
+      title: 'Start Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T10:00:00-08:00',
+      condition: { field: 'operation', value: 'create_event_calendar' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 2pm" -> Calculate tomorrow's date at 14:00:00 with local timezone offset
+- "next Monday at 9am" -> Calculate next Monday at 09:00:00 with local timezone offset
+- "in 2 hours" -> Calculate current time + 2 hours with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "tomorrow at 2pm")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'calEndDateTime',
+      title: 'End Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T11:00:00-08:00',
+      condition: { field: 'operation', value: 'create_event_calendar' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 3pm" -> Calculate tomorrow's date at 15:00:00 with local timezone offset
+- "an hour after the start" -> Calculate the start time + 1 hour with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "an hour later")...',
+        generationType: 'timestamp',
+      },
+    },
+    // Calendar - Update event (optional start/end/subject)
+    {
+      id: 'calSubject',
+      title: 'New Subject',
+      type: 'short-input',
+      placeholder: 'Updated event title',
+      condition: { field: 'operation', value: 'update_event_calendar' },
+      required: false,
+    },
+    {
+      id: 'calStartDateTime',
+      title: 'New Start Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T10:00:00-08:00',
+      condition: { field: 'operation', value: 'update_event_calendar' },
+      required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 2pm" -> Calculate tomorrow's date at 14:00:00 with local timezone offset
+- "push it back an hour" -> Calculate the existing start + 1 hour with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the new start time...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'calEndDateTime',
+      title: 'New End Date & Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T11:00:00-08:00',
+      condition: { field: 'operation', value: 'update_event_calendar' },
+      required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 3pm" -> Calculate tomorrow's date at 15:00:00 with local timezone offset
+- "extend it by 30 minutes" -> Calculate the existing end + 30 minutes with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the new end time...',
+        generationType: 'timestamp',
+      },
+    },
+    // Calendar - Shared create/update fields
+    {
+      id: 'calBody',
+      title: 'Body',
+      type: 'long-input',
+      placeholder: 'Event description',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      required: false,
+    },
+    {
+      id: 'calContentType',
+      title: 'Body Content Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      value: () => 'text',
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'calLocation',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'Event location',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      required: false,
+    },
+    // Calendar - Attendees (create / update)
+    {
+      id: 'calAttendees',
+      title: 'Attendees',
+      type: 'short-input',
+      placeholder: 'Attendee emails (comma-separated)',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of attendee email addresses based on the user's description.
+Use only valid email addresses, separated by ", " with no trailing comma.
+Example: john@example.com, jane@example.com
+
+Return ONLY the comma-separated email list - no explanations, no extra text.`,
+        placeholder: 'Describe who should attend...',
+      },
+    },
+    {
+      id: 'calTimeZone',
+      title: 'Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'calIsAllDay',
+      title: 'All Day',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'calIsOnlineMeeting',
+      title: 'Add Online Meeting',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['create_event_calendar', 'update_event_calendar'],
+      },
+      mode: 'advanced',
+    },
+    // Calendar - Respond to invite
+    {
+      id: 'calResponseType',
+      title: 'Response',
+      type: 'dropdown',
+      options: [
+        { label: 'Accept', id: 'accept' },
+        { label: 'Tentative', id: 'tentativelyAccept' },
+        { label: 'Decline', id: 'decline' },
+      ],
+      condition: { field: 'operation', value: 'respond_calendar' },
+      value: () => 'accept',
+      required: true,
+    },
+    {
+      id: 'calComment',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Optional message to the organizer',
+      condition: { field: 'operation', value: 'respond_calendar' },
+      required: false,
+    },
+    // A switch would render OFF while Graph's default is to notify, so this is a dropdown
+    // whose visible default matches the behavior.
+    {
+      id: 'calSendResponse',
+      title: 'Send Response to Organizer',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      condition: { field: 'operation', value: 'respond_calendar' },
+      value: () => 'true',
+      mode: 'advanced',
+      required: false,
+    },
     ...getTrigger('outlook_poller').subBlocks,
   ],
   tools: {
@@ -409,6 +759,12 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       'outlook_create_folder',
       'outlook_list_attachments',
       'outlook_get_attachment',
+      'outlook_calendar_list_events',
+      'outlook_calendar_get_event',
+      'outlook_calendar_create_event',
+      'outlook_calendar_update_event',
+      'outlook_calendar_delete_event',
+      'outlook_calendar_respond',
     ],
     config: {
       tool: (params) => {
@@ -447,6 +803,18 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
             return 'outlook_list_attachments'
           case 'get_attachment_outlook':
             return 'outlook_get_attachment'
+          case 'list_events_calendar':
+            return 'outlook_calendar_list_events'
+          case 'get_event_calendar':
+            return 'outlook_calendar_get_event'
+          case 'create_event_calendar':
+            return 'outlook_calendar_create_event'
+          case 'update_event_calendar':
+            return 'outlook_calendar_update_event'
+          case 'delete_event_calendar':
+            return 'outlook_calendar_delete_event'
+          case 'respond_calendar':
+            return 'outlook_calendar_respond'
           default:
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
@@ -467,6 +835,26 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           includeHiddenFolders,
           categories,
           maxResults,
+          calendarId,
+          calEventId,
+          calWindowStart,
+          calWindowEnd,
+          calMaxResults,
+          calOrderBy,
+          calPageToken,
+          calSubject,
+          calStartDateTime,
+          calEndDateTime,
+          calBody,
+          calContentType,
+          calLocation,
+          calAttendees,
+          calTimeZone,
+          calIsAllDay,
+          calIsOnlineMeeting,
+          calResponseType,
+          calComment,
+          calSendResponse,
           ...rest
         } = params
 
@@ -555,6 +943,70 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           }
         }
 
+        const isSet = (value: unknown): boolean =>
+          value !== undefined && value !== null && value !== ''
+
+        // calendarId is already the canonical param. Blank means the default calendar, so
+        // only forward it when the user actually picked one.
+        if (['list_events_calendar', 'create_event_calendar'].includes(rest.operation)) {
+          const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
+          if (effectiveCalendarId) {
+            rest.calendarId = effectiveCalendarId
+          }
+        }
+
+        if (rest.operation === 'list_events_calendar') {
+          if (calWindowStart) rest.startDateTime = String(calWindowStart).trim()
+          if (calWindowEnd) rest.endDateTime = String(calWindowEnd).trim()
+          if (isSet(calMaxResults)) rest.maxResults = Number(calMaxResults)
+          if (calOrderBy) rest.orderBy = String(calOrderBy).trim()
+          if (calPageToken) rest.pageToken = String(calPageToken).trim()
+        }
+
+        if (
+          [
+            'get_event_calendar',
+            'update_event_calendar',
+            'delete_event_calendar',
+            'respond_calendar',
+          ].includes(rest.operation)
+        ) {
+          if (calEventId) rest.eventId = String(calEventId).trim()
+        }
+
+        if (rest.operation === 'create_event_calendar') {
+          if (calSubject) rest.subject = calSubject
+          if (calStartDateTime) rest.startDateTime = String(calStartDateTime).trim()
+          if (calEndDateTime) rest.endDateTime = String(calEndDateTime).trim()
+          if (isSet(calBody)) rest.body = calBody
+          if (calContentType) rest.contentType = calContentType
+          if (isSet(calLocation)) rest.location = calLocation
+          if (isSet(calAttendees)) rest.attendees = calAttendees
+          if (calTimeZone) rest.timeZone = String(calTimeZone).trim()
+          rest.isAllDay = toBool(calIsAllDay)
+          rest.isOnlineMeeting = toBool(calIsOnlineMeeting)
+        }
+
+        if (rest.operation === 'update_event_calendar') {
+          if (isSet(calSubject)) rest.subject = calSubject
+          if (calStartDateTime) rest.startDateTime = String(calStartDateTime).trim()
+          if (calEndDateTime) rest.endDateTime = String(calEndDateTime).trim()
+          if (isSet(calBody)) rest.body = calBody
+          if (calContentType) rest.contentType = calContentType
+          if (isSet(calLocation)) rest.location = calLocation
+          if (isSet(calAttendees)) rest.attendees = calAttendees
+          if (calTimeZone) rest.timeZone = String(calTimeZone).trim()
+          if (isSet(calIsAllDay)) rest.isAllDay = toBool(calIsAllDay)
+          if (isSet(calIsOnlineMeeting)) rest.isOnlineMeeting = toBool(calIsOnlineMeeting)
+        }
+
+        if (rest.operation === 'respond_calendar') {
+          if (calResponseType) rest.responseType = calResponseType
+          if (isSet(calComment)) rest.comment = calComment
+          // Notifying the organizer is the default; an unset dropdown must not read as "no".
+          rest.sendResponse = isSet(calSendResponse) ? toBool(calSendResponse) : true
+        }
+
         return {
           ...rest,
           oauthCredential,
@@ -600,11 +1052,51 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     categories: { type: 'string', description: 'Comma-separated category names' },
     flagStatus: { type: 'string', description: 'Follow-up flag status' },
     importance: { type: 'string', description: 'Message importance level' },
+    // Calendar operation inputs
+    calendarId: {
+      type: 'string',
+      description: 'Calendar to read from or write to (canonical param); blank = default calendar',
+    },
+    calEventId: { type: 'string', description: 'Calendar event ID' },
+    calWindowStart: { type: 'string', description: 'Start of the calendar time window (ISO 8601)' },
+    calWindowEnd: { type: 'string', description: 'End of the calendar time window (ISO 8601)' },
+    calMaxResults: { type: 'number', description: 'Maximum number of calendar events to return' },
+    calOrderBy: { type: 'string', description: 'Order of calendar events' },
+    calPageToken: { type: 'string', description: 'nextLink URL for paging calendar events' },
+    calSubject: { type: 'string', description: 'Calendar event subject/title' },
+    calStartDateTime: { type: 'string', description: 'Calendar event start (ISO 8601)' },
+    calEndDateTime: { type: 'string', description: 'Calendar event end (ISO 8601)' },
+    calBody: { type: 'string', description: 'Calendar event body content' },
+    calContentType: {
+      type: 'string',
+      description: 'Calendar event body content type (text or html)',
+    },
+    calLocation: { type: 'string', description: 'Calendar event location' },
+    calAttendees: { type: 'string', description: 'Attendee emails (comma-separated)' },
+    calTimeZone: { type: 'string', description: 'IANA/Windows time zone name' },
+    calIsAllDay: { type: 'boolean', description: 'Whether the event lasts the entire day' },
+    calIsOnlineMeeting: {
+      type: 'boolean',
+      description: 'Attach an online meeting (Teams; work/school accounts only)',
+    },
+    calResponseType: {
+      type: 'string',
+      description: 'Invite response (accept, tentativelyAccept, or decline)',
+    },
+    calComment: { type: 'string', description: 'Comment to send with an invite response' },
+    calSendResponse: {
+      type: 'string',
+      description: 'Whether to notify the organizer ("true" or "false"; defaults to "true")',
+    },
   },
   outputs: {
     // Common outputs
     message: { type: 'string', description: 'Response message' },
-    results: { type: 'json', description: 'Operation results' },
+    results: {
+      type: 'json',
+      description:
+        'Operation results. Calendar operations return the event(s): {id, subject, start, end, isAllDay, location, organizer, attendees, onlineMeeting, webLink, bodyPreview}',
+    },
     // Send operation specific outputs
     status: { type: 'string', description: 'Email send status (sent)' },
     timestamp: { type: 'string', description: 'Operation timestamp' },
@@ -635,6 +1127,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     // Update message operation outputs
     categories: { type: 'json', description: 'Categories assigned to the message' },
     flagStatus: { type: 'string', description: 'Follow-up flag status of the message' },
+    // Calendar operation outputs
+    nextLink: { type: 'string', description: 'URL for the next page of calendar events, if any' },
     // Trigger outputs
     email: { type: 'json', description: 'Email data from trigger' },
     rawEmail: { type: 'json', description: 'Complete raw email data from Microsoft Graph API' },
@@ -725,6 +1219,34 @@ export const OutlookBlockMeta = {
       category: 'operations',
       tags: ['legal', 'analysis', 'automation'],
     },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook meeting scheduler',
+      prompt:
+        'Build a workflow that reads emails requesting a meeting, checks my Outlook calendar for the requested window, creates an Outlook calendar event with the sender as an attendee and a Teams link, and replies from Outlook confirming the time.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook daily agenda digest',
+      prompt:
+        'Create a scheduled workflow that lists my Outlook calendar events for the day each morning, summarizes each meeting with its attendees and join link, and posts the agenda to a Slack DM before my first meeting.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'reporting', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook invite auto-responder',
+      prompt:
+        'Build a workflow that reviews new Outlook meeting invitations, checks my calendar for conflicts in that time window, and accepts, tentatively accepts, or declines each invite with a short note to the organizer explaining the decision.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+    },
   ],
   skills: [
     {
@@ -750,6 +1272,30 @@ export const OutlookBlockMeta = {
       description: 'Move an Outlook email to the appropriate folder to keep the inbox clean.',
       content:
         '# File Email to Folder\n\nOrganize the inbox by moving a message into the right folder.\n\n## Steps\n1. Identify the email and the destination folder.\n2. Run Move Email to relocate the message.\n3. Optionally run Mark as Read so it does not linger as unread.\n\n## Output\nConfirm the email moved, naming the source and destination folders.',
+    },
+    {
+      name: 'schedule-meeting',
+      description: 'Create an Outlook calendar event and invite the right attendees.',
+      content:
+        '# Schedule Meeting\n\nPut a meeting on the calendar with the right people and context.\n\n## Steps\n1. Gather the title, start and end times, attendees, and any agenda notes.\n2. Run List Calendar Events over the proposed window to confirm the slot is free; pick another time if it is not.\n3. Run Create Event with the subject, start, end, and attendee emails. Turn on Add Online Meeting when the attendees are remote (Teams; work or school accounts only).\n\n## Output\nConfirm the event was created, naming the title, time, attendees, and the join link if one was added.',
+    },
+    {
+      name: 'summarize-agenda',
+      description: 'List Outlook calendar events for a time window and summarize the day.',
+      content:
+        '# Summarize Agenda\n\nTurn a calendar window into a short, readable agenda.\n\n## Steps\n1. Determine the window (today, this week) as ISO 8601 start and end timestamps.\n2. Run List Calendar Events for that window. Follow the returned nextLink if more pages are needed.\n3. For each event, note the time, subject, organizer, attendees, and join link.\n\n## Output\nA chronological agenda for the window, one line per meeting, calling out back-to-back blocks and any event with no agenda in its body.',
+    },
+    {
+      name: 'respond-to-invite',
+      description: 'Accept, tentatively accept, or decline an Outlook meeting invitation.',
+      content:
+        '# Respond to Invite\n\nDecide on a meeting invitation and reply to the organizer.\n\n## Steps\n1. Run Get Calendar Event on the invite to read its time, organizer, and attendees.\n2. Run List Calendar Events over the same window to check for conflicts.\n3. Run Respond to Invite with accept, tentativelyAccept, or decline, adding a short comment when declining or proposing another time.\n\n## Output\nState the response that was sent, the reason, and any conflicting meeting that drove the decision.',
+    },
+    {
+      name: 'reschedule-event',
+      description: 'Move an existing Outlook calendar event to a new time.',
+      content:
+        '# Reschedule Event\n\nShift a meeting and keep the attendees informed.\n\n## Steps\n1. Run Get Calendar Event to read the current time, attendees, and body.\n2. Run List Calendar Events over the proposed new window to confirm it is free.\n3. Run Update Event with the new start and end. Send both bounds together so the window stays valid.\n4. Optionally send the attendees a note explaining the change.\n\n## Output\nConfirm the event moved, stating the old time, the new time, and who was notified.',
     },
   ],
 } as const satisfies BlockMeta

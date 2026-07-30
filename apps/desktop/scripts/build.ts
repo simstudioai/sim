@@ -7,7 +7,7 @@ const watch = process.argv.includes('--watch')
 // non-prod environment): SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai.
 // Baked into the bundle so it applies to fresh installs with no settings —
 // unlike the SIM_DESKTOP_ORIGIN env var, which only affects terminal-launched
-// processes. Official builds leave it unset (default https://sim.ai).
+// processes. Official builds leave it unset (default https://www.sim.ai).
 const bakedDefaultOrigin = process.env.SIM_DESKTOP_DEFAULT_ORIGIN ?? ''
 if (
   bakedDefaultOrigin &&

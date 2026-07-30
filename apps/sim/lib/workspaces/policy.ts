@@ -10,6 +10,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
@@ -79,6 +80,16 @@ export interface WorkspaceCreationPolicy {
   currentWorkspaceCount: number
   reason: string | null
   status: number
+  /**
+   * The organization the caller belonged to when this decision was made
+   * (`null` for none). A PERSONAL decision is legitimate for an existing
+   * member whose organization has no usable Team/Enterprise plan, so
+   * creation compares membership against this snapshot instead of treating
+   * any membership as a mid-create join.
+   */
+  observedOrganizationId: string | null
+  /** Discriminant for blocked states the workspace mode cannot distinguish. */
+  blockedReasonCode?: 'organization-subscription-inactive'
 }
 
 interface GetWorkspaceCreationPolicyParams {
@@ -238,9 +249,12 @@ export async function getInvitePlanCategoryForOrganization(
  * user. Exposed so bulk callers can batch by unique user id. Returns
  * `'free'` when there is no usable paid subscription.
  */
-export async function getInvitePlanCategoryForUser(userId: string): Promise<PlanCategory> {
+export async function getInvitePlanCategoryForUser(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<PlanCategory> {
   try {
-    const sub = await getHighestPrioritySubscription(userId)
+    const sub = await getHighestPrioritySubscription(userId, { executor })
     if (!sub || !hasUsableSubscriptionStatus(sub.status)) return 'free'
     return getPlanType(sub.plan)
   } catch (error) {
@@ -283,6 +297,7 @@ export async function getWorkspaceCreationPolicy({
       currentWorkspaceCount: 0,
       reason: 'Only organization owners and admins can create organization workspaces.',
       status: 403,
+      observedOrganizationId: membership?.organizationId ?? null,
     }
   }
 
@@ -312,6 +327,7 @@ export async function getWorkspaceCreationPolicy({
         currentWorkspaceCount: 0,
         reason: null,
         status: 200,
+        observedOrganizationId: membership?.organizationId ?? null,
       }
     }
 
@@ -326,6 +342,7 @@ export async function getWorkspaceCreationPolicy({
       currentWorkspaceCount,
       reason: null,
       status: 200,
+      observedOrganizationId: membership?.organizationId ?? null,
     }
   }
 
@@ -349,6 +366,7 @@ export async function getWorkspaceCreationPolicy({
           currentWorkspaceCount: 0,
           reason: 'Only organization owners and admins can create organization workspaces.',
           status: 403,
+          observedOrganizationId: membership?.organizationId ?? null,
         }
       }
 
@@ -361,6 +379,32 @@ export async function getWorkspaceCreationPolicy({
         currentWorkspaceCount: 0,
         reason: null,
         status: 200,
+        observedOrganizationId: membership?.organizationId ?? null,
+      }
+    }
+
+    /**
+     * Lapsed organization (no usable Team/Enterprise plan). A plain member
+     * gets NO personal fallback: letting them create workspaces here would
+     * hand them an estate outside every admin's view purely because billing
+     * lapsed — exactly the purview escape this regime closes. Owners and
+     * admins DO fall through to the personal regime below: they sit at the top
+     * of the hierarchy, so there is no purview to escape, and after a
+     * downgrade they are usually back on a personal plan they still pay for.
+     */
+    if (!isOrgAdminRole(orgRole)) {
+      return {
+        canCreate: false,
+        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId: (await getOrganizationOwnerId(organizationId)) ?? userId,
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason:
+          "Your organization's subscription is inactive. Ask an organization owner to reactivate it before creating workspaces.",
+        status: 403,
+        observedOrganizationId: membership?.organizationId ?? null,
+        blockedReasonCode: 'organization-subscription-inactive',
       }
     }
   }
@@ -380,6 +424,7 @@ export async function getWorkspaceCreationPolicy({
       currentWorkspaceCount,
       reason: `This plan supports up to ${maxWorkspaces} personal workspace${maxWorkspaces === 1 ? '' : 's'}.`,
       status: 403,
+      observedOrganizationId: membership?.organizationId ?? null,
     }
   }
 
@@ -392,6 +437,7 @@ export async function getWorkspaceCreationPolicy({
     currentWorkspaceCount,
     reason: null,
     status: 200,
+    observedOrganizationId: membership?.organizationId ?? null,
   }
 }
 

@@ -170,6 +170,13 @@ export interface ToolConfig<P = any, R = any> {
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
     retry?: ToolRetryConfig
+    /**
+     * Drop the `Authorization` header when following a redirect. Set this on any
+     * tool whose endpoint redirects to a different origin carrying its own
+     * signed URL — GitHub's Actions log and artifact downloads are the canonical
+     * case — so the API credential is never sent to the storage host.
+     */
+    stripAuthOnRedirect?: boolean
   }
 
   // Post-processing (optional) - allows additional processing after the initial request

@@ -2,21 +2,26 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatQuotedNameList } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  acceptInvitationContract,
-  getInvitationContract,
-  type InvitationDetails,
-} from '@/lib/api/contracts/invitations'
+import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
+import {
+  buildMembershipNotice,
+  buildWorkspaceMigrationNotice,
+  MAX_LISTED_WORKSPACE_NAMES,
+} from '@/lib/invitations/disclosure-copy'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteById')
 
@@ -38,11 +43,13 @@ type InviteErrorCode =
   | 'already-processed'
   | 'email-mismatch'
   | 'workspace-not-found'
+  | 'disclosure-outdated'
   | 'user-not-found'
   | 'already-member'
   | 'already-in-organization'
   | 'no-seats-available'
   | 'upgrade-required'
+  | 'external-requires-paid-plan'
   | 'invalid-invitation'
   | 'missing-invitation-id'
   | 'server-error'
@@ -86,6 +93,12 @@ function getInviteError(code: string): InviteError {
       code: 'workspace-not-found',
       message: 'The workspace associated with this invitation could not be found.',
     },
+    'disclosure-outdated': {
+      code: 'disclosure-outdated',
+      message:
+        'Your workspaces changed since this page loaded. Review the updated notice and accept again.',
+      canRetry: true,
+    },
     'user-not-found': {
       code: 'user-not-found',
       message: 'Your user account could not be found. Please try signing out and signing back in.',
@@ -110,6 +123,12 @@ function getInviteError(code: string): InviteError {
       code: 'upgrade-required',
       message:
         'The workspace owner needs an active paid plan with billing set up before you can join. Ask them to update their plan, then try again.',
+      canRetry: true,
+    },
+    'external-requires-paid-plan': {
+      code: 'external-requires-paid-plan',
+      message:
+        'External collaborators need their own paid Sim plan. Upgrade your plan, or ask the organization to re-invite you as a member — that uses one of their seats instead.',
       canRetry: true,
     },
     'invalid-invitation': {
@@ -181,9 +200,8 @@ export default function Invite() {
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
   const queryClient = useQueryClient()
-  const [invitation, setInvitation] = useState<InvitationDetails | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<InviteError | null>(null)
+  const [actionError, setActionError] = useState<InviteError | null>(null)
+  const [urlError, setUrlError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
@@ -206,37 +224,30 @@ export default function Invite() {
     }
 
     if (errorReason) {
-      setError(getInviteError(errorReason))
-      setIsLoading(false)
+      setUrlError(getInviteError(errorReason))
     }
   }, [searchParams, inviteId, inviteTokenStorageKey])
 
-  useEffect(() => {
-    if (!session?.user) return
+  const invitationQuery = useInvitationDetails(inviteId, token, session?.user?.id ?? null, {
+    enabled: Boolean(session?.user),
+  })
+  const invitation = invitationQuery.data?.invitation ?? null
+  const joinPreview = invitationQuery.data?.joinPreview ?? null
+  const joinPreviewUnavailable = invitationQuery.data?.joinPreviewUnavailable === true
+  const isLoading = Boolean(session?.user) && invitationQuery.isPending
 
-    async function fetchInvitation() {
-      setIsLoading(true)
-      try {
-        const data = await requestJson(getInvitationContract, {
-          params: { id: inviteId },
-          query: { token: token ?? undefined },
-        })
-        setInvitation(data.invitation)
-        setError(null)
-      } catch (fetchError) {
-        logger.error('Error fetching invitation:', fetchError)
-        const code =
-          fetchError instanceof ApiClientError
-            ? codeFromApiClientError(fetchError)
-            : 'network-error'
-        setError(getInviteError(code))
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchInvitation()
-  }, [session?.user, inviteId, token])
+  const fetchError = invitationQuery.error
+    ? getInviteError(
+        invitationQuery.error instanceof ApiClientError
+          ? codeFromApiClientError(invitationQuery.error)
+          : 'network-error'
+      )
+    : null
+  /**
+   * Action errors (accept failures) outrank fetch errors; the URL error param
+   * only shows until the invitation loads successfully.
+   */
+  const error = actionError ?? fetchError ?? (invitationQuery.data ? null : urlError)
 
   const handleAcceptInvitation = async () => {
     if (!session?.user || !invitation) return
@@ -245,7 +256,18 @@ export default function Invite() {
     try {
       const data = await requestJson(acceptInvitationContract, {
         params: { id: inviteId },
-        body: { token: token ?? undefined },
+        body: {
+          token: token ?? undefined,
+          /**
+           * Disclosure token: acceptance rejects with disclosure-outdated if
+           * the sweep set no longer matches what this screen showed. Sent
+           * whenever a preview rendered — a no-join preview means the user
+           * was shown that nothing moves (an empty disclosed set), which
+           * must also conflict if acceptance would sweep anything.
+           */
+          disclosedWorkspaceIds: joinPreview ? joinPreview.workspaceIdsToMove : undefined,
+          disclosedOutcome: joinPreview?.outcome,
+        },
       })
 
       setAccepted(true)
@@ -259,13 +281,32 @@ export default function Invite() {
       runBestEffortCacheRefresh('organization', () =>
         queryClient.invalidateQueries({ queryKey: organizationKeys.all })
       )
+      /**
+       * Acceptance can attach the invitee's owned workspaces into the org —
+       * the workspace list must not keep serving the stale personal set.
+       */
+      runBestEffortCacheRefresh('workspaces', () =>
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
+      )
     } catch (acceptError) {
       logger.error('Error accepting invitation:', acceptError)
       const code =
         acceptError instanceof ApiClientError
           ? codeFromApiClientError(acceptError)
           : 'network-error'
-      setError(getInviteError(code))
+      const serverMessage =
+        acceptError instanceof ApiClientError &&
+        acceptError.body &&
+        typeof acceptError.body === 'object' &&
+        typeof (acceptError.body as { message?: unknown }).message === 'string'
+          ? ((acceptError.body as { message: string }).message as string)
+          : null
+      const baseError = getInviteError(code)
+      setActionError(
+        code === 'server-error' && serverMessage
+          ? { ...baseError, message: serverMessage }
+          : baseError
+      )
       setIsAccepting(false)
     }
   }
@@ -420,9 +461,19 @@ export default function Invite() {
     )
   }
 
+  /**
+   * Names every granted workspace, not just the primary one — an invitation can
+   * span several, and the email already lists them all.
+   */
+  const grantedWorkspaceNames =
+    invitation?.grants
+      .map((grant) => grant.workspaceName)
+      .filter((name): name is string => Boolean(name)) ?? []
   const displayName =
     invitation?.kind === 'workspace'
-      ? invitation.grants[0]?.workspaceName || 'a workspace'
+      ? grantedWorkspaceNames.length > 0
+        ? formatQuotedNameList(grantedWorkspaceNames, MAX_LISTED_WORKSPACE_NAMES)
+        : 'a workspace'
       : invitation?.organizationName || 'an organization'
 
   if (accepted) {
@@ -440,13 +491,53 @@ export default function Invite() {
   }
 
   const isOrg = invitation?.kind === 'organization'
+  /**
+   * Prefer the preview's organization (the one acceptance will really join)
+   * over the invitation's stamped name — a granted workspace may have moved
+   * organizations since the invite was sent.
+   */
+  const organizationLabel =
+    joinPreview?.organizationName || invitation?.organizationName || 'the organization'
+  /**
+   * When the server could not compute the preview, fall back to a generic
+   * migration notice for membership invites — a missing preview must never
+   * read as "nothing moves".
+   */
+  const migrationNotice = buildWorkspaceMigrationNotice({
+    joinPreview,
+    joinPreviewUnavailable,
+    membershipIntent: invitation?.membershipIntent,
+    organizationLabel,
+  })
+  /**
+   * Only disclosed when the invitation actually carries organization standing —
+   * a personal-workspace invite has no seat or membership to explain.
+   */
+  const membershipNotice = buildMembershipNotice({
+    joinPreview,
+    membershipIntent: invitation?.membershipIntent,
+    isOrganizationAdminRole: Boolean(invitation?.role && isOrgAdminRole(invitation.role)),
+    organizationLabel,
+    /**
+     * A personal-workspace invite has no organization id and no organization
+     * name yet — acceptance creates one by converting the billed owner's Pro to
+     * Team — so a `will-join` outcome is the authoritative signal that a
+     * membership and seat are involved. Gating on the ids alone silenced the
+     * disclosure for exactly the case that creates the membership.
+     */
+    isOrganizationScoped: Boolean(
+      invitation?.organizationId ||
+        joinPreview?.organizationName ||
+        joinPreview?.outcome === 'will-join'
+    ),
+  })
 
   return (
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
-        description={`You've been invited to join ${displayName}. Click accept below to join.`}
+        description={`You've been invited to join ${displayName}.${membershipNotice}${migrationNotice}`}
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {

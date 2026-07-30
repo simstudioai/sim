@@ -67,12 +67,16 @@ describe('pruneLargeValueMetadata SQL', () => {
         }
       })
 
-      it('never binds an array as a parameter', async () => {
+      it('binds only scalar parameters', async () => {
         const statements = await renderPruneStatements([...ids])
 
         for (const { params } of statements) {
           for (const param of params) {
+            // Arrays fail under fetch_types: false (no serializer, 22P02); Date
+            // objects fail in postgres-js's unsafe path outright
+            // (ERR_INVALID_ARG_TYPE) — both must be pre-encoded to strings.
             expect(Array.isArray(param)).toBe(false)
+            expect(param instanceof Date).toBe(false)
           }
         }
       })

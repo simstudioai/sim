@@ -2,9 +2,14 @@
 
 import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import type { InvitationDetails } from '@/lib/api/contracts/invitations'
+import type { MyInvitation } from '@/lib/api/contracts/invitations'
+import {
+  buildMembershipNotice,
+  buildWorkspaceMigrationNotice,
+} from '@/lib/invitations/disclosure-copy'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
 import {
   useAcceptMyInvitation,
@@ -19,7 +24,7 @@ const logger = createLogger('ViewInvitationsModal')
  * invites are labeled by the org (even when workspace grants ride along);
  * workspace invites by their workspace(s).
  */
-function invitationLabel(inv: InvitationDetails): string {
+function invitationLabel(inv: MyInvitation): string {
   if (inv.kind === 'organization') {
     return inv.organizationName ?? 'Organization'
   }
@@ -32,10 +37,41 @@ function invitationLabel(inv: InvitationDetails): string {
 }
 
 /** Secondary line: who invited, plus role (org) or permission (workspace). */
-function invitationSubLabel(inv: InvitationDetails): string {
+function invitationSubLabel(inv: MyInvitation): string {
   const invitedBy = inv.inviterName ? `Invited by ${inv.inviterName}` : 'Invited'
   const detail = inv.kind === 'organization' ? inv.role : inv.grants[0]?.permission
   return detail ? `${invitedBy} · ${detail}` : invitedBy
+}
+
+/**
+ * What accepting will do to the invitee's own account: the seat/membership
+ * consequence and any workspaces that will move into the organization. Built
+ * from the same copy as the emailed `/invite` page so the two accept surfaces
+ * can never disclose different outcomes.
+ */
+function invitationDisclosure(inv: MyInvitation): string {
+  const organizationLabel =
+    inv.joinPreview?.organizationName ?? inv.organizationName ?? 'the organization'
+  const membership = buildMembershipNotice({
+    joinPreview: inv.joinPreview,
+    membershipIntent: inv.membershipIntent,
+    isOrganizationAdminRole: isOrgAdminRole(inv.role),
+    organizationLabel,
+    /** A `will-join` outcome also covers a personal-workspace invite, which has
+     * no organization id or name until acceptance creates one. */
+    isOrganizationScoped: Boolean(
+      inv.organizationId ||
+        inv.joinPreview?.organizationName ||
+        inv.joinPreview?.outcome === 'will-join'
+    ),
+  })
+  const migration = buildWorkspaceMigrationNotice({
+    joinPreview: inv.joinPreview,
+    joinPreviewUnavailable: inv.joinPreview === null,
+    membershipIntent: inv.membershipIntent,
+    organizationLabel,
+  })
+  return `${membership}${migration}`.trim()
 }
 
 interface ViewInvitationsModalProps {
@@ -58,9 +94,13 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
 
   const isBusy = acceptInvitation.isPending || declineInvitation.isPending
 
-  const handleAccept = async (inv: InvitationDetails) => {
+  const handleAccept = async (inv: MyInvitation) => {
     try {
-      const result = await acceptInvitation.mutateAsync({ invitationId: inv.id })
+      const result = await acceptInvitation.mutateAsync({
+        invitationId: inv.id,
+        disclosedWorkspaceIds: inv.joinPreview?.workspaceIdsToMove,
+        disclosedOutcome: inv.joinPreview?.outcome,
+      })
       toast.success(`Joined ${invitationLabel(inv)}`)
       onOpenChange(false)
       router.push(result.redirectPath)
@@ -75,7 +115,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
     }
   }
 
-  const handleDecline = async (inv: InvitationDetails) => {
+  const handleDecline = async (inv: MyInvitation) => {
     try {
       await declineInvitation.mutateAsync({ invitationId: inv.id })
     } catch (error) {
@@ -93,32 +133,38 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
         {!invitations || invitations.length === 0 ? (
           <p className='px-2 text-[var(--text-muted)] text-sm'>No pending invitations.</p>
         ) : (
-          invitations.map((inv) => (
-            <div key={inv.id} className='flex items-center gap-2 px-2'>
-              <div className='min-w-0 flex-1'>
-                <p className='truncate text-[var(--text-body)] text-sm'>{invitationLabel(inv)}</p>
-                <p className='truncate text-[var(--text-muted)] text-caption'>
-                  {invitationSubLabel(inv)}
-                </p>
+          invitations.map((inv) => {
+            const disclosure = invitationDisclosure(inv)
+            return (
+              <div key={inv.id} className='flex items-start gap-2 px-2'>
+                <div className='min-w-0 flex-1'>
+                  <p className='truncate text-[var(--text-body)] text-sm'>{invitationLabel(inv)}</p>
+                  <p className='truncate text-[var(--text-muted)] text-caption'>
+                    {invitationSubLabel(inv)}
+                  </p>
+                  {disclosure ? (
+                    <p className='mt-1 text-[var(--text-muted)] text-caption'>{disclosure}</p>
+                  ) : null}
+                </div>
+                <Chip
+                  variant='primary'
+                  disabled={isBusy}
+                  onClick={() => void handleAccept(inv)}
+                  className='flex-shrink-0'
+                >
+                  Accept
+                </Chip>
+                <Chip
+                  disabled={isBusy}
+                  onClick={() => void handleDecline(inv)}
+                  aria-label={`Decline invitation to ${invitationLabel(inv)}`}
+                  className='flex-shrink-0'
+                >
+                  Decline
+                </Chip>
               </div>
-              <Chip
-                variant='primary'
-                disabled={isBusy}
-                onClick={() => void handleAccept(inv)}
-                className='flex-shrink-0'
-              >
-                Accept
-              </Chip>
-              <Chip
-                disabled={isBusy}
-                onClick={() => void handleDecline(inv)}
-                aria-label={`Decline invitation to ${invitationLabel(inv)}`}
-                className='flex-shrink-0'
-              >
-                Decline
-              </Chip>
-            </div>
-          ))
+            )
+          })
         )}
       </ChipModalBody>
       <ChipModalFooter
