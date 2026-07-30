@@ -727,17 +727,36 @@ async function acceptLockedInvitation(
   }
 
   /**
+   * Already in the organization the invitation lands in, so acceptance grants
+   * the workspaces without creating a membership or taking a seat. Shared with
+   * the join block below so the disclosure guard and the billing path cannot
+   * disagree about whether this acceptance creates a member.
+   */
+  const alreadyMemberOfTargetOrganization =
+    !!existingMembership &&
+    !!workspaceOrganizationId &&
+    existingMembership.organizationId === workspaceOrganizationId
+
+  /**
    * Membership consent guard. The workspace-id token cannot distinguish "you
    * will join, and nothing of yours moves" from "you will not join at all" —
-   * both disclose an empty set — so the disclosed join outcome is compared
-   * directly. Catches an invitee who left their other organization between
-   * preview and accept (promised external, would now consume a seat) and the
-   * mirror case (promised membership, would now be external). Runs before any
-   * write, so a plain failure return needs no rollback.
+   * both disclose an empty set — so the disclosed outcome is compared directly.
+   *
+   * Compared against whether a NEW membership gets created, not against
+   * `shouldJoinOrganization`: the preview reports no-join for an invitee who
+   * already belongs to the target organization (nothing changes for them), and
+   * `shouldJoinOrganization` stays true there because the invitation's intent is
+   * still internal. Comparing the raw flag would reject every such acceptance
+   * as `disclosure-outdated`, and the retry would re-render the same preview —
+   * an unacceptable invitation. Catches the real drift in both directions: an
+   * invitee who left their other organization between preview and accept
+   * (promised external, would now consume a seat) and the mirror case. Runs
+   * before any write, so a plain failure return needs no rollback.
    */
+  const willCreateMembership = shouldJoinOrganization && !alreadyMemberOfTargetOrganization
   if (
     input.disclosedWillJoinOrganization !== undefined &&
-    input.disclosedWillJoinOrganization !== shouldJoinOrganization
+    input.disclosedWillJoinOrganization !== willCreateMembership
   ) {
     return { success: false, kind: 'disclosure-outdated' }
   }
@@ -758,10 +777,7 @@ async function acceptLockedInvitation(
   let targetOrganizationId = workspaceOrganizationId
 
   if (shouldJoinOrganization) {
-    const alreadyMemberOfTarget =
-      !!existingMembership &&
-      !!workspaceOrganizationId &&
-      existingMembership.organizationId === workspaceOrganizationId
+    const alreadyMemberOfTarget = alreadyMemberOfTargetOrganization
 
     let fixedSeats = false
 
