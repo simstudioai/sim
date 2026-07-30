@@ -72,6 +72,7 @@ import {
 const READY_IMAGE = {
   id: 'img-1',
   status: 'ready',
+  spec: { language: 'python', dependencies: ['pandas'] },
   imageRef: 'sim-sbx-abc',
   buildId: 'build-1',
   providerImageId: 'tmpl-1',
@@ -91,6 +92,25 @@ function predicateText(predicate: unknown): string {
   if (Array.isArray(predicate)) return predicate.map(predicateText).join(' ')
   if (typeof predicate === 'object') return JSON.stringify(predicate)
   return String(predicate)
+}
+
+/**
+ * True once a build upsert has been issued. Distinguished from the restore path by
+ * the conflict clause: a rebuild is `onConflictDoUpdate`, a restore is
+ * `onConflictDoNothing`.
+ */
+function captureUpsert(): () => boolean {
+  let seen = false
+  mockInsert.mockReturnValue({
+    values: () => ({
+      onConflictDoUpdate: () => {
+        seen = true
+        return { returning: () => Promise.resolve([]) }
+      },
+      onConflictDoNothing: () => Promise.resolve(),
+    }),
+  })
+  return () => seen
 }
 
 /** Captures the conditional-delete predicate and what the claim resolves to. */
@@ -176,6 +196,36 @@ describe('releaseSandboxImage', () => {
     expect(mockInsert).toHaveBeenCalledTimes(1)
   })
 
+  /**
+   * The adopter's row is new and healthy-looking, so nothing else would notice the
+   * template went out from under it — resolution only repairs a missing or
+   * `failed` row, and a `failed` one waits out the cooldown first.
+   */
+  it('rebuilds a hash re-adopted while the provider delete was in flight', async () => {
+    stubClaim([READY_IMAGE])
+    mockSelect.mockReturnValue({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve([{ id: 'img-new' }]) }) }),
+    })
+    const enqueued = captureUpsert()
+
+    await releaseSandboxImage('hash-1')
+
+    expect(mockDeleteImage).toHaveBeenCalledTimes(1)
+    expect(enqueued()).toBe(true)
+  })
+
+  it('does not rebuild when nothing re-adopted the hash', async () => {
+    stubClaim([READY_IMAGE])
+    mockSelect.mockReturnValue({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
+    })
+    const enqueued = captureUpsert()
+
+    await releaseSandboxImage('hash-1')
+
+    expect(enqueued()).toBe(false)
+  })
+
   it('skips the provider when the claimed row never had an image', async () => {
     stubClaim([{ ...READY_IMAGE, imageRef: null }])
 
@@ -195,9 +245,15 @@ describe('releaseSandboxImage', () => {
 describe('cleanupSandboxImages', () => {
   const CANDIDATE = { id: 'img-1', specHash: 'hash-1', imageRef: 'sim-sbx-abc' }
 
-  /** One candidate row from the sweep's nomination query. */
+  /**
+   * Nomination query only — later selects (the re-adoption check) resolve empty, so
+   * a candidate is not mistaken for its own adopter.
+   */
   function stubCandidates(rows: unknown[]) {
     mockSelect.mockReturnValue({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
+    })
+    mockSelect.mockReturnValueOnce({
       from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
     })
   }

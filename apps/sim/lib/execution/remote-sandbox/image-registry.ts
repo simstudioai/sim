@@ -330,6 +330,38 @@ export async function releaseSandboxImage(specHash: string): Promise<void> {
 type ImageClaimOutcome = 'released' | 'skipped' | 'failed'
 
 /**
+ * Rebuilds a hash that was adopted while its image was being deleted.
+ *
+ * Claiming removes the row, so between that and the provider call finishing a
+ * workspace can declare the same package list, get a fresh row, and start a build
+ * under the same content-derived `imageRef` — which the in-flight delete then
+ * removes. The window is inherent: the registry row and the provider template are
+ * two systems with no shared transaction, so it can be made small but not zero.
+ *
+ * What is avoidable is the adopter finding out the slow way. Its row is new and
+ * healthy-looking, so nothing else would notice: resolution only repairs a row
+ * that is missing or `failed`, and a `failed` one waits out
+ * {@link FAILED_BUILD_RETRY_COOLDOWN_MS} first. Re-enqueueing here converts that
+ * into a rebuild starting immediately. A build already in flight is left alone by
+ * the conflict guard, since it may still outlive the delete.
+ */
+async function rebuildIfReadopted(
+  providerId: string,
+  specHash: string,
+  spec: SandboxSpec
+): Promise<void> {
+  const [readopted] = await db
+    .select({ id: sandboxImage.id })
+    .from(sandboxImage)
+    .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
+    .limit(1)
+  if (!readopted) return
+
+  logger.warn('Sandbox image was re-adopted mid-delete; rebuilding it now', { specHash })
+  await ensureSandboxImage(spec, specHash)
+}
+
+/**
  * Takes ownership of a spec hash's registry row and deletes the image behind it.
  *
  * Both callers that remove an image go through here, because the ordering is the
@@ -383,6 +415,7 @@ async function claimAndDeleteImage(
       buildId: claimed.buildId ?? '',
       providerImageId: claimed.providerImageId ?? undefined,
     })
+    await rebuildIfReadopted(providerId, specHash, claimed.spec as SandboxSpec)
     return 'released'
   } catch (error) {
     await db
