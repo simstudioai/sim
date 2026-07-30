@@ -169,10 +169,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const columnRef = currentColumn ? getColumnId(currentColumn) : validated.columnName
     // The constraints write below is a separate, unconditional step, so it is
     // the last one whenever it runs — that is the write the rename rides on.
-    const constraintsChanging = updates.required !== undefined || updates.unique !== undefined
-    const renameWithTypedWrite =
-      updates.name && !constraintsChanging ? { newName: updates.name } : {}
     const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
+    // A retype applies and validates the constraints itself, so the separate
+    // constraint write only runs when the type is unchanged. The rename rides
+    // whichever write actually runs last.
+    const constraintsWriteRuns =
+      !typeChanging && (updates.required !== undefined || updates.unique !== undefined)
+    const renameWithTypedWrite =
+      updates.name && !constraintsWriteRuns ? { newName: updates.name } : {}
 
     // Every write below is its own locked transaction, so one that is going to
     // fail leaves the earlier ones committed. These guards reject the knowable
@@ -280,7 +284,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
-    if (updates.required !== undefined || updates.unique !== undefined) {
+    // Skipped when the type changed: that write already applied and validated
+    // these, in one transaction with the conversion.
+    if (!typeChanging && (updates.required !== undefined || updates.unique !== undefined)) {
       updatedTable = await updateColumnConstraints(
         {
           tableId,

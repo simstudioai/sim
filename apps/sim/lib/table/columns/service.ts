@@ -571,10 +571,19 @@ function buildConvertedColumn(
   // cannot ride through `...rest` onto a target that does not own it — which
   // `validateColumnDefinition` would then reject on every later write.
   const rest = omit(column, [...TYPE_SPECIFIC_COLUMN_KEYS]) as ColumnDefinition
+  // Constraints arriving with the retype are APPLIED here, not left to a second
+  // transaction. `updateColumnType` already validates against them (empty cells
+  // for `required`, post-conversion duplicates for `unique`), so applying them
+  // in the same write is what makes a combined request all-or-nothing.
+  const withConstraints: ColumnDefinition = {
+    ...rest,
+    ...(data.required !== undefined ? { required: data.required } : {}),
+    ...(data.unique !== undefined ? { unique: data.unique } : {}),
+  }
 
   if (isSelectType) {
     return {
-      ...rest,
+      ...withConstraints,
       type: data.newType,
       options: data.options ?? column.options,
       ...(targetMultiple ? { multiple: true } : {}),
@@ -593,7 +602,7 @@ function buildConvertedColumn(
   // future type.
   const definition = columnTypeById(data.newType)
   const owned = new Set<string>(definition.ownedMetadata)
-  const carried: ColumnDefinition = { ...rest, type: data.newType }
+  const carried: ColumnDefinition = { ...withConstraints, type: data.newType }
   for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
     if (!owned.has(key)) continue
     const value = data[key] ?? column[key]

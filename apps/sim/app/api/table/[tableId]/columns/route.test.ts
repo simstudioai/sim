@@ -217,6 +217,45 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     )
   })
 
+  it('applies a rename, retype and constraints in a single write', async () => {
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        workspaceId: WORKSPACE_ID,
+        schema: { columns: [{ id: 'col_a', name: 'amount', type: 'string' }] },
+      },
+    })
+    mockUpdateColumnType.mockResolvedValue({ schema: { columns: [] } })
+
+    const response = await patch({ name: 'total', type: 'number', required: true, unique: true })
+
+    expect(response.status).toBe(200)
+    // One transaction for the whole request: no separate rename, no separate
+    // constraint write, so no half of it can commit without the others.
+    expect(mockRenameColumn).not.toHaveBeenCalled()
+    expect(mockUpdateColumnConstraints).not.toHaveBeenCalled()
+    expect(mockUpdateColumnType).toHaveBeenCalledTimes(1)
+    expect(mockUpdateColumnType).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newType: 'number',
+        required: true,
+        unique: true,
+        newName: 'total',
+      }),
+      expect.any(String)
+    )
+  })
+
+  it('still runs the constraint write when the type is unchanged', async () => {
+    mockUpdateColumnConstraints.mockResolvedValue({ schema: { columns: [] } })
+
+    const response = await patch({ required: true })
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateColumnConstraints).toHaveBeenCalledTimes(1)
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
+  })
+
   it('rejects constraint changes on a workflow-output column before any write', async () => {
     mockCheckAccess.mockResolvedValue({
       ok: true,
