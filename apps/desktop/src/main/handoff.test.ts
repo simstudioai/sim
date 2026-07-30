@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import {
+  type AuthFlowDeps,
   buildRedeemScript,
   type ConnectHandoffCallback,
+  createAuthFlow,
   createHandoffManager,
   type HandoffCallback,
   type HandoffCallbacks,
@@ -268,5 +270,53 @@ describe('connect handoff account pinning', () => {
     const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
     expect(landing.searchParams.has('user')).toBe(false)
     manager.clear()
+  })
+})
+
+describe('createAuthFlow window failures', () => {
+  function makeAuthDeps(ensureMainWindow: () => Promise<never>) {
+    const events = makeEvents()
+    return {
+      deps: {
+        handoff: {
+          begin: vi.fn(async () => true),
+          consume: vi.fn(() => true),
+        } as unknown as AuthFlowDeps['handoff'],
+        origin: () => 'https://sim.ai',
+        events,
+        ensureMainWindow,
+      } satisfies AuthFlowDeps,
+      events,
+    }
+  }
+
+  it('records rather than rejects when no window can be opened for the callback', async () => {
+    const { deps, events } = makeAuthDeps(async () => {
+      throw new Error('Main window unavailable')
+    })
+    const flow = createAuthFlow(deps)
+
+    await expect(
+      flow.handleCallback({ state: VALID_STATE, token: VALID_TOKEN } as HandoffCallback)
+    ).resolves.toBeUndefined()
+    expect(events.record).toHaveBeenCalledWith('handoff_redeem_fail', {
+      reason: 'callback_window',
+      error: 'Main window unavailable',
+    })
+    expect(deps.handoff.consume).not.toHaveBeenCalled()
+  })
+
+  it('records rather than rejects when no window can be opened to report a failed begin', async () => {
+    const { deps, events } = makeAuthDeps(async () => {
+      throw new Error('Main window unavailable')
+    })
+    deps.handoff.begin = vi.fn(async () => false)
+    const flow = createAuthFlow(deps)
+
+    await expect(flow.beginLoginHandoff()).resolves.toBeUndefined()
+    expect(events.record).toHaveBeenCalledWith('handoff_redeem_fail', {
+      reason: 'begin_window',
+      error: 'Main window unavailable',
+    })
   })
 })

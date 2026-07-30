@@ -15,8 +15,28 @@ const logger = createLogger('BrowserCredentialAuth')
  */
 const AUTH_GRACE_MS = 30_000
 
-/** Credential id to the moment its proof of presence lapses. */
-const provenUntil = new Map<string, number>()
+/**
+ * What a grant was proven for.
+ *
+ * Neither operation dominates the other, so a grant satisfies only its own.
+ * `reveal` hands the plaintext to the Sim renderer; `copy` publishes it to the
+ * macOS pasteboard, which every process on the machine can read, which
+ * clipboard managers persist to disk beyond the 30s `clipboard.clear()`, and
+ * which Universal Clipboard syncs to the user's other devices. Ordering them
+ * either way lets one consent authorize an exposure the prompt never described.
+ */
+export type SecretOperation = 'reveal' | 'copy'
+
+/**
+ * Proof of presence per credential AND operation.
+ *
+ * Nested rather than one scalar per credential: a single slot would be
+ * overwritten on each grant, so reveal → copy → reveal prompts three times
+ * inside one window even though each was already proven. Nesting also keeps
+ * revoke-by-credential a single delete, so a third operation added later cannot
+ * be left behind by a revoke that forgot to enumerate it.
+ */
+const provenUntil = new Map<string, Map<SecretOperation, number>>()
 
 export interface SecretAuthRequest {
   /**
@@ -25,17 +45,30 @@ export interface SecretAuthRequest {
    * granted for.
    */
   credentialId: string
+  /**
+   * What the caller is about to do. Required, because a grant that did not
+   * record it let the weaker consent stand in for the stronger one: approving
+   * a "Copy password?" prompt silently authorized a plaintext reveal to the
+   * renderer for the rest of the window, with no second prompt and a label
+   * that described something else.
+   */
+  operation: SecretOperation
   /** Completes "Sim is about to ..." in the prompt. */
   reason: string
   /** Confirm-button label and title for the non-biometric fallback. */
   action: string
 }
 
-function hasFreshProof(credentialId: string): boolean {
-  const expiry = provenUntil.get(credentialId)
+function hasFreshProof(credentialId: string, operation: SecretOperation): boolean {
+  const grants = provenUntil.get(credentialId)
+  const expiry = grants?.get(operation)
   if (expiry === undefined) return false
-  if (Date.now() >= expiry) {
-    provenUntil.delete(credentialId)
+  // Also lapsed when the remaining time exceeds the whole window, which is what
+  // a backwards clock step looks like — otherwise a corrected clock would leave
+  // a grant standing far longer than it was granted for.
+  const remaining = expiry - Date.now()
+  if (remaining <= 0 || remaining > AUTH_GRACE_MS) {
+    grants?.delete(operation)
     return false
   }
   return true
@@ -73,12 +106,15 @@ export function revokeSecretAuthorization(credentialId?: string): void {
  */
 export async function authorizeForSecret({
   credentialId,
+  operation,
   reason,
   action,
 }: SecretAuthRequest): Promise<boolean> {
-  if (hasFreshProof(credentialId)) return true
+  if (hasFreshProof(credentialId, operation)) return true
   if (!(await promptForSecret(reason, action))) return false
-  provenUntil.set(credentialId, Date.now() + AUTH_GRACE_MS)
+  const grants = provenUntil.get(credentialId) ?? new Map<SecretOperation, number>()
+  grants.set(operation, Date.now() + AUTH_GRACE_MS)
+  provenUntil.set(credentialId, grants)
   return true
 }
 

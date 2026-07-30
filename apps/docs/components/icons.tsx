@@ -8758,3 +8758,21 @@ export function RocketlaneIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/**
+ * Pydantic Logfire. Single-fill mark drawn with `fill='currentColor'` so it
+ * takes white on its brand tile and the block's `iconColor` when rendered bare.
+ */
+export function LogfireIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 138 120'
+      fill='currentColor'
+      role='img'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M137.041 90.563 73.326 2.241c-2.005-2.757-6.628-2.757-8.613 0L.998 90.563A5.32 5.32 0 0 0 0 93.664a5.331 5.331 0 0 0 3.641 5.05l63.715 20.851h.01a5.306 5.306 0 0 0 3.292 0h.01l63.715-20.85a5.265 5.265 0 0 0 3.392-3.406 5.247 5.247 0 0 0-.749-4.746h.015ZM69.022 14.412 94.56 49.815l-23.882-7.813c-.185-.06-.38-.05-.564-.094a3.484 3.484 0 0 0-.548-.09c-.185-.025-.36-.095-.544-.095-.185 0-.354.07-.539.095-.184.02-.369.05-.548.09-.19.035-.384.035-.554.094L43.644 49.77l-.15.05L69.032 14.41h-.01ZM32.94 64.438l27.802-9.104 2.968-.967v52.838L13.86 90.887 32.94 64.438Zm41.399 42.757V54.367l30.77 10.071 19.079 26.434-49.854 16.323h.005Z' />
+    </svg>
+  )
+}

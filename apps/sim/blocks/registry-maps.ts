@@ -178,6 +178,7 @@ import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/lin
 import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
+import { LogfireBlock, LogfireBlockMeta } from '@/blocks/blocks/logfire'
 import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
@@ -506,6 +507,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   linq: LinqBlock,
+  logfire: LogfireBlock,
   logs: LogsBlock,
   logs_v2: LogsV2Block,
   loops: LoopsBlock,
@@ -807,6 +809,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   linkedin: LinkedInBlockMeta,
   linkup: LinkupBlockMeta,
   linq: LinqBlockMeta,
+  logfire: LogfireBlockMeta,
   loops: LoopsBlockMeta,
   luma: LumaBlockMeta,
   mailchimp: MailchimpBlockMeta,

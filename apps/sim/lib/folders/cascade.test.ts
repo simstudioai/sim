@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { flattenMockConditions, hasMockCondition } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   archiveFolderCascade,
@@ -81,23 +82,6 @@ function makeConfig(overrides: Partial<FolderResourceConfig> = {}): FolderResour
   }
 }
 
-/** Flattens the nested `and(...)` objects the drizzle operator mocks produce. */
-function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
-  if (!condition || typeof condition !== 'object') return []
-  const node = condition as Record<string, unknown>
-  if (node.type === 'and' && Array.isArray(node.conditions)) {
-    return node.conditions.flatMap(flattenConditions)
-  }
-  return [node]
-}
-
-function hasCondition(
-  condition: unknown,
-  predicate: (node: Record<string, unknown>) => boolean
-): boolean {
-  return flattenConditions(condition).some(predicate)
-}
-
 const TIMESTAMP = new Date('2026-01-01T00:00:00.000Z')
 const NOW = new Date('2026-02-02T00:00:00.000Z')
 
@@ -138,7 +122,7 @@ describe('collectCascadeSubtreeIds', () => {
 
     expect(ids).toEqual(['root', 'child', 'grandchild'])
     // Either still active, or carrying this cascade's own stamp — never another snapshot's.
-    const clause = flattenConditions(selectCalls[0].where).find((node) => node.type === 'or')
+    const clause = flattenMockConditions(selectCalls[0].where).find((node) => node.type === 'or')
     expect(clause).toBeDefined()
     const branches = (clause?.conditions ?? []) as Array<Record<string, unknown>>
     expect(branches.some((node) => node.type === 'isNull')).toBe(true)
@@ -150,8 +134,10 @@ describe('collectCascadeSubtreeIds', () => {
 
     await collectCascadeSubtreeIds(tx, 'ws-1', 'knowledge_base', 'root', TIMESTAMP)
 
-    expect(hasCondition(selectCalls[0].where, (node) => node.right === 'knowledge_base')).toBe(true)
-    expect(hasCondition(selectCalls[0].where, (node) => node.right === 'ws-1')).toBe(true)
+    expect(hasMockCondition(selectCalls[0].where, (node) => node.right === 'knowledge_base')).toBe(
+      true
+    )
+    expect(hasMockCondition(selectCalls[0].where, (node) => node.right === 'ws-1')).toBe(true)
   })
 })
 
@@ -169,7 +155,7 @@ describe('collectArchivedSubtreeIds', () => {
     const ids = await collectArchivedSubtreeIds(tx, 'ws-1', 'table', 'root', TIMESTAMP)
 
     expect(ids).toEqual(['root', 'child'])
-    expect(hasCondition(selectCalls[0].where, (node) => node.right === TIMESTAMP)).toBe(true)
+    expect(hasMockCondition(selectCalls[0].where, (node) => node.right === TIMESTAMP)).toBe(true)
   })
 
   it('terminates on a parent cycle instead of recursing forever', async () => {
@@ -230,7 +216,7 @@ describe('archiveFolderCascade', () => {
     await archiveFolderCascade(tx, makeConfig(), 'ws-1', ['root'], TIMESTAMP)
 
     for (const call of updateCalls) {
-      expect(hasCondition(call.where, (node) => node.type === 'isNull')).toBe(true)
+      expect(hasMockCondition(call.where, (node) => node.type === 'isNull')).toBe(true)
     }
   })
 
@@ -299,7 +285,7 @@ describe('restoreFolderCascade', () => {
     expect(updateCalls[1].set).toEqual({ archivedAt: null, updatedAt: NOW })
     expect(updateCalls[2].table).toBe(DEPENDENT_TABLE)
     expect(
-      hasCondition(updateCalls[2].where, (node) => {
+      hasMockCondition(updateCalls[2].where, (node) => {
         return node.type === 'inArray' && Array.isArray(node.values) && node.values.length === 2
       })
     ).toBe(true)
@@ -353,7 +339,7 @@ describe('restoreFolderCascade', () => {
     )
 
     for (const call of updateCalls) {
-      expect(hasCondition(call.where, (node) => node.right === TIMESTAMP)).toBe(true)
+      expect(hasMockCondition(call.where, (node) => node.right === TIMESTAMP)).toBe(true)
     }
   })
 })
@@ -373,7 +359,7 @@ describe('restoreFolderRows', () => {
 
     expect(folders).toBe(2)
     expect(updateCalls).toHaveLength(1)
-    expect(hasCondition(updateCalls[0].where, (node) => node.right === TIMESTAMP)).toBe(true)
+    expect(hasMockCondition(updateCalls[0].where, (node) => node.right === TIMESTAMP)).toBe(true)
   })
 })
 

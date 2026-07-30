@@ -4740,7 +4740,7 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              "New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn't match one of them.",
+              'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
           },
           order: {
             type: 'array',
@@ -4750,7 +4750,7 @@ export const UserTable: ToolCatalogEntry = {
           options: {
             type: 'array',
             description:
-              'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list: options kept by name keep their cells, and cells holding a removed option are cleared. Max 100.',
+              'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
             items: { type: 'string' },
           },
           outputColumnNames: {

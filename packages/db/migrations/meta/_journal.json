@@ -1926,6 +1926,13 @@
       "when": 1785344855092,
       "tag": "0275_table_views",
       "breakpoints": true
+    },
+    {
+      "idx": 276,
+      "version": "7",
+      "when": 1785352177983,
+      "tag": "0276_drop_legacy_folder_tables",
+      "breakpoints": true
     }
   ]
 }

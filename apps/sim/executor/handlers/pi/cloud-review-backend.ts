@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
+import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/backend'
 import {
   CLOUD_REVIEW_TOOL_NAMES,
@@ -27,6 +28,12 @@ import {
 } from '@/executor/handlers/pi/cloud-shared'
 import { buildPiPrompt } from '@/executor/handlers/pi/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/events'
+import {
+  fetchOpenPrSnapshot,
+  MAX_REVIEW_BODY_LENGTH,
+  type PullRequestSnapshot,
+  validateRepositoryCoordinates,
+} from '@/executor/handlers/pi/github-pr'
 import { mapThinkingLevel } from '@/executor/handlers/pi/keys'
 import {
   createPiModelRuntime,
@@ -47,23 +54,13 @@ import {
 } from '@/executor/handlers/pi/search/normalize'
 import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
-import {
-  isRecord,
-  nullableString,
-  requiredRecord,
-  requiredTrimmedString,
-} from '@/tools/github/response-parsers'
+import { isRecord, requiredTrimmedString } from '@/tools/github/response-parsers'
 import type { ReviewFindings } from '@/tools/github/review-schema'
 
 const logger = createLogger('PiCloudReviewBackend')
 
 const GIT_ASKPASS_PATH = '/workspace/sim-git-askpass.sh'
-const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/
-const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/
-const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
 const MAX_REVIEW_TASK_LENGTH = 8_000
-const MAX_REVIEW_BODY_LENGTH = 8_000
-const PULL_REQUEST_RESPONSE_CONTEXT = 'GitHub pull request response'
 const REVIEW_RESPONSE_CONTEXT = 'GitHub review response'
 
 /**
@@ -127,83 +124,6 @@ test "$BASE_SHA" = "$EXPECTED_BASE_SHA"
 git remote remove origin
 git -c core.hooksPath=/dev/null checkout --detach refs/sim/head
 printf '%s\\n' "__HEAD_SHA__=$HEAD_SHA" "__BASE_SHA__=$BASE_SHA"`
-
-interface PullRequestSnapshot {
-  headSha: string
-  baseSha: string
-  baseRef: string
-  title: string
-  body: string
-  htmlUrl: string
-  state: string
-}
-
-function requiredSha(record: Record<string, unknown>, field: string, context: string): string {
-  const value = requiredTrimmedString(record, field, context)
-  if (!COMMIT_SHA_PATTERN.test(value)) {
-    throw new Error(`${context}.${field} must be a full commit SHA`)
-  }
-  return value
-}
-
-function parsePullRequestSnapshot(value: unknown): PullRequestSnapshot {
-  if (!isRecord(value)) throw new Error(`${PULL_REQUEST_RESPONSE_CONTEXT} must be an object`)
-
-  const head = requiredRecord(value, 'head', PULL_REQUEST_RESPONSE_CONTEXT)
-  const base = requiredRecord(value, 'base', PULL_REQUEST_RESPONSE_CONTEXT)
-  const headContext = `${PULL_REQUEST_RESPONSE_CONTEXT}.head`
-  const baseContext = `${PULL_REQUEST_RESPONSE_CONTEXT}.base`
-
-  return {
-    headSha: requiredSha(head, 'sha', headContext),
-    baseSha: requiredSha(base, 'sha', baseContext),
-    baseRef: requiredTrimmedString(base, 'ref', baseContext),
-    title: requiredTrimmedString(value, 'title', PULL_REQUEST_RESPONSE_CONTEXT),
-    body: nullableString(value, 'body', PULL_REQUEST_RESPONSE_CONTEXT) ?? '',
-    htmlUrl: requiredTrimmedString(value, 'html_url', PULL_REQUEST_RESPONSE_CONTEXT),
-    state: requiredTrimmedString(value, 'state', PULL_REQUEST_RESPONSE_CONTEXT),
-  }
-}
-
-async function fetchPrSnapshot(
-  params: PiCloudReviewRunParams,
-  signal?: AbortSignal
-): Promise<PullRequestSnapshot> {
-  const result = await executeTool(
-    'github_pr_v2',
-    {
-      owner: params.owner,
-      repo: params.repo,
-      pullNumber: params.pullNumber,
-      includeFiles: false,
-      apiKey: params.githubToken,
-    },
-    { signal }
-  )
-
-  if (!result.success) {
-    throw new Error(`Failed to fetch PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`)
-  }
-
-  const snapshot = parsePullRequestSnapshot(result.output)
-  if (snapshot.state !== 'open') {
-    throw new Error(`PR #${params.pullNumber} is ${snapshot.state}; only open PRs can be reviewed`)
-  }
-  return snapshot
-}
-
-function validateRepositoryCoordinates(params: PiCloudReviewRunParams): void {
-  if (
-    !GITHUB_OWNER_PATTERN.test(params.owner) ||
-    !GITHUB_REPO_PATTERN.test(params.repo) ||
-    params.repo === '.' ||
-    params.repo === '..' ||
-    !Number.isSafeInteger(params.pullNumber) ||
-    params.pullNumber < 1
-  ) {
-    throw new Error('Invalid GitHub repository coordinates or pull request number')
-  }
-}
 
 function buildReviewPrompt(
   params: PiCloudReviewRunParams,
@@ -302,11 +222,13 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
 
   try {
     validateRepositoryCoordinates(params)
-    const snapshot = await fetchPrSnapshot(params, context.signal)
+    const snapshot = await fetchOpenPrSnapshot(params, context.signal)
     const isolatedDir = await mkdtemp(join(tmpdir(), 'sim-pi-review-'))
 
+    const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
+
     try {
-      return await withPiSandbox(async (runner) => {
+      return await withPiSandbox({ lifetimeMs }, async (runner) => {
         await runner.writeFile(GIT_ASKPASS_PATH, GIT_ASKPASS_SCRIPT)
         const fetched = await raceAbort(
           runner.run(FETCH_PR_SCRIPT, {
@@ -450,7 +372,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
           const findings = scrubReviewFindings(rawFindings, secrets)
           totals.finalText = findings.body
 
-          const latestSnapshot = await fetchPrSnapshot(params, context.signal)
+          const latestSnapshot = await fetchOpenPrSnapshot(params, context.signal)
           assertSameSnapshot(snapshot, latestSnapshot, params.pullNumber)
           const { reviewUrl, commentsPosted } = await submitReview(
             params,

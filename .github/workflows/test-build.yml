@@ -177,7 +177,9 @@ jobs:
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
-      - name: Run tests with coverage
+      # Named for what it does: `bun run test` is `vitest run`, with no
+      # `--coverage`. See the Codecov note below.
+      - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
@@ -199,6 +201,14 @@ jobs:
           fi
           echo "✅ Schema and migrations are in sync"
 
+      # DEAD PATH: nothing generates `apps/sim/coverage`. The test step runs
+      # `vitest run` without `--coverage`, and vitest.config.ts declares no
+      # coverage provider, so this uploads nothing and still reports success in
+      # ~1s (`fail_ci_if_error: false` hides it). `@vitest/coverage-v8` IS
+      # installed, so wiring it up is possible — but coverage instrumentation
+      # costs test time and nothing gates on the result today. Left in place
+      # pending a decision to either enable coverage or drop this step; do not
+      # read its green tick as "coverage was published".
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
@@ -263,17 +273,12 @@ jobs:
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
-      # Turbopack's persistent build cache (NEXT_TURBOPACK_BUILD_CACHE below)
-      # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
-      # actions/cache round-trip would eat the warm-build win. Same event/fork
-      # namespacing as the other mounts; the GitHub fallback inside cache-mount
-      # still uses actions/cache with a run_id-suffixed key.
-      - name: Mount Next.js build cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ./apps/sim/.next/cache
+      # No `.next/cache` mount: the Turbopack persistent build cache is off. A
+      # controlled A/B on one branch (PR #6078) with a byte-identical module graph
+      # measured compile at 113s with the cache off, 162s cold with it on, and
+      # 360s warm — the cache made the same build 3.2x slower, and it grew
+      # 5.1 GB -> 12 GB across two runs of an unchanged tree, so a disk degrades
+      # the more it is used. Mounting a disk nothing reads would only cost storage.
 
       # Running out of RAM kills the whole VM and surfaces only as "the runner
       # has received a shutdown signal" — no mention of memory, ~12 min in. Warn
@@ -304,7 +309,4 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          # Opt into Turbopack's persistent build cache (beta) for this CI
-          # check build only — measured 105s cold vs 22s warm locally.
-          NEXT_TURBOPACK_BUILD_CACHE: '1'
         run: bunx turbo run build --filter=sim
