@@ -937,7 +937,14 @@
       "DeploymentState": {
         "type": "object",
         "description": "Base deployment state shared by deploy, undeploy, and rollback results.",
-        "required": ["id", "isDeployed", "deployedAt", "warnings"],
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -961,6 +968,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "activeDeployment": {
+            "type": ["object", "null"],
+            "description": "Summary of the currently live deployment version, or null when none is active."
+          },
+          "latestDeploymentAttempt": {
+            "type": ["object", "null"],
+            "description": "Lifecycle status of the most recent deploy attempt (preparing/activating/active/failed/superseded) — poll this to a terminal state; deploys admit asynchronously, so HTTP success only means the attempt was accepted."
           }
         }
       },

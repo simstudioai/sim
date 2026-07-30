@@ -1648,6 +1648,17 @@
           "workflowGroupId": {
             "type": "string",
             "description": "Set when the column is the output of a workflow group."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelectOption"
+            },
+            "description": "Declared options for a `select` column; absent on other types."
+          },
+          "multiple": {
+            "type": "boolean",
+            "description": "A `select` column that accepts multiple options per cell."
           }
         }
       },
@@ -1677,6 +1688,21 @@
             "type": "boolean",
             "default": false,
             "description": "Whether values in this column must be unique across all rows."
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable column id. Server-assigned — normally omit."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelectOption"
+            },
+            "description": "Declared options for a `select` column; absent on other types."
+          },
+          "multiple": {
+            "type": "boolean",
+            "description": "A `select` column that accepts multiple options per cell."
           }
         }
       },
@@ -1811,7 +1837,20 @@
                 "maxItems": 50,
                 "description": "Column definitions. A table must have between 1 and 50 columns.",
                 "items": {
-                  "$ref": "#/components/schemas/ColumnInput"
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ColumnInput"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "workflowGroupId": {
+                          "type": "string",
+                          "description": "Advanced: binds the column to a workflow group's output."
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1833,38 +1872,22 @@
             "description": "The workspace that owns the table."
           },
           "column": {
-            "type": "object",
-            "description": "The column definition to add.",
-            "required": ["name", "type"],
-            "properties": {
-              "name": {
-                "type": "string",
-                "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
-                "maxLength": 50,
-                "description": "Column name. Starts with a letter or underscore; contains only alphanumerics and underscores.",
-                "example": "phone"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ColumnInput"
               },
-              "type": {
-                "type": "string",
-                "enum": ["string", "number", "boolean", "date", "json"],
-                "description": "Data type of the column."
-              },
-              "required": {
-                "type": "boolean",
-                "default": false,
-                "description": "Whether the column requires a value on insert."
-              },
-              "unique": {
-                "type": "boolean",
-                "default": false,
-                "description": "Whether values in this column must be unique across all rows."
-              },
-              "position": {
-                "type": "integer",
-                "minimum": 0,
-                "description": "Zero-based insert position in the column order. Appended at the end when omitted."
+              {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Zero-based insert position in the column order. Appended at the end when omitted."
+                  }
+                }
               }
-            }
+            ],
+            "description": "The column definition to add."
           }
         }
       },
@@ -1906,6 +1929,17 @@
               "unique": {
                 "type": "boolean",
                 "description": "Whether values in this column must be unique across all rows."
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SelectOption"
+                },
+                "description": "Declared options for a `select` column; absent on other types."
+              },
+              "multiple": {
+                "type": "boolean",
+                "description": "A `select` column that accepts multiple options per cell."
               }
             }
           }
@@ -2426,6 +2460,21 @@
           },
           "value": {
             "description": "Operand. Omit for the `is*` operators. Ranges on `number` columns require numbers, on `date` columns ISO strings (compared as UTC, independent of any session timezone); ranges on `boolean`/`json` columns are rejected."
+          }
+        }
+      },
+      "SelectOption": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable option id — the value stored in cells."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Display name. Filters on select columns accept names (resolved case-insensitively)."
           }
         }
       }

@@ -155,11 +155,6 @@ function docPropertyNames(schema: unknown, spec: Json): Set<string> | null {
   return null
 }
 
-/** Same union logic over the Zod-derived JSON schema (no `$ref`s inside). */
-function zodPropertyNames(schema: unknown): Set<string> | null {
-  return docPropertyNames(schema, {} as Json)
-}
-
 function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json | null {
   try {
     return z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as Json
@@ -285,6 +280,104 @@ function checkQueryParams(operation: Operation, contract: ContractLike, name: st
   }
 }
 
+/** Property subschema lookup, searching `oneOf`/`anyOf`/`allOf` variants. */
+function propertyNode(schema: unknown, root: Json, prop: string): unknown {
+  const node = deref(schema, root)
+  if (!node || typeof node !== 'object') return undefined
+  const record = node as Json
+  const variants = (record.oneOf ?? record.anyOf ?? record.allOf) as unknown[] | undefined
+  if (variants) {
+    for (const variant of variants) {
+      const found = propertyNode(variant, root, prop)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  return (record.properties as Json | undefined)?.[prop]
+}
+
+/** Deref + step through array wrappers so item objects compare directly. */
+function unwrapArrays(node: unknown, root: Json): unknown {
+  let current = deref(node, root)
+  for (let i = 0; i < 3; i++) {
+    const record = current as Json | null
+    if (record && typeof record === 'object' && record.type === 'array' && record.items) {
+      current = deref(record.items, root)
+    } else {
+      break
+    }
+  }
+  return current
+}
+
+interface DiffContext {
+  specFile: string
+  label: string
+  name: string
+  where: 'body' | 'response'
+}
+
+/**
+ * Recursively diffs property-name sets between the Zod-derived JSON schema and
+ * the documented one, descending through matching object properties and array
+ * items. Comparison happens only where BOTH sides expose a property set — an
+ * opaque side (records, `additionalProperties`, prose-only docs) ends the
+ * descent instead of producing false positives. The Zod root doubles as the
+ * `$defs` resolution context for recursive schemas.
+ */
+function diffSchemaFields(
+  zodNode: unknown,
+  zodRoot: Json,
+  docNode: unknown,
+  docRoot: Json,
+  ctx: DiffContext,
+  prefix: string,
+  depth: number
+): void {
+  if (depth > 4) return
+  const zodObj = unwrapArrays(zodNode, zodRoot)
+  const docObj = unwrapArrays(docNode, docRoot)
+  const zodNames = docPropertyNames(zodObj, zodRoot)
+  const docNames = docPropertyNames(docObj, docRoot)
+  if (!zodNames || !docNames) return
+  const fieldPath = (n: string) => (prefix ? `${prefix}.${n}` : n)
+  /**
+   * A `.passthrough()` contract deliberately under-declares its fields, so the
+   * docs are allowed to document more than the Zod side names.
+   */
+  const extra = (zodObj as Json).additionalProperties
+  const zodIsPassthrough =
+    extra === true || (!!extra && typeof extra === 'object' && Object.keys(extra).length === 0)
+  for (const n of zodNames) {
+    if (!docNames.has(n)) {
+      fail(
+        ctx.specFile,
+        `${ctx.label}: ${ctx.where} field "${fieldPath(n)}" (${ctx.name}) not documented`
+      )
+    }
+  }
+  for (const n of docNames) {
+    if (!zodNames.has(n) && !zodIsPassthrough) {
+      fail(
+        ctx.specFile,
+        `${ctx.label}: documented ${ctx.where} field "${fieldPath(n)}" does not exist on ${ctx.name}`
+      )
+    }
+  }
+  for (const n of zodNames) {
+    if (!docNames.has(n)) continue
+    diffSchemaFields(
+      propertyNode(zodObj, zodRoot, n),
+      zodRoot,
+      propertyNode(docObj, docRoot, n),
+      docRoot,
+      ctx,
+      fieldPath(n),
+      depth + 1
+    )
+  }
+}
+
 function checkBodyAndResponse(operation: Operation, contract: ContractLike, name: string): void {
   const { specFile, path: p, method, op, spec } = operation
   const label = `${method.toUpperCase()} ${p}`
@@ -293,17 +386,17 @@ function checkBodyAndResponse(operation: Operation, contract: ContractLike, name
     'application/json'
   ] as Json | undefined
   if (contract.body && docBodySchema?.schema) {
-    const zodNames = zodPropertyNames(toJsonSchema(contract.body, 'input'))
-    const docNames = docPropertyNames(docBodySchema.schema, spec)
-    if (zodNames && docNames) {
-      for (const n of zodNames) {
-        if (!docNames.has(n)) fail(specFile, `${label}: body field "${n}" (${name}) not documented`)
-      }
-      for (const n of docNames) {
-        if (!zodNames.has(n)) {
-          fail(specFile, `${label}: documented body field "${n}" does not exist on ${name}`)
-        }
-      }
+    const zodRoot = toJsonSchema(contract.body, 'input')
+    if (zodRoot) {
+      diffSchemaFields(
+        zodRoot,
+        zodRoot,
+        docBodySchema.schema,
+        spec,
+        { specFile, label, name, where: 'body' },
+        '',
+        0
+      )
     }
   }
 
@@ -313,19 +406,17 @@ function checkBodyAndResponse(operation: Operation, contract: ContractLike, name
     const docResponse = successCode ? (deref(responses[successCode], spec) as Json) : undefined
     const docSchema = ((docResponse?.content as Json)?.['application/json'] as Json)?.schema
     if (docSchema) {
-      const zodNames = zodPropertyNames(toJsonSchema(contract.response.schema, 'output'))
-      const docNames = docPropertyNames(docSchema, spec)
-      if (zodNames && docNames) {
-        for (const n of zodNames) {
-          if (!docNames.has(n)) {
-            fail(specFile, `${label}: response field "${n}" (${name}) not documented`)
-          }
-        }
-        for (const n of docNames) {
-          if (!zodNames.has(n)) {
-            fail(specFile, `${label}: documented response field "${n}" does not exist on ${name}`)
-          }
-        }
+      const zodRoot = toJsonSchema(contract.response.schema, 'output')
+      if (zodRoot) {
+        diffSchemaFields(
+          zodRoot,
+          zodRoot,
+          docSchema,
+          spec,
+          { specFile, label, name, where: 'response' },
+          '',
+          0
+        )
       }
     }
   }

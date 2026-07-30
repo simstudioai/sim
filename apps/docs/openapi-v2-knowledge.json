@@ -1001,6 +1001,29 @@
             "type": "string",
             "description": "Chunking strategy applied during processing.",
             "enum": ["auto", "text", "regex", "recursive", "sentence", "token"]
+          },
+          "strategyOptions": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Strategy-specific tuning. `pattern`/`strictBoundaries` apply to the `regex` strategy; `separators` to `text`; `recipe` to `recursive`.",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "separators": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recipe": {
+                "enum": ["plain", "markdown", "code"]
+              },
+              "strictBoundaries": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },
