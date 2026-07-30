@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 
 const {
   mockGetTableById,
@@ -120,6 +121,18 @@ describe('runTableDelete', () => {
     expect(mockMarkJobReady).not.toHaveBeenCalled()
     // Even though the run was cancelled before completion, the first page WAS deleted — the `finally`
     // must still refetch the grid so open editors don't keep showing those deleted rows.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
+  })
+
+  it('signals a grid refetch when a page throws a mid-page lock after committing rows', async () => {
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b'])
+    // `deletePageByIds` commits in internal batches, so a lock landing mid-page can persist earlier
+    // batches and THEN throw — it returns no count. The grid must still be refetched.
+    mockDeletePageByIds.mockRejectedValueOnce(new TableLockedError('delete'))
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
   })
 

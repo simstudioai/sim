@@ -159,16 +159,13 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
 
       const toDelete = excluded.size > 0 ? page.filter((id) => !excluded.has(id)) : page
       if (toDelete.length > 0) {
+        // Mark BEFORE the call, not from its return: `deletePageByIds` commits in internal batches, so a
+        // mid-page lock can persist earlier batches and THEN throw — the catch below returns without a
+        // count. Setting this up front guarantees the `finally` grid refetch fires whether the call
+        // returns or throws. (An attempt that ends up committing nothing only over-refetches — harmless.)
+        deletedAny = true
         try {
-          const deleted = await deletePageByIds(
-            tableId,
-            workspaceId,
-            toDelete,
-            pageProof,
-            revalidate
-          )
-          processed += deleted
-          if (deleted > 0) deletedAny = true
+          processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof, revalidate)
         } catch (err) {
           if (!(err instanceof TableLockedError)) throw err
           // A lock landed between batches. Batches already committed stay
