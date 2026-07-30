@@ -27,6 +27,7 @@
  *   bun run scripts/generate-v2-cli-api.ts --check-openapi
  */
 
+import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
@@ -290,6 +291,35 @@ function checkOpenApi(operations: Operation[]): string[] {
   return problems
 }
 
+/**
+ * Runs the emitted source through Biome so the generated file is a fixed point
+ * of the repo's formatter.
+ *
+ * Without this the file is rewritten on the way into a commit: lint-staged runs
+ * `biome check --write` on explicit paths, which bypasses the `files.includes`
+ * exclusion in biome.json. The result was a generated file that no longer
+ * matched its generator, so `--check` failed in CI complaining about contract
+ * drift that had not happened. Formatting here means the hook has nothing left
+ * to change.
+ */
+function format(source: string): string {
+  const result = spawnSync(
+    path.join(ROOT, 'node_modules/.bin/biome'),
+    ['format', `--stdin-file-path=${OUTPUT}`],
+    { input: source, encoding: 'utf8' }
+  )
+
+  if (result.status !== 0 || !result.stdout) {
+    // Fail loudly: silently emitting unformatted output would reintroduce the
+    // exact hook-rewrites-generated-file loop this exists to close.
+    throw new Error(
+      `biome failed to format the generated output (status ${result.status}): ${result.stderr ?? ''}`
+    )
+  }
+
+  return result.stdout
+}
+
 async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
@@ -308,7 +338,7 @@ async function main() {
     return
   }
 
-  const generated = render(operations)
+  const generated = format(render(operations))
 
   if (args.has('--check')) {
     let current = ''
