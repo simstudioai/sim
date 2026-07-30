@@ -14,6 +14,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
+import { isValueCompatibleWithColumnType } from '@/lib/table/column-types'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -35,11 +36,7 @@ import type {
   UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
-import {
-  resolveSelectOptionId,
-  splitMultiSelectInput,
-  validateColumnDefinition,
-} from '@/lib/table/validation'
+import { validateColumnDefinition } from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -1155,6 +1152,10 @@ export function selectValueForConversion(column: ColumnDefinition, value: unknow
  *
  * Callers converting *away* from `select` must pass the resolved option
  * name(s), not the stored ids — see {@link selectValueForConversion}.
+ *
+ * Delegates to the column-type registry (`column-types.ts`) so a new column
+ * type's conversion rule only needs to be added in one place — see
+ * `ColumnTypeDefinition.isCompatible`.
  */
 export function isValueCompatibleWithType(
   value: unknown,
@@ -1163,59 +1164,10 @@ export function isValueCompatibleWithType(
   targetMultiple = false,
   targetRequired = false
 ): boolean {
-  if (value === null || value === undefined) return true
-
-  switch (targetType) {
-    case 'string':
-      // Arrays and objects can't become text — the write-path coercion rejects
-      // them and would null the cell. Multi-select values are flattened before
-      // this check, so anything still structured here is genuinely lossy.
-      return typeof value !== 'object'
-    case 'select': {
-      // A cleared select cell is written as '' — still convertible, unless the
-      // target is required. Required only rejects null/undefined on a write, so
-      // a required string column legitimately holds ''; the migration turns that
-      // into null (or [] for a multi), and every later update of that row would
-      // then fail its own required check.
-      if (value === '') return !targetRequired
-      // Read the value exactly as the write-path coercion will. A multi target
-      // splits a comma-delimited string, so a multiselect → text → multiselect
-      // round-trip (text holding this feature's own `Bug, Docs` export shape)
-      // stays convertible instead of being rejected as one unknown option.
-      const parts = targetMultiple
-        ? splitMultiSelectInput(value as JsonValue)
-        : Array.isArray(value)
-          ? value
-          : [value]
-      // A single-select target can't hold several options. `updateColumnOptions`
-      // blocks the same transition; without this the next coerce would silently
-      // keep only the first id.
-      if (!targetMultiple && parts.length > 1) return false
-      return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
-    }
-    case 'number': {
-      if (typeof value === 'number') return Number.isFinite(value)
-      if (typeof value === 'string') {
-        const num = Number(value)
-        return Number.isFinite(num) && value.trim() !== ''
-      }
-      return false
-    }
-    case 'boolean': {
-      if (typeof value === 'boolean') return true
-      if (typeof value === 'string')
-        return ['true', 'false', '1', '0'].includes(value.toLowerCase())
-      if (typeof value === 'number') return value === 0 || value === 1
-      return false
-    }
-    case 'date': {
-      if (value instanceof Date) return !Number.isNaN(value.getTime())
-      if (typeof value === 'string') return !Number.isNaN(Date.parse(value))
-      return false
-    }
-    case 'json':
-      return true
-    default:
-      return false
-  }
+  return isValueCompatibleWithColumnType(value, {
+    type: targetType,
+    options: targetOptions,
+    multiple: targetMultiple,
+    required: targetRequired,
+  })
 }
