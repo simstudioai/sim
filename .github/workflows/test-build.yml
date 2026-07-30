@@ -177,7 +177,9 @@ jobs:
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
-      - name: Run tests with coverage
+      # Named for what it does: `bun run test` is `vitest run`, with no
+      # `--coverage`. See the Codecov note below.
+      - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
@@ -199,6 +201,14 @@ jobs:
           fi
           echo "✅ Schema and migrations are in sync"
 
+      # DEAD PATH: nothing generates `apps/sim/coverage`. The test step runs
+      # `vitest run` without `--coverage`, and vitest.config.ts declares no
+      # coverage provider, so this uploads nothing and still reports success in
+      # ~1s (`fail_ci_if_error: false` hides it). `@vitest/coverage-v8` IS
+      # installed, so wiring it up is possible — but coverage instrumentation
+      # costs test time and nothing gates on the result today. Left in place
+      # pending a decision to either enable coverage or drop this step; do not
+      # read its green tick as "coverage was published".
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
