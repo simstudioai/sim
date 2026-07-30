@@ -65,10 +65,6 @@ const PERSIST_DEBOUNCE_MS = 5_000
  * would otherwise never persist until an idle pause, so force a flush at least this often — bounding how
  * many edits are unpersisted (in the stream only) if the task dies mid-burst. */
 const PERSIST_MAX_WAIT_MS = 20_000
-/** How many times a persist re-tries after reconciling an out-of-band edit into the live doc before it
- * gives up (leaving the durable content authoritative). One reconcile normally converges; the small
- * budget covers a second racing write. */
-const PERSIST_CONFLICT_RETRIES = 2
 /** On a FINAL (last-leave/shutdown) flush the version read is the last chance to resolve the If-Match
  * before the room is torn down; a transient Redis blip yielding no version would otherwise defer and
  * strand the session's edits in the TTL'd stream. The version is cluster-wide and heartbeat-refreshed, so
@@ -248,9 +244,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   const userId = room.lastEditorUserId
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
   // this yields. Only meaningful once seeded; used only when the authoritative stream state is absent.
-  // NULLED on the first conflict (below): once the durable file has advanced out-of-band, this snapshot
-  // predates that change, so it must never be persisted as a fallback or it would re-clobber the write.
-  let localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
+  const localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
 
   // Capture the AUTHORITATIVE doc state: the shared stream when enabled (a copilot merge or a peer's
   // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
@@ -294,10 +288,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
       return
 
-    // The If-Match token, resolved ONCE and then advanced LOCALLY as we reconcile — never re-derived
-    // mid-loop. On a last-leave flush the room is already removed from `fileDocRooms`, so
-    // `mergeMarkdownIntoRoom`'s `recordVersion` can't write `room.syncedVersion`; carrying the reconciled
-    // version here keeps each retry's precondition correct without depending on that mutation or a Redis re-read.
+    // The If-Match token: the durable content version the live doc is synced to.
     let ifMatch = await currentVersion()
     // FINAL flush = last chance before teardown: if the version read momentarily fails (Redis blip) for a
     // peer-seeded/tail-only task that never cached it, retry briefly rather than defer and strand the
@@ -314,49 +305,34 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
 
     // Persist under optimistic concurrency (RFC 7232 If-Match): the write commits only if the file is
     // still at the version the live doc synced from, so a projection can never silently clobber an
-    // out-of-band edit. On a conflict, adopt the durable version and retry (bounded) — see below.
-    for (let attempt = 0; attempt <= PERSIST_CONFLICT_RETRIES; attempt++) {
-      const docState = await captureState()
-      if (!docState) return // nothing seeded/authoritative to persist yet
-      const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
-      if (result.status === 'missing') return
-      if (result.status === 'deferred') {
-        // The app couldn't persist safely without a version token (momentarily unavailable). Do NOT
-        // reconcile — nothing changed out-of-band, so merging would needlessly wipe live edits. Leave
-        // the edits in the stream; a later persist writes them once the version is re-established.
-        logger.warn(`Persist deferred for file ${room.fileId} (no synced version available yet)`)
-        return
-      }
-      if (result.status === 'persisted') {
-        room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
-        void store.setSyncedVersion(name, result.version)
-        return
-      }
-      if (attempt === PERSIST_CONFLICT_RETRIES) {
-        logger.warn(
-          `Persist for file ${room.fileId} still conflicting after ${PERSIST_CONFLICT_RETRIES} retries; durable content left authoritative`
-        )
-        return
-      }
-      // Conflict: the durable file advanced out-of-band since our If-Match token. We deliberately do NOT
-      // project the durable body back over the live doc — that is a destructive "make the doc match"
-      // operation, and when the live stream is already ahead (the common case, because the write chokepoint
-      // has ALREADY merged the out-of-band change into the stream) it would move the doc BACKWARD and wipe
-      // newer in-flight edits. Instead adopt the durable version as the new If-Match and retry:
-      // `captureState` re-reads the current stream — which holds the out-of-band change AND the live edits
-      // — so the re-projection persists the converged result. The durable change reaches the live doc via
-      // the chokepoint (`mergeEditIntoLiveFileDoc`, which every external markdown write goes through), never
-      // here — so the only unmerged out-of-band write is one whose chokepoint merge itself failed, a rare
-      // degraded case we accept over the far more frequent reconcile-wipes-live-edits race.
-      //
-      // Drop `localState` first: the durable body has changed, so the pre-await session snapshot is now
-      // stale. Without this, a retry whose fresh read is unavailable — single-pod after last-leave teardown
-      // (room already destroyed), or a transient stream-read failure — would fall back to that snapshot and
-      // CAS-pass over the committed out-of-band write. Nulling it makes `captureState` return null there, so
-      // the retry stops and leaves the durable content authoritative (the external-wins last-leave policy).
-      localState = null
-      ifMatch = result.version
+    // out-of-band edit. A single attempt — on conflict we STOP rather than retry (see below).
+    const docState = await captureState()
+    if (!docState) return // nothing seeded/authoritative to persist yet
+    const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
+    if (result.status === 'missing') return // the file was deleted; nothing to write
+    if (result.status === 'deferred') {
+      // No version token available (momentarily — a Redis blip on a peer-seeded task). Leave the edits in
+      // the stream; a later persist writes them once the version is re-established.
+      logger.warn(`Persist deferred for file ${room.fileId} (no synced version available yet)`)
+      return
     }
+    if (result.status === 'persisted') {
+      room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
+      void store.setSyncedVersion(name, result.version)
+      return
+    }
+    // status === 'conflict': the durable file advanced out-of-band since our If-Match token. We do NOT
+    // re-persist against the current stream: an external write commits durable BEFORE its chokepoint merge
+    // (`mergeEditIntoLiveFileDoc`) reaches the stream, so a re-persist landing in that window would CAS-pass
+    // with a stream that still lacks the external content and clobber the committed write. Instead leave the
+    // durable content authoritative — the chokepoint merges the change into the stream and, ONLY once it is
+    // actually there, advances the synced version (via the merge's own `recordVersion`); a later flush
+    // (a subsequent debounced persist, or the final flush) then projects the converged stream with a token
+    // that matches. The session's edits stay in the stream meanwhile. Deliberately do NOT advance the synced
+    // version here: before the stream reflects the durable content, that would let the next flush clobber it.
+    logger.warn(
+      `Persist conflict for file ${room.fileId}; durable content advanced out-of-band, left authoritative`
+    )
   } catch (error) {
     logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
   }

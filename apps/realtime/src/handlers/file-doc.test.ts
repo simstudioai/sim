@@ -299,10 +299,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
-  it('retries a persist that keeps conflicting, then gives up without clobbering', async () => {
+  it('stops on a persist conflict without clobbering (single attempt, durable left authoritative)', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
-    // Every persist reports an out-of-band change (If-Match conflict) — the relay adopts the durable
-    // version and retries (bounded); the durable file is left authoritative rather than overwritten.
+    // A persist reports an out-of-band change (If-Match conflict). The relay must NOT re-persist against
+    // the current stream (the external write commits durable before its chokepoint merge lands, so a
+    // re-persist could clobber it) — it stops after a single attempt and leaves the durable file
+    // authoritative; a later flush projects the converged stream once the merge lands.
     mockFetchFileDocPersist.mockResolvedValue({
       status: 'conflict',
       version: 999,
@@ -321,12 +323,11 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
     await flushMicrotasks()
 
-    // A persistent conflict is handled gracefully: the persist is attempted (never silently skipped)
-    // but the durable file is left authoritative — no clobber, no throw, no unbounded retry loop.
+    // The conflict is handled gracefully: the persist is attempted exactly once (never silently skipped,
+    // never retried against a possibly-behind stream) and the durable file is left authoritative.
     cleanupFileDocForSocket('socket-1', io, true)
     await flushMicrotasks()
-    expect(mockFetchFileDocPersist).toHaveBeenCalled()
-    expect(mockFetchFileDocPersist.mock.calls.length).toBeLessThanOrEqual(3)
+    expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
   })
 
   it('flushAllFileDocRooms persists open EDITED rooms (graceful shutdown), skips unedited', async () => {
