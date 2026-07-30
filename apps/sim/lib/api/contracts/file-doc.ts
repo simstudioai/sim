@@ -13,6 +13,12 @@ export const buildFileDocSeedResponseSchema = z.object({
    * file is missing/deleted (the caller treats that as an empty document).
    */
   update: z.string().nullable(),
+  /**
+   * The file's durable `updatedAt` (epoch ms) this seed was built from — the version the relay records
+   * as what its freshly-seeded live doc is synced to (for the persist optimistic-concurrency guard).
+   * `null` when the file is missing.
+   */
+  version: z.number().int().nullable(),
 })
 export type BuildFileDocSeedResponse = z.output<typeof buildFileDocSeedResponseSchema>
 
@@ -89,16 +95,36 @@ export const persistFileDocBodySchema = z.object({
     .string()
     .min(1, 'docState is required')
     .max(16 * 1024 * 1024, 'docState is too large'),
+  /**
+   * Optimistic-concurrency guard (RFC 7232 `If-Match`): the durable `updatedAt` (epoch ms) the relay's
+   * live doc last synced from. The write commits only if the file is still at this version; otherwise
+   * the response is `status: 'conflict'` and nothing is written. Omit for an unconditional first write.
+   */
+  expectedVersion: z.number().int().optional(),
 })
 export type PersistFileDocBody = z.input<typeof persistFileDocBodySchema>
 
-export const persistFileDocResponseSchema = z.object({
-  /**
-   * `true` when the document was projected to markdown and written durably to the file; `false` when
-   * the file was missing/deleted (nothing to write). A transport/conversion failure is a non-2xx.
-   */
-  persisted: z.boolean(),
-})
+export const persistFileDocResponseSchema = z.discriminatedUnion('status', [
+  z.object({
+    /** Projected to markdown and written durably. `version` is the new durable `updatedAt` (epoch ms). */
+    status: z.literal('persisted'),
+    version: z.number().int(),
+  }),
+  z.object({
+    /** The file was missing/deleted — nothing to write. */
+    status: z.literal('missing'),
+  }),
+  z.object({
+    /**
+     * The file changed out-of-band since `expectedVersion` — the write was refused to avoid clobbering
+     * it. `markdown` + `version` are the current durable content + version, so the relay can merge the
+     * change into its live doc and re-persist the reconciled result.
+     */
+    status: z.literal('conflict'),
+    markdown: z.string(),
+    version: z.number().int(),
+  }),
+])
 export type PersistFileDocResponse = z.output<typeof persistFileDocResponseSchema>
 
 /**

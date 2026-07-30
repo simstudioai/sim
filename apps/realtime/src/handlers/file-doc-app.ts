@@ -26,7 +26,7 @@ function postToApp(path: string, payload: unknown, timeoutMs: number): Promise<R
 export async function fetchFileDocSeed(
   workspaceId: string,
   fileId: string
-): Promise<Uint8Array | null> {
+): Promise<{ update: Uint8Array; version: number } | null> {
   const response = await postToApp(
     '/api/internal/file-doc/seed',
     { workspaceId, fileId },
@@ -35,16 +35,16 @@ export async function fetchFileDocSeed(
   if (!response.ok) {
     throw new Error(`Seed fetch failed for file ${fileId}: ${response.status}`)
   }
-  const body = (await response.json()) as { update?: unknown }
+  const body = (await response.json()) as { update?: unknown; version?: unknown }
   const update = body?.update
-  // A well-formed response is `{ update: base64-string | null }`. Anything else is a contract
-  // violation, not a "genuinely empty file" — throw so the caller retries rather than silently
-  // treating a malformed body as empty and stranding the room unseeded.
+  // A well-formed response is `{ update: base64-string | null, version: number | null }`. Anything
+  // else is a contract violation, not a "genuinely empty file" — throw so the caller retries rather
+  // than silently treating a malformed body as empty and stranding the room unseeded.
   if (update === null) return null
-  if (typeof update !== 'string') {
+  if (typeof update !== 'string' || typeof body?.version !== 'number') {
     throw new Error(`Seed fetch for file ${fileId} returned a malformed body`)
   }
-  return new Uint8Array(Buffer.from(update, 'base64'))
+  return { update: new Uint8Array(Buffer.from(update, 'base64')), version: body.version }
 }
 
 /**
@@ -74,24 +74,48 @@ export async function fetchFileDocMerge(
 }
 
 /**
+ * Result of a persist attempt (mirrors the app's `persistFileDoc` contract):
+ * - `persisted` — written; `version` is the new durable version the relay records as synced.
+ * - `missing` — the file is gone.
+ * - `conflict` — the file changed out-of-band since `expectedVersion`; NOT written. `markdown` +
+ *   `version` are the current durable content + version so the relay reconciles and re-persists.
+ */
+export type PersistResult =
+  | { status: 'persisted'; version: number }
+  | { status: 'missing' }
+  | { status: 'conflict'; markdown: string; version: number }
+
+/**
  * Ask the app to project a live collaborative document back to durable markdown and write it to the
- * file (Yjs → markdown, through the exact editor engine). This is the server-authoritative durable
- * path — called debounced while the doc is edited and when the last collaborator leaves — that
- * replaces the editor's client autosave, so a server/copilot edit can't be clobbered by a stale
- * keystroke. THROWS on a transport failure so the caller can log/retry on the next debounce.
+ * file (Yjs → markdown, through the exact editor engine) — the server-authoritative durable path that
+ * replaces the editor's client autosave. `expectedVersion` (the durable version the live doc synced
+ * from) is the optimistic-concurrency guard: on a mismatch the app returns `conflict` (rather than
+ * clobbering) so the caller reconciles and retries. THROWS only on a transport/contract failure.
  */
 export async function fetchFileDocPersist(
   workspaceId: string,
   fileId: string,
   userId: string,
-  docState: Uint8Array
-): Promise<void> {
+  docState: Uint8Array,
+  expectedVersion?: number
+): Promise<PersistResult> {
   const response = await postToApp(
     '/api/internal/file-doc/persist',
-    { workspaceId, fileId, userId, docState: Buffer.from(docState).toString('base64') },
+    {
+      workspaceId,
+      fileId,
+      userId,
+      docState: Buffer.from(docState).toString('base64'),
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+    },
     FILE_DOC_TIMEOUTS.persistRequestMs
   )
   if (!response.ok) {
     throw new Error(`Persist failed for file ${fileId}: ${response.status}`)
   }
+  const body = (await response.json()) as PersistResult
+  if (body?.status !== 'persisted' && body?.status !== 'missing' && body?.status !== 'conflict') {
+    throw new Error(`Persist for file ${fileId} returned a malformed body`)
+  }
+  return body
 }

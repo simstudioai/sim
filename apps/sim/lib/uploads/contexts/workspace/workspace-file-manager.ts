@@ -1017,6 +1017,18 @@ export async function fetchWorkspaceFileBuffer(
 }
 
 /**
+ * Thrown by {@link updateWorkspaceFileContent} when its `expectedUpdatedAt` optimistic-concurrency
+ * guard fails — the file changed out-of-band since the caller read it. Callers catch this to reconcile
+ * (re-read + merge) rather than overwrite. Not a failure: the durable file is left untouched.
+ */
+export class ContentVersionConflictError extends Error {
+  constructor(readonly fileId: string) {
+    super(`Workspace file ${fileId} changed since it was read (optimistic-concurrency conflict)`)
+    this.name = 'ContentVersionConflictError'
+  }
+}
+
+/**
  * Updates a workspace file through a versioned object swap. Blob I/O completes
  * before the short metadata-and-ledger transaction.
  */
@@ -1036,6 +1048,14 @@ export async function updateWorkspaceFileContent(
      * content arrives via a subsequent write.
      */
     syncLiveDoc?: boolean
+    /**
+     * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
+     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * throws {@link ContentVersionConflictError} without clobbering. Checked against the
+     * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
+     * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
+     */
+    expectedUpdatedAt?: Date
   }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
@@ -1093,6 +1113,17 @@ export async function updateWorkspaceFileContent(
           .limit(1)
         if (!currentFile) {
           throw new Error('File not found')
+        }
+
+        // Optimistic-concurrency guard: the row is `FOR UPDATE`-locked, so comparing its committed
+        // `updatedAt` to the caller's expected value and then writing is atomic — a racing writer blocks
+        // here until this transaction resolves. A mismatch means the file changed out-of-band since the
+        // caller last synced; abort rather than clobber it.
+        if (
+          options?.expectedUpdatedAt &&
+          currentFile.updatedAt.getTime() !== options.expectedUpdatedAt.getTime()
+        ) {
+          throw new ContentVersionConflictError(fileId)
         }
 
         const sizeDiff = content.length - currentFile.size
@@ -1164,7 +1195,14 @@ export async function updateWorkspaceFileContent(
       options?.syncLiveDoc !== false &&
       isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
     ) {
-      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'))
+      // Pass the new `updatedAt` as the version this write produced, so the relay records that its live
+      // doc now incorporates this durable version — the collab persist's optimistic-concurrency guard
+      // then won't treat this (already-merged) write as an out-of-band conflict.
+      await mergeEditIntoLiveFileDoc(
+        fileId,
+        content.toString('utf-8'),
+        finalized.file.updatedAt.getTime()
+      )
     }
 
     const pathPrefix = getServePathPrefix()
@@ -1189,6 +1227,10 @@ export async function updateWorkspaceFileContent(
       updatedAt: finalized.file.updatedAt,
     }
   } catch (error) {
+    // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
+    // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
+    // by the inner finalization catch before it propagated here.
+    if (error instanceof ContentVersionConflictError) throw error
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
     throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
   }

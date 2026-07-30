@@ -124,12 +124,18 @@ export async function notifyFolderResourceChanged(
  * Awaited (not fire-and-forget) so the fetch dispatches before the route handler returns; bounded to
  * {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency only when the socket pod is unreachable.
  */
-export async function mergeEditIntoLiveFileDoc(fileId: string, markdown: string): Promise<void> {
+export async function mergeEditIntoLiveFileDoc(
+  fileId: string,
+  markdown: string,
+  version: number
+): Promise<void> {
   try {
     const response = await fetch(`${getSocketServerUrl()}/api/file-doc/apply-edit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-      body: JSON.stringify({ fileId, markdown }),
+      // `version` is the durable `updatedAt` (epoch ms) this markdown was written with — the relay
+      // records it as the version its live doc now incorporates (see the persist If-Match guard).
+      body: JSON.stringify({ fileId, markdown, version }),
       signal: AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS),
     })
     if (!response.ok) {

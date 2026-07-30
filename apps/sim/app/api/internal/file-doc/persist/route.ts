@@ -23,16 +23,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(persistFileDocContract, request, {})
   if (!parsed.success) return parsed.response
-  const { workspaceId, fileId, userId, docState } = parsed.data.body
+  const { workspaceId, fileId, userId, docState, expectedVersion } = parsed.data.body
 
   try {
-    const persisted = await persistFileDoc(
+    const result = await persistFileDoc(
       workspaceId,
       fileId,
       userId,
-      new Uint8Array(Buffer.from(docState, 'base64'))
+      new Uint8Array(Buffer.from(docState, 'base64')),
+      expectedVersion
     )
-    return NextResponse.json({ persisted })
+    return NextResponse.json(result)
   } catch (error) {
     logger.error('Failed to persist file-doc', { workspaceId, fileId, error })
     return NextResponse.json(

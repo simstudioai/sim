@@ -79,6 +79,8 @@ export const REDIS_ORIGIN = Symbol('file-doc-redis')
 export const REDIS_SNAPSHOT_ORIGIN = Symbol('file-doc-redis-snapshot')
 
 const STREAM_PREFIX = 'filedoc:stream:'
+/** Cluster-wide "durable version the live doc is synced to" (the persist If-Match token). */
+const SYNC_VERSION_PREFIX = 'filedoc:syncver:'
 const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
 const COMPACT_LOCK_PREFIX = 'filedoc:compactlock:'
 const PERSIST_LOCK_PREFIX = 'filedoc:persistlock:'
@@ -442,6 +444,36 @@ export class FileDocStore {
    */
   async acquireMergeSlot(name: string, ttlMs: number): Promise<string | null> {
     return this.acquireLock(`${MERGE_LOCK_PREFIX}${name}`, ttlMs)
+  }
+
+  /**
+   * The durable file version (its `updatedAt`, epoch ms) the shared live doc is synced to — the
+   * cluster-wide {@link https://www.rfc-editor.org/rfc/rfc7232 `If-Match`} token for persistence. Held
+   * in Redis (not per-task room state) so whichever task runs a debounced/last-leave persist reads the
+   * SAME version, even though the write that advanced it (a seed or a merged edit) may have run on
+   * another task. Returns `null` when unset/expired (persist then falls back to the local room's value).
+   */
+  async getSyncedVersion(name: string): Promise<number | null> {
+    if (!this.enabled || !this.write) return null
+    try {
+      const value = await this.write.get(`${SYNC_VERSION_PREFIX}${name}`)
+      const parsed = value === null ? Number.NaN : Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    } catch (error) {
+      logger.warn(`FileDocStore getSyncedVersion failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+      return null
+    }
+  }
+
+  /** Record the durable version the shared live doc is now synced to. Best-effort; TTL-bounded like the
+   * stream so an idle file's key can't outlive its room. No-op when disabled (single-pod fallback). */
+  async setSyncedVersion(name: string, version: number): Promise<void> {
+    if (!this.enabled || !this.write) return
+    await this.write
+      .set(`${SYNC_VERSION_PREFIX}${name}`, String(version), { EX: STREAM_TTL_SEC })
+      .catch(() => {})
   }
 
   async releaseMergeSlot(name: string, token: string): Promise<void> {
