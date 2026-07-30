@@ -55,6 +55,7 @@ async function runWithConcurrency<T>(
   for (let index = 0; index < items.length; index += limit) {
     signal?.throwIfAborted()
     await Promise.all(items.slice(index, index + limit).map(worker))
+    signal?.throwIfAborted()
   }
 }
 
@@ -79,7 +80,7 @@ export async function runNewsletterResendSync(
     const segment =
       run.resendSegmentId && run.resendSegmentName
         ? { id: run.resendSegmentId, name: run.resendSegmentName }
-        : await createNewsletterSegment(segmentNameForRun(run.name))
+        : await createNewsletterSegment(segmentNameForRun(run.name), { signal })
 
     signal?.throwIfAborted()
     if (!run.resendSegmentId) {
@@ -87,9 +88,9 @@ export async function runNewsletterResendSync(
     }
 
     signal?.throwIfAborted()
-    await ensureNewsletterContactProperties()
+    await ensureNewsletterContactProperties({ signal })
     signal?.throwIfAborted()
-    const suppressedEmails = await getResendExcludedEmails()
+    const suppressedEmails = await getResendExcludedEmails({ signal })
     let processed = 0
 
     while (true) {
@@ -128,6 +129,7 @@ export async function runNewsletterResendSync(
               userId: recipient.userId,
               runId,
               segmentId: segment.id,
+              signal,
             })
             signal?.throwIfAborted()
             await updateRecipientSyncStatus(

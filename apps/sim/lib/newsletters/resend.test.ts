@@ -3,15 +3,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock } = vi.hoisted(() => ({
+const { fetchMock, sleepMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
+  sleepMock: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
   env: { RESEND_API_KEY: 're_test' },
 }))
 
+vi.mock('@sim/utils/helpers', () => ({
+  sleep: sleepMock,
+}))
+
 import {
+  createNewsletterSegment,
   createOrSegmentNewsletterContact,
   ensureNewsletterContactProperties,
   getResendExcludedEmails,
@@ -29,6 +35,42 @@ describe('newsletter Resend service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
+    sleepMock.mockResolvedValue(undefined)
+  })
+
+  it('forwards cancellation to Resend requests', async () => {
+    const controller = new AbortController()
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'segment-1', name: 'Segment 1' }, 201))
+
+    await createNewsletterSegment('Segment 1', { signal: controller.signal })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.resend.com/segments',
+      expect.objectContaining({ signal: controller.signal })
+    )
+  })
+
+  it('does not make a Resend request when already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort('cancelled')
+
+    await expect(createNewsletterSegment('Segment 1', { signal: controller.signal })).rejects.toBe(
+      'cancelled'
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not retry after cancellation during backoff', async () => {
+    const controller = new AbortController()
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'retry' }, 429))
+    sleepMock.mockImplementationOnce(async () => {
+      controller.abort('cancelled')
+    })
+
+    await expect(createNewsletterSegment('Segment 1', { signal: controller.signal })).rejects.toBe(
+      'cancelled'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('creates missing newsletter contact properties', async () => {
@@ -122,6 +164,28 @@ describe('newsletter Resend service', () => {
       'https://api.resend.com/contacts/user%40example.com/segments/segment-1',
       expect.objectContaining({ method: 'POST' })
     )
+  })
+
+  it('does not add segment membership after cancellation', async () => {
+    const controller = new AbortController()
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: 'Contact already exists' }, 409))
+      .mockImplementationOnce(async () => {
+        controller.abort('cancelled')
+        return jsonResponse({ id: 'contact-1' })
+      })
+
+    await expect(
+      createOrSegmentNewsletterContact({
+        email: 'user@example.com',
+        name: 'Ada Lovelace',
+        userId: 'user-1',
+        runId: 'run-1',
+        segmentId: 'segment-1',
+        signal: controller.signal,
+      })
+    ).rejects.toBe('cancelled')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('normalizes suppressed email addresses', async () => {

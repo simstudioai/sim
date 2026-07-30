@@ -15,5 +15,6 @@ export const newsletterResendSyncTask = task({
   queue: {
     concurrencyLimit: NEWSLETTER_RESEND_SYNC_CONCURRENCY_LIMIT,
   },
-  run: async (payload: NewsletterResendSyncPayload) => runNewsletterResendSync(payload),
+  run: async (payload: NewsletterResendSyncPayload, { signal }) =>
+    runNewsletterResendSync(payload, signal),
 })

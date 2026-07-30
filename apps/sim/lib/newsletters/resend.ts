@@ -42,6 +42,7 @@ interface ResendRequestOptions {
   body?: Record<string, unknown>
   required?: boolean
   maxResponseBytes?: number
+  signal?: AbortSignal
 }
 
 const resendSuppressionListSchema = z.object({
@@ -88,6 +89,7 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
   if (!key) return undefined as T
 
   for (let attempt = 0; attempt < RESEND_MAX_ATTEMPTS; attempt++) {
+    options.signal?.throwIfAborted()
     const response = await fetch(`${RESEND_API_BASE}${path}`, {
       method: options.method ?? 'GET',
       headers: {
@@ -95,6 +97,7 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
         'Content-Type': 'application/json',
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: options.signal,
     })
 
     if (response.ok) {
@@ -108,6 +111,7 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
     if (response.status === 429 || response.status >= 500) {
       const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
       await sleep(backoffWithJitter(attempt + 1, retryAfterMs, { baseMs: 250, maxMs: 5000 }))
+      options.signal?.throwIfAborted()
       continue
     }
 
@@ -117,7 +121,10 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
   throw new Error('Resend request failed after retries')
 }
 
-export async function getResendSuppressedEmails(options?: { required?: boolean }) {
+export async function getResendSuppressedEmails(options?: {
+  required?: boolean
+  signal?: AbortSignal
+}) {
   const emails = new Set<string>()
   let after: string | null = null
   let hasMore = false
@@ -127,6 +134,7 @@ export async function getResendSuppressedEmails(options?: { required?: boolean }
     if (after) query.set('after', after)
     const rawResponse = await resendRequest<unknown>(`/suppressions?${query.toString()}`, {
       required: options?.required ?? true,
+      signal: options?.signal,
     })
     if (rawResponse === undefined) return emails
     const parsedResponse = resendSuppressionListSchema.safeParse(rawResponse)
@@ -152,8 +160,13 @@ export async function getResendSuppressedEmails(options?: { required?: boolean }
   return emails
 }
 
-export async function getResendExcludedEmails(): Promise<Set<string>> {
-  const excludedEmails = await getResendSuppressedEmails({ required: true })
+export async function getResendExcludedEmails(options?: {
+  signal?: AbortSignal
+}): Promise<Set<string>> {
+  const excludedEmails = await getResendSuppressedEmails({
+    required: true,
+    signal: options?.signal,
+  })
   let after: string | null = null
   let hasMore = false
 
@@ -162,6 +175,7 @@ export async function getResendExcludedEmails(): Promise<Set<string>> {
     if (after) query.set('after', after)
     const rawContacts = await resendRequest<unknown>(`/contacts?${query.toString()}`, {
       required: true,
+      signal: options?.signal,
     })
     const parsedContacts = resendContactListSchema.safeParse(rawContacts)
     if (!parsedContacts.success) {
@@ -188,14 +202,20 @@ export async function getResendExcludedEmails(): Promise<Set<string>> {
   return excludedEmails
 }
 
-export async function createNewsletterSegment(name: string): Promise<ResendSegmentResponse> {
+export async function createNewsletterSegment(
+  name: string,
+  options?: { signal?: AbortSignal }
+): Promise<ResendSegmentResponse> {
   return resendRequest<ResendSegmentResponse>('/segments', {
     method: 'POST',
     body: { name },
+    signal: options?.signal,
   })
 }
 
-export async function ensureNewsletterContactProperties(): Promise<void> {
+export async function ensureNewsletterContactProperties(options?: {
+  signal?: AbortSignal
+}): Promise<void> {
   const existingKeys = new Set<string>()
   let after: string | null = null
   let hasMore = false
@@ -204,7 +224,8 @@ export async function ensureNewsletterContactProperties(): Promise<void> {
     const query = new URLSearchParams({ limit: String(RESEND_CONTACT_PROPERTY_PAGE_LIMIT) })
     if (after) query.set('after', after)
     const response = await resendRequest<ResendContactPropertyListResponse>(
-      `/contact-properties?${query.toString()}`
+      `/contact-properties?${query.toString()}`,
+      { signal: options?.signal }
     )
 
     for (const property of response.data ?? []) {
@@ -228,6 +249,7 @@ export async function ensureNewsletterContactProperties(): Promise<void> {
         await resendRequest('/contact-properties', {
           method: 'POST',
           body: { key, type: 'string' },
+          signal: options?.signal,
         })
       } catch (error) {
         const message = getErrorMessage(error)
@@ -252,6 +274,7 @@ export async function createOrSegmentNewsletterContact(input: {
   userId: string | null
   runId: string
   segmentId: string
+  signal?: AbortSignal
 }): Promise<{ status: 'created' | 'updated' | 'segment_added'; contactId?: string }> {
   const email = normalizeEmail(input.email)
   const name = splitName(input.name)
@@ -269,6 +292,7 @@ export async function createOrSegmentNewsletterContact(input: {
         },
         segments: [{ id: input.segmentId }],
       },
+      signal: input.signal,
     })
     return { status: 'created', contactId: contact.id }
   } catch (error) {
@@ -286,10 +310,12 @@ export async function createOrSegmentNewsletterContact(input: {
           newsletter_run_id: input.runId,
         },
       },
+      signal: input.signal,
     }
   )
   await resendRequest(`/contacts/${encodeURIComponent(email)}/segments/${input.segmentId}`, {
     method: 'POST',
+    signal: input.signal,
   })
   return { status: 'updated', contactId: contact.id }
 }

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   claimAttempt: vi.fn(),
   countByStatus: vi.fn(),
+  createContact: vi.fn(),
   createSegment: vi.fn(),
   ensureProperties: vi.fn(),
   getAsyncBackendType: vi.fn(),
@@ -39,7 +40,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 
 vi.mock('@/lib/newsletters/resend', () => ({
   createNewsletterSegment: mocks.createSegment,
-  createOrSegmentNewsletterContact: vi.fn(),
+  createOrSegmentNewsletterContact: mocks.createContact,
   ensureNewsletterContactProperties: mocks.ensureProperties,
   getResendExcludedEmails: mocks.getExcludedEmails,
 }))
@@ -385,6 +386,46 @@ describe('newsletter Resend queueing', () => {
 
     expect(mocks.setSegment).not.toHaveBeenCalled()
     expect(mocks.markFailed).not.toHaveBeenCalled()
+  })
+
+  it('forwards cancellation to every Resend operation', async () => {
+    const controller = new AbortController()
+    const recipient = {
+      currentUserEligible: true,
+      email: 'user@example.com',
+      name: 'Ada Lovelace',
+      simUnsubscribed: false,
+      snapshotVersion: 1,
+      userId: 'user-1',
+    }
+    mocks.requireAttempt.mockResolvedValue({
+      ...run,
+      resendSegmentId: null,
+      resendSegmentName: null,
+    })
+    mocks.createSegment.mockResolvedValue({ id: 'segment-new', name: 'Segment new' })
+    mocks.getExcludedEmails.mockResolvedValue(new Set())
+    mocks.getPendingRecipients.mockResolvedValueOnce([recipient]).mockResolvedValueOnce([])
+    mocks.createContact.mockResolvedValue({ status: 'created', contactId: 'contact-1' })
+    mocks.countByStatus.mockResolvedValue({})
+
+    await runNewsletterResendSync(
+      {
+        runId: 'run-1',
+        attempt: 2,
+        requestedById: 'admin-1',
+      },
+      controller.signal
+    )
+
+    expect(mocks.createSegment).toHaveBeenCalledWith(expect.any(String), {
+      signal: controller.signal,
+    })
+    expect(mocks.ensureProperties).toHaveBeenCalledWith({ signal: controller.signal })
+    expect(mocks.getExcludedEmails).toHaveBeenCalledWith({ signal: controller.signal })
+    expect(mocks.createContact).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal })
+    )
   })
 
   it('does not mark a run pushed after ownership is lost during status aggregation', async () => {
