@@ -26,6 +26,8 @@ const {
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
   createRateLimitResponse: vi.fn(),
+  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
+    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
 }))
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({

@@ -18,10 +18,32 @@ function clampSidebarWidth(width: number): number {
   return Math.min(Math.max(width, SIDEBAR_WIDTH.MIN), max)
 }
 
-function applySidebarWidth(width: number) {
+/**
+ * Publishes both sidebar widths, owning the collapsed mapping so callers don't repeat it.
+ *
+ * `--sidebar-width` is the width the rail currently occupies (the collapsed width while
+ * collapsed), whereas `--sidebar-expanded-width` always holds the width to restore to.
+ * The desktop hover-peek needs the latter: it renders the sidebar at full width while
+ * the rail itself is still collapsed to zero.
+ */
+function applySidebarWidths(expandedWidth: number, collapsed: boolean) {
   if (typeof window === 'undefined') return
-  const value = Number.isFinite(width) ? width : SIDEBAR_WIDTH.DEFAULT
-  document.documentElement.style.setProperty('--sidebar-width', `${value}px`)
+  const expanded = Number.isFinite(expandedWidth) ? expandedWidth : SIDEBAR_WIDTH.DEFAULT
+  const root = document.documentElement
+  root.style.setProperty('--sidebar-expanded-width', `${expanded}px`)
+  root.style.setProperty(
+    '--sidebar-width',
+    `${collapsed ? getCollapsedSidebarWidth() : expanded}px`
+  )
+}
+
+/** Reads the host-specific collapsed width established by the pre-paint layout script. */
+function getCollapsedSidebarWidth(): number {
+  if (typeof document === 'undefined') return SIDEBAR_WIDTH.COLLAPSED
+  const value = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-collapsed-width')
+  )
+  return Number.isFinite(value) ? value : SIDEBAR_WIDTH.COLLAPSED
 }
 
 /**
@@ -54,24 +76,21 @@ export const useSidebarStore = create<SidebarState>()(
         if (get().isCollapsed) return
         const clampedWidth = clampSidebarWidth(width)
         set({ sidebarWidth: clampedWidth })
-        applySidebarWidth(clampedWidth)
+        applySidebarWidths(clampedWidth, false)
       },
       toggleCollapsed: () => {
         const { isCollapsed, sidebarWidth } = get()
         const nextCollapsed = !isCollapsed
+        const expandedWidth = clampSidebarWidth(sidebarWidth)
         set({ isCollapsed: nextCollapsed })
         applyCollapsedCookie(nextCollapsed)
-        applySidebarWidth(nextCollapsed ? SIDEBAR_WIDTH.COLLAPSED : clampSidebarWidth(sidebarWidth))
+        applySidebarWidths(expandedWidth, nextCollapsed)
       },
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()
-        if (isCollapsed) {
-          applySidebarWidth(SIDEBAR_WIDTH.COLLAPSED)
-          return
-        }
         const clampedWidth = clampSidebarWidth(sidebarWidth)
-        if (clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
-        applySidebarWidth(clampedWidth)
+        if (!isCollapsed && clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
+        applySidebarWidths(clampedWidth, isCollapsed)
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
     }),
@@ -88,10 +107,7 @@ export const useSidebarStore = create<SidebarState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true)
-          const width = state.isCollapsed
-            ? SIDEBAR_WIDTH.COLLAPSED
-            : clampSidebarWidth(state.sidebarWidth)
-          applySidebarWidth(width)
+          applySidebarWidths(clampSidebarWidth(state.sidebarWidth), state.isCollapsed)
         }
       },
       /** Only width is persisted; collapse lives in the cookie. */

@@ -27,6 +27,9 @@ describe('settings navigation boundaries', () => {
   it('preserves the order of all four settings catalogs', () => {
     expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
       'general',
+      'desktop',
+      'browser',
+      'terminal',
       'access-control',
       'audit-logs',
       'forks',

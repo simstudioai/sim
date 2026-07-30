@@ -314,6 +314,7 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
+  hideDividerBefore?: boolean // Visually group this field with the preceding visible subblock
   showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy

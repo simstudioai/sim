@@ -11,6 +11,7 @@ import {
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
   hasUsableSubscriptionStatus,
+  TERMINAL_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 
 describe('billing subscription status helpers', () => {
@@ -48,5 +49,30 @@ describe('billing subscription status helpers', () => {
     expect(getEffectiveSeats({ plan: 'team_8000', status: 'active', seats: null })).toBe(1)
     expect(getEffectiveSeats({ plan: 'team_8000', status: 'past_due', seats: undefined })).toBe(1)
     expect(getEffectiveSeats({ plan: 'team_8000', status: 'canceled', seats: null })).toBe(0)
+  })
+})
+
+describe('TERMINAL_SUBSCRIPTION_STATUSES', () => {
+  const terminal = TERMINAL_SUBSCRIPTION_STATUSES as readonly string[]
+
+  it('covers only the statuses that can no longer bill', () => {
+    expect(terminal).toEqual(['canceled', 'incomplete_expired'])
+  })
+
+  it('does not treat trialing as terminal', () => {
+    /**
+     * A trial grants no entitlement, so it is absent from
+     * ENTITLED_SUBSCRIPTION_STATUSES — but it is a live Stripe subscription
+     * that will convert. Anything keying off "is this row still real" must not
+     * reuse the entitlement set, or it will happily delete out from under an
+     * active trial.
+     */
+    expect(terminal).not.toContain('trialing')
+  })
+
+  it('treats every other live status as non-terminal', () => {
+    for (const status of ['active', 'past_due', 'unpaid', 'trialing', 'incomplete']) {
+      expect(terminal).not.toContain(status)
+    }
   })
 })

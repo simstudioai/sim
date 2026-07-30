@@ -4,13 +4,13 @@ import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type {
   ColumnDefinition,
-  Filter,
   TableDefinition,
+  TablePredicate,
   TableRow,
   WorkflowGroup,
 } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { pruneFilterForColumns } from '@/lib/table/query-builder/converters'
+import { prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import {
@@ -51,7 +51,7 @@ export interface UseTableReturn {
    * select-all run/stop/delete — must scope with THIS, not the raw filter, or
    * the action targets a predicate the grid isn't displaying.
    */
-  filter: Filter | null
+  filter: TablePredicate | null
   isLoadingRows: boolean
   refetchRows: () => void
   /**
@@ -98,7 +98,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   // here, above every consumer of the rows query key, so the paged helpers below
   // can't rebuild the key from the unpruned filter and drift.
   const filter = useMemo(
-    () => pruneFilterForColumns(queryOptions.filter ?? null, tableData?.schema?.columns ?? []),
+    () => prunePredicateForColumns(queryOptions.filter ?? null, tableData?.schema?.columns ?? []),
     [queryOptions.filter, tableData?.schema?.columns]
   )
 

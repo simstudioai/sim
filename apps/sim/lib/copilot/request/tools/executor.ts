@@ -230,6 +230,21 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
     : TOOL_WATCHDOG_DEFAULT_MS
 }
 
+/**
+ * How long the resume gate may wait on one pending tool call.
+ *
+ * A call sitting on a permission prompt is waiting on a person, not on the
+ * executor, so the tool's own watchdog is the wrong bound — the 60s default
+ * would force-fail the prompt while the user was still reading it. Such a call
+ * gets the long-running budget, which matches the gate's own wait timeout.
+ */
+export function pendingToolWaitBudgetMs(
+  toolCall: Pick<ToolCallState, 'name' | 'status'> | undefined
+): number {
+  if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
+  return toolWatchdogTimeoutMs(toolCall?.name)
+}
+
 class ToolExecutionTimeoutError extends Error {
   constructor(toolName: string, timeoutMs: number) {
     super(

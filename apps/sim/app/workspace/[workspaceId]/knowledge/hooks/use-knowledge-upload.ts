@@ -19,7 +19,7 @@ import {
   WHOLE_FILE_PARALLEL_UPLOADS,
 } from '@/lib/uploads/client/direct-upload'
 import { getFileContentType, isAbortError, isNetworkError } from '@/lib/uploads/utils/file-utils'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const logger = createLogger('KnowledgeUpload')
 

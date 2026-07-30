@@ -11,7 +11,7 @@ import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
-import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, type SQL, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   BILLING_ATTRIBUTION_HEADER,
@@ -141,7 +141,7 @@ async function applyScheduleUpdate(
   updates: WorkflowScheduleUpdate,
   requestId: string,
   context: string,
-  options: { expectedLastQueuedAt?: Date | null } = {}
+  options: { expectedLastQueuedAt?: Date | null; allowCompleted?: boolean } = {}
 ): Promise<boolean> {
   try {
     const claimGuard =
@@ -151,11 +151,27 @@ async function applyScheduleUpdate(
           ? isNull(workflowSchedule.lastQueuedAt)
           : eq(workflowSchedule.lastQueuedAt, options.expectedLastQueuedAt)
 
+    // A run that completes itself mid-execution (complete_scheduled_task, or a
+    // manage_scheduled_task update) sets status='completed'. The post-run
+    // bookkeeping that follows would otherwise write status='active' and a
+    // fresh nextRunAt straight back over it — the claim guard does not catch
+    // this, because completing the job does not touch lastQueuedAt. Terminal
+    // means terminal: only callers that explicitly opt in may move a completed
+    // row.
+    const notCompletedGuard = options.allowCompleted
+      ? undefined
+      : ne(workflowSchedule.status, 'completed')
+
     const updatedRows = await db
       .update(workflowSchedule)
       .set(updates)
       .where(
-        and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt), claimGuard)
+        and(
+          eq(workflowSchedule.id, scheduleId),
+          isNull(workflowSchedule.archivedAt),
+          claimGuard,
+          notCompletedGuard
+        )
       )
       .returning({ id: workflowSchedule.id })
 
@@ -1365,7 +1381,9 @@ export async function executeJobInline(payload: JobExecutionPayload) {
           },
           requestId,
           `Error updating job ${payload.scheduleId} after completion`,
-          { expectedLastQueuedAt: now }
+          // The tool already set status='completed'; this is bookkeeping on a
+          // deliberately terminal row, so it opts past the not-completed guard.
+          { expectedLastQueuedAt: now, allowCompleted: true }
         )
         return
       }
@@ -1457,7 +1475,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
 
 export const scheduleExecutionTaskOptions = {
   id: 'schedule-execution',
-  machine: 'medium-1x' as const,
+  machine: 'medium-2x' as const,
   retry: {
     maxAttempts: 1,
   },

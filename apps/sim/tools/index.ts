@@ -1855,6 +1855,7 @@ async function executeToolRequest(
             maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
             signal,
             proxyUrl: proxyOption,
+            stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())

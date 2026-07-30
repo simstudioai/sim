@@ -2,7 +2,8 @@
  * The seam between the Pi handler and its execution environments. The handler
  * resolves shared credentials and mode-specific context, then hands a
  * {@link PiRunParams} to one backend ({@link PiBackendRun}) selected by `mode`.
- * Authoring modes receive skills and memory; review mode deliberately does not.
+ * Authoring modes receive skills. Create PR may then compose the internal Babysit
+ * continuation without exposing pull-request content to conversation memory.
  * Backends own environment-specific execution and report progress through
  * {@link PiRunContext.onEvent}.
  */
@@ -11,6 +12,7 @@ import type { TSchema } from 'typebox'
 import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/events'
+import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
 import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 
 /** A conversation message seeded into the Pi run (subset of the Agent block's message). */
@@ -31,6 +33,7 @@ export type PiSshConnection = Pick<
 /** Result of invoking a tool Pi called. */
 export interface PiToolResult {
   text: string
+  /** Reported to Pi by throwing `text` from the converted tool; see `toPiTool` for why. */
   isError: boolean
 }
 
@@ -43,7 +46,25 @@ export interface PiToolSpec {
   name: string
   description: string
   parameters: TSchema
+  /**
+   * Guideline bullets Pi folds into the system prompt while the tool is active. This is the
+   * trusted channel: a `description` travels in the provider request's tool-definition array, so
+   * guidance placed there carries the same trust level as the payload it describes. Dropped in
+   * Review Code, which supplies a sealed `customPrompt` instead.
+   */
+  promptGuidelines?: string[]
   execute: (args: Record<string, unknown>) => Promise<PiToolResult>
+}
+
+/** Optional web search for a Pi run, resolved by the handler before mode dispatch. */
+export interface PiSearchConfig {
+  provider: PiSearchProvider
+  apiKey: string
+  /**
+   * Host-side tool for the two SDK modes. Absent for `cloud`, which has no host in the loop and
+   * registers a sandbox extension instead, so a spec built there could never execute.
+   */
+  tool?: PiToolSpec
 }
 
 interface PiRunBaseParams {
@@ -56,6 +77,7 @@ interface PiRunBaseParams {
   isBYOK: boolean
   task: string
   thinkingLevel?: string
+  search?: PiSearchConfig
 }
 
 interface PiContextualRunParams extends PiRunBaseParams {
@@ -82,6 +104,30 @@ export interface PiCloudRunParams extends PiContextualRunParams {
   draft: boolean
   prTitle?: string
   prBody?: string
+  babysit?: PiCloudBabysitOptions
+}
+
+/** Optional post-creation Babysit configuration for Create PR. */
+export interface PiCloudBabysitOptions {
+  maxRounds: number
+  reviewMentions: string[]
+  executionId?: string
+}
+
+export type PiPullRequestState = 'preserve' | 'draft' | 'ready'
+
+/** Parameters for a cloud (E2B) Pi run that updates an existing branch and its pull request. */
+export interface PiCloudBranchRunParams extends PiContextualRunParams {
+  mode: 'cloud_branch'
+  owner: string
+  repo: string
+  githubToken: string
+  targetBranch: string
+  baseBranch?: string
+  prTitle?: string
+  prBody?: string
+  prState: PiPullRequestState
+  babysit?: PiCloudBabysitOptions
 }
 
 /** Parameters for a cloud (E2B) Pi run that reviews an existing PR. */
@@ -94,7 +140,23 @@ export interface PiCloudReviewRunParams extends PiRunBaseParams {
   reviewEvent: 'COMMENT' | 'REQUEST_CHANGES'
 }
 
-export type PiRunParams = PiLocalRunParams | PiCloudRunParams | PiCloudReviewRunParams
+/** Internal parameters for babysitting the pull request associated with an authoring branch. */
+export interface PiBabysitContinuationParams extends PiContextualRunParams {
+  owner: string
+  repo: string
+  githubToken: string
+  pullNumber: number
+  maxRounds: number
+  reviewMentions: string[]
+  executionId?: string
+  executionBudgetMs?: number
+}
+
+export type PiRunParams =
+  | PiLocalRunParams
+  | PiCloudRunParams
+  | PiCloudBranchRunParams
+  | PiCloudReviewRunParams
 
 /** Progress callbacks and cancellation passed into a backend run. */
 export interface PiRunContext {
@@ -105,12 +167,20 @@ export interface PiRunContext {
 /** Final result of a Pi run. */
 export interface PiRunResult {
   totals: PiRunTotals
+  /** Text eligible for conversation memory; defaults to `totals.finalText`. */
+  memoryText?: string
   changedFiles?: string[]
   diff?: string
   prUrl?: string
   branch?: string
   reviewUrl?: string
   commentsPosted?: number
+  rounds?: number
+  threadsClean?: boolean
+  checksGreen?: boolean
+  threadsResolved?: number
+  commitsPushed?: number
+  stopReason?: string
 }
 
 /** A Pi execution backend. Implemented by the local (SSH) and cloud (E2B) runners. */

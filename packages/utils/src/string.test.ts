@@ -2,7 +2,15 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isVersionedType, normalizeEmail, stripVersionSuffix, truncate } from './string.js'
+import {
+  formatQuotedNameList,
+  isVersionedType,
+  normalizeEmail,
+  sanitizeForJsonb,
+  sanitizeValueForJsonb,
+  stripVersionSuffix,
+  truncate,
+} from './string.js'
 
 describe('truncate', () => {
   it('appends the suffix when the string exceeds the slice length', () => {
@@ -56,6 +64,55 @@ describe('isVersionedType', () => {
   })
 })
 
+describe('sanitizeForJsonb', () => {
+  it('replaces a lone high surrogate left by mid-character truncation', () => {
+    // '𝐀'.slice(0, 1) cuts the surrogate pair in half
+    const cut = '\uD835\uDC00'.slice(0, 1)
+    expect(sanitizeForJsonb(`FIFA WORLD CU${cut}`)).toBe('FIFA WORLD CU\uFFFD')
+  })
+
+  it('replaces a lone low surrogate', () => {
+    expect(sanitizeForJsonb('x\uDC00y')).toBe('x\uFFFDy')
+  })
+
+  it('replaces NUL characters', () => {
+    expect(sanitizeForJsonb('a\u0000b')).toBe('a\uFFFDb')
+  })
+
+  it('preserves well-formed surrogate pairs', () => {
+    expect(sanitizeForJsonb('𝐅𝐈𝐅𝐀 🏆')).toBe('𝐅𝐈𝐅𝐀 🏆')
+  })
+
+  it('handles a lone high surrogate followed by a valid pair', () => {
+    expect(sanitizeForJsonb('\uD835\uD835\uDC00')).toBe('\uFFFD\uD835\uDC00')
+  })
+})
+
+describe('sanitizeValueForJsonb', () => {
+  it('sanitizes strings nested in objects and arrays', () => {
+    const input = { outline: ['ok', 'bad\uD835'], meta: { title: 'x\u0000' } }
+    expect(sanitizeValueForJsonb(input)).toEqual({
+      outline: ['ok', 'bad\uFFFD'],
+      meta: { title: 'x\uFFFD' },
+    })
+  })
+
+  it('sanitizes object keys', () => {
+    expect(sanitizeValueForJsonb({ 'k\uDC00': 1 })).toEqual({ 'k\uFFFD': 1 })
+  })
+
+  it('returns the same reference when nothing needs rewriting', () => {
+    const input = { a: ['clean', { b: 'also clean 🏆' }], n: 3 }
+    expect(sanitizeValueForJsonb(input)).toBe(input)
+  })
+
+  it('passes primitives through unchanged', () => {
+    expect(sanitizeValueForJsonb(42)).toBe(42)
+    expect(sanitizeValueForJsonb(null)).toBe(null)
+    expect(sanitizeValueForJsonb(undefined)).toBe(undefined)
+  })
+})
+
 describe('normalizeEmail', () => {
   it('trims surrounding whitespace and lowercases', () => {
     expect(normalizeEmail('  USER@Example.COM  ')).toBe('user@example.com')
@@ -63,5 +120,19 @@ describe('normalizeEmail', () => {
 
   it('leaves an already-normalized email unchanged', () => {
     expect(normalizeEmail('user@example.com')).toBe('user@example.com')
+  })
+})
+
+describe('formatQuotedNameList', () => {
+  it('lists all names quoted when within the cap', () => {
+    expect(formatQuotedNameList(['A', 'B'], 3)).toBe('"A", "B"')
+  })
+
+  it('truncates to the cap with an overflow tail', () => {
+    expect(formatQuotedNameList(['A', 'B', 'C', 'D', 'E'], 3)).toBe('"A", "B", "C" and 2 more')
+  })
+
+  it('returns an empty string for no names', () => {
+    expect(formatQuotedNameList([], 3)).toBe('')
   })
 })

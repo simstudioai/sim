@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import micromatch from 'micromatch'
 import {
   compileLinearRegex,
@@ -8,6 +9,23 @@ import {
 } from '@/lib/core/security/linear-regex'
 
 const logger = createLogger('VfsOperations')
+
+/**
+ * Maximum characters returned for one matched (or context) line in grep
+ * `content` mode. Minified single-line files (workflow JSON, persisted tool
+ * results) make one match the entire file otherwise — a single grep can then
+ * blow through the inline tool-result budget and the caller's context window.
+ */
+const GREP_MATCH_MAX_CHARS = 2_000
+
+/**
+ * Truncates one grep match line to {@link GREP_MATCH_MAX_CHARS}, noting the
+ * original length so the caller knows the line continues.
+ */
+function capGrepMatchContent(line: string): string {
+  if (line.length <= GREP_MATCH_MAX_CHARS) return line
+  return truncate(line, GREP_MATCH_MAX_CHARS, ` … [line truncated: ${line.length} chars total]`)
+}
 
 export interface GrepMatch {
   path: string
@@ -221,14 +239,14 @@ export function grep(
             matches.push({
               path: filePath,
               line: showLineNumbers ? j + 1 : 0,
-              content: lines[j],
+              content: capGrepMatchContent(lines[j]),
             })
           }
         } else {
           matches.push({
             path: filePath,
             line: showLineNumbers ? i + 1 : 0,
-            content: lines[i],
+            content: capGrepMatchContent(lines[i]),
           })
         }
         if (matches.length >= maxResults) return matches

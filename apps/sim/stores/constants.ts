@@ -65,6 +65,23 @@ export const MOTHERSHIP_WIDTH = {
   MIN: 280,
   /** Maximum is 65% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.65,
+  /**
+   * Narrowest the chat column beside the panel may be laid out at — the
+   * `min-w-[320px]` class on that column in home.tsx, so the two must agree.
+   *
+   * The panel is what yields to it: the chat's flex-basis is 0, so the whole of
+   * any negative free space is taken out of the panel. A width written past
+   * `container - CHAT_MIN` therefore renders clamped while the inline style
+   * still reads what was asked for, and anything deriving the divider from that
+   * value follows an edge that is not on screen.
+   */
+  CHAT_MIN: 320,
+  /**
+   * Share of the viewport the panel takes while unpinned — the `w-1/2` class in
+   * mothership-view. Also reported to the desktop shell so it can re-derive the
+   * panel rect mid-resize, so the two must agree.
+   */
+  DEFAULT_RATIO: 0.5,
 } as const
 
 /** Terminal block column width - minimum width for the logs column */

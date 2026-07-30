@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 979,
-  zodRoutes: 979,
+  totalRoutes: 997,
+  zodRoutes: 997,
   nonZodRoutes: 0,
 } as const
 
@@ -32,6 +32,12 @@ const BOUNDARY_POLICY_BASELINE = {
 
 const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/demo-requests/route.ts',
+  // Input-less session-bound GET: nothing to validate; response is
+  // contract-typed via `satisfies InvitationDetails` in the route.
+  // Public updater feed: input-less GET, session-less, returns YAML (not JSON),
+  // so it can't be JSON-contract-bound. Wrapped in withRouteHandler.
+  'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
+  'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
@@ -45,6 +51,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/auth/oauth/connections/route.ts',
   'apps/sim/app/api/auth/providers/route.ts',
   'apps/sim/app/api/auth/socket-token/route.ts',
+  'apps/sim/app/api/desktop/auth/handoff/route.ts',
   'apps/sim/app/api/workspaces/invitations/route.ts',
   // Internal cron entry point that authenticates via `Authorization: Bearer
   // CRON_SECRET` and ignores query/body. The boundary contract is "no

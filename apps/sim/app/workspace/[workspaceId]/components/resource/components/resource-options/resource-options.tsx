@@ -91,6 +91,18 @@ interface ResourceOptionsProps {
    * widgets; primary actions belong in the header's `actions`.
    */
   aside?: ReactNode
+  /**
+   * Mirror of {@link aside} on the other side: rendered immediately to the RIGHT
+   * of the filter/sort cluster and still grouped with it — e.g. the table editor's
+   * Columns menu, which reads as the last item in the Filter/Sort/Columns row.
+   */
+  asideEnd?: ReactNode
+  /**
+   * Control pinned to the far RIGHT of the bar, opposite the filter/sort cluster —
+   * e.g. the table editor's Save-view button. Unlike `aside` it is a real action,
+   * so it is separated from the menu group rather than joined to it.
+   */
+  trailing?: ReactNode
 }
 
 export const ResourceOptions = memo(function ResourceOptions({
@@ -99,6 +111,8 @@ export const ResourceOptions = memo(function ResourceOptions({
   filter,
   filterTags,
   aside,
+  asideEnd,
+  trailing,
 }: ResourceOptionsProps) {
   /**
    * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
@@ -111,14 +125,23 @@ export const ResourceOptions = memo(function ResourceOptions({
   const isToggleFilter = filter?.mode === 'toggle'
   const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
 
-  const hasContent = search || sort || filter || aside || (filterTags && filterTags.length > 0)
+  const hasContent =
+    search ||
+    sort ||
+    filter ||
+    aside ||
+    asideEnd ||
+    trailing ||
+    (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center'>
         {search && <SearchSection search={search} />}
-        <div className={cn('flex shrink-0 items-center gap-1.5', search && 'ml-auto')}>
+        {/* `ml-auto` moves to `trailing` when present so the menu cluster stays put
+            and only the trailing action is pushed to the far edge. */}
+        <div className={cn('flex shrink-0 items-center gap-1.5', search && !trailing && 'ml-auto')}>
           {aside}
           <div className='flex items-center'>
             {filterTags?.map((tag) => (
@@ -177,7 +200,9 @@ export const ResourceOptions = memo(function ResourceOptions({
             ) : null}
             {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
           </div>
+          {asideEnd}
         </div>
+        {trailing && <div className='ml-auto flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
     </div>
   )
@@ -287,7 +312,7 @@ export const SortDropdown = memo(function SortDropdown({
               }}
             >
               {Icon && <Icon />}
-              {option.label}
+              <FloatingOverflowText label={option.label} className='block truncate' />
               {DirectionIcon && (
                 <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
               )}

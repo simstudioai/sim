@@ -52,6 +52,7 @@ const mockSdk = {
   SettingsManager: { inMemory: vi.fn(() => ({})) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
+  defineTool: vi.fn((tool) => tool),
 }
 const mockModelRuntime = {
   setRuntimeApiKey: mockSetRuntimeApiKey,
@@ -59,7 +60,7 @@ const mockModelRuntime = {
 }
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: (fn: (runner: unknown) => unknown) =>
+  withPiSandbox: (_options: unknown, fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, writeFile: mockWriteFile }),
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
@@ -81,7 +82,9 @@ vi.mock('@/executor/handlers/pi/cloud-review-tools', () => ({
   preflightCloudReviewCheckout: mockPreflightCheckout,
   createCloudReviewTools: mockCreateTools,
 }))
-vi.mock('@/executor/handlers/pi/pi-sdk', () => ({
+// `toPiTool` stays real so the search tool's scrubbing boundary is the one shipped, not a stub.
+vi.mock('@/executor/handlers/pi/pi-sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/executor/handlers/pi/pi-sdk')>()),
   loadPiSdk: () => Promise.resolve(mockSdk),
   createPiModelRuntime: mockCreatePiModelRuntime,
   resolvePiSdkModel: () => ({ id: 'claude', provider: 'anthropic' }),
@@ -135,8 +138,10 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     body: 'Does the thing',
     html_url: 'https://github.com/octo/demo/pull/7',
     state: 'open',
-    head: { sha: HEAD_SHA },
-    base: { sha: BASE_SHA, ref: 'staging' },
+    merged: false,
+    mergeable: true,
+    head: { sha: HEAD_SHA, ref: 'feature', repo_full_name: 'octo/demo' },
+    base: { sha: BASE_SHA, ref: 'staging', repo_full_name: 'octo/demo' },
     ...overrides,
   }
 }
@@ -281,7 +286,17 @@ describe('runCloudReviewPi', () => {
         metadataFetches += 1
         return Promise.resolve({
           success: true,
-          output: snapshot(metadataFetches === 2 ? { head: { sha: 'c'.repeat(40) } } : {}),
+          output: snapshot(
+            metadataFetches === 2
+              ? {
+                  head: {
+                    sha: 'c'.repeat(40),
+                    ref: 'feature',
+                    repo_full_name: 'octo/demo',
+                  },
+                }
+              : {}
+          ),
         })
       }
       if (toolId === 'github_create_pr_review_v2') {
@@ -449,6 +464,75 @@ describe('runCloudReviewPi', () => {
     })
     expect(JSON.stringify(reviewCall)).not.toContain('sk-hosted')
     expect(JSON.stringify(onEvent.mock.calls)).not.toContain('sk-hosted')
+  })
+
+  describe('optional web search', () => {
+    function searchParams() {
+      return baseParams({
+        search: {
+          provider: 'exa',
+          apiKey: 'sk-search',
+          tool: {
+            name: 'web_search',
+            description: 'Search the web',
+            parameters: { type: 'object', properties: {} },
+            execute: async () => ({ text: 'saw sk-search', isError: false }),
+          },
+        },
+      })
+    }
+
+    it('states no network access and omits web_search when search is off', async () => {
+      await runCloudReviewPi(baseParams(), { onEvent: vi.fn() })
+
+      const systemPrompt = mockCreateSealedResourceLoader.mock.calls[0][1]
+      expect(systemPrompt).toContain('access the network')
+      expect(systemPrompt).not.toContain('web_search')
+      expect(mockPrompt.mock.calls[0][0]).toContain('Use repository tools only to inspect code')
+      expect(mockCreateAgentSession.mock.calls[0][0].tools).toEqual(REVIEW_TOOL_NAMES)
+    })
+
+    it('allows web_search in the sealed prompt and registers it in both tool lists', async () => {
+      await runCloudReviewPi(searchParams(), { onEvent: vi.fn() })
+
+      const systemPrompt = mockCreateSealedResourceLoader.mock.calls[0][1]
+      expect(systemPrompt).toContain('your only network access is web_search')
+      expect(systemPrompt).toContain('You may only use')
+      expect(systemPrompt).toContain('web_search')
+      // The sealed prompt drops promptGuidelines, so the untrusted-data warning has to be in it.
+      expect(systemPrompt).toContain('untrusted third-party data')
+      expect(mockPrompt.mock.calls[0][0]).toContain('web_search only when a finding depends on')
+
+      const session = mockCreateAgentSession.mock.calls[0][0]
+      expect(session.tools).toEqual([...REVIEW_TOOL_NAMES, 'web_search'])
+      expect(session.customTools.map((tool: { name: string }) => tool.name)).toEqual([
+        ...REVIEW_TOOL_NAMES,
+        'web_search',
+      ])
+    })
+
+    it('keeps the search key out of the sandbox and out of tool results', async () => {
+      const params = searchParams()
+      const result = await runCloudReviewPi(params, { onEvent: vi.fn() })
+
+      const searchTool = mockCreateAgentSession.mock.calls[0][0].customTools.at(-1)
+      const toolResult = await searchTool.execute('call-1', {}, undefined, undefined, {})
+
+      expect(toolResult.content).toEqual([{ type: 'text', text: 'saw ***' }])
+      expect(
+        mockRun.mock.calls.some(([, options]) => JSON.stringify(options.envs).includes('sk-search'))
+      ).toBe(false)
+      expect(JSON.stringify({ result, toolResult })).not.toContain('sk-search')
+    })
+  })
+
+  it('refuses a PR that is no longer open, before creating a sandbox', async () => {
+    mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
+
+    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
+      /only open PRs are supported/
+    )
+    expect(mockRun).not.toHaveBeenCalled()
   })
 
   it('rejects malformed repository coordinates before making an authenticated request', async () => {

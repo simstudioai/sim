@@ -666,7 +666,7 @@ export function SearchModal({
     <>
       <div
         className={cn(
-          'fixed inset-0 z-40 transition-opacity duration-100',
+          'fixed inset-0 z-[var(--z-modal)] transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={handleOverlayClick}
@@ -679,7 +679,7 @@ export function SearchModal({
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{

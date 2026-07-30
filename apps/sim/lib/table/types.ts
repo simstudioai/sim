@@ -2,7 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES } from '@/lib/table/constants'
+import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -62,6 +62,9 @@ export interface ColumnDefinition {
   /** When true, a `select` column accepts several options per cell (string[]). */
   multiple?: boolean
 }
+
+/** The column `type` discriminator, named so callers don't index into the interface. */
+export type ColumnType = ColumnDefinition['type']
 
 /** One group output → one plain column. */
 export interface WorkflowGroupOutput {
@@ -255,8 +258,8 @@ export interface TableSchema {
 
 /**
  * Table-level metadata stored alongside the table definition. UI state only
- * (column widths, column order, pinned columns) — workflow-group concurrency
- * is enforced at the trigger.dev queue layer, not via metadata.
+ * (column widths, column order, pinned columns, hidden columns) — workflow-group
+ * concurrency is enforced at the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
   /** Pixel widths keyed by **column id** (`getColumnId`). */
@@ -265,6 +268,26 @@ export interface TableMetadata {
   columnOrder?: string[]
   /** **Column ids** pinned to the left while scrolling horizontally. */
   pinnedColumns?: string[]
+  /**
+   * **Column ids** hidden from the grid. A deny-list, so a column added later is
+   * visible by default instead of needing to be re-enabled everywhere. Hiding is
+   * render-only — rows still arrive as whole JSONB blobs, so a hidden column's
+   * data is retained and reappears intact when it is unhidden.
+   */
+  hiddenColumns?: string[]
+}
+
+/**
+ * The saved shape of a table view: everything `TableMetadata` covers plus the
+ * row predicate and sort. Stored in `table_views.config`.
+ *
+ * `filter`/`sort` are what the view builder persists explicitly; the layout keys
+ * are inherited from `TableMetadata` and auto-save into the active view as the
+ * user resizes, reorders, pins, or hides columns.
+ */
+export interface TableViewConfig extends TableMetadata {
+  filter?: TablePredicate | null
+  sort?: SortSpec | null
 }
 
 /** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
@@ -394,6 +417,8 @@ export interface TableDefinition {
   rowCount: number
   maxRows: number
   workspaceId: string
+  /** Folder the table lives in, or `null` at the workspace root. */
+  folderId?: string | null
   createdBy: string
   /** Per-table mutation locks; absent-as-all-false is normalized on read. */
   locks: TableLocks
@@ -478,6 +503,39 @@ export interface Filter {
   [key: string]: ColumnValue | ConditionOperators | Filter[] | undefined
 }
 
+/**
+ * v2 filter operators (bare, no `$`). Equality and `in`/`nin` are case-sensitive
+ * (JSONB containment, GIN-indexed); the text ops `contains`/`ncontains`/
+ * `startsWith`/`endsWith` are ILIKE (case-insensitive). `isEmpty`/`isNotEmpty`
+ * match null OR empty string;
+ * `isNull`/`isNotNull` are strict null checks. The four `is*` ops are valueless.
+ * This is the canonical operator set the shared `fieldPredicate` leaf
+ * understands; the legacy `$`-operators normalize onto it.
+ */
+export type FilterOp = (typeof FILTER_OPS)[number]
+
+/** A single v2 leaf predicate: `field op value`. `value` is omitted for `isEmpty`/`isNotEmpty`. */
+export interface Predicate {
+  field: string
+  op: FilterOp
+  value?: JsonValue
+}
+
+/**
+ * v2 nestable filter tree. A group is either `{ all: [...] }` (AND) or
+ * `{ any: [...] }` (OR); members are leaves or nested groups. Replaces the
+ * MongoDB-style `Filter` on the v2 surface — same engine, legible grammar.
+ *
+ * @example
+ * { all: [{ field: 'slack_user_id', op: 'in', value: ['U1','U2'] }, { field: 'wins', op: 'gte', value: 10 }] }
+ * { any: [{ field: 'status', op: 'eq', value: 'active' }, { field: 'status', op: 'eq', value: 'pending' }] }
+ */
+export type PredicateNode = Predicate | TablePredicate
+export type TablePredicate = { all: PredicateNode[] } | { any: PredicateNode[] }
+
+/** v2 sort specification: an ordered list of `{ field, direction }`. */
+export type SortSpec = Array<{ field: string; direction: SortDirection }>
+
 export interface ValidationResult {
   valid: boolean
   errors: string[]
@@ -509,11 +567,21 @@ export interface SortRule {
 
 export interface QueryOptions {
   filter?: Filter
+  /**
+   * v2 nestable predicate. When set it takes precedence over `filter` — the two
+   * compile through the same `fieldPredicate` leaf, so callers pick one grammar.
+   */
+  predicate?: TablePredicate
   sort?: Sort
+  /** Page row cap. Omitted = return the ENTIRE matching result, failing fast if
+   *  it exceeds the response byte budget (`MAX_QUERY_RESULT_BYTES`). A bounded
+   *  page may byte-cut early with `nextCursor` set. Never an unbounded fetch —
+   *  the drain stops at the budget either way. */
   limit?: number
   offset?: number
   /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
-   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+   *  Mutually exclusive with `sort`. May be combined with `offset` (a compound
+   *  cursor seeks the anchor, then offsets past unkeyed rows consumed after it). */
   after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
@@ -535,6 +603,13 @@ export interface QueryResult {
   totalCount: number | null
   limit: number
   offset: number
+  /**
+   * Opaque cursor for the next page — non-null whenever more matching rows
+   * exist beyond this page, whether the page was cut by `limit` or by the
+   * response byte budget. Callers echo it back as `cursor` and never construct
+   * keyset/offset state themselves. See `rows/cursor.ts`.
+   */
+  nextCursor: string | null
 }
 
 export interface BulkOperationResult {
@@ -548,6 +623,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
+  /** Folder to create the table in. Omitted or `null` creates it at the workspace root. */
+  folderId?: string | null
   /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
    *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number

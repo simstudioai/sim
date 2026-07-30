@@ -57,10 +57,13 @@ describe('streaming resource titles', () => {
     ).toBe('Creating lookupWeather')
     expect(
       resolveStreamingToolDisplayTitle(
-        'manage_folder',
-        '{"operation":"rename","path":"workflows/Old%20Name","name":"New Name"}'
+        'mv',
+        '{"sources":["workflows/Old%20Name"],"destination":"workflows/New%20Name","toolTitle":"Old Name to New Name"}'
       )
     ).toBe('Renaming Old Name to New Name')
+    expect(resolveStreamingToolDisplayTitle('rm', '{"toolTitle":"Old Report.pdf"}')).toBe(
+      'Deleting Old Report.pdf'
+    )
   })
 })
 

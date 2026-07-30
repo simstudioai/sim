@@ -45,6 +45,9 @@ export {
   dbChainMock,
   dbChainMockFns,
   drizzleOrmMock,
+  flattenMockConditions,
+  hasMockCondition,
+  type MockCondition,
   queueTableRows,
   resetDbChainMock,
 } from './database.mock'
@@ -92,6 +95,8 @@ export {
   mockNextFetchResponse,
   setupGlobalFetchMock,
 } from './fetch.mock'
+// Generic folder engine mocks (for @/lib/folders/lifecycle)
+export { foldersLifecycleMock, foldersLifecycleMockFns } from './folders-lifecycle.mock'
 // Hybrid auth mocks
 export { hybridAuthMock, hybridAuthMockFns } from './hybrid-auth.mock'
 // Input validation mocks
