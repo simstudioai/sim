@@ -308,7 +308,12 @@ export const GET = withRouteHandler(
                   // Shape-check first: nothing upstream validates this branch, and
                   // an unchecked hybrid node would silently widen the result.
                   validatePredicateShape(validated.filter as TablePredicate)
-                  return wire.predicateIn(validated.filter as TablePredicate)
+                  const translated = wire.predicateIn(validated.filter as TablePredicate)
+                  // Post-translation storage check, mirroring the bulk PUT/DELETE
+                  // paths: a typo'd field must 400, not compile to a clause that
+                  // matches nothing and read back as an empty page.
+                  validateStoragePredicate(translated, (table.schema as TableSchema).columns)
+                  return translated
                 })(),
               }
             : { filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined }),

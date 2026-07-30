@@ -262,6 +262,25 @@ describe('GET /api/table/[tableId]/rows', () => {
     expect(options.predicate).toEqual({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] })
     expect(options.sort).toEqual({ col_bbb: 'asc' })
   })
+
+  /**
+   * Storage validation runs post-translation, mirroring bulk PUT/DELETE: a
+   * typo'd field must 400, not compile to a clause that matches nothing and
+   * read back as a plausible empty page.
+   */
+  it('400s a predicate naming an unknown column instead of returning an empty page', async () => {
+    authAs('session')
+
+    const res = await callGet({
+      workspaceId: 'workspace-1',
+      filter: JSON.stringify({ all: [{ field: 'col_nope', op: 'eq', value: 'Ada' }] }),
+    })
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toMatch(/Unknown filter column "col_nope"/)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
 })
 
 describe('PUT/DELETE /api/table/[tableId]/rows — predicate filters', () => {
