@@ -1,0 +1,774 @@
+---
+title: SailPoint
+description: Govern identities and access in SailPoint Identity Security Cloud
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sailpoint"
+  color="#0033A1"
+/>
+
+## Usage Instructions
+
+Read and act on identity governance data in SailPoint Identity Security Cloud (ISC): search identities, accounts, entitlements, roles, and access profiles; review account activities, campaigns, and certifications; and request, revoke, or cancel access. Authenticates with a Personal Access Token (PAT) using the OAuth2 client-credentials grant against your per-tenant host (https://{tenant}.api.identitynow.com). 
+
+
+
+## Actions
+
+### `sailpoint_cancel_access_request`
+
+Cancel a pending SailPoint access request by its identity request ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountActivityId` | string | Yes | The identityRequestId of the access request to cancel |
+| `comment` | string | Yes | Reason for cancellation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_access_profile_entitlements`
+
+List the entitlements granted by a specific SailPoint access profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Access Profile ID |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_access_request_status`
+
+List the status of SailPoint access requests with optional identity and state filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestedFor` | string | No | Identity ID the request was made for |
+| `requestedBy` | string | No | Identity ID that submitted the request |
+| `regardingIdentity` | string | No | Identity ID the request is about \(requester or target\) |
+| `assignedTo` | string | No | Identity ID a pending approval is assigned to |
+| `requestState` | string | No | EXECUTING |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_account`
+
+Get a single SailPoint account by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Account ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_account_activity`
+
+Get a single SailPoint account activity by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Account Activity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_account_entitlements`
+
+List the entitlements granted on a specific SailPoint account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Account ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_campaign`
+
+Get a single SailPoint certification campaign by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Campaign ID |
+| `detail` | string | No | SLIM or FULL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_entitlement`
+
+Get a single SailPoint entitlement by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Entitlement ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_identity`
+
+Get a single SailPoint identity by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Identity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_role_entitlements`
+
+List the entitlements granted by a specific SailPoint role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Role ID |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_get_source`
+
+Get a single SailPoint identity source by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Source ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_access_profiles`
+
+List access profiles in SailPoint with optional filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_account_activities`
+
+List account activities (provisioning events) in SailPoint with optional filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestedFor` | string | No | Identity ID the activity was requested for |
+| `requestedBy` | string | No | Identity ID that requested the activity |
+| `regardingIdentity` | string | No | Identity ID the activity is about \(requester or target\) |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_accounts`
+
+List accounts in SailPoint with optional filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+| `detailLevel` | string | No | SLIM or FULL \(default\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_campaigns`
+
+List certification campaigns in SailPoint with optional filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `detail` | string | No | SLIM \(default\) or FULL |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_certification_review_items`
+
+List the access review items within a specific SailPoint certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Certification ID |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+| `entitlements` | string | No | Filter review items to specific entitlement IDs |
+| `accessProfiles` | string | No | Filter review items to specific access profile IDs |
+| `roles` | string | No | Filter review items to specific role IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_certifications`
+
+List certifications in SailPoint with optional reviewer filter, filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `reviewerIdentity` | string | No | Reviewer identity ID or 'me' |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_entitlements`
+
+List entitlements in SailPoint with optional filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+| `accountId` | string | No | Filter to entitlements on a specific account ID |
+| `segmentedForIdentity` | string | No | Return only entitlements visible to the given identity via segmentation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_identities`
+
+List identities in SailPoint with optional Sailpoint filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+| `defaultFilter` | string | No | CORRELATED_ONLY \(default\) or NONE |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_roles`
+
+List roles in SailPoint with optional filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_list_sources`
+
+List identity sources in SailPoint with optional filters, sorters, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | string | No | SailPoint filter expression to narrow results |
+| `sorters` | string | No | SailPoint sorters expression |
+| `forSubadmin` | string | No | Return only sources the given source sub-admin identity can administer |
+| `includeIDNSource` | boolean | No | Include the built-in IdentityNow source in results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_load_accounts`
+
+Trigger an account aggregation for a SailPoint source, optionally uploading a CSV of accounts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceId` | string | Yes | Source ID to aggregate |
+| `file` | file | No | CSV file of accounts to aggregate \(delimited-file sources only\) |
+| `disableOptimization` | boolean | No | Reprocess every account regardless of change |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_load_entitlements`
+
+Trigger an entitlement aggregation for a SailPoint source, optionally uploading a CSV of entitlements.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceId` | string | Yes | Source ID to aggregate |
+| `file` | file | No | CSV file of entitlements to aggregate \(delimited-file sources only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_request_access`
+
+Submit a SailPoint access request to grant, revoke, or modify access for one or more identities.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestedFor` | json | Yes | Array of identity IDs. For REVOKE_ACCESS exactly one identity. |
+| `requestedItems` | json | Yes | Array of \{ type: ACCESS_PROFILE\|ROLE\|ENTITLEMENT, id, comment?, removeDate?, startDate?, assignmentId?, nativeIdentity?, clientMetadata? \}. REVOKE requires exactly one item with a comment. |
+| `requestType` | string | No | GRANT_ACCESS \(default\), REVOKE_ACCESS, or MODIFY_ACCESS |
+| `clientMetadata` | json | No | Optional key/value map, e.g. to record the human requester for correlation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_search`
+
+Run a global search across SailPoint indices (identities, entitlements, roles, access profiles, account activities, events). Set includeNested to return nested access[] on identities.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indices` | json | No | Indices to search: identities, accessprofiles, accountactivities, entitlements, events, roles, or * \(defaults to \["identities"\]\) |
+| `query` | string | No | Elasticsearch query string \(e.g. "attributes.department:Engineering"\) |
+| `sort` | json | No | Sort fields, e.g. \["displayName","+id"\] |
+| `searchAfter` | json | No | searchAfter cursor for deep pagination beyond 10,000 records |
+| `includeNested` | boolean | No | Include nested objects \(e.g. identity access\[\]\) in results. Defaults to true. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_search_aggregate`
+
+Return aggregation buckets for a SailPoint search query (e.g. counts grouped by a field).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indices` | json | No | Indices to aggregate over \(defaults to \["identities"\]\) |
+| `query` | string | No | Elasticsearch query string |
+| `limit` | number | No | Maximum number of aggregation results \(max 250\) |
+| `offset` | number | No | Pagination offset \(0-based\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+### `sailpoint_search_count`
+
+Return the total number of documents matching a SailPoint search query, without the documents themselves.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indices` | json | No | Indices to search \(defaults to \["identities"\]\) |
+| `query` | string | No | Elasticsearch query string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | json | Raw SailPoint documents for list operations |
+| `results` | json | Raw SailPoint documents for search operations |
+| `item` | json | Raw SailPoint document for get operations |
+| `total` | number | Total matching documents \(search count\) |
+| `task` | json | Aggregation task for load operations |
+| `accepted` | boolean | Whether an access-request write was accepted |
+| `status` | number | HTTP status returned by SailPoint for writes |
+| `count` | number | Number of records returned in the page |
+| `totalCount` | number | Total matching records when count is requested |
+| `complete` | boolean | False when an empty result may indicate a permission gap |
+| `warnings` | json | Diagnostic warnings \(e.g. empty-result guidance\) |
+
+

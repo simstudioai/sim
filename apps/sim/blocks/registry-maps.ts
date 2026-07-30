@@ -261,6 +261,7 @@ import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
 import { S3Block, S3BlockMeta } from '@/blocks/blocks/s3'
+import { SailPointBlock, SailPointBlockMeta } from '@/blocks/blocks/sailpoint'
 import { SalesforceBlock, SalesforceBlockMeta } from '@/blocks/blocks/salesforce'
 import { SapConcurBlock, SapConcurBlockMeta } from '@/blocks/blocks/sap_concur'
 import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
@@ -577,6 +578,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   router_v2: RouterV2Block,
   rss: RssBlock,
   s3: S3Block,
+  sailpoint: SailPointBlock,
   salesforce: SalesforceBlock,
   sap_concur: SapConcurBlock,
   sap_s4hana: SapS4HanaBlock,
@@ -865,6 +867,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   rootly: RootlyBlockMeta,
   rss: RssBlockMeta,
   s3: S3BlockMeta,
+  sailpoint: SailPointBlockMeta,
   salesforce: SalesforceBlockMeta,
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,

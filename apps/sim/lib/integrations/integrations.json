@@ -16137,6 +16137,133 @@
       "tags": ["cloud", "automation"]
     },
     {
+      "type": "sailpoint",
+      "slug": "sailpoint",
+      "name": "SailPoint",
+      "description": "Govern identities and access in SailPoint Identity Security Cloud",
+      "longDescription": "Read and act on identity governance data in SailPoint Identity Security Cloud (ISC): search identities, accounts, entitlements, roles, and access profiles; review account activities, campaigns, and certifications; and request, revoke, or cancel access. Authenticates with a Personal Access Token (PAT) using the OAuth2 client-credentials grant against your per-tenant host (https://{tenant}.api.identitynow.com). ",
+      "bgColor": "#0033A1",
+      "iconName": "SailPointIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Run a global search across SailPoint indices (identities, entitlements, roles, access profiles, account activities, events). Set includeNested to return nested access[] on identities."
+        },
+        {
+          "name": "Search Count",
+          "description": "Return the total number of documents matching a SailPoint search query, without the documents themselves."
+        },
+        {
+          "name": "Search Aggregate",
+          "description": "Return aggregation buckets for a SailPoint search query (e.g. counts grouped by a field)."
+        },
+        {
+          "name": "List Identities",
+          "description": "List identities in SailPoint with optional Sailpoint filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Identity",
+          "description": "Get a single SailPoint identity by ID."
+        },
+        {
+          "name": "List Accounts",
+          "description": "List accounts in SailPoint with optional filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get a single SailPoint account by ID."
+        },
+        {
+          "name": "Get Account Entitlements",
+          "description": "List the entitlements granted on a specific SailPoint account."
+        },
+        {
+          "name": "List Entitlements",
+          "description": "List entitlements in SailPoint with optional filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Entitlement",
+          "description": "Get a single SailPoint entitlement by ID."
+        },
+        {
+          "name": "List Roles",
+          "description": "List roles in SailPoint with optional filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Role Entitlements",
+          "description": "List the entitlements granted by a specific SailPoint role."
+        },
+        {
+          "name": "List Access Profiles",
+          "description": "List access profiles in SailPoint with optional filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Access Profile Entitlements",
+          "description": "List the entitlements granted by a specific SailPoint access profile."
+        },
+        {
+          "name": "List Sources",
+          "description": "List identity sources in SailPoint with optional filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Source",
+          "description": "Get a single SailPoint identity source by ID."
+        },
+        {
+          "name": "List Account Activities",
+          "description": "List account activities (provisioning events) in SailPoint with optional filters and pagination."
+        },
+        {
+          "name": "Get Account Activity",
+          "description": "Get a single SailPoint account activity by ID."
+        },
+        {
+          "name": "List Campaigns",
+          "description": "List certification campaigns in SailPoint with optional filters, sorters, and pagination."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Get a single SailPoint certification campaign by ID."
+        },
+        {
+          "name": "List Certifications",
+          "description": "List certifications in SailPoint with optional reviewer filter, filters, sorters, and pagination."
+        },
+        {
+          "name": "List Certification Review Items",
+          "description": "List the access review items within a specific SailPoint certification."
+        },
+        {
+          "name": "Request Access",
+          "description": "Submit a SailPoint access request to grant, revoke, or modify access for one or more identities."
+        },
+        {
+          "name": "Cancel Access Request",
+          "description": "Cancel a pending SailPoint access request by its identity request ID."
+        },
+        {
+          "name": "Get Access Request Status",
+          "description": "List the status of SailPoint access requests with optional identity and state filters."
+        },
+        {
+          "name": "Load Accounts (CSV)",
+          "description": "Trigger an account aggregation for a SailPoint source, optionally uploading a CSV of accounts."
+        },
+        {
+          "name": "Load Entitlements (CSV)",
+          "description": "Trigger an entitlement aggregation for a SailPoint source, optionally uploading a CSV of entitlements."
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["identity", "operations"]
+    },
+    {
       "type": "salesforce",
       "slug": "salesforce",
       "name": "Salesforce",
