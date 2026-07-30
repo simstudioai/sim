@@ -7,10 +7,15 @@ minimumReleaseAge = 604800
 # dev builds, so every version is structurally younger than any age gate.
 # The exactly pinned Pi 0.80.10 packages were vetted for the cloud-review SDK
 # migration; they age out of the gate on 2026-07-24 — drop these four entries then.
-# next@16.2.11, @next/env@16.2.11 and the @next/swc-* binaries are the official Vercel
-# security patch for the July 2026 advisories (SSRF, cache confusion, DoS, middleware
-# bypass — GHSA-89xv-2m56-2m9x et al.); published 2026-07-21, they age out of the gate on
-# 2026-07-28 — drop these entries then. The swc binaries ship in lockstep with next and
+# next@16.2.12, @next/env@16.2.12 and the @next/swc-* binaries carry the July 2026 security
+# advisories (SSRF, cache confusion, DoS, middleware bypass — GHSA-89xv-2m56-2m9x et al.,
+# fixed in 16.2.11) plus the TypeScript 7 support backport (vercel/next.js#95831) that
+# 16.2.11 lacks — this repo resolves typescript to 7.x, and on 16.2.11 `next build`'s
+# type-check step can die with a silent SIGSEGV because the legacy TS JS API is gone in TS7.
+# Published 2026-07-25, they age out of the gate on 2026-08-01 — drop these entries then,
+# and re-date this note on any further bump rather than deleting the entries early: removing
+# them while the pinned version is still inside the 7-day window blocks the bump outright.
+# The swc binaries ship in lockstep with next and
 # MUST be excluded alongside it: they are next's platform-gated optionalDependencies, so
 # gating them out leaves them absent from bun.lock entirely, and `bun install
 # --frozen-lockfile` then installs no compiler at all — next falls back to downloading one

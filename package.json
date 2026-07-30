@@ -76,8 +76,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.2.11",
-    "@next/env": "16.2.11",
+    "next": "16.2.12",
+    "@next/env": "16.2.12",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
@@ -86,10 +86,10 @@
     "e2b": "^2.36.1"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "16.2.11",
-    "@next/swc-darwin-x64": "16.2.11",
-    "@next/swc-linux-arm64-gnu": "16.2.11",
-    "@next/swc-linux-x64-gnu": "16.2.11"
+    "@next/swc-darwin-arm64": "16.2.12",
+    "@next/swc-darwin-x64": "16.2.12",
+    "@next/swc-linux-arm64-gnu": "16.2.12",
+    "@next/swc-linux-x64-gnu": "16.2.12"
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
