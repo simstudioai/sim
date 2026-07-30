@@ -3,7 +3,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import * as Y from 'yjs'
 import {
   ContentVersionConflictError,
-  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace'
@@ -18,14 +17,14 @@ const logger = createLogger('FileDocPersist')
  *   CONTENT version (`content_updated_at`, epoch ms) the relay records as what its live doc is synced to.
  * - `missing` — the file is gone (deleted); nothing to write.
  * - `conflict` — the file changed out-of-band since the relay's live doc last synced, so writing the
- *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written. `markdown` +
- *   `version` are the current durable content + version so the relay can merge them into its live doc
- *   and re-persist the reconciled result.
+ *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written. `version` is the
+ *   current durable version the relay adopts as its new If-Match to re-persist the current live stream
+ *   (which already holds the out-of-band change via the write chokepoint).
  */
 export type PersistFileDocResult =
   | { status: 'persisted'; version: number }
   | { status: 'missing' }
-  | { status: 'conflict'; markdown: string; version: number }
+  | { status: 'conflict'; version: number }
   | { status: 'deferred' }
 
 /**
@@ -38,9 +37,9 @@ export type PersistFileDocResult =
  * synced from) is the optimistic-concurrency guard: the write commits only if the file is still at that
  * content version — a rename/move that only bumps `updatedAt` won't trip it, so a
  * projection built from a stale live doc can never silently overwrite an out-of-band edit. On a version
- * mismatch this returns `conflict` (with the current durable content) instead of writing — the relay
- * reconciles and retries. Omit `expectedVersion` to write unconditionally (e.g. the first persist,
- * before any synced version exists).
+ * mismatch this returns `conflict` (the current durable version) instead of writing — the relay adopts
+ * it as its new If-Match and retries against the current live stream. Omit `expectedVersion` to write
+ * unconditionally (e.g. the first persist, before any synced version exists).
  *
  * `userId` is attribution only (blob metadata); the caller is already trusted via the `x-api-key` gate.
  */
@@ -114,18 +113,21 @@ export async function persistFileDoc(
     }
   } catch (error) {
     if (!(error instanceof ContentVersionConflictError)) throw error
-    // Out-of-band edit since the live doc last synced — DON'T clobber. Return the current durable
-    // content + version so the relay merges it into the live doc and re-persists the reconciled result.
+    // Out-of-band content change since the live doc last synced — DON'T clobber. Return the current
+    // durable version so the relay adopts it as its new If-Match and re-persists the current live stream
+    // (which already holds the out-of-band change, merged in via the write chokepoint). No markdown body
+    // is returned: the relay never projects the durable body back over the live doc (that would be a
+    // destructive "make it match" that could move the doc backward and wipe newer edits).
     const current = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
     if (!current) return { status: 'missing' }
-    const currentBuffer = await fetchWorkspaceFileBuffer(current)
-    logger.warn(`Persist conflict for file ${fileId}; returning current durable state to reconcile`)
+    logger.warn(
+      `Persist conflict for file ${fileId}; durable content changed out-of-band since sync`
+    )
     return {
       status: 'conflict',
-      markdown: currentBuffer.toString('utf-8'),
-      // The CONTENT version, not `updatedAt`: the relay reconciles to this and re-persists with it as the
-      // If-Match. If a metadata write bumped `updatedAt` past `contentUpdatedAt`, returning `updatedAt`
-      // would make the re-persist's CAS (which checks `contentUpdatedAt`) never match → perpetual conflict.
+      // The CONTENT version, not `updatedAt`: the relay adopts this as its If-Match. If a metadata write
+      // bumped `updatedAt` past `contentUpdatedAt`, returning `updatedAt` would make the re-persist's CAS
+      // (which checks `contentUpdatedAt`) never match → perpetual conflict.
       version: (current.contentUpdatedAt ?? current.updatedAt).getTime(),
     }
   }

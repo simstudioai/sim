@@ -248,9 +248,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   const userId = room.lastEditorUserId
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
   // this yields. Only meaningful once seeded; used only when the authoritative stream state is absent.
-  // NULLED after a reconcile (below): once we've merged an out-of-band edit in, this pre-reconcile
-  // snapshot predates it and must never be persisted as a fallback, or it would re-drop that edit.
-  let localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
+  const localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
 
   // Capture the AUTHORITATIVE doc state: the shared stream when enabled (a copilot merge or a peer's
   // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
@@ -314,9 +312,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
 
     // Persist under optimistic concurrency (RFC 7232 If-Match): the write commits only if the file is
     // still at the version the live doc synced from, so a projection can never silently clobber an
-    // out-of-band edit. On a conflict, merge the current durable content into the live doc — so the
-    // out-of-band edit AND the live edits converge — and retry (bounded), so even a last-leave flush
-    // racing an external write persists the reconciled result rather than losing the session's edits.
+    // out-of-band edit. On a conflict, adopt the durable version and retry (bounded) — see below.
     for (let attempt = 0; attempt <= PERSIST_CONFLICT_RETRIES; attempt++) {
       const docState = await captureState()
       if (!docState) return // nothing seeded/authoritative to persist yet
@@ -336,55 +332,20 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
       }
       if (attempt === PERSIST_CONFLICT_RETRIES) {
         logger.warn(
-          `Persist for file ${room.fileId} still conflicting after reconcile; durable content left authoritative`
+          `Persist for file ${room.fileId} still conflicting after ${PERSIST_CONFLICT_RETRIES} retries; durable content left authoritative`
         )
         return
       }
-      // Only reconcile a GENUINE out-of-band change the live doc hasn't incorporated. If the freshest
-      // synced version already covers the conflict version, the durable body is a STALE SUBSET of the live
-      // stream — a racing persist wrote it FROM this stream, or an apply-edit already merged it (the write
-      // chokepoint advances the synced version). Reconciling it (incoming-wins) would move the doc BACKWARD
-      // and wipe newer in-flight edits. Skip it and retry with the DURABLE conflict version as If-Match
-      // (`result.version`, what the CAS will actually match — never `freshest`, which could exceed it and
-      // loop): the re-projection captures the current live stream, preserving every edit. (`content_updated_at`
-      // is monotonic per file, so `freshest` normally can't exceed it — using `result.version` is belt-and-suspenders.)
-      const freshest = await currentVersion()
-      if (freshest !== undefined && freshest >= result.version) {
-        ifMatch = result.version
-        continue
-      }
-      // Reconcile the out-of-band durable content into the live doc (advances the synced version), then
-      // loop to re-project and re-persist the converged state. If there is no live doc to reconcile into
-      // — e.g. the last collaborator has left and the room is being torn down with no shared stream
-      // (single-pod) — stop: re-projecting the same pre-teardown snapshot would only re-conflict. The
-      // durable (out-of-band) content is left authoritative, which is the intended conflict policy.
-      const reconciled = await applyMarkdownToLiveFileDoc(
-        room.fileId,
-        result.markdown,
-        result.version
-      )
-      if (reconciled === 'no-live-room') {
-        logger.warn(
-          `Persist conflict for file ${room.fileId} with no live doc to reconcile; durable content left authoritative`
-        )
-        return
-      }
-      if (reconciled === 'merge-unavailable') {
-        // Merge-lock contention (NOT an absent stream): the reconcile could not run, so we have not
-        // incorporated the out-of-band edit and must not re-persist against it. Stop without clobbering;
-        // the session's edits stay in the stream and a later flush (or the next opener) retries. Distinct
-        // from `no-live-room` so a transient lock miss is never mistaken for "nothing to reconcile".
-        logger.warn(
-          `Persist conflict for file ${room.fileId}: merge lock unavailable, reconcile deferred (edits remain in stream)`
-        )
-        return
-      }
-      // The out-of-band content is now reconciled into the live doc AT `result.version`, so that is the
-      // correct If-Match for the re-projection — advance to it directly rather than re-reading a version
-      // a concurrent teardown may have left stale in `room.syncedVersion`/Redis. The pre-await
-      // `localState` snapshot now predates this reconcile, so drop it: a subsequent failed stream read
-      // must abort rather than fall back to a snapshot that would re-drop the just-merged out-of-band edit.
-      localState = null
+      // Conflict: the durable file advanced out-of-band since our If-Match token. We deliberately do NOT
+      // project the durable body back over the live doc — that is a destructive "make the doc match"
+      // operation, and when the live stream is already ahead (the common case, because the write chokepoint
+      // has ALREADY merged the out-of-band change into the stream) it would move the doc BACKWARD and wipe
+      // newer in-flight edits. Instead adopt the durable version as the new If-Match and retry:
+      // `captureState` re-reads the current stream — which holds the out-of-band change AND the live edits
+      // — so the re-projection persists the converged result. The durable change reaches the live doc via
+      // the chokepoint (`mergeEditIntoLiveFileDoc`, which every external markdown write goes through), never
+      // here — so the only unmerged out-of-band write is one whose chokepoint merge itself failed, a rare
+      // degraded case we accept over the far more frequent reconcile-wipes-live-edits race.
       ifMatch = result.version
     }
   } catch (error) {

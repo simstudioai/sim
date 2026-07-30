@@ -126,11 +126,11 @@ export const persistFileDocResponseSchema = z.discriminatedUnion('status', [
   z.object({
     /**
      * The file changed out-of-band since `expectedVersion` — the write was refused to avoid clobbering
-     * it. `markdown` + `version` are the current durable content + version, so the relay can merge the
-     * change into its live doc and re-persist the reconciled result.
+     * it. `version` is the current durable version the relay adopts as its new If-Match to re-persist the
+     * current live stream (which already holds the out-of-band change via the write chokepoint). No
+     * markdown body: the relay never projects the durable body back over the live doc.
      */
     status: z.literal('conflict'),
-    markdown: z.string(),
     version: z.number().int(),
   }),
 ])

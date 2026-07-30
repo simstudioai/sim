@@ -301,11 +301,10 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
   it('retries a persist that keeps conflicting, then gives up without clobbering', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
-    // Every persist reports an out-of-band change (If-Match conflict) — the durable file must be left
-    // authoritative rather than overwritten, after a bounded reconcile-retry.
+    // Every persist reports an out-of-band change (If-Match conflict) — the relay adopts the durable
+    // version and retries (bounded); the durable file is left authoritative rather than overwritten.
     mockFetchFileDocPersist.mockResolvedValue({
       status: 'conflict',
-      markdown: '# external edit',
       version: 999,
     })
     const { io } = createIo()
