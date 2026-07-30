@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { SimAutoIcon } from '@/components/icons'
 import {
   isAzureConfigured,
   isCohereConfigured,
@@ -14,7 +15,9 @@ import {
   getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
+  isAutoModel,
   orderModelIdsByReleaseDate,
+  SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
@@ -75,12 +78,18 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels
+  const options = allModels
     .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
     .map((model) => {
       const icon = getProviderIcon(model)
       return { label: model, id: model, ...(icon && { icon }) }
     })
+
+  if (isHosted) {
+    options.unshift({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
+  }
+
+  return options
 }
 
 /**
@@ -182,6 +191,9 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
 function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
+
+  // The auto pseudo-model resolves server-side to a hosted pool model.
+  if (isAutoModel(normalizedModel)) return false
 
   if (isHosted) {
     const hostedModels = getHostedModels()

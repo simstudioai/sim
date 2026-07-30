@@ -45,6 +45,7 @@ vi.mock('@/providers/fireworks/utils', () => ({
     () => new ReadableStream({ start: (controller) => controller.close() })
   ),
   checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
+  resolveFireworksWireModel: vi.fn((stripped: string) => stripped),
 }))
 
 vi.mock('@/providers/trace-enrichment', () => ({

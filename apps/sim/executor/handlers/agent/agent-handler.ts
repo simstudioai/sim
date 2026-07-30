@@ -7,6 +7,12 @@ import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import {
+  type AutoRoutingResult,
+  type AutoRoutingSignals,
+  resolveAutoModel,
+  SIM_AUTO_SYSTEM_PREAMBLE,
+} from '@/lib/model-router/resolve'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
@@ -46,6 +52,7 @@ import {
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import { isAutoModel } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -77,7 +84,32 @@ export class AgentBlockHandler implements BlockHandler {
     await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
     const responseFormat = parseResponseFormat(filteredInputs.responseFormat)
-    const model = filteredInputs.model || AGENT.DEFAULT_MODEL
+    const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
+
+    let model = configuredModel
+    let autoRouting: AutoRoutingResult | null = null
+    if (isAutoModel(configuredModel)) {
+      autoRouting = await resolveAutoModel({
+        ctx,
+        blockId: block.id,
+        signals: this.buildAutoRoutingSignals(filteredInputs, responseFormat),
+        fallbackModel: AGENT.DEFAULT_MODEL,
+      })
+      model = autoRouting.model
+      logger.info('Resolved sim-auto model', {
+        blockId: block.id,
+        model,
+        tier: autoRouting.tier,
+        decidedBy: autoRouting.decidedBy,
+      })
+      // Hidden identity preamble for every auto execution (fallback included):
+      // keeps pool models in English by default and off the topic of which
+      // underlying model they are. Applied after signal building so the
+      // preamble never influences classification.
+      filteredInputs.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, filteredInputs.systemPrompt]
+        .filter(Boolean)
+        .join('\n\n')
+    }
 
     await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
 
@@ -126,6 +158,14 @@ export class AgentBlockHandler implements BlockHandler {
 
     const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
 
+    // Routing cost lands on non-streaming outputs only for now; streaming
+    // outputs assemble cost at stream end where there is no hook yet. The
+    // charge is gated server-side by mothership's bill-model-router flag
+    // (default off), so this asymmetry currently bills nobody.
+    if (autoRouting && autoRouting.billableRoutingCost > 0 && !this.isStreamingExecution(result)) {
+      this.applyRoutingCost(result as BlockOutput, autoRouting.billableRoutingCost)
+    }
+
     if (this.isStreamingExecution(result)) {
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
         return this.wrapStreamForMemoryPersistence(
@@ -142,6 +182,52 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return result
+  }
+
+  /**
+   * Derives the compact routing signals for sim-auto resolution from the
+   * block's resolved inputs. Excerpts only — the resolver truncates further
+   * and mothership re-clamps server-side.
+   */
+  private buildAutoRoutingSignals(inputs: AgentInputs, responseFormat: any): AutoRoutingSignals {
+    const lastMessage =
+      typeof inputs.userPrompt === 'string'
+        ? inputs.userPrompt
+        : inputs.userPrompt != null
+          ? stringifyJSON(inputs.userPrompt)
+          : (inputs.messages?.at(-1)?.content ?? '')
+    const systemPrompt = inputs.systemPrompt ?? ''
+    const normalizedFiles = normalizeFileInput(inputs.files)
+    const approxChars =
+      systemPrompt.length +
+      lastMessage.length +
+      (inputs.messages ? stringifyJSON(inputs.messages).length : 0)
+
+    return {
+      systemPrompt,
+      lastMessage,
+      messageCount: (inputs.messages?.length ?? 0) + (inputs.userPrompt ? 1 : 0),
+      toolNames: (inputs.tools ?? []).map((t) => t.title || t.type || 'tool'),
+      hasAttachments: Array.isArray(normalizedFiles)
+        ? normalizedFiles.length > 0
+        : Boolean(normalizedFiles),
+      hasResponseFormat: Boolean(responseFormat),
+      approxInputTokens: Math.ceil(approxChars / 4),
+    }
+  }
+
+  /**
+   * Adds the billable sim-auto routing charge to a non-streaming output's
+   * cost breakdown as a distinct `routing` component.
+   */
+  private applyRoutingCost(output: BlockOutput, routingCost: number): void {
+    const target = output as { cost?: Record<string, number> }
+    if (target.cost && typeof target.cost.total === 'number') {
+      target.cost.routing = routingCost
+      target.cost.total += routingCost
+    } else {
+      target.cost = { input: 0, output: 0, routing: routingCost, total: routingCost }
+    }
   }
 
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {

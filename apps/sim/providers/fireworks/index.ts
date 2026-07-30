@@ -9,6 +9,7 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
+  resolveFireworksWireModel,
   supportsNativeStructuredOutputs,
 } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -89,7 +90,7 @@ export const fireworksProvider: ProviderConfig = {
       baseURL: 'https://api.fireworks.ai/inference/v1',
     })
 
-    const requestedModel = request.model.replace(/^fireworks\//, '')
+    const requestedModel = resolveFireworksWireModel(request.model.replace(/^fireworks\//, ''))
 
     logger.info('Preparing Fireworks request', {
       model: requestedModel,
@@ -181,8 +182,10 @@ export const fireworksProvider: ProviderConfig = {
                 total: usage.total_tokens,
               }
 
+              // Pricing keys on the catalog id (fireworks/<name>), not the wire
+              // name — static hosted entries price; dynamic ids stay unpriced.
               const costResult = calculateCost(
-                requestedModel,
+                request.model,
                 usage.prompt_tokens,
                 usage.completion_tokens
               )
@@ -547,7 +550,8 @@ export const fireworksProvider: ProviderConfig = {
       }
 
       if (request.stream) {
-        const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
+        // Pricing keys on the catalog id (fireworks/<name>), not the wire name.
+        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
         const toolCost = sumToolCosts(toolResults)
         const finalCost = {
           input: accumulatedCost.input,

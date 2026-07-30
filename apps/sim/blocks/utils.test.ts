@@ -40,6 +40,8 @@ vi.mock('@/providers/models', () => ({
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
   getBaseModelProviders: mockGetBaseModelProviders,
+  SIM_AUTO_MODEL_ID: 'sim-auto',
+  isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
 }))
 
 vi.mock('@/providers/utils', () => ({

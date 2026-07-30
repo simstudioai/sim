@@ -164,7 +164,47 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     contextInformationAvailable: false,
-    models: [],
+    /**
+     * Static Fireworks serverless entries: the sim-auto routing pool. These are
+     * hosted-billable (platform FIREWORKS_API_KEY) and priced at the Fireworks
+     * serverless rate, which differs from the vendors' native rates. Text-only:
+     * the Fireworks serving endpoints reject image inputs. User-configured
+     * `fireworks/<anything-else>` ids remain dynamic/BYO-key as before.
+     */
+    models: [
+      {
+        id: 'fireworks/glm-5.2',
+        pricing: {
+          input: 1.4,
+          cachedInput: 0.14,
+          output: 4.4,
+          updatedAt: '2026-07-29',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-06-13',
+        recommended: true,
+      },
+      {
+        id: 'fireworks/kimi-k3',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-07-29',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 1048576,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-16',
+        recommended: true,
+      },
+    ],
   },
   together: {
     id: 'together',
@@ -4037,6 +4077,19 @@ export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): str
     .slice(0, limit)
 }
 
+/**
+ * Pseudo-model id for the agent block's automatic model. Not a real catalog
+ * entry: at execution time the resolver (lib/model-router) classifies the task
+ * via mothership and swaps in a concrete model from the hosted Fireworks pool
+ * before any provider/pricing lookup runs. Hosted Sim only.
+ */
+export const SIM_AUTO_MODEL_ID = 'sim-auto'
+
+/** True when the configured model is the sim-auto pseudo-model. */
+export function isAutoModel(model: string): boolean {
+  return model.trim().toLowerCase() === SIM_AUTO_MODEL_ID
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
     .filter(
@@ -4166,6 +4219,10 @@ export function getHostedModels(): string[] {
     ...getProviderModels('zai'),
     ...getProviderModels('xai'),
     ...getProviderModels('kimi'),
+    // Static Fireworks entries only (the sim-auto pool, platform key). Dynamic
+    // user-configured fireworks/* ids are not in PROVIDER_DEFINITIONS and stay
+    // out of the hosted/billable set.
+    ...getProviderModels('fireworks'),
   ]
 }
 

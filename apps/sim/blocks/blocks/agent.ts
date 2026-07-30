@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
+import { isHosted } from '@/lib/core/config/env-flags'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -20,6 +21,8 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
+  isAutoModel,
+  SIM_AUTO_MODEL_ID,
   supportsTemperature,
 } from '@/providers/models'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -132,7 +135,9 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5',
+      // Hosted Sim defaults new agent blocks to the automatic model; the
+      // runtime fallback for blocks with no model set stays AGENT.DEFAULT_MODEL.
+      defaultValue: isHosted ? SIM_AUTO_MODEL_ID : 'claude-sonnet-5',
       options: getModelOptions,
       commandSearchable: true,
     },
@@ -521,6 +526,11 @@ Return ONLY the JSON array.`,
         const model = params.model || 'claude-sonnet-5'
         if (!model) {
           throw new Error('No model selected')
+        }
+        // sim-auto resolves to a concrete model at execution time; this
+        // serialization-time lookup only needs a stable provider tool id.
+        if (isAutoModel(model)) {
+          return 'anthropic_chat'
         }
         const tool = getBaseModelProviders()[model]
         if (!tool) {
