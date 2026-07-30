@@ -137,6 +137,19 @@ export function InviteModal({
    * is actually hosted by.
    */
   const hostContext = useWorkspaceHostContext()
+  /**
+   * Organization Admin is an organization-level grant — it carries admin on every
+   * workspace the org owns plus member and billing management — so it is only
+   * offered to someone who already holds it. The batch endpoint enforces the same
+   * rule; this only keeps the UI from presenting an option that would be refused.
+   */
+  const canGrantOrganizationAdmin =
+    isOrganizationInvite &&
+    hostContext.hostOrganizationId === organizationId &&
+    hostContext.viewer.isHostOrganizationAdmin
+  const membershipOptions = canGrantOrganizationAdmin
+    ? MEMBERSHIP_OPTIONS
+    : MEMBERSHIP_OPTIONS.filter((option) => option.value !== 'admin')
   const canViewOrganizationBilling =
     isOrganizationInvite &&
     hostContext.hostOrganizationId === organizationId &&
@@ -155,10 +168,17 @@ export function InviteModal({
    */
   const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
-  const exceedsSeatCapacity =
+  /**
+   * Advisory only. The server decides per email and does not charge a seat for
+   * everyone: an existing organization member is granted access directly, and an
+   * invitee who already belongs to another organization is forced external. A
+   * hard block here refused batches the API would have accepted, so this warns
+   * and lets the send proceed — per-email failures come back with reasons.
+   */
+  const mayExceedSeatCapacity =
     hasSeatData && membership !== 'external' && emails.length > availableSeats
-  const seatLimitReason = exceedsSeatCapacity
-    ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available. External collaborators do not use seats.`
+  const seatLimitReason = mayExceedSeatCapacity
+    ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available — invites beyond that may fail. External collaborators and existing members do not use seats.`
     : null
 
   const validateEmail = useCallback(
@@ -242,8 +262,7 @@ export function InviteModal({
     Boolean(inviteDisabledReason) ||
     isSubmitting ||
     emails.length === 0 ||
-    selectedWorkspaceIds.length === 0 ||
-    exceedsSeatCapacity
+    selectedWorkspaceIds.length === 0
 
   return (
     <ChipModal
@@ -296,7 +315,7 @@ export function InviteModal({
           <ChipModalField
             type='dropdown'
             title='Membership'
-            options={MEMBERSHIP_OPTIONS}
+            options={membershipOptions}
             value={membership}
             placeholder='Select membership'
             align='start'

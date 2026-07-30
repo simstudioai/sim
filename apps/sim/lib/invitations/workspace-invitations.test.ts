@@ -21,6 +21,7 @@ const {
   mockRevertPendingInvitationGrants,
   mockFindPendingGrantWorkspaceIds,
   mockGetInvitePlanCategoryForUser,
+  mockIsOrganizationOwnerOrAdmin,
   mockWorkspaceMemberInvited,
   mockCaptureServerEvent,
 } = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ const {
   mockRevertPendingInvitationGrants: vi.fn(),
   mockFindPendingGrantWorkspaceIds: vi.fn(),
   mockGetInvitePlanCategoryForUser: vi.fn(),
+  mockIsOrganizationOwnerOrAdmin: vi.fn(),
   mockWorkspaceMemberInvited: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
 }))
@@ -69,6 +71,10 @@ vi.mock('@/lib/posthog/server', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/organization', () => ({
+  isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
 }))
 
 vi.mock('@/lib/workspaces/policy', () => ({
@@ -140,6 +146,7 @@ describe('createWorkspaceInvitation', () => {
     resetDbChainMock()
     /** Production default; the billing-disabled case opts out explicitly. */
     setEnvFlags({ isBillingEnabled: true })
+    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
     mockGrantWorkspaceAccessDirectly.mockResolvedValue({ outcome: 'added', permission: 'write' })
     mockCreatePendingInvitation.mockResolvedValue({
       invitationId: 'inv-1',
@@ -254,7 +261,8 @@ describe('createWorkspaceInvitation', () => {
     )
   })
 
-  it('stamps an admin organization role when the inviter picks Admin membership', async () => {
+  it('stamps an admin organization role when an org admin picks Admin membership', async () => {
+    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
     queueWhereResponses([[]])
 
     await createWorkspaceInvitation({
@@ -293,6 +301,29 @@ describe('createWorkspaceInvitation', () => {
     expect(result.membershipIntent).toBe('external')
     /** Short-circuits before the plan lookup — there is nothing to look up. */
     expect(mockGetInvitePlanCategoryForUser).not.toHaveBeenCalled()
+  })
+
+  it('refuses to grant organization Admin to a workspace-only administrator', async () => {
+    /**
+     * Organization Admin carries admin on every workspace the org owns plus
+     * member and billing management, so workspace-scoped authority must not
+     * escalate into it. Enforced server-side because the batch endpoint is
+     * reachable without the modal.
+     */
+    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
+    queueWhereResponses([[]])
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'new@example.com',
+        permission: 'write',
+        membership: 'admin',
+        request,
+      })
+    ).rejects.toThrow('Only an organization owner or admin')
+
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
   it('rejects an explicit external invite for an invitee with no paid plan', async () => {

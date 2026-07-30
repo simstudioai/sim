@@ -4,6 +4,7 @@ import { type InvitationMembershipIntent, permissions, user } from '@sim/db/sche
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -335,6 +336,24 @@ export async function createWorkspaceInvitation({
       })
     }
     membershipIntent = 'external'
+  }
+
+  /**
+   * Granting organization Admin is an organization-level act: an org admin holds
+   * admin on every workspace the org owns and can manage members, roles, and
+   * billing. Workspace admin authority must not escalate into it, so the inviter
+   * has to already hold it. Checked here rather than in the modal because the
+   * modal is only the UI — the batch endpoint is reachable directly.
+   */
+  if (membershipIntent === 'internal' && membership === 'admin') {
+    if (!organizationId || !(await isOrganizationOwnerOrAdmin(context.inviterId, organizationId))) {
+      throw new WorkspaceInvitationError({
+        message:
+          'Only an organization owner or admin can invite someone as an organization admin. Invite them as a Member instead.',
+        status: 403,
+        email: normalizedEmail,
+      })
+    }
   }
 
   const role: 'admin' | 'member' =

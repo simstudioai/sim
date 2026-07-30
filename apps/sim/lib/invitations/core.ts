@@ -266,7 +266,6 @@ export async function getInvitationJoinPreview(
     workspacesToMove: [],
     workspaceIdsToMove: [],
   })
-  if (inv.membershipIntent === 'external') return withOutcome('external')
 
   let workspaceOrganizationId = inv.organizationId
   let billedAccountUserId: string | null = null
@@ -292,15 +291,36 @@ export async function getInvitationJoinPreview(
    * one (acceptance downgrades to external or rejects).
    */
   const existingMembership = await getUserOrganization(inviteeUserId)
+  const inDifferentOrganization =
+    !!existingMembership &&
+    (workspaceOrganizationId ? existingMembership.organizationId !== workspaceOrganizationId : true)
+
+  if (inv.membershipIntent === 'external') {
+    /**
+     * Mirrors acceptance's `external-requires-paid-plan` gate, including its
+     * exemptions: it only applies with billing on, to an organization-owned
+     * workspace, and not when externality was imposed because the invitee already
+     * belongs to another organization. Without this the screen promised external
+     * access that acceptance would refuse.
+     */
+    if (
+      isBillingEnabled &&
+      !inDifferentOrganization &&
+      workspaceOrganizationId &&
+      (await getInvitePlanCategoryForUser(inviteeUserId)) === 'free'
+    ) {
+      return withOutcome('blocked')
+    }
+    return withOutcome('external')
+  }
+
   if (existingMembership) {
     /**
      * Already in the organization acceptance lands in: nothing about their
      * standing changes. A membership in a DIFFERENT organization is the
      * external case — acceptance downgrades — so it keeps the plain shape.
      */
-    const inTargetOrganization =
-      !!workspaceOrganizationId && existingMembership.organizationId === workspaceOrganizationId
-    if (inTargetOrganization) return withOutcome('already-member')
+    if (!inDifferentOrganization) return withOutcome('already-member')
     /**
      * In a DIFFERENT organization. Acceptance only downgrades a workspace-kind
      * invite with live grants to external; an organization-kind invite (or one
