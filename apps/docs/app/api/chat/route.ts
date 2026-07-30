@@ -1,7 +1,13 @@
 import { openai } from '@ai-sdk/openai'
-import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from 'ai'
+import {
+  convertToModelMessages,
+  jsonSchema,
+  stepCountIs,
+  streamText,
+  tool,
+  type UIMessage,
+} from 'ai'
 import { sql } from 'drizzle-orm'
-import { z } from 'zod'
 import { db, docsEmbeddings } from '@/lib/db'
 import { generateSearchEmbedding } from '@/lib/embeddings'
 
@@ -332,8 +338,21 @@ export async function POST(req: Request) {
       searchDocs: tool({
         description:
           'Search the Sim documentation for relevant content. Use this before answering any question about Sim.',
-        inputSchema: z.object({
-          query: z.string().describe('A focused natural-language search query.'),
+        /**
+         * The SDK's own schema helper instead of a zod schema: the `ai`
+         * package's zod-v4 typings lag the workspace zod version, so a zod
+         * object here fails the tool() overloads whenever the two drift.
+         */
+        inputSchema: jsonSchema<{ query: string }>({
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'A focused natural-language search query.',
+            },
+          },
+          required: ['query'],
+          additionalProperties: false,
         }),
         execute: async ({ query }) => searchDocs(query, locale),
       }),

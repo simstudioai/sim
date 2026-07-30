@@ -15,6 +15,8 @@ const { mockBridge, mockSearch, mockToast } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  /** `SettingsResourceRow` composes its tile classes with `cn`. */
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   ArrowLeft: () => <span />,
   ArrowRight: () => <span />,
   ChipConfirmModal: ({

@@ -253,6 +253,7 @@ export async function ensureOrganizationForTeamSubscription(
         ownerUserId: userId,
         organizationId: membership.organizationId,
         externalMemberPolicy: 'keep-external',
+        includeArchived: true,
       })
 
       return { ...subscription, referenceId: membership.organizationId }
@@ -326,6 +327,7 @@ export async function ensureOrganizationForTeamSubscription(
     ownerUserId: userId,
     organizationId: orgId,
     externalMemberPolicy: 'keep-external',
+    includeArchived: true,
   })
 
   logger.info('Created organization and updated subscription referenceId', {
@@ -475,6 +477,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
     ownerUserId: userId,
     organizationId,
     workspaceIds: subscription.workspaceIdsToAttach,
+    includeArchived: true,
   })
 
   return {
