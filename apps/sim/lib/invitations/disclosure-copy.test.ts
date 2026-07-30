@@ -10,6 +10,7 @@ import {
 const preview = (over: Partial<Parameters<typeof buildMembershipNotice>[0]['joinPreview']> = {}) =>
   ({
     willJoinOrganization: true,
+    alreadyMemberOfOrganization: false,
     organizationName: 'Acme',
     workspacesToMove: [],
     workspaceIdsToMove: [],
@@ -58,6 +59,24 @@ describe('buildMembershipNotice', () => {
 
     expect(notice).toContain('external collaborator')
     expect(notice).toContain("don't take one of their seats")
+    expect(notice).not.toContain('uses one of their seats')
+  })
+
+  /**
+   * An existing member shares `willJoinOrganization: false` with the external
+   * case but means something different — their standing is unchanged.
+   */
+  it('discloses unchanged standing for an existing member, not external', () => {
+    const notice = buildMembershipNotice({
+      joinPreview: preview({ willJoinOrganization: false, alreadyMemberOfOrganization: true }),
+      membershipIntent: 'internal',
+      isOrganizationAdminRole: false,
+      organizationLabel: 'Acme',
+      isOrganizationScoped: true,
+    })
+
+    expect(notice).toContain('already a member of Acme')
+    expect(notice).not.toContain('external collaborator')
     expect(notice).not.toContain('uses one of their seats')
   })
 

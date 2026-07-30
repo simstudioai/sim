@@ -219,6 +219,15 @@ async function hasLiveGrantInStampedOrganization(
 export interface InvitationJoinPreviewResult {
   willJoinOrganization: boolean
   /**
+   * True when the invitee is ALREADY a member of the organization acceptance
+   * lands in, so nothing about their standing changes — they simply gain the
+   * granted workspaces. Distinct from the external case, which also reports
+   * `willJoinOrganization: false` but means "no seat, and never a member".
+   * Without this the accept screen cannot tell the two apart and would tell an
+   * existing member they are joining as an external collaborator.
+   */
+  alreadyMemberOfOrganization: boolean
+  /**
    * Name of the organization acceptance will actually join. For a workspace
    * invite this is the granted workspace's LIVE organization, which can differ
    * from the stamped `invitation.organizationName` — the disclosure must name
@@ -247,6 +256,7 @@ export async function getInvitationJoinPreview(
 ): Promise<InvitationJoinPreviewResult> {
   const noJoin: InvitationJoinPreviewResult = {
     willJoinOrganization: false,
+    alreadyMemberOfOrganization: false,
     organizationName: null,
     workspacesToMove: [],
     workspaceIdsToMove: [],
@@ -277,7 +287,16 @@ export async function getInvitationJoinPreview(
    * one (acceptance downgrades to external or rejects).
    */
   const existingMembership = await getUserOrganization(inviteeUserId)
-  if (existingMembership) return noJoin
+  if (existingMembership) {
+    /**
+     * Already in the organization acceptance lands in: nothing about their
+     * standing changes. A membership in a DIFFERENT organization is the
+     * external case — acceptance downgrades — so it keeps the plain shape.
+     */
+    const inTargetOrganization =
+      !!workspaceOrganizationId && existingMembership.organizationId === workspaceOrganizationId
+    return inTargetOrganization ? { ...noJoin, alreadyMemberOfOrganization: true } : noJoin
+  }
 
   if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId))) return noJoin
 
@@ -324,6 +343,7 @@ export async function getInvitationJoinPreview(
 
   return {
     willJoinOrganization: true,
+    alreadyMemberOfOrganization: false,
     organizationName: targetOrganizationName,
     workspacesToMove: ownedWorkspaces.map((row) => row.name),
     workspaceIdsToMove: ownedWorkspaces.map((row) => row.id),

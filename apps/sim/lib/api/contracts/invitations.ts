@@ -140,6 +140,13 @@ export const invitationDetailsSchema = z.object({
 
 export const invitationJoinPreviewSchema = z.object({
   willJoinOrganization: z.boolean(),
+  /**
+   * The invitee is already a member of the organization acceptance lands in, so
+   * only workspace access changes. Reported separately because it shares
+   * `willJoinOrganization: false` with the external case, which means something
+   * different to the person accepting.
+   */
+  alreadyMemberOfOrganization: z.boolean(),
   /** Name of the organization acceptance will actually join. */
   organizationName: z.string().nullable(),
   workspacesToMove: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT),

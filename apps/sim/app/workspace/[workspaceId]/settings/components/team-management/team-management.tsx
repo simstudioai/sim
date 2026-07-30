@@ -87,9 +87,14 @@ export function TeamManagement({
     data: removalImpactCredentials,
     isFetching: isRemovalImpactFetching,
     isError: isRemovalImpactError,
+    refetch: refetchRemovalImpact,
   } = useMemberRemovalImpact(organizationId, removeMemberDialog.memberId, {
     enabled: removeMemberDialog.open,
   })
+
+  const disclosedBreakingCredentials = [
+    ...new Set(removalImpactCredentials?.map((credential) => credential.displayName) ?? []),
+  ]
 
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.members?.length ?? 0
@@ -174,6 +179,25 @@ export function TeamManagement({
     if (!session?.user || !memberId) return
 
     try {
+      /**
+       * Re-verify the disclosure at the moment of confirmation. `isFetching`
+       * holds the button only while a request is in flight; a credential the
+       * member gained after the fetch settled would otherwise be removed
+       * without ever having been disclosed. On a change the dialog stays open
+       * showing the refreshed warning, so the admin confirms against what is
+       * actually true — the same consent contract the invite flow uses.
+       */
+      const refreshed = await refetchRemovalImpact()
+      if (refreshed.data) {
+        const current = [...new Set(refreshed.data.map((credential) => credential.displayName))]
+        if (
+          current.length !== disclosedBreakingCredentials.length ||
+          current.some((name) => !disclosedBreakingCredentials.includes(name))
+        ) {
+          return
+        }
+      }
+
       await removeMemberMutation.mutateAsync({
         memberId,
         orgId: organizationId,
@@ -195,6 +219,7 @@ export function TeamManagement({
   }, [
     removeMemberDialog.memberId,
     removeMemberDialog.isSelfRemoval,
+    disclosedBreakingCredentials,
     session?.user?.id,
     organizationId,
     removeMemberMutation,
@@ -368,9 +393,7 @@ export function TeamManagement({
         memberName={removeMemberDialog.memberName}
         isSelfRemoval={removeMemberDialog.isSelfRemoval}
         isExternalRemoval={removeMemberDialog.isExternalRemoval}
-        breakingCredentials={[
-          ...new Set(removalImpactCredentials?.map((c) => c.displayName) ?? []),
-        ]}
+        breakingCredentials={disclosedBreakingCredentials}
         credentialImpactPending={isRemovalImpactFetching}
         credentialImpactFailed={isRemovalImpactError}
         isSubmitting={removeMemberMutation.isPending}

@@ -74,6 +74,15 @@ export function buildMembershipNotice({
 }): string {
   if (!isOrganizationScoped || !membershipIntent) return ''
 
+  /**
+   * Already a member of the organization acceptance lands in: their standing is
+   * unchanged, so neither the join copy nor the external copy is true. Checked
+   * first because this case also reports `willJoinOrganization: false`.
+   */
+  if (joinPreview?.alreadyMemberOfOrganization) {
+    return ` You're already a member of ${organizationLabel}, so accepting only adds the workspaces above — your membership and seat don't change.`
+  }
+
   const willJoinOrganization = joinPreview
     ? joinPreview.willJoinOrganization
     : membershipIntent !== 'external'
