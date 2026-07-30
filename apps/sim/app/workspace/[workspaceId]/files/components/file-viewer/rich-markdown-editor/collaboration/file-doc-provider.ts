@@ -41,6 +41,44 @@ interface FileDocProviderEvents {
 const READINESS_DEADLINE_MS = FILE_DOC_TIMEOUTS.readinessDeadlineMs
 
 /**
+ * Live-provider counts per file, per shared socket. Two surfaces in one tab (the Files editor and the
+ * embedded chat resource panel) share ONE Socket.IO connection, so both a first and a second provider
+ * for the same file JOIN the same room over that socket. The server's `leave(name)` drops the socket
+ * from the room outright — no membership refcount — so the FIRST provider's `destroy()` would strand
+ * the second (still-mounted) one: no more content or presence updates. Keyed by the {@link Socket}
+ * OBJECT (stable across reconnects, unlike `socket.id`), so the count survives a reconnect.
+ *
+ * The single-provider case is unchanged: the count goes `0 → 1 → 0` and `LEAVE` fires exactly as
+ * before. `LEAVE` is emitted only when the LAST provider for a file on a socket tears down.
+ */
+const roomJoinCounts = new WeakMap<Socket, Map<string, number>>()
+
+/** Record another live provider for `fileId` on `socket` (called at construction). */
+function retainRoomMembership(socket: Socket, fileId: string): void {
+  let counts = roomJoinCounts.get(socket)
+  if (!counts) {
+    counts = new Map()
+    roomJoinCounts.set(socket, counts)
+  }
+  counts.set(fileId, (counts.get(fileId) ?? 0) + 1)
+}
+
+/**
+ * Drop one live provider for `fileId` on `socket` (called at teardown). Returns `true` when this was
+ * the last one — i.e. the caller should emit `LEAVE` so the socket leaves the room.
+ */
+function releaseRoomMembership(socket: Socket, fileId: string): boolean {
+  const counts = roomJoinCounts.get(socket)
+  const next = (counts?.get(fileId) ?? 1) - 1
+  if (next > 0) {
+    counts?.set(fileId, next)
+    return false
+  }
+  counts?.delete(fileId)
+  return true
+}
+
+/**
  * The client half of the collaborative file-document protocol: a Yjs provider
  * that carries document sync + awareness over the shared, already-authenticated
  * Socket.IO connection (the server relay lives in
@@ -97,6 +135,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     awareness.on('update', this.handleAwarenessUpdate)
     // Watch the seed flag so reaching "seeded" (server seed applied) can clear the readiness deadline.
     doc.getMap(FILE_DOC_SEED.configMap).observe(this.handleConfigChange)
+
+    // Count this provider against the shared socket's membership of the file's room, so the room is
+    // left only when the last provider for this file tears down (see {@link releaseRoomMembership}).
+    retainRoomMembership(socket, fileId)
 
     if (socket.connected) this.join()
 
@@ -304,7 +346,11 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'provider-destroy')
 
-    this.socket.emit(FILE_DOC_EVENTS.LEAVE, { fileId: this.fileId })
+    // Only actually leave the room when this was the last provider for the file on the shared socket —
+    // otherwise a sibling surface (e.g. the Files editor vs. the embedded chat panel) would be stranded.
+    if (releaseRoomMembership(this.socket, this.fileId)) {
+      this.socket.emit(FILE_DOC_EVENTS.LEAVE, { fileId: this.fileId })
+    }
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     this.socket.off(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)

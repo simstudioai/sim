@@ -261,6 +261,51 @@ describe('FileDocProvider', () => {
     expect(emittedMessages(emit)).toHaveLength(0)
   })
 
+  it('leaves the room only when the LAST provider for a file on a shared socket is destroyed', () => {
+    // Two surfaces in one tab (Files editor + embedded chat panel) share one socket and both open the
+    // same file. Tearing the first down must NOT strand the second — the server drops the socket from
+    // the room on any LEAVE, so LEAVE may fire only when the last provider goes away.
+    const { socket, emit } = createSocket(true)
+    const docA = new Y.Doc()
+    const docB = new Y.Doc()
+    const first = new FileDocProvider(
+      socket,
+      'shared-file',
+      docA,
+      new awarenessProtocol.Awareness(docA)
+    )
+    const second = new FileDocProvider(
+      socket,
+      'shared-file',
+      docB,
+      new awarenessProtocol.Awareness(docB)
+    )
+    emit.mockClear()
+
+    first.destroy()
+    expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, expect.anything())
+
+    second.destroy()
+    expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, { fileId: 'shared-file' })
+  })
+
+  it('scopes the shared-membership refcount per file (a sibling file leaves independently)', () => {
+    const { socket, emit } = createSocket(true)
+    const docA = new Y.Doc()
+    const docB = new Y.Doc()
+    const fileA = new FileDocProvider(socket, 'file-a', docA, new awarenessProtocol.Awareness(docA))
+    const fileB = new FileDocProvider(socket, 'file-b', docB, new awarenessProtocol.Awareness(docB))
+    emit.mockClear()
+
+    fileA.destroy()
+    // A different file's sole provider still leaves immediately.
+    expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, { fileId: 'file-a' })
+    expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, { fileId: 'file-b' })
+
+    fileB.destroy()
+    expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, { fileId: 'file-b' })
+  })
+
   it('gives up with a non-retryable join-error when the first sync never arrives (offline)', () => {
     vi.useFakeTimers()
     try {
