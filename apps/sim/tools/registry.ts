@@ -1007,10 +1007,10 @@ import {
   evernoteUpdateNoteTool,
 } from '@/tools/evernote'
 import {
+  exaAgentTool,
   exaAnswerTool,
   exaFindSimilarLinksTool,
   exaGetContentsTool,
-  exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
 import { extendParserTool, extendParserV2Tool } from '@/tools/extend'
@@ -2351,6 +2351,12 @@ import {
   linqUpdateWebhookSubscriptionTool,
 } from '@/tools/linq'
 import { llmChatTool } from '@/tools/llm'
+import {
+  logfireGetTokenInfoTool,
+  logfireGetTraceTool,
+  logfireQueryTool,
+  logfireSearchRecordsTool,
+} from '@/tools/logfire'
 import {
   logsGetExecutionTool,
   logsGetRunDetailsTool,
@@ -5158,6 +5164,10 @@ export const tools: Record<string, ToolConfig> = {
   linq_update_chat: linqUpdateChatTool,
   linq_update_contact_card: linqUpdateContactCardTool,
   linq_update_webhook_subscription: linqUpdateWebhookSubscriptionTool,
+  logfire_query: logfireQueryTool,
+  logfire_search_records: logfireSearchRecordsTool,
+  logfire_get_trace: logfireGetTraceTool,
+  logfire_get_token_info: logfireGetTokenInfoTool,
   logs_query: logsQueryTool,
   logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,
@@ -6559,7 +6569,7 @@ export const tools: Record<string, ToolConfig> = {
   exa_get_contents: exaGetContentsTool,
   exa_find_similar_links: exaFindSimilarLinksTool,
   exa_answer: exaAnswerTool,
-  exa_research: exaResearchTool,
+  exa_agent: exaAgentTool,
   parallel_search: parallelSearchTool,
   parallel_extract: parallelExtractTool,
   parallel_deep_research: parallelDeepResearchTool,
