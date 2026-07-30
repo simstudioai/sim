@@ -379,15 +379,25 @@ async function rebuildIfReadopted(
   specHash: string,
   spec: SandboxSpec
 ): Promise<void> {
-  const [readopted] = await db
-    .select({ id: sandboxImage.id })
-    .from(sandboxImage)
-    .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
-    .limit(1)
-  if (!readopted) return
+  try {
+    const [readopted] = await db
+      .select({ id: sandboxImage.id })
+      .from(sandboxImage)
+      .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
+      .limit(1)
+    if (!readopted) return
 
-  logger.warn('Sandbox image was re-adopted mid-delete; rebuilding it now', { specHash })
-  await ensureSandboxImage(spec, specHash, { imageKnownGone: true })
+    logger.warn('Sandbox image was re-adopted mid-delete; rebuilding it now', { specHash })
+    await ensureSandboxImage(spec, specHash, { imageKnownGone: true })
+  } catch (error) {
+    // Opportunistic: the delete it follows has already succeeded, so failing here
+    // must not surface as a failed release, and in the sweep must not reject the
+    // rest of its chunk. The adopter's next run still reaches the repair path.
+    logger.warn('Failed to rebuild a re-adopted sandbox image', {
+      specHash,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 /**
@@ -444,8 +454,6 @@ async function claimAndDeleteImage(
       buildId: claimed.buildId ?? '',
       providerImageId: claimed.providerImageId ?? undefined,
     })
-    await rebuildIfReadopted(providerId, specHash, claimed.spec as SandboxSpec)
-    return 'released'
   } catch (error) {
     await db
       .insert(sandboxImage)
@@ -466,6 +474,12 @@ async function claimAndDeleteImage(
     })
     return 'failed'
   }
+
+  // Deliberately past the catch above. The template is gone for good by now, so a
+  // failure here must not restore the row: that path puts back a `ready` row whose
+  // imageRef points at nothing, which is the one state resolution cannot repair.
+  await rebuildIfReadopted(providerId, specHash, claimed.spec as SandboxSpec)
+  return 'released'
 }
 
 /** Most rows one sweep will touch. The next run picks up whatever is left. */

@@ -226,6 +226,23 @@ describe('releaseSandboxImage', () => {
     expect(enqueued()).toBe(false)
   })
 
+  /**
+   * Restoring belongs to a refused delete and nothing else. Once the template is
+   * gone, putting the row back would recreate a `ready` row pointing at nothing —
+   * the one state resolution cannot repair.
+   */
+  it('does not restore the row when the post-delete rebuild fails', async () => {
+    stubClaim([READY_IMAGE])
+    mockSelect.mockImplementation(() => {
+      throw new Error('registry unreachable')
+    })
+
+    await releaseSandboxImage('hash-1')
+
+    expect(mockDeleteImage).toHaveBeenCalledTimes(1)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
   it('skips the provider when the claimed row never had an image', async () => {
     stubClaim([{ ...READY_IMAGE, imageRef: null }])
 
