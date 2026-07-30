@@ -499,18 +499,23 @@ async function ensureServerSeed(
     // re-publishing it.
     const seedUpdate = seed?.update ?? emptySeedUpdate()
     const didSeed = await store.seedIfEmpty(name, seedUpdate)
+    // Record the durable version the moment THIS task's seed is in the stream — BEFORE the liveness/
+    // seeded guard below. Recording it only now that our seed WON (not from the fetch, before knowing who
+    // won) keeps it in step with the stream's actual content: a newer own-fetch version could otherwise
+    // shadow a peer's winning seed and let a later persist clobber an out-of-band edit. But it must not
+    // sit AFTER the guard: the tailer can integrate our just-appended seed during the await above, so
+    // `isDocSeeded` may already be true here — an early return would then leave the stream holding seed
+    // content with NO cluster If-Match token, and later persists would defer and strand session edits.
+    // Cluster-wide (Redis) so any task's persist reads it; the live room is the single-pod fallback / the
+    // read-through-cache seed. (No version for an empty/missing file — nothing durable to guard.)
+    if (didSeed && seed) {
+      const live = fileDocRooms.get(name)
+      if (live) live.syncedVersion = seed.version
+      void store.setSyncedVersion(name, seed.version)
+    }
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
     if (didSeed) {
       Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
-      // Record the durable version ONLY now that THIS task's seed won — so the synced version reflects
-      // the stream's actual content. Setting it from our own fetch before knowing who won could record a
-      // newer version than a peer's winning seed and let a later persist clobber an out-of-band edit.
-      // Cluster-wide (Redis) so any task's persist reads it; local room is the single-pod fallback. A
-      // peer-seeded task leaves it null and reads the winner's cluster value. (Null for an empty file.)
-      if (seed) {
-        room.syncedVersion = seed.version
-        void store.setSyncedVersion(name, seed.version)
-      }
     } else {
       // A peer seeded first: its seed arrives via the tailer, so we must NOT apply our own — a second,
       // different-client-id seed IS the split-brain. Clear the guard so a later join can retry if that
