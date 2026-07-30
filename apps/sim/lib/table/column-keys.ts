@@ -12,8 +12,11 @@ import { generateId } from '@sim/utils/id'
 import type {
   ColumnDefinition,
   Filter,
+  PredicateNode,
   RowData,
   Sort,
+  SortSpec,
+  TablePredicate,
   TableSchema,
   WorkflowGroup,
 } from '@/lib/table/types'
@@ -169,6 +172,32 @@ export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>
   const out: Sort = {}
   for (const [field, dir] of Object.entries(sort)) out[idByName.get(field) ?? field] = dir
   return out
+}
+
+/**
+ * Translates a v2 predicate's leaf `field` names → column ids (recursing through
+ * `all`/`any` groups). Fields with no matching column pass through unchanged.
+ * The v2 analogue of {@link filterNamesToIds}.
+ */
+export function predicateNamesToIds(
+  predicate: TablePredicate,
+  idByName: ReadonlyMap<string, string>
+): TablePredicate {
+  const remap = (node: PredicateNode): PredicateNode => {
+    // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode.
+    if ('all' in node) return { all: node.all.map(remap) }
+    if ('any' in node) return { any: node.any.map(remap) }
+    return { ...node, field: idByName.get(node.field) ?? node.field }
+  }
+  return remap(predicate) as TablePredicate
+}
+
+/** Translates a v2 sort spec's field names → column ids. Unknown fields pass through. */
+export function sortSpecNamesToIds(
+  sort: SortSpec,
+  idByName: ReadonlyMap<string, string>
+): SortSpec {
+  return sort.map((s) => ({ field: idByName.get(s.field) ?? s.field, direction: s.direction }))
 }
 
 // The outbound direction (stored id-keyed row → name-keyed) deliberately does

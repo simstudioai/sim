@@ -4,7 +4,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Button, ChipDropdown, ChipInput } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
-import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
+import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import {
   COMPARISON_OPERATORS,
@@ -12,7 +12,10 @@ import {
   SINGLE_SELECT_FILTER_OPERATORS,
   VALUELESS_OPERATORS,
 } from '@/lib/table/query-builder/constants'
-import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
+import {
+  filterRulesToPredicate,
+  predicateToFilterRules,
+} from '@/lib/table/query-builder/converters'
 
 const SINGLE_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
   SINGLE_SELECT_FILTER_OPERATORS.has(o.value)
@@ -27,14 +30,14 @@ function selectFilterOperators(column: ColumnDefinition | undefined): Set<string
 
 interface TableFilterProps {
   columns: ColumnDefinition[]
-  filter: Filter | null
-  onApply: (filter: Filter | null) => void
+  filter: TablePredicate | null
+  onApply: (filter: TablePredicate | null) => void
   onClose: () => void
 }
 
 export function TableFilter({ columns, filter, onApply, onClose }: TableFilterProps) {
   const [rules, setRules] = useState<FilterRule[]>(() => {
-    const fromFilter = filterToRules(filter)
+    const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
   })
 
@@ -112,7 +115,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
     const validRules = rulesRef.current.filter(
       (r) => r.column && (r.value || VALUELESS_OPERATORS.has(r.operator))
     )
-    onApply(filterRulesToFilter(validRules, columns))
+    onApply(filterRulesToPredicate(validRules, columns))
   }, [columns, onApply])
 
   const handleClear = useCallback(() => {

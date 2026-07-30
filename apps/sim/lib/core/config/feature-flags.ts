@@ -104,6 +104,14 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'tables-v2-api': {
+    description:
+      'Gate the v2 tables HTTP API — the public read API (GET /api/v2/tables, POST ' +
+      '/api/v2/tables/[tableId]/query) and the internal predicate-grammar query route (POST ' +
+      '/api/table/[tableId]/query). When off, those routes return 404 as if the surface does not ' +
+      'exist. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to TABLES_V2_API.',
+    fallback: 'TABLES_V2_API',
+  },
   'table-locks': {
     description:
       'Per-table mutation locks (schema/insert/update/delete) an admin toggles to make a table ' +
