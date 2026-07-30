@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 
@@ -44,6 +44,58 @@ describe('GET /api/users/me/usage-logs', () => {
     const response = await GET(createMockRequest('GET'))
 
     expect(response.status).toBe(401)
+  })
+
+  it('accepts a personal API key and reads that user’s ledger unscoped', async () => {
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'key-owner',
+      authType: 'api_key',
+      apiKeyType: 'personal',
+    })
+
+    const response = await GET(createMockRequest('GET'))
+
+    expect(response.status).toBe(200)
+    expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
+      'key-owner',
+      expect.objectContaining({ workspaceId: undefined })
+    )
+  })
+
+  it('pins a workspace API key to its own workspace’s slice of the ledger', async () => {
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'key-owner',
+      workspaceId: 'ws-1',
+      authType: 'api_key',
+      apiKeyType: 'workspace',
+    })
+
+    const response = await GET(createMockRequest('GET'))
+
+    expect(response.status).toBe(200)
+    expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
+      'key-owner',
+      expect.objectContaining({ workspaceId: 'ws-1' })
+    )
+  })
+
+  it('rejects a workspace API key asking for a different workspace', async () => {
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'key-owner',
+      workspaceId: 'ws-1',
+      authType: 'api_key',
+      apiKeyType: 'workspace',
+    })
+
+    const response = await GET(
+      createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/test?workspaceId=ws-2')
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockGetUserUsageLogs).not.toHaveBeenCalled()
   })
 
   it('converts dollar costs to credits in the logs and summary', async () => {

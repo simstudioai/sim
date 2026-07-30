@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { exportUsageLogsContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import {
   getUsageCreditsByLogId,
   getUserUsageLogs,
@@ -10,7 +10,10 @@ import {
 } from '@/lib/billing/core/usage-log'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
-import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
+import {
+  resolveDateRange,
+  resolveUsageLogsWorkspaceFilter,
+} from '@/app/api/users/me/usage-logs/shared'
 import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
 
 const logger = createLogger('UsageLogsExportAPI')
@@ -33,7 +36,7 @@ const CSV_HEADER = toCsvRow(['Date', 'Type', 'Credits'])
  * (unlike, say, a workspace's full execution history).
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  const auth = await checkHybridAuth(request, { requireWorkflowId: false })
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -42,10 +45,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
   const { source, workspaceId, period, startDate, endDate } = parsed.data.query
 
+  const workspaceFilter = resolveUsageLogsWorkspaceFilter(auth, workspaceId)
+  if (!workspaceFilter.ok) return workspaceFilter.response
+
   const dateRange = resolveDateRange(period, startDate, endDate)
   const filter = {
     source: source as UsageLogSource | undefined,
-    workspaceId,
+    workspaceId: workspaceFilter.workspaceId,
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
   }

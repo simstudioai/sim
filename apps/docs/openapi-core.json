@@ -1025,6 +1025,291 @@
         },
         "parameters": []
       }
+    },
+    "/api/users/me/usage-logs": {
+      "get": {
+        "operationId": "listUsageLogs",
+        "summary": "List Usage Logs",
+        "description": "The authenticated account's credit-consuming usage events with a per-source summary. Accepts a session or `X-API-Key` — the same key `GET /api/users/me/usage-limits` accepts; `summary.bySourceCredits` is the source breakdown of that endpoint's aggregate `currentPeriodCost`, suitable for monitoring e.g. Copilot consumption. Workspace-scoped keys read only their own workspace's slice of the ledger.",
+        "tags": ["Usage"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one usage source (e.g. `workflow`, `copilot`). Omit for all sources."
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one workspace. A workspace-scoped API key is always pinned to its own workspace; passing a different id returns 403."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": ["1d", "7d", "30d", "custom", "all"],
+              "default": "30d"
+            },
+            "description": "Relative window, `all`, or `custom` (requires `startDate`)."
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Start of a `custom` window. Any `Date`-parseable string."
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "End of a `custom` window; defaults to now."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque cursor from the previous page."
+          },
+          {
+            "name": "includeCredits",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "Set `false` to skip per-row credit apportionment when only the summary is needed."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of usage events with the per-source credit summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "logs", "summary", "pagination"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "createdAt",
+                          "source",
+                          "workflowName",
+                          "creditCost",
+                          "dollarCost"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "source": {
+                            "type": "string",
+                            "description": "Usage source: `workflow`, `copilot`, and the other credit-consuming surfaces."
+                          },
+                          "workflowName": {
+                            "type": ["string", "null"],
+                            "description": "Populated only when `source` is `workflow`."
+                          },
+                          "creditCost": {
+                            "type": "number",
+                            "description": "Credit-denominated cost (1,000 credits = $5), apportioned so page rows sum exactly to the rounded page total."
+                          },
+                          "dollarCost": {
+                            "type": "number",
+                            "description": "Raw dollar cost, so a 0 `creditCost` can be distinguished from a genuinely free event."
+                          }
+                        }
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": ["totalCredits", "bySourceCredits"],
+                      "properties": {
+                        "totalCredits": {
+                          "type": "number"
+                        },
+                        "bySourceCredits": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          },
+                          "description": "Credits per usage source over the whole filter — the source-aware breakdown of `usage-limits`’ aggregate `currentPeriodCost`."
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "required": ["hasMore"],
+                      "properties": {
+                        "nextCursor": {
+                          "type": "string"
+                        },
+                        "hasMore": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "logs": [
+                    {
+                      "id": "log_1",
+                      "createdAt": "2026-07-29T18:04:11.000Z",
+                      "source": "copilot",
+                      "workflowName": null,
+                      "creditCost": 12,
+                      "dollarCost": 0.06
+                    }
+                  ],
+                  "summary": {
+                    "totalCredits": 512,
+                    "bySourceCredits": {
+                      "workflow": 380,
+                      "copilot": 120,
+                      "knowledge-base": 12
+                    }
+                  },
+                  "pagination": {
+                    "hasMore": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/users/me/usage-logs/export": {
+      "get": {
+        "operationId": "exportUsageLogs",
+        "summary": "Export Usage Logs (CSV)",
+        "description": "Every usage event matching the filter as a CSV download (`Date`, `Type`, `Credits`) — the unpaginated form of `GET /api/users/me/usage-logs`, same auth and workspace-key scoping.",
+        "tags": ["Usage"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one usage source (e.g. `workflow`, `copilot`). Omit for all sources."
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one workspace. A workspace-scoped API key is always pinned to its own workspace; passing a different id returns 403."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": ["1d", "7d", "30d", "custom", "all"],
+              "default": "30d"
+            },
+            "description": "Relative window, `all`, or `custom` (requires `startDate`)."
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Start of a `custom` window. Any `Date`-parseable string."
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "End of a `custom` window; defaults to now."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV attachment. `X-Export-Truncated: 1` signals the 50,000-row safety cap was hit.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
     }
   },
   "components": {
