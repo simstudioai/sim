@@ -29,16 +29,16 @@ export function isPiSupportedProvider(providerId: string): providerId is PiSuppo
 
 /**
  * Whether a Pi block mode hands the model API key into the sandbox and
- * therefore always requires the user's own key. Create PR ('cloud') runs the
- * model client inside the sandbox, so Sim never supplies a hosted key for it:
- * the block always shows the API Key field, copilot validation never strips
- * it, and execution requires BYOK. Review Code and Local Dev keep the model
- * client in Sim and follow the normal hosted-key rules. All three enforcement
- * sites (block condition, edit-workflow validation, key resolution) consume
- * this predicate so they cannot drift.
+ * therefore always requires the user's own key. Create PR ('cloud') and Update
+ * PR ('cloud_branch') run the model client inside the sandbox, so Sim never
+ * supplies a hosted key for them: the block always shows the API Key field,
+ * copilot validation never strips it, and execution requires BYOK. Review Code
+ * and Local Dev keep the model client in Sim and follow the normal hosted-key
+ * rules. All three enforcement sites (block condition, edit-workflow
+ * validation, key resolution) consume this predicate so they cannot drift.
  */
 export function isPiByokOnlyMode(mode: unknown): boolean {
-  return mode === 'cloud'
+  return mode === 'cloud' || mode === 'cloud_branch'
 }
 
 /** Returns Pi's provider ID for a supported Sim provider. */

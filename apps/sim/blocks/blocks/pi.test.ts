@@ -242,6 +242,20 @@ describe('Pi cloud authoring surface', () => {
         babysitMode: true,
       })
     ).toBe(false)
+    expect(
+      evaluateSubBlockCondition(prState?.condition, {
+        mode: 'cloud_branch',
+        babysitMode: 'true',
+      })
+    ).toBe(false)
     expect(PiBlock.inputs.prState).toBeDefined()
   })
+
+  it.each(['cloud', 'cloud_branch'])(
+    'always shows the model API key for sandbox authoring mode %s',
+    (mode) => {
+      const apiKey = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'apiKey')
+      expect(evaluateSubBlockCondition(apiKey?.condition, { mode })).toBe(true)
+    }
+  )
 })

@@ -153,7 +153,7 @@ const hostedModelApiKeyCondition = getApiKeyCondition()
  * rule and hide the field when Sim covers the key.
  */
 const piApiKeyCondition = (values?: Record<string, unknown>) =>
-  isPiByokOnlyMode(values?.mode) ? CLOUD : hostedModelApiKeyCondition(values)
+  isPiByokOnlyMode(values?.mode) ? CLOUD_AUTHORING : hostedModelApiKeyCondition(values)
 
 export const PiBlock: BlockConfig<PiResponse> = {
   type: 'pi',
