@@ -1,4 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+/**
+ * The Sandboxes section is dropped when no sandbox provider is configured, and
+ * `allNavigationItems` is built once at module load — so this has to be set before
+ * the module graph is imported, where a `beforeEach` would run too late. Pinning it
+ * also keeps the catalog assertions off the developer's untracked `apps/sim/.env`,
+ * which CI does not have.
+ */
+vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_SANDBOX_ENABLED = 'true'
+})
+
 import {
   SETTINGS_SECTION_REGISTRY,
   WORKSPACE_SETTINGS_ITEMS,
