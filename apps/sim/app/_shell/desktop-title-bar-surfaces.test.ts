@@ -186,6 +186,8 @@ const LANE_EXEMPT: Record<string, string> = {
     'Marketing chrome. Verified: every consumer lives under app/(landing)/, and the desktop shell boots to /login or a workspace with no path to those routes.',
   'app/playground/page.tsx':
     'Verified dev-only: the page calls notFound() unless NEXT_PUBLIC_ENABLE_PLAYGROUND is set.',
+  'app/_shell/desktop-update-gate.tsx':
+    'Blocking overlay that centres its content, with no chrome in the lane. The lights stay usable regardless: under `titleBarStyle: hiddenInset` macOS draws them above the web contents, so web UI cannot cover them — this bug class is app chrome sitting *under* the lights, not the reverse.',
   'app/workspace/[workspaceId]/w/[workflowId]/components/error/index.tsx':
     'Renders <Sidebar>, which owns the workspace lane and its drag region (sidebar.tsx). Padding this root too would double the reservation.',
 }
@@ -197,29 +199,88 @@ const LANE_EXEMPT: Record<string, string> = {
  * shell's own definition file mentioning its name, would otherwise self-certify as
  * covered. Both mistakes were in the first draft of this check and made it unfailable.
  */
-const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell|WorkspaceChrome)\b/
+/**
+ * How a root claims the whole window. `fixed inset-0` counts: it covers the lights just as
+ * completely as `h-screen`, and was invisible to the first version of this check.
+ */
+const FILLS_VIEWPORT = /\b(min-h-screen|h-screen)\b|fixed inset-0/
+
+const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell|WorkspaceChrome|InterfacesShell)\b/
+
+/**
+ * Route trees whose every surface is accounted for by one reason.
+ *
+ * Prefix form exists because the landing group is dozens of files sharing a single
+ * justification; listing them individually would be noise, not scrutiny.
+ */
+const LANE_EXEMPT_PREFIXES: Record<string, string> = {
+  'app/(landing)/':
+    'Marketing routes and their overlays. Verified: the desktop shell boots to /login or a workspace and has no navigation path here. `logo-shell.tsx` lives under this prefix but is lane-aware on its own merits, since it is used well outside landing.',
+}
+
+const isExempt = (file: string) =>
+  file in LANE_EXEMPT || Object.keys(LANE_EXEMPT_PREFIXES).some((prefix) => file.startsWith(prefix))
+
+/** Every file under `app/`, so ancestor layouts can be resolved without extra fs calls. */
+const ALL_APP_FILES = new Set(
+  readdirSync(new URL('../', import.meta.url), { recursive: true, encoding: 'utf8' }).map(
+    (f) => `app/${f}`
+  )
+)
+
+/** The `layout.tsx` files wrapping a route, nearest first. */
+function ancestorLayouts(file: string): string[] {
+  const parts = file.split('/')
+  const layouts: string[] = []
+  for (let i = parts.length - 1; i > 0; i--) {
+    const candidate = `${parts.slice(0, i).join('/')}/layout.tsx`
+    if (candidate !== file && ALL_APP_FILES.has(candidate)) layouts.push(candidate)
+  }
+  return layouts
+}
+
+const reservesLane = (source: string) =>
+  source.includes('desktop-title-bar-page') || LANE_AWARE_SHELL_USAGE.test(source)
+
+const sourceOf = (file: string) => read(`../${file.slice('app/'.length)}`)
+
+/** Full-viewport roots outside a lane-aware layout, paired with whether they reserve. */
+function viewportRoots() {
+  return [...ALL_APP_FILES]
+    .filter((f) => f.endsWith('.tsx'))
+    .map((file) => {
+      const source = sourceOf(file)
+      return {
+        file,
+        fillsViewport: FILLS_VIEWPORT.test(source),
+        self: reservesLane(source),
+        inherited: ancestorLayouts(file).some((l) => reservesLane(sourceOf(l))),
+      }
+    })
+    .filter((r) => r.fillsViewport)
+}
 
 describe('desktop traffic-light lane coverage', () => {
-  it('leaves no full-viewport root outside workspace chrome unaccounted for', () => {
-    const appDir = new URL('../', import.meta.url)
-    const files = readdirSync(appDir, { recursive: true, encoding: 'utf8' })
-      .filter((f) => f.endsWith('.tsx'))
-      .map((f) => `app/${f}`)
-
-    const unaccounted = files.filter((file) => {
-      const source = read(`../${file.slice('app/'.length)}`)
-      const fillsViewport = /\b(min-h-screen|h-screen)\b/.test(source)
-      if (!fillsViewport) return false
-      // Composition counts: a surface is covered if it wears a shell that reserves the
-      // lane. `LogoShell` was previously allowlisted as marketing chrome — a claim that
-      // was simply false, and it hid not-found, the interfaces shell, the desktop handoff
-      // shell and the public-file access gates behind one wrong sentence.
-      const laneAware =
-        source.includes('desktop-title-bar-page') || LANE_AWARE_SHELL_USAGE.test(source)
-      return !laneAware && !(file in LANE_EXEMPT)
-    })
+  it('leaves no full-viewport root unaccounted for', () => {
+    // Covered means the root reserves the lane itself OR sits inside a layout that does —
+    // chat and the workspace overlays inherit theirs, and requiring the file itself to
+    // reserve would force a second, doubled reservation on every one of them.
+    const unaccounted = viewportRoots()
+      .filter((r) => !r.self && !r.inherited && !isExempt(r.file))
+      .map((r) => r.file)
 
     expect(unaccounted).toEqual([])
+  })
+
+  it('never reserves the lane twice by nesting', () => {
+    // A root inside a lane-aware layout that reserves again gets two lots of padding, two
+    // drag strips and two controllers. Shipped exactly that on the resume loading skeleton,
+    // and the file-local check could not see it.
+    const doubled = viewportRoots()
+      .filter((r) => r.self && r.inherited)
+      .map((r) => r.file)
+
+    expect(doubled).toEqual([])
   })
 
   it('never reserves the lane without also making it draggable', () => {

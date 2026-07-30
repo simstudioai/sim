@@ -1,10 +1,8 @@
 import { Skeleton } from '@sim/emcn'
-import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 
 export default function ResumeLoading() {
   return (
-    <div className='desktop-title-bar-page bg-background'>
-      <DesktopTitleBarLane />
+    <div className='bg-background'>
       <div className='border-b px-4 py-3'>
         <div className='mx-auto flex max-w-[1200px] items-center justify-between'>
           <Skeleton className='h-[24px] w-[80px] rounded-[4px]' />
