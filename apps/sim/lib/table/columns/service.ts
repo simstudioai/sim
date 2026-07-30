@@ -1014,38 +1014,15 @@ export async function updateColumnOptions(
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
-    const constrainedColumn = await applyConstraints(
-      trx,
-      data.tableId,
-      updatedColumn,
-      columnKey,
-      data
-    )
-    const withOptions = schema.columns.map((c, i) => (i === columnIndex ? constrainedColumn : c))
-    const updatedColumns = withOptions.map((c, i) =>
-      i === columnIndex ? applyPendingRename(withOptions, columnIndex, data.newName) : c
-    )
-    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
-    const now = new Date()
-
     const nextMultiple = !!(data.multiple ?? column.multiple)
     const wasMultiple = !!column.multiple
     const keptIds = new Set(data.options.map((o) => o.id))
     const removedAny = (column.options ?? []).some((o) => !keptIds.has(o.id))
     const togglingCardinality = nextMultiple !== wasMultiple
+    // The constraint the column ENDS UP with, which may be arriving in this same
+    // request. `applyConstraints` validates and applies it below, after the cell
+    // migrations; the checks in between need to read the target value.
     const targetRequired = !!(data.required ?? column.required)
-
-    // Newly imposing `required` in the same request: rows that are ALREADY empty
-    // would fail the separate constraint write after this one commits, so they
-    // have to be caught here, through the same predicate that write will use.
-    if (targetRequired && !column.required) {
-      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
-      if (emptyCount > 0) {
-        throw new Error(
-          `Cannot make column "${column.name}" required: ${emptyCount} row(s) have null, missing, or empty values. Fill them first.`
-        )
-      }
-    }
 
     if (togglingCardinality || removedAny) {
       const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
@@ -1133,16 +1110,29 @@ export async function updateColumnOptions(
       })
     }
 
-    await trx
-      .update(userTableDefinitions)
-      .set({ schema: updatedSchema, updatedAt: now })
-      .where(eq(userTableDefinitions.id, data.tableId))
+    // Constraints are validated and applied AFTER the migrations above, because
+    // those migrations rewrite stored values — a `unique` scan run before them
+    // would read the pre-migration shape and pass, and the migration could then
+    // produce the duplicates it was meant to prevent.
+    const constrainedColumn = await applyConstraints(
+      trx,
+      data.tableId,
+      updatedColumn,
+      columnKey,
+      data
+    )
+    const withOptions = schema.columns.map((c, i) => (i === columnIndex ? constrainedColumn : c))
+    const updatedColumns = withOptions.map((c, i) =>
+      i === columnIndex ? applyPendingRename(withOptions, columnIndex, data.newName) : c
+    )
+
+    const updated = await persistColumns(trx, table, updatedColumns)
 
     logger.info(
       `[${requestId}] Updated options for column "${column.name}" in table ${data.tableId}`
     )
 
-    return { ...table, schema: updatedSchema, updatedAt: now }
+    return updated
   })
 }
 

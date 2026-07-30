@@ -5,6 +5,7 @@
  * coverage and every case below was a shipped defect caught in review.
  */
 import { describe, expect, it } from 'vitest'
+import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
 import {
   applyPendingRename,
   isValueCompatibleWithType,
@@ -229,5 +230,29 @@ describe('select accepts scalar cells', () => {
 
   it('leaves structured values unresolvable', () => {
     expect(resolveSelectOptionId({ a: 1 } as never, NUMERIC_OPTIONS)).toBeNull()
+  })
+})
+
+describe('constraint validation reads post-migration values', () => {
+  // The ordering that matters: `updateColumnOptions` rewrites stored cells (a
+  // single<->multi toggle changes the shape; removing an option clears cells),
+  // and `updateColumnType` rewrites them through the coercion write-back. A
+  // `unique` scan run BEFORE those would read values that no longer exist by
+  // the time the constraint is persisted, pass, and let the rewrite produce the
+  // duplicates it was supposed to prevent.
+  //
+  // The coercion case is the concrete one: two distinct strings can collapse to
+  // one number.
+  it('shows how a conversion manufactures duplicates the pre-scan cannot see', () => {
+    const column: ColumnDefinition = { name: 'sku', type: 'number' }
+    const before = ['5', '5.0']
+    expect(new Set(before).size).toBe(2)
+
+    const after = before.map((value) => {
+      const coerced = COLUMN_TYPE_REGISTRY.number.coerce(value, column)
+      return coerced.ok ? coerced.value : value
+    })
+    expect(after).toEqual([5, 5])
+    expect(new Set(after).size).toBe(1)
   })
 })
