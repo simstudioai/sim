@@ -1,0 +1,38 @@
+name: CI Cache Cleanup
+
+# The Next.js build cache sticky disk in test-build.yml is keyed per branch, so
+# every PR leaves a ~5 GB volume behind. Branches are short-lived; the disks
+# aren't. Delete a branch's disk when its PR closes so storage tracks open PRs
+# rather than every branch the repo has ever seen.
+#
+# Only the pull_request-event disk is deleted. The push-event disks belong to
+# main/staging/dev and must stay warm.
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: ci-cache-cleanup-${{ github.head_ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  delete-nextjs-cache:
+    name: Delete Next.js build cache disk
+    # Sticky disks only exist on Blacksmith; in GitHub break-glass mode the
+    # cache-mount fallback uses actions/cache, which expires on its own.
+    if: vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+
+    steps:
+      # Key must stay byte-identical to the Mount Next.js build cache key in
+      # test-build.yml, or this silently deletes nothing and the disks pile up.
+      - name: Delete sticky disk
+        uses: useblacksmith/stickydisk-delete@b41313d28b8647d72114c9ba3c96bb04061562b6 # v1
+        continue-on-error: true
+        with:
+          delete-key: ${{ github.repository }}-nextjs-cache-pull_request${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.head_ref }}
