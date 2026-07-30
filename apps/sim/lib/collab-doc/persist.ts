@@ -15,7 +15,7 @@ const logger = createLogger('FileDocPersist')
 /**
  * Outcome of a persist attempt:
  * - `persisted` — the live doc was projected to markdown and written; `version` is the new durable
- *   `updatedAt` (epoch ms) the relay records as the version its live doc is now synced to.
+ *   CONTENT version (`content_updated_at`, epoch ms) the relay records as what its live doc is synced to.
  * - `missing` — the file is gone (deleted); nothing to write.
  * - `conflict` — the file changed out-of-band since the relay's live doc last synced, so writing the
  *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written. `markdown` +
@@ -34,8 +34,9 @@ export type PersistFileDocResult =
  * here and the app persists it — the server-authoritative durable path that replaces the editor's
  * client-side autosave.
  *
- * `expectedVersion` (the durable `updatedAt`, epoch ms, that the relay's live doc last synced from) is
- * the optimistic-concurrency guard: the write commits only if the file is still at that version, so a
+ * `expectedVersion` (the durable CONTENT version, `content_updated_at` epoch ms, the relay's live doc last
+ * synced from) is the optimistic-concurrency guard: the write commits only if the file is still at that
+ * content version — a rename/move that only bumps `updatedAt` won't trip it, so a
  * projection built from a stale live doc can never silently overwrite an out-of-band edit. On a version
  * mismatch this returns `conflict` (with the current durable content) instead of writing — the relay
  * reconciles and retries. Omit `expectedVersion` to write unconditionally (e.g. the first persist,
@@ -100,7 +101,14 @@ export async function persistFileDoc(
     logger.info(
       `Persisted live collaborative document to file ${fileId} (workspace ${workspaceId})`
     )
-    return { status: 'persisted', version: updated.updatedAt.getTime() }
+    // Return the CONTENT version (what the CAS/seed/merge all guard on), not `updatedAt` — the relay
+    // records this as its new If-Match token, so it must be the same field a later persist is checked
+    // against. (A content write sets both to the same instant; using the wrong one only bites once they
+    // diverge — e.g. a metadata write bumping `updatedAt` afterward.)
+    return {
+      status: 'persisted',
+      version: (updated.contentUpdatedAt ?? updated.updatedAt).getTime(),
+    }
   } catch (error) {
     if (!(error instanceof ContentVersionConflictError)) throw error
     // Out-of-band edit since the live doc last synced — DON'T clobber. Return the current durable
@@ -112,7 +120,10 @@ export async function persistFileDoc(
     return {
       status: 'conflict',
       markdown: currentBuffer.toString('utf-8'),
-      version: current.updatedAt.getTime(),
+      // The CONTENT version, not `updatedAt`: the relay reconciles to this and re-persists with it as the
+      // If-Match. If a metadata write bumped `updatedAt` past `contentUpdatedAt`, returning `updatedAt`
+      // would make the re-persist's CAS (which checks `contentUpdatedAt`) never match → perpetual conflict.
+      version: (current.contentUpdatedAt ?? current.updatedAt).getTime(),
     }
   }
 }
