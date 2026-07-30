@@ -345,7 +345,7 @@ export function InviteModal({
         {isOrganizationInvite && (
           <ChipModalField
             type='dropdown'
-            title='Membership'
+            title='Organization membership'
             options={membershipOptions}
             value={membership}
             placeholder='Select membership'
