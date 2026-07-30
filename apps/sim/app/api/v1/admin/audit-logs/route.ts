@@ -31,21 +31,13 @@ import {
   internalErrorResponse,
   listResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  type AdminAuditLog,
-  createPaginationMeta,
-  parsePaginationParams,
-  toAdminAuditLog,
-} from '@/app/api/v1/admin/types'
+import { type AdminAuditLog, createPaginationMeta, toAdminAuditLog } from '@/app/api/v1/admin/types'
 import { buildFilterConditions } from '@/app/api/v1/audit-logs/query'
 
 const logger = createLogger('AdminAuditLogsAPI')
 
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
-
     const parsed = await parseRequest(
       v1AdminListAuditLogsContract,
       request,
@@ -56,6 +48,7 @@ export const GET = withRouteHandler(
 
     try {
       const query = parsed.data.query
+      const { limit, offset } = query
       const conditions = buildFilterConditions({
         action: query.action,
         resourceType: query.resourceType,

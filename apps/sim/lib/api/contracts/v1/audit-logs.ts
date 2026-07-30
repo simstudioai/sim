@@ -1,5 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  adminV1ListResponseSchema,
+  adminV1PaginationQuerySchema,
+  adminV1SingleResponseSchema,
+} from '@/lib/api/contracts/v1/admin/shared'
+import { v1UserLimitsSchema } from '@/lib/api/contracts/v1/shared'
 
 const isoDateString = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   error: 'Invalid date format. Use ISO 8601.',
@@ -43,25 +49,51 @@ export const v1AdminAuditLogsQuerySchema = z.object({
   actorEmail: optionalQueryString,
   startDate: z.preprocess((value) => (value === '' ? undefined : value), isoDateString.optional()),
   endDate: z.preprocess((value) => (value === '' ? undefined : value), isoDateString.optional()),
+  ...adminV1PaginationQuerySchema.shape,
 })
 
 /**
- * Generic wrapper used by v1 admin audit-log responses. The `data` and
- * `limits` halves are intentionally `z.unknown()` because this proxy returns
- * provider-shaped payloads that vary per route family; tightening here would
- * require a discriminated union per route, which is tracked as a follow-up.
- *
- * boundary-policy: this is the "validates nothing" alias form that the audit
- * script's `untyped-response` regex doesn't currently catch. Treat any new
- * wrapper of this shape the same way and either annotate at the contract use
- * site with `// untyped-response: <reason>` or replace with a concrete schema.
+ * Public enterprise audit-log entry. Mirrors `formatAuditLogEntry` in
+ * `app/api/v1/audit-logs/format.ts`; `ipAddress`/`userAgent` are intentionally
+ * excluded for privacy. `metadata` is genuinely arbitrary per-action JSON.
  */
-const apiResponseWithLimitsSchema = z
-  .object({
-    data: z.unknown(),
-    limits: z.unknown().optional(),
-  })
-  .passthrough()
+const v1AuditLogEntrySchema = z.object({
+  id: z.string(),
+  workspaceId: z.string().nullable(),
+  actorId: z.string().nullable(),
+  actorName: z.string().nullable(),
+  actorEmail: z.string().nullable(),
+  action: z.string(),
+  resourceType: z.string(),
+  resourceId: z.string().nullable(),
+  resourceName: z.string().nullable(),
+  description: z.string().nullable(),
+  metadata: z.unknown(),
+  createdAt: z.string(),
+})
+
+/**
+ * Admin audit-log entry. Mirrors `toAdminAuditLog` in `app/api/v1/admin/types.ts`,
+ * which additionally exposes `ipAddress`/`userAgent`.
+ */
+const adminV1AuditLogEntrySchema = v1AuditLogEntrySchema.extend({
+  ipAddress: z.string().nullable(),
+  userAgent: z.string().nullable(),
+})
+
+const v1ListAuditLogsResponseSchema = z.object({
+  data: z.array(v1AuditLogEntrySchema),
+  nextCursor: z.string().optional(),
+  limits: v1UserLimitsSchema,
+})
+
+const v1GetAuditLogResponseSchema = z.object({
+  data: v1AuditLogEntrySchema,
+  limits: v1UserLimitsSchema,
+})
+
+export type V1AuditLogEntry = z.output<typeof v1AuditLogEntrySchema>
+export type AdminV1AuditLogEntry = z.output<typeof adminV1AuditLogEntrySchema>
 
 export const v1ListAuditLogsContract = defineRouteContract({
   method: 'GET',
@@ -69,7 +101,7 @@ export const v1ListAuditLogsContract = defineRouteContract({
   query: v1ListAuditLogsQuerySchema,
   response: {
     mode: 'json',
-    schema: apiResponseWithLimitsSchema,
+    schema: v1ListAuditLogsResponseSchema,
   },
 })
 
@@ -79,7 +111,7 @@ export const v1GetAuditLogContract = defineRouteContract({
   params: v1AuditLogParamsSchema,
   response: {
     mode: 'json',
-    schema: apiResponseWithLimitsSchema,
+    schema: v1GetAuditLogResponseSchema,
   },
 })
 
@@ -89,7 +121,7 @@ export const v1AdminListAuditLogsContract = defineRouteContract({
   query: v1AdminAuditLogsQuerySchema,
   response: {
     mode: 'json',
-    schema: apiResponseWithLimitsSchema,
+    schema: adminV1ListResponseSchema(adminV1AuditLogEntrySchema),
   },
 })
 
@@ -99,6 +131,6 @@ export const v1AdminGetAuditLogContract = defineRouteContract({
   params: v1AuditLogParamsSchema,
   response: {
     mode: 'json',
-    schema: apiResponseWithLimitsSchema,
+    schema: adminV1SingleResponseSchema(adminV1AuditLogEntrySchema),
   },
 })

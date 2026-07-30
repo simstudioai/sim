@@ -1,0 +1,2339 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim Tables API v2",
+    "description": "Version 2 of the Sim Tables API for managing tables, their column schemas, and rows of structured data. v2 standardizes every endpoint on a single response family: a single resource is returned as `{ data }`, lists are returned as `{ data, nextCursor }` with opaque cursor pagination, and errors are returned as `{ error: { code, message, details? } }`. Rate-limit state is carried in `X-RateLimit-*` response headers. Authenticate every request with the `X-API-Key` header. Row `data` is always keyed by column name.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Tables",
+      "description": "Manage tables, columns, and rows for structured data storage (v2 API)."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/tables": {
+      "get": {
+        "operationId": "listTables",
+        "summary": "List Tables",
+        "description": "List all tables in a workspace. Returns the full bounded set of tables for the workspace as a single page, so `nextCursor` is always null.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tables in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableListEnvelope"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "contacts",
+                      "description": "Customer contact records",
+                      "schema": {
+                        "columns": [
+                          {
+                            "id": "col_a1b2c3",
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          },
+                          {
+                            "id": "col_d4e5f6",
+                            "name": "name",
+                            "type": "string",
+                            "required": true
+                          }
+                        ]
+                      },
+                      "rowCount": 2,
+                      "maxRows": 100000,
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-15T10:30:00.000Z"
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTable",
+        "summary": "Create Table",
+        "description": "Create a new table with a typed column schema. The schema must contain between 1 and 50 columns.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"contacts\",\n    \"description\": \"Customer contacts\",\n    \"schema\": {\n      \"columns\": [\n        { \"name\": \"email\", \"type\": \"string\", \"required\": true, \"unique\": true },\n        { \"name\": \"name\", \"type\": \"string\", \"required\": true },\n        { \"name\": \"age\", \"type\": \"number\" }\n      ]\n    }\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The table name, optional description, column schema, and target workspace.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The table was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "table": {
+                      "id": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "contacts",
+                      "description": "Customer contacts",
+                      "schema": {
+                        "columns": [
+                          {
+                            "id": "col_a1b2c3",
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          },
+                          {
+                            "id": "col_d4e5f6",
+                            "name": "name",
+                            "type": "string",
+                            "required": true
+                          },
+                          {
+                            "id": "col_g7h8i9",
+                            "name": "age",
+                            "type": "number",
+                            "required": false,
+                            "unique": false
+                          }
+                        ]
+                      },
+                      "rowCount": 0,
+                      "maxRows": 100000,
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-15T10:30:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}": {
+      "get": {
+        "operationId": "getTable",
+        "summary": "Get Table",
+        "description": "Get a single table's metadata and column schema.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested table.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTable",
+        "summary": "Delete Table",
+        "description": "Archive a table. Returns the id of the archived table.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table was archived.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteTableEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "id": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/columns": {
+      "post": {
+        "operationId": "addTableColumn",
+        "summary": "Add Column",
+        "description": "Add a column to the table schema. Returns the table's full column list after the change.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"column\": {\n      \"name\": \"phone\",\n      \"type\": \"string\",\n      \"required\": false,\n      \"unique\": false\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace and the column definition to add.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddColumnBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The column was added.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnsEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "columns": [
+                      {
+                        "id": "col_a1b2c3",
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      },
+                      {
+                        "id": "col_d4e5f6",
+                        "name": "name",
+                        "type": "string",
+                        "required": true,
+                        "unique": false
+                      },
+                      {
+                        "id": "col_x9y8z7",
+                        "name": "phone",
+                        "type": "string",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTableColumn",
+        "summary": "Update Column",
+        "description": "Update a column by name — rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"columnName\": \"phone\",\n    \"updates\": {\n      \"name\": \"phone_number\",\n      \"required\": true\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace, the current column name, and the fields to change.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateColumnBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The column was updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTableColumn",
+        "summary": "Delete Column",
+        "description": "Delete a column from the table schema by name. A table must always keep at least one column. Returns the table's full column list after the change.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"columnName\": \"phone_number\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace and the name of the column to delete.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteColumnBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The column was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/rows": {
+      "get": {
+        "operationId": "listTableRows",
+        "summary": "List Rows",
+        "description": "Query rows from a table with optional filtering, sorting, and cursor pagination. `filter` and `sort` are passed as JSON-encoded query parameters and key on column names. Pagination uses an opaque cursor: pass the `nextCursor` from a previous response to fetch the next page; `nextCursor` is null on the final page. Total row count is available as `rowCount` on the table resource.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows?workspaceId=YOUR_WORKSPACE_ID&limit=50\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/FilterQuery"
+          },
+          {
+            "$ref": "#/components/parameters/SortQuery"
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/CursorQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows matching the query.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RowListEnvelope"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Jane Doe",
+                        "age": 30
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-15T10:30:00.000Z"
+                    }
+                  ],
+                  "nextCursor": "eyJvZmZzZXQiOjUwfQ=="
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTableRows",
+        "summary": "Create Rows",
+        "description": "Insert one or many rows. Send a single-row body (`{ data }`) to insert one row, or a batch body (`{ rows }`) to insert up to 1000 rows in one request. The response shape mirrors the request: a single insert returns `{ data: { row } }`, a batch insert returns `{ data: { rows, insertedCount } }`. Row `data` is keyed by column name.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": {\n      \"email\": \"user@example.com\",\n      \"name\": \"Jane Doe\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Either a single-row payload or a batch payload.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRowsBody"
+              },
+              "examples": {
+                "single": {
+                  "summary": "Insert a single row",
+                  "value": {
+                    "workspaceId": "YOUR_WORKSPACE_ID",
+                    "data": {
+                      "email": "user@example.com",
+                      "name": "Jane Doe"
+                    }
+                  }
+                },
+                "batch": {
+                  "summary": "Insert multiple rows",
+                  "value": {
+                    "workspaceId": "YOUR_WORKSPACE_ID",
+                    "rows": [
+                      {
+                        "email": "a@example.com",
+                        "name": "Ada"
+                      },
+                      {
+                        "email": "b@example.com",
+                        "name": "Babbage"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row(s) were inserted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRowsResponse"
+                },
+                "examples": {
+                  "single": {
+                    "summary": "Single insert response",
+                    "value": {
+                      "data": {
+                        "row": {
+                          "id": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07",
+                          "data": {
+                            "email": "user@example.com",
+                            "name": "Jane Doe"
+                          },
+                          "position": 0,
+                          "createdAt": "2026-01-15T10:30:00.000Z",
+                          "updatedAt": "2026-01-15T10:30:00.000Z"
+                        }
+                      }
+                    }
+                  },
+                  "batch": {
+                    "summary": "Batch insert response",
+                    "value": {
+                      "data": {
+                        "rows": [
+                          {
+                            "id": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93",
+                            "data": {
+                              "email": "a@example.com",
+                              "name": "Ada"
+                            },
+                            "position": 0,
+                            "createdAt": "2026-01-15T10:30:00.000Z",
+                            "updatedAt": "2026-01-15T10:30:00.000Z"
+                          },
+                          {
+                            "id": "row_2a4c6e8d0b1f4d3e917c5b7d9f1a3c85",
+                            "data": {
+                              "email": "b@example.com",
+                              "name": "Babbage"
+                            },
+                            "position": 1,
+                            "createdAt": "2026-01-15T10:30:00.000Z",
+                            "updatedAt": "2026-01-15T10:30:00.000Z"
+                          }
+                        ],
+                        "insertedCount": 2
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateTableRows",
+        "summary": "Update Rows by Filter",
+        "description": "Bulk-update every row matching a filter, applying the same partial `data` patch to each. The filter must contain at least one condition. `updatedRowIds` is always returned (empty when nothing matched).",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"filter\": { \"status\": \"pending\" },\n    \"data\": { \"status\": \"active\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace, a non-empty filter, the patch data, and an optional row cap.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRowsByFilterBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The matching rows were updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRowsEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "updatedCount": 3,
+                    "updatedRowIds": [
+                      "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93",
+                      "row_2a4c6e8d0b1f4d3e917c5b7d9f1a3c85",
+                      "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTableRows",
+        "summary": "Delete Rows",
+        "description": "Delete rows in bulk, either by a non-empty filter or by an explicit list of row ids. Provide exactly one of `filter` or `rowIds`. For id-based deletes the response also reports `requestedCount` and any `missingRowIds`; these fields are omitted for filter-based deletes.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"rowIds\": [\"row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93\", \"row_2a4c6e8d0b1f4d3e917c5b7d9f1a3c85\"]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace and either a non-empty filter or an explicit list of row ids.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRowsBody"
+              },
+              "examples": {
+                "byIds": {
+                  "summary": "Delete specific rows by id",
+                  "value": {
+                    "workspaceId": "YOUR_WORKSPACE_ID",
+                    "rowIds": [
+                      "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93",
+                      "row_2a4c6e8d0b1f4d3e917c5b7d9f1a3c85"
+                    ]
+                  }
+                },
+                "byFilter": {
+                  "summary": "Delete rows matching a filter",
+                  "value": {
+                    "workspaceId": "YOUR_WORKSPACE_ID",
+                    "filter": {
+                      "status": "archived"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rows were deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRowsEnvelope"
+                },
+                "examples": {
+                  "byIds": {
+                    "summary": "Id-based delete response",
+                    "value": {
+                      "data": {
+                        "deletedCount": 2,
+                        "deletedRowIds": [
+                          "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93",
+                          "row_2a4c6e8d0b1f4d3e917c5b7d9f1a3c85"
+                        ],
+                        "requestedCount": 2,
+                        "missingRowIds": []
+                      }
+                    }
+                  },
+                  "byFilter": {
+                    "summary": "Filter-based delete response",
+                    "value": {
+                      "data": {
+                        "deletedCount": 5,
+                        "deletedRowIds": ["row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/rows/{rowId}": {
+      "get": {
+        "operationId": "getTableRow",
+        "summary": "Get Row",
+        "description": "Get a single row by id.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows/{rowId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested row.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTableRow",
+        "summary": "Update Row",
+        "description": "Partially update a single row by id. The `data` patch is keyed by column name and merges into the existing row.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows/{rowId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": { \"name\": \"Updated Name\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace and the partial row data to apply.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRowBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row was updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTableRow",
+        "summary": "Delete Row",
+        "description": "Delete a single row by id. Returns `deletedCount` and `deletedRowIds`, mirroring the bulk delete shape.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows/{rowId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRowEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "deletedCount": 1,
+                    "deletedRowIds": ["row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07"]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/rows/upsert": {
+      "post": {
+        "operationId": "upsertTableRow",
+        "summary": "Upsert Row",
+        "description": "Insert a row, or update the existing row that conflicts on a unique column. When `conflictTarget` is omitted the server resolves the conflict against the table's single unique column. The response reports whether the row was inserted or updated.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows/upsert\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": { \"email\": \"user@example.com\", \"name\": \"John\" },\n    \"conflictTarget\": \"email\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace, the row data, and an optional unique column to resolve the conflict against.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertRowBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row was inserted or updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpsertRowEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "row": {
+                      "id": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07",
+                      "data": {
+                        "email": "user@example.com",
+                        "name": "John"
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-15T10:30:00.000Z"
+                    },
+                    "operation": "insert"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+      }
+    },
+    "parameters": {
+      "TableId": {
+        "name": "tableId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14"
+        },
+        "description": "The unique identifier of the table."
+      },
+      "RowId": {
+        "name": "rowId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07"
+        },
+        "description": "The unique identifier of the row."
+      },
+      "WorkspaceIdQuery": {
+        "name": "workspaceId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": "The unique identifier of the workspace that owns the table."
+      },
+      "FilterQuery": {
+        "name": "filter",
+        "in": "query",
+        "required": false,
+        "description": "JSON-encoded filter object keyed by column name. Supports equality ({\"status\": \"active\"}), comparison operators ({\"age\": {\"$gt\": 18}}), and $and/$or composition.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "SortQuery": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "JSON-encoded sort object mapping column name to direction. Example: {\"created_at\": \"desc\"}.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "LimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum rows to return (1-1000, default 100).",
+        "schema": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "CursorQuery": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "Opaque pagination cursor. Pass the `nextCursor` from a previous response to fetch the next page. Omit for the first page.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "headers": {
+      "RateLimitLimit": {
+        "description": "Maximum number of requests permitted in the current rate-limit window.",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RateLimitRemaining": {
+        "description": "Number of requests remaining in the current rate-limit window.",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RateLimitReset": {
+        "description": "ISO 8601 timestamp at which the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "RetryAfter": {
+        "description": "Number of seconds to wait before retrying the request.",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "schemas": {
+      "V2Error": {
+        "type": "object",
+        "description": "Canonical v2 error envelope.",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Machine-readable error code.",
+                "example": "BAD_REQUEST"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message."
+              },
+              "details": {
+                "description": "Optional structured error details, such as per-field validation issues."
+              }
+            }
+          }
+        }
+      },
+      "Column": {
+        "type": "object",
+        "description": "A column definition in a table schema.",
+        "required": ["name", "type"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable server-assigned column id. May be absent on legacy columns created before id backfill.",
+            "example": "col_a1b2c3"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "maxLength": 50,
+            "description": "Column name. Starts with a letter or underscore; contains only alphanumerics and underscores.",
+            "example": "email"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "date", "json"],
+            "description": "Data type of the column."
+          },
+          "required": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the column requires a value on insert."
+          },
+          "unique": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether values in this column must be unique across all rows."
+          },
+          "workflowGroupId": {
+            "type": "string",
+            "description": "Set when the column is the output of a workflow group."
+          }
+        }
+      },
+      "ColumnInput": {
+        "type": "object",
+        "description": "Column definition supplied when creating a table or adding a column.",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "maxLength": 50,
+            "description": "Column name. Starts with a letter or underscore; contains only alphanumerics and underscores.",
+            "example": "email"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "date", "json"],
+            "description": "Data type of the column."
+          },
+          "required": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the column requires a value on insert."
+          },
+          "unique": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether values in this column must be unique across all rows."
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "description": "A user-defined table with a typed column schema.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "schema",
+          "rowCount",
+          "maxRows",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique table identifier.",
+            "example": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14"
+          },
+          "name": {
+            "type": "string",
+            "description": "Table name.",
+            "example": "contacts"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Optional description of the table. Null when not set.",
+            "example": "Customer contact records"
+          },
+          "schema": {
+            "type": "object",
+            "description": "Table schema definition.",
+            "required": ["columns"],
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Array of column definitions for the table.",
+                "items": {
+                  "$ref": "#/components/schemas/Column"
+                }
+              }
+            }
+          },
+          "rowCount": {
+            "type": "integer",
+            "description": "Current number of rows in the table."
+          },
+          "maxRows": {
+            "type": "integer",
+            "description": "Maximum rows allowed by the current billing plan."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the table was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the table was last modified."
+          }
+        }
+      },
+      "RowData": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Row cells keyed by column name. Each value is typed per its column definition.",
+        "example": {
+          "email": "jane@example.com",
+          "name": "Jane Doe",
+          "age": 30
+        }
+      },
+      "Row": {
+        "type": "object",
+        "description": "A single row in a table.",
+        "required": ["id", "data", "position", "createdAt", "updatedAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique row identifier.",
+            "example": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RowData"
+          },
+          "position": {
+            "type": "integer",
+            "description": "Row's position/order in the table."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the row was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the row was last modified."
+          }
+        }
+      },
+      "Filter": {
+        "type": "object",
+        "additionalProperties": true,
+        "minProperties": 1,
+        "description": "Filter object keyed by column name. Supports equality ({\"status\": \"active\"}), comparison operators ({\"age\": {\"$gt\": 18}}), and $and/$or composition. Must contain at least one condition.",
+        "example": {
+          "status": "active"
+        }
+      },
+      "CreateTableBody": {
+        "type": "object",
+        "description": "Payload to create a new table.",
+        "required": ["workspaceId", "name", "schema"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that will own the table."
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "maxLength": 128,
+            "description": "Table name. Starts with a letter or underscore; contains only alphanumerics and underscores.",
+            "example": "contacts"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Optional description of the table."
+          },
+          "schema": {
+            "type": "object",
+            "required": ["columns"],
+            "description": "The table's column schema.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "description": "Column definitions. A table must have between 1 and 50 columns.",
+                "items": {
+                  "$ref": "#/components/schemas/ColumnInput"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AddColumnBody": {
+        "type": "object",
+        "description": "Payload to add a column to a table.",
+        "required": ["workspaceId", "column"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "column": {
+            "type": "object",
+            "description": "The column definition to add.",
+            "required": ["name", "type"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+                "maxLength": 50,
+                "description": "Column name. Starts with a letter or underscore; contains only alphanumerics and underscores.",
+                "example": "phone"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["string", "number", "boolean", "date", "json"],
+                "description": "Data type of the column."
+              },
+              "required": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the column requires a value on insert."
+              },
+              "unique": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether values in this column must be unique across all rows."
+              },
+              "position": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Zero-based insert position in the column order. Appended at the end when omitted."
+              }
+            }
+          }
+        }
+      },
+      "UpdateColumnBody": {
+        "type": "object",
+        "description": "Payload to update an existing column by name.",
+        "required": ["workspaceId", "columnName", "updates"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "columnName": {
+            "type": "string",
+            "description": "The current name of the column to update.",
+            "example": "phone"
+          },
+          "updates": {
+            "type": "object",
+            "description": "Fields to change. Provide at least one.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+                "maxLength": 50,
+                "description": "New column name.",
+                "example": "phone_number"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["string", "number", "boolean", "date", "json"],
+                "description": "New data type for the column."
+              },
+              "required": {
+                "type": "boolean",
+                "description": "Whether the column requires a value on insert."
+              },
+              "unique": {
+                "type": "boolean",
+                "description": "Whether values in this column must be unique across all rows."
+              }
+            }
+          }
+        }
+      },
+      "DeleteColumnBody": {
+        "type": "object",
+        "description": "Payload to delete a column by name.",
+        "required": ["workspaceId", "columnName"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "columnName": {
+            "type": "string",
+            "description": "The name of the column to delete.",
+            "example": "phone_number"
+          }
+        }
+      },
+      "CreateRowSingleBody": {
+        "type": "object",
+        "description": "Insert a single row.",
+        "required": ["workspaceId", "data"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "data": {
+            "$ref": "#/components/schemas/RowData"
+          },
+          "afterRowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Insert directly after this row id. Mutually exclusive with beforeRowId."
+          },
+          "beforeRowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Insert directly before this row id. Mutually exclusive with afterRowId."
+          }
+        }
+      },
+      "CreateRowBatchBody": {
+        "type": "object",
+        "description": "Insert multiple rows in one request.",
+        "required": ["workspaceId", "rows"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "rows": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "Rows to insert. Each entry is keyed by column name. Up to 1000 rows per request.",
+            "items": {
+              "$ref": "#/components/schemas/RowData"
+            }
+          }
+        }
+      },
+      "CreateRowsBody": {
+        "description": "Either a single-row payload or a batch payload.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreateRowSingleBody"
+          },
+          {
+            "$ref": "#/components/schemas/CreateRowBatchBody"
+          }
+        ]
+      },
+      "UpdateRowsByFilterBody": {
+        "type": "object",
+        "description": "Bulk-update rows matching a filter.",
+        "required": ["workspaceId", "filter", "data"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/Filter"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RowData"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "Maximum number of matching rows to update."
+          }
+        }
+      },
+      "DeleteRowsByFilterBody": {
+        "type": "object",
+        "description": "Delete rows matching a filter.",
+        "required": ["workspaceId", "filter"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/Filter"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "Maximum number of matching rows to delete."
+          }
+        }
+      },
+      "DeleteRowsByIdsBody": {
+        "type": "object",
+        "description": "Delete an explicit list of rows by id.",
+        "required": ["workspaceId", "rowIds"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "rowIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "Row ids to delete. Up to 1000 ids per request.",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "Maximum number of rows to delete."
+          }
+        }
+      },
+      "DeleteRowsBody": {
+        "description": "Provide exactly one of `filter` or `rowIds`.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/DeleteRowsByFilterBody"
+          },
+          {
+            "$ref": "#/components/schemas/DeleteRowsByIdsBody"
+          }
+        ]
+      },
+      "UpdateRowBody": {
+        "type": "object",
+        "description": "Partial update for a single row.",
+        "required": ["workspaceId", "data"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "data": {
+            "$ref": "#/components/schemas/RowData"
+          }
+        }
+      },
+      "UpsertRowBody": {
+        "type": "object",
+        "description": "Insert-or-update a row keyed by a unique column.",
+        "required": ["workspaceId", "data"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "data": {
+            "$ref": "#/components/schemas/RowData"
+          },
+          "conflictTarget": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the unique column to resolve the conflict against. When omitted, the server uses the table's single unique column."
+          }
+        }
+      },
+      "TableEnvelope": {
+        "type": "object",
+        "description": "A single table wrapped in the v2 data envelope.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["table"],
+            "properties": {
+              "table": {
+                "$ref": "#/components/schemas/Table"
+              }
+            }
+          }
+        }
+      },
+      "TableListEnvelope": {
+        "type": "object",
+        "description": "A page of tables. `nextCursor` is always null because the full bounded workspace set is returned in one page.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Table"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Opaque cursor for the next page, or null when there are no more pages."
+          }
+        }
+      },
+      "DeleteTableEnvelope": {
+        "type": "object",
+        "description": "Confirmation that a table was archived.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The id of the archived table."
+              }
+            }
+          }
+        }
+      },
+      "ColumnsEnvelope": {
+        "type": "object",
+        "description": "The table's full column list after a column mutation.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["columns"],
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Column"
+                }
+              }
+            }
+          }
+        }
+      },
+      "RowEnvelope": {
+        "type": "object",
+        "description": "A single row wrapped in the v2 data envelope.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["row"],
+            "properties": {
+              "row": {
+                "$ref": "#/components/schemas/Row"
+              }
+            }
+          }
+        }
+      },
+      "RowListEnvelope": {
+        "type": "object",
+        "description": "A cursor-paginated page of rows.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Row"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Opaque cursor for the next page, or null on the final page."
+          }
+        }
+      },
+      "BatchInsertRowsEnvelope": {
+        "type": "object",
+        "description": "Result of a batch row insert.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["rows", "insertedCount"],
+            "properties": {
+              "rows": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Row"
+                }
+              },
+              "insertedCount": {
+                "type": "integer",
+                "description": "Number of rows inserted."
+              }
+            }
+          }
+        }
+      },
+      "CreateRowsResponse": {
+        "description": "A single-row insert returns `{ data: { row } }`; a batch insert returns `{ data: { rows, insertedCount } }`.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RowEnvelope"
+          },
+          {
+            "$ref": "#/components/schemas/BatchInsertRowsEnvelope"
+          }
+        ]
+      },
+      "UpdateRowsEnvelope": {
+        "type": "object",
+        "description": "Result of a bulk update-by-filter.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["updatedCount", "updatedRowIds"],
+            "properties": {
+              "updatedCount": {
+                "type": "integer",
+                "description": "Number of rows updated."
+              },
+              "updatedRowIds": {
+                "type": "array",
+                "description": "Ids of the updated rows. Empty when nothing matched.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeleteRowsEnvelope": {
+        "type": "object",
+        "description": "Result of a bulk delete. `requestedCount` and `missingRowIds` are present only for id-based deletes.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["deletedCount", "deletedRowIds"],
+            "properties": {
+              "deletedCount": {
+                "type": "integer",
+                "description": "Number of rows deleted."
+              },
+              "deletedRowIds": {
+                "type": "array",
+                "description": "Ids of the deleted rows.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "requestedCount": {
+                "type": "integer",
+                "description": "Number of row ids requested. Present only for id-based deletes."
+              },
+              "missingRowIds": {
+                "type": "array",
+                "description": "Requested ids that did not exist. Present only for id-based deletes.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeleteRowEnvelope": {
+        "type": "object",
+        "description": "Result of a single-row delete.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["deletedCount", "deletedRowIds"],
+            "properties": {
+              "deletedCount": {
+                "type": "integer",
+                "description": "Always 1 when a row was deleted."
+              },
+              "deletedRowIds": {
+                "type": "array",
+                "description": "The id of the deleted row.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "UpsertRowEnvelope": {
+        "type": "object",
+        "description": "Result of an upsert, including whether the row was inserted or updated.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["row", "operation"],
+            "properties": {
+              "row": {
+                "$ref": "#/components/schemas/Row"
+              },
+              "operation": {
+                "type": "string",
+                "enum": ["insert", "update"],
+                "description": "Whether the row was inserted or updated."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request. The request body, query parameters, or a JSON-encoded filter/sort failed validation. Inspect `error.details` for field-level issues.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request",
+                "details": [
+                  {
+                    "path": "schema.columns",
+                    "message": "Table must have at least one column"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Invalid or missing API key. Ensure the X-API-Key header is set with a valid key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Invalid API key"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Access denied. The API key cannot access the target workspace, or a plan limit (such as the maximum number of tables) has been reached.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Access denied"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested table or row was not found. Verify the id is correct and belongs to the specified workspace.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Table not found"
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded. Wait for the duration in the Retry-After header before retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimitReset"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-15T10:31:00.000Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1065 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Logs",
+    "description": "Version 2 of the Sim API for workflow execution logs. v2 standardizes every response on a single envelope: a single resource returns `{ data }`, a list returns `{ data, nextCursor }`, and an error returns `{ error: { code, message, details? } }`. Lists use opaque cursor pagination (`limit` + `cursor` in, `nextCursor` out). Rate-limit state is carried in the `X-RateLimit-*` response headers rather than the body. Authenticate every request with the `X-API-Key` header.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Logs",
+      "description": "Query workflow execution logs, retrieve a single log entry, and fetch the full execution state snapshot for a run."
+    }
+  ],
+  "paths": {
+    "/api/v2/logs": {
+      "get": {
+        "operationId": "listLogs",
+        "summary": "List Logs",
+        "description": "List workflow execution logs for a workspace with filtering and opaque cursor pagination. Returns `{ data, nextCursor }`. By default (`details=basic`) each entry contains summary fields only; pass `details=full` to include the per-execution `workflow` summary, and additionally `includeFinalOutput=true` / `includeTraceSpans=true` to materialize `finalOutput` / `traceSpans` on each entry.",
+        "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/logs?workspaceId=YOUR_WORKSPACE_ID&limit=50\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          },
+          {
+            "name": "workflowIds",
+            "in": "query",
+            "description": "Comma-separated list of workflow IDs to filter by. Only logs from these workflows are returned.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36,8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+          },
+          {
+            "name": "folderIds",
+            "in": "query",
+            "description": "Comma-separated list of folder IDs. Returns logs for all workflows within these folders.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "triggers",
+            "in": "query",
+            "description": "Comma-separated trigger types to filter by (e.g. api, webhook, schedule, manual, chat).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "api,schedule"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "description": "Filter logs by severity level. info for successful executions, error for failed ones.",
+            "schema": {
+              "type": "string",
+              "enum": ["info", "error"]
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Only return logs started at or after this ISO 8601 timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Only return logs started at or before this ISO 8601 timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "query",
+            "description": "Filter by an exact execution ID. Useful for looking up a specific run.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minDurationMs",
+            "in": "query",
+            "description": "Only return logs where total execution duration was at least this many milliseconds.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "maxDurationMs",
+            "in": "query",
+            "description": "Only return logs where total execution duration was at most this many milliseconds.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "minCost",
+            "in": "query",
+            "description": "Only return logs where execution cost was at least this amount in USD.",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "maxCost",
+            "in": "query",
+            "description": "Only return logs where execution cost was at most this amount in USD.",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Filter by the AI model used during execution (e.g., gpt-4o, claude-sonnet-4-20250514).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "details",
+            "in": "query",
+            "description": "Response detail level. basic returns summary fields only. full additionally includes the per-entry workflow summary and enables the includeFinalOutput / includeTraceSpans materialization flags.",
+            "schema": {
+              "type": "string",
+              "enum": ["basic", "full"],
+              "default": "basic"
+            }
+          },
+          {
+            "name": "includeTraceSpans",
+            "in": "query",
+            "description": "When true, includes block-level execution trace spans on each entry. Only applies when details=full.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "includeFinalOutput",
+            "in": "query",
+            "description": "When true, includes the workflow's final output on each entry. Only applies when details=full.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of log entries to return per page. Values are clamped to the range 1–1000.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque pagination cursor returned from a previous request's nextCursor field. Omit to fetch the first page.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Sort order by execution start time. desc returns newest first.",
+            "schema": {
+              "type": "string",
+              "enum": ["desc", "asc"],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of execution logs matching the filter criteria.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "Log entries for the current page.",
+                      "items": {
+                        "$ref": "#/components/schemas/LogListItem"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": ["string", "null"],
+                      "description": "Opaque cursor for fetching the next page. null when there are no more results."
+                    }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "log_7x8y9z0a1b",
+                      "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                      "executionId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                      "deploymentVersionId": "dep_2c4e6a8b0d1f",
+                      "level": "info",
+                      "trigger": "api",
+                      "startedAt": "2026-01-15T10:30:00.000Z",
+                      "endedAt": "2026-01-15T10:30:01.250Z",
+                      "totalDurationMs": 1250,
+                      "cost": {
+                        "total": 0.0032
+                      },
+                      "files": null
+                    }
+                  ],
+                  "nextCursor": "eyJzdGFydGVkQXQiOiIyMDI2LTAxLTE1VDEwOjMwOjAwLjAwMFoiLCJpZCI6ImxvZ183eDh5OXowYTFiIn0="
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/logs/{id}": {
+      "get": {
+        "operationId": "getLog",
+        "summary": "Get Log",
+        "description": "Retrieve a single log entry by its ID, including the workflow metadata captured at execution time, the materialized execution data, and the cost summary. Returns `{ data }`.",
+        "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the log entry.",
+            "schema": {
+              "type": "string",
+              "example": "log_7x8y9z0a1b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested log entry with full execution data and cost summary.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/LogDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "log_7x8y9z0a1b",
+                    "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                    "executionId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                    "level": "info",
+                    "trigger": "api",
+                    "startedAt": "2026-01-15T10:30:00.000Z",
+                    "endedAt": "2026-01-15T10:30:01.250Z",
+                    "totalDurationMs": 1250,
+                    "files": null,
+                    "workflow": {
+                      "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                      "name": "Customer Support Agent",
+                      "description": "Routes incoming support tickets and drafts responses",
+                      "folderId": null,
+                      "userId": "usr_1a2b3c4d5e",
+                      "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                      "createdAt": "2025-01-10T09:00:00.000Z",
+                      "updatedAt": "2025-06-18T16:45:00.000Z",
+                      "deleted": false
+                    },
+                    "executionData": {
+                      "traceSpans": [],
+                      "finalOutput": {
+                        "result": "Hello, world!"
+                      }
+                    },
+                    "cost": {
+                      "total": 0.0032
+                    },
+                    "createdAt": "2026-01-15T10:30:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/logs/executions/{executionId}": {
+      "get": {
+        "operationId": "getExecution",
+        "summary": "Get Execution",
+        "description": "Retrieve the full execution state snapshot for a run: the workflow state captured at execution time plus execution metadata (trigger, timing, and cost). Returns `{ data }`.",
+        "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/logs/executions/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The unique execution identifier.",
+            "schema": {
+              "type": "string",
+              "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The full execution state snapshot with workflow state and metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Execution"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "executionId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                    "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                    "workflowState": {
+                      "blocks": {},
+                      "edges": [],
+                      "loops": {},
+                      "parallels": {}
+                    },
+                    "executionMetadata": {
+                      "trigger": "api",
+                      "startedAt": "2026-01-15T10:30:00.000Z",
+                      "endedAt": "2026-01-15T10:30:01.250Z",
+                      "totalDurationMs": 1250,
+                      "cost": {
+                        "total": 0.0032
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+      }
+    },
+    "parameters": {
+      "WorkspaceId": {
+        "name": "workspaceId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": "The unique identifier of the workspace whose logs to query."
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum number of requests allowed in the current rate-limit window.",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Number of requests remaining in the current rate-limit window.",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp when the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "Retry-After": {
+        "description": "Number of seconds to wait before retrying the request.",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "schemas": {
+      "Cost": {
+        "type": ["object", "null"],
+        "description": "Aggregate execution cost in USD. null when no cost was recorded for the run.",
+        "required": ["total"],
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Total cost of the execution in USD.",
+            "example": 0.0032
+          }
+        }
+      },
+      "LogWorkflowSummary": {
+        "type": "object",
+        "description": "Workflow summary captured at execution time. Present on a list entry only when details=full.",
+        "required": ["id", "name", "description", "deleted"],
+        "properties": {
+          "id": {
+            "type": ["string", "null"],
+            "description": "The workflow's identifier. null if the log is not associated with a workflow.",
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+          },
+          "name": {
+            "type": "string",
+            "description": "Workflow name. Falls back to \"Deleted Workflow\" when the workflow no longer exists.",
+            "example": "Customer Support Agent"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Workflow description, or null if none was set.",
+            "example": "Routes incoming support tickets and drafts responses"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the workflow has since been deleted.",
+            "example": false
+          }
+        }
+      },
+      "LogWorkflowDetail": {
+        "type": "object",
+        "description": "Full workflow metadata captured at execution time.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "folderId",
+          "userId",
+          "workspaceId",
+          "createdAt",
+          "updatedAt",
+          "deleted"
+        ],
+        "properties": {
+          "id": {
+            "type": ["string", "null"],
+            "description": "The workflow's identifier. null if the log is not associated with a workflow.",
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+          },
+          "name": {
+            "type": "string",
+            "description": "Workflow name. Falls back to \"Deleted Workflow\" when the workflow no longer exists.",
+            "example": "Customer Support Agent"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Workflow description, or null if none was set.",
+            "example": "Routes incoming support tickets and drafts responses"
+          },
+          "folderId": {
+            "type": ["string", "null"],
+            "description": "The folder the workflow belongs to. null if at the workspace root or the workflow is gone.",
+            "example": null
+          },
+          "userId": {
+            "type": ["string", "null"],
+            "description": "The user that owns the workflow. null if the workflow is gone.",
+            "example": "usr_1a2b3c4d5e"
+          },
+          "workspaceId": {
+            "type": ["string", "null"],
+            "description": "The workspace the workflow belongs to. null if the workflow is gone.",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "createdAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the workflow was created. null if the workflow is gone.",
+            "example": "2025-01-10T09:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the workflow was last modified. null if the workflow is gone.",
+            "example": "2025-06-18T16:45:00.000Z"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the workflow has since been deleted.",
+            "example": false
+          }
+        }
+      },
+      "LogListItem": {
+        "type": "object",
+        "description": "Summary of a single workflow execution log entry returned by the list endpoint.",
+        "required": [
+          "id",
+          "workflowId",
+          "executionId",
+          "deploymentVersionId",
+          "level",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "totalDurationMs",
+          "cost",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique log entry identifier.",
+            "example": "log_7x8y9z0a1b"
+          },
+          "workflowId": {
+            "type": ["string", "null"],
+            "description": "The workflow that was executed. null if the log is not associated with a workflow.",
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+          },
+          "executionId": {
+            "type": "string",
+            "description": "Unique execution identifier for this run.",
+            "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
+          },
+          "deploymentVersionId": {
+            "type": ["string", "null"],
+            "description": "The deployment version that produced this run. null for runs not tied to a deployment.",
+            "example": "dep_2c4e6a8b0d1f"
+          },
+          "level": {
+            "type": "string",
+            "description": "Log severity. info for successful executions, error for failures.",
+            "example": "info"
+          },
+          "trigger": {
+            "type": "string",
+            "description": "How the execution was triggered (e.g., api, webhook, schedule, manual, chat).",
+            "example": "api"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution started.",
+            "example": "2026-01-15T10:30:00.000Z"
+          },
+          "endedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution completed. null if the run has not finished.",
+            "example": "2026-01-15T10:30:01.250Z"
+          },
+          "totalDurationMs": {
+            "type": ["integer", "null"],
+            "description": "Total execution duration in milliseconds. null if the run has not finished.",
+            "example": 1250
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Cost"
+          },
+          "files": {
+            "type": ["array", "null"],
+            "description": "Attachment metadata for files produced during the run. null when the run produced no files.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "workflow": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LogWorkflowSummary"
+              }
+            ],
+            "description": "Workflow summary. Present only when details=full."
+          },
+          "finalOutput": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The workflow's final output. The shape depends on the workflow. Present only when details=full and includeFinalOutput=true."
+          },
+          "traceSpans": {
+            "type": "array",
+            "description": "Block-level execution trace spans with timing, inputs, and outputs. Present only when details=full and includeTraceSpans=true.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "LogDetail": {
+        "type": "object",
+        "description": "Detailed log entry with full workflow metadata, materialized execution data, and cost summary.",
+        "required": [
+          "id",
+          "workflowId",
+          "executionId",
+          "level",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "totalDurationMs",
+          "files",
+          "workflow",
+          "executionData",
+          "cost",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique log entry identifier.",
+            "example": "log_7x8y9z0a1b"
+          },
+          "workflowId": {
+            "type": ["string", "null"],
+            "description": "The workflow that was executed. null if the log is not associated with a workflow.",
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+          },
+          "executionId": {
+            "type": "string",
+            "description": "Unique execution identifier for this run.",
+            "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
+          },
+          "level": {
+            "type": "string",
+            "description": "Log severity. info for successful executions, error for failures.",
+            "example": "info"
+          },
+          "trigger": {
+            "type": "string",
+            "description": "How the execution was triggered (e.g., api, webhook, schedule, manual, chat).",
+            "example": "api"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution started.",
+            "example": "2026-01-15T10:30:00.000Z"
+          },
+          "endedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution completed. null if the run has not finished.",
+            "example": "2026-01-15T10:30:01.250Z"
+          },
+          "totalDurationMs": {
+            "type": ["integer", "null"],
+            "description": "Total execution duration in milliseconds. null if the run has not finished.",
+            "example": 1250
+          },
+          "files": {
+            "type": ["array", "null"],
+            "description": "Attachment metadata for files produced during the run. null when the run produced no files.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/LogWorkflowDetail"
+          },
+          "executionData": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Materialized execution trace for this run (block states, trace spans, and final output). Large blobs stored externally are resolved inline.",
+            "properties": {
+              "traceSpans": {
+                "type": "array",
+                "description": "Block-level execution traces with timing, inputs, and outputs.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "finalOutput": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The workflow's final output after all blocks completed."
+              }
+            }
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Cost"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the log entry was recorded.",
+            "example": "2026-01-15T10:30:00.000Z"
+          }
+        }
+      },
+      "Execution": {
+        "type": "object",
+        "description": "Full execution state snapshot: the workflow state at execution time plus execution metadata.",
+        "required": ["executionId", "workflowId", "workflowState", "executionMetadata"],
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "description": "The unique identifier for this execution.",
+            "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
+          },
+          "workflowId": {
+            "type": ["string", "null"],
+            "description": "The workflow that was executed. null if the log is not associated with a workflow.",
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+          },
+          "workflowState": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Snapshot of the workflow configuration at the time of execution.",
+            "properties": {
+              "blocks": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Map of block IDs to their configuration and state during execution."
+              },
+              "edges": {
+                "type": "array",
+                "description": "Connections between blocks defining the execution flow.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "loops": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Loop configurations defining iterative execution patterns."
+              },
+              "parallels": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Parallel execution group configurations."
+              }
+            }
+          },
+          "executionMetadata": {
+            "type": "object",
+            "description": "Metadata about the execution including trigger, timing, and cost.",
+            "required": ["trigger", "startedAt", "endedAt", "totalDurationMs", "cost"],
+            "properties": {
+              "trigger": {
+                "type": "string",
+                "description": "How the execution was triggered (e.g., api, webhook, schedule, manual, chat).",
+                "example": "api"
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when execution started.",
+                "example": "2026-01-15T10:30:00.000Z"
+              },
+              "endedAt": {
+                "type": ["string", "null"],
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when execution completed. null if the run has not finished.",
+                "example": "2026-01-15T10:30:01.250Z"
+              },
+              "totalDurationMs": {
+                "type": ["integer", "null"],
+                "description": "Total execution duration in milliseconds. null if the run has not finished.",
+                "example": 1250
+              },
+              "cost": {
+                "$ref": "#/components/schemas/Cost"
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "Canonical v2 error envelope.",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Machine-readable error code (e.g., BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, RATE_LIMITED, INTERNAL_ERROR).",
+                "example": "NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message.",
+                "example": "Log not found"
+              },
+              "details": {
+                "description": "Optional structured details about the error (e.g., field-level validation issues or rate-limit reset info). Present only on some errors."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request parameters. Inspect error.details for field-level validation issues.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request",
+                "details": [
+                  {
+                    "path": "workspaceId",
+                    "message": "Workspace ID is required"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Invalid or missing API key. Ensure the X-API-Key header is set with a valid key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The API key is authenticated but not authorized for the requested workspace.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "API key is not authorized for this workspace"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found. An authorization failure on a single resource is also reported as 404 so resource existence is not leaked.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Log not found"
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded. Wait for the duration in the Retry-After header before retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/X-RateLimit-Remaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/X-RateLimit-Reset"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-15T10:31:00.000Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected error occurred while processing the request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

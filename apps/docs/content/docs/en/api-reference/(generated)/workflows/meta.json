@@ -1,15 +1,11 @@
 {
   "pages": [
-    "executeWorkflow",
-    "getWorkflowExecution",
-    "cancelExecution",
     "listWorkflows",
     "getWorkflow",
     "exportWorkflow",
     "importWorkflow",
     "deployWorkflow",
     "undeployWorkflow",
-    "rollbackWorkflow",
-    "getJobStatus"
+    "rollbackWorkflow"
   ]
 }

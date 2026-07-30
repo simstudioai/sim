@@ -25,20 +25,21 @@ type AuthResult =
   | { success: false; response: NextResponse }
 
 /**
- * Validates enterprise audit log access for the given user.
- *
- * Checks:
- * 1. User belongs to an organization
- * 2. User has admin or owner role
- * 3. Organization has an active enterprise subscription
- *
- * Returns the organization ID and all member user IDs on success,
- * or an error response on failure.
+ * Structured enterprise audit-access result shared by the v1 and v2 surfaces so
+ * each version can render the failure in its own response envelope.
  */
-export async function validateEnterpriseAuditAccess(
+export type EnterpriseAuditAccessResult =
+  | { success: true; context: EnterpriseAuditContext }
+  | { success: false; status: number; message: string }
+
+/**
+ * Core enterprise audit-access check (no response rendering). See
+ * {@link validateEnterpriseAuditAccess} for the policy checks performed.
+ */
+export async function resolveEnterpriseAuditAccess(
   userId: string,
   targetOrganizationId?: string
-): Promise<AuthResult> {
+): Promise<EnterpriseAuditAccessResult> {
   const [membership] = await db
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
@@ -50,31 +51,16 @@ export async function validateEnterpriseAuditAccess(
     .limit(1)
 
   if (!membership) {
-    return {
-      success: false,
-      response: NextResponse.json({ error: 'Not a member of any organization' }, { status: 403 }),
-    }
+    return { success: false, status: 403, message: 'Not a member of any organization' }
   }
 
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Organization admin or owner role required' },
-        { status: 403 }
-      ),
-    }
+    return { success: false, status: 403, message: 'Organization admin or owner role required' }
   }
 
   const billingBlocked = await isOrganizationBillingBlocked(membership.organizationId)
   if (billingBlocked) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Active enterprise subscription required' },
-        { status: 403 }
-      ),
-    }
+    return { success: false, status: 403, message: 'Active enterprise subscription required' }
   }
 
   const [orgSub, orgMembers] = await Promise.all([
@@ -96,13 +82,7 @@ export async function validateEnterpriseAuditAccess(
   ])
 
   if (orgSub.length === 0) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Active enterprise subscription required' },
-        { status: 403 }
-      ),
-    }
+    return { success: false, status: 403, message: 'Active enterprise subscription required' }
   }
 
   const orgMemberIds = orgMembers.map((m) => m.userId)
@@ -115,9 +95,29 @@ export async function validateEnterpriseAuditAccess(
 
   return {
     success: true,
-    context: {
-      organizationId: membership.organizationId,
-      orgMemberIds,
-    },
+    context: { organizationId: membership.organizationId, orgMemberIds },
+  }
+}
+
+/**
+ * Validates enterprise audit log access for the given user.
+ *
+ * Checks:
+ * 1. User belongs to an organization
+ * 2. User has admin or owner role
+ * 3. Organization has an active enterprise subscription
+ *
+ * v1 wrapper: renders {@link resolveEnterpriseAuditAccess} as the v1 `{ error }`
+ * response body.
+ */
+export async function validateEnterpriseAuditAccess(
+  userId: string,
+  targetOrganizationId?: string
+): Promise<AuthResult> {
+  const result = await resolveEnterpriseAuditAccess(userId, targetOrganizationId)
+  if (result.success) return { success: true, context: result.context }
+  return {
+    success: false,
+    response: NextResponse.json({ error: result.message }, { status: result.status }),
   }
 }

@@ -1,5 +1,5 @@
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
 
 export interface LogFilters {
   workspaceId: string
@@ -103,8 +103,14 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
   return conditions.length > 0 ? and(...conditions)! : sql`true`
 }
 
+/**
+ * Order rows by `(startedAt, id)` so the sort matches the keyset cursor's tuple
+ * comparison in {@link buildLogFilters}. Without the `id` tie-break, rows that
+ * share a `startedAt` have an arbitrary order and can be skipped or duplicated
+ * across pages.
+ */
 export function getOrderBy(order: 'desc' | 'asc' = 'desc') {
   return order === 'desc'
-    ? desc(workflowExecutionLogs.startedAt)
-    : sql`${workflowExecutionLogs.startedAt} ASC`
+    ? [desc(workflowExecutionLogs.startedAt), desc(workflowExecutionLogs.id)]
+    : [asc(workflowExecutionLogs.startedAt), asc(workflowExecutionLogs.id)]
 }
