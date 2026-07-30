@@ -22,6 +22,7 @@ import {
   getTokenServiceAccountDescriptor,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -59,6 +60,16 @@ function openDocs(url: string): void {
  * that doesn't look like `<tenant>.atlassian.net`.
  */
 const ATLASSIAN_DOMAIN_HINT_REGEX = /^[a-z0-9-]+\.atlassian\.net$/i
+
+/**
+ * States the site-wide reach of the token up front. Users reaching this modal
+ * from the Jira page were left unsure whether they had connected Jira or Jira
+ * Service Management; the credential covers both, plus Confluence. Derived from
+ * the catalog so it cannot drift as Atlassian integrations are added.
+ */
+const ATLASSIAN_COVERAGE_HINT = getServiceAccountCoverageSentence(
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
+)
 
 /**
  * Maps server `error.code` values returned by the Atlassian service-account
@@ -524,6 +535,7 @@ function AtlassianServiceAccountModal({
               ? 'Atlassian sites usually look like your-team.atlassian.net.'
               : undefined
           }
+          hint={ATLASSIAN_COVERAGE_HINT}
         />
 
         <ChipModalField
