@@ -83,6 +83,11 @@ beforeEach(() => {
   mockProviderStrategy.current = 'prebuilt'
   mockDelete.mockReturnValue({ where: () => ({ returning: () => Promise.resolve([]) }) })
   mockInsert.mockReturnValue({ values: () => ({ onConflictDoNothing: () => Promise.resolve() }) })
+  // Default: nothing re-adopted the hash, so the post-delete rebuild is a no-op and
+  // cases that are not about it stay on one `delete`.
+  mockSelect.mockReturnValue({
+    from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
+  })
   mockDeleteImage.mockResolvedValue(undefined)
 })
 
@@ -241,6 +246,24 @@ describe('releaseSandboxImage', () => {
 
     expect(mockDeleteImage).toHaveBeenCalledTimes(1)
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A row claiming `ready` against a deleted template is the state resolution
+   * cannot repair, so a rebuild that does not take must not leave one behind.
+   * Dropping it converts the adopter into the missing-row case, which the next
+   * execution fixes on its own.
+   */
+  it('drops the dead row when the rebuild cannot be scheduled', async () => {
+    stubClaim([READY_IMAGE])
+    mockSelect.mockImplementation(() => {
+      throw new Error('registry unreachable')
+    })
+
+    await releaseSandboxImage('hash-1')
+
+    // The claim itself plus the dead-row cleanup.
+    expect(mockDelete).toHaveBeenCalledTimes(2)
   })
 
   it('skips the provider when the claimed row never had an image', async () => {

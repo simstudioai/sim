@@ -390,13 +390,26 @@ async function rebuildIfReadopted(
     logger.warn('Sandbox image was re-adopted mid-delete; rebuilding it now', { specHash })
     await ensureSandboxImage(spec, specHash, { imageKnownGone: true })
   } catch (error) {
-    // Opportunistic: the delete it follows has already succeeded, so failing here
-    // must not surface as a failed release, and in the sweep must not reject the
-    // rest of its chunk. The adopter's next run still reaches the repair path.
-    logger.warn('Failed to rebuild a re-adopted sandbox image', {
+    // The template is gone and the rebuild did not take, so the adopter's row now
+    // claims a `ready` image that does not exist — the one state resolution cannot
+    // repair, because it only rebuilds a row that is missing or `failed`. Dropping
+    // the row converts that into the missing case, which the next execution fixes
+    // on its own. Swallowing instead would leave the sandbox broken until someone
+    // re-saved it by hand.
+    logger.warn('Failed to rebuild a re-adopted sandbox image; dropping the dead row', {
       specHash,
       error: getErrorMessage(error),
     })
+    try {
+      await db
+        .delete(sandboxImage)
+        .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
+    } catch (cleanupError) {
+      logger.error('Could not drop a sandbox image row pointing at a deleted template', {
+        specHash,
+        error: getErrorMessage(cleanupError),
+      })
+    }
   }
 }
 
