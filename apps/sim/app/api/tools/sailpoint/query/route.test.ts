@@ -197,6 +197,30 @@ describe('SailPoint query route', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toContain('/v2025/accounts')
   })
 
+  it('does not share a cached token across different client secrets', async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse([{ id: 'a1' }]))
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse([{ id: 'a2' }]))
+
+    const makeRequest = (secret: string) =>
+      createMockRequest('POST', {
+        clientId: 'shared-client',
+        clientSecret: secret,
+        tenant: 'acme-secret',
+        operation: 'sailpoint_list_accounts',
+      })
+
+    await POST(makeRequest('secret-A'))
+    await POST(makeRequest('secret-B'))
+
+    // A different secret must not reuse the first principal's token: 2 exchanges + 2 API calls.
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('/oauth/token')
+    expect(fetchMock.mock.calls[2]?.[0]).toContain('/oauth/token')
+  })
+
   it('backs off and retries on a 429 response', async () => {
     fetchMock
       .mockResolvedValueOnce(tokenResponse())

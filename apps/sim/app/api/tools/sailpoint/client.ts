@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
@@ -126,7 +127,11 @@ const tokenCache = new Map<string, CachedToken>()
 
 function cacheKey(creds: SailPointServerCredentials): string {
   const { host } = resolveSailPointHosts(creds.tenant, creds.apiVersion)
-  return `${host}:${creds.clientId}:${creds.apiVersion}`
+  // Bind the cache entry to the exact client_secret (hashed) so a caller with a matching
+  // tenant/clientId but the wrong secret can never reuse another principal's cached token - a
+  // mismatched secret produces a different key, misses the cache, and fails the token exchange.
+  const secretHash = createHash('sha256').update(creds.clientSecret).digest('hex').slice(0, 16)
+  return `${host}:${creds.clientId}:${creds.apiVersion}:${secretHash}`
 }
 
 /** Drops any cached token for these credentials so the next call re-exchanges. */
