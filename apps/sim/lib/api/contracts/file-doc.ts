@@ -116,6 +116,15 @@ export const persistFileDocResponseSchema = z.discriminatedUnion('status', [
   }),
   z.object({
     /**
+     * Couldn't persist safely right now: no `expectedVersion` was supplied for a non-empty file (the
+     * relay's synced-version token was momentarily unavailable). Nothing was written and NO reconcile
+     * should run — the live edits stay in the stream and a later persist retries once the version is
+     * re-established. Distinct from `conflict`, which signals a genuine out-of-band change to merge.
+     */
+    status: z.literal('deferred'),
+  }),
+  z.object({
+    /**
      * The file changed out-of-band since `expectedVersion` — the write was refused to avoid clobbering
      * it. `markdown` + `version` are the current durable content + version, so the relay can merge the
      * change into its live doc and re-persist the reconciled result.

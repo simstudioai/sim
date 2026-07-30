@@ -268,10 +268,14 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
       return localState
     }
   }
-  // The If-Match token: the cluster-wide synced version when enabled, else this task's room value.
+  // The If-Match token: the FRESHEST synced version known — the max of the cluster-wide value (Redis)
+  // and this task's room value. Taking the max (not Redis-preferred) avoids a stale read shadowing a
+  // newer local value when a fire-and-forget `setSyncedVersion` to Redis lagged or failed; versions are
+  // monotonic epoch-ms, so the larger is the later sync point. `undefined` when neither is known.
   const currentVersion = async (): Promise<number | undefined> => {
     const shared = store.enabled ? await store.getSyncedVersion(name) : null
-    return shared ?? room.syncedVersion ?? undefined
+    const best = Math.max(shared ?? 0, room.syncedVersion ?? 0)
+    return best > 0 ? best : undefined
   }
 
   try {
@@ -294,6 +298,13 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
         await currentVersion()
       )
       if (result.status === 'missing') return
+      if (result.status === 'deferred') {
+        // The app couldn't persist safely without a version token (momentarily unavailable). Do NOT
+        // reconcile — nothing changed out-of-band, so merging would needlessly wipe live edits. Leave
+        // the edits in the stream; a later persist writes them once the version is re-established.
+        logger.warn(`Persist deferred for file ${room.fileId} (no synced version available yet)`)
+        return
+      }
       if (result.status === 'persisted') {
         room.syncedVersion = result.version
         void store.setSyncedVersion(name, result.version)

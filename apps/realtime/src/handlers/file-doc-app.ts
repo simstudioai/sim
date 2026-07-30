@@ -84,6 +84,7 @@ export type PersistResult =
   | { status: 'persisted'; version: number }
   | { status: 'missing' }
   | { status: 'conflict'; markdown: string; version: number }
+  | { status: 'deferred' }
 
 /**
  * Ask the app to project a live collaborative document back to durable markdown and write it to the
@@ -114,7 +115,12 @@ export async function fetchFileDocPersist(
     throw new Error(`Persist failed for file ${fileId}: ${response.status}`)
   }
   const body = (await response.json()) as PersistResult
-  if (body?.status !== 'persisted' && body?.status !== 'missing' && body?.status !== 'conflict') {
+  if (
+    body?.status !== 'persisted' &&
+    body?.status !== 'missing' &&
+    body?.status !== 'conflict' &&
+    body?.status !== 'deferred'
+  ) {
     throw new Error(`Persist for file ${fileId} returned a malformed body`)
   }
   return body
