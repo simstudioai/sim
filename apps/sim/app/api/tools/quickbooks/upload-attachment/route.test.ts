@@ -135,6 +135,21 @@ describe('POST /api/tools/quickbooks/upload-attachment', () => {
     )
   })
 
+  it('defaults a blank minor version instead of rejecting the upload', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        ...baseBody,
+        minorVersion: '   ',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://quickbooks.api.intuit.com/v3/company/123145/upload?minorversion=75',
+      expect.any(Object)
+    )
+  })
+
   it('normalizes linked entity names before building attachment metadata', async () => {
     const response = await POST(
       createMockRequest('POST', {

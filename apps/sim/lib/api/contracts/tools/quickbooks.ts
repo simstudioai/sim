@@ -27,10 +27,17 @@ export const quickBooksUploadAttachmentBodySchema = z.object({
   note: z.string().max(2000, 'Attachment note must be 2000 characters or less').optional(),
   includeOnSend: z.boolean().optional(),
   apiEnvironment: z.enum(['production', 'sandbox']).optional(),
-  minorVersion: z
-    .string()
-    .regex(/^\d{1,5}$/, 'Minor version must contain one to five digits')
-    .optional(),
+  minorVersion: z.preprocess(
+    (value) => {
+      if (typeof value !== 'string') return value
+      const trimmed = value.trim()
+      return trimmed || undefined
+    },
+    z
+      .string()
+      .regex(/^\d{1,5}$/, 'Minor version must contain one to five digits')
+      .optional()
+  ),
 })
 
 const quickBooksUploadAttachmentResponseSchema = z.union([
