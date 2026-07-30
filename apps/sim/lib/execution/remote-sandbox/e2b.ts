@@ -256,6 +256,27 @@ const e2bImages: SandboxImageBuilder = {
    * endpoint directly. A non-2xx throws so the caller leaves the registry row in
    * place and retries, rather than orphaning the remote template.
    */
+  /**
+   * E2B maps a 404 from the control plane to `NotFoundError`, and the only resource
+   * a create request names is the template — so a 404 there means the ref is gone.
+   *
+   * Its two subclasses are excluded because they describe other calls entirely: a
+   * missing file inside a running sandbox, or a sandbox that has already exited.
+   * Neither is reachable from a create. Everything else — auth, rate limit,
+   * transport — is deliberately not a missing image, since rebuilding on those
+   * would turn a provider outage into a build storm.
+   */
+  async isMissingImage(error: unknown): Promise<boolean> {
+    const { FileNotFoundError, NotFoundError, SandboxNotFoundError } = await import(
+      '@e2b/code-interpreter'
+    )
+    return (
+      error instanceof NotFoundError &&
+      !(error instanceof SandboxNotFoundError) &&
+      !(error instanceof FileNotFoundError)
+    )
+  },
+
   async deleteImage(build: SandboxImageBuild): Promise<void> {
     const apiKey = env.E2B_API_KEY
     if (!apiKey) {

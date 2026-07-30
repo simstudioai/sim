@@ -8,12 +8,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
-const { mockSelect, mockUpdate, mockProviderStrategy, mockEnsureSandboxImage } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockUpdate: vi.fn(),
-  mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
-  mockEnsureSandboxImage: vi.fn(),
-}))
+const { mockSelect, mockUpdate, mockProviderStrategy, mockEnsureSandboxImage, mockIsMissingImage } =
+  vi.hoisted(() => ({
+    mockSelect: vi.fn(),
+    mockUpdate: vi.fn(),
+    mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+    mockEnsureSandboxImage: vi.fn(),
+    mockIsMissingImage: vi.fn(),
+  }))
 
 vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
   ensureSandboxImage: mockEnsureSandboxImage,
@@ -57,12 +59,18 @@ vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
     get dependencyStrategy() {
       return mockProviderStrategy.current
     },
+    get images() {
+      return mockProviderStrategy.current === 'prebuilt'
+        ? { isMissingImage: mockIsMissingImage }
+        : undefined
+    },
   }),
 }))
 
 import {
   invalidateSandboxResolution,
   provisionRuntimeDependencies,
+  repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
 
@@ -366,5 +374,60 @@ describe('provisionRuntimeDependencies', () => {
 
     const [, options] = sandbox.runCommand.mock.calls.at(-1) as [string, { timeoutMs: number }]
     expect(options.timeoutMs).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * The registry and the provider template are two systems with no shared
+ * transaction, so every attempt to keep them in step leaves some window. Create is
+ * the one step that observes the truth, which is why the repair hangs off it.
+ */
+describe('repairMissingSandboxImage', () => {
+  const SELECTED = {
+    id: 'sbx-1',
+    name: 'bigquery-etl',
+    language: CodeLanguage.Python,
+    dependencies: ['pandas'],
+    specHash: 'hash-1',
+    strategy: 'prebuilt' as const,
+    imageRef: 'sim-sbx-abc',
+  }
+
+  it('rebuilds without a cooldown, because create observed the image is gone', async () => {
+    mockIsMissingImage.mockResolvedValue(true)
+
+    const message = await repairMissingSandboxImage(SELECTED, new Error('404'))
+
+    expect(message).toMatch(/being rebuilt/)
+    expect(mockEnsureSandboxImage).toHaveBeenCalledWith(
+      { language: 'python', dependencies: ['pandas'] },
+      'hash-1',
+      { imageKnownGone: true }
+    )
+  })
+
+  /**
+   * The classifier has to stay narrow: treating an auth or rate-limit failure as a
+   * missing image would rebuild every sandbox on a provider outage.
+   */
+  it('leaves any other provider failure alone', async () => {
+    mockIsMissingImage.mockResolvedValue(false)
+
+    const message = await repairMissingSandboxImage(SELECTED, new Error('rate limited'))
+
+    expect(message).toBeNull()
+    expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
+  })
+
+  it('does nothing for a runtime-strategy sandbox, which has no image to miss', async () => {
+    mockIsMissingImage.mockResolvedValue(true)
+
+    const message = await repairMissingSandboxImage(
+      { ...SELECTED, strategy: 'runtime', imageRef: undefined },
+      new Error('404')
+    )
+
+    expect(message).toBeNull()
+    expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
   })
 })

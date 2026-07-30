@@ -6,6 +6,7 @@ import {
   provisionRuntimeDependencies,
   type ResolvedSandbox,
   RUNTIME_INSTALL_TIMEOUT_MS,
+  repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
 import type {
@@ -36,6 +37,31 @@ async function createSandbox(
   const sandbox = await provider.create(kind, options)
   logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
   return sandbox
+}
+
+/**
+ * Creates a sandbox, turning "that image is gone" into a rebuild rather than a
+ * failure the author has to resolve by hand.
+ *
+ * Create is the only step that observes whether the provider image really exists,
+ * which is why the repair hangs off it: the registry row and the remote template
+ * are two systems with no shared transaction, so keeping them in step is always
+ * best-effort, while checking at the point of use is not. Any other failure is
+ * rethrown untouched.
+ */
+async function createSelectedSandbox(
+  kind: SandboxKind,
+  options: CreateSandboxOptions,
+  selected: ResolvedSandbox | null
+): Promise<SandboxHandle> {
+  try {
+    return await createSandbox(kind, options)
+  } catch (error) {
+    if (!selected) throw error
+    const rebuilding = await repairMissingSandboxImage(selected, error)
+    if (!rebuilding) throw error
+    throw new Error(rebuilding)
+  }
 }
 
 /**
@@ -288,7 +314,11 @@ export async function executeInSandbox(
     sandboxId: req.sandboxId,
   })
 
-  const sandbox = await createSandbox(kind, { language, imageRef: selected?.imageRef })
+  const sandbox = await createSelectedSandbox(
+    kind,
+    { language, imageRef: selected?.imageRef },
+    selected
+  )
   const sandboxId = sandbox.sandboxId
 
   try {
@@ -377,7 +407,7 @@ export async function executeShellInSandbox(
     sandboxId: req.sandboxId,
   })
 
-  const sandbox = await createSandbox(kind, { imageRef: selected?.imageRef })
+  const sandbox = await createSelectedSandbox(kind, { imageRef: selected?.imageRef }, selected)
   const sandboxId = sandbox.sandboxId
 
   try {

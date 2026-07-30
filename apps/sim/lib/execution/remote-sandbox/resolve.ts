@@ -75,6 +75,8 @@ export interface ResolvedSandbox {
   name: string
   language: SandboxLanguage
   dependencies: string[]
+  /** Content address of the package set, so a failed create can rebuild it. */
+  specHash: string
   strategy: SandboxDependencyStrategy
   /** Provider image to create from. Present under the `prebuilt` strategy. */
   imageRef?: string
@@ -194,6 +196,7 @@ export async function resolveWorkspaceSandbox(args: {
     name: row.name,
     language: row.language,
     dependencies: row.dependencies ?? [],
+    specHash: row.specHash,
     envs: envsFor(row.language),
   }
 
@@ -294,7 +297,8 @@ async function readImage(providerId: string, specHash: string): Promise<CachedIm
  */
 async function scheduleImageRepair(
   spec: { language: SandboxLanguage; dependencies: string[] },
-  specHash: string
+  specHash: string,
+  options?: { imageKnownGone?: boolean }
 ): Promise<void> {
   try {
     const { ensureSandboxImage, FAILED_BUILD_RETRY_COOLDOWN_MS } = await import(
@@ -303,11 +307,50 @@ async function scheduleImageRepair(
     await ensureSandboxImage(
       { language: spec.language, dependencies: spec.dependencies },
       specHash,
-      { minFailureAgeMs: FAILED_BUILD_RETRY_COOLDOWN_MS }
+      // A create that just failed on a missing image has observed the truth, so it
+      // reclaims whatever the row says and skips the cooldown. Resolution reading a
+      // row it cannot verify only gets the rate-limited retry.
+      options?.imageKnownGone
+        ? { imageKnownGone: true }
+        : { minFailureAgeMs: FAILED_BUILD_RETRY_COOLDOWN_MS }
     )
   } catch (error) {
     logger.warn('Failed to schedule sandbox image repair', { specHash, error })
   }
+}
+
+/**
+ * Repairs a sandbox whose image turned out to be gone when the provider was asked
+ * to create from it.
+ *
+ * This is the backstop the registry cannot be: the row and the provider template
+ * are two systems with no shared transaction, so every attempt to keep them in step
+ * leaves some window — a released image adopted mid-delete, a stale cache on another
+ * replica, a rebuild that did not take. Create is the one place that observes ground
+ * truth, so a `ready` row pointing at nothing repairs itself here on first use
+ * instead of needing someone to re-save the sandbox.
+ *
+ * Returns the message to fail this execution with, or `null` when the failure was
+ * anything else and must surface unchanged.
+ */
+export async function repairMissingSandboxImage(
+  selected: ResolvedSandbox,
+  error: unknown
+): Promise<string | null> {
+  if (selected.strategy !== 'prebuilt' || !selected.imageRef) return null
+
+  const provider = resolveProvider()
+  if (!provider.images) return null
+  if (!(await provider.images.isMissingImage(error))) return null
+
+  invalidateSandboxResolution()
+  await scheduleImageRepair(selected, selected.specHash, { imageKnownGone: true })
+  logger.warn('Sandbox image was missing at create; rebuilding it', {
+    sandbox: selected.name,
+    specHash: selected.specHash,
+  })
+
+  return `Sandbox "${selected.name}" is being rebuilt because its image is no longer available. Run again in a moment.`
 }
 
 function assertLanguageMatches(sandbox: ResolvedSandbox, language?: CodeLanguage): void {

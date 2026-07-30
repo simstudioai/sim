@@ -189,6 +189,17 @@ export interface SandboxImageBuilder {
   getBuildStatus(build: SandboxImageBuild, spec: SandboxSpec): Promise<SandboxImageBuildStatus>
   /** Removes a built image from the provider. Used by the retention sweep. */
   deleteImage(build: SandboxImageBuild): Promise<void>
+  /**
+   * Whether a failure from {@link SandboxProvider.create} means the image itself
+   * is gone, rather than anything else that can go wrong reaching the provider.
+   *
+   * Only a `prebuilt` provider can answer this, and it is what makes a dead
+   * `imageRef` self-correcting: the registry and the provider are two systems with
+   * no shared transaction, so instead of trying to keep them in step, the create
+   * that observes the truth reports it. Must stay narrow — treating an auth or
+   * rate-limit failure as a missing image would rebuild on every outage.
+   */
+  isMissingImage(error: unknown): Promise<boolean>
 }
 
 export interface SandboxProvider {
