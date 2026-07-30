@@ -7,7 +7,18 @@ import { describe, expect, it } from 'vitest'
 /** Anchored to this file, not `process.cwd()`, which only resolves from `apps/sim`. */
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), 'utf8')
 
-const authLayout = read('../(auth)/auth-layout-client.tsx')
+/**
+ * Source with comments removed.
+ *
+ * Every negative assertion here must run through this. These files document the shapes
+ * they deliberately avoid, so a bare `not.toContain('min-h-screen')` matches the prose
+ * explaining why `min-h-screen` is gone and fails on correct code. The mirror case is
+ * worse: prose containing a wanted token makes a positive assertion pass on broken code.
+ */
+const stripComments = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+const authLayout = read('../(auth)/layout.tsx')
 const authShell = read('../(auth)/components/auth-shell.tsx')
 const workspaceChrome = read(
   '../workspace/[workspaceId]/components/workspace-chrome/workspace-chrome.tsx'
@@ -23,12 +34,16 @@ const mothershipView = read(
 )
 
 describe('desktop title-bar surface audit', () => {
-  it('applies the safe-area shell only when the auth route is login', () => {
-    expect(authLayout).toContain("usePathname() === '/login'")
-    expect(authLayout).toContain('reserveDesktopTitleBar={isLogin}')
-    expect(authShell).toContain(
-      "reserveDesktopTitleBar ? 'desktop-title-bar-page' : 'min-h-screen'"
-    )
+  it('reserves the lane for every surface wearing the auth shell', () => {
+    // Signup, reset-password, sso, verify, the CLI handoff and the invite pages all wear
+    // this shell and sit under the same traffic lights. Reserving only on /login left the
+    // rest drawing their logo beneath them; per-route gating could not cover
+    // `/invite/[id]` either, so the shell owns the lane unconditionally.
+    expect(authShell).toContain('desktop-title-bar-page')
+    expect(authShell).toContain('<DesktopTitleBarController />')
+    expect(stripComments(authShell)).not.toContain('reserveDesktopTitleBar')
+    expect(stripComments(authShell)).not.toContain('min-h-screen')
+    expect(authLayout).toContain('<AuthShell>')
   })
 
   it('mounts a real drag surface across login and workspace title-bar lanes', () => {
@@ -93,7 +108,7 @@ describe('desktop title-bar surface audit', () => {
     // tall empty slab over the content. It now hugs its content and caps at the pane
     // height less the lane and the bottom gutter, so a long list still scrolls.
     expect(workspaceChrome).toContain('max-h-[calc(100%-var(--desktop-title-bar-height)-8px)]')
-    expect(workspaceChrome).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
+    expect(stripComments(workspaceChrome)).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
   })
 
   it('reserves the login lane inside the box, never as a collapsing margin', () => {
@@ -101,12 +116,7 @@ describe('desktop title-bar surface audit', () => {
     // (body is a plain block box, so it opens no BFC) and displaces body itself. The
     // document then measured one full lane taller than the viewport, which is what made
     // the desktop login page scroll. Verified live: 40px of overflow, now 0.
-    // Comments are stripped first: the rule documents why `margin-top` is wrong, and a
-    // raw `not.toContain` would match that prose instead of a declaration.
-    const rule = (globalStyles.match(/\.desktop-title-bar-page \{[^}]*\}/)?.[0] ?? '').replace(
-      /\/\*[\s\S]*?\*\//g,
-      ''
-    )
+    const rule = stripComments(globalStyles.match(/\.desktop-title-bar-page \{[^}]*\}/)?.[0] ?? '')
     expect(rule).toContain('padding-top: var(--desktop-title-bar-height)')
     expect(rule).toContain('min-height: 100vh')
     expect(rule).not.toContain('margin-top')
