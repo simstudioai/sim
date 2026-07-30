@@ -6,7 +6,11 @@ import {
   v2SearchKnowledgeContract,
 } from '@/lib/api/contracts/v2/knowledge'
 import { isZodError, parseRequest } from '@/lib/api/server'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkAttributedUsageLimits,
+  resolveBillingAttribution,
+  resolveSystemBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
@@ -62,10 +66,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    // A query incurs hosted embedding (+ optional rerank) cost — gate the actor's
-    // usage and frozen status before spending. Tag-only search is free, so skip it.
-    if (query && query.trim().length > 0) {
-      const usage = await checkActorUsageLimits(userId, workspaceId)
+    /**
+     * A query incurs hosted embedding (+ optional rerank) cost; a tag-only
+     * search does not, so it is not gated and not attributed. Workspace keys
+     * resolve their system actor and immutable payer from one workspace read.
+     */
+    const hasBillableQuery = Boolean(query?.trim())
+    const billingAttribution = hasBillableQuery
+      ? rateLimit.keyType === 'workspace'
+        ? await resolveSystemBillingAttribution(workspaceId)
+        : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      : undefined
+    const billingActorUserId = billingAttribution?.actorUserId ?? userId
+
+    if (billingAttribution) {
+      const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return v2Error(
           'USAGE_LIMIT_EXCEEDED',
@@ -224,12 +239,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (queryEmbeddingIsBYOK !== null) {
       await recordSearchEmbeddingUsage({
-        userId,
+        userId: billingActorUserId,
         workspaceId,
         embeddingModel: queryEmbeddingModel,
         query: query!,
         isBYOK: queryEmbeddingIsBYOK,
         sourceReference: `v2-kb-search:${requestId}`,
+        billingAttribution,
       })
     }
 

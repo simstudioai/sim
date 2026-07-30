@@ -1,0 +1,44 @@
+{
+  "name": "@sim/cli",
+  "version": "0.1.0",
+  "description": "Sim CLI - talk to the Sim API from your terminal",
+  "type": "module",
+  "bin": {
+    "sim": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "prepublishOnly": "bun run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "sim",
+    "ai",
+    "agents",
+    "cli",
+    "workflow"
+  ],
+  "author": "Sim",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "chalk": "5.6.2",
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.2.1",
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.4"
+  }
+}

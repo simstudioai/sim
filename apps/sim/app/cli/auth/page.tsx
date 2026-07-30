@@ -42,7 +42,11 @@ export default async function CliAuthPage({
       request: resolution.request.request,
       challenge: resolution.request.challenge,
       pairing: resolution.request.pairing,
+      scope: resolution.request.scope,
     })
+    if (resolution.request.suggestedWorkspaceId) {
+      query.set('workspace', resolution.request.suggestedWorkspaceId)
+    }
     redirect(`/login?callbackUrl=${encodeURIComponent(`/cli/auth?${query}`)}`)
   }
 

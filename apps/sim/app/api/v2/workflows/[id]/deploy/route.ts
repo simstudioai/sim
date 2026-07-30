@@ -58,11 +58,9 @@ export const POST = withRouteHandler(
       const result = await performFullDeploy({
         workflowId: id,
         userId,
-        workflowName: workflow.name || undefined,
         versionName: body.data.name,
         versionDescription: body.data.description ?? undefined,
         requestId,
-        request,
       })
 
       if (!result.success) {
