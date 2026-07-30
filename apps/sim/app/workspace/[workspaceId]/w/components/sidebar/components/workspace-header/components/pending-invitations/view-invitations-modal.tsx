@@ -57,7 +57,13 @@ function invitationDisclosure(inv: MyInvitation): string {
     membershipIntent: inv.membershipIntent,
     isOrganizationAdminRole: isOrgAdminRole(inv.role),
     organizationLabel,
-    isOrganizationScoped: Boolean(inv.organizationId || inv.joinPreview?.organizationName),
+    /** `willJoinOrganization` also covers a personal-workspace invite, which has
+     * no organization id or name until acceptance creates one. */
+    isOrganizationScoped: Boolean(
+      inv.organizationId ||
+        inv.joinPreview?.organizationName ||
+        inv.joinPreview?.willJoinOrganization
+    ),
   })
   const migration = buildWorkspaceMigrationNotice({
     joinPreview: inv.joinPreview,

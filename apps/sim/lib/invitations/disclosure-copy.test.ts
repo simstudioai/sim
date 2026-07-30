@@ -102,6 +102,23 @@ describe('buildMembershipNotice', () => {
     ).toContain('external collaborator')
   })
 
+  /**
+   * A personal-workspace invite has no organization name until acceptance
+   * creates one, so the caller must scope on `willJoinOrganization`. Pinning the
+   * copy here so the seat is disclosed once it does.
+   */
+  it('discloses the seat for a will-join preview with no organization name yet', () => {
+    expect(
+      buildMembershipNotice({
+        joinPreview: preview({ organizationName: null }),
+        membershipIntent: 'internal',
+        isOrganizationAdminRole: false,
+        organizationLabel: 'the organization',
+        isOrganizationScoped: true,
+      })
+    ).toContain('uses one of their seats')
+  })
+
   it('says nothing for an invitation with no organization standing', () => {
     expect(
       buildMembershipNotice({

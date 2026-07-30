@@ -518,7 +518,18 @@ export default function Invite() {
     membershipIntent: invitation?.membershipIntent,
     isOrganizationAdminRole: Boolean(invitation?.role && isOrgAdminRole(invitation.role)),
     organizationLabel,
-    isOrganizationScoped: Boolean(invitation?.organizationId || joinPreview?.organizationName),
+    /**
+     * A personal-workspace invite has no organization id and no organization
+     * name yet — acceptance creates one by converting the billed owner's Pro to
+     * Team — so `willJoinOrganization` is the authoritative signal that a
+     * membership and seat are involved. Gating on the ids alone silenced the
+     * disclosure for exactly the case that creates the membership.
+     */
+    isOrganizationScoped: Boolean(
+      invitation?.organizationId ||
+        joinPreview?.organizationName ||
+        joinPreview?.willJoinOrganization
+    ),
   })
 
   return (
