@@ -28,11 +28,8 @@ import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 export interface ServiceAccountConnectTarget {
   serviceAccountProviderId: ServiceAccountProviderId
   /**
-   * Name the setup surface is titled with. For a family service account this is
-   * the vendor ("Atlassian"), not the product page you came from — one Atlassian
-   * token authenticates Jira, Jira Service Management, and Confluence alike, so
-   * calling it a "Jira service account" is what made users think they had
-   * connected the wrong product.
+   * Name the setup surface is titled with — the vendor ("Atlassian") for a
+   * family service account, not the product page you opened it from.
    */
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
