@@ -879,6 +879,21 @@ async function resolveFileResource(
 }
 
 /**
+ * Picks a backtick fence long enough to wrap `content` without an embedded
+ * backtick run closing it early. Per CommonMark, a fenced block ends only on a
+ * run of at least as many backticks as the opener, so the fence is one longer
+ * than the longest run inside the content, floored at the standard three. Keeps
+ * a selection that itself contains a ``` code block from truncating the snippet.
+ */
+function codeFenceFor(content: string): string {
+  let longest = 0
+  for (const match of content.matchAll(/`+/g)) {
+    longest = Math.max(longest, match[0].length)
+  }
+  return '`'.repeat(Math.max(3, longest + 1))
+}
+
+/**
  * Resolves a highlighted passage from a file into an inline, citable snippet.
  * The selected text travels with the request (it is the user's own content), so
  * the agent sees the exact bytes without re-reading; the canonical VFS path is
@@ -902,7 +917,8 @@ async function resolveFileSelectionResource(
       : startLine
         ? ` (line ${startLine})`
         : ''
-  const content = `Selected passage from ${record.name}${lineRange}:\n\n\`\`\`\n${snippet}\n\`\`\``
+  const fence = codeFenceFor(snippet)
+  const content = `Selected passage from ${record.name}${lineRange}:\n\n${fence}\n${snippet}\n${fence}`
   return {
     type: 'file_selection',
     tag: label ? `@${label}` : '@',

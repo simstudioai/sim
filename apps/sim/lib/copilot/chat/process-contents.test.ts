@@ -355,6 +355,35 @@ describe('processContextsServer - file_selection contexts', () => {
 
     expect(result).toEqual([])
   })
+
+  it('widens the code fence so an embedded ``` block cannot close it early', async () => {
+    getWorkspaceFile.mockResolvedValue({ name: 'readme.md', folderPath: null })
+
+    const snippet = 'before\n```ts\nconst x = 1\n```\nafter'
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'file_selection',
+          fileId: 'file-1',
+          label: 'readme.md:1-5',
+          text: snippet,
+          startLine: 1,
+          endLine: 5,
+        } as ChatContext,
+      ],
+      'user-1',
+      'explain',
+      'ws-1'
+    )
+
+    const [ctx] = result
+    // Outer fence must be longer than the embedded ``` run, and the full snippet
+    // (including its inner fence) must survive intact.
+    expect(ctx.content).toContain('````')
+    expect(ctx.content).toContain(snippet)
+    expect(ctx.content.startsWith('Selected passage')).toBe(true)
+    expect(ctx.content.endsWith('````')).toBe(true)
+  })
 })
 
 describe('processContextsServer - table_selection contexts', () => {
