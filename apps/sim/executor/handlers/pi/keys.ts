@@ -18,6 +18,7 @@ import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 import {
   getPiProviderApiKeyEnvVar,
   getPiWorkspaceBYOKProviderId,
+  isPiByokOnlyMode,
   isPiSupportedProvider,
 } from '@/providers/pi-providers'
 
@@ -45,7 +46,7 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
     return { apiKey: params.apiKey, isBYOK: true }
   }
 
-  if (params.mode === 'cloud') {
+  if (isPiByokOnlyMode(params.mode)) {
     const workspaceBYOKProviderId = getPiWorkspaceBYOKProviderId(providerId)
     if (params.workspaceId && workspaceBYOKProviderId) {
       const byok = await getBYOKKey(params.workspaceId, workspaceBYOKProviderId)
