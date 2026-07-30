@@ -1248,8 +1248,15 @@ export async function executeTool(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
-        if (data.realmId) {
-          contextParams.realmId = data.realmId
+        if (tool?.oauth?.provider === 'quickbooks') {
+          const credentialRealmId = typeof data.realmId === 'string' ? data.realmId.trim() : ''
+          contextParams.realmId = undefined
+          if (!credentialRealmId) {
+            throw new Error(
+              'QuickBooks company identity is missing. Reconnect the QuickBooks credential.'
+            )
+          }
+          contextParams.realmId = credentialRealmId
         }
         if (data.authStyle && !contextParams.authStyle) {
           contextParams.authStyle = data.authStyle

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 
 describe('QuickBooks fault extraction', () => {
@@ -67,5 +68,16 @@ describe('QuickBooks fault extraction', () => {
     expect(
       extractErrorMessage({ status: 502, data: null }, ErrorExtractorId.QUICKBOOKS_FAULT)
     ).toBe('QuickBooks request failed with HTTP 502.')
+  })
+
+  it('ignores fault envelopes without a usable error entry', () => {
+    expect(sanitizeQuickBooksFaultData({ Fault: { Error: [] } })).toBeNull()
+    expect(
+      sanitizeQuickBooksFaultData({
+        Fault: {
+          Error: [{ code: ' ', Message: '', ignored: 'not a documented fault field' }, null],
+        },
+      })
+    ).toBeNull()
   })
 })

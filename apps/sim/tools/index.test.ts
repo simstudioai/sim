@@ -1517,6 +1517,42 @@ describe('OAuth provider context propagation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('rejects a stale QuickBooks realm when the credential response omits its binding', async () => {
+    mockGenerateInternalToken.mockResolvedValue('internal-token')
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/oauth/token')) {
+        return new Response(JSON.stringify({ accessToken: 'fresh-access-token' }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      throw new Error('QuickBooks API must not be called with an unbound realm')
+    })
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const result = await executeTool(
+      'test_quickbooks_context',
+      {
+        credential: 'quickbooks-credential',
+        realmId: 'workflow-supplied-company',
+      },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-123',
+          workflowId: 'workflow-123',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining(
+        'QuickBooks company identity is missing. Reconnect the QuickBooks credential.'
+      ),
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not expose a non-JSON QuickBooks failure body in tool output', async () => {
     mockGenerateInternalToken.mockResolvedValue('internal-token')
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {

@@ -371,11 +371,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    if (!credential.accessToken) {
-      logger.warn(`[${requestId}] No access token available for credential`)
-      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
-    }
-
     const actorId = authz.requesterUserId
     const workspaceId = authz.workspaceId ?? null
 
@@ -394,6 +389,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           { status: 401 }
         )
       }
+    }
+
+    if (!credential.accessToken) {
+      logger.warn(`[${requestId}] No access token available for credential`)
+      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
     try {

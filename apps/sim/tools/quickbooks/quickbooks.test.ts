@@ -150,6 +150,23 @@ describe('QuickBooks response contracts', () => {
     })
   })
 
+  it('accepts a usable query response alongside an empty fault envelope', async () => {
+    const result = await transformQuickBooksListResponse(
+      Response.json({
+        Fault: { Error: [] },
+        QueryResponse: {
+          Vendor: [{ Id: '7', DisplayName: 'Sanitized Vendor' }],
+          startPosition: 1,
+          maxResults: 1,
+        },
+      }),
+      { ...authParams, startPosition: 1, maxResults: 1 },
+      'Vendor'
+    )
+
+    expect(result.output.items).toEqual([{ Id: '7', DisplayName: 'Sanitized Vendor' }])
+  })
+
   it.each([
     ['Vendor', { Id: '7', DisplayName: 'Sanitized Vendor' }],
     ['PurchaseOrder', { Id: '8', DocNumber: 'PO-SANITIZED', TotalAmt: 42 }],

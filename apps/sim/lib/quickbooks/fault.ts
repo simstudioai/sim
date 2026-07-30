@@ -11,18 +11,22 @@ export function sanitizeQuickBooksFaultData(data: unknown): SanitizedQuickBooksF
   const errors = (fault as Record<string, unknown>).Error
   if (!Array.isArray(errors)) return null
 
+  const sanitizedErrors = errors.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const value = entry as Record<string, unknown>
+    const sanitized = Object.fromEntries(
+      ['code', 'Message', 'Detail', 'element'].flatMap((key) => {
+        const field = typeof value[key] === 'string' ? value[key].trim() : ''
+        return field ? [[key, field]] : []
+      })
+    )
+    return Object.keys(sanitized).length > 0 ? [sanitized] : []
+  })
+  if (sanitizedErrors.length === 0) return null
+
   return {
     Fault: {
-      Error: errors.flatMap((entry) => {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
-        const value = entry as Record<string, unknown>
-        const sanitized = Object.fromEntries(
-          ['code', 'Message', 'Detail', 'element'].flatMap((key) =>
-            typeof value[key] === 'string' ? [[key, value[key]]] : []
-          )
-        )
-        return Object.keys(sanitized).length > 0 ? [sanitized] : []
-      }),
+      Error: sanitizedErrors,
     },
   }
 }

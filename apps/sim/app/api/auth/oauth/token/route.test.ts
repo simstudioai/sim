@@ -579,6 +579,33 @@ describe('OAuth Token API Routes', () => {
       expect(data).toHaveProperty('error')
     })
 
+    it('rejects a malformed QuickBooks identity before reporting a missing token', async () => {
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'session',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accountId: 'malformed',
+        accessToken: null,
+        refreshToken: 'refresh-token',
+        providerId: 'quickbooks',
+      })
+
+      const response = await GET(
+        new NextRequest(
+          'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
+        ) as any
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(data.error).toMatch(/Reconnect the QuickBooks credential/)
+      expect(authOAuthUtilsMockFns.mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+    })
+
     it('should handle token refresh failure', async () => {
       mockAuthorizeCredentialUse.mockResolvedValueOnce({
         ok: true,
