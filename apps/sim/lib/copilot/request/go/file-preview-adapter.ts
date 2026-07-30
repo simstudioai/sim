@@ -24,6 +24,7 @@ import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
 } from '@/lib/copilot/tools/server/files/file-preview'
+import { mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
@@ -40,6 +41,8 @@ type FilePreviewStreamState = {
   session: FilePreviewSession
   lastEmittedPreviewText: string
   lastSnapshotAt: number
+  /** Epoch ms of the last merge of the growing content into the file's live collaborative Y.Doc. */
+  lastLiveMergeAt: number
 }
 
 type ParsedWorkspaceFileArgs = {
@@ -52,6 +55,12 @@ type ParsedWorkspaceFileArgs = {
 
 const PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS = 80
 const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
+/**
+ * Throttle for merging the growing copilot content into the file's live collaborative Y.Doc as it
+ * streams. ~4 merges/sec reads as live while keeping CRDT diff churn and relay load bounded
+ * regardless of token rate; the final durable `edit_content` write is the stream-end flush.
+ */
+const LIVE_DOC_MERGE_THROTTLE_MS = 250
 
 function asJsonRecord(value: unknown): JsonRecord | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -406,6 +415,7 @@ export async function processFilePreviewStreamEvent(input: {
           session,
           lastEmittedPreviewText: '',
           lastSnapshotAt: 0,
+          lastLiveMergeAt: 0,
         })
         await persistFilePreviewSession(session)
 
@@ -477,6 +487,7 @@ export async function processFilePreviewStreamEvent(input: {
         session,
         lastEmittedPreviewText: '',
         lastSnapshotAt: 0,
+        lastLiveMergeAt: 0,
       })
       await persistFilePreviewSession(session)
 
@@ -546,6 +557,7 @@ export async function processFilePreviewStreamEvent(input: {
         session: nextSession,
         lastEmittedPreviewText: previewText,
         lastSnapshotAt: Date.now(),
+        lastLiveMergeAt: 0,
       })
       await persistFilePreviewSession(nextSession)
       await emitPreviewEvent(streamEvent, options, {
@@ -579,6 +591,7 @@ export async function processFilePreviewStreamEvent(input: {
           session: buildPreviewSessionFromIntent(streamId, editIntent),
           lastEmittedPreviewText: '',
           lastSnapshotAt: 0,
+          lastLiveMergeAt: 0,
         }
 
         if (
@@ -637,6 +650,21 @@ export async function processFilePreviewStreamEvent(input: {
 
           await persistFilePreviewSession(nextSession)
 
+          // Stream the growing content into the file's LIVE collaborative Y.Doc (when a room is open)
+          // so collaborators watching the file see the copilot write stream in via Yjs — the AI as a
+          // CRDT peer, applied as a minimal `updateYFragment` diff. Throttled so we don't merge per
+          // token; fire-and-forget so a slow/unreachable relay never stalls the stream; version omitted
+          // because intermediate content is not a durable checkpoint (the final `edit_content` write
+          // carries the real version and reconciles the durable file). No-op for `create` (never
+          // streams here) and for a file with no open room (relay reports `applied: false`).
+          const dueForLiveMerge =
+            nextSession.fileId !== undefined &&
+            now - currentPreview.lastLiveMergeAt >= LIVE_DOC_MERGE_THROTTLE_MS
+          const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt
+          if (dueForLiveMerge && nextSession.fileId) {
+            void mergeEditIntoLiveFileDoc(nextSession.fileId, nextSession.previewText)
+          }
+
           if (
             nextSession.operation === 'patch' &&
             now - currentPreview.lastSnapshotAt < PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS
@@ -645,6 +673,7 @@ export async function processFilePreviewStreamEvent(input: {
               session: nextSession,
               lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
               lastSnapshotAt: currentPreview.lastSnapshotAt,
+              lastLiveMergeAt: nextLiveMergeAt,
             })
           } else {
             const previewUpdate = buildPreviewContentUpdate(
@@ -659,6 +688,7 @@ export async function processFilePreviewStreamEvent(input: {
               session: nextSession,
               lastEmittedPreviewText: nextSession.previewText,
               lastSnapshotAt: previewUpdate.lastSnapshotAt,
+              lastLiveMergeAt: nextLiveMergeAt,
             })
 
             await emitPreviewEvent(streamEvent, options, {
@@ -680,6 +710,7 @@ export async function processFilePreviewStreamEvent(input: {
             session: currentPreview.session,
             lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
             lastSnapshotAt: currentPreview.lastSnapshotAt,
+            lastLiveMergeAt: currentPreview.lastLiveMergeAt,
           })
         }
       }
@@ -713,6 +744,7 @@ export async function processFilePreviewStreamEvent(input: {
         session: currentPreview.session,
         lastEmittedPreviewText: currentPreview.session.previewText,
         lastSnapshotAt: Date.now(),
+        lastLiveMergeAt: currentPreview.lastLiveMergeAt,
       })
       await emitPreviewEvent(streamEvent, options, {
         toolCallId: currentPreview.session.toolCallId,
@@ -744,6 +776,7 @@ export async function processFilePreviewStreamEvent(input: {
         session: completedSession,
         lastEmittedPreviewText: completedSession.previewText,
         lastSnapshotAt: Date.now(),
+        lastLiveMergeAt: currentPreview.lastLiveMergeAt,
       })
       await persistFilePreviewSession(completedSession)
     }

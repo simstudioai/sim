@@ -123,18 +123,24 @@ export async function notifyFolderResourceChanged(
  *
  * Awaited (not fire-and-forget) so the fetch dispatches before the route handler returns; bounded to
  * {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency only when the socket pod is unreachable.
+ *
+ * `version` is the durable `contentUpdatedAt` (epoch ms) this markdown was written with, for a durable
+ * write. Omit it for a STREAMING intermediate merge (the copilot stream mid-flight): intermediate
+ * content advances the live doc for viewers but is not a durable checkpoint, so the relay leaves its
+ * synced version pinned to the last durable write — which is exactly the copilot tool's final
+ * `edit_content` write, carrying the real version, that reconciles the durable file.
  */
 export async function mergeEditIntoLiveFileDoc(
   fileId: string,
   markdown: string,
-  version: number
+  version?: number
 ): Promise<void> {
   try {
     const response = await fetch(`${getSocketServerUrl()}/api/file-doc/apply-edit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-      // `version` is the durable `updatedAt` (epoch ms) this markdown was written with — the relay
-      // records it as the version its live doc now incorporates (see the persist If-Match guard).
+      // A durable `version` (the durable `updatedAt` epoch ms) records the version the live doc now
+      // incorporates (the persist If-Match guard); omitted for a streaming intermediate merge.
       body: JSON.stringify({ fileId, markdown, version }),
       signal: AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS),
     })
