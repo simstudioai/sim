@@ -28,20 +28,25 @@ export const GET = withRouteHandler(async () => {
      * accept — the same consent contract the emailed `/invite` page honours.
      * Disclosure-only, so a preview failure degrades to `null` (the client
      * shows a generic notice) rather than hiding the invitation.
+     *
+     * Sequential on purpose: each preview issues several queries, and this
+     * endpoint is hit whenever the workspace switcher opens. Fanning them out
+     * with `Promise.all` would hold one pooled connection per pending
+     * invitation for the length of the slowest one. The list is a handful of
+     * rows, so the added latency is not worth the pool pressure.
      */
-    const previews = await Promise.all(
-      invitations.map(async (inv) => {
-        try {
-          return await getInvitationJoinPreview(session.user.id, inv)
-        } catch (previewError) {
-          logger.warn('Failed to compute join preview for pending invitation', {
-            invitationId: inv.id,
-            error: previewError,
-          })
-          return null
-        }
-      })
-    )
+    const previews: Array<Awaited<ReturnType<typeof getInvitationJoinPreview>> | null> = []
+    for (const inv of invitations) {
+      try {
+        previews.push(await getInvitationJoinPreview(session.user.id, inv))
+      } catch (previewError) {
+        logger.warn('Failed to compute join preview for pending invitation', {
+          invitationId: inv.id,
+          error: previewError,
+        })
+        previews.push(null)
+      }
+    }
 
     return NextResponse.json({
       invitations: invitations.map(
