@@ -566,6 +566,9 @@ export class FileDocStore {
     if (!this.write) return
     for (const name of this.rooms.keys()) {
       await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
+      // Keep the synced-version key alive as long as its stream, so an open-but-idle doc's persist
+      // If-Match token can't expire out from under it (which would force a needless reconcile).
+      await this.write.expire(`${SYNC_VERSION_PREFIX}${name}`, STREAM_TTL_SEC).catch(() => {})
     }
   }
 }
