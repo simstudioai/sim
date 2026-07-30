@@ -13,6 +13,7 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
+import type { COLUMN_TYPES } from '@/lib/table/constants'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
@@ -193,8 +194,18 @@ export async function detectCsvDelimiter(
   return best?.delimiter ?? fallback
 }
 
-/** Narrower type than `COLUMN_TYPES` used internally for coercion. */
-export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
+/**
+ * The type of the column a CSV cell is being coerced into. Same union as
+ * `COLUMN_TYPES` — a target column can be any type, including `select`, when
+ * importing into an existing table. Derived from the constant rather than
+ * hand-duplicated (as this alias previously was, which is how it silently
+ * drifted out of sync and excluded `select`) so it can't drift again.
+ *
+ * Deliberately not reused for {@link inferColumnType}'s return type — "every
+ * column type" and "every type we can guess from raw text" are different,
+ * independently-sized questions. See `InferableColumnType`.
+ */
+export type ColumnType = (typeof COLUMN_TYPES)[number]
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -273,11 +284,21 @@ export async function parseCsvBuffer(
 }
 
 /**
+ * Types `inferColumnType` can guess from raw CSV text. Independent of
+ * `ColumnType`/`COLUMN_TYPES` on purpose: `select` can never be inferred (its
+ * options have to be declared, not sniffed), and JSON is deliberately never
+ * inferred either (see below) — neither exclusion should change just because
+ * an unrelated column type is added elsewhere.
+ */
+const INFERABLE_COLUMN_TYPES = ['string', 'number', 'boolean', 'date'] as const
+export type InferableColumnType = (typeof INFERABLE_COLUMN_TYPES)[number]
+
+/**
  * Infers a column type from a sample of non-empty values. Order matters: we
  * prefer narrower types (number > boolean > ISO date) and fall back to string.
  * JSON is never inferred automatically.
  */
-export function inferColumnType(values: unknown[]): Exclude<CsvColumnType, 'json'> {
+export function inferColumnType(values: unknown[]): InferableColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
@@ -363,13 +384,18 @@ export function inferSchemaFromCsv(
  */
 export function coerceValue(
   value: unknown,
-  colType: CsvColumnType,
+  colType: ColumnType,
   options?: NormalizeDateCellOptions
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
     case 'number': {
-      const n = Number(value)
+      // Guard the empty/whitespace case before Number() — Number('   ') is 0,
+      // not NaN, so without this a blank CSV cell would silently import as 0
+      // instead of null.
+      const trimmed = String(value).trim()
+      if (trimmed === '') return null
+      const n = Number(trimmed)
       return Number.isNaN(n) ? null : n
     }
     case 'boolean': {
@@ -389,6 +415,12 @@ export function coerceValue(
         return String(value)
       }
     }
+    case 'select':
+      // A select cell's real coercion (raw text → option id) needs the
+      // column's declared options, which this function doesn't have — it
+      // passes the raw text through, and the schema-level coerceRowToSchema
+      // pass (which does have the column, via the registry) resolves it.
+      return String(value)
     default:
       return String(value)
   }
@@ -564,7 +596,7 @@ export function coerceRowsForTable(
       if (!colName) continue
       const col = colByName.get(colName)
       if (!col) continue
-      const colType = (col.type as CsvColumnType) ?? 'string'
+      const colType = col.type ?? 'string'
       coerced[getColumnId(col)] = coerceValue(value, colType, options) as RowData[string]
     }
     return coerced

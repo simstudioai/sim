@@ -136,6 +136,10 @@ describe('import', () => {
       expect(coerceValue('not a number', 'number')).toBeNull()
     })
 
+    it('treats a whitespace-only number cell as empty rather than 0', () => {
+      expect(coerceValue('   ', 'number')).toBeNull()
+    })
+
     it('coerces booleans strictly', () => {
       expect(coerceValue('true', 'boolean')).toBe(true)
       expect(coerceValue('FALSE', 'boolean')).toBe(false)
@@ -149,6 +153,10 @@ describe('import', () => {
         '2024-01-01T12:30:00-05:00'
       )
       expect(coerceValue('not-a-date', 'date')).toBe('not-a-date')
+    })
+
+    it('passes a select cell through as raw text — resolving to an option id happens later, at the schema level', () => {
+      expect(coerceValue('Medium', 'select')).toBe('Medium')
     })
   })
 
