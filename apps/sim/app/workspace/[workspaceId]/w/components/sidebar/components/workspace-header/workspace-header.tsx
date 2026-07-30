@@ -540,7 +540,12 @@ function WorkspaceHeaderImpl({
                     icon={Search}
                     placeholder='Search workspaces...'
                     value={workspaceSearch}
-                    onChange={(e) => setWorkspaceSearch(e.target.value)}
+                    onChange={(e) => {
+                      // Typing is keyboard intent, so the cursor appears on the top
+                      // result and Enter has a visible target.
+                      setIsKeyboardNav(true)
+                      setWorkspaceSearch(e.target.value)
+                    }}
                     onKeyDown={(e) => {
                       e.stopPropagation()
                       if (e.nativeEvent.isComposing) return
@@ -557,6 +562,11 @@ function WorkspaceHeaderImpl({
                           (activeIndex - 1 + filteredWorkspaces.length) % filteredWorkspaces.length
                         setHighlightedId(filteredWorkspaces[next].id)
                       } else if (e.key === 'Enter') {
+                        // Only armed once a cursor is actually on screen. The search
+                        // field is focused on open, so acting on the seeded row here
+                        // would switch workspace with nothing marked — emcn's popover
+                        // likewise holds its selection at -1 until keyboard nav starts.
+                        if (!isKeyboardNav) return
                         e.preventDefault()
                         const target = filteredWorkspaces[activeIndex]
                         if (target) onWorkspaceSwitch(target)

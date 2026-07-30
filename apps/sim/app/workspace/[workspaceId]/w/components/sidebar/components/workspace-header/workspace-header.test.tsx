@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockNavigateToSettings } = vi.hoisted(() => ({ mockNavigateToSettings: vi.fn() }))
 
+const onWorkspaceSwitch = vi.fn()
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
 }))
@@ -88,7 +90,7 @@ function render() {
         isCreatingWorkspace={false}
         isWorkspaceMenuOpen
         setIsWorkspaceMenuOpen={() => {}}
-        onWorkspaceSwitch={() => {}}
+        onWorkspaceSwitch={onWorkspaceSwitch}
         onCreateWorkspace={async () => {}}
         onRenameWorkspace={async () => {}}
         onDeleteWorkspace={async () => {}}
@@ -122,6 +124,17 @@ function isMarked(name: string): boolean {
   )
 }
 
+/**
+ * Types into a React-controlled input. Assigning `.value` directly is ignored: React
+ * tracks the previous value on the node, so the change must go through the native
+ * setter for its synthetic `onChange` to fire.
+ */
+function typeInto(input: HTMLInputElement, value: string) {
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  setValue?.call(input, value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   // jsdom implements neither; the component scrolls the active row into view.
@@ -134,6 +147,37 @@ afterEach(() => {
 })
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
+  it('leaves Enter unarmed until a cursor is on screen', () => {
+    render()
+
+    const search = document.querySelector('input[placeholder="Search workspaces..."]')
+    act(() => {
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+
+    // The search field is focused on open, so acting on the seeded row here would
+    // switch workspace with nothing marked.
+    expect(onWorkspaceSwitch).not.toHaveBeenCalled()
+  })
+
+  it('arms Enter on the top result once the user types', () => {
+    render()
+
+    const search = document.querySelector(
+      'input[placeholder="Search workspaces..."]'
+    ) as HTMLInputElement | null
+    act(() => {
+      if (search) typeInto(search, 'Acme')
+    })
+    // Typing counts as keyboard intent, so the target is visible before Enter fires.
+    expect(isMarked('Acme')).toBe(true)
+
+    act(() => {
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(onWorkspaceSwitch).toHaveBeenCalledWith(expect.objectContaining({ id: 'ws-acme' }))
+  })
+
   it('marks only the current workspace when the menu opens', () => {
     render()
 
