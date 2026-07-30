@@ -22,6 +22,11 @@ const CATEGORY_OPTIONS = [
  * carrying a stored research query forward — it drops any value whose sub-block
  * condition no longer matches.
  */
+/** True when a sub-block holds a non-empty user value. */
+function hasValue(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim().length > 0 : value != null
+}
+
 const LEGACY_RESEARCH_OPERATION = 'exa_research'
 const AGENT_OPERATIONS = ['exa_agent', LEGACY_RESEARCH_OPERATION]
 
@@ -265,6 +270,17 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       placeholder: 'Enter URLs to retrieve content from (comma-separated)...',
       description: 'Provide either URLs or Result IDs, not both',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      /**
+       * Exactly one selector is needed. Inverting the operation match when
+       * Result IDs are present makes the requirement fall away for this
+       * operation, so the editor flags an empty config without blocking the
+       * ids-only path.
+       */
+      required: (values) => ({
+        field: 'operation',
+        value: 'exa_get_contents',
+        not: hasValue(values?.ids),
+      }),
     },
     {
       id: 'ids',
@@ -431,6 +447,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         { label: 'Pro', id: 'exa-research-pro' },
       ],
       description: 'Retired Exa research model, carried over as an Agent effort level',
+      value: () => 'exa-research',
       condition: { field: 'operation', value: LEGACY_RESEARCH_OPERATION },
     },
     {
@@ -578,8 +595,13 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         if (params.livecrawlTimeout) {
           result.livecrawlTimeout = Number(params.livecrawlTimeout)
         }
-        /** Carry a retired research model over to the Agent API's effort scale. */
-        if (params.operation === LEGACY_RESEARCH_OPERATION && params.model) {
+        /**
+         * Carry a retired research model over to the Agent API's effort scale.
+         * The old Research operation defaulted to the standard model, so an
+         * unset value maps to the same depth rather than falling through to
+         * the Agent default of `auto`.
+         */
+        if (params.operation === LEGACY_RESEARCH_OPERATION) {
           result.effort = RESEARCH_MODEL_TO_EFFORT[params.model as string] ?? 'medium'
         }
         return result
