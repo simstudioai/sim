@@ -801,13 +801,10 @@ export function LoadedRichMarkdownEditor({
         emitUpdate: false,
       })
     }
-    // Editor view mutations (`setContent`, `setEditable`, `setTextSelection`, `focus`) dispatch
-    // transactions the `@tiptap/react` binding commits with `flushSync` — and `setContent` mounts the
-    // custom node views synchronously through it (tiptap#3764). Called directly in this effect body
-    // they can run while React is mid-render and throw "flushSync ... cannot flush while rendering".
-    // Defer them to a microtask: it runs right after the current commit, before paint. The streaming
-    // rAF tick below already runs off-render, so it keeps writing content directly. Runs the deferred
-    // work only if the editor is still alive when the microtask fires.
+    // Editor view mutations flush synchronously through the @tiptap/react binding (setContent mounts
+    // the React node views via flushSync — tiptap#3764), so calling them directly in this effect body
+    // throws "flushSync ... cannot flush while rendering" when the effect runs mid-render. Defer to a
+    // microtask (after commit, before paint). The streaming rAF tick below already runs off-render.
     const runOffRender = (mutate: () => void) => {
       queueMicrotask(() => {
         if (!editor.isDestroyed) mutate()
@@ -870,14 +867,11 @@ export function LoadedRichMarkdownEditor({
       settledRef.current = lockSettled(content)
       const settledVerdict = settledRef.current.verdict
       const shouldFocus = isInitialSettle && autoFocus
-      // Deferred as ONE microtask so the order is preserved: set the body, THEN collapse the selection,
-      // THEN re-apply editability. `setContent` maps any pre-existing selection onto the new doc rather
-      // than clearing it — a select-all survives as "select everything," permanently painting every
-      // divider/image with the `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks
-      // elsewhere. The collapse must run on every settle regardless of whether `setContent` ran just
-      // above: the last streaming tick already syncs `lastSyncedBodyRef` to the final body before
-      // settle, so `body` usually already equals it here. `setTextSelection` (not `.focus()`) so this
-      // never steals DOM focus from whatever the user is doing outside the editor.
+      // One ordered microtask: set body → collapse selection → re-apply editability. The collapse is
+      // load-bearing and runs on every settle even when the body is unchanged — setContent maps a
+      // pre-existing selection onto the new doc, so a prior select-all survives as "select everything",
+      // permanently painting every divider/image with the rich-leaf-in-selection decoration (keymap.ts)
+      // until the user clicks away. setTextSelection (not .focus()) never steals DOM focus.
       runOffRender(() => {
         syncEditorBody(splitFrontmatter(content).body)
         editor.commands.setTextSelection(editor.state.doc.content.size)
