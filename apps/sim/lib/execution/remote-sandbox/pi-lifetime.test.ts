@@ -127,9 +127,14 @@ describe('resolvePiRunLifetimeMs', () => {
       '@/lib/execution/remote-sandbox/pi-lifetime'
     )
 
-    // The async ceiling is 90 minutes, above what E2B will grant, so the
-    // provider cap still wins.
-    const timeout = createTimeoutAbortController(90 * 60 * 1000)
+    // The deadline must be strictly past the ceiling for the ceiling to win.
+    // Passing exactly `PI_SANDBOX_MAX_LIFETIME_MS` made this a coin flip: the
+    // remaining budget is `deadline - Date.now()`, so it decays below the ceiling
+    // as soon as one millisecond of test time elapses, and `Math.min` then
+    // returns the remaining budget instead (`expected 5399999 to be 5400000`).
+    // An equal deadline also isn't the case the name describes — the run has to
+    // outlive the ceiling, not match it.
+    const timeout = createTimeoutAbortController(PI_SANDBOX_MAX_LIFETIME_MS + 60_000)
 
     expect(resolvePiRunLifetimeMs(timeout.signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
     timeout.cleanup()

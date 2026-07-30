@@ -5929,7 +5929,7 @@
       "slug": "exa",
       "name": "Exa",
       "description": "Search with Exa AI",
-      "longDescription": "Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.",
+      "longDescription": "Integrate Exa into the workflow. Can search the web, get page contents, find similar links, answer a question with citations, and run deep research with Exa Agent.",
       "bgColor": "#1F40ED",
       "iconName": "ExaAIIcon",
       "docsUrl": "https://docs.sim.ai/integrations/exa",
@@ -5943,16 +5943,16 @@
           "description": "Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL."
         },
         {
-          "name": "Find Similar Links",
-          "description": "Find webpages similar to a given URL using Exa AI. Returns a list of similar links with titles and text snippets."
-        },
-        {
           "name": "Answer",
           "description": "Get an AI-generated answer to a question with citations from the web using Exa AI."
         },
         {
-          "name": "Research",
-          "description": "Perform comprehensive research using AI to generate detailed reports with citations"
+          "name": "Agent",
+          "description": "Run a deep research task with Exa Agent. Handles multi-step list building, enrichment, and research, returning a written answer with field-level citations and optional structured output."
+        },
+        {
+          "name": "Find Similar Links",
+          "description": "Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows."
         }
       ],
       "operationCount": 5,
@@ -11613,6 +11613,41 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation", "webhooks"]
+    },
+    {
+      "type": "logfire",
+      "slug": "logfire",
+      "name": "Logfire",
+      "description": "Query traces, logs, and metrics in Pydantic Logfire",
+      "longDescription": "Integrate Pydantic Logfire into workflows. Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.",
+      "bgColor": "#E520E9",
+      "iconName": "LogfireIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/logfire",
+      "operations": [
+        {
+          "name": "Search Records",
+          "description": "Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL."
+        },
+        {
+          "name": "Run SQL Query",
+          "description": "Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the records and metrics tables using PostgreSQL-compatible syntax."
+        },
+        {
+          "name": "Get Trace",
+          "description": "Fetch every span and log belonging to a Logfire trace, ordered from earliest to latest, so a single request can be reconstructed end to end."
+        },
+        {
+          "name": "Get Token Info",
+          "description": "Resolve which Logfire organization and project a read token belongs to. Useful for confirming a credential targets the expected project before querying it."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "error-tracking", "incident-management"]
     },
     {
       "type": "loops",
