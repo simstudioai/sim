@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 /** Anchored to this file, not `process.cwd()`, which only resolves from `apps/sim`. */
@@ -147,5 +147,47 @@ describe('desktop title-bar surface audit', () => {
 
     expect(resourceHeader).toContain('TITLE_BAR_LANE_PT')
     expect(resourceHeader).not.toMatch(/py-\[8\.5px\]/)
+  })
+})
+
+/**
+ * Every full-viewport page root outside workspace chrome, and why it is safe.
+ *
+ * A root that fills the viewport and is NOT lane-aware draws its top chrome underneath
+ * the macOS traffic lights, because the pre-paint script marks the lane on every desktop
+ * route whether or not the page reserves it. That is one bug that has now surfaced four
+ * separate times — workspace headers, signup, the CLI handoff, the OAuth error page —
+ * each found by a person hitting it rather than by a check.
+ *
+ * So the check enumerates instead of listing what to look at: any new full-viewport root
+ * fails here until it either composes `.desktop-title-bar-page` or is added below with a
+ * reason. Reaching for this allowlist should feel like a claim you have to defend.
+ */
+const LANE_EXEMPT: Record<string, string> = {
+  'app/(landing)/components/landing-shell/landing-shell.tsx':
+    'Marketing chrome. The desktop shell boots straight to /login or a workspace and has no path to the landing routes.',
+  'app/(landing)/components/logo-shell/logo-shell.tsx':
+    'Marketing chrome, same reasoning as landing-shell.',
+  'app/playground/page.tsx': 'Dev-only scratch route, not shipped in the desktop shell.',
+  'app/(interfaces)/resume/[workflowId]/[executionId]/loading.tsx':
+    'Embedded interface surface rendered inside a host page, never as the desktop window root.',
+}
+
+describe('desktop traffic-light lane coverage', () => {
+  it('leaves no full-viewport root outside workspace chrome unaccounted for', () => {
+    const appDir = new URL('../', import.meta.url)
+    const files = readdirSync(appDir, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.tsx') && !f.startsWith('workspace/'))
+      .map((f) => `app/${f}`)
+
+    const unaccounted = files.filter((file) => {
+      const source = stripComments(read(`../${file.slice('app/'.length)}`))
+      const fillsViewport = /\b(min-h-screen|h-screen)\b/.test(source)
+      if (!fillsViewport) return false
+      const laneAware = source.includes('desktop-title-bar-page') || source.includes('AuthShell')
+      return !laneAware && !(file in LANE_EXEMPT)
+    })
+
+    expect(unaccounted).toEqual([])
   })
 })
