@@ -71,6 +71,21 @@ import {
   slackUpdateMessageTool,
   slackUpdateViewTool,
 } from '@/tools/slack'
+import {
+  tableBatchInsertRowsTool,
+  tableCreateTool,
+  tableDeleteRowsByFilterTool,
+  tableDeleteRowTool,
+  tableGetRowTool,
+  tableGetSchemaTool,
+  tableInsertRowTool,
+  tableListTool,
+  tableQueryRowsTool,
+  tableQueryRowsV2Tool,
+  tableUpdateRowsByFilterTool,
+  tableUpdateRowTool,
+  tableUpsertRowTool,
+} from '@/tools/table'
 import type { ToolConfig } from '@/tools/types'
 import { customBlockExecutorTool, workflowExecutorTool } from '@/tools/workflow'
 
@@ -87,6 +102,20 @@ import { customBlockExecutorTool, workflowExecutorTool } from '@/tools/workflow'
 export const tools: Record<string, ToolConfig> = {
   http_request: httpRequestTool,
   function_execute: functionExecuteTool,
+  // Table block operations (v1 + v2 Table blocks are both runnable in minimal mode).
+  table_query_rows: tableQueryRowsTool,
+  table_insert_row: tableInsertRowTool,
+  table_batch_insert_rows: tableBatchInsertRowsTool,
+  table_upsert_row: tableUpsertRowTool,
+  table_update_row: tableUpdateRowTool,
+  table_update_rows_by_filter: tableUpdateRowsByFilterTool,
+  table_delete_row: tableDeleteRowTool,
+  table_delete_rows_by_filter: tableDeleteRowsByFilterTool,
+  table_query_rows_v2: tableQueryRowsV2Tool,
+  table_get_row: tableGetRowTool,
+  table_get_schema: tableGetSchemaTool,
+  table_create: tableCreateTool,
+  table_list: tableListTool,
   guardrails_validate: guardrailsValidateTool,
   // Needed so workflow-as-tool and custom (deploy-as-block) tools resolve their
   // config in minimal-registry dev mode (both route through `workflow_executor`).

@@ -11,16 +11,27 @@ import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
   Filter,
+  Predicate,
+  PredicateNode,
   RowData,
   Sort,
+  SortSpec,
   TableDefinition,
   TableLocks,
   TableMetadata,
+  TablePredicate,
   TableRow,
   TableRowsCursor,
   TableViewConfig,
 } from '@/lib/table'
-import { COLUMN_TYPES, MAX_SELECT_OPTIONS, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_TYPES,
+  FILTER_OPS,
+  MAX_SELECT_OPTIONS,
+  NAME_PATTERN,
+  SORT_DIRECTIONS,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
@@ -370,6 +381,137 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
 
 const filterSchema = domainObjectSchema<Filter>()
 
+/* --------------------------- v2 predicate grammar --------------------------- */
+
+/**
+ * Body cap for the row-query routes. A query body is a predicate tree plus a
+ * cursor; the largest legitimate one — a 100-member predicate with 1000-element
+ * `in` lists — is comfortably under 1 MB. The 50 MB platform default would let a
+ * caller buffer two orders of magnitude more before any schema check runs.
+ */
+export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
+
+/** Max members in one `all`/`any` group — a generous bound against pathological trees. */
+const MAX_PREDICATE_GROUP_SIZE = 100
+/** Max sort keys — more than a few is already a smell. */
+const MAX_SORT_KEYS = 16
+/** Max nesting levels of `all`/`any` groups. Ten is already unreadable. */
+const MAX_PREDICATE_DEPTH = 10
+/** Max nodes in the whole tree, so a wide-but-shallow tree can't amplify either. */
+const MAX_PREDICATE_NODES = 500
+
+/**
+ * Iterative depth/size walk over an unvalidated predicate tree. Runs BEFORE the
+ * recursive Zod schema: a few thousand nested `{all:[...]}` levels overflow the
+ * stack inside `safeParse`, and a `RangeError` from a parser is a 500, not a 400.
+ * The walk itself must stay iterative for the same reason.
+ */
+function predicateTreeTooLarge(root: unknown): string | null {
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 1 }]
+  let nodes = 0
+
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!
+    if (++nodes > MAX_PREDICATE_NODES) {
+      return `Filter has too many conditions (max ${MAX_PREDICATE_NODES})`
+    }
+    if (depth > MAX_PREDICATE_DEPTH) {
+      return `Filter nesting is too deep (max ${MAX_PREDICATE_DEPTH} levels)`
+    }
+    if (typeof node !== 'object' || node === null) continue
+    const group = node as { all?: unknown; any?: unknown }
+    const members = Array.isArray(group.all)
+      ? group.all
+      : Array.isArray(group.any)
+        ? group.any
+        : null
+    if (!members) continue
+    for (const member of members) stack.push({ node: member, depth: depth + 1 })
+  }
+  return null
+}
+
+/**
+ * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
+ * shape the engine consumes). Structure is validated here; schema-awareness
+ * (unknown column, json-op rejection) is enforced server-side by
+ * `validatePredicate` once the table's columns are known.
+ */
+/**
+ * Both node shapes are `strictObject`, and that is load-bearing rather than
+ * fussiness. Zod strips unrecognized keys by default, so a hybrid node carrying
+ * BOTH a group key and a leaf's `field`/`op`/`value` parsed clean against the
+ * group branch with the leaf half silently deleted. On the bulk paths that turns
+ * "delete archived rows for tenant acme" into "delete every row for tenant acme".
+ * `validatePredicate`'s hybrid guard could never catch it — the keys were gone
+ * before it ran. Strict on BOTH branches is required: strict on the group alone
+ * would just fall through to the leaf branch, which is the more dangerous reading.
+ */
+// double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
+// is arbitrary JSON), but infers `unknown`, which is wider than
+// `Predicate['value']`. The narrowing is type-level only — nothing is coerced.
+const predicateLeafSchema = z.strictObject({
+  field: z.string().min(1, 'field is required').max(128),
+  op: z.enum(FILTER_OPS),
+  value: z.unknown().optional(),
+}) as unknown as z.ZodType<Predicate>
+
+const predicateNodeSchema: z.ZodType<PredicateNode> = z.lazy(() =>
+  z.union([predicateGroupSchema, predicateLeafSchema])
+)
+
+const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
+  z.union([
+    // `.min(1)`: an empty group compiles to no WHERE clause, which on the bulk
+    // delete/update paths reads as "match everything" rather than "match nothing".
+    z.strictObject({
+      all: z
+        .array(predicateNodeSchema)
+        .min(1, 'A filter group must contain at least one condition')
+        .max(MAX_PREDICATE_GROUP_SIZE),
+    }),
+    z.strictObject({
+      any: z
+        .array(predicateNodeSchema)
+        .min(1, 'A filter group must contain at least one condition')
+        .max(MAX_PREDICATE_GROUP_SIZE),
+    }),
+  ])
+)
+const predicateGroupSchema = predicateTreeSchema
+
+/**
+ * The boundary predicate schema: depth/size guard first, then the recursive
+ * structural parse. The guard is only applied at the top level — every nested
+ * group is strictly shallower, so re-checking inside the recursion would be
+ * redundant work on the hot path.
+ */
+export const predicateSchema = z
+  .unknown()
+  .superRefine((value, ctx) => {
+    const problem = predicateTreeTooLarge(value)
+    if (problem) ctx.addIssue({ code: 'custom', message: problem })
+  })
+  // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS
+  // widen the recursive lazy union through it makes typecheck OOM
+  .pipe(predicateTreeSchema) as unknown as z.ZodType<TablePredicate>
+
+/** v2 sort wire format: an ordered list of `{ field, direction }`. */
+export const sortSpecSchema: z.ZodType<SortSpec> = z
+  .array(
+    z.object({
+      field: z.string().min(1, 'field is required').max(128),
+      direction: z.enum(SORT_DIRECTIONS),
+    })
+  )
+  .max(MAX_SORT_KEYS)
+
+/**
+ * Bulk update/delete filter accepts either the v2 predicate tree (v2 block /
+ * agent) or the legacy `$`-operator object (v1 callers / stored workflows).
+ */
+const bulkFilterSchema = z.union([predicateSchema, nonEmptyFilterSchema])
+
 const optionalPositiveLimit = (max: number, label: string) =>
   z.preprocess(
     (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
@@ -388,7 +530,7 @@ export const deleteTableRowBodySchema = z.object({
 export const deleteTableRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    filter: nonEmptyFilterSchema.optional(),
+    filter: bulkFilterSchema.optional(),
     limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
     rowIds: z
       .array(z.string().min(1))
@@ -403,17 +545,37 @@ export const deleteTableRowsBodySchema = z
     message: 'Provide either filter or rowIds, but not both',
   })
 
+/**
+ * Query-param transport for a structured value: `requestJson` serializes
+ * objects/arrays into a single JSON-string param, and this decodes it before
+ * the real schema runs. Non-JSON strings pass through untouched so the inner
+ * schema produces the real error; already-parsed values (POST bodies reusing a
+ * schema) are untouched too.
+ */
+const jsonQueryValue = <S extends z.ZodType>(schema: S) =>
+  z.preprocess((value) => {
+    if (typeof value !== 'string' || value === '') return value
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }, schema)
+
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
-  filter: domainObjectSchema<Filter>().optional(),
-  sort: domainObjectSchema<Sort>().optional(),
+  // Dual-grammar during the v2 transition: the strict predicate tree wins the
+  // union; anything else falls through to the legacy `$`-object. Same for sort:
+  // an ordered spec array vs the legacy `{col: dir}` record.
+  filter: jsonQueryValue(z.union([predicateSchema, domainObjectSchema<Filter>()])).optional(),
+  sort: jsonQueryValue(z.union([sortSpecSchema, domainObjectSchema<Sort>()])).optional(),
   /**
    * Keyset cursor `(orderKey, id)` for the default row order — each page is an index seek
    * instead of OFFSET's scan-and-discard. Mutually exclusive with `sort` (cursors only make
    * sense on the default order); takes precedence over `offset`.
    */
-  after: domainObjectSchema<TableRowsCursor>().optional(),
+  after: jsonQueryValue(domainObjectSchema<TableRowsCursor>()).optional(),
   limit: z
     .preprocess(
       (value) =>
@@ -453,7 +615,7 @@ export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  filter: nonEmptyFilterSchema,
+  filter: bulkFilterSchema,
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
 })
@@ -663,16 +825,65 @@ export const listTableRowsContract = defineRouteContract({
         totalCount: z.number().nullable(),
         limit: z.number(),
         offset: z.number(),
+        /** Non-null when more rows exist — a page may be cut by the byte budget
+         *  before reaching `limit`, so page fullness is not a termination signal. */
+        nextCursor: z.string().nullable(),
       })
     ),
   },
 })
 
+/**
+ * v2 query surface: typed `predicate`/`sort` objects + opaque cursor pagination.
+ * No `offset` (the cursor encodes paging state) and no after/sort refine (the
+ * cursor carries the sort context). Structure is validated here; column-level
+ * validation (unknown field, json-op) runs server-side via `validatePredicate`.
+ */
+export const rowQueryBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  predicate: predicateSchema.optional(),
+  sort: sortSpecSchema.optional(),
+  // Omitted limit returns the ENTIRE matching result, failing fast (400) when
+  // it exceeds the response byte budget. An explicit limit caps the page row
+  // count; the byte budget may still end a page early with nextCursor set.
+  limit: z.preprocess(
+    (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
+    z
+      .number({ error: 'Limit must be a number' })
+      .int('Limit must be an integer')
+      .min(1, 'Limit must be at least 1')
+      .optional()
+  ),
+  cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
+})
+
+export type RowQueryBody = z.input<typeof rowQueryBodySchema>
+
+export const rowQueryContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/query',
+  params: tableIdParamsSchema,
+  body: rowQueryBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        rows: z.array(tableRowSchema),
+        rowCount: z.number(),
+        totalCount: z.number().nullable(),
+        limit: z.number(),
+        nextCursor: z.string().nullable(),
+      })
+    ),
+  },
+})
+export type RowQueryResponse = ContractJsonResponse<typeof rowQueryContract>
+
 export const findTableRowsQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
   q: requiredFieldSchema('Search query is required'),
-  filter: domainObjectSchema<Filter>().optional(),
-  sort: domainObjectSchema<Sort>().optional(),
+  filter: jsonQueryValue(z.union([predicateSchema, domainObjectSchema<Filter>()])).optional(),
+  sort: jsonQueryValue(z.union([sortSpecSchema, domainObjectSchema<Sort>()])).optional(),
 })
 
 /** One matching cell: its 0-based ordinal in the filtered+sorted view, its row id, and the column name. */
@@ -1101,7 +1312,7 @@ export const deleteTableRowsContract = defineRouteContract({
  */
 export const deleteTableRowsAsyncBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  filter: nonEmptyFilterSchema.optional(),
+  filter: bulkFilterSchema.optional(),
   excludeRowIds: z
     .array(z.string().min(1))
     .max(
@@ -1296,7 +1507,7 @@ export const cancelTableRunsBodySchema = z
     workspaceId: workspaceIdSchema,
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
-    filter: domainObjectSchema<Filter>().optional(),
+    filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
     /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
     excludeRowIds: z
       .array(z.string().min(1))
@@ -1400,7 +1611,7 @@ export const runColumnBodySchema = z
     rowIds: z.array(z.string().min(1)).min(1).optional(),
     /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
      *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
-    filter: nonEmptyFilterSchema.optional(),
+    filter: bulkFilterSchema.optional(),
     /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
     excludeRowIds: z
       .array(z.string().min(1))
@@ -1526,8 +1737,11 @@ export const tableEventStreamContract = defineRouteContract({
  * never invalidates a view.
  */
 export const tableViewConfigSchema = tableMetadataSchema.extend({
-  filter: filterSchema.nullable().optional(),
-  sort: domainObjectSchema<Sort>().nullable().optional(),
+  // The v2 predicate/sort grammar — same wire as the query routes, so a saved
+  // view gets the same strictness and depth bounds as a live filter, and its
+  // config can later feed the v2 surfaces without conversion.
+  filter: predicateSchema.nullable().optional(),
+  sort: sortSpecSchema.nullable().optional(),
 }) satisfies z.ZodType<TableViewConfig>
 
 export const tableViewSchema = z.object({
