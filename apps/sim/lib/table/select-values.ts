@@ -18,10 +18,44 @@ import type {
   JsonValue,
   Predicate,
   PredicateNode,
+  SelectOption,
   TablePredicate,
   TableSchema,
 } from '@/lib/table/types'
-import { resolveSelectOptionId } from '@/lib/table/validation'
+
+/**
+ * Resolves a raw cell value to a declared option id, accepting either the
+ * stable id or (tolerant for tool/import writes) the option's display name.
+ * Returns null when no option matches. Exported so the column-type registry's
+ * `select` behavior (`column-types.ts`) and the type-conversion compatibility
+ * gate (`columns/service.ts`) share one resolution rule.
+ */
+export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
+  if (typeof value !== 'string') return null
+  const byId = options.find((o) => o.id === value)
+  if (byId) return byId.id
+  const byName =
+    options.find((o) => o.name === value) ??
+    options.find((o) => o.name.toLowerCase() === value.toLowerCase())
+  return byName ? byName.id : null
+}
+
+/**
+ * Splits a raw value into the parts a multi-select cell should resolve. A cell
+ * may arrive as an array (canonical) or as a single comma-delimited string —
+ * the shape a multi cell exports, copies, and converts to text as — so both the
+ * write-path coercion and the column-conversion compatibility check read it
+ * through here rather than each deciding for itself. Option names that
+ * themselves contain commas are an accepted ambiguity.
+ */
+export function splitMultiSelectInput(value: JsonValue): JsonValue[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return [value]
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+}
 
 /**
  * Resolves a `select` cell's stored option id(s) to their display name(s). A

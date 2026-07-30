@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveFilterSelectValues,
   resolvePredicateSelectValues,
+  resolveSelectOptionId,
   selectValueToNames,
 } from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
@@ -56,6 +57,22 @@ describe('selectValueToNames', () => {
 
   it('returns an empty array for an empty multi value', () => {
     expect(selectValueToNames(tags, [])).toEqual([])
+  })
+})
+
+describe('resolveSelectOptionId', () => {
+  const options = status.options ?? []
+
+  it('resolves a stable id', () => {
+    expect(resolveSelectOptionId('opt_open', options)).toBe('opt_open')
+  })
+
+  it('resolves a display name (case-insensitively)', () => {
+    expect(resolveSelectOptionId('closed', options)).toBe('opt_closed')
+  })
+
+  it('returns null for an unknown value (drives the type-conversion compatibility gate)', () => {
+    expect(resolveSelectOptionId('nope', options)).toBeNull()
   })
 })
 
