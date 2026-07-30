@@ -205,5 +205,14 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     await flushMicrotasks()
 
     expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
+
+    // The dropped in-flight tick must NOT advance the throttle window, so once the in-flight merge
+    // clears the very next delta merges immediately — no wait for a fresh throttle interval.
+    isLiveDocMergeInFlightMock.mockReturnValue(false)
+    await drive(editContentDelta(' world'), intent)
+    await flushMicrotasks()
+
+    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
+    expect(mergeEditIntoLiveFileDocMock.mock.calls[0][0]).toBe('file-busy')
   })
 })
