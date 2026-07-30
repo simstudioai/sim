@@ -21,15 +21,18 @@ With Exa, you can:
 - **Find similar content**: Discover related resources based on content similarity
 - **Extract webpage contents**: Retrieve and process the full text of web pages
 - **Answer questions with citations**: Ask questions and receive direct answers with supporting sources
-- **Perform research tasks**: Automate multi-step research workflows to gather, synthesize, and summarize information
+- **Run deep research**: Use Exa Agent for multi-step research, list building, and enrichment
+- **Return structured data**: Supply a JSON schema and get typed fields back with field-level citations
 
-In Sim, the Exa integration allows your agents to search the web for information, retrieve content from specific URLs, find similar resources, answer questions with citations, and conduct research tasks—all programmatically through API calls. This enables your agents to access real-time information from the internet, enhancing their ability to provide accurate, current, and relevant responses. The integration is particularly valuable for research tasks, information gathering, content discovery, and answering questions that require up-to-date information from across the web.
+In Sim, the Exa integration allows your agents to search the web for information, retrieve content from specific URLs, answer questions with citations, and run deep research with Exa Agent—all programmatically through API calls. This enables your agents to access real-time information from the internet, enhancing their ability to provide accurate, current, and relevant responses. The integration is particularly valuable for research tasks, information gathering, content discovery, and answering questions that require up-to-date information from across the web.
+
+**Migration notes.** Exa has retired its standalone Research endpoint — use the **Agent** operation for deep research. Workflows still configured with the old Research operation are routed to Agent automatically. Exa has also deprecated **Find Similar Links** in favor of Search, and `livecrawl` in favor of `maxAgeHours`.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.
+Integrate Exa into the workflow. Can search the web, get page contents, find similar links, answer a question with citations, and run deep research with Exa Agent.
 
 
 
@@ -44,20 +47,29 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to execute |
-| `numResults` | number | No | Number of results to return \(e.g., 5, 10, 25\). Default: 10, max: 25 |
-| `useAutoprompt` | boolean | No | Whether to use autoprompt to improve the query \(true or false\). Default: false |
-| `type` | string | No | Search type: "neural", "keyword", "auto", or "fast". Default: "auto" |
+| `numResults` | number | No | Number of results to return \(1-100\). Default: 10 |
+| `type` | string | No | Search type: "instant", "fast", "auto", "deep-lite", "deep", or "deep-reasoning". Default: "auto" |
 | `includeDomains` | string | No | Comma-separated list of domains to include in results \(e.g., "github.com, stackoverflow.com"\) |
 | `excludeDomains` | string | No | Comma-separated list of domains to exclude from results \(e.g., "reddit.com, pinterest.com"\) |
-| `category` | string | No | Filter by category: company, research paper, news, pdf, github, tweet, personal site, linkedin profile, financial report |
+| `category` | string | No | Filter by category: company, publication, news, personal site, financial report, people |
 | `text` | boolean | No | Include full text content in results \(default: false\) |
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
 | `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
-| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
-| `startCrawlDate` | string | No | Only include results crawled on or after this ISO 8601 date \(e.g., "2024-01-01" or "2024-01-01T00:00:00.000Z"\) |
-| `endCrawlDate` | string | No | Only include results crawled on or before this ISO 8601 date |
-| `startPublishedDate` | string | No | Only include results published on or after this ISO 8601 date |
+| `summaryQuery` | string | No | Query to focus the generated summaries on a specific question |
+| `subpages` | number | No | Number of subpages to crawl per result \(0-100\). Default: 0 |
+| `subpageTarget` | string | No | Comma-separated keywords to target specific subpages \(e.g., "docs,pricing,about"\) |
+| `extrasLinks` | number | No | Number of links to extract from each result page \(0-1000\). Default: 0 |
+| `extrasImageLinks` | number | No | Number of image URLs to extract from each result page \(0-1000\). Default: 0 |
+| `outputSchema` | json | No | JSON Schema describing a synthesized answer to build from the results. Returned in structuredOutput. |
+| `systemPrompt` | string | No | Additional guidance for generating the synthesized output |
+| `userLocation` | string | No | Two-letter ISO country code to localize results \(e.g., "US"\) |
+| `maxAgeHours` | number | No | Cache freshness in hours \(-1 to 720\). 0 always crawls live, -1 uses cache only. Cannot be combined with livecrawl. |
+| `livecrawlTimeout` | number | No | Live crawl timeout in milliseconds \(max 90000\). Default: 10000 |
+| `livecrawl` | string | No | Deprecated: use maxAgeHours instead. Live crawling mode: never, fallback, always, or preferred |
+| `startPublishedDate` | string | No | Only include results published on or after this ISO 8601 date \(e.g., "2024-01-01" or "2024-01-01T00:00:00.000Z"\) |
 | `endPublishedDate` | string | No | Only include results published on or before this ISO 8601 date |
+| `startCrawlDate` | string | No | Deprecated: use startPublishedDate. Only include results crawled on or after this ISO 8601 date |
+| `endCrawlDate` | string | No | Deprecated: use endPublishedDate. Only include results crawled on or before this ISO 8601 date |
 | `apiKey` | string | Yes | Exa AI API Key |
 | `pricing` | custom | No | No description |
 | `rateLimit` | string | No | No description |
@@ -67,6 +79,7 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Search results with titles, URLs, and text snippets |
+|   ↳ `id` | string | Result identifier, usable as an id on the Get Contents operation |
 |   ↳ `title` | string | The title of the search result |
 |   ↳ `url` | string | The URL of the search result |
 |   ↳ `publishedDate` | string | Date when the content was published |
@@ -75,7 +88,15 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 |   ↳ `favicon` | string | URL of the site's favicon |
 |   ↳ `image` | string | URL of a representative image from the page |
 |   ↳ `text` | string | Text snippet or full content from the page |
-|   ↳ `score` | number | Relevance score for the search result |
+|   ↳ `highlights` | array | Relevant snippets extracted from the page |
+|   ↳ `highlightScores` | array | Similarity score for each highlight |
+|   ↳ `subpages` | json | Crawled subpages of the result |
+|   ↳ `entities` | json | Structured entity data for company, people, and publication results |
+|   ↳ `extras` | json | Extracted links and image links when requested |
+|   ↳ `score` | number | Relevance score. Only returned by the legacy neural search type |
+| `requestId` | string | Exa request identifier, useful for support |
+| `structuredOutput` | json | Synthesized answer matching outputSchema, when one was supplied |
+| `grounding` | json | Field-level citations backing the synthesized output |
 
 ### `exa_get_contents`
 
@@ -85,13 +106,19 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `urls` | string | Yes | Comma-separated list of URLs to retrieve content from |
+| `urls` | string | No | Comma-separated list of URLs to retrieve content from \(1-100\). Provide either urls or ids, not both. |
+| `ids` | string | No | Comma-separated list of result IDs from a prior Exa search \(1-100\). Provide either urls or ids, not both. |
 | `text` | boolean | No | If true, returns full page text with default settings. If false, disables text return. |
+| `summary` | boolean | No | Include an AI-generated summary of each page \(default: false\) |
 | `summaryQuery` | string | No | Query to guide the summary generation |
-| `subpages` | number | No | Number of subpages to crawl from the provided URLs |
+| `subpages` | number | No | Number of subpages to crawl from the provided URLs \(0-100\) |
 | `subpageTarget` | string | No | Comma-separated keywords to target specific subpages \(e.g., "docs,tutorial,about"\) |
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
-| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
+| `extrasLinks` | number | No | Number of links to extract from each page \(0-1000\). Default: 0 |
+| `extrasImageLinks` | number | No | Number of image URLs to extract from each page \(0-1000\). Default: 0 |
+| `maxAgeHours` | number | No | Cache freshness in hours \(-1 to 720\). 0 always crawls live, -1 uses cache only. Cannot be combined with livecrawl. |
+| `livecrawlTimeout` | number | No | Live crawl timeout in milliseconds \(max 90000\). Default: 10000 |
+| `livecrawl` | string | No | Deprecated: use maxAgeHours instead. Live crawling mode: never, fallback, always, or preferred |
 | `apiKey` | string | Yes | Exa AI API Key |
 | `pricing` | custom | No | No description |
 | `rateLimit` | string | No | No description |
@@ -101,28 +128,39 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Retrieved content from URLs with title, text, and summaries |
+|   ↳ `id` | string | Exa identifier for the retrieved document |
 |   ↳ `url` | string | The URL that content was retrieved from |
 |   ↳ `title` | string | The title of the webpage |
 |   ↳ `text` | string | The full text content of the webpage |
 |   ↳ `summary` | string | AI-generated summary of the webpage content |
+|   ↳ `highlights` | array | Relevant snippets extracted from the page |
+|   ↳ `highlightScores` | array | Similarity score for each highlight |
+|   ↳ `subpages` | json | Crawled subpages of the document |
+|   ↳ `entities` | json | Structured entity data for company, people, and publication pages |
+|   ↳ `extras` | json | Extracted links and image links when requested |
+| `statuses` | json | Per-URL crawl outcome, showing which pages succeeded and whether they came from cache |
+| `requestId` | string | Exa request identifier, useful for support |
 
 ### `exa_find_similar_links`
 
-Find webpages similar to a given URL using Exa AI. Returns a list of similar links with titles and text snippets.
+Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to find similar links for |
-| `numResults` | number | No | Number of similar links to return \(e.g., 5, 10, 25\). Default: 10, max: 25 |
+| `numResults` | number | No | Number of similar links to return \(1-100\). Default: 10 |
 | `text` | boolean | No | Whether to include the full text of the similar pages |
 | `includeDomains` | string | No | Comma-separated list of domains to include in results \(e.g., "github.com, stackoverflow.com"\) |
 | `excludeDomains` | string | No | Comma-separated list of domains to exclude from results \(e.g., "reddit.com, pinterest.com"\) |
 | `excludeSourceDomain` | boolean | No | Exclude the source domain from results \(default: false\) |
+| `category` | string | No | Filter by category: company, publication, news, personal site, financial report, people |
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
 | `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
-| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
+| `maxAgeHours` | number | No | Cache freshness in hours \(-1 to 720\). 0 always crawls live, -1 uses cache only. Cannot be combined with livecrawl. |
+| `livecrawlTimeout` | number | No | Live crawl timeout in milliseconds \(max 90000\). Default: 10000 |
+| `livecrawl` | string | No | Deprecated: use maxAgeHours instead. Live crawling mode: never, fallback, always, or preferred |
 | `apiKey` | string | Yes | Exa AI API Key |
 | `pricing` | custom | No | No description |
 | `rateLimit` | string | No | No description |
@@ -132,10 +170,14 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `similarLinks` | array | Similar links found with titles, URLs, and text snippets |
+|   ↳ `id` | string | Exa identifier for the similar page |
 |   ↳ `title` | string | The title of the similar webpage |
 |   ↳ `url` | string | The URL of the similar webpage |
 |   ↳ `text` | string | Text snippet or full content from the similar webpage |
+|   ↳ `summary` | string | AI-generated summary of the similar webpage |
+|   ↳ `highlights` | array | Relevant snippets extracted from the page |
 |   ↳ `score` | number | Similarity score indicating how similar the page is |
+| `requestId` | string | Exa request identifier, useful for support |
 
 ### `exa_answer`
 
@@ -146,7 +188,8 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The question to answer |
-| `text` | boolean | No | Whether to include the full text of the answer |
+| `text` | boolean | No | Include the full page text of each cited source \(default: false\). This does not affect the answer itself. |
+| `outputSchema` | json | No | JSON Schema describing the answer shape. When supplied, the answer is returned as a structured object instead of a string. |
 | `apiKey` | string | Yes | Exa AI API Key |
 | `pricing` | custom | No | No description |
 | `rateLimit` | string | No | No description |
@@ -155,28 +198,42 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `answer` | string | AI-generated answer to the question |
+| `answer` | json | AI-generated answer to the question. A string, or an object matching outputSchema when one was supplied. |
 | `citations` | array | Sources and citations for the answer |
+|   ↳ `id` | string | Exa identifier for the cited source |
 |   ↳ `title` | string | The title of the cited source |
 |   ↳ `url` | string | The URL of the cited source |
-|   ↳ `text` | string | Relevant text from the cited source |
+|   ↳ `text` | string | Full page text of the cited source, when text is enabled |
+|   ↳ `author` | string | The author of the cited source |
+|   ↳ `publishedDate` | string | Publication date of the cited source |
+| `requestId` | string | Exa request identifier, useful for support |
 
-### `exa_research`
+### `exa_agent`
 
-Perform comprehensive research using AI to generate detailed reports with citations
+Run a deep research task with Exa Agent. Handles multi-step list building, enrichment, and research, returning a written answer with field-level citations and optional structured output.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Research query or topic |
-| `model` | string | No | Research model: exa-research-fast, exa-research \(default\), or exa-research-pro |
+| `query` | string | Yes | The research question or instructions for the agent |
+| `effort` | string | No | Cost and depth tradeoff: minimal, low, medium, high, xhigh, or auto \(default: auto\) |
+| `outputSchema` | json | No | JSON Schema describing the structured result to return. Returned in the structured output. |
+| `systemPrompt` | string | No | Additional guidance for how the agent should behave or format its answer |
+| `previousRunId` | string | No | ID of a completed agent run to continue from, for follow-up questions |
 | `apiKey` | string | Yes | Exa AI API Key |
+| `pricing` | custom | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `research` | array | Comprehensive research findings with citations and summaries |
+| `runId` | string | Identifier of the agent run, reusable as previousRunId |
+| `status` | string | Final status of the agent run |
+| `stopReason` | string | Why the agent stopped, such as schema_satisfied |
+| `text` | string | The written answer produced by the agent |
+| `structured` | json | Structured result matching outputSchema, when one was supplied |
+| `grounding` | json | Field-level citations backing the agent output |
 
 

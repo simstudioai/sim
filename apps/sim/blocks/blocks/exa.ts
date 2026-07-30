@@ -3,13 +3,38 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ExaResponse } from '@/tools/exa/types'
 
+/** Categories Exa currently supports. Shared by Search and Find Similar Links. */
+const CATEGORY_OPTIONS = [
+  { label: 'None', id: '' },
+  { label: 'Company', id: 'company' },
+  { label: 'Publication', id: 'publication' },
+  { label: 'News', id: 'news' },
+  { label: 'Personal Site', id: 'personal site' },
+  { label: 'Financial Report', id: 'financial report' },
+  { label: 'People', id: 'people' },
+]
+
+/**
+ * Exa retired `/research/v1` (HTTP 410) and replaced it with the Agent API.
+ * Workflows saved against the old Research operation are routed to the Agent
+ * tool so they keep running instead of failing against a dead endpoint.
+ */
+const LEGACY_RESEARCH_OPERATION = 'exa_research'
+
+/** Maps the retired research models onto the Agent API's effort levels. */
+const RESEARCH_MODEL_TO_EFFORT: Record<string, string> = {
+  'exa-research-fast': 'low',
+  'exa-research': 'medium',
+  'exa-research-pro': 'high',
+}
+
 export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',
   name: 'Exa',
   description: 'Search with Exa AI',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
+    'Integrate Exa into the workflow. Can search the web, get page contents, find similar links, answer a question with citations, and run deep research with Exa Agent.',
   docsLink: 'https://docs.sim.ai/integrations/exa',
   category: 'tools',
   integrationType: IntegrationType.Search,
@@ -24,9 +49,9 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       options: [
         { label: 'Search', id: 'exa_search' },
         { label: 'Get Contents', id: 'exa_get_contents' },
-        { label: 'Find Similar Links', id: 'exa_find_similar_links' },
         { label: 'Answer', id: 'exa_answer' },
-        { label: 'Research', id: 'exa_research' },
+        { label: 'Agent', id: 'exa_agent' },
+        { label: 'Find Similar Links', id: 'exa_find_similar_links' },
       ],
       value: () => 'exa_search',
     },
@@ -47,21 +72,16 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       condition: { field: 'operation', value: 'exa_search' },
     },
     {
-      id: 'useAutoprompt',
-      title: 'Use Autoprompt',
-      type: 'switch',
-      condition: { field: 'operation', value: 'exa_search' },
-      mode: 'advanced',
-    },
-    {
       id: 'type',
       title: 'Search Type',
       type: 'dropdown',
       options: [
         { label: 'Auto', id: 'auto' },
-        { label: 'Neural', id: 'neural' },
-        { label: 'Keyword', id: 'keyword' },
+        { label: 'Instant', id: 'instant' },
         { label: 'Fast', id: 'fast' },
+        { label: 'Deep Lite', id: 'deep-lite' },
+        { label: 'Deep', id: 'deep' },
+        { label: 'Deep Reasoning', id: 'deep-reasoning' },
       ],
       value: () => 'auto',
       condition: { field: 'operation', value: 'exa_search' },
@@ -87,18 +107,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       id: 'category',
       title: 'Category Filter',
       type: 'dropdown',
-      options: [
-        { label: 'None', id: '' },
-        { label: 'Company', id: 'company' },
-        { label: 'Research Paper', id: 'research_paper' },
-        { label: 'News Article', id: 'news_article' },
-        { label: 'PDF', id: 'pdf' },
-        { label: 'GitHub', id: 'github' },
-        { label: 'Tweet', id: 'tweet' },
-        { label: 'Movie', id: 'movie' },
-        { label: 'Song', id: 'song' },
-        { label: 'Personal Site', id: 'personal_site' },
-      ],
+      options: CATEGORY_OPTIONS,
       value: () => '',
       condition: { field: 'operation', value: 'exa_search' },
       mode: 'advanced',
@@ -124,15 +133,86 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'livecrawl',
-      title: 'Live Crawl Mode',
-      type: 'dropdown',
-      options: [
-        { label: 'Never (default)', id: 'never' },
-        { label: 'Fallback', id: 'fallback' },
-        { label: 'Always', id: 'always' },
-      ],
-      value: () => 'never',
+      id: 'summaryQuery',
+      title: 'Summary Query',
+      type: 'long-input',
+      placeholder: 'Focus the summaries on a specific question...',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'subpages',
+      title: 'Number of Subpages',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'subpageTarget',
+      title: 'Subpage Target Keywords',
+      type: 'long-input',
+      placeholder: 'docs, pricing, about (comma-separated)',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'extrasLinks',
+      title: 'Extract Links Per Result',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'extrasImageLinks',
+      title: 'Extract Image Links Per Result',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'outputSchema',
+      title: 'Output Schema',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "type": "object",\n  "properties": {}\n}',
+      description: 'JSON Schema for a synthesized answer built from the results',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'systemPrompt',
+      title: 'System Prompt',
+      type: 'long-input',
+      placeholder: 'Guidance for generating the synthesized output...',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'userLocation',
+      title: 'User Location',
+      type: 'short-input',
+      placeholder: 'US',
+      description: 'Two-letter ISO country code used to localize results',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxAgeHours',
+      title: 'Max Content Age (Hours)',
+      type: 'short-input',
+      placeholder: '24',
+      description: '-1 uses cache only, 0 always crawls live, 1-720 crawls when cache is older',
+      condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'livecrawlTimeout',
+      title: 'Live Crawl Timeout (ms)',
+      type: 'short-input',
+      placeholder: '10000',
       condition: { field: 'operation', value: 'exa_search' },
       mode: 'advanced',
     },
@@ -154,17 +234,19 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     },
     {
       id: 'startCrawlDate',
-      title: 'Start Crawl Date',
+      title: 'Start Crawl Date (Deprecated)',
       type: 'short-input',
       placeholder: '2024-01-01 or 2024-01-01T00:00:00.000Z',
+      description: 'Deprecated by Exa. Prefer Start Published Date.',
       condition: { field: 'operation', value: 'exa_search' },
       mode: 'advanced',
     },
     {
       id: 'endCrawlDate',
-      title: 'End Crawl Date',
+      title: 'End Crawl Date (Deprecated)',
       type: 'short-input',
       placeholder: '2024-12-31 or 2024-12-31T23:59:59.999Z',
+      description: 'Deprecated by Exa. Prefer End Published Date.',
       condition: { field: 'operation', value: 'exa_search' },
       mode: 'advanced',
     },
@@ -174,14 +256,30 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'URLs',
       type: 'long-input',
       placeholder: 'Enter URLs to retrieve content from (comma-separated)...',
+      description: 'Provide either URLs or Result IDs, not both',
       condition: { field: 'operation', value: 'exa_get_contents' },
-      required: true,
+    },
+    {
+      id: 'ids',
+      title: 'Result IDs',
+      type: 'long-input',
+      placeholder: 'IDs from a previous Exa search (comma-separated)...',
+      description: 'Provide either URLs or Result IDs, not both',
+      condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
     },
     {
       id: 'text',
       title: 'Include Text',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_get_contents' },
+    },
+    {
+      id: 'summary',
+      title: 'Include Summary',
+      type: 'switch',
+      condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
     },
     {
       id: 'summaryQuery',
@@ -212,6 +310,117 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Include Highlights',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'extrasLinks',
+      title: 'Extract Links Per Page',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'extrasImageLinks',
+      title: 'Extract Image Links Per Page',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxAgeHours',
+      title: 'Max Content Age (Hours)',
+      type: 'short-input',
+      placeholder: '24',
+      description: '-1 uses cache only, 0 always crawls live, 1-720 crawls when cache is older',
+      condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'livecrawlTimeout',
+      title: 'Live Crawl Timeout (ms)',
+      type: 'short-input',
+      placeholder: '10000',
+      condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
+    },
+    // Answer operation inputs
+    {
+      id: 'query',
+      title: 'Question',
+      type: 'long-input',
+      placeholder: 'Enter your question...',
+      condition: { field: 'operation', value: 'exa_answer' },
+      required: true,
+    },
+    {
+      id: 'text',
+      title: 'Include Source Text',
+      type: 'switch',
+      description: 'Include the full page text of each cited source',
+      condition: { field: 'operation', value: 'exa_answer' },
+      mode: 'advanced',
+    },
+    {
+      id: 'outputSchema',
+      title: 'Output Schema',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "type": "object",\n  "properties": {}\n}',
+      description: 'JSON Schema that turns the answer into a structured object',
+      condition: { field: 'operation', value: 'exa_answer' },
+      mode: 'advanced',
+    },
+    // Agent operation inputs
+    {
+      id: 'query',
+      title: 'Research Query',
+      type: 'long-input',
+      placeholder: 'Enter your research topic or question...',
+      condition: { field: 'operation', value: 'exa_agent' },
+      required: true,
+    },
+    {
+      id: 'effort',
+      title: 'Effort',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto (default)', id: 'auto' },
+        { label: 'Minimal', id: 'minimal' },
+        { label: 'Low', id: 'low' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'High', id: 'high' },
+        { label: 'Extra High', id: 'xhigh' },
+      ],
+      value: () => 'auto',
+      condition: { field: 'operation', value: 'exa_agent' },
+    },
+    {
+      id: 'outputSchema',
+      title: 'Output Schema',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "type": "object",\n  "properties": {}\n}',
+      description: 'JSON Schema describing the structured result to return',
+      condition: { field: 'operation', value: 'exa_agent' },
+      mode: 'advanced',
+    },
+    {
+      id: 'systemPrompt',
+      title: 'System Prompt',
+      type: 'long-input',
+      placeholder: 'Guidance for how the agent should behave...',
+      condition: { field: 'operation', value: 'exa_agent' },
+      mode: 'advanced',
+    },
+    {
+      id: 'previousRunId',
+      title: 'Previous Run ID',
+      type: 'short-input',
+      placeholder: 'agent_run_...',
+      description: 'Continue from a completed agent run for follow-up questions',
+      condition: { field: 'operation', value: 'exa_agent' },
       mode: 'advanced',
     },
     // Find Similar Links operation inputs
@@ -263,18 +472,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       id: 'category',
       title: 'Category Filter',
       type: 'dropdown',
-      options: [
-        { label: 'None', id: '' },
-        { label: 'Company', id: 'company' },
-        { label: 'Research Paper', id: 'research_paper' },
-        { label: 'News Article', id: 'news_article' },
-        { label: 'PDF', id: 'pdf' },
-        { label: 'GitHub', id: 'github' },
-        { label: 'Tweet', id: 'tweet' },
-        { label: 'Movie', id: 'movie' },
-        { label: 'Song', id: 'song' },
-        { label: 'Personal Site', id: 'personal_site' },
-      ],
+      options: CATEGORY_OPTIONS,
       value: () => '',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
       mode: 'advanced',
@@ -294,56 +492,22 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'livecrawl',
-      title: 'Live Crawl Mode',
-      type: 'dropdown',
-      options: [
-        { label: 'Never (default)', id: 'never' },
-        { label: 'Fallback', id: 'fallback' },
-        { label: 'Always', id: 'always' },
-      ],
-      value: () => 'never',
+      id: 'maxAgeHours',
+      title: 'Max Content Age (Hours)',
+      type: 'short-input',
+      placeholder: '24',
+      description: '-1 uses cache only, 0 always crawls live, 1-720 crawls when cache is older',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
       mode: 'advanced',
     },
-    // Answer operation inputs
     {
-      id: 'query',
-      title: 'Question',
-      type: 'long-input',
-      placeholder: 'Enter your question...',
-      condition: { field: 'operation', value: 'exa_answer' },
-      required: true,
-    },
-    {
-      id: 'text',
-      title: 'Include Text',
-      type: 'switch',
-      condition: { field: 'operation', value: 'exa_answer' },
+      id: 'livecrawlTimeout',
+      title: 'Live Crawl Timeout (ms)',
+      type: 'short-input',
+      placeholder: '10000',
+      condition: { field: 'operation', value: 'exa_find_similar_links' },
       mode: 'advanced',
     },
-    // Research operation inputs
-    {
-      id: 'query',
-      title: 'Research Query',
-      type: 'long-input',
-      placeholder: 'Enter your research topic or question...',
-      condition: { field: 'operation', value: 'exa_research' },
-      required: true,
-    },
-    {
-      id: 'model',
-      title: 'Research Model',
-      type: 'dropdown',
-      options: [
-        { label: 'Standard (default)', id: 'exa-research' },
-        { label: 'Fast', id: 'exa-research-fast' },
-        { label: 'Pro', id: 'exa-research-pro' },
-      ],
-      value: () => 'exa-research',
-      condition: { field: 'operation', value: 'exa_research' },
-    },
-    // API Key — hidden when hosted for operations with hosted key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -352,27 +516,10 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       password: true,
       required: true,
       hideWhenHosted: true,
-      condition: { field: 'operation', value: 'exa_research', not: true },
-    },
-    // API Key — always visible for research (no hosted key support)
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your Exa API key',
-      password: true,
-      required: true,
-      condition: { field: 'operation', value: 'exa_research' },
     },
   ],
   tools: {
-    access: [
-      'exa_search',
-      'exa_get_contents',
-      'exa_find_similar_links',
-      'exa_answer',
-      'exa_research',
-    ],
+    access: ['exa_search', 'exa_get_contents', 'exa_find_similar_links', 'exa_answer', 'exa_agent'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -384,8 +531,10 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
             return 'exa_find_similar_links'
           case 'exa_answer':
             return 'exa_answer'
-          case 'exa_research':
-            return 'exa_research'
+          case 'exa_agent':
+            return 'exa_agent'
+          case LEGACY_RESEARCH_OPERATION:
+            return 'exa_agent'
           default:
             return 'exa_search'
         }
@@ -398,6 +547,22 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         if (params.subpages) {
           result.subpages = Number(params.subpages)
         }
+        if (params.extrasLinks) {
+          result.extrasLinks = Number(params.extrasLinks)
+        }
+        if (params.extrasImageLinks) {
+          result.extrasImageLinks = Number(params.extrasImageLinks)
+        }
+        if (params.maxAgeHours !== undefined && String(params.maxAgeHours).trim() !== '') {
+          result.maxAgeHours = Number(params.maxAgeHours)
+        }
+        if (params.livecrawlTimeout) {
+          result.livecrawlTimeout = Number(params.livecrawlTimeout)
+        }
+        /** Carry a retired research model over to the Agent API's effort scale. */
+        if (params.operation === LEGACY_RESEARCH_OPERATION && params.model) {
+          result.effort = RESEARCH_MODEL_TO_EFFORT[params.model as string] ?? 'medium'
+        }
         return result
       },
     },
@@ -408,7 +573,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     // Search operation
     query: { type: 'string', description: 'Search query terms' },
     numResults: { type: 'number', description: 'Number of results' },
-    useAutoprompt: { type: 'boolean', description: 'Use autoprompt feature' },
     type: { type: 'string', description: 'Search type' },
     includeDomains: { type: 'string', description: 'Include domains filter' },
     excludeDomains: { type: 'string', description: 'Exclude domains filter' },
@@ -416,32 +580,48 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     text: { type: 'boolean', description: 'Include text content' },
     highlights: { type: 'boolean', description: 'Include highlights' },
     summary: { type: 'boolean', description: 'Include summary' },
-    livecrawl: { type: 'string', description: 'Live crawl mode' },
-    startCrawlDate: { type: 'string', description: 'Earliest crawl date (ISO 8601)' },
-    endCrawlDate: { type: 'string', description: 'Latest crawl date (ISO 8601)' },
-    startPublishedDate: { type: 'string', description: 'Earliest published date (ISO 8601)' },
-    endPublishedDate: { type: 'string', description: 'Latest published date (ISO 8601)' },
-    // Get Contents operation
-    urls: { type: 'string', description: 'URLs to retrieve' },
     summaryQuery: { type: 'string', description: 'Summary query guidance' },
     subpages: { type: 'number', description: 'Number of subpages to crawl' },
     subpageTarget: { type: 'string', description: 'Subpage target keywords' },
+    extrasLinks: { type: 'number', description: 'Links to extract per page' },
+    extrasImageLinks: { type: 'number', description: 'Image links to extract per page' },
+    outputSchema: { type: 'json', description: 'JSON Schema for structured output' },
+    systemPrompt: { type: 'string', description: 'Guidance for generated output' },
+    userLocation: { type: 'string', description: 'Two-letter ISO country code' },
+    maxAgeHours: { type: 'number', description: 'Cache freshness in hours' },
+    livecrawlTimeout: { type: 'number', description: 'Live crawl timeout in milliseconds' },
+    startPublishedDate: { type: 'string', description: 'Earliest published date (ISO 8601)' },
+    endPublishedDate: { type: 'string', description: 'Latest published date (ISO 8601)' },
+    startCrawlDate: { type: 'string', description: 'Earliest crawl date (ISO 8601, deprecated)' },
+    endCrawlDate: { type: 'string', description: 'Latest crawl date (ISO 8601, deprecated)' },
+    // Get Contents operation
+    urls: { type: 'string', description: 'URLs to retrieve' },
+    ids: { type: 'string', description: 'Exa result IDs to retrieve' },
     // Find Similar Links operation
     url: { type: 'string', description: 'Source URL' },
     excludeSourceDomain: { type: 'boolean', description: 'Exclude source domain' },
-    // Research operation
-    model: { type: 'string', description: 'Research model selection' },
+    // Agent operation
+    effort: { type: 'string', description: 'Agent effort level' },
+    previousRunId: { type: 'string', description: 'Agent run to continue from' },
   },
   outputs: {
-    // Search output
-    results: { type: 'json', description: 'Search results' },
+    // Search and Get Contents output
+    results: { type: 'json', description: 'Search or content results' },
+    statuses: { type: 'json', description: 'Per-URL crawl outcome for Get Contents' },
+    structuredOutput: { type: 'json', description: 'Synthesized output matching the schema' },
+    grounding: { type: 'json', description: 'Field-level citations for generated output' },
+    requestId: { type: 'string', description: 'Exa request identifier' },
     // Find Similar Links output
     similarLinks: { type: 'json', description: 'Similar links found' },
     // Answer output
-    answer: { type: 'string', description: 'Generated answer' },
+    answer: { type: 'json', description: 'Generated answer' },
     citations: { type: 'json', description: 'Answer citations' },
-    // Research output
-    research: { type: 'json', description: 'Research findings' },
+    // Agent output
+    runId: { type: 'string', description: 'Agent run identifier' },
+    status: { type: 'string', description: 'Agent run status' },
+    stopReason: { type: 'string', description: 'Why the agent stopped' },
+    text: { type: 'string', description: 'Agent written answer' },
+    structured: { type: 'json', description: 'Agent structured result' },
   },
 }
 
@@ -453,7 +633,7 @@ export const ExaBlockMeta = {
       icon: ExaAIIcon,
       title: 'Exa company intel agent',
       prompt:
-        'Build an agent that takes a company name, uses Exa neural search to find recent product updates, funding news, and competitor mentions, and writes a one-page intel brief.',
+        'Build an agent that takes a company name, uses the Exa Agent operation to find recent product updates, funding news, and competitor mentions, and writes a one-page intel brief.',
       modules: ['agent', 'files', 'workflows'],
       category: 'sales',
       tags: ['sales', 'research'],
@@ -469,9 +649,9 @@ export const ExaBlockMeta = {
     },
     {
       icon: ExaAIIcon,
-      title: 'Exa neural research agent',
+      title: 'Exa deep research agent',
       prompt:
-        'Build an agent that uses Exa neural search to find authoritative sources on a topic, scrapes them, and produces a structured research brief with citations.',
+        'Build an agent that uses Exa deep search to find authoritative sources on a topic, scrapes them, and produces a structured research brief with citations.',
       modules: ['agent', 'files', 'workflows'],
       category: 'productivity',
       tags: ['research'],
@@ -480,7 +660,7 @@ export const ExaBlockMeta = {
       icon: ExaAIIcon,
       title: 'Exa similar-page finder',
       prompt:
-        'Create a workflow that takes a URL, runs Exa similar-page search to find related authoritative sources, and writes the discovery list to a research table.',
+        'Create a workflow that takes a URL, runs an Exa search to find related authoritative sources, and writes the discovery list to a research table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'research'],
@@ -499,7 +679,7 @@ export const ExaBlockMeta = {
       icon: ExaAIIcon,
       title: 'Exa investment research helper',
       prompt:
-        'Create an agent that uses Exa to deep-research a ticker, finds recent material developments, summarizes with citations, and writes the brief to a finance research file.',
+        'Create an agent that uses the Exa Agent operation to deep-research a ticker, finds recent material developments, summarizes with citations, and writes the brief to a finance research file.',
       modules: ['agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['finance', 'research'],
@@ -518,28 +698,28 @@ export const ExaBlockMeta = {
   skills: [
     {
       name: 'search-the-web-with-exa',
-      description:
-        'Run an Exa neural or keyword search to find high-quality web sources on a topic.',
+      description: 'Run an Exa search to find high-quality web sources on a topic.',
       content:
-        '# Search the Web with Exa\n\nFind authoritative web pages on a topic using Exa AI search.\n\n## Steps\n1. Use the Search operation with a clear query. Pick the search type — neural for meaning-based discovery, keyword for exact terms, or auto to let Exa decide.\n2. Narrow results with include/exclude domains, a category filter (research paper, news article, company, GitHub), and published-date bounds for recency.\n3. Enable include-text or include-summary so each result comes back with usable content rather than just a link.\n\n## Output\nReturn the top results with title, URL, published date, and the text or summary. Note which filters were applied so the search can be tightened or broadened.',
+        '# Search the Web with Exa\n\nFind authoritative web pages on a topic using Exa AI search.\n\n## Steps\n1. Use the Search operation with a clear query. Pick the search type — auto lets Exa decide, instant and fast favor latency, and deep, deep-lite, or deep-reasoning spend more time for harder questions.\n2. Narrow results with include/exclude domains, a category filter (company, publication, news, personal site, financial report, people), and published-date bounds for recency.\n3. Enable include-text or include-summary so each result comes back with usable content rather than just a link. Set max content age to control how fresh the crawled content must be.\n4. To get a synthesized answer instead of a result list, supply an output schema and read structuredOutput.\n\n## Output\nReturn the top results with title, URL, published date, and the text or summary. Note which filters were applied so the search can be tightened or broadened.',
     },
     {
       name: 'answer-question-with-citations',
       description: 'Use Exa Answer to get a direct, sourced answer to a factual question.',
       content:
-        '# Answer Question with Citations\n\nGet a grounded answer to a question with supporting sources via Exa.\n\n## Steps\n1. Use the Answer operation and pass the question in natural language.\n2. Enable include-text when you want the supporting passages, not just the citation URLs.\n3. Review the citations to confirm the answer is well-supported before relying on it.\n\n## Output\nReturn the answer text plus its citations (titles and URLs). If the citations are weak or conflicting, say so and recommend a follow-up search.',
+        '# Answer Question with Citations\n\nGet a grounded answer to a question with supporting sources via Exa.\n\n## Steps\n1. Use the Answer operation and pass the question in natural language.\n2. Enable include-source-text when you want each citation to carry its full page text, not just the URL.\n3. Supply an output schema when you need the answer as structured fields rather than prose.\n4. Review the citations to confirm the answer is well-supported before relying on it.\n\n## Output\nReturn the answer plus its citations (titles and URLs). If the citations are weak or conflicting, say so and recommend a follow-up search.',
     },
     {
       name: 'extract-page-contents',
       description: 'Use Exa Get Contents to pull clean text and summaries from a set of URLs.',
       content:
-        '# Extract Page Contents\n\nRetrieve readable content from specific web pages using Exa.\n\n## Steps\n1. Use the Get Contents operation with the target URLs (comma-separated).\n2. Enable include-text for full content, and supply a summary query to get a focused summary tailored to what you need.\n3. To pull deeper context from a site, set a subpage count and target keywords (e.g., docs, pricing, about).\n\n## Output\nReturn each URL with its extracted text or summary and any highlights. Flag any URL that could not be crawled.',
+        '# Extract Page Contents\n\nRetrieve readable content from specific web pages using Exa.\n\n## Steps\n1. Use the Get Contents operation with the target URLs (comma-separated), or pass result IDs carried over from a previous Exa search.\n2. Enable include-text for full content, and supply a summary query to get a focused summary tailored to what you need.\n3. To pull deeper context from a site, set a subpage count and target keywords (e.g., docs, pricing, about).\n4. Set max content age to 0 when the page must be crawled live rather than served from cache.\n\n## Output\nReturn each URL with its extracted text or summary and any highlights. Check statuses and flag any URL that could not be crawled.',
     },
     {
-      name: 'find-similar-pages',
-      description: 'Use Exa Find Similar Links to discover pages related to a known URL.',
+      name: 'run-deep-research-with-exa',
+      description:
+        'Use the Exa Agent operation for multi-step research, list building, and enrichment.',
       content:
-        '# Find Similar Pages\n\nDiscover sources similar to a reference page using Exa.\n\n## Steps\n1. Use the Find Similar Links operation with the source URL.\n2. Set the number of results and enable exclude-source-domain so you get genuinely new sources, not more pages from the same site.\n3. Apply a category filter or include/exclude domains to keep the discovery on-target, and enable include-text or include-summary for context.\n\n## Output\nReturn the similar pages with title, URL, and a snippet or summary, ordered by relevance. Note the filters used.',
+        '# Run Deep Research with Exa\n\nAnswer a question that needs many searches and cross-referencing, using the Exa Agent operation.\n\n## Steps\n1. Use the Agent operation and write the query as a full instruction, not a keyword phrase — say what to find and what to report.\n2. Pick an effort level: minimal or low for quick lookups, medium for normal research, high or xhigh for exhaustive list building. Auto lets Exa choose.\n3. Supply an output schema when you need rows or fields back rather than prose; the result arrives in the structured output alongside field-level citations.\n4. To ask a follow-up against the same research, pass the previous run ID.\n\n## Output\nReturn the agent text answer, the structured result when a schema was used, and the grounding citations. Agent runs take longer than a search — expect seconds to minutes depending on effort.',
     },
   ],
 } as const satisfies BlockMeta

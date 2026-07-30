@@ -1,50 +1,92 @@
-// Common types for Exa AI tools
 import type { ToolResponse } from '@/tools/types'
 
-// Common parameters for all Exa AI tools
 interface ExaBaseParams {
   apiKey: string
 }
 
-/** Cost breakdown returned by Exa API responses */
+/** Cost breakdown returned by Exa API responses. */
 interface ExaCostDollars {
   total: number
 }
 
-// Search tool types
-export interface ExaSearchParams extends ExaBaseParams {
+/**
+ * Exa's content-freshness controls. `maxAgeHours` (-1 cache-only, 0 always live
+ * crawl, 1-720 cache-if-younger-than) replaced `livecrawl`, which is deprecated
+ * but still accepted. Sending both is a 400 — see `applyFreshness`.
+ */
+export interface ExaFreshnessParams {
+  maxAgeHours?: number
+  livecrawlTimeout?: number
+  /** @deprecated Superseded by `maxAgeHours`; retained for saved workflows. */
+  livecrawl?: 'always' | 'fallback' | 'never' | 'preferred'
+}
+
+/**
+ * Search modes Exa accepts. `instant` through `deep-reasoning` are the current
+ * documented set; `neural`, `keyword`, and `hybrid` are legacy values the API
+ * still honors, kept so workflows saved against the old dropdown keep running.
+ */
+export type ExaSearchType =
+  | 'instant'
+  | 'fast'
+  | 'auto'
+  | 'deep-lite'
+  | 'deep'
+  | 'deep-reasoning'
+  | 'neural'
+  | 'keyword'
+  | 'hybrid'
+
+/** Field-level citations Exa returns alongside structured output. */
+interface ExaGrounding {
+  field: string
+  citations: { url: string; title?: string }[]
+  confidence?: number
+}
+
+interface ExaEntity {
+  id: string
+  type: string
+  version: number
+  properties: Record<string, unknown>
+}
+
+interface ExaSubpage {
+  title?: string
+  url: string
+  publishedDate?: string
+  author?: string
+  id?: string
+}
+
+export interface ExaSearchParams extends ExaBaseParams, ExaFreshnessParams {
   query: string
   numResults?: number
-  useAutoprompt?: boolean
-  type?: 'auto' | 'neural' | 'keyword' | 'fast'
-  // Domain filtering
+  type?: ExaSearchType
   includeDomains?: string
   excludeDomains?: string
-  // Category filtering
-  category?:
-    | 'company'
-    | 'research_paper'
-    | 'news_article'
-    | 'pdf'
-    | 'github'
-    | 'tweet'
-    | 'movie'
-    | 'song'
-    | 'personal_site'
-  // Content options
-  text?: boolean | { maxCharacters?: number }
-  highlights?: boolean | { query?: string; numSentences?: number; highlightsPerUrl?: number }
-  summary?: boolean | { query?: string }
-  // Live crawl mode
-  livecrawl?: 'always' | 'fallback' | 'never'
-  // Date filters (ISO 8601)
-  startCrawlDate?: string
-  endCrawlDate?: string
+  category?: string
+  text?: boolean
+  highlights?: boolean
+  summary?: boolean
+  summaryQuery?: string
+  subpages?: number
+  subpageTarget?: string
+  extrasLinks?: number
+  extrasImageLinks?: number
+  outputSchema?: string | Record<string, unknown>
+  systemPrompt?: string
+  userLocation?: string
   startPublishedDate?: string
   endPublishedDate?: string
+  /** @deprecated Crawl-date filters are deprecated; use the published-date pair. */
+  startCrawlDate?: string
+  /** @deprecated Crawl-date filters are deprecated; use the published-date pair. */
+  endCrawlDate?: string
 }
 
 interface ExaSearchResult {
+  id?: string
   title: string
   url: string
   publishedDate?: string
@@ -54,125 +96,152 @@ interface ExaSearchResult {
   image?: string
   text?: string
   highlights?: string[]
-  score: number
+  highlightScores?: number[]
+  subpages?: ExaSubpage[]
+  entities?: ExaEntity[]
+  extras?: Record<string, unknown>
+  /** Only returned by the legacy `neural` search type. */
+  score?: number
 }
 
 export interface ExaSearchResponse extends ToolResponse {
   output: {
     results: ExaSearchResult[]
+    requestId?: string
+    structuredOutput?: unknown
+    grounding?: ExaGrounding[]
     __costDollars?: ExaCostDollars
   }
 }
 
-// Get Contents tool types
-export interface ExaGetContentsParams extends ExaBaseParams {
-  urls: string
-  text?: boolean | { maxCharacters?: number }
+export interface ExaGetContentsParams extends ExaBaseParams, ExaFreshnessParams {
+  urls?: string
+  /** Result IDs from a prior search; mutually exclusive with `urls`. */
+  ids?: string
+  text?: boolean
+  summary?: boolean
   summaryQuery?: string
-  // Subpages crawling
   subpages?: number
   subpageTarget?: string
-  // Content options
-  highlights?: boolean | { query?: string; numSentences?: number; highlightsPerUrl?: number }
-  // Live crawl mode
-  livecrawl?: 'always' | 'fallback' | 'never'
+  highlights?: boolean
+  extrasLinks?: number
+  extrasImageLinks?: number
 }
 
 interface ExaGetContentsResult {
+  id?: string
   url: string
   title: string
   text?: string
   summary?: string
   highlights?: string[]
+  highlightScores?: number[]
+  subpages?: ExaSubpage[]
+  entities?: ExaEntity[]
+  extras?: Record<string, unknown>
+}
+
+/** Per-URL crawl outcome, so partial failures are visible to the caller. */
+interface ExaContentsStatus {
+  id: string
+  status: 'success' | 'error'
+  source?: 'cached' | 'crawled'
+  error?: Record<string, unknown>
 }
 
 export interface ExaGetContentsResponse extends ToolResponse {
   output: {
     results: ExaGetContentsResult[]
+    statuses?: ExaContentsStatus[]
+    requestId?: string
     __costDollars?: ExaCostDollars
   }
 }
 
-// Find Similar Links tool types
-export interface ExaFindSimilarLinksParams extends ExaBaseParams {
+export interface ExaFindSimilarLinksParams extends ExaBaseParams, ExaFreshnessParams {
   url: string
   numResults?: number
-  text?: boolean | { maxCharacters?: number }
-  // Domain filtering
+  text?: boolean
   includeDomains?: string
   excludeDomains?: string
   excludeSourceDomain?: boolean
-  // Category filtering
-  category?:
-    | 'company'
-    | 'research_paper'
-    | 'news_article'
-    | 'pdf'
-    | 'github'
-    | 'tweet'
-    | 'movie'
-    | 'song'
-    | 'personal_site'
-  // Content options
-  highlights?: boolean | { query?: string; numSentences?: number; highlightsPerUrl?: number }
-  summary?: boolean | { query?: string }
-  // Live crawl mode
-  livecrawl?: 'always' | 'fallback' | 'never'
+  category?: string
+  highlights?: boolean
+  summary?: boolean
 }
 
 interface ExaSimilarLink {
+  id?: string
   title: string
   url: string
   text?: string
   summary?: string
   highlights?: string[]
-  score: number
+  score?: number
 }
 
 export interface ExaFindSimilarLinksResponse extends ToolResponse {
   output: {
     similarLinks: ExaSimilarLink[]
+    requestId?: string
     __costDollars?: ExaCostDollars
   }
 }
 
-// Answer tool types
 export interface ExaAnswerParams extends ExaBaseParams {
   query: string
+  /** Includes each cited source's full page text — not the answer's own text. */
   text?: boolean
+  outputSchema?: string | Record<string, unknown>
 }
 
 export interface ExaAnswerResponse extends ToolResponse {
   output: {
-    answer: string
+    /** A string, or an object matching `outputSchema` when one is supplied. */
+    answer: string | Record<string, unknown>
     citations: {
+      id?: string
       title: string
       url: string
-      text: string
+      text?: string
+      author?: string
+      publishedDate?: string
     }[]
+    requestId?: string
     __costDollars?: ExaCostDollars
   }
 }
 
-// Research tool types
+/** Effort levels the Agent API accepts, trading cost against depth. */
+export type ExaAgentEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'auto'
+
+export interface ExaAgentParams extends ExaBaseParams {
+  query: string
+  effort?: ExaAgentEffort
+  outputSchema?: string | Record<string, unknown>
+  systemPrompt?: string
+  previousRunId?: string
+}
+
+export interface ExaAgentResponse extends ToolResponse {
+  output: {
+    runId?: string
+    status?: string
+    stopReason?: string | null
+    text: string
+    structured?: unknown
+    grounding?: ExaGrounding[]
+    __costDollars?: ExaCostDollars
+  }
+}
+
+/**
+ * Legacy research params. Exa retired `/research/v1` (HTTP 410), so this tool
+ * now runs on the Agent API and maps its `model` onto an agent effort level.
+ */
 export interface ExaResearchParams extends ExaBaseParams {
   query: string
   model?: 'exa-research-fast' | 'exa-research' | 'exa-research-pro'
-}
-
-export interface ExaResearchResponse extends ToolResponse {
-  output: {
-    taskId?: string
-    research: {
-      title: string
-      url: string
-      summary: string
-      text?: string
-      publishedDate?: string
-      author?: string
-      score: number
-    }[]
-  }
 }
 
 export type ExaResponse =
@@ -180,4 +249,4 @@ export type ExaResponse =
   | ExaGetContentsResponse
   | ExaFindSimilarLinksResponse
   | ExaAnswerResponse
-  | ExaResearchResponse
+  | ExaAgentResponse

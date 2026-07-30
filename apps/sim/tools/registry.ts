@@ -1007,10 +1007,10 @@ import {
   evernoteUpdateNoteTool,
 } from '@/tools/evernote'
 import {
+  exaAgentTool,
   exaAnswerTool,
   exaFindSimilarLinksTool,
   exaGetContentsTool,
-  exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
 import { extendParserTool, extendParserV2Tool } from '@/tools/extend'
@@ -6559,7 +6559,7 @@ export const tools: Record<string, ToolConfig> = {
   exa_get_contents: exaGetContentsTool,
   exa_find_similar_links: exaFindSimilarLinksTool,
   exa_answer: exaAnswerTool,
-  exa_research: exaResearchTool,
+  exa_agent: exaAgentTool,
   parallel_search: parallelSearchTool,
   parallel_extract: parallelExtractTool,
   parallel_deep_research: parallelDeepResearchTool,
