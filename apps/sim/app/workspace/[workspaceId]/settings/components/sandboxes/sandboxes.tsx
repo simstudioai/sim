@@ -81,6 +81,11 @@ export function Sandboxes() {
       setDraft(null)
       setIssues([])
     }
+    // Creating and having one open are mutually exclusive, and history can land on
+    // a sandbox while create mode is still set — Forward after starting a new one.
+    // Leaving both on renders an empty "New sandbox" form whose Delete still points
+    // at the restored sandbox.
+    if (selectedId) setIsCreating(false)
   }
 
   const sandboxes = data?.sandboxes ?? []
@@ -260,6 +265,9 @@ export function Sandboxes() {
                 onSelect: () => {
                   setDraft(emptyDraft())
                   setIsCreating(true)
+                  // Starting a new one is not editing the open one. Replace rather
+                  // than push: this is a mode switch, not a destination.
+                  void setSelectedId(null, { history: 'replace' })
                 },
               },
             ]
