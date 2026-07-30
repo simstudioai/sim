@@ -421,7 +421,7 @@ console.log(limits);`
       case 'status':
         return 'Check Status'
       case 'rate-limits':
-        return 'Rate Limits'
+        return 'Usage Limits'
       default:
         return 'Execute Job'
     }
@@ -564,7 +564,7 @@ console.log(limits);`
               options={[
                 { label: 'Execute Job', value: 'execute' },
                 { label: 'Check Status', value: 'status' },
-                { label: 'Rate Limits', value: 'rate-limits' },
+                { label: 'Usage Limits', value: 'rate-limits' },
               ]}
               value={asyncExampleType}
               onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}

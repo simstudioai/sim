@@ -44,6 +44,7 @@ export type ApiEndpoint =
   | 'knowledge-detail'
   | 'knowledge-search'
   | 'copilot-chat'
+  | 'billing-usage'
 
 export interface RateLimitResult {
   allowed: boolean

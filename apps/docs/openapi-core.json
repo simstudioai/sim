@@ -973,7 +973,7 @@
       "get": {
         "operationId": "getUsageLimits",
         "summary": "Get Usage Limits",
-        "description": "Retrieve your current rate limits, usage spending, and storage consumption for the billing period.",
+        "description": "Retrieve your current usage spending and storage consumption for the billing period.",
         "tags": ["Usage"],
         "x-codeSamples": [
           {
@@ -985,7 +985,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Current rate limits, usage, and storage information.",
+            "description": "Current usage and storage information.",
             "content": {
               "application/json": {
                 "schema": {
@@ -993,18 +993,6 @@
                 },
                 "example": {
                   "success": true,
-                  "rateLimit": {
-                    "sync": {
-                      "limit": 100,
-                      "remaining": 95,
-                      "reset": "2026-01-15T11:00:00Z"
-                    },
-                    "async": {
-                      "limit": 50,
-                      "remaining": 48,
-                      "reset": "2026-01-15T11:00:00Z"
-                    }
-                  },
                   "usage": {
                     "currentPeriodCost": 12.5,
                     "limit": 100,
@@ -1026,11 +1014,120 @@
         "parameters": []
       }
     },
-    "/api/users/me/usage-logs": {
+    "/api/v2/billing/usage": {
+      "get": {
+        "operationId": "getUsageSummary",
+        "summary": "Get Usage Summary",
+        "description": "Current-billing-period usage with the per-source credit breakdown (`workflow`, `copilot`, `knowledge-base`, …) — monitor one source's consumption directly instead of estimating it by subtraction. All values are credits (1,000 credits = $5); dollar costs are not part of this surface.",
+        "tags": ["Usage"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one workspace. A workspace-scoped API key is always pinned to its own workspace; passing a different id returns 403."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current billing period's usage summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "period",
+                        "totalCredits",
+                        "bySourceCredits",
+                        "limitCredits",
+                        "plan"
+                      ],
+                      "properties": {
+                        "period": {
+                          "type": "object",
+                          "required": ["start", "end"],
+                          "properties": {
+                            "start": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "end": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
+                        },
+                        "totalCredits": {
+                          "type": "number"
+                        },
+                        "bySourceCredits": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          },
+                          "description": "Credits consumed per usage source over the billing period."
+                        },
+                        "limitCredits": {
+                          "type": "number"
+                        },
+                        "plan": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "period": {
+                      "start": "2026-07-01T00:00:00.000Z",
+                      "end": "2026-08-01T00:00:00.000Z"
+                    },
+                    "totalCredits": 512,
+                    "bySourceCredits": {
+                      "workflow": 380,
+                      "copilot": 120,
+                      "knowledge-base": 12
+                    },
+                    "limitCredits": 20000,
+                    "plan": "pro"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v2/billing/usage/logs": {
       "get": {
         "operationId": "listUsageLogs",
         "summary": "List Usage Logs",
-        "description": "The authenticated account's credit-consuming usage events with a per-source summary. Accepts a session or `X-API-Key` — the same key `GET /api/users/me/usage-limits` accepts; `summary.bySourceCredits` is the source breakdown of that endpoint's aggregate `currentPeriodCost`, suitable for monitoring e.g. Copilot consumption. Workspace-scoped keys read only their own workspace's slice of the ledger.",
+        "description": "Cursor-paged, credit-denominated ledger of the account's usage events. The per-source aggregate lives on `GET /api/v2/billing/usage`; this is the row-level detail. Page by passing `nextCursor` back as `cursor` and stop when it is null.",
         "tags": ["Usage"],
         "security": [
           {
@@ -1045,7 +1142,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Restrict to one usage source (e.g. `workflow`, `copilot`). Omit for all sources."
+            "description": "Restrict to one usage source (e.g. `workflow`, `copilot`)."
           },
           {
             "name": "workspaceId",
@@ -1103,42 +1200,22 @@
               "type": "string"
             },
             "description": "Opaque cursor from the previous page."
-          },
-          {
-            "name": "includeCredits",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": true
-            },
-            "description": "Set `false` to skip per-row credit apportionment when only the summary is needed."
           }
         ],
         "responses": {
           "200": {
-            "description": "A page of usage events with the per-source credit summary.",
+            "description": "A page of usage events.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["success", "logs", "summary", "pagination"],
+                  "required": ["data", "nextCursor"],
                   "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "logs": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": [
-                          "id",
-                          "createdAt",
-                          "source",
-                          "workflowName",
-                          "creditCost",
-                          "dollarCost"
-                        ],
+                        "required": ["id", "createdAt", "source", "workflowName", "creditCost"],
                         "properties": {
                           "id": {
                             "type": "string"
@@ -1148,8 +1225,7 @@
                             "format": "date-time"
                           },
                           "source": {
-                            "type": "string",
-                            "description": "Usage source: `workflow`, `copilot`, and the other credit-consuming surfaces."
+                            "type": "string"
                           },
                           "workflowName": {
                             "type": ["string", "null"],
@@ -1157,156 +1233,43 @@
                           },
                           "creditCost": {
                             "type": "number",
-                            "description": "Credit-denominated cost (1,000 credits = $5), apportioned so page rows sum exactly to the rounded page total."
-                          },
-                          "dollarCost": {
-                            "type": "number",
-                            "description": "Raw dollar cost, so a 0 `creditCost` can be distinguished from a genuinely free event."
+                            "description": "Apportioned so page rows sum exactly to the rounded page total; can be 0 for a sub-credit event."
                           }
                         }
                       }
                     },
-                    "summary": {
-                      "type": "object",
-                      "required": ["totalCredits", "bySourceCredits"],
-                      "properties": {
-                        "totalCredits": {
-                          "type": "number"
-                        },
-                        "bySourceCredits": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "type": "number"
-                          },
-                          "description": "Credits per usage source over the whole filter — the source-aware breakdown of `usage-limits`’ aggregate `currentPeriodCost`."
-                        }
-                      }
-                    },
-                    "pagination": {
-                      "type": "object",
-                      "required": ["hasMore"],
-                      "properties": {
-                        "nextCursor": {
-                          "type": "string"
-                        },
-                        "hasMore": {
-                          "type": "boolean"
-                        }
-                      }
+                    "nextCursor": {
+                      "type": ["string", "null"],
+                      "description": "Opaque cursor for the next page, or null on the final page."
                     }
                   }
                 },
                 "example": {
-                  "success": true,
-                  "logs": [
+                  "data": [
                     {
                       "id": "log_1",
                       "createdAt": "2026-07-29T18:04:11.000Z",
                       "source": "copilot",
                       "workflowName": null,
-                      "creditCost": 12,
-                      "dollarCost": 0.06
+                      "creditCost": 12
                     }
                   ],
-                  "summary": {
-                    "totalCredits": 512,
-                    "bySourceCredits": {
-                      "workflow": 380,
-                      "copilot": 120,
-                      "knowledge-base": 12
-                    }
-                  },
-                  "pagination": {
-                    "hasMore": false
-                  }
+                  "nextCursor": null
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/api/users/me/usage-logs/export": {
-      "get": {
-        "operationId": "exportUsageLogs",
-        "summary": "Export Usage Logs (CSV)",
-        "description": "Every usage event matching the filter as a CSV download (`Date`, `Type`, `Credits`) — the unpaginated form of `GET /api/users/me/usage-logs`, same auth and workspace-key scoping.",
-        "tags": ["Usage"],
-        "security": [
-          {
-            "apiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "source",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Restrict to one usage source (e.g. `workflow`, `copilot`). Omit for all sources."
           },
-          {
-            "name": "workspaceId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Restrict to one workspace. A workspace-scoped API key is always pinned to its own workspace; passing a different id returns 403."
-          },
-          {
-            "name": "period",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "enum": ["1d", "7d", "30d", "custom", "all"],
-              "default": "30d"
-            },
-            "description": "Relative window, `all`, or `custom` (requires `startDate`)."
-          },
-          {
-            "name": "startDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Start of a `custom` window. Any `Date`-parseable string."
-          },
-          {
-            "name": "endDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "End of a `custom` window; defaults to now."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "CSV attachment. `X-Export-Truncated: 1` signals the 50,000-row safety cap was hit.",
-            "content": {
-              "text/csv": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -1967,79 +1930,6 @@
           }
         }
       },
-      "Limits": {
-        "type": "object",
-        "description": "Rate limit and usage information included in every API response.",
-        "properties": {
-          "workflowExecutionRateLimit": {
-            "type": "object",
-            "description": "Current rate limit status for workflow executions.",
-            "properties": {
-              "sync": {
-                "description": "Rate limit bucket for synchronous executions.",
-                "$ref": "#/components/schemas/RateLimitBucket"
-              },
-              "async": {
-                "description": "Rate limit bucket for asynchronous executions.",
-                "$ref": "#/components/schemas/RateLimitBucket"
-              }
-            }
-          },
-          "usage": {
-            "type": "object",
-            "description": "Current billing period usage and plan limits.",
-            "properties": {
-              "currentPeriodCost": {
-                "type": "number",
-                "description": "Total spend in the current billing period in USD.",
-                "example": 1.25
-              },
-              "limit": {
-                "type": "number",
-                "description": "Maximum allowed spend for the current billing period in USD.",
-                "example": 50
-              },
-              "plan": {
-                "type": "string",
-                "description": "Your current subscription plan (e.g., free, pro, team).",
-                "example": "pro"
-              },
-              "isExceeded": {
-                "type": "boolean",
-                "description": "Whether the usage limit has been exceeded. Executions may be blocked when true.",
-                "example": false
-              }
-            }
-          }
-        }
-      },
-      "RateLimitBucket": {
-        "type": "object",
-        "description": "Rate limit status for a specific execution type.",
-        "properties": {
-          "requestsPerMinute": {
-            "type": "integer",
-            "description": "Maximum number of requests allowed per minute.",
-            "example": 60
-          },
-          "maxBurst": {
-            "type": "integer",
-            "description": "Maximum number of concurrent requests allowed in a burst.",
-            "example": 10
-          },
-          "remaining": {
-            "type": "integer",
-            "description": "Number of requests remaining in the current rate limit window.",
-            "example": 59
-          },
-          "resetAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the rate limit window resets.",
-            "example": "2025-06-20T14:16:00Z"
-          }
-        }
-      },
       "JobStatus": {
         "type": "object",
         "description": "Status of an asynchronous job.",
@@ -2314,55 +2204,11 @@
       },
       "UsageLimits": {
         "type": "object",
-        "description": "Current rate limits, usage, and storage information for the authenticated user.",
+        "description": "Current usage and storage information for the authenticated user.",
         "properties": {
           "success": {
             "type": "boolean",
             "description": "Whether the request was successful."
-          },
-          "rateLimit": {
-            "type": "object",
-            "description": "Rate limit status for workflow executions.",
-            "properties": {
-              "sync": {
-                "description": "Rate limit bucket for synchronous executions.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/RateLimitBucket"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "isLimited": {
-                        "type": "boolean",
-                        "description": "Whether the rate limit has been reached."
-                      }
-                    }
-                  }
-                ]
-              },
-              "async": {
-                "description": "Rate limit bucket for asynchronous executions.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/RateLimitBucket"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "isLimited": {
-                        "type": "boolean",
-                        "description": "Whether the rate limit has been reached."
-                      }
-                    }
-                  }
-                ]
-              },
-              "authType": {
-                "type": "string",
-                "description": "The authentication type used (api or manual)."
-              }
-            }
           },
           "usage": {
             "type": "object",

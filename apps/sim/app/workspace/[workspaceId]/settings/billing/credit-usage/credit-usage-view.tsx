@@ -56,7 +56,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
         {rowLabel(log)}
       </span>
       <span className='flex-shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
-        {formatApportionedCreditCost(log.creditCost, log.dollarCost)}
+        {formatApportionedCreditCost(log.creditCost, log.hasCost)}
       </span>
     </div>
   )
