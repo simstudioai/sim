@@ -784,6 +784,7 @@ export function LoadedRichMarkdownEditor({
   const pendingStreamBodyRef = useRef<string | null>(null)
   const streamRafRef = useRef<number | null>(null)
   const lastStreamParseAtRef = useRef(0)
+  const settleRunSeqRef = useRef(0)
   useEffect(() => {
     if (!editor) return
     // Collaboration and agent-streaming are disjoint surfaces: collaboration is enabled
@@ -805,9 +806,16 @@ export function LoadedRichMarkdownEditor({
     // the React node views via flushSync — tiptap#3764), so calling them directly in this effect body
     // throws "flushSync ... cannot flush while rendering" when the effect runs mid-render. Defer to a
     // microtask (after commit, before paint). The streaming rAF tick below already runs off-render.
+    //
+    // Tag each run: a deferred mutation applies only if it is still the latest run (this effect has
+    // several early-return exits, so a run-token beats a per-exit cleanup flag) and the editor is
+    // alive. This drops a superseded run's microtask when React ran the next pass — a newer stream or
+    // settle — before the microtask flushed, so it can't overwrite the newer state.
+    const runSeq = ++settleRunSeqRef.current
     const runOffRender = (mutate: () => void) => {
       queueMicrotask(() => {
-        if (!editor.isDestroyed) mutate()
+        if (runSeq !== settleRunSeqRef.current || editor.isDestroyed) return
+        mutate()
       })
     }
     if (isStreaming) {
