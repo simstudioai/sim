@@ -745,7 +745,21 @@ export function LoadedRichMarkdownEditor({
    */
   useEffect(() => {
     if (!editor || !collaborationEnabled) return
-    if (editor.isEditable !== isEditable) editor.setEditable(isEditable)
+    if (editor.isEditable === isEditable) return
+    // Defer out of the render/commit phase. `isEditable` flips from collab readiness (synced + seeded),
+    // which is driven by a Yjs `config.observe` firing synchronously inside `Y.applyUpdate` — so this
+    // effect can run while React is mid-render. `setEditable` dispatches a TipTap transaction that the
+    // React binding commits with `flushSync`, which throws ("cannot flush while rendering") in that
+    // window. A microtask runs right after the current commit, before paint; re-check liveness/value
+    // since either can change before it fires.
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled || editor.isDestroyed) return
+      if (editor.isEditable !== isEditable) editor.setEditable(isEditable)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [editor, collaborationEnabled, isEditable])
 
   /**

@@ -64,6 +64,9 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       },
       buffer: emptyBuffer,
       inferredMimeType: contentType,
+      // This writes only an empty shell; the real content arrives via a later edit_content write (which
+      // does merge). Merging this empty write would briefly blank an already-open editor on overwrite.
+      syncLiveDoc: false,
     })
 
     logger.info('File created via create_file', {

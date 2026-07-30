@@ -39,7 +39,12 @@ export async function persistFileDoc(
     ydoc.destroy()
   }
 
-  await updateWorkspaceFileContent(workspaceId, fileId, userId, markdownBuffer)
+  // `syncLiveDoc: false`: this write IS the projection of the live doc back to markdown, so merging it
+  // back into that same doc would be a persist → merge → persist self-loop. The doc already holds this
+  // exact content; peers are already converged through the relay.
+  await updateWorkspaceFileContent(workspaceId, fileId, userId, markdownBuffer, undefined, {
+    syncLiveDoc: false,
+  })
 
   // Cache the Yjs binary (tagged with the exact markdown just written) so a later cold room open loads
   // it directly instead of re-converting markdown → Yjs. Best-effort: the markdown IS the durable file,
