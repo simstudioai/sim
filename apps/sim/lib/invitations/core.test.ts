@@ -195,7 +195,7 @@ describe('acceptInvitation', () => {
       actorName: 'Invitee',
       // The screen promised "you will not join" — acceptance resolves to a join.
       disclosedWorkspaceIds: [],
-      disclosedWillJoinOrganization: false,
+      disclosedOutcome: 'external' as const,
       request: new Request('http://localhost/api/invitations/inv-1/accept'),
     })
 
@@ -940,6 +940,65 @@ describe('acceptInvitation', () => {
     expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith('invitee-user')
   })
 
+  it('surfaces the real cause, not a consent mismatch, when the disclosure said blocked', async () => {
+    /**
+     * The preview reports `blocked` for dead grants, so the screen promised
+     * nothing. Acceptance must return the real cause (`workspace-not-found`)
+     * rather than `disclosure-outdated` — the latter renders the same preview on
+     * retry, so the invitee would loop with no explanation.
+     */
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'organization',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      [],
+      [],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      disclosedWorkspaceIds: [],
+      disclosedOutcome: 'blocked',
+    })
+
+    expect(result).toEqual({ success: false, kind: 'workspace-not-found' })
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+  })
+
   it('rolls back a member-role org acceptance when every grant turned stale', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
@@ -1457,7 +1516,7 @@ describe('acceptInvitation', () => {
       invitationId: 'inv-1',
       token: 'tok-1',
       disclosedWorkspaceIds: [],
-      disclosedWillJoinOrganization: false,
+      disclosedOutcome: 'external' as const,
     })
 
     expect(result.success ? 'ok' : result.kind).toBe('ok')

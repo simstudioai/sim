@@ -7,6 +7,7 @@ import {
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
   getInvitationContract,
+  type InvitationJoinOutcome,
   listMyInvitationsContract,
   listWorkspaceInvitationsContract,
   type MyInvitation,
@@ -166,15 +167,15 @@ export function useAcceptMyInvitation() {
     mutationFn: async ({
       invitationId,
       disclosedWorkspaceIds,
-      disclosedWillJoinOrganization,
+      disclosedOutcome,
     }: {
       invitationId: string
       disclosedWorkspaceIds?: string[]
-      disclosedWillJoinOrganization?: boolean
+      disclosedOutcome?: InvitationJoinOutcome
     }) =>
       requestJson(acceptInvitationContract, {
         params: { id: invitationId },
-        body: { disclosedWorkspaceIds, disclosedWillJoinOrganization },
+        body: { disclosedWorkspaceIds, disclosedOutcome },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })

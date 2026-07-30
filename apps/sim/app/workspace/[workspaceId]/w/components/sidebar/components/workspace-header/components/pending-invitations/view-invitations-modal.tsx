@@ -57,12 +57,12 @@ function invitationDisclosure(inv: MyInvitation): string {
     membershipIntent: inv.membershipIntent,
     isOrganizationAdminRole: isOrgAdminRole(inv.role),
     organizationLabel,
-    /** `willJoinOrganization` also covers a personal-workspace invite, which has
+    /** A `will-join` outcome also covers a personal-workspace invite, which has
      * no organization id or name until acceptance creates one. */
     isOrganizationScoped: Boolean(
       inv.organizationId ||
         inv.joinPreview?.organizationName ||
-        inv.joinPreview?.willJoinOrganization
+        inv.joinPreview?.outcome === 'will-join'
     ),
   })
   const migration = buildWorkspaceMigrationNotice({
@@ -99,7 +99,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
       const result = await acceptInvitation.mutateAsync({
         invitationId: inv.id,
         disclosedWorkspaceIds: inv.joinPreview?.workspaceIdsToMove,
-        disclosedWillJoinOrganization: inv.joinPreview?.willJoinOrganization,
+        disclosedOutcome: inv.joinPreview?.outcome,
       })
       toast.success(`Joined ${invitationLabel(inv)}`)
       onOpenChange(false)

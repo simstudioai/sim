@@ -36,7 +36,7 @@ export function buildWorkspaceMigrationNotice({
     return ` If you own personal workspaces, accepting membership moves them into ${organizationLabel}: its admins get full access, and they stay with the organization if you leave.`
   }
 
-  if (!joinPreview?.willJoinOrganization || joinPreview.workspacesToMove.length === 0) {
+  if (joinPreview?.outcome !== 'will-join' || joinPreview.workspacesToMove.length === 0) {
     return ''
   }
 
@@ -51,13 +51,13 @@ export function buildWorkspaceMigrationNotice({
  * States what the invitee becomes, so the seat consequence is disclosed to the
  * person it applies to rather than only to the inviter.
  *
- * Keyed on the preview's `willJoinOrganization` rather than the invitation's
- * sent intent, because acceptance can resolve an internal invite to external —
- * the invitee already belongs to another organization, or the granted workspace
- * changed organizations since the invite was sent. Claiming a seat would be
- * consumed in those cases is exactly the disclosure/outcome mismatch these
- * notices exist to prevent. The sent intent is only the fallback for when the
- * preview could not be computed.
+ * Keyed on the preview's resolved `outcome` rather than the invitation's sent
+ * intent, because acceptance can resolve an internal invite to something else —
+ * the invitee already belongs to an organization, the granted workspace changed
+ * organizations since the invite was sent, or acceptance will fail outright.
+ * Promising a seat in those cases is exactly the disclosure/outcome mismatch
+ * these notices exist to prevent. The sent intent is only the fallback for when
+ * the preview could not be computed.
  */
 export function buildMembershipNotice({
   joinPreview,
@@ -75,25 +75,34 @@ export function buildMembershipNotice({
   if (!isOrganizationScoped || !membershipIntent) return ''
 
   /**
-   * Already a member of the organization acceptance lands in: their standing is
-   * unchanged, so neither the join copy nor the external copy is true. Checked
-   * first because this case also reports `willJoinOrganization: false`.
+   * No preview: fall back to the invitation's sent intent, which is the only
+   * signal available.
    */
-  if (joinPreview?.alreadyMemberOfOrganization) {
-    return ` You're already a member of ${organizationLabel}, so accepting only adds the workspaces above — your membership and seat don't change.`
+  const outcome =
+    joinPreview?.outcome ?? (membershipIntent === 'external' ? 'external' : 'will-join')
+
+  switch (outcome) {
+    /**
+     * Acceptance will fail (`upgrade-required`, `workspace-not-found`), so
+     * nothing is promised. Silence is the honest answer: the invitee sees the
+     * real cause when they accept. Claiming external access here — which is what
+     * a boolean shape forced — was actively false.
+     */
+    case 'blocked':
+      return ''
+    /**
+     * Already in the organization: their standing is unchanged, so neither the
+     * join copy nor the external copy is true.
+     */
+    case 'already-member':
+      return ` You're already a member of ${organizationLabel}, so accepting only adds the workspaces above — your membership and seat don't change.`
+    case 'external':
+      return ` You'll join as an external collaborator: you get access to the ${
+        organizationLabel === 'the organization' ? 'invited' : organizationLabel
+      } workspaces only, you don't take one of their seats, and everything you own stays yours.`
+    case 'will-join':
+      return ` You'll join ${organizationLabel} as ${
+        isOrganizationAdminRole ? 'an admin' : 'a member'
+      }, which uses one of their seats.`
   }
-
-  const willJoinOrganization = joinPreview
-    ? joinPreview.willJoinOrganization
-    : membershipIntent !== 'external'
-
-  if (!willJoinOrganization) {
-    return ` You'll join as an external collaborator: you get access to the ${
-      organizationLabel === 'the organization' ? 'invited' : organizationLabel
-    } workspaces only, you don't take one of their seats, and everything you own stays yours.`
-  }
-
-  return ` You'll join ${organizationLabel} as ${
-    isOrganizationAdminRole ? 'an admin' : 'a member'
-  }, which uses one of their seats.`
 }

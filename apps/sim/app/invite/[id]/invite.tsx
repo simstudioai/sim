@@ -266,7 +266,7 @@ export default function Invite() {
            * must also conflict if acceptance would sweep anything.
            */
           disclosedWorkspaceIds: joinPreview ? joinPreview.workspaceIdsToMove : undefined,
-          disclosedWillJoinOrganization: joinPreview ? joinPreview.willJoinOrganization : undefined,
+          disclosedOutcome: joinPreview?.outcome,
         },
       })
 
@@ -521,14 +521,14 @@ export default function Invite() {
     /**
      * A personal-workspace invite has no organization id and no organization
      * name yet — acceptance creates one by converting the billed owner's Pro to
-     * Team — so `willJoinOrganization` is the authoritative signal that a
+     * Team — so a `will-join` outcome is the authoritative signal that a
      * membership and seat are involved. Gating on the ids alone silenced the
      * disclosure for exactly the case that creates the membership.
      */
     isOrganizationScoped: Boolean(
       invitation?.organizationId ||
         joinPreview?.organizationName ||
-        joinPreview?.willJoinOrganization
+        joinPreview?.outcome === 'will-join'
     ),
   })
 

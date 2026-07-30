@@ -9,8 +9,7 @@ import {
 
 const preview = (over: Partial<Parameters<typeof buildMembershipNotice>[0]['joinPreview']> = {}) =>
   ({
-    willJoinOrganization: true,
-    alreadyMemberOfOrganization: false,
+    outcome: 'will-join' as const,
     organizationName: 'Acme',
     workspacesToMove: [],
     workspaceIdsToMove: [],
@@ -50,7 +49,7 @@ describe('buildMembershipNotice', () => {
    */
   it('discloses external when acceptance will NOT join, despite an internal invite', () => {
     const notice = buildMembershipNotice({
-      joinPreview: preview({ willJoinOrganization: false }),
+      joinPreview: preview({ outcome: 'external' }),
       membershipIntent: 'internal',
       isOrganizationAdminRole: false,
       organizationLabel: 'Acme',
@@ -63,12 +62,11 @@ describe('buildMembershipNotice', () => {
   })
 
   /**
-   * An existing member shares `willJoinOrganization: false` with the external
-   * case but means something different — their standing is unchanged.
+   * An existing member is not external: their standing is unchanged.
    */
   it('discloses unchanged standing for an existing member, not external', () => {
     const notice = buildMembershipNotice({
-      joinPreview: preview({ willJoinOrganization: false, alreadyMemberOfOrganization: true }),
+      joinPreview: preview({ outcome: 'already-member' }),
       membershipIntent: 'internal',
       isOrganizationAdminRole: false,
       organizationLabel: 'Acme',
@@ -104,7 +102,7 @@ describe('buildMembershipNotice', () => {
 
   /**
    * A personal-workspace invite has no organization name until acceptance
-   * creates one, so the caller must scope on `willJoinOrganization`. Pinning the
+   * creates one, so the caller must scope on the `will-join` outcome. Pinning the
    * copy here so the seat is disclosed once it does.
    */
   it('discloses the seat for a will-join preview with no organization name yet', () => {
@@ -117,6 +115,35 @@ describe('buildMembershipNotice', () => {
         isOrganizationScoped: true,
       })
     ).toContain('uses one of their seats')
+  })
+
+  /**
+   * Acceptance will fail (`upgrade-required` / `workspace-not-found`), so nothing
+   * is promised. The boolean shape forced this case to render the external copy,
+   * which told people they were getting free workspace access they would never
+   * receive.
+   */
+  it('promises nothing when acceptance will be blocked', () => {
+    expect(
+      buildMembershipNotice({
+        joinPreview: preview({ outcome: 'blocked' }),
+        membershipIntent: 'internal',
+        isOrganizationAdminRole: false,
+        organizationLabel: 'Acme',
+        isOrganizationScoped: true,
+      })
+    ).toBe('')
+  })
+
+  it('moves nothing when acceptance will be blocked', () => {
+    expect(
+      buildWorkspaceMigrationNotice({
+        joinPreview: preview({ outcome: 'blocked', workspacesToMove: ['Alpha'] }),
+        joinPreviewUnavailable: false,
+        membershipIntent: 'internal',
+        organizationLabel: 'Acme',
+      })
+    ).toBe('')
   })
 
   it('says nothing for an invitation with no organization standing', () => {
@@ -159,7 +186,7 @@ describe('buildWorkspaceMigrationNotice', () => {
   it('says nothing when nothing will move', () => {
     expect(
       buildWorkspaceMigrationNotice({
-        joinPreview: preview({ workspacesToMove: [] }),
+        joinPreview: preview({ outcome: 'will-join', workspacesToMove: [] }),
         joinPreviewUnavailable: false,
         membershipIntent: 'internal',
         organizationLabel: 'Acme',

@@ -98,6 +98,21 @@ export const invitationActionParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
 })
 
+/**
+ * What accepting an invitation will actually do. Four outcomes rather than a
+ * boolean, because each needs different disclosure: `will-join` takes a seat,
+ * `already-member` changes nothing but workspace access, `external` never takes
+ * a seat, and `blocked` means acceptance fails so nothing is promised.
+ */
+export const invitationJoinOutcomeSchema = z.enum([
+  'will-join',
+  'already-member',
+  'external',
+  'blocked',
+])
+
+export type InvitationJoinOutcome = z.output<typeof invitationJoinOutcomeSchema>
+
 export const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
   /**
@@ -108,12 +123,14 @@ export const invitationActionBodySchema = z.object({
    */
   disclosedWorkspaceIds: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT).optional(),
   /**
-   * The membership outcome the accept screen disclosed. The workspace-id list
-   * alone cannot express it — a no-join preview and a will-join preview for
-   * someone who owns nothing both disclose `[]` — so consent to becoming a
-   * seat-consuming member is carried explicitly.
+   * The outcome the accept screen disclosed. The workspace-id list alone cannot
+   * express it — a no-join preview and a will-join preview for someone who owns
+   * nothing both disclose `[]` — so consent to becoming a seat-consuming member
+   * is carried explicitly. Sending `blocked` tells acceptance the screen already
+   * said this would fail, so it should surface the real cause rather than a
+   * consent mismatch.
    */
-  disclosedWillJoinOrganization: z.boolean().optional(),
+  disclosedOutcome: invitationJoinOutcomeSchema.optional(),
 })
 
 export const invitationDetailsSchema = z.object({
@@ -139,14 +156,7 @@ export const invitationDetailsSchema = z.object({
 })
 
 export const invitationJoinPreviewSchema = z.object({
-  willJoinOrganization: z.boolean(),
-  /**
-   * The invitee is already a member of the organization acceptance lands in, so
-   * only workspace access changes. Reported separately because it shares
-   * `willJoinOrganization: false` with the external case, which means something
-   * different to the person accepting.
-   */
-  alreadyMemberOfOrganization: z.boolean(),
+  outcome: invitationJoinOutcomeSchema,
   /** Name of the organization acceptance will actually join. */
   organizationName: z.string().nullable(),
   workspacesToMove: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT),

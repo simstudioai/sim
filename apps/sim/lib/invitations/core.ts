@@ -216,17 +216,23 @@ async function hasLiveGrantInStampedOrganization(
   return Boolean(liveGrant)
 }
 
+/** @see InvitationJoinPreviewResult.outcome */
+export type InvitationJoinOutcome = 'will-join' | 'already-member' | 'external' | 'blocked'
+
 export interface InvitationJoinPreviewResult {
-  willJoinOrganization: boolean
   /**
-   * True when the invitee is ALREADY a member of the organization acceptance
-   * lands in, so nothing about their standing changes — they simply gain the
-   * granted workspaces. Distinct from the external case, which also reports
-   * `willJoinOrganization: false` but means "no seat, and never a member".
-   * Without this the accept screen cannot tell the two apart and would tell an
-   * existing member they are joining as an external collaborator.
+   * What accepting will actually do, as one value rather than a set of booleans.
+   *
+   * These four outcomes need genuinely different disclosure, and collapsing any
+   * of them loses something the invitee must know:
+   * - `will-join`     — a member row is created and a seat is taken.
+   * - `already-member` — they are in the organization already; only workspace
+   *   access changes, so neither the join nor the external copy is true.
+   * - `external`      — workspaces only, never a seat, nothing of theirs moves.
+   * - `blocked`       — acceptance will fail (`upgrade-required`,
+   *   `workspace-not-found`). Nothing is promised, because nothing happens.
    */
-  alreadyMemberOfOrganization: boolean
+  outcome: InvitationJoinOutcome
   /**
    * Name of the organization acceptance will actually join. For a workspace
    * invite this is the granted workspace's LIVE organization, which can differ
@@ -254,14 +260,13 @@ export async function getInvitationJoinPreview(
   inviteeUserId: string,
   inv: InvitationWithGrants
 ): Promise<InvitationJoinPreviewResult> {
-  const noJoin: InvitationJoinPreviewResult = {
-    willJoinOrganization: false,
-    alreadyMemberOfOrganization: false,
+  const withOutcome = (outcome: InvitationJoinOutcome): InvitationJoinPreviewResult => ({
+    outcome,
     organizationName: null,
     workspacesToMove: [],
     workspaceIdsToMove: [],
-  }
-  if (inv.membershipIntent === 'external') return noJoin
+  })
+  if (inv.membershipIntent === 'external') return withOutcome('external')
 
   let workspaceOrganizationId = inv.organizationId
   let billedAccountUserId: string | null = null
@@ -280,7 +285,7 @@ export async function getInvitationJoinPreview(
    * Personal-workspace invites only produce an organization through billing's
    * Pro→Team provisioning; with billing disabled there is nothing to join.
    */
-  if (!workspaceOrganizationId && !isBillingEnabled) return noJoin
+  if (!workspaceOrganizationId && !isBillingEnabled) return withOutcome('external')
 
   /**
    * Already in the target organization (nothing changes) or in a different
@@ -295,12 +300,13 @@ export async function getInvitationJoinPreview(
      */
     const inTargetOrganization =
       !!workspaceOrganizationId && existingMembership.organizationId === workspaceOrganizationId
-    return inTargetOrganization ? { ...noJoin, alreadyMemberOfOrganization: true } : noJoin
+    return withOutcome(inTargetOrganization ? 'already-member' : 'external')
   }
 
-  if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId))) return noJoin
+  if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId)))
+    return withOutcome('external')
 
-  if (!(await hasLiveGrantInStampedOrganization(inv))) return noJoin
+  if (!(await hasLiveGrantInStampedOrganization(inv))) return withOutcome('blocked')
 
   /**
    * Mirror acceptance's billing gates: an unusable organization subscription
@@ -311,7 +317,7 @@ export async function getInvitationJoinPreview(
   if (isBillingEnabled) {
     if (workspaceOrganizationId) {
       const orgSub = await getOrganizationSubscription(workspaceOrganizationId)
-      if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) return noJoin
+      if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) return withOutcome('blocked')
     } else {
       const payerUserId = billedAccountUserId ?? inv.inviterId
       const personalSub = await getHighestPriorityPersonalSubscription(payerUserId)
@@ -320,7 +326,7 @@ export async function getInvitationJoinPreview(
         !hasUsableSubscriptionStatus(personalSub.status) ||
         !(isPro(personalSub.plan) || isTeam(personalSub.plan))
       ) {
-        return noJoin
+        return withOutcome('blocked')
       }
     }
   }
@@ -342,8 +348,7 @@ export async function getInvitationJoinPreview(
   }
 
   return {
-    willJoinOrganization: true,
-    alreadyMemberOfOrganization: false,
+    outcome: 'will-join',
     organizationName: targetOrganizationName,
     workspacesToMove: ownedWorkspaces.map((row) => row.name),
     workspaceIdsToMove: ownedWorkspaces.map((row) => row.id),
@@ -417,12 +422,11 @@ export interface AcceptInvitationInput {
    */
   disclosedWorkspaceIds?: string[]
   /**
-   * Whether the accept screen told the invitee they would join the
-   * organization. Verified against the resolved outcome so a membership the
-   * user was never shown can never be created, and a membership they were
-   * promised can never be silently downgraded.
+   * The outcome the accept screen disclosed. Verified against the resolved
+   * outcome so a membership the user was never shown can never be created, and
+   * a membership they were promised can never be silently downgraded.
    */
-  disclosedWillJoinOrganization?: boolean
+  disclosedOutcome?: InvitationJoinOutcome
   request?: { headers: { get(name: string): string | null } }
 }
 
@@ -749,37 +753,13 @@ async function acceptLockedInvitation(
   /**
    * Already in the organization the invitation lands in, so acceptance grants
    * the workspaces without creating a membership or taking a seat. Shared with
-   * the join block below so the disclosure guard and the billing path cannot
-   * disagree about whether this acceptance creates a member.
+   * the consent guard and the join block below so they cannot disagree about
+   * whether this acceptance creates a member.
    */
   const alreadyMemberOfTargetOrganization =
     !!existingMembership &&
     !!workspaceOrganizationId &&
     existingMembership.organizationId === workspaceOrganizationId
-
-  /**
-   * Membership consent guard. The workspace-id token cannot distinguish "you
-   * will join, and nothing of yours moves" from "you will not join at all" —
-   * both disclose an empty set — so the disclosed outcome is compared directly.
-   *
-   * Compared against whether a NEW membership gets created, not against
-   * `shouldJoinOrganization`: the preview reports no-join for an invitee who
-   * already belongs to the target organization (nothing changes for them), and
-   * `shouldJoinOrganization` stays true there because the invitation's intent is
-   * still internal. Comparing the raw flag would reject every such acceptance
-   * as `disclosure-outdated`, and the retry would re-render the same preview —
-   * an unacceptable invitation. Catches the real drift in both directions: an
-   * invitee who left their other organization between preview and accept
-   * (promised external, would now consume a seat) and the mirror case. Runs
-   * before any write, so a plain failure return needs no rollback.
-   */
-  const willCreateMembership = shouldJoinOrganization && !alreadyMemberOfTargetOrganization
-  if (
-    input.disclosedWillJoinOrganization !== undefined &&
-    input.disclosedWillJoinOrganization !== willCreateMembership
-  ) {
-    return { success: false, kind: 'disclosure-outdated' }
-  }
 
   /**
    * A member-role organization invite whose grants ALL left the stamped
@@ -792,6 +772,32 @@ async function acceptLockedInvitation(
    */
   if (shouldJoinOrganization && !(await hasLiveGrantInStampedOrganization(inv, tx))) {
     return { success: false, kind: 'workspace-not-found' }
+  }
+
+  /**
+   * Membership consent guard. The workspace-id token cannot distinguish "you
+   * will join, and nothing of yours moves" from "you will not join at all" —
+   * both disclose an empty set — so the disclosed outcome is compared directly.
+   *
+   * Compared against whether a NEW membership gets created, not against
+   * `shouldJoinOrganization`: the preview reports `already-member` for an
+   * invitee who already belongs to the target organization (nothing changes for
+   * them) while the invitation's intent is still internal, and comparing the raw
+   * flag would reject every such acceptance as `disclosure-outdated` with a
+   * retry that renders the same preview.
+   *
+   * A disclosed `blocked` is skipped deliberately: the screen already told the
+   * invitee acceptance would fail, so the gates below must surface the real
+   * cause (`upgrade-required`, `workspace-not-found`) instead of a consent
+   * mismatch. Placed after the dead-grant gate for the same reason.
+   *
+   * Runs before any write, so a plain failure return needs no rollback.
+   */
+  const willCreateMembership = shouldJoinOrganization && !alreadyMemberOfTargetOrganization
+  if (input.disclosedOutcome !== undefined && input.disclosedOutcome !== 'blocked') {
+    if ((input.disclosedOutcome === 'will-join') !== willCreateMembership) {
+      return { success: false, kind: 'disclosure-outdated' }
+    }
   }
 
   let targetOrganizationId = workspaceOrganizationId
