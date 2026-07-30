@@ -2932,6 +2932,50 @@ export function TableGrid({
           if (name) colNames.push(name)
         }
         const colByKey = new Map(cols.map((c) => [c.key, c]))
+
+        // When every row is loaded and within the chat-selection cap, do a
+        // SYNCHRONOUS event write so the table_selection chip rides alongside
+        // text/plain — the async paged path below replaces the whole clipboard
+        // and can't carry a custom MIME. Add-to-chat materializes the same
+        // scoped selection, so Cmd+C must be able to rebuild that chip.
+        const allLoaded = currentRows.length >= selectAllTotalRef.current
+        if (
+          tableNameRef.current &&
+          allLoaded &&
+          currentRows.length > 0 &&
+          currentRows.length <= MAX_TABLE_SELECTION_ROWS
+        ) {
+          const text = currentRows
+            .map((row) =>
+              colNames.map((name) => cellToText(row.data[name], colByKey.get(name))).join('\t')
+            )
+            .join('\n')
+          e.clipboardData?.setData('text/plain', text)
+          const rowIds = currentRows.map((row) => row.id)
+          const columnIds: string[] = []
+          for (let c = sel.startCol; c <= sel.endCol && c < cols.length; c++) {
+            columnIds.push(getColumnId(cols[c]))
+          }
+          const scopedColumnIds =
+            columnIds.length > 0 && columnIds.length < cols.length
+              ? columnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS)
+              : undefined
+          attachSelectionContextToClipboard(e.clipboardData, {
+            kind: 'table_selection',
+            tableId,
+            label: buildTableSelectionLabel(
+              tableNameRef.current,
+              rowIds.length,
+              scopedColumnIds?.length,
+              selectionKey([...rowIds, ...(scopedColumnIds ?? [])])
+            ),
+            rowIds,
+            ...(scopedColumnIds ? { columnIds: scopedColumnIds } : {}),
+          })
+          toast.success(`Copied ${rowIds.length} ${rowIds.length === 1 ? 'row' : 'rows'}`)
+          return
+        }
+
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
