@@ -22,7 +22,6 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -79,7 +78,7 @@ export function AddConnectorModal({
   const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'

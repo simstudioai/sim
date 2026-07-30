@@ -581,6 +581,45 @@ function buildCustomBlockInputMappingSchema(
  * @param options Additional options including dependencies and selected operation
  * @returns The provider tool config or null if transform fails
  */
+/**
+ * Drops model-supplied arguments for params the tool declares off-limits to the
+ * model (`user-only` / `hidden`).
+ *
+ * Deliberately keyed on the declared visibility rather than on "absent from
+ * `parameters.properties`": an MCP or custom tool may legitimately accept keys
+ * beyond its advertised properties (`additionalProperties`), and silently
+ * dropping those would truncate its arguments. Only a param the tool itself
+ * marked as not-for-the-model is removed.
+ */
+function stripModelBlockedParams(
+  blockedParams: string[] | undefined,
+  llmArgs: Record<string, any>
+): Record<string, any> {
+  if (!blockedParams?.length) return llmArgs
+  const blocked = new Set(blockedParams)
+  const filtered: Record<string, any> = {}
+  for (const [key, value] of Object.entries(llmArgs)) {
+    if (!blocked.has(key)) filtered[key] = value
+  }
+  return filtered
+}
+
+/** Reads a multi-select value that may still be JSON-encoded from `StoredTool.params`. */
+function readMountedSecretNames(raw: unknown): string[] {
+  let value = raw
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      // A bare name rather than a list — treat it as a single entry.
+      return value ? [value as string] : []
+    }
+  }
+  return Array.isArray(value)
+    ? value.filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : []
+}
+
 export async function transformBlockTool(
   block: any,
   options: {
@@ -715,10 +754,11 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const { schema: llmSchema, enrichedDescription } = await createLLMToolSchema(
-    toolConfig,
-    userProvidedParams
-  )
+  const {
+    schema: llmSchema,
+    enrichedDescription,
+    modelBlockedParams,
+  } = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
     ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
@@ -747,6 +787,16 @@ export async function transformBlockTool(
         toolDescription = workflowMetadata.description
       }
     }
+  } else if (toolId === 'function_execute' && resolvedResourceParams.secretScope === 'selected') {
+    // Scoping alone would leave the model guessing: the secrets are injected
+    // server-side and nothing else advertises them. Names only — values never
+    // enter the provider request, matching the copilot's workspace-context rule.
+    // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
+    // the executor's paramsTransform parses it later, but this runs before that.
+    const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
+    toolDescription = mounted.length
+      ? `${toolDescription}\n\nWorkspace secrets available to this code: ${mounted.join(', ')}. Reference one as {{NAME}} or environmentVariables['NAME']. No other secrets are readable.`
+      : `${toolDescription}\n\nThis code has no access to workspace secrets.`
   } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`
   } else if (toolId.startsWith('table_') && resolvedResourceParams.tableId) {
@@ -812,6 +862,7 @@ export async function transformBlockTool(
     description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
+    modelBlockedParams,
     paramsTransform,
   }
 }
@@ -1408,6 +1459,7 @@ export function prepareToolExecution(
   tool: {
     params?: Record<string, any>
     parameters?: Record<string, any>
+    modelBlockedParams?: string[]
     paramsTransform?: (params: Record<string, any>) => Record<string, any>
   },
   llmArgs: Record<string, any>,
@@ -1428,7 +1480,16 @@ export function prepareToolExecution(
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  let toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
+  // Providers are supposed to emit only declared arguments, but nothing enforces
+  // it on the parsed tool call — and `mergeToolParameters` seeds its result from
+  // the model's args, so an undeclared key survives whenever the user's value is
+  // empty. That is a privilege escalation for `user-only` params: a Function tool
+  // scoped to "Selected secrets" with an empty list is an explicit deny, and a
+  // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
+  let toolParams = mergeToolParameters(
+    tool.params || {},
+    stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
+  ) as Record<string, any>
 
   if (tool.paramsTransform) {
     try {
