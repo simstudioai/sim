@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockRunLocal,
   mockRunCloud,
+  mockRunCloudBranch,
   mockRunCloudReview,
   mockResolveKey,
   mockResolveSkills,
@@ -22,6 +23,7 @@ const {
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
+  mockRunCloudBranch: vi.fn(),
   mockRunCloudReview: vi.fn(),
   mockResolveKey: vi.fn(),
   mockResolveSkills: vi.fn(),
@@ -63,7 +65,10 @@ vi.mock('@/executor/handlers/pi/sim-tools', () => ({
   buildSimToolSpecs: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/executor/handlers/pi/local-backend', () => ({ runLocalPi: mockRunLocal }))
-vi.mock('@/executor/handlers/pi/cloud-backend', () => ({ runCloudPi: mockRunCloud }))
+vi.mock('@/executor/handlers/pi/cloud-backend', () => ({
+  runCloudPi: mockRunCloud,
+  runCloudBranchPi: mockRunCloudBranch,
+}))
 vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
 }))
@@ -151,6 +156,12 @@ describe('PiBlockHandler', () => {
       changedFiles: ['a.ts'],
       diff: 'diff',
     })
+    mockRunCloudBranch.mockResolvedValue({
+      totals: { finalText: 'updated', inputTokens: 0, outputTokens: 0, toolCalls: [] },
+      branch: 'feature/existing',
+      changedFiles: ['b.ts'],
+      diff: 'branch diff',
+    })
     mockRunCloudReview.mockResolvedValue({
       totals: { finalText: 'looks good', inputTokens: 0, outputTokens: 0, toolCalls: [] },
       reviewUrl: 'https://github.com/o/r/pull/7#pullrequestreview-1',
@@ -178,7 +189,7 @@ describe('PiBlockHandler', () => {
   it('rejects a mode outside the three the block offers', async () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'babysit', task: 'x', model: 'claude' })
-    ).rejects.toThrow(/Invalid Pi mode: babysit/)
+    ).rejects.toThrow(/Use Create PR or Update PR with Babysit Mode enabled/)
     expect(mockResolveKey).not.toHaveBeenCalled()
   })
 
@@ -195,6 +206,7 @@ describe('PiBlockHandler', () => {
     const output = await handler.execute(ctx(), block, localInputs())
     expect(mockRunLocal).toHaveBeenCalledTimes(1)
     expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
     expect(mockRunCloudReview).not.toHaveBeenCalled()
     const params = mockRunLocal.mock.calls[0][0]
     expect(params.mode).toBe('local')
@@ -213,9 +225,53 @@ describe('PiBlockHandler', () => {
       githubToken: 'ghp',
     })) as Record<string, unknown>
     expect(mockRunCloud).toHaveBeenCalledTimes(1)
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
     expect(mockRunCloudReview).not.toHaveBeenCalled()
     expect(output.prUrl).toBe('https://github.com/o/r/pull/1')
     expect(output.branch).toBe('pi/abc')
+  })
+
+  it('routes Update PR metadata to the cloud branch backend and surfaces branch output', async () => {
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud_branch',
+      task: 'continue it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      targetBranch: 'feature/existing',
+      baseBranch: 'staging',
+      prTitle: 'Updated title',
+      prBody: 'Updated body',
+      prState: 'ready',
+      skills: [{ skillId: 'skill-1' }],
+      memoryType: 'conversation',
+      conversationId: 'thread-1',
+    })) as Record<string, unknown>
+
+    expect(mockRunCloudBranch).toHaveBeenCalledTimes(1)
+    expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudReview).not.toHaveBeenCalled()
+    expect(mockRunCloudBranch.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        mode: 'cloud_branch',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        targetBranch: 'feature/existing',
+        baseBranch: 'staging',
+        prTitle: 'Updated title',
+        prBody: 'Updated body',
+        prState: 'ready',
+        skills: [],
+        initialMessages: [],
+      })
+    )
+    expect(mockResolveSkills).toHaveBeenCalled()
+    expect(mockLoadMemory).toHaveBeenCalled()
+    expect(mockAppendMemory).toHaveBeenCalled()
+    expect(output.branch).toBe('feature/existing')
+    expect(output.content).toBe('updated')
   })
 
   it('routes cloud_review mode and surfaces review output', async () => {
@@ -232,6 +288,7 @@ describe('PiBlockHandler', () => {
 
     expect(mockRunCloudReview).toHaveBeenCalledTimes(1)
     expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
     const params = mockRunCloudReview.mock.calls[0][0]
     expect(params.mode).toBe('cloud_review')
     expect(params.pullNumber).toBe(7)
@@ -312,28 +369,91 @@ describe('PiBlockHandler', () => {
     })
   })
 
-  it('requires reviewer mentions, defaults maxRounds to three, and rejects values above ten', async () => {
-    const inputs = {
-      mode: 'cloud',
-      task: 'build it',
+  it('passes the same Babysit configuration through Update PR', async () => {
+    mockRunCloudBranch.mockResolvedValue({
+      totals: {
+        finalText: 'Update PR:\nupdated\n\nBabysit:\nclean',
+        inputTokens: 1,
+        outputTokens: 2,
+        toolCalls: [],
+      },
+      memoryText: 'updated',
+      prUrl: 'https://github.com/o/r/pull/7',
+      branch: 'feature/existing',
+      rounds: 1,
+      threadsClean: true,
+      checksGreen: true,
+      threadsResolved: 1,
+      commitsPushed: 1,
+      stopReason: 'clean',
+    })
+
+    const output = (await handler.execute(ctx({ executionId: 'execution-2' }), block, {
+      mode: 'cloud_branch',
+      task: 'continue it',
       model: 'claude',
       owner: 'o',
       repo: 'r',
       githubToken: 'ghp',
+      targetBranch: 'feature/existing',
       babysitMode: true,
-      reviewMentions: '@greptile',
-    }
-    await handler.execute(ctx(), block, inputs)
-    expect(mockRunCloud.mock.calls[0][0].babysit.maxRounds).toBe(3)
+      maxRounds: '5',
+      reviewMentions: '@greptile, @cursor review',
+      memoryType: 'conversation',
+      conversationId: 'memory',
+    })) as Record<string, unknown>
 
-    await expect(handler.execute(ctx(), block, { ...inputs, maxRounds: '11' })).rejects.toThrow(
-      /at most 10/
+    expect(mockRunCloudBranch.mock.calls[0][0]).toMatchObject({
+      mode: 'cloud_branch',
+      targetBranch: 'feature/existing',
+      babysit: {
+        maxRounds: 5,
+        reviewMentions: ['@greptile', '@cursor review'],
+        executionId: 'execution-2',
+      },
+    })
+    expect(mockAppendMemory).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'continue it',
+      'updated'
     )
-    await expect(
-      handler.execute(ctx(), block, { ...inputs, reviewMentions: ' , ' })
-    ).rejects.toThrow(/requires at least one reviewer mention/)
-    expect(mockRunCloud).toHaveBeenCalledTimes(1)
+    expect(output).toMatchObject({
+      prUrl: 'https://github.com/o/r/pull/7',
+      rounds: 1,
+      threadsClean: true,
+      checksGreen: true,
+      stopReason: 'clean',
+    })
   })
+
+  it.each(['cloud', 'cloud_branch'])(
+    'requires reviewer mentions and bounds maxRounds in %s',
+    async (mode) => {
+      const inputs = {
+        mode,
+        task: 'build it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        ...(mode === 'cloud_branch' ? { targetBranch: 'feature/existing' } : {}),
+        babysitMode: true,
+        reviewMentions: '@greptile',
+      }
+      await handler.execute(ctx(), block, inputs)
+      const backend = mode === 'cloud' ? mockRunCloud : mockRunCloudBranch
+      expect(backend.mock.calls[0][0].babysit.maxRounds).toBe(3)
+
+      await expect(handler.execute(ctx(), block, { ...inputs, maxRounds: '11' })).rejects.toThrow(
+        /at most 10/
+      )
+      await expect(
+        handler.execute(ctx(), block, { ...inputs, reviewMentions: ' , ' })
+      ).rejects.toThrow(/requires at least one reviewer mention/)
+      expect(backend).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('ignores stale Babysit fields when the Create PR toggle is off', async () => {
     await handler.execute(ctx(), block, {
@@ -416,6 +536,36 @@ describe('PiBlockHandler', () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'cloud', task: 'x', model: 'claude', owner: 'o' })
     ).rejects.toThrow(/Create PR requires/)
+  })
+
+  it('requires a target branch in Update PR', async () => {
+    await expect(
+      handler.execute(ctx(), block, {
+        mode: 'cloud_branch',
+        task: 'x',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+      })
+    ).rejects.toThrow(/Update PR requires a target branch/)
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid Update PR state before starting the backend', async () => {
+    await expect(
+      handler.execute(ctx(), block, {
+        mode: 'cloud_branch',
+        task: 'x',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        targetBranch: 'feature/existing',
+        prState: 'closed',
+      })
+    ).rejects.toThrow(/Invalid PR state/)
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
   })
 
   it('requires pullNumber in cloud_review mode', async () => {
@@ -556,6 +706,27 @@ describe('PiBlockHandler', () => {
 
       expect(mockBuildSearchTool).not.toHaveBeenCalled()
       expect(mockRunCloud.mock.calls[0][0].search).toEqual({
+        provider: 'exa',
+        apiKey: 'search-key',
+      })
+    })
+
+    it('passes Update PR the key without a host tool', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+
+      await handler.execute(ctx(), block, {
+        mode: 'cloud_branch',
+        task: 'continue it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        targetBranch: 'feature/existing',
+        searchProvider: 'exa',
+      })
+
+      expect(mockBuildSearchTool).not.toHaveBeenCalled()
+      expect(mockRunCloudBranch.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
       })

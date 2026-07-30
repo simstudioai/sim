@@ -530,7 +530,7 @@ describe('runCloudReviewPi', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
 
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /only open PRs can be reviewed/
+      /only open PRs are supported/
     )
     expect(mockRun).not.toHaveBeenCalled()
   })
