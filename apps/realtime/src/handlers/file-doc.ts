@@ -69,6 +69,13 @@ const PERSIST_MAX_WAIT_MS = 20_000
  * gives up (leaving the durable content authoritative). One reconcile normally converges; the small
  * budget covers a second racing write. */
 const PERSIST_CONFLICT_RETRIES = 2
+/** On a FINAL (last-leave/shutdown) flush the version read is the last chance to resolve the If-Match
+ * before the room is torn down; a transient Redis blip yielding no version would otherwise defer and
+ * strand the session's edits in the TTL'd stream. The version is cluster-wide and heartbeat-refreshed, so
+ * a brief bounded retry recovers a blip without stalling teardown (a genuinely-unset version never
+ * appears, so a long wait buys nothing). */
+const FINAL_VERSION_RETRIES = 2
+const FINAL_VERSION_RETRY_MS = 100
 
 /** Cross-task merge lock. The TTL must exceed the whole critical section it guards — stream fold +
  * `fetchFileDocMerge` (bounded at `mergeRequestMs`) + the awaited publish — so the lock never expires
@@ -271,16 +278,42 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   // The If-Match token: the FRESHEST synced version known — the max of the cluster-wide value (Redis)
   // and this task's room value. Taking the max (not Redis-preferred) avoids a stale read shadowing a
   // newer local value when a fire-and-forget `setSyncedVersion` to Redis lagged or failed; versions are
-  // monotonic epoch-ms, so the larger is the later sync point. `undefined` when neither is known.
+  // monotonic epoch-ms, so the larger is the later sync point. The resolved value is CACHED back into the
+  // room so a later transient Redis read failure — or a peer-seeded/tail-only task that never set the
+  // version locally — still resolves it from the last value we saw (caching the max never regresses).
+  // `undefined` when neither source has ever yielded a version.
   const currentVersion = async (): Promise<number | undefined> => {
     const shared = store.enabled ? await store.getSyncedVersion(name) : null
     const best = Math.max(shared ?? 0, room.syncedVersion ?? 0)
+    if (best > 0) room.syncedVersion = best
     return best > 0 ? best : undefined
   }
 
   try {
     if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
       return
+
+    // The If-Match token for the write, resolved ONCE up front and then advanced LOCALLY as we reconcile
+    // — never re-derived from `room.syncedVersion`/Redis mid-loop. On a last-leave flush the room is
+    // removed from `fileDocRooms` before this async flush finishes, so `mergeMarkdownIntoRoom`'s
+    // `recordVersion` can no longer write `room.syncedVersion`; carrying the reconciled version here makes
+    // each retry's precondition correct by construction rather than depending on that (now-dropped)
+    // mutation or a best-effort Redis re-read.
+    let ifMatch = await currentVersion()
+    // On a FINAL flush this is the last chance to persist before teardown; if the shared version read
+    // momentarily fails (a Redis blip) for a peer-seeded/tail-only task that never cached it locally,
+    // retry briefly rather than deferring and stranding the session's edits in the (TTL'd) stream — the
+    // version is cluster-wide and heartbeat-refreshed, so it is there to be read. Bounded small: a
+    // genuinely-unset version won't appear no matter how long we wait, and the flush must not stall
+    // teardown/shutdown.
+    for (
+      let i = 0;
+      ifMatch === undefined && final && store.enabled && i < FINAL_VERSION_RETRIES;
+      i++
+    ) {
+      await sleep(FINAL_VERSION_RETRY_MS)
+      ifMatch = await currentVersion()
+    }
 
     // Persist under optimistic concurrency (RFC 7232 If-Match): the write commits only if the file is
     // still at the version the live doc synced from, so a projection can never silently clobber an
@@ -290,13 +323,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     for (let attempt = 0; attempt <= PERSIST_CONFLICT_RETRIES; attempt++) {
       const docState = await captureState()
       if (!docState) return // nothing seeded/authoritative to persist yet
-      const result = await fetchFileDocPersist(
-        workspaceId,
-        room.fileId,
-        userId,
-        docState,
-        await currentVersion()
-      )
+      const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
       if (result.status === 'missing') return
       if (result.status === 'deferred') {
         // The app couldn't persist safely without a version token (momentarily unavailable). Do NOT
@@ -332,6 +359,10 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
         )
         return
       }
+      // The out-of-band content is now reconciled into the live doc AT `result.version`, so that is the
+      // correct If-Match for the re-projection — advance to it directly rather than re-reading a version
+      // a concurrent teardown may have left stale in `room.syncedVersion`/Redis.
+      ifMatch = result.version
     }
   } catch (error) {
     logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
