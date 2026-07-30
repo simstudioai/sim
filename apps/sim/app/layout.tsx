@@ -112,22 +112,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     document.cookie = 'sidebar_collapsed=' + (collapsed ? '1' : '0') + '; path=/; max-age=31536000; samesite=lax';
                   }
 
-                  if (collapsed) {
-                    document.documentElement.style.setProperty(
-                      '--sidebar-width',
-                      collapsedSidebarWidth + 'px'
-                    );
-                  } else {
-                    var width = state && state.sidebarWidth;
-                    var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
-                    var finalWidth =
-                      typeof width === 'number' && isFinite(width)
-                        ? Math.min(Math.max(width, 248), maxSidebarWidth)
-                        : defaultSidebarWidth;
-                    document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
-                  }
+                  // The expanded width is published unconditionally, even while
+                  // collapsed, because the desktop hover-peek renders the sidebar at
+                  // its restore width while --sidebar-width still reads collapsed.
+                  var width = state && state.sidebarWidth;
+                  var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
+                  var expandedWidth =
+                    typeof width === 'number' && isFinite(width)
+                      ? Math.min(Math.max(width, 248), maxSidebarWidth)
+                      : defaultSidebarWidth;
+                  document.documentElement.style.setProperty(
+                    '--sidebar-expanded-width',
+                    expandedWidth + 'px'
+                  );
+                  document.documentElement.style.setProperty(
+                    '--sidebar-width',
+                    (collapsed ? collapsedSidebarWidth : expandedWidth) + 'px'
+                  );
                 } catch (e) {
                   document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
+                  document.documentElement.style.setProperty('--sidebar-expanded-width', defaultSidebarWidth + 'px');
                 }
 
                 // Panel width and active tab

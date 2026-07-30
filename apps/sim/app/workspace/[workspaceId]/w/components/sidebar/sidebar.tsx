@@ -362,9 +362,22 @@ interface SidebarProps {
    * so the rail's structure, labels, and width all read a single source.
    */
   isCollapsed: boolean
+  /**
+   * True while the sidebar is rendered as the desktop hover-peek card. The card shows
+   * the expanded layout even though the rail is collapsed, so this overrides
+   * {@link SidebarProps.isCollapsed} below — and separately suppresses the chrome the
+   * card already provides: it sits below the traffic-light lane, and drag-resize would
+   * fight the card's width.
+   */
+  isPeeking?: boolean
 }
 
-export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({
+  isCollapsed: isCollapsedProp,
+  isPeeking = false,
+}: SidebarProps) {
+  /** The peek card always renders the expanded layout, whatever the rail's state. */
+  const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -1279,11 +1292,20 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           onClick={handleSidebarClick}
         >
           <div className='flex h-full flex-col'>
+            {/* The peek card already sits below the lane; reserving it again doubles the offset. */}
+            {!isPeeking && (
+              <div
+                aria-hidden
+                className='desktop-window-drag-region desktop-workspace-window-drag-region h-[var(--desktop-title-bar-height)]'
+              />
+            )}
             <div
-              aria-hidden
-              className='desktop-window-drag-region desktop-workspace-window-drag-region h-[var(--desktop-title-bar-height)]'
-            />
-            <div className='relative flex flex-shrink-0 items-center px-2 pt-3 [[data-sim-desktop-title-bar=inset]_&]:pt-[var(--desktop-title-bar-height)]'>
+              className={cn(
+                'relative flex flex-shrink-0 items-center px-2 pt-3',
+                !isPeeking &&
+                  '[[data-sim-desktop-title-bar=inset]_&]:pt-[var(--desktop-title-bar-height)]'
+              )}
+            >
               <WorkspaceHeader
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
@@ -1753,19 +1775,23 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           </div>
         </aside>
 
-        <div
-          className={cn(
-            'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
-            isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
-          )}
-          onPointerDown={isCollapsed ? undefined : handlePointerDown}
-          onClick={isCollapsed ? toggleCollapsed : undefined}
-          onKeyDown={handleEdgeKeyDown}
-          role={isCollapsed ? 'button' : 'separator'}
-          tabIndex={0}
-          aria-orientation={isCollapsed ? undefined : 'vertical'}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
-        />
+        {/* Not on the peek card: the resize hook writes an inline `--sidebar-width` that
+            out-specifies the `[data-peek]` rule, stranding the card at a stale width. */}
+        {!isPeeking && (
+          <div
+            className={cn(
+              'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
+              isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
+            )}
+            onPointerDown={isCollapsed ? undefined : handlePointerDown}
+            onClick={isCollapsed ? toggleCollapsed : undefined}
+            onKeyDown={handleEdgeKeyDown}
+            role={isCollapsed ? 'button' : 'separator'}
+            tabIndex={0}
+            aria-orientation={isCollapsed ? undefined : 'vertical'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
+          />
+        )}
       </div>
 
       <SearchModal

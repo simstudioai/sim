@@ -11,19 +11,16 @@ import { ArrowLeft, ArrowRight, ChipConfirmModal, Key, Plus, toast } from '@sim/
 import { getDesktopBridge } from '@/lib/desktop'
 import { ImportModal } from '@/app/workspace/[workspaceId]/settings/components/browser/components/import-modal/import-modal'
 import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state/settings-empty-state'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 
-/** The integrations page's responsive card grid and row chrome. */
+/** The integrations page's responsive card grid (see `integration-section.tsx`, `skills.tsx`). */
 const CARD_GRID = '-mx-2 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'
+/** Card hit area; the row chrome inside it comes from {@link SettingsResourceRow}. */
 const CARD_CLASSES =
-  'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-const CARD_TILE_CLASSES =
-  'flex size-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'
-const CARD_TITLE_CLASSES = 'truncate text-[14px] text-[var(--text-body)]'
-const CARD_SUBTITLE_CLASSES = 'truncate text-[12px] text-[var(--text-muted)]'
-const CARD_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text-icon)]'
+  'w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
 
 const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
   'unsupported-platform': 'Importing from another browser is only supported on macOS.',
@@ -204,30 +201,23 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
                   className={CARD_CLASSES}
                   onClick={() => setSelectedId(credential.id)}
                 >
-                  <div className='size-9 flex-shrink-0'>
-                    <div className={CARD_TILE_CLASSES}>
-                      {credential.icon ? (
+                  <SettingsResourceRow
+                    icon={
+                      credential.icon ? (
                         // A `data:` URL copied from the source browser at
                         // import time — never a network request, which would
                         // disclose which sites the user has passwords for.
                         // Fills the tile like any other brand logo.
-                        <img
-                          src={credential.icon}
-                          alt=''
-                          className='size-full rounded-xl object-contain'
-                        />
+                        <img src={credential.icon} alt='' className='object-contain' />
                       ) : (
-                        <Key className='size-5 text-[var(--text-icon)]' />
-                      )}
-                    </div>
-                  </div>
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className={CARD_TITLE_CLASSES}>{siteLabel(credential.origin)}</span>
-                    <span className={CARD_SUBTITLE_CLASSES}>
-                      {credential.username || 'No username'}
-                    </span>
-                  </div>
-                  <ArrowRight className={CARD_ARROW_CLASSES} />
+                        <Key />
+                      )
+                    }
+                    iconFill
+                    title={siteLabel(credential.origin)}
+                    description={credential.username || 'No username'}
+                    trailing={<ArrowRight className='size-4 text-[var(--text-icon)]' />}
+                  />
                 </button>
               ))}
             </div>
