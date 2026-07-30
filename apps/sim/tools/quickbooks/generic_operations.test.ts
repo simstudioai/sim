@@ -852,7 +852,12 @@ describe('QuickBooks generic operations', () => {
     const result = await quickBooksBatchTool.transformResponse?.(response, {
       accessToken: 'token',
       realmId: '123145',
-      batch: { BatchItemRequest: [] },
+      batch: {
+        BatchItemRequest: [
+          { bId: 'vendor-query', Query: 'SELECT * FROM Vendor' },
+          { bId: 'bad-update', Vendor: { Id: '1', SyncToken: '0' }, operation: 'update' },
+        ],
+      },
     })
 
     expect(result?.output).toEqual({
@@ -862,5 +867,44 @@ describe('QuickBooks generic operations', () => {
       ],
       time: '2026-01-20T10:00:00-08:00',
     })
+  })
+
+  it('rejects successful QuickBooks batch responses with missing or incomplete items', async () => {
+    const params = {
+      accessToken: 'token',
+      realmId: '123145',
+      batch: {
+        BatchItemRequest: [
+          { bId: 'vendor-query', Query: 'SELECT * FROM Vendor' },
+          { bId: 'bill-query', Query: 'SELECT * FROM Bill' },
+        ],
+      },
+    }
+
+    await expect(
+      quickBooksBatchTool.transformResponse?.(
+        new Response(JSON.stringify({ time: '2026-01-20T10:00:00-08:00' }), { status: 200 }),
+        params
+      )
+    ).rejects.toThrow('QuickBooks batch response did not include any item responses')
+
+    await expect(
+      quickBooksBatchTool.transformResponse?.(
+        new Response(JSON.stringify({ BatchItemResponse: [] }), { status: 200 }),
+        params
+      )
+    ).rejects.toThrow('QuickBooks batch response did not include any item responses')
+
+    await expect(
+      quickBooksBatchTool.transformResponse?.(
+        new Response(
+          JSON.stringify({
+            BatchItemResponse: [{ bId: 'vendor-query', QueryResponse: { Vendor: [{ Id: '1' }] } }],
+          }),
+          { status: 200 }
+        ),
+        params
+      )
+    ).rejects.toThrow('QuickBooks batch response returned 1 of 2 item responses')
   })
 })

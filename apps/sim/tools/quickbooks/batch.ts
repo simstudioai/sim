@@ -55,12 +55,25 @@ export const quickBooksBatchTool: ToolConfig<QuickBooksBatchParams, QuickBooksBa
     body: (params) => buildQuickBooksBatchBody(params.batch),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
+    if (!params) throw new Error('QuickBooks batch parameters are required')
     const data = await parseQuickBooksJson(response)
+    const requestItems = buildQuickBooksBatchBody(params.batch).BatchItemRequest
+    const batchItems = data.BatchItemResponse
+
+    if (!Array.isArray(batchItems) || batchItems.length === 0) {
+      throw new Error('QuickBooks batch response did not include any item responses')
+    }
+    if (Array.isArray(requestItems) && batchItems.length !== requestItems.length) {
+      throw new Error(
+        `QuickBooks batch response returned ${batchItems.length} of ${requestItems.length} item responses`
+      )
+    }
+
     return {
       success: true,
       output: {
-        batchItems: Array.isArray(data.BatchItemResponse) ? data.BatchItemResponse : [],
+        batchItems,
         time: typeof data.time === 'string' ? data.time : null,
       },
     }
