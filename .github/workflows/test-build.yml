@@ -323,7 +323,7 @@ jobs:
           # never reproduced in CI (compile has ranged 3.5-17.8 min) — local
           # numbers, not a CI target.
           # EXPERIMENT VARIABLE — flipped across runs on this branch.
-          NEXT_TURBOPACK_BUILD_CACHE: '1'
+          NEXT_TURBOPACK_BUILD_CACHE: '0'
         # EXPERIMENT ONLY, never merge: `--force` bypasses Turbo's task cache.
         # Without it a commit touching only .github/** leaves Turbo's task
         # inputs unchanged, so Turbo replays a cached log and reprints a STALE

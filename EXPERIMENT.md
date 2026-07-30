@@ -56,7 +56,7 @@ Filled in as runs land.
 | run | pre-build | compile | post-build | job total | run id |
 |---|---|---|---|---|---|
 | A — cold, cache on | **4.0K** | **2.7 min** | 5.1G | 3m54s | 30504331243 |
-| B — warm, cache on | | | | | |
+| B — warm, cache on | **5.1G** | **6.0 min** | **12G** | 8m18s | 30504621611 |
 | C — cache off | | | | | |
 
 Run A notes: single CI run on the branch, no cancelled sibling, `--force` confirmed in the
@@ -64,3 +64,11 @@ log so this was a real build and not a Turbo replay. 4.0K pre-build settles a se
 question — a brand-new sticky-disk key is **cold**; Blacksmith does not hydrate it. 2.7 min
 also lands exactly on the pre-#5869 no-FS-cache median (2.7 min), which is the first hint
 that the cache buys nothing on a cold run.
+
+Run B notes: pre-build 5.1G written by run A, module graph byte-identical, `--force` again
+confirmed. Compile **2.2x slower than cold** (6.0 vs 2.7 min); job 8m18s vs 3m54s. The cache
+also **grew 5.1G -> 12G on an identical tree**, which is the likely mechanism behind the
+progressive degradation seen on older shared disks (up to 11.7 min): the more a disk is
+written, the more there is to read and revalidate. Run B's CI run shows `failure`, but Build
+App passed - the failing job was `Lint and Test` on a 1ms real-clock flake in
+`pi-lifetime.test.ts` (`expected 5399999 to be 5400000`), unrelated to this experiment.
