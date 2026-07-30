@@ -333,7 +333,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
         return
       }
       if (result.status === 'persisted') {
-        room.syncedVersion = result.version
+        room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
         void store.setSyncedVersion(name, result.version)
         return
       }
@@ -510,7 +510,7 @@ async function ensureServerSeed(
     // read-through-cache seed. (No version for an empty/missing file — nothing durable to guard.)
     if (didSeed && seed) {
       const live = fileDocRooms.get(name)
-      if (live) live.syncedVersion = seed.version
+      if (live) live.syncedVersion = Math.max(live.syncedVersion ?? 0, seed.version)
       void store.setSyncedVersion(name, seed.version)
     }
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
@@ -599,7 +599,10 @@ async function mergeMarkdownIntoRoom(
   const recordVersion = () => {
     if (version === undefined) return
     const room = fileDocRooms.get(name)
-    if (room) room.syncedVersion = version
+    // Never regress the token: merges/seeds/persists all write it (locally and via fire-and-forget
+    // Redis), so a lower value arriving out of order must not shadow a higher one the doc already
+    // incorporates (the Redis side is guarded identically by SET_VERSION_IF_NEWER_SCRIPT).
+    if (room) room.syncedVersion = Math.max(room.syncedVersion ?? 0, version)
     void store.setSyncedVersion(name, version)
   }
 
