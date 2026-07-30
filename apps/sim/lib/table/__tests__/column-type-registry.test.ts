@@ -17,6 +17,7 @@ import {
   COLUMN_TYPES,
   columnTypeById,
   isColumnType,
+  isValueCompatible,
 } from '@/lib/table/column-types'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
@@ -103,6 +104,38 @@ describe('conversion write-back', () => {
       expect(coerced.ok).toBe(true)
       expect(typeof (coerced as { value: unknown }).value).toBe('string')
     }
+  })
+})
+
+describe('intentional divergences from the pre-registry behavior', () => {
+  // A differential run of the registry against the pre-refactor implementations
+  // (55 values x 7 column shapes) found ZERO coercion differences and exactly
+  // these compatibility differences. Both are deliberate fixes; pinning them
+  // here so neither can be silently reverted or quietly widened.
+
+  it('rejects boolean conversions the old gate accepted and then nulled', () => {
+    // The old gate accepted '1'/'0'/1/0 but the write path only ever accepted
+    // 'true'/'false' — so the conversion reported zero incompatible rows and
+    // then nulled every one of them. Rejecting is the honest answer.
+    const column: ColumnDefinition = { name: 'b', type: 'boolean' }
+    for (const value of ['0', '1', 0, 1]) {
+      expect(isValueCompatible(value, column)).toBe(false)
+      expect(COLUMN_TYPE_REGISTRY.boolean.coerce(value as never, column).ok).toBe(false)
+    }
+    for (const value of [true, false, 'true', 'false']) {
+      expect(isValueCompatible(value, column)).toBe(true)
+    }
+  })
+
+  it('accepts epoch numbers converting to date, which the old gate rejected', () => {
+    // The write path already accepted epoch numbers; only the gate disagreed.
+    // Now that they agree, the conversion is allowed — and safe, because the
+    // conversion writes the coerced ISO string back rather than leaving a bare
+    // number that `::timestamptz` cannot cast.
+    const column: ColumnDefinition = { name: 'd', type: 'date' }
+    expect(isValueCompatible(0, column)).toBe(true)
+    const coerced = COLUMN_TYPE_REGISTRY.date.coerce(0 as never, column)
+    expect(coerced.ok && typeof coerced.value).toBe('string')
   })
 })
 

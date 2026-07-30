@@ -139,3 +139,25 @@ describe('isValueCompatibleWithType — currency', () => {
     expect(isValueCompatibleWithType(1234.56, 'number')).toBe(true)
   })
 })
+
+describe('blank cells during conversion', () => {
+  // A text column with a single empty cell could not be converted to a number
+  // at all: `''` is incompatible with every numeric type, and the scan counted
+  // it as a hard blocker even when the target was optional — reporting it with
+  // an error that said "to a required ..." regardless.
+  it('treats an empty cell as incompatible with the numeric types', () => {
+    for (const type of ['number', 'currency'] as const) {
+      expect(isValueCompatibleWithType('', type)).toBe(false)
+    }
+  })
+
+  it('still accepts an empty string for text, which can legitimately hold it', () => {
+    expect(isValueCompatibleWithType('', 'string')).toBe(true)
+    expect(isValueCompatibleWithType('', 'json')).toBe(true)
+  })
+
+  it('lets a cleared select cell through only when the target is optional', () => {
+    expect(isValueCompatibleWithType('', 'select', OPTIONS, false, false)).toBe(true)
+    expect(isValueCompatibleWithType('', 'select', OPTIONS, false, true)).toBe(false)
+  })
+})

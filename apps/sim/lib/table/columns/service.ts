@@ -646,8 +646,18 @@ export async function updateColumnType(
           targetRequired
         )
       ) {
-        if (effective === null || effective === '') blankCount++
-        else incompatibleCount++
+        // A cell the target cannot read but that is merely EMPTY is not a
+        // conversion failure — the write path already turns an unreadable value
+        // into null on an optional column, so the conversion does the same. Only
+        // a required target has a real problem with it, and the guard above has
+        // already reported those. Blocking here meant a text column with a
+        // single blank cell could not be converted to a number at all.
+        if (effective === null || effective === '') {
+          if (targetRequired) blankCount++
+          else coercedByRowId.set(row.id, null)
+        } else {
+          incompatibleCount++
+        }
         continue
       }
 
