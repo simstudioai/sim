@@ -340,6 +340,18 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
         )
         return
       }
+      // Only reconcile a GENUINE out-of-band change the live doc hasn't incorporated. If the freshest
+      // synced version already covers the conflict version, the durable body is a STALE SUBSET of the live
+      // stream — a racing persist wrote it FROM this stream, or an apply-edit already merged it (the write
+      // chokepoint advances the synced version). Reconciling it (incoming-wins) would move the doc BACKWARD
+      // and wipe newer in-flight edits. Skip it and just retry with the freshest version as If-Match; the
+      // re-projection captures the current live stream, preserving every edit. (`freshest` never exceeds
+      // the durable version — you can't sync from a version that doesn't exist — so this can't loop.)
+      const freshest = await currentVersion()
+      if (freshest !== undefined && freshest >= result.version) {
+        ifMatch = freshest
+        continue
+      }
       // Reconcile the out-of-band durable content into the live doc (advances the synced version), then
       // loop to re-project and re-persist the converged state. If there is no live doc to reconcile into
       // — e.g. the last collaborator has left and the room is being torn down with no shared stream
