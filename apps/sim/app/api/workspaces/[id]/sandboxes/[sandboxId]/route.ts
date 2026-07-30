@@ -86,16 +86,19 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Sand
     throw error
   }
 
-  // An unchanged spec re-points at the same content address, so `ensureSandboxImage`
-  // finds a `ready` row and enqueues nothing. Editing the name alone costs no build.
+  // Unconditional, because the registry decides what a save costs: a `ready` or
+  // in-flight row is left alone, so renaming or re-saving an unchanged spec
+  // enqueues nothing, while a failed one gets the immediate retry a person saving
+  // is asking for. Gating this on a changed hash meant a same-spec save silently
+  // did nothing, and the only way to retry a failed build was to edit the package
+  // list into a different hash.
+  await scheduleSandboxBuild(spec)
+
   if (spec.specHash !== existing.specHash) {
-    await scheduleSandboxBuild(spec)
     // The previous content address is unreferenced by this sandbox now. Release
     // no-ops when another sandbox still declares the same package list.
     runDetached('release-sandbox-image', () => releaseSandboxImage(existing.specHash))
     logger.info('Sandbox spec changed, scheduled a build', { workspaceId, sandboxId })
-  } else {
-    invalidateSandboxResolution()
   }
 
   const sandbox = await readWorkspaceSandbox(workspaceId, sandboxId)
