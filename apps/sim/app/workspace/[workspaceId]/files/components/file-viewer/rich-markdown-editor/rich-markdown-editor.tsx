@@ -801,9 +801,25 @@ export function LoadedRichMarkdownEditor({
         emitUpdate: false,
       })
     }
+    // Editor view mutations (`setContent`, `setEditable`, `setTextSelection`, `focus`) dispatch
+    // transactions the `@tiptap/react` binding commits with `flushSync` — and `setContent` mounts the
+    // custom node views synchronously through it (tiptap#3764). Called directly in this effect body
+    // they can run while React is mid-render and throw "flushSync ... cannot flush while rendering".
+    // Defer them to a microtask: it runs right after the current commit, before paint. The streaming
+    // rAF tick below already runs off-render, so it keeps writing content directly. Runs the deferred
+    // work only if the editor is still alive when the microtask fires.
+    const runOffRender = (mutate: () => void) => {
+      queueMicrotask(() => {
+        if (!editor.isDestroyed) mutate()
+      })
+    }
     if (isStreaming) {
       wasStreamingRef.current = true
-      if (editor.isEditable) editor.setEditable(false)
+      if (editor.isEditable) {
+        runOffRender(() => {
+          if (editor.isEditable) editor.setEditable(false)
+        })
+      }
       const body = splitFrontmatter(content).body
       if (body === lastSyncedBodyRef.current) return
       pendingStreamBodyRef.current = body
@@ -852,22 +868,29 @@ export function LoadedRichMarkdownEditor({
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      syncEditorBody(splitFrontmatter(content).body)
-      // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
-      // select-all survives as "select everything," permanently painting every divider/image with the
-      // `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. This must run
-      // on every settle regardless of whether `setContent` ran just above: the last streaming tick
-      // already syncs `lastSyncedBodyRef` to the final body before settle, so `body` usually already
-      // equals it here — collapsing only inside that `if` would skip the common streamed-content case
-      // entirely. `setTextSelection` (not `.focus()`) so this never steals DOM focus from whatever the
-      // user is doing outside the editor.
-      editor.commands.setTextSelection(editor.state.doc.content.size)
-      editor.setEditable(canEdit && settledRef.current.verdict && collabReady)
-      if (isInitialSettle && autoFocus) editor.commands.focus('end')
+      const settledVerdict = settledRef.current.verdict
+      const shouldFocus = isInitialSettle && autoFocus
+      // Deferred as ONE microtask so the order is preserved: set the body, THEN collapse the selection,
+      // THEN re-apply editability. `setContent` maps any pre-existing selection onto the new doc rather
+      // than clearing it — a select-all survives as "select everything," permanently painting every
+      // divider/image with the `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks
+      // elsewhere. The collapse must run on every settle regardless of whether `setContent` ran just
+      // above: the last streaming tick already syncs `lastSyncedBodyRef` to the final body before
+      // settle, so `body` usually already equals it here. `setTextSelection` (not `.focus()`) so this
+      // never steals DOM focus from whatever the user is doing outside the editor.
+      runOffRender(() => {
+        syncEditorBody(splitFrontmatter(content).body)
+        editor.commands.setTextSelection(editor.state.doc.content.size)
+        editor.setEditable(canEdit && settledVerdict && collabReady)
+        if (shouldFocus) editor.commands.focus('end')
+      })
       return
     }
-    syncEditorBody(splitFrontmatter(content).body)
-    if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict && collabReady)
+    const settled = settledRef.current
+    runOffRender(() => {
+      syncEditorBody(splitFrontmatter(content).body)
+      if (settled) editor.setEditable(canEdit && settled.verdict && collabReady)
+    })
   }, [
     editor,
     content,
