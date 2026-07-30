@@ -2,7 +2,14 @@ import { generateShortId } from '@sim/utils/id'
 
 const COLUMN_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
-export type TableColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
+/**
+ * Mirrors `apps/sim/lib/table/constants.ts`'s `COLUMN_TYPES` and must be kept
+ * in sync with it by hand — `packages/*` can't import from `apps/*` (see
+ * `.claude/rules/sim-architecture.md`), so there's no single source of truth
+ * this can be derived from across the package boundary. This was previously
+ * missing `select`.
+ */
+export type TableColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
 
 export interface TableColumnFixture {
   name: string
