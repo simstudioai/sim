@@ -22,11 +22,6 @@ const CATEGORY_OPTIONS = [
  * carrying a stored research query forward — it drops any value whose sub-block
  * condition no longer matches.
  */
-/** True when a sub-block holds a non-empty user value. */
-function hasValue(value: unknown): boolean {
-  return typeof value === 'string' ? value.trim().length > 0 : value != null
-}
-
 const LEGACY_RESEARCH_OPERATION = 'exa_research'
 const AGENT_OPERATIONS = ['exa_agent', LEGACY_RESEARCH_OPERATION]
 
@@ -270,17 +265,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       placeholder: 'Enter URLs to retrieve content from (comma-separated)...',
       description: 'Provide either URLs or Result IDs, not both',
       condition: { field: 'operation', value: 'exa_get_contents' },
-      /**
-       * Exactly one selector is needed. Inverting the operation match when
-       * Result IDs are present makes the requirement fall away for this
-       * operation, so the editor flags an empty config without blocking the
-       * ids-only path.
-       */
-      required: (values) => ({
-        field: 'operation',
-        value: 'exa_get_contents',
-        not: hasValue(values?.ids),
-      }),
     },
     {
       id: 'ids',
@@ -291,6 +275,14 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       condition: { field: 'operation', value: 'exa_get_contents' },
       mode: 'advanced',
     },
+    /*
+     * URLs and Result IDs are mutually exclusive alternate identifiers, so both
+     * stay optional and the request body enforces exactly one. A conditional
+     * `required` cannot express this: `isFieldRequired` in webhook deploy calls
+     * the callback with no arguments, so it would mark URLs missing on a valid
+     * ids-only block, and `collectBlockFieldIssues` skips sub-block required
+     * checks whose id matches a tool param, so it would never run there anyway.
+     */
     {
       id: 'text',
       title: 'Include Text',

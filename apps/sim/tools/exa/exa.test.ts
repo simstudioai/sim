@@ -185,14 +185,13 @@ describe('exa block', () => {
     expect(params.effort).toBe('medium')
   })
 
-  it('requires URLs on Get Contents when no result IDs are supplied', () => {
-    const urls = ExaBlock.subBlocks.find(
-      (block) => block.id === 'urls' && block.condition?.value === 'exa_get_contents'
-    )
-    const required = urls?.required as (values?: Record<string, unknown>) => { not?: boolean }
-    expect(required({}).not).toBe(false)
-    expect(required({ ids: '   ' }).not).toBe(false)
-    expect(required({ ids: 'id-1' }).not).toBe(true)
+  it('leaves both Get Contents selectors optional so the ids-only path stays valid', () => {
+    for (const id of ['urls', 'ids']) {
+      const selector = ExaBlock.subBlocks.find(
+        (block) => block.id === id && block.condition?.value === 'exa_get_contents'
+      )
+      expect(selector?.required).toBeUndefined()
+    }
   })
 
   it('keeps the legacy model sub-block so the serializer preserves its value', () => {
