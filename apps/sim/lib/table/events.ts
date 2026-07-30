@@ -147,6 +147,16 @@ export type TableEvent =
       tableId: string
       reason: 'locks'
     }
+  | {
+      /** A user created, renamed, deleted, or re-saved a shared saved view (a named
+       *  filter/sort/layout preset). Views are table-wide collaborative state — every
+       *  reader of the table sees every view — so peers refetch the views list to pick
+       *  up the change live. Value-less, same refetch-in-own-format rationale as
+       *  {@link kind} `edit`; no rows/definition refetch, since a view is presentation
+       *  state layered on top of the already-loaded table. */
+      kind: 'views'
+      tableId: string
+    }
 
 export interface TableEventEntry {
   eventId: number
@@ -201,6 +211,15 @@ export function signalTableSchemaChanged(tableId: string): void {
  */
 export function signalTableMetadataChanged(tableId: string): void {
   void appendTableEvent({ kind: 'metadata', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table's shared saved views (created,
+ * renamed, deleted, or re-saved one) so they refetch the views list live. Fire-and-forget
+ * for the same reason as {@link signalTableRowsChanged}.
+ */
+export function signalTableViewsChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'views', tableId })
 }
 
 /**

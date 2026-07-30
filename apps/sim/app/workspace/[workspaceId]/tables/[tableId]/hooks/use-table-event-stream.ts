@@ -406,6 +406,12 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'definition') {
             void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
           }
+          // A collaborator changed the table's shared saved views (create/rename/delete/
+          // re-save): refetch the views list alone. Views are presentation state layered on
+          // the already-loaded table, so no rows/definition refetch is needed.
+          else if (entry.event?.kind === 'views') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
+          }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }
