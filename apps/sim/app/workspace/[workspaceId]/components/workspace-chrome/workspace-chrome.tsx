@@ -195,9 +195,16 @@ export function WorkspaceChrome({
     })
   }, [])
 
-  useEffect(() => {
-    // Seed from the attribute the pre-paint script already wrote, so the peek is armed
-    // on the first hover instead of waiting for the async bridge below to resolve.
+  /**
+   * A layout effect, not a passive one: the seed below arms the peek, and a passive
+   * effect lands after paint — long enough for a `mouseenter` on the toggle to be
+   * dropped while the peek still reads disabled, with nothing to retry it until the
+   * pointer leaves and returns. Everything here is a cheap synchronous read plus a
+   * subscription; the bridge's `getState` stays async and blocks nothing.
+   */
+  useLayoutEffect(() => {
+    // Seed from the attribute the pre-paint script already wrote, rather than waiting
+    // for the async bridge below to resolve.
     const initial = document.documentElement.getAttribute('data-sim-desktop-title-bar')
     if (initial === 'inset' || initial === 'fullscreen') setTitleBarMode(initial)
 
