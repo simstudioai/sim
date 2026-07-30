@@ -14,6 +14,7 @@
   --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
   --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
+  --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
   --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
   --desktop-title-bar-control-offset: 0px; /* centres a lane control; desktop overrides */
   --desktop-title-bar-control-size: 0px; /* control seated in the lane; desktop overrides */
@@ -120,10 +121,6 @@ html[data-sim-desktop-title-bar="inset"]
 
 .workspace-root {
   letter-spacing: 0.02em;
-}
-
-.workspace-content-shell {
-  --workspace-content-title-bar-inset: 0px;
 }
 
 .workspace-content-shell[data-sidebar-collapsed] {

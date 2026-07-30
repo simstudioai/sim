@@ -14,6 +14,10 @@ const workspaceChrome = read(
 )
 const sidebar = read('../workspace/[workspaceId]/w/components/sidebar/sidebar.tsx')
 const globalStyles = read('../_styles/globals.css')
+const pageHeaderBar = read('../../components/page-header-bar.ts')
+const resourceHeader = read(
+  '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
+)
 
 describe('desktop title-bar surface audit', () => {
   it('applies the safe-area shell only when the auth route is login', () => {
@@ -64,5 +68,27 @@ describe('desktop title-bar surface audit', () => {
     expect(workspaceChrome).toContain('size-[var(--desktop-title-bar-control-size)]')
     expect(sidebar).toContain('[[data-sim-desktop-title-bar=inset]_&]:pt-[var(')
     expect(sidebar).not.toMatch(/\[\[data-sim-desktop-title-bar=inset\]_&\]:pt-\d/)
+  })
+
+  it('defines the content-pane lane once, defaulting to zero', () => {
+    // A `:root` default keeps the variable defined for bars that render outside
+    // `.workspace-content-shell` (the standalone settings shell at /account,
+    // /organization/[id], /selfhost; the landing tables preview). An undefined var()
+    // inside calc() is invalid at computed-value time and drops padding-top entirely.
+    expect(globalStyles).toMatch(/:root\s*\{[^}]*--workspace-content-title-bar-inset:\s*0px/s)
+    expect(globalStyles).toContain(
+      '.workspace-content-shell[data-sidebar-collapsed] {\n  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);'
+    )
+  })
+
+  it('reserves that lane in every top-of-pane header bar', () => {
+    // Both top-bar geometries must compose the shared lane padding. A bare
+    // `pt-`/`py-[8.5px]` in either is the bug: the bar then draws under the traffic
+    // lights and the sidebar expander whenever the sidebar is collapsed on desktop.
+    expect(pageHeaderBar).toContain('pt-[calc(8.5px+var(--workspace-content-title-bar-inset))]')
+    expect(pageHeaderBar).toContain('TITLE_BAR_LANE_PT')
+
+    expect(resourceHeader).toContain('TITLE_BAR_LANE_PT')
+    expect(resourceHeader).not.toMatch(/py-\[8\.5px\]/)
   })
 })
