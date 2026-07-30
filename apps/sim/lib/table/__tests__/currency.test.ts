@@ -89,6 +89,20 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput(formatCurrencyForInput(1e21))).toBe(1e21)
   })
 
+  it('rejects a sign that is not leading, so dates do not read as amounts', () => {
+    // A date column converting to currency previously turned `2024-01-01` into
+    // 20240101 — the hyphens were dropped as decoration and the digit groups
+    // joined. Every cell in the column would have been silently corrupted.
+    expect(parseCurrencyInput('2024-01-01')).toBeNull()
+    expect(parseCurrencyInput('2024-01-01T10:30:00Z')).toBeNull()
+    expect(parseCurrencyInput('1-2-3')).toBeNull()
+    expect(parseCurrencyInput('12--3')).toBeNull()
+    // A leading sign is still a sign.
+    expect(parseCurrencyInput('-12')).toBe(-12)
+    expect(parseCurrencyInput('+12')).toBe(12)
+    expect(parseCurrencyInput('-$12.50')).toBe(-12.5)
+  })
+
   it('rejects values carrying no amount', () => {
     expect(parseCurrencyInput('')).toBeNull()
     expect(parseCurrencyInput('   ')).toBeNull()

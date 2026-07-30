@@ -147,8 +147,15 @@ export function parseCurrencyInput(raw: unknown): number | null {
   const stripped = body.replace(/[^\d.,\-+]/g, '')
   if (!/\d/.test(stripped)) return null
 
-  const negative = parenthesized !== null || stripped.startsWith('-')
-  const digitsAndSeps = stripped.replace(/[+-]/g, '')
+  // A sign is only meaningful at the front. An interior one means this is not a
+  // single amount, and dropping it would join unrelated digit groups — an ISO
+  // date (`2024-01-01`) would otherwise read as 20240101, so converting a date
+  // column to currency would silently turn every cell into a huge number.
+  const signed = /^[+-]/.test(stripped)
+  const digitsAndSeps = signed ? stripped.slice(1) : stripped
+  if (/[+-]/.test(digitsAndSeps)) return null
+
+  const negative = parenthesized !== null || (signed && stripped.startsWith('-'))
 
   const lastComma = digitsAndSeps.lastIndexOf(',')
   const lastDot = digitsAndSeps.lastIndexOf('.')
