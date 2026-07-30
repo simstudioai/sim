@@ -25,6 +25,16 @@ const CATEGORY_OPTIONS = [
 const LEGACY_RESEARCH_OPERATION = 'exa_research'
 const AGENT_OPERATIONS = ['exa_agent', LEGACY_RESEARCH_OPERATION]
 
+/**
+ * Maps the retired research models onto the Agent API's effort levels, so a
+ * workflow that asked for a deeper (or cheaper) run still gets one.
+ */
+const RESEARCH_MODEL_TO_EFFORT: Record<string, string> = {
+  'exa-research-fast': 'low',
+  'exa-research': 'medium',
+  'exa-research-pro': 'high',
+}
+
 export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',
   name: 'Exa',
@@ -412,6 +422,18 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'model',
+      title: 'Research Model (Legacy)',
+      type: 'dropdown',
+      options: [
+        { label: 'Standard', id: 'exa-research' },
+        { label: 'Fast', id: 'exa-research-fast' },
+        { label: 'Pro', id: 'exa-research-pro' },
+      ],
+      description: 'Retired Exa research model, carried over as an Agent effort level',
+      condition: { field: 'operation', value: LEGACY_RESEARCH_OPERATION },
+    },
+    {
       id: 'previousRunId',
       title: 'Previous Run ID',
       type: 'short-input',
@@ -556,6 +578,10 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         if (params.livecrawlTimeout) {
           result.livecrawlTimeout = Number(params.livecrawlTimeout)
         }
+        /** Carry a retired research model over to the Agent API's effort scale. */
+        if (params.operation === LEGACY_RESEARCH_OPERATION && params.model) {
+          result.effort = RESEARCH_MODEL_TO_EFFORT[params.model as string] ?? 'medium'
+        }
         return result
       },
     },
@@ -595,20 +621,43 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     excludeSourceDomain: { type: 'boolean', description: 'Exclude source domain' },
     // Agent operation
     effort: { type: 'string', description: 'Agent effort level' },
+    model: { type: 'string', description: 'Retired research model, mapped to an effort level' },
     previousRunId: { type: 'string', description: 'Agent run to continue from' },
   },
   outputs: {
     // Search and Get Contents output
-    results: { type: 'json', description: 'Search or content results' },
-    statuses: { type: 'json', description: 'Per-URL crawl outcome for Get Contents' },
-    structuredOutput: { type: 'json', description: 'Synthesized output matching the schema' },
-    grounding: { type: 'json', description: 'Field-level citations for generated output' },
-    requestId: { type: 'string', description: 'Exa request identifier' },
+    results: {
+      type: 'json',
+      description:
+        '[{id, title, url, publishedDate, author, summary, favicon, image, text, highlights, highlightScores, subpages, entities, extras}]',
+    },
+    statuses: {
+      type: 'json',
+      description: 'Get Contents only. [{id, status, source, error}] — per-URL crawl outcome',
+    },
+    structuredOutput: {
+      type: 'json',
+      description: 'Search only. Synthesized output matching the supplied output schema',
+    },
+    grounding: {
+      type: 'json',
+      description: '[{field, citations, confidence}] — field-level citations for generated output',
+    },
+    requestId: { type: 'string', description: 'Exa request identifier, useful for support' },
     // Find Similar Links output
-    similarLinks: { type: 'json', description: 'Similar links found' },
+    similarLinks: {
+      type: 'json',
+      description: '[{id, title, url, text, summary, highlights, score}]',
+    },
     // Answer output
-    answer: { type: 'json', description: 'Generated answer' },
-    citations: { type: 'json', description: 'Answer citations' },
+    answer: {
+      type: 'json',
+      description: 'Generated answer — a string, or an object when an output schema is supplied',
+    },
+    citations: {
+      type: 'json',
+      description: '[{id, title, url, text, author, publishedDate}]',
+    },
     // Agent output
     runId: { type: 'string', description: 'Agent run identifier' },
     status: { type: 'string', description: 'Agent run status' },
@@ -617,7 +666,8 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     structured: { type: 'json', description: 'Agent structured result' },
     research: {
       type: 'json',
-      description: 'Agent answer in the retired Research operation output shape',
+      description:
+        '[{title, url, summary, text, score}] — the agent answer in the retired Research operation shape, so saved workflows keep resolving',
     },
   },
 }

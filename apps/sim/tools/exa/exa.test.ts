@@ -170,6 +170,27 @@ describe('exa block', () => {
     expect(ExaBlock.tools.config?.tool?.({ operation: 'exa_research' })).toBe('exa_agent')
   })
 
+  it('carries a saved research model over to an agent effort level', () => {
+    const params = ExaBlock.tools.config?.params?.({
+      operation: 'exa_research',
+      model: 'exa-research-pro',
+    }) as Record<string, unknown>
+    expect(params.effort).toBe('high')
+  })
+
+  it('keeps the legacy model sub-block so the serializer preserves its value', () => {
+    const model = ExaBlock.subBlocks.find((block) => block.id === 'model')
+    expect(model?.condition?.value).toBe('exa_research')
+  })
+
+  it('does not map a model value on non-research operations', () => {
+    const params = ExaBlock.tools.config?.params?.({
+      operation: 'exa_agent',
+      model: 'exa-research-pro',
+    }) as Record<string, unknown>
+    expect(params.effort).toBeUndefined()
+  })
+
   it('coerces maxAgeHours of 0 rather than dropping it as falsy', () => {
     const params = ExaBlock.tools.config?.params?.({
       operation: 'exa_search',
@@ -225,6 +246,20 @@ describe('exa_agent terminal statuses', () => {
     const result = await settle('cancelled')
     expect(result?.success).toBe(false)
     expect(result?.error).toMatch(/cancelled/)
+  })
+
+  it('emits the retired research output shape so saved references still resolve', async () => {
+    const result = await agentTool.postProcess?.(
+      {
+        success: true,
+        output: { runId: 'agent_run_1', status: 'completed', text: 'the answer' },
+      } as never,
+      { apiKey: API_KEY, query: 'q' } as never,
+      {} as never
+    )
+    expect(result?.output.research).toEqual([
+      { title: 'Research Complete', url: '', summary: 'the answer', text: 'the answer', score: 1 },
+    ])
   })
 
   it('falls back to the structured payload when a completed run has no text', async () => {
