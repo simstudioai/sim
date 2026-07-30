@@ -22,6 +22,7 @@ import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/keys'
 
 const searchProviderField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'searchProvider')
 const searchApiKeyField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'searchApiKey')
+const targetBranchField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'targetBranch')
 
 function searchKeyVisible(values: Record<string, unknown>): boolean {
   return evaluateSubBlockCondition(searchApiKeyField?.condition, values)
@@ -84,69 +85,73 @@ describe('Pi block search fields', () => {
   })
 })
 
-describe('Pi Create PR Babysit surface', () => {
-  it('offers exactly Create PR, Review Code, and Local Dev as top-level modes', () => {
+describe('Pi cloud authoring surface', () => {
+  it('offers Create PR, Update PR, Review Code, and Local Dev as top-level modes', () => {
     const mode = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'mode')
     const options =
       typeof mode?.options === 'function'
         ? mode.options()
         : (mode?.options as Array<{ id: string }> | undefined)
 
-    expect(options?.map(({ id }) => id)).toEqual(['cloud', 'cloud_review', 'local'])
+    expect(options?.map(({ id }) => id)).toEqual(['cloud', 'cloud_branch', 'cloud_review', 'local'])
   })
 
-  it('declares the toggle, required reviewer mentions, advanced rounds, and result outputs', () => {
-    const toggle = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'babysitMode')
-    const maxRounds = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'maxRounds')
-    const mentions = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'reviewMentions')
+  it.each(['cloud', 'cloud_branch'])(
+    'declares Babysit controls and outputs for %s',
+    (authoringMode) => {
+      const toggle = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'babysitMode')
+      const maxRounds = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'maxRounds')
+      const mentions = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'reviewMentions')
 
-    expect(toggle).toMatchObject({
-      type: 'switch',
-      defaultValue: false,
-      condition: { field: 'mode', value: 'cloud' },
-    })
-    expect(maxRounds).toMatchObject({
-      type: 'short-input',
-      defaultValue: '3',
-      mode: 'advanced',
-      condition: {
-        field: 'mode',
-        value: 'cloud',
-        and: { field: 'babysitMode', value: [true, 'true'] },
-      },
-    })
-    expect(mentions).toMatchObject({
-      type: 'short-input',
-      defaultValue: '',
-      hideDividerBefore: true,
-      required: {
-        field: 'mode',
-        value: 'cloud',
-        and: { field: 'babysitMode', value: [true, 'true'] },
-      },
-      condition: {
-        field: 'mode',
-        value: 'cloud',
-        and: { field: 'babysitMode', value: [true, 'true'] },
-      },
-    })
-    for (const output of [
-      'rounds',
-      'threadsClean',
-      'checksGreen',
-      'threadsResolved',
-      'commitsPushed',
-      'stopReason',
-    ]) {
-      expect(PiBlock.outputs[output]).toMatchObject({
+      expect(toggle).toMatchObject({
+        type: 'switch',
+        defaultValue: false,
+        condition: { field: 'mode', value: ['cloud', 'cloud_branch'] },
+      })
+      expect(maxRounds).toMatchObject({
+        type: 'short-input',
+        defaultValue: '3',
+        mode: 'advanced',
         condition: {
           field: 'mode',
-          value: 'cloud',
+          value: ['cloud', 'cloud_branch'],
           and: { field: 'babysitMode', value: [true, 'true'] },
         },
       })
+      expect(mentions).toMatchObject({
+        type: 'short-input',
+        defaultValue: '',
+        hideDividerBefore: true,
+        required: {
+          field: 'mode',
+          value: ['cloud', 'cloud_branch'],
+          and: { field: 'babysitMode', value: [true, 'true'] },
+        },
+        condition: {
+          field: 'mode',
+          value: ['cloud', 'cloud_branch'],
+          and: { field: 'babysitMode', value: [true, 'true'] },
+        },
+      })
+      for (const output of [
+        'rounds',
+        'threadsClean',
+        'checksGreen',
+        'threadsResolved',
+        'commitsPushed',
+        'stopReason',
+      ]) {
+        expect(PiBlock.outputs[output]).toMatchObject({
+          condition: {
+            field: 'mode',
+            value: ['cloud', 'cloud_branch'],
+            and: { field: 'babysitMode', value: [true, 'true'] },
+          },
+        })
+      }
+      expect(evaluateSubBlockCondition(toggle?.condition, { mode: authoringMode })).toBe(true)
     }
-  })
+  )
 
   it('requires a task and hides Draft PR while Babysit Mode is enabled', () => {
     const task = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'task')
@@ -176,4 +181,81 @@ describe('Pi Create PR Babysit surface', () => {
     expect(evaluateSubBlockCondition(pullNumber?.condition, { mode: 'cloud' })).toBe(false)
     expect(evaluateSubBlockCondition(pullNumber?.condition, { mode: 'cloud_review' })).toBe(true)
   })
+
+  it('requires the target branch only in Update PR mode', () => {
+    expect(targetBranchField?.type).toBe('short-input')
+    expect(targetBranchField?.required).toBe(true)
+    expect(evaluateSubBlockCondition(targetBranchField?.condition, { mode: 'cloud_branch' })).toBe(
+      true
+    )
+    expect(evaluateSubBlockCondition(targetBranchField?.condition, { mode: 'cloud' })).toBe(false)
+    expect(evaluateSubBlockCondition(targetBranchField?.condition, { mode: 'cloud_review' })).toBe(
+      false
+    )
+    expect(evaluateSubBlockCondition(targetBranchField?.condition, { mode: 'local' })).toBe(false)
+  })
+
+  it('declares the target branch input and branch output for cloud authoring modes', () => {
+    expect(PiBlock.inputs.targetBranch).toBeDefined()
+    expect(
+      evaluateSubBlockCondition(PiBlock.outputs.branch.condition, { mode: 'cloud_branch' })
+    ).toBe(true)
+    expect(evaluateSubBlockCondition(PiBlock.outputs.branch.condition, { mode: 'cloud' })).toBe(
+      true
+    )
+    expect(
+      evaluateSubBlockCondition(PiBlock.outputs.branch.condition, { mode: 'cloud_review' })
+    ).toBe(false)
+  })
+
+  it('reuses skills and memory fields, including their dependent controls', () => {
+    for (const id of [
+      'skills',
+      'memoryType',
+      'conversationId',
+      'slidingWindowSize',
+      'slidingWindowTokens',
+    ]) {
+      const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
+      expect(
+        evaluateSubBlockCondition(field?.condition, {
+          mode: 'cloud_branch',
+          memoryType: id === 'slidingWindowTokens' ? 'sliding_window_tokens' : 'sliding_window',
+        })
+      ).toBe(true)
+    }
+  })
+
+  it('shows PR metadata controls and hides Create PR and Review Code-only fields', () => {
+    for (const id of ['baseBranch', 'prTitle', 'prBody', 'prState']) {
+      const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
+      expect(evaluateSubBlockCondition(field?.condition, { mode: 'cloud_branch' })).toBe(true)
+    }
+    for (const id of ['branchName', 'draft', 'pullNumber']) {
+      const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
+      expect(evaluateSubBlockCondition(field?.condition, { mode: 'cloud_branch' })).toBe(false)
+    }
+    const prState = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'prState')
+    expect(
+      evaluateSubBlockCondition(prState?.condition, {
+        mode: 'cloud_branch',
+        babysitMode: true,
+      })
+    ).toBe(false)
+    expect(
+      evaluateSubBlockCondition(prState?.condition, {
+        mode: 'cloud_branch',
+        babysitMode: 'true',
+      })
+    ).toBe(false)
+    expect(PiBlock.inputs.prState).toBeDefined()
+  })
+
+  it.each(['cloud', 'cloud_branch'])(
+    'always shows the model API key for sandbox authoring mode %s',
+    (mode) => {
+      const apiKey = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'apiKey')
+      expect(evaluateSubBlockCondition(apiKey?.condition, { mode })).toBe(true)
+    }
+  )
 })

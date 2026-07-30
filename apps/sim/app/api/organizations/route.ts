@@ -186,9 +186,18 @@ export const POST = withRouteHandler(async (request: Request) => {
       organizationId = existingAdminMembership.organizationId
 
       if (activeOrgSubscription.referenceId === organizationId) {
+        /**
+         * Keeps the default `reject` policy: manual organization creation
+         * surfaces a different-org collaborator as an explicit conflict (409
+         * with actionable copy) rather than silently demoting them to an
+         * external member. Safe alongside `includeArchived` because the attach
+         * only enumerates collaborators of ACTIVE workspaces, so sweeping
+         * archived rows cannot manufacture a conflict.
+         */
         await attachOwnedWorkspacesToOrganization({
           ownerUserId: user.id,
           organizationId,
+          includeArchived: true,
         })
       } else {
         const resolvedSubscription =

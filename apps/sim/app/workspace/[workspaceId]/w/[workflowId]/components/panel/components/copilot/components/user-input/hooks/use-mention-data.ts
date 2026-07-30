@@ -192,7 +192,8 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
         // Fetch current blocks from store
         const workflowStoreBlocks = useWorkflowStore.getState().blocks
 
-        const { registry: blockRegistry } = await import('@/blocks/registry')
+        const { getBlockRegistry } = await import('@/blocks/registry')
+        const blockRegistry = getBlockRegistry()
         const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
           const reg = (blockRegistry as any)[b.type]
           return {

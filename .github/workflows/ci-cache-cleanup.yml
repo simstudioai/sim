@@ -1,9 +1,13 @@
 name: CI Cache Cleanup
 
-# test-build.yml keys the Next.js build cache sticky disk per branch, so every PR
-# leaves a ~5 GB volume behind. Branches are short-lived; the disks aren't. Only
-# the pull_request disks are reclaimed — the push disks belong to main/staging/dev
-# and must stay warm.
+# DRAINING LEGACY DISKS ONLY. test-build.yml no longer mounts a Next.js build
+# cache — the Turbopack persistent cache measured 3.2x SLOWER than no cache, so it
+# is off. But every PR open while the per-branch key was live left a 5-12 GB volume
+# behind, and nothing else reclaims them. This keeps deleting them as those PRs
+# close.
+#
+# Delete this workflow once the backlog is drained (no PR predating the cache
+# removal is still open). It is a no-op for new PRs, which never create a disk.
 
 on:
   pull_request:
@@ -22,9 +26,12 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      # Must stay byte-identical to the Mount Next.js build cache key in
-      # test-build.yml, or this deletes nothing and the disks accumulate.
-      # Non-blocking: PRs skipped by ci.yml's paths-ignore never made a disk.
+      # A hard-coded legacy drain key. It no longer mirrors anything — the
+      # Mount Next.js build cache step it used to match was removed with the
+      # cache. Do not retarget or delete it while PRs from before that removal
+      # are still open, or their 5-12 GB disks are never reclaimed.
+      # Non-blocking: PRs skipped by ci.yml's paths-ignore never made a disk,
+      # and neither does any PR opened after the removal.
       - name: Delete sticky disk
         uses: useblacksmith/stickydisk-delete@b41313d28b8647d72114c9ba3c96bb04061562b6 # v1
         continue-on-error: true

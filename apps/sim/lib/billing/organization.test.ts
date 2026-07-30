@@ -172,6 +172,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
       ownerUserId: 'user-1',
       organizationId: 'org-owned',
       externalMemberPolicy: 'keep-external',
+      includeArchived: true,
     })
     expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
   })

@@ -114,6 +114,22 @@ export interface PiCloudBabysitOptions {
   executionId?: string
 }
 
+export type PiPullRequestState = 'preserve' | 'draft' | 'ready'
+
+/** Parameters for a cloud (E2B) Pi run that updates an existing branch and its pull request. */
+export interface PiCloudBranchRunParams extends PiContextualRunParams {
+  mode: 'cloud_branch'
+  owner: string
+  repo: string
+  githubToken: string
+  targetBranch: string
+  baseBranch?: string
+  prTitle?: string
+  prBody?: string
+  prState: PiPullRequestState
+  babysit?: PiCloudBabysitOptions
+}
+
 /** Parameters for a cloud (E2B) Pi run that reviews an existing PR. */
 export interface PiCloudReviewRunParams extends PiRunBaseParams {
   mode: 'cloud_review'
@@ -124,7 +140,7 @@ export interface PiCloudReviewRunParams extends PiRunBaseParams {
   reviewEvent: 'COMMENT' | 'REQUEST_CHANGES'
 }
 
-/** Internal parameters for babysitting the pull request just opened by Create PR. */
+/** Internal parameters for babysitting the pull request associated with an authoring branch. */
 export interface PiBabysitContinuationParams extends PiContextualRunParams {
   owner: string
   repo: string
@@ -136,7 +152,11 @@ export interface PiBabysitContinuationParams extends PiContextualRunParams {
   executionBudgetMs?: number
 }
 
-export type PiRunParams = PiLocalRunParams | PiCloudRunParams | PiCloudReviewRunParams
+export type PiRunParams =
+  | PiLocalRunParams
+  | PiCloudRunParams
+  | PiCloudBranchRunParams
+  | PiCloudReviewRunParams
 
 /** Progress callbacks and cancellation passed into a backend run. */
 export interface PiRunContext {
