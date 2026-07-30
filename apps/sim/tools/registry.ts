@@ -2352,6 +2352,12 @@ import {
 } from '@/tools/linq'
 import { llmChatTool } from '@/tools/llm'
 import {
+  logfireGetTokenInfoTool,
+  logfireGetTraceTool,
+  logfireQueryTool,
+  logfireSearchRecordsTool,
+} from '@/tools/logfire'
+import {
   logsGetExecutionTool,
   logsGetRunDetailsTool,
   logsGetTool,
@@ -5158,6 +5164,10 @@ export const tools: Record<string, ToolConfig> = {
   linq_update_chat: linqUpdateChatTool,
   linq_update_contact_card: linqUpdateContactCardTool,
   linq_update_webhook_subscription: linqUpdateWebhookSubscriptionTool,
+  logfire_query: logfireQueryTool,
+  logfire_search_records: logfireSearchRecordsTool,
+  logfire_get_trace: logfireGetTraceTool,
+  logfire_get_token_info: logfireGetTokenInfoTool,
   logs_query: logsQueryTool,
   logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,
