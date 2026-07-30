@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { getColumnId } from '@/lib/table/column-keys'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
@@ -59,15 +60,15 @@ function validateFieldName(field: string): void {
   }
 }
 
-function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType>): void {
+function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType> | null): void {
   validateFieldName(leaf.field)
-  if (!typeByName.has(leaf.field)) {
+  if (typeByName && !typeByName.has(leaf.field)) {
     throw new TableQueryValidationError(
       `Unknown filter column "${leaf.field}". It is not a column on this table.`,
       'INVALID_FILTER'
     )
   }
-  if (typeByName.get(leaf.field) === 'json' && CONTAINMENT_OPS.has(leaf.op)) {
+  if (typeByName?.get(leaf.field) === 'json' && CONTAINMENT_OPS.has(leaf.op)) {
     throw new TableQueryValidationError(
       `Operator "${leaf.op}" is not supported on json column "${leaf.field}" — use like/ilike for text match, or isNull/isNotNull.`,
       'INVALID_FILTER'
@@ -106,7 +107,17 @@ function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType>): voi
   }
 }
 
-function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType>): void {
+/**
+ * Structure-only validation: hybrid nodes, group shapes, leaf value rules —
+ * everything that does not require knowing the table's columns. Used by the
+ * dual-grammar boundaries where the predicate may be NAME- or ID-keyed, so a
+ * column-existence check against either keying would be wrong.
+ */
+export function validatePredicateShape(predicate: TablePredicate): void {
+  validateNode(predicate, null)
+}
+
+function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> | null): void {
   // Guard before the `in` checks below: an untrusted caller (copilot args, a raw
   // block value) can hand us a string/number/null, where `'all' in node` throws
   // a raw TypeError. Fail with a clean, actionable message instead.
@@ -174,4 +185,21 @@ export function validateSortSpec(spec: SortSpec, columns: ColumnDefinition[]): v
       throw new TableQueryValidationError(`Unknown sort column "${field}"`, 'INVALID_ORDER')
     }
   }
+}
+
+/**
+ * Validates a STORAGE-keyed predicate — leaf fields are column ids (plus the
+ * system columns, which keep their names). Runs AFTER wire translation, which
+ * makes it keying-correct for every caller: a session caller's ids are already
+ * storage keys, and a workflow tool's names have just been translated — so any
+ * field left unresolved here is a typo, and on the bulk write paths a typo must
+ * 400 rather than compile to a filter that silently matches nothing.
+ */
+export function validateStoragePredicate(
+  predicate: TablePredicate,
+  columns: ColumnDefinition[]
+): void {
+  const typeById = new Map<string, ColumnType>(columns.map((c) => [getColumnId(c), c.type]))
+  for (const [name, type] of SYSTEM_COLUMN_TYPES) typeById.set(name, type)
+  validateNode(predicate, typeById)
 }

@@ -5,6 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
@@ -60,6 +61,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     return NextResponse.json({ success: true, data: { dispatchId } })
   } catch (error) {
+    // A predicate that Zod accepts but the downgrade rejects (hybrid node,
+    // eq-with-array, valueless op) is caller error, not a server fault.
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     if (error instanceof Error && error.message === 'Invalid workspace ID') {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }

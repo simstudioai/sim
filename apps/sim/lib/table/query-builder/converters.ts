@@ -10,6 +10,7 @@ import {
   MULTI_SELECT_FILTER_OPERATORS,
   SINGLE_SELECT_FILTER_OPERATORS,
 } from '@/lib/table/query-builder/constants'
+import { validatePredicateShape } from '@/lib/table/query-builder/validate'
 import type {
   ColumnDefinition,
   Filter,
@@ -148,7 +149,14 @@ export function prunePredicateForColumns(
  * wire fields. Group-first, matching every other discrimination site.
  */
 export function isTablePredicate(value: Filter | TablePredicate): value is TablePredicate {
-  return 'all' in value || 'any' in value
+  // Require the group value to be an ARRAY: a legacy filter on a real column
+  // that happens to be named `all`/`any` (allowed by NAME_PATTERN) uses the
+  // equality shorthand ({ all: "x" }) or an operator object — neither is
+  // array-valued, so both keep routing to the legacy compiler. A column named
+  // all/any holding a literal array was already a dropped no-op condition in
+  // the legacy grammar, so predicate precedence on arrays regresses nothing.
+  const v = value as Record<string, unknown>
+  return ('all' in v && Array.isArray(v.all)) || ('any' in v && Array.isArray(v.any))
 }
 
 /** Converts a single UI sort rule to a Sort object for API queries. */
@@ -457,6 +465,16 @@ function predicateLeafToFilterValue(p: Predicate): Filter[string] {
  */
 export function predicateToFilter(predicate: TablePredicate): Filter {
   const nodeToFilter = (node: Predicate | TablePredicate): Filter => {
+    // A hybrid node (group key AND leaf keys) would convert group-first here,
+    // silently DROPPING the leaf half — which widens the filter, and on the
+    // bulk delete/update paths that is destructive. Lossless-or-throw, like
+    // every other non-representable shape in this converter.
+    if (('all' in node || 'any' in node) && 'field' in node) {
+      throw new TableQueryValidationError(
+        'A filter node must be either a group ({ all | any: [...] }) or a condition ({ field, op, value }), not both.',
+        'INVALID_FILTER'
+      )
+    }
     // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode. A
     // leaf-first test would execute a different predicate than the one validated.
     if ('all' in node) return { $and: node.all.map(nodeToFilter) }
@@ -475,7 +493,13 @@ export function predicateToFilter(predicate: TablePredicate): Filter {
  */
 export function toLegacyFilter(filter: Filter | TablePredicate | undefined): Filter | undefined {
   if (!filter) return undefined
-  return isTablePredicate(filter) ? predicateToFilter(filter) : filter
+  if (!isTablePredicate(filter)) return filter
+  // Shape-validate before converting: the dual-grammar union's legacy branch
+  // accepts any non-empty object without stripping, so a hybrid or malformed
+  // tree reaches here Zod-approved. The predicate may be name- OR id-keyed
+  // (grid vs tools), so only the keying-agnostic checks apply.
+  validatePredicateShape(filter)
+  return predicateToFilter(filter)
 }
 
 /** Downgrades a dual-grammar wire sort (ordered spec array or legacy record). */

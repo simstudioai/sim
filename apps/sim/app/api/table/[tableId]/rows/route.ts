@@ -27,9 +27,11 @@ import {
 } from '@/lib/table'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
-import { validatePredicate } from '@/lib/table/query-builder/validate'
+import {
+  validatePredicateShape,
+  validateStoragePredicate,
+} from '@/lib/table/query-builder/validate'
 import { queryRows } from '@/lib/table/rows/service'
-import { predicateToStorage } from '@/lib/table/select-values'
 import type { TablePredicate } from '@/lib/table/types'
 import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
@@ -60,8 +62,15 @@ function resolveBulkFilter(
   wire: RowWireTranslators
 ): Filter {
   if (isTablePredicate(raw)) {
-    validatePredicate(raw, schema.columns)
-    return predicateToFilter(predicateToStorage(raw, schema))
+    // Shape first (keying-agnostic: hybrid nodes, leaf value rules), then let
+    // the wire translate — identity for the ID-keyed grid, names→ids for
+    // workflow tools — and validate the RESULT against storage keys. Post-
+    // translation, any unresolved field is a typo in the caller's own keying,
+    // and on a destructive path a typo must 400, not silently match nothing.
+    validatePredicateShape(raw)
+    const translated = wire.predicateIn(raw)
+    validateStoragePredicate(translated, schema.columns)
+    return predicateToFilter(translated)
   }
   return wire.filterIn(raw)
 }
@@ -294,7 +303,14 @@ export const GET = withRouteHandler(
         table,
         {
           ...(validated.filter && isTablePredicate(validated.filter as Filter | TablePredicate)
-            ? { predicate: wire.predicateIn(validated.filter as TablePredicate) }
+            ? {
+                predicate: (() => {
+                  // Shape-check first: nothing upstream validates this branch, and
+                  // an unchecked hybrid node would silently widen the result.
+                  validatePredicateShape(validated.filter as TablePredicate)
+                  return wire.predicateIn(validated.filter as TablePredicate)
+                })(),
+              }
             : { filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined }),
           sort: resolveWireSort(validated.sort as Sort | SortSpec | undefined, wire),
           limit: validated.limit,

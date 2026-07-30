@@ -16,6 +16,7 @@ import {
   pruneFilterForColumns,
   prunePredicateForColumns,
   sortRulesToSortSpec,
+  toLegacyFilter,
 } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition, FilterRule, SortRule, TablePredicate } from '@/lib/table/types'
 
@@ -446,4 +447,53 @@ describe('isTablePredicate', () => {
 
 it('prunePredicateForColumns fails closed on a malformed value instead of throwing', () => {
   expect(prunePredicateForColumns({ column: 'name', operator: 'eq' } as never, [])).toBeNull()
+})
+
+/**
+ * Review findings from PR #6067 (greptile P1 ×2, bugbot High). The dual-grammar
+ * union's legacy branch accepts any non-empty object WITHOUT stripping, so a
+ * hybrid node reaches the downgrade Zod-approved — and predicateToFilter used
+ * to convert it group-first, silently DROPPING the leaf half and widening the
+ * filter on the async destructive routes (delete-async, cancel-runs, columns/run).
+ */
+describe('toLegacyFilter / predicateToFilter hybrid safety', () => {
+  const hybrid = {
+    all: [{ field: 'tenant_id', op: 'eq', value: 'acme' }],
+    field: 'status',
+    op: 'eq',
+    value: 'archived',
+  } as never
+
+  it('predicateToFilter throws on a hybrid node instead of dropping the leaf', () => {
+    expect(() => predicateToFilter(hybrid)).toThrow(/not both/)
+  })
+
+  it('toLegacyFilter shape-validates before converting', () => {
+    expect(() => toLegacyFilter(hybrid)).toThrow(/not both/)
+    // malformed group value is also caught, not crashed on
+    expect(() => toLegacyFilter({ all: [{ all: 'x' }] } as never)).toThrow()
+  })
+
+  it('toLegacyFilter passes a well-formed predicate and a legacy filter through', () => {
+    expect(toLegacyFilter({ all: [{ field: 'a', op: 'eq', value: 1 }] })).toEqual({
+      $and: [{ a: 1 }],
+    })
+    expect(toLegacyFilter({ status: 'archived' })).toEqual({ status: 'archived' })
+  })
+})
+
+describe('isTablePredicate vs columns literally named all/any', () => {
+  it('routes a non-array all/any value to the legacy compiler (a real column)', () => {
+    // NAME_PATTERN allows a column named "all". Equality shorthand and operator
+    // objects on it are legacy filters, not predicate groups.
+    expect(isTablePredicate({ all: 'x' } as never)).toBe(false)
+    expect(isTablePredicate({ any: { $eq: 'x' } } as never)).toBe(false)
+  })
+
+  it('array-valued all/any is a predicate group (documented precedence)', () => {
+    // A legacy filter with an ARRAY on a regular field was always a dropped
+    // no-op condition, so predicate precedence here regresses nothing.
+    expect(isTablePredicate({ all: [] })).toBe(true)
+    expect(isTablePredicate({ any: [{ field: 'a', op: 'eq', value: 1 }] })).toBe(true)
+  })
 })

@@ -8,7 +8,9 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { Filter } from '@/lib/table'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete } from '@/lib/table/mutation-locks'
 import { toLegacyFilter } from '@/lib/table/query-builder/converters'
@@ -46,8 +48,18 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const { tableId } = parsed.data.params
   const { workspaceId, filter: wireFilter, excludeRowIds, estimatedCount } = parsed.data.body
   // Dual-grammar wire: a predicate downgrades losslessly-or-throws to the
-  // legacy Filter the runners/persisted payloads still compile.
-  const filter = toLegacyFilter(wireFilter)
+  // legacy Filter the runners/persisted payloads still compile. A shape the
+  // union accepted but the downgrade rejects (hybrid node, eq-with-array) is
+  // caller error — 400, never the generic 500.
+  let filter: Filter | undefined
+  try {
+    filter = toLegacyFilter(wireFilter)
+  } catch (error) {
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    throw error
+  }
 
   const access = await checkAccess(tableId, userId, 'write')
   if (!access.ok) return accessError(access, requestId, tableId)

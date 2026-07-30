@@ -290,12 +290,42 @@ describe('PUT/DELETE /api/table/[tableId]/rows — predicate filters', () => {
     return DELETE(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
   }
 
-  it('PUT translates a name-keyed predicate to an id-keyed filter under SESSION auth', async () => {
+  /**
+   * Keying follows the caller (PR #6067 review): the grid authors ID-keyed
+   * predicates and the session wire is identity, so ids pass through — and a
+   * NAME under session auth is just an unknown storage key, rejected like any
+   * other typo rather than half-translated.
+   */
+  it('PUT passes an id-keyed predicate through untouched under SESSION auth', async () => {
+    authAs('session')
+    const res = await callPut({
+      workspaceId: 'workspace-1',
+      filter: { all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] },
+      data: { col_aaa: 'Grace' },
+    })
+
+    expect(res.status).toBe(200)
+    const args = mockUpdateRowsByFilter.mock.calls[0][1]
+    expect(args.filter).toEqual({ $and: [{ col_aaa: 'Ada' }] })
+  })
+
+  it('PUT rejects an unknown storage key under SESSION auth with 400', async () => {
     authAs('session')
     const res = await callPut({
       workspaceId: 'workspace-1',
       filter: { all: [{ field: 'Name', op: 'eq', value: 'Ada' }] },
       data: { col_aaa: 'Grace' },
+    })
+    expect(res.status).toBe(400)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+  })
+
+  it('PUT translates a name-keyed predicate for INTERNAL_JWT callers', async () => {
+    authAs('internal_jwt')
+    const res = await callPut({
+      workspaceId: 'workspace-1',
+      filter: { all: [{ field: 'Name', op: 'eq', value: 'Ada' }] },
+      data: { Name: 'Grace' },
     })
 
     expect(res.status).toBe(200)

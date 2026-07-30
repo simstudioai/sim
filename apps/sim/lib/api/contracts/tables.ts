@@ -545,20 +545,37 @@ export const deleteTableRowsBodySchema = z
     message: 'Provide either filter or rowIds, but not both',
   })
 
+/**
+ * Query-param transport for a structured value: `requestJson` serializes
+ * objects/arrays into a single JSON-string param, and this decodes it before
+ * the real schema runs. Non-JSON strings pass through untouched so the inner
+ * schema produces the real error; already-parsed values (POST bodies reusing a
+ * schema) are untouched too.
+ */
+const jsonQueryValue = <S extends z.ZodType>(schema: S) =>
+  z.preprocess((value) => {
+    if (typeof value !== 'string' || value === '') return value
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }, schema)
+
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
   // Dual-grammar during the v2 transition: the strict predicate tree wins the
   // union; anything else falls through to the legacy `$`-object. Same for sort:
   // an ordered spec array vs the legacy `{col: dir}` record.
-  filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
-  sort: z.union([sortSpecSchema, domainObjectSchema<Sort>()]).optional(),
+  filter: jsonQueryValue(z.union([predicateSchema, domainObjectSchema<Filter>()])).optional(),
+  sort: jsonQueryValue(z.union([sortSpecSchema, domainObjectSchema<Sort>()])).optional(),
   /**
    * Keyset cursor `(orderKey, id)` for the default row order — each page is an index seek
    * instead of OFFSET's scan-and-discard. Mutually exclusive with `sort` (cursors only make
    * sense on the default order); takes precedence over `offset`.
    */
-  after: domainObjectSchema<TableRowsCursor>().optional(),
+  after: jsonQueryValue(domainObjectSchema<TableRowsCursor>()).optional(),
   limit: z
     .preprocess(
       (value) =>
@@ -865,8 +882,8 @@ export type RowQueryResponse = ContractJsonResponse<typeof rowQueryContract>
 export const findTableRowsQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
   q: requiredFieldSchema('Search query is required'),
-  filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
-  sort: z.union([sortSpecSchema, domainObjectSchema<Sort>()]).optional(),
+  filter: jsonQueryValue(z.union([predicateSchema, domainObjectSchema<Filter>()])).optional(),
+  sort: jsonQueryValue(z.union([sortSpecSchema, domainObjectSchema<Sort>()])).optional(),
 })
 
 /** One matching cell: its 0-based ordinal in the filtered+sorted view, its row id, and the column name. */

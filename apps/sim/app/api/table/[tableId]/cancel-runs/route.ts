@@ -5,6 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
@@ -61,6 +62,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     return NextResponse.json({ success: true, data: { cancelled } })
   } catch (error) {
+    // A predicate that Zod accepts but the downgrade rejects (hybrid node,
+    // eq-with-array, valueless op) is caller error, not a server fault.
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error(`[${requestId}] cancel-runs failed:`, error)
     return NextResponse.json({ error: 'Failed to cancel runs' }, { status: 500 })
   }

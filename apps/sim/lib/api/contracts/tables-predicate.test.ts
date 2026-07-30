@@ -10,6 +10,7 @@ import {
   deleteTableRowsBodySchema,
   predicateSchema,
   rowQueryBodySchema,
+  tableRowsQuerySchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
@@ -223,3 +224,38 @@ describe('hybrid group+leaf nodes are rejected, not silently narrowed', () => {
     ).toBe(true)
   })
 })
+
+/**
+ * Wire transport: requestJson serializes structured query params as JSON
+ * strings; jsonQueryValue decodes them before the union runs. Without it, a
+ * sorted or filtered grid request 400s at the boundary.
+ */
+describe('query-string JSON transport (jsonQueryValue)', () => {
+  it('decodes string-encoded predicate, legacy filter, and sort spec', () => {
+    const parsed = rowQueryStringSchemaProbe({
+      workspaceId: 'ws-1',
+      filter: JSON.stringify({ all: [{ field: 'a', op: 'eq', value: 1 }] }),
+      sort: JSON.stringify([{ field: 'a', direction: 'asc' }]),
+    })
+    expect(parsed.filter).toEqual({ all: [{ field: 'a', op: 'eq', value: 1 }] })
+    expect(parsed.sort).toEqual([{ field: 'a', direction: 'asc' }])
+
+    const legacy = rowQueryStringSchemaProbe({
+      workspaceId: 'ws-1',
+      filter: JSON.stringify({ status: { $eq: 'x' } }),
+      sort: JSON.stringify({ status: 'desc' }),
+    })
+    expect(legacy.filter).toEqual({ status: { $eq: 'x' } })
+    expect(legacy.sort).toEqual({ status: 'desc' })
+  })
+
+  it('still rejects a non-JSON garbage string with the real schema error', () => {
+    expect(() => rowQueryStringSchemaProbe({ workspaceId: 'ws-1', filter: 'not json' })).toThrow()
+  })
+})
+
+function rowQueryStringSchemaProbe(input: Record<string, unknown>) {
+  const result = tableRowsQuerySchema.safeParse(input)
+  if (!result.success) throw new Error(JSON.stringify(result.error.issues[0]))
+  return result.data
+}
