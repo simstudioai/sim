@@ -3,8 +3,6 @@ import type { ColumnType } from '@/lib/table/column-types'
 import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
 import { formatDateCellDisplay, getWallClockParts, normalizeDateCellValue } from '@/lib/table/dates'
 
-type BadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
-
 /**
  * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by
  * both the page-header and inline-header "New column" dropdowns.
@@ -18,16 +16,6 @@ export function generateColumnName(columns: ReadonlyArray<{ name: string }>): st
     i++
   }
   return name
-}
-
-/**
- * Badge colour for a column type. `select` reads as neutral grey on purpose —
- * its cells carry their own option pills, so tinting the type chip too would
- * compete with them. (It used to reach grey by falling through this switch's
- * default arm; the registry now states it.)
- */
-export function getTypeBadgeVariant(type: string): BadgeVariant {
-  return columnTypeById(type).badgeVariant
 }
 
 /**

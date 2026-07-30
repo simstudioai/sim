@@ -203,11 +203,10 @@ export type CsvColumnType = ColumnType
 
 /**
  * The subset {@link inferColumnType} can return. Every other type either needs
- * configuration inference cannot supply (`select`'s options, `currency`'s code)
- * or would swallow ordinary text (`json`) — each declares `inferFromCsv: false`
- * on its registry entry.
+ * configuration inference cannot supply (`select`'s options, `currency`'s
+ * code) or would swallow ordinary text (`json`).
  */
-export type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
+type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100

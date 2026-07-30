@@ -19,6 +19,7 @@ import {
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnTypeById } from '@/lib/table/column-types'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import {
   accessError,
@@ -200,8 +201,11 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
         )
       }
     }
-    if (updates.unique === true && resultingType === 'select') {
-      return NextResponse.json({ error: 'Cannot set a select column as unique' }, { status: 400 })
+    if (updates.unique === true && !columnTypeById(resultingType).supportsUnique) {
+      return NextResponse.json(
+        { error: `Cannot set a ${resultingType} column as unique` },
+        { status: 400 }
+      )
     }
 
     if (typeChanging) {

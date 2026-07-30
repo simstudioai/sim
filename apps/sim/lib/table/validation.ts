@@ -7,12 +7,13 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
-import type { CoerceResult } from '@/lib/table/column-types'
+import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
   COLUMN_TYPE_REGISTRY,
   COLUMN_TYPES,
   columnTypeOf,
   isColumnType,
+  TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
 import {
   getMaxRowSizeBytes,
@@ -34,16 +35,21 @@ import type {
 export type { ColumnDefinition, TableSchema, ValidationResult }
 
 /**
- * Optional `ColumnDefinition` keys that belong to a specific column type. Each
- * type declares which of these it owns via `ownedMetadata`; any other type
- * carrying one is a validation error.
- */
-const TYPE_SPECIFIC_COLUMN_KEYS = ['options', 'multiple', 'currencyCode'] as const
-/**
  * Re-exported so existing importers keep working; the implementations moved to
  * `select-options.ts` to break this module's drizzle dependency for clients.
  */
 export { resolveSelectOptionId, splitMultiSelectInput }
+
+/**
+ * How each type-specific key is named when it appears on a type that doesn't
+ * own it. `Record<TypeSpecificColumnKey, …>` keeps this exhaustive — a new
+ * key cannot be added without giving it a message.
+ */
+const FOREIGN_METADATA_VERB: Record<TypeSpecificColumnKey, string> = {
+  options: 'define options',
+  multiple: 'be multiple',
+  currencyCode: 'define a currency',
+}
 
 type ValidationSuccess = { valid: true }
 type ValidationFailure = { valid: false; response: NextResponse }
@@ -491,7 +497,7 @@ export async function checkBatchUniqueConstraintsDb(
       const value = rowData[key]
       if (value === null || value === undefined) continue
 
-      const normalizedValue = typeof value === 'string' ? value : JSON.stringify(value)
+      const normalizedValue = JSON.stringify(value)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -527,10 +533,13 @@ export async function checkBatchUniqueConstraintsDb(
 
       const valueArray = Array.from(values)
       const valueConditions = valueArray.map((normalizedValue) => {
-        // Reconstruct the original typed value from its normalized key: string
-        // columns store the raw string; others store JSON.stringify(value).
-        const originalValue: JsonValue =
-          column.type === 'string' ? normalizedValue : JSON.parse(normalizedValue)
+        // Reconstruct the original typed value from its normalized key. Both
+        // directions go through JSON unconditionally: keying the write on the
+        // value's RUNTIME type while keying the read on the column's DECLARED
+        // type made them disagree for any non-`string` type that stores a
+        // string — a unique `date` column normalized to a bare `2024-01-01`
+        // and then threw `SyntaxError` trying to parse it back.
+        const originalValue: JsonValue = JSON.parse(normalizedValue)
         // Same case-sensitive containment leaf as every other matcher.
         const clause = fieldPredicate(
           USER_TABLE_ROWS_SQL_NAME,
@@ -634,6 +643,13 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
   const definition = COLUMN_TYPE_REGISTRY[column.type]
   errors.push(...definition.validateDefinition(column))
 
+  // Uniqueness compares the stored value, which is meaningless for a type whose
+  // storage is an opaque id — it would cap each option at one row for the whole
+  // table, and the UI hides the toggle so it could never be cleared again.
+  if (column.unique && !definition.supportsUnique) {
+    errors.push(`Column "${column.name}" of type "${column.type}" cannot be unique`)
+  }
+
   // Generic foreign-metadata check, driven by each type's declared ownership.
   // Type-specific metadata stored on the wrong type is inert until a later
   // conversion inherits it — silently overriding what that request asked for.
@@ -641,9 +657,7 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
   for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
     if (column[key] === undefined || owned.has(key)) continue
     errors.push(
-      key === 'currencyCode'
-        ? `Column "${column.name}" cannot define a currency for type "${column.type}"`
-        : `Column "${column.name}" cannot ${key === 'multiple' ? 'be multiple' : 'define options'} for type "${column.type}"`
+      `Column "${column.name}" cannot ${FOREIGN_METADATA_VERB[key]} for type "${column.type}"`
     )
   }
 

@@ -5,21 +5,18 @@ import {
   formatCurrencyForInput,
   isSupportedCurrencyCode,
   parseCurrencyInput,
+  resolveCurrencyCode,
 } from '@/lib/table/currency'
 
 export const currencyColumnType: ColumnTypeDefinition = {
   id: 'currency',
   label: 'Currency',
   icon: TypeCurrency,
-  // Shares `number`'s colour because it shares its storage — a currency cell is
-  // a number with a symbol.
-  badgeVariant: 'blue',
   jsonbCast: 'numeric',
   filterOperators: null,
   storesOpaqueIds: false,
-  // Never inferred: the column would also have to guess an ISO code from a
-  // symbol, and guessing wrong mislabels every amount in the column.
-  inferFromCsv: false,
+  supportsUnique: true,
+  sampleValue: 123,
   ownedMetadata: ['currencyCode'],
   workflowInputType: 'number',
   editor: 'text',
@@ -68,5 +65,11 @@ export const currencyColumnType: ColumnTypeDefinition = {
 
   formatForInput(value) {
     return formatCurrencyForInput(value)
+  },
+
+  defaultMetadata(column) {
+    // Always stamped, so the schema states the rendered currency explicitly
+    // rather than leaving readers to know the default.
+    return { currencyCode: resolveCurrencyCode(column.currencyCode) }
   },
 }

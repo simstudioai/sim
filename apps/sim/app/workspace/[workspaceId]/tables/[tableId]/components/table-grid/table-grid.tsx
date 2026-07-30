@@ -1102,7 +1102,7 @@ export function TableGrid({
   function handleContextMenuEditCell() {
     if (contextMenu.row && contextMenu.columnName) {
       const column = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
-      if (column?.type === 'boolean') {
+      if (column && columnTypeOf(column).editor === 'toggle') {
         toggleBooleanCell(
           contextMenu.row.id,
           contextMenu.columnName,
@@ -1572,7 +1572,8 @@ export function TableGrid({
     if (colIndex === -1) return
 
     const column = cols[colIndex]
-    if (column.type === 'boolean') return
+    // A toggle renders a fixed-size control, so there is no text to fit to.
+    if (columnTypeOf(column).editor === 'toggle') return
 
     const host = containerRef.current ?? document.body
     const currentRows = rowsRef.current
@@ -2165,7 +2166,7 @@ export function TableGrid({
   const handleCellClick = useCallback(
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
-      if (column?.type === 'boolean') {
+      if (column && columnTypeOf(column).editor === 'toggle') {
         if (!options?.toggleBoolean || !canEditCellRef.current) return
         const row = rowsRef.current.find((r) => r.id === rowId)
         if (row) {
@@ -2185,7 +2186,7 @@ export function TableGrid({
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
       const column = columnsRef.current.find((c) => c.key === columnKey)
-      if (column?.type === 'boolean') return
+      if (column && columnTypeOf(column).editor === 'toggle') return
 
       // Double-click means "edit this cell". On an update-locked table, say so
       // rather than opening the expanded viewer — which looks like an editor
@@ -2458,7 +2459,7 @@ export function TableGrid({
         const row = currentRows[anchor.rowIndex]
         if (!row) return
 
-        if (col.type === 'boolean') {
+        if (columnTypeOf(col).editor === 'toggle') {
           toggleBooleanCellRef.current(row.id, col.key, row.data[col.key])
           return
         }
@@ -2700,7 +2701,7 @@ export function TableGrid({
         // Workflow-output cells are editable: the user can override the
         // workflow's value if they want. Booleans toggle on space/click —
         // typeahead doesn't apply to them.
-        if (!col || col.type === 'boolean') return
+        if (!col || columnTypeOf(col).editor === 'toggle') return
         // Types that parse their input only start an edit on a key they could
         // actually accept, so a stray letter doesn't open an editor that can
         // never save.

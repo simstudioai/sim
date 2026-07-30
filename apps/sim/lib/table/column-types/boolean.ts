@@ -5,11 +5,11 @@ export const booleanColumnType: ColumnTypeDefinition = {
   id: 'boolean',
   label: 'Boolean',
   icon: TypeBoolean,
-  badgeVariant: 'purple',
   jsonbCast: null,
   filterOperators: null,
   storesOpaqueIds: false,
-  inferFromCsv: true,
+  supportsUnique: true,
+  sampleValue: true,
   ownedMetadata: [],
   workflowInputType: 'boolean',
   // Toggled in place on click, Enter, and fill — never opens an editor, so it

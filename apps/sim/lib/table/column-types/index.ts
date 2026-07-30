@@ -15,6 +15,7 @@ export type {
   CoerceResult,
   ColumnCellEditor,
   ColumnType,
-  ColumnTypeBadgeVariant,
   ColumnTypeDefinition,
+  TypeSpecificColumnKey,
 } from '@/lib/table/column-types/types'
+export { TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'

@@ -1,0 +1,129 @@
+# Adding a Table Column Type
+
+A column type is **one file** in `apps/sim/lib/table/column-types/` plus a registry entry. Everything that varies per type — label, icon, storage cast, coercion, validation, conversion compatibility, formatting, editor, filter operators — lives on that one object, so no consumer needs editing.
+
+This was not always true: adding `currency` originally took ~40 edits across 32 `switch` arms and 26 UI branches, each of which failed **silently** when missed. The registry exists to make that impossible, so the rule is absolute: **if you find yourself adding a `case 'yourtype':` anywhere outside `column-types/`, the registry is missing a field. Add the field instead.**
+
+## Hard Rule: the compiler tells you what to do
+
+Do **not** hunt for places to edit. Add your type to the `ColumnType` union first and let `tsc` produce the list:
+
+```bash
+cd apps/sim && bunx tsc --noEmit -p tsconfig.json
+```
+
+You will get exactly two errors, naming `column-types/registry.ts` and `column-types/registry.server.ts`. Those are the only two files you must register in. If you get a third error somewhere else, that site is reading a hardcoded type list that should be reading the registry — fix that site, don't work around it.
+
+## Directory Structure
+
+```
+apps/sim/lib/table/column-types/
+├── types.ts             # ColumnTypeDefinition — the contract you implement
+├── types.server.ts      # ColumnTypeServerDefinition — cell migrations only
+├── registry.ts          # Record<ColumnType, …>  ← client-safe, the gate
+├── registry.server.ts   # Record<ColumnType, …>  ← adds migrations (drizzle)
+├── index.ts             # barrel + accessors (columnTypeOf, columnTypeById, …)
+└── {type}.ts            # one file per type — what you write
+```
+
+## Step 1: Pick the storage shape
+
+Decide what a cell literally holds in `user_table_rows.data` (JSONB). This drives almost everything else:
+
+| Storage | `jsonbCast` | Notes |
+|---------|-------------|-------|
+| number  | `'numeric'` | Filters/sorts compare numerically. `currency` does this. |
+| ISO string | `'timestamptz'` | `date` does this. |
+| string / bool / object | `null` | Text comparison is correct. |
+
+**Prefer an existing primitive over a new shape.** `currency` stores a plain number and keeps its ISO code as *display metadata* — which is why filtering, sorting, uniqueness, and CSV export all reuse the numeric paths untouched, and why re-denominating a column rewrites zero rows.
+
+## Step 2: Add the icon
+
+Create `packages/emcn/src/icons/type-{name}.tsx`, copying the geometry conventions of its siblings exactly:
+
+```tsx
+import type { SVGProps } from 'react'
+
+/**
+ * Type {name} icon component - {what the glyph is} for {name} columns
+ * @param props - SVG properties including className, fill, etc.
+ */
+export function Type{Pascal}(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      width='24'
+      height='24'
+      viewBox='-1.75 -1.5 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+      {...props}
+    >
+      <path d='…' />
+    </svg>
+  )
+}
+```
+
+- `viewBox='-1.75 -1.5 24 24'` is the **`type-*` family** value, not the set-wide default. Match the family.
+- Center the glyph on the viewBox's optical center (**y = 10.5**, **x = 10.25**) — every sibling does, and a few tenths off is visible at `size-[14px]`.
+- Export alphabetically **by component name** in `packages/emcn/src/icons/index.ts`.
+
+## Step 3: Write the type file
+
+`apps/sim/lib/table/column-types/{name}.ts`. Copy the closest existing type and change what differs. Every field is required by the interface, so the compiler enumerates them for you — read the TSDoc in `types.ts` rather than guessing.
+
+The three that are easy to get wrong:
+
+- **`coerce`** is the *single* write-path implementation. The server runs it before persisting **and** the grid runs it to fill the optimistic cache. Accept every shape the value legitimately arrives in (paste, CSV, tool write), because rejecting means the cell is nulled.
+- **`isCompatibleWith`** gates type conversion and must read the value **exactly as `coerce` will**, or a conversion will pass its check and then null the cell.
+- **`ownedMetadata`** lists the `ColumnDefinition` keys your type owns. Anything you add must also be added to `TYPE_SPECIFIC_COLUMN_KEYS` in `types.ts` and given a phrase in `FOREIGN_METADATA_VERB` in `validation.ts` — both are `Record`-typed, so the compiler will tell you.
+
+## Step 4: Register
+
+Add the entry to `COLUMN_TYPE_REGISTRY` in `registry.ts` **and** `COLUMN_TYPE_SERVER_REGISTRY` in `registry.server.ts`. `COLUMN_TYPES` derives from the registry keys, so `constants.ts`, the zod contract, and every validator pick it up with no edit.
+
+## Step 5: Migrations (only if the stored bytes change)
+
+If converting an existing column **to** your type must rewrite cells, add `migrateCellsTo` in `registry.server.ts`; if converting **away** must rewrite them, add `migrateCellsFrom`.
+
+This is load-bearing, not cosmetic: filters and sorts apply `jsonbCast` to whatever is stored, so leaving a non-castable string behind makes **every query on that column fail** — not merely render oddly.
+
+Prefer set-based SQL. When the transform genuinely needs JS (`currency`'s separator disambiguation), compute the values during the compatibility scan and pass them through `resolved`, then apply them in one batched statement.
+
+## Naming Convention
+
+- Type id: lowercase, singular — `currency`, not `Currency` or `currencies`
+- File: `column-types/{id}.ts`, export `const {id}ColumnType`
+- Icon: `type-{kebab}.tsx`, export `Type{Pascal}`
+
+## Watch out
+
+- **Import cycles.** `column-types/select.ts` imports `select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
+- **The client-safe boundary.** `registry.ts` and everything it imports must stay free of `@sim/db`, `drizzle-orm`, and `next/server` — the tables grid imports it directly. A React icon is fine (it's a component *reference*, never called server-side). Only `registry.server.ts` may touch drizzle.
+- **Don't re-export the registry from `@/lib/table`.** 44 server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
+- **CSV inference** is an ordered heuristic in `import.ts`, deliberately not registry-driven. A new type is not inferred from a CSV unless you extend `inferColumnType` — usually you should not, since inference cannot supply configuration (an option set, a currency code).
+
+## Checklist Before Finishing
+
+- [ ] Added to the `ColumnType` union in `column-types/types.ts`
+- [ ] `column-types/{id}.ts` created, every interface field filled in
+- [ ] Registered in **both** `registry.ts` and `registry.server.ts`
+- [ ] Icon added, centered on the family's optical center, exported alphabetically
+- [ ] `migrateCellsTo` / `migrateCellsFrom` added if the stored bytes change
+- [ ] New metadata keys added to `TYPE_SPECIFIC_COLUMN_KEYS` + `FOREIGN_METADATA_VERB`
+- [ ] Unit tests for `coerce` / `isCompatibleWith` round-trips, verified to fail without the code
+- [ ] Docs row added to `apps/docs/content/docs/en/tables/index.mdx`
+
+## Final Validation (Required)
+
+1. **`cd apps/sim && bunx tsc --noEmit -p tsconfig.json`** — must be clean. If any file *outside* `column-types/` errors, that file has a hardcoded type list; fix it to read the registry.
+2. **Grep for leaks** — `grep -rn "=== '{id}'" apps/sim --include='*.ts' --include='*.tsx' | grep -v column-types/` should return nothing but genuine JSX/behavioral dispatch.
+3. **Run the suite** — `bunx vitest run lib/table 'app/workspace/[workspaceId]/tables' lib/api app/api/table app/api/v1 lib/copilot/tools/server/table`. Existing tests must pass **unchanged**; needing to edit one means you changed behavior for the other types.
+4. **`bun run lint:check`, `bun run check:api-validation`, `bun run check:client-boundary`** from the repo root.
+5. **Exercise it in the running app** on a table with one column of every type: create, edit inline / in the expanded popover / in the row modal, paste from a spreadsheet, filter, sort, convert to and from other types, export CSV, undo a column delete.

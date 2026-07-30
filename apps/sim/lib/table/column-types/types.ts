@@ -12,8 +12,8 @@
  *   `scripts/check-client-boundary-imports.ts` only forbids calling a
  *   `'use client'` export from a server surface). It must NOT reach `@sim/db`,
  *   `drizzle-orm`, or `next/server` — the tables grid imports it directly.
- * - {@link ColumnTypeServerDefinition} adds the one genuinely server-only
- *   concern: rewriting stored cells inside a transaction on a retype.
+ * - `ColumnTypeServerDefinition` (in `types.server.ts`) adds the one genuinely
+ *   server-only concern: rewriting stored cells inside a transaction.
  *
  * This mirrors `connectors/types.ts`'s `ConnectorMeta` / `ConnectorConfig`
  * split and its `registry.ts` / `registry.server.ts` pair.
@@ -24,9 +24,6 @@ import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 /** Every column type id. The registry is keyed by this, which is what makes it exhaustive. */
 export type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select' | 'currency'
-
-/** Badge colours available to a column-type chip. */
-export type ColumnTypeBadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
 
 /** Which inline editor the grid mounts for a cell of this type. */
 export type ColumnCellEditor =
@@ -39,6 +36,17 @@ export type ColumnCellEditor =
   /** Not editable inline — the grid toggles it in place instead. */
   | 'toggle'
 
+/**
+ * Optional `ColumnDefinition` keys that belong to a specific column type rather
+ * than to every column. Each type declares which it owns; a key appearing on
+ * any other type is rejected generically, so adding metadata for a new type
+ * means extending this list and that type's `ownedMetadata` — not editing the
+ * validator.
+ */
+export const TYPE_SPECIFIC_COLUMN_KEYS = ['options', 'multiple', 'currencyCode'] as const
+
+export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
+
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
@@ -49,9 +57,6 @@ export interface ColumnTypeDefinition {
   readonly label: string
   /** Type icon. A component reference only — never invoked server-side. */
   readonly icon: React.ComponentType<{ className?: string }>
-  /** Chip colour for the type badge. */
-  readonly badgeVariant: ColumnTypeBadgeVariant
-
   /**
    * Postgres cast needed to compare this type's JSONB text, or `null` when text
    * comparison is correct. Single source for both filter ranges and sort order.
@@ -72,8 +77,18 @@ export interface ColumnTypeDefinition {
    */
   readonly storesOpaqueIds: boolean
 
-  /** Whether CSV schema inference may pick this type for an unknown column. */
-  readonly inferFromCsv: boolean
+  /**
+   * Whether a column of this type can carry a `unique` constraint. False for
+   * types whose stored value is opaque: uniqueness would compare the stored
+   * option id, capping each option at one row for the whole table.
+   */
+  readonly supportsUnique: boolean
+
+  /**
+   * A representative value, used to show an LLM what this column's cells look
+   * like. Keeps prompt examples from restating per-type knowledge.
+   */
+  readonly sampleValue: JsonValue
 
   /**
    * Optional `ColumnDefinition` keys this type owns. Any type-specific key
@@ -83,7 +98,7 @@ export interface ColumnTypeDefinition {
    * asked for. Declaring ownership here is what lets a new type add metadata
    * without touching the validator.
    */
-  readonly ownedMetadata: readonly ('options' | 'multiple' | 'currencyCode')[]
+  readonly ownedMetadata: readonly TypeSpecificColumnKey[]
 
   /** Workflow/block param type a column of this type maps onto. */
   readonly workflowInputType: 'string' | 'number' | 'boolean' | 'object'
@@ -100,10 +115,11 @@ export interface ColumnTypeDefinition {
   /** `inputMode` for the text editor, when the type wants a specific keypad. */
   readonly inputMode?: 'decimal'
   /**
-   * Keys that may start a type-ahead edit. `null` means any printable key;
-   * `undefined` means type-ahead editing does not apply.
+   * Keys that may start a type-ahead edit. Absent means any printable key
+   * starts one — only types that parse their input restrict it, so a stray
+   * letter can't open an editor whose draft could never save.
    */
-  readonly typeaheadPattern?: RegExp | null
+  readonly typeaheadPattern?: RegExp
   /**
    * Message shown when a draft cannot be parsed. Absent means any text is
    * valid, so a draft always saves.
@@ -138,4 +154,11 @@ export interface ColumnTypeDefinition {
 
   /** Stored value → the text an editor input starts with. */
   formatForInput(value: unknown, column: ColumnDefinition): string
+
+  /**
+   * Metadata stamped onto a newly created column of this type, so the schema
+   * states the type's configuration explicitly instead of leaving readers to
+   * know the default. Returns nothing for types that carry no metadata.
+   */
+  defaultMetadata?(column: ColumnDefinition): Partial<ColumnDefinition>
 }

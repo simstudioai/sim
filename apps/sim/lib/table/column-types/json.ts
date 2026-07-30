@@ -5,13 +5,11 @@ export const jsonColumnType: ColumnTypeDefinition = {
   id: 'json',
   label: 'JSON',
   icon: TypeJson,
-  badgeVariant: 'orange',
   jsonbCast: null,
   filterOperators: null,
   storesOpaqueIds: false,
-  // Never inferred: a column of ordinary strings would otherwise become JSON
-  // the moment one row happened to parse.
-  inferFromCsv: false,
+  supportsUnique: true,
+  sampleValue: 'value',
   ownedMetadata: [],
   workflowInputType: 'object',
   editor: 'text',

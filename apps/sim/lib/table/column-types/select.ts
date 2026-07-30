@@ -35,14 +35,12 @@ export const selectColumnType: ColumnTypeDefinition = {
   id: 'select',
   label: 'Select',
   icon: TagIcon,
-  // Neutral on purpose: the colour a select cell reads as comes from its option
-  // pills, so tinting the type chip as well would compete with them.
-  badgeVariant: 'gray',
   // Cells hold opaque option ids; comparison is by id, never by cast.
   jsonbCast: null,
   filterOperators: SINGLE_SELECT_OPERATORS,
   storesOpaqueIds: true,
-  inferFromCsv: false,
+  supportsUnique: false,
+  sampleValue: 'Option',
   ownedMetadata: ['options', 'multiple'],
   workflowInputType: 'string',
   editor: 'select',
@@ -72,13 +70,6 @@ export const selectColumnType: ColumnTypeDefinition = {
 
   validateDefinition(column) {
     const errors: string[] = []
-    // Uniqueness on a select compares the stored option id, so it caps each
-    // option at one row for the whole table — and the UI hides the toggle, so a
-    // constraint set through the API or an agent could never be cleared.
-    if (column.unique) {
-      errors.push(`Column "${column.name}" of type "select" cannot be unique`)
-    }
-
     const options = column.options
     if (!Array.isArray(options) || options.length === 0) {
       errors.push(

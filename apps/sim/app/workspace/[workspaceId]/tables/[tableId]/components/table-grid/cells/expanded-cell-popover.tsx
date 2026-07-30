@@ -59,11 +59,11 @@ export function ExpandedCellPopover({
     return { row, column, colIndex, value: row.data[column.key] }
   }, [expandedCell, rows, columns])
 
-  const isBooleanCell = target?.column.type === 'boolean'
+  const isTogglingCell = target ? columnTypeOf(target.column).editor === 'toggle' : false
   // Workflow-output cells are editable in the expanded view too — the user
   // can override the workflow's value. Booleans toggle inline; the expanded
   // popover only handles text-shaped inputs.
-  const isEditable = Boolean(target) && canEdit && !isBooleanCell
+  const isEditable = Boolean(target) && canEdit && !isTogglingCell
 
   const displayText = useMemo(() => {
     if (!target) return ''

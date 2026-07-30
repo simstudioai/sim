@@ -58,9 +58,11 @@ describe('registry shape', () => {
     }
   })
 
-  it('never infers a type that needs configuration it cannot supply', () => {
+  it('never lets a type with its own metadata be unique-constrained implicitly', () => {
+    // Uniqueness compares the stored value; for a type whose storage is an
+    // opaque id that caps each option at one row for the whole table.
     for (const definition of ALL_COLUMN_TYPES) {
-      if (definition.ownedMetadata.length > 0) expect(definition.inferFromCsv).toBe(false)
+      if (definition.storesOpaqueIds) expect(definition.supportsUnique).toBe(false)
     }
   })
 

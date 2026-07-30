@@ -109,12 +109,7 @@ export async function addTableColumn(
       unique: column.unique ?? false,
       ...(column.options ? { options: column.options } : {}),
       ...(column.multiple ? { multiple: true } : {}),
-      // Always stamped on a currency column so the rendered currency is
-      // explicit in the schema rather than an implicit default readers have to
-      // know about.
-      ...(column.type === 'currency'
-        ? { currencyCode: resolveCurrencyCode(column.currencyCode) }
-        : {}),
+      ...columnTypeById(column.type).defaultMetadata?.(column as ColumnDefinition),
     }
 
     const columnValidation = validateColumnDefinition(newColumn)
@@ -625,7 +620,11 @@ export async function updateColumnType(
         return {
           ...rest,
           type: data.newType,
-          currencyCode: resolveCurrencyCode(data.currencyCode ?? c.currencyCode),
+          ...columnTypeById(data.newType).defaultMetadata?.({
+            ...rest,
+            type: data.newType,
+            currencyCode: data.currencyCode ?? c.currencyCode,
+          }),
         }
       }
       return isSelectType
