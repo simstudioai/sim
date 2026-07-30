@@ -1140,17 +1140,24 @@ export async function updateWorkspaceFileContent(
         }
 
         const sizeDiff = content.length - currentFile.size
-        // This IS a content write, so advance `contentUpdatedAt` in lockstep with `updatedAt` (same
-        // instant) — the new content version the collab relay records as its If-Match token.
-        const writeTimestamp = new Date()
+        const now = new Date()
+        // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
+        // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
+        // breaking the version ordering the whole optimistic-concurrency scheme relies on (stuck If-Match,
+        // wrong reconcile). We hold this row's FOR UPDATE lock, so `currentFile.contentUpdatedAt` is the
+        // latest committed value; stamp strictly after it. (Also removes same-millisecond collisions.)
+        // `updatedAt` stays plain wall-clock — it is display/sort only, never the concurrency token.
+        const contentUpdatedAt = new Date(
+          Math.max(now.getTime(), currentFile.contentUpdatedAt.getTime() + 1)
+        )
         const [updatedFile] = await tx
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            updatedAt: writeTimestamp,
-            contentUpdatedAt: writeTimestamp,
+            updatedAt: now,
+            contentUpdatedAt,
           })
           .where(
             and(
