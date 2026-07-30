@@ -302,9 +302,12 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       title={title}
       required={column.required}
       hint={hint}
-      // Registry-driven, so a numeric type can't get the numeric keypad in the
-      // grid's inline editor but a plain text field here (currency did).
-      inputType={definition.inputMode === 'decimal' ? 'number' : 'text'}
+      // A native number input rejects the formatted amounts this type's parser
+      // exists to accept, so those types take a text field — the same shape the
+      // grid's inline editor uses.
+      inputType={
+        definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
+      }
       value={formatValueForInput(value, column.type)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}

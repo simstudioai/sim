@@ -134,6 +134,13 @@ export interface ColumnTypeDefinition {
   /** `inputMode` for the text editor, when the type wants a specific keypad. */
   readonly inputMode?: 'decimal'
   /**
+   * Whether the editor must accept text an `<input type="number">` would reject.
+   * A currency cell legitimately takes `$1,234.56` or `1.234,56`, so it needs a
+   * text input with a numeric keypad; a plain number takes neither and keeps
+   * the native numeric input with its spinner and validation.
+   */
+  readonly acceptsFormattedInput?: boolean
+  /**
    * Keys that may start a type-ahead edit. Absent means any printable key
    * starts one — only types that parse their input restrict it, so a stray
    * letter can't open an editor whose draft could never save.

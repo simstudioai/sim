@@ -21,6 +21,7 @@ export const currencyColumnType: ColumnTypeDefinition = {
   editor: 'text',
   expandable: false,
   inputMode: 'decimal',
+  acceptsFormattedInput: true,
   // Also accepts the grouping separator and the symbol the user is likely to
   // type first — `parseCurrencyInput` strips both.
   typeaheadPattern: /[\d.,\-\p{Sc}]/u,

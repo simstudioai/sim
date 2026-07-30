@@ -67,6 +67,15 @@ describe('registry shape', () => {
     }
   })
 
+  it('never asks for a native number input on a type accepting formatted text', () => {
+    // `<input type="number">` rejects `$1,234.56` outright, so a type whose
+    // parser exists to accept that must get a text field with a numeric keypad.
+    for (const definition of ALL_COLUMN_TYPES) {
+      if (!definition.acceptsFormattedInput) continue
+      expect(definition.inputMode).toBe('decimal')
+    }
+  })
+
   it('gives every type that can reject a draft a message to show', () => {
     // Without one, `cleanCellValue` nulls the draft and the edit vanishes with
     // no explanation.
