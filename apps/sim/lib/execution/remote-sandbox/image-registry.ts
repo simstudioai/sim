@@ -5,7 +5,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, inArray, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import {
@@ -16,7 +16,11 @@ import {
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
 import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
-import type { SandboxImageBuild, SandboxImageStatus } from '@/lib/execution/remote-sandbox/types'
+import type {
+  SandboxImageBuild,
+  SandboxImageBuilder,
+  SandboxImageStatus,
+} from '@/lib/execution/remote-sandbox/types'
 
 const logger = createLogger('SandboxImageRegistry')
 
@@ -308,61 +312,97 @@ export async function runSandboxImageBuild(payload: SandboxImageBuildPayload): P
 export async function releaseSandboxImage(specHash: string): Promise<void> {
   const provider = resolveProvider()
   if (provider.dependencyStrategy !== 'prebuilt' || !provider.images) return
-  const images = provider.images
 
   try {
-    const [claimed] = await db
-      .delete(sandboxImage)
-      .where(
-        and(
-          eq(sandboxImage.provider, provider.id),
-          eq(sandboxImage.specHash, specHash),
-          notInArray(sandboxImage.status, ['pending', 'building']),
-          sql`not exists (select 1 from workspace_sandbox ws where ws.spec_hash = ${specHash})`
-        )
-      )
-      .returning({
-        id: sandboxImage.id,
-        spec: sandboxImage.spec,
-        status: sandboxImage.status,
-        imageRef: sandboxImage.imageRef,
-        buildId: sandboxImage.buildId,
-        providerImageId: sandboxImage.providerImageId,
-      })
-    if (!claimed) return
-
-    invalidateSandboxResolution()
-
-    if (!claimed.imageRef) return
-    try {
-      await images.deleteImage({
-        imageRef: claimed.imageRef,
-        buildId: claimed.buildId ?? '',
-        providerImageId: claimed.providerImageId ?? undefined,
-      })
-    } catch (error) {
-      await db
-        .insert(sandboxImage)
-        .values({
-          id: claimed.id,
-          provider: provider.id,
-          specHash,
-          spec: claimed.spec,
-          status: claimed.status as SandboxImageStatus,
-          imageRef: claimed.imageRef,
-          buildId: claimed.buildId,
-          providerImageId: claimed.providerImageId,
-        })
-        .onConflictDoNothing()
-      throw error
+    const outcome = await claimAndDeleteImage(provider.id, provider.images, specHash)
+    if (outcome === 'released') {
+      invalidateSandboxResolution()
+      logger.info('Released unreferenced sandbox image', { specHash })
     }
-
-    logger.info('Released unreferenced sandbox image', { specHash })
   } catch (error) {
     logger.warn('Failed to release sandbox image; the retention sweep will retry', {
       specHash,
       error: getErrorMessage(error),
     })
+  }
+}
+
+type ImageClaimOutcome = 'released' | 'skipped' | 'failed'
+
+/**
+ * Takes ownership of a spec hash's registry row and deletes the image behind it.
+ *
+ * Both callers that remove an image go through here, because the ordering is the
+ * whole contract and having written it twice is what let the two paths drift:
+ *
+ * 1. The unreferenced check is part of the `DELETE`, not a query before it.
+ *    Winning the delete is the proof nothing referenced the hash. Reading first
+ *    and deleting second leaves a window — spanning a provider network call —
+ *    where another workspace declares the same package list, inherits the `ready`
+ *    row without rebuilding, and loses the template underneath it.
+ * 2. The provider delete runs only after the claim, so two sweeps or a sweep and
+ *    a release cannot both issue it.
+ * 3. A provider that refuses gets the row put back, since claiming first would
+ *    otherwise strand a template nothing points at and no later pass would find
+ *    it. Restoring is what keeps the retry on the sweep.
+ *
+ * `extraConditions` lets the sweep add its retention cutoff to the same claim
+ * rather than trusting the candidate query it ran earlier.
+ */
+async function claimAndDeleteImage(
+  providerId: string,
+  images: SandboxImageBuilder,
+  specHash: string,
+  extraConditions: SQL[] = []
+): Promise<ImageClaimOutcome> {
+  const [claimed] = await db
+    .delete(sandboxImage)
+    .where(
+      and(
+        eq(sandboxImage.provider, providerId),
+        eq(sandboxImage.specHash, specHash),
+        notInArray(sandboxImage.status, ['pending', 'building']),
+        sql`not exists (select 1 from workspace_sandbox ws where ws.spec_hash = ${specHash})`,
+        ...extraConditions
+      )
+    )
+    .returning({
+      id: sandboxImage.id,
+      spec: sandboxImage.spec,
+      status: sandboxImage.status,
+      imageRef: sandboxImage.imageRef,
+      buildId: sandboxImage.buildId,
+      providerImageId: sandboxImage.providerImageId,
+    })
+  if (!claimed) return 'skipped'
+  if (!claimed.imageRef) return 'released'
+
+  try {
+    await images.deleteImage({
+      imageRef: claimed.imageRef,
+      buildId: claimed.buildId ?? '',
+      providerImageId: claimed.providerImageId ?? undefined,
+    })
+    return 'released'
+  } catch (error) {
+    await db
+      .insert(sandboxImage)
+      .values({
+        id: claimed.id,
+        provider: providerId,
+        specHash,
+        spec: claimed.spec,
+        status: claimed.status as SandboxImageStatus,
+        imageRef: claimed.imageRef,
+        buildId: claimed.buildId,
+        providerImageId: claimed.providerImageId,
+      })
+      .onConflictDoNothing()
+    logger.warn('Provider refused a sandbox image delete; restored the row for retry', {
+      specHash,
+      error: getErrorMessage(error),
+    })
+    return 'failed'
   }
 }
 
@@ -374,10 +414,18 @@ const CLEANUP_CONCURRENCY = 8
 
 /**
  * Removes build rows that no `workspace_sandbox` still references and that have
- * gone unused past the retention window, deleting the provider image first.
+ * gone unused past the retention window.
  *
- * A provider delete that fails leaves the row in place so the next sweep retries,
- * rather than orphaning a remote template that nothing points at any more.
+ * The query below only nominates candidates. Every row is re-checked and claimed
+ * atomically by {@link claimAndDeleteImage} before its image is touched, because
+ * this sweep reads up to {@link CLEANUP_BATCH_LIMIT} rows and then works through
+ * them a chunk of network calls at a time — leaving minutes in which a workspace
+ * could declare one of those package lists, inherit the `ready` row, and lose the
+ * template underneath it. A candidate that stops qualifying in that window simply
+ * fails its claim and is skipped.
+ *
+ * A provider delete that fails restores the row, so the next sweep retries rather
+ * than orphaning a remote template nothing points at any more.
  *
  * Progress is committed per chunk. A sweep that is killed part-way — by a route
  * timeout or a redeploy — therefore keeps what it already deleted, instead of
@@ -424,31 +472,15 @@ export async function cleanupSandboxImages(retentionDays: number): Promise<{
   for (let offset = 0; offset < stale.length; offset += CLEANUP_CONCURRENCY) {
     const chunk = stale.slice(offset, offset + CLEANUP_CONCURRENCY)
     const outcomes = await Promise.all(
-      chunk.map(async (row) => {
-        if (!row.imageRef) return row.id
-        try {
-          await images.deleteImage({
-            imageRef: row.imageRef,
-            buildId: row.buildId ?? '',
-            providerImageId: row.providerImageId ?? undefined,
-          })
-          return row.id
-        } catch (error) {
-          logger.warn('Failed to delete sandbox image from provider; leaving the row for retry', {
-            specHash: row.specHash,
-            error: getErrorMessage(error),
-          })
-          return null
-        }
-      })
+      chunk.map((row) =>
+        claimAndDeleteImage(provider.id, images, row.specHash, [
+          sql`coalesce(${sandboxImage.lastUsedAt}, ${sandboxImage.createdAt}) < ${cutoff}`,
+        ])
+      )
     )
 
-    const deletable = outcomes.filter((id): id is string => id !== null)
-    failed += outcomes.length - deletable.length
-    if (deletable.length > 0) {
-      await db.delete(sandboxImage).where(inArray(sandboxImage.id, deletable))
-      deleted += deletable.length
-    }
+    deleted += outcomes.filter((outcome) => outcome === 'released').length
+    failed += outcomes.filter((outcome) => outcome === 'failed').length
   }
 
   if (deleted > 0) invalidateSandboxResolution()

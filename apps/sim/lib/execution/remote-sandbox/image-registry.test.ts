@@ -8,15 +8,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDelete, mockInsert, mockDeleteImage, mockProviderStrategy } = vi.hoisted(() => ({
-  mockDelete: vi.fn(),
-  mockInsert: vi.fn(),
-  mockDeleteImage: vi.fn(),
-  mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
-}))
+const { mockDelete, mockInsert, mockSelect, mockDeleteImage, mockProviderStrategy } = vi.hoisted(
+  () => ({
+    mockDelete: vi.fn(),
+    mockInsert: vi.fn(),
+    mockSelect: vi.fn(),
+    mockDeleteImage: vi.fn(),
+    mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+  })
+)
 
 vi.mock('@sim/db', () => ({
-  db: { delete: mockDelete, insert: mockInsert },
+  db: { delete: mockDelete, insert: mockInsert, select: mockSelect },
 }))
 
 vi.mock('@sim/db/schema', () => ({
@@ -60,6 +63,7 @@ vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
 }))
 
 import {
+  cleanupSandboxImages,
   ensureSandboxImage,
   FAILED_BUILD_RETRY_COOLDOWN_MS,
   releaseSandboxImage,
@@ -179,6 +183,63 @@ describe('releaseSandboxImage', () => {
 
     expect(mockDeleteImage).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The sweep reads a batch of candidates and then works through them a chunk of
+ * network calls at a time, so minutes can pass between the query and any one
+ * delete. Whether a row still qualifies has to be decided by the claim, not by
+ * that earlier read.
+ */
+describe('cleanupSandboxImages', () => {
+  const CANDIDATE = { id: 'img-1', specHash: 'hash-1', imageRef: 'sim-sbx-abc' }
+
+  /** One candidate row from the sweep's nomination query. */
+  function stubCandidates(rows: unknown[]) {
+    mockSelect.mockReturnValue({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
+    })
+  }
+
+  it('skips a candidate a workspace adopted after the query ran', async () => {
+    stubCandidates([CANDIDATE])
+    stubClaim([])
+
+    const result = await cleanupSandboxImages(30)
+
+    expect(mockDeleteImage).not.toHaveBeenCalled()
+    expect(result).toEqual({ deleted: 0, failed: 0 })
+  })
+
+  it('deletes the image for a candidate that still qualifies at claim time', async () => {
+    stubCandidates([CANDIDATE])
+    stubClaim([READY_IMAGE])
+
+    const result = await cleanupSandboxImages(30)
+
+    expect(mockDeleteImage).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ deleted: 1, failed: 0 })
+  })
+
+  it('restores the row and counts a failure when the provider refuses', async () => {
+    stubCandidates([CANDIDATE])
+    stubClaim([READY_IMAGE])
+    mockDeleteImage.mockRejectedValue(new Error('E2B unreachable'))
+
+    const result = await cleanupSandboxImages(30)
+
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ deleted: 0, failed: 1 })
+  })
+
+  it('keeps the retention cutoff in the claim, not just the candidate query', async () => {
+    stubCandidates([CANDIDATE])
+    const read = stubClaim([READY_IMAGE])
+
+    await cleanupSandboxImages(30)
+
+    expect(hasTimeBound(read())).toBe(true)
   })
 })
 
