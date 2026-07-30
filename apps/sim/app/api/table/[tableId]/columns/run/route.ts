@@ -43,7 +43,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (!access.ok) return accessError(access, requestId, tableId)
 
     // Validate the filter up front (the dispatcher reuses it) so a bad field fails fast.
-    const filterError = tableFilterError(filter, access.table.schema.columns)
+    const filterError = tableFilterError(wireFilter, access.table.schema.columns)
     if (filterError) return filterError
 
     const { dispatchId } = await runWorkflowColumn({

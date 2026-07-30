@@ -143,6 +143,20 @@ describe('validatePredicate — leaves that would silently widen a bulk write', 
     ).toThrow(/not both/)
   })
 
+  it('rejects a node carrying both group keys instead of dropping the "any" half', () => {
+    // Every group-first traversal reads `all` and drops `any` — half the
+    // caller's conditions would vanish, widening a bulk delete/update.
+    expect(() =>
+      validatePredicate(
+        {
+          all: [{ field: 'status', op: 'eq', value: 'archived' }],
+          any: [{ field: 'status', op: 'eq', value: 'stale' }],
+        } as never,
+        COLS
+      )
+    ).toThrow(/either "all" or "any"/)
+  })
+
   it('caps in/nin list length', () => {
     const huge = Array.from({ length: 1001 }, (_, i) => `v${i}`)
     expect(() =>

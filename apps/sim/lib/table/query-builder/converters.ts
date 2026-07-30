@@ -475,6 +475,14 @@ export function predicateToFilter(predicate: TablePredicate): Filter {
         'INVALID_FILTER'
       )
     }
+    // A node with BOTH group keys would convert `all` and silently drop `any`
+    // — same widening failure as the hybrid above. Lossless-or-throw.
+    if ('all' in node && 'any' in node) {
+      throw new TableQueryValidationError(
+        'A filter group must use either "all" or "any", not both — nest one group inside the other instead.',
+        'INVALID_FILTER'
+      )
+    }
     // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode. A
     // leaf-first test would execute a different predicate than the one validated.
     if ('all' in node) return { $and: node.all.map(nodeToFilter) }

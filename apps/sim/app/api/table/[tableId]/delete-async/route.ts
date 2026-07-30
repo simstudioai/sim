@@ -78,7 +78,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   assertRowDelete(table)
 
   // Validate the filter up front so the caller gets immediate feedback (the worker reuses it).
-  const filterError = tableFilterError(filter, table.schema.columns)
+  const filterError = tableFilterError(wireFilter, table.schema.columns)
   if (filterError) return filterError
 
   // Rows inserted after this instant are spared (created_at <= cutoff in the worker).

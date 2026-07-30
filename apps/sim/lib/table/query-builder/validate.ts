@@ -137,6 +137,17 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
       'INVALID_FILTER'
     )
   }
+  // Same ambiguity with BOTH group keys: every group-first traversal
+  // (`predicateNamesToIds`, `predicateToFilter`, `buildPredicateNode`) reads
+  // `all` and silently DROPS `any`, so half the caller's conditions vanish —
+  // on a bulk delete/update that widens the matched set. Reject rather than
+  // pick a winner; nesting expresses the intent unambiguously.
+  if ('all' in node && 'any' in node) {
+    throw new TableQueryValidationError(
+      'A filter group must use either "all" or "any", not both — nest one group inside the other instead.',
+      'INVALID_FILTER'
+    )
+  }
   if ('all' in node || 'any' in node) {
     const members = 'all' in node ? node.all : node.any
     if (!Array.isArray(members)) {

@@ -468,6 +468,15 @@ describe('toLegacyFilter / predicateToFilter hybrid safety', () => {
     expect(() => predicateToFilter(hybrid)).toThrow(/not both/)
   })
 
+  it('throws on a node with both group keys instead of dropping the "any" half', () => {
+    const dual = {
+      all: [{ field: 'tenant_id', op: 'eq', value: 'acme' }],
+      any: [{ field: 'status', op: 'eq', value: 'archived' }],
+    } as never
+    expect(() => predicateToFilter(dual)).toThrow(/either "all" or "any"/)
+    expect(() => toLegacyFilter(dual)).toThrow(/either "all" or "any"/)
+  })
+
   it('toLegacyFilter shape-validates before converting', () => {
     expect(() => toLegacyFilter(hybrid)).toThrow(/not both/)
     // malformed group value is also caught, not crashed on

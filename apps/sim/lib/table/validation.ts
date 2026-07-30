@@ -299,12 +299,21 @@ function optionIds(column: ColumnDefinition): Set<string> {
  * actually fit the target option set.
  */
 export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
-  if (typeof value !== 'string') return null
-  const byId = options.find((o) => o.id === value)
+  // The block builder serializes without schema access, so an option NAME that
+  // looks numeric or boolean ("123", "true") arrives scalar-coerced. Stringify
+  // scalars so the name still resolves; arrays/objects stay unresolvable.
+  const text =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : null
+  if (text === null) return null
+  const byId = options.find((o) => o.id === text)
   if (byId) return byId.id
   const byName =
-    options.find((o) => o.name === value) ??
-    options.find((o) => o.name.toLowerCase() === value.toLowerCase())
+    options.find((o) => o.name === text) ??
+    options.find((o) => o.name.toLowerCase() === text.toLowerCase())
   return byName ? byName.id : null
 }
 

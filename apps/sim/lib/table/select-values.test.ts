@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { resolveFilterSelectValues, selectValueToNames } from '@/lib/table/select-values'
+import {
+  resolveFilterSelectValues,
+  resolvePredicateSelectValues,
+  selectValueToNames,
+} from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const status: ColumnDefinition = {
@@ -98,5 +102,51 @@ describe('resolveFilterSelectValues', () => {
     expect(
       resolveFilterSelectValues({ $or: [{ col_status: 'Open' }, { col_title: 'x' }] }, columns)
     ).toEqual({ $or: [{ col_status: 'opt_open' }, { col_title: 'x' }] })
+  })
+})
+
+/**
+ * The block builder serializes without schema access, so an option NAME that
+ * looks numeric or boolean arrives scalar-coerced ("123" → 123). Resolution
+ * must still find the option, or a correctly-authored builder filter compares
+ * a number against the stored id string and matches nothing.
+ */
+describe('resolvePredicateSelectValues — scalar-coerced option names', () => {
+  const numericStatus: ColumnDefinition = {
+    id: 'col_code',
+    name: 'code',
+    type: 'select',
+    options: [
+      { id: 'opt_123', name: '123' },
+      { id: 'opt_true', name: 'true' },
+    ],
+  }
+  const columns = [numericStatus]
+
+  it('resolves a coerced numeric name to its option id', () => {
+    expect(
+      resolvePredicateSelectValues({ all: [{ field: 'col_code', op: 'eq', value: 123 }] }, columns)
+    ).toEqual({ all: [{ field: 'col_code', op: 'eq', value: 'opt_123' }] })
+  })
+
+  it('resolves a coerced boolean name, including inside in/contains', () => {
+    expect(
+      resolvePredicateSelectValues(
+        { any: [{ field: 'col_code', op: 'in', value: [true, 123] }] },
+        columns
+      )
+    ).toEqual({ any: [{ field: 'col_code', op: 'in', value: ['opt_true', 'opt_123'] }] })
+    expect(
+      resolvePredicateSelectValues(
+        { all: [{ field: 'col_code', op: 'contains', value: 123 }] },
+        columns
+      )
+    ).toEqual({ all: [{ field: 'col_code', op: 'contains', value: 'opt_123' }] })
+  })
+
+  it('leaves a scalar with no matching option name as-is', () => {
+    expect(
+      resolvePredicateSelectValues({ all: [{ field: 'col_code', op: 'eq', value: 999 }] }, columns)
+    ).toEqual({ all: [{ field: 'col_code', op: 'eq', value: 999 }] })
   })
 })

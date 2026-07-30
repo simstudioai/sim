@@ -47,7 +47,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const filterError = tableFilterError(filter, table.schema.columns)
+    const filterError = tableFilterError(wireFilter, table.schema.columns)
     if (filterError) return filterError
 
     const cancelled = await cancelWorkflowGroupRuns(tableId, scope === 'row' ? rowId : undefined, {
