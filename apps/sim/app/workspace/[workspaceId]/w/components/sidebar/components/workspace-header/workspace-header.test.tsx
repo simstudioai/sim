@@ -162,11 +162,13 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
     const search = document.querySelector('input[placeholder="Search workspaces..."]')
     expect(search).not.toBeNull()
     act(() => {
-      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
     })
 
-    // ArrowDown from the seeded first row (RVT) lands on the second.
-    expect(isMarked("Emir's Workspace")).toBe(true)
+    // ArrowUp from the seeded first row wraps to the last. Asserting on Globex, not on
+    // the current workspace: the current one carries its own `isActive` fill, so it
+    // stays marked either way and would prove nothing about the cursor being painted.
+    expect(isMarked('Globex')).toBe(true)
   })
 
   it('drops the keyboard cursor again as soon as the pointer moves', () => {
@@ -174,16 +176,18 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
 
     const search = document.querySelector('input[placeholder="Search workspaces..."]')
     act(() => {
-      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
     })
-    expect(isMarked("Emir's Workspace")).toBe(true)
+    expect(isMarked('Globex')).toBe(true)
 
     act(() => {
       row('Acme').dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
     })
 
-    // Back in pointer mode: only the current workspace keeps a persistent mark.
+    // Back in pointer mode: the cursor is gone and the row just crossed is unmarked,
+    // leaving only the current workspace's own fill.
+    expect(isMarked('Globex')).toBe(false)
     expect(isMarked('Acme')).toBe(false)
-    expect(isMarked('RVT')).toBe(false)
+    expect(isMarked("Emir's Workspace")).toBe(true)
   })
 })
