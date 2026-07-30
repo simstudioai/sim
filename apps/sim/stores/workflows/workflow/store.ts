@@ -12,6 +12,7 @@ import {
 import { normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
+  clearClonedWebhookPath,
   filterNewEdges,
   filterValidEdges,
   getUniqueBlockName,
@@ -599,6 +600,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           id,
           newId
         )
+        clearClonedWebhookPath(newSubBlocks as Record<string, SubBlockState>, clonedSubBlockValues)
 
         const newState = {
           blocks: {

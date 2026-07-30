@@ -5,6 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
@@ -32,7 +34,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(cancelTableRunsContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, scope, rowId, filter, excludeRowIds } = parsed.data.body
+    const { workspaceId, scope, rowId, filter: wireFilter, excludeRowIds } = parsed.data.body
+    // Dual-grammar wire: a predicate downgrades losslessly-or-throws to the
+    // legacy Filter the runners/persisted payloads still compile.
+    const filter = toLegacyFilter(wireFilter)
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -42,7 +47,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const filterError = tableFilterError(filter, table.schema.columns)
+    const filterError = tableFilterError(wireFilter, table.schema.columns)
     if (filterError) return filterError
 
     const cancelled = await cancelWorkflowGroupRuns(tableId, scope === 'row' ? rowId : undefined, {
@@ -57,6 +62,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     return NextResponse.json({ success: true, data: { cancelled } })
   } catch (error) {
+    // A predicate that Zod accepts but the downgrade rejects (hybrid node,
+    // eq-with-array, valueless op) is caller error, not a server fault.
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error(`[${requestId}] cancel-runs failed:`, error)
     return NextResponse.json({ error: 'Failed to cancel runs' }, { status: 500 })
   }

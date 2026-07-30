@@ -7,12 +7,35 @@ import {
   deleteTableColumnBodySchema,
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { MultipartError } from '@/lib/core/utils/multipart'
-import type { ColumnDefinition, Filter, TableDefinition } from '@/lib/table'
+import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
+import { isTablePredicate } from '@/lib/table/query-builder/converters'
+import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
+
+/**
+ * Gate for the v2 tables HTTP API (`tables-v2-api` flag). Returns a 404 response
+ * when the flag is off for the caller — the surface behaves as if it doesn't
+ * exist — or `null` to proceed. Gated by userId + the workspace's org cohort.
+ *
+ * **Call this AFTER the authz check, never before.** Ahead of authz it does a
+ * primary-DB read keyed on a caller-supplied `workspaceId`, and the 404-vs-403
+ * split tells an unauthorized caller whether that workspace's org is in the
+ * rollout cohort.
+ */
+export async function tablesV2GateError(
+  userId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const orgId = await getWorkspaceOrganizationId(workspaceId)
+  if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
+  return NextResponse.json({ error: 'Not found' }, { status: 404 })
+}
 
 /**
  * Maps a {@link TableLockedError} thrown by the service layer to a 423 response
@@ -33,17 +56,30 @@ export function tableLockErrorResponse(error: unknown): NextResponse | null {
 }
 
 /**
- * Validates a `filter` against the table's column schema, returning a 400 response on a bad field
- * (or `null` when the filter is valid or absent). Shared by the routes that accept a filter
- * (`delete-async`, `columns/run`) so a bad field fails fast with a clear message.
+ * Validates a wire `filter` (either grammar) against the table's column schema,
+ * returning a 400 response on a bad field (or `null` when the filter is valid or
+ * absent). Shared by the routes that accept a filter (`delete-async`,
+ * `cancel-runs`, `columns/run`) so a bad field fails fast with a clear message.
+ *
+ * Pass the WIRE filter, not the `toLegacyFilter` downgrade: the downgrade
+ * compiles cleanly through `buildFilterClause` even when a predicate leaf names
+ * a column that doesn't exist, so validating only the downgraded form lets a
+ * typo'd field become a clause that silently matches nothing — a no-op where
+ * the sync bulk routes 400.
  */
 export function tableFilterError(
-  filter: Filter | undefined,
+  filter: Filter | TablePredicate | undefined,
   columns: ColumnDefinition[]
 ): NextResponse | null {
   if (!filter) return null
   try {
-    buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, columns)
+    if (isTablePredicate(filter)) {
+      // These routes speak storage keys (session grid uses column ids; system
+      // columns keep their names) — same keying the sync bulk routes validate.
+      validateStoragePredicate(filter, columns)
+    } else {
+      buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, columns)
+    }
     return null
   } catch (error) {
     if (error instanceof TableQueryValidationError) {

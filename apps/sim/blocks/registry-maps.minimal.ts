@@ -27,6 +27,7 @@ import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SlackBlock, SlackV2Block } from '@/blocks/blocks/slack'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { WaitBlock } from '@/blocks/blocks/wait'
@@ -81,6 +82,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   slack_v2: SlackV2Block,
   start_trigger: StartTriggerBlock,
   table: TableBlock,
+  table_v2: TableV2Block,
   translate: TranslateBlock,
   variables: VariablesBlock,
   wait: WaitBlock,

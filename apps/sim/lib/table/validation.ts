@@ -13,9 +13,11 @@ import {
   MAX_SELECT_OPTIONS,
   NAME_PATTERN,
   TABLE_LIMITS,
+  USER_TABLE_ROWS_SQL_NAME,
 } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
+import { fieldPredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
   JsonValue,
@@ -297,12 +299,21 @@ function optionIds(column: ColumnDefinition): Set<string> {
  * actually fit the target option set.
  */
 export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
-  if (typeof value !== 'string') return null
-  const byId = options.find((o) => o.id === value)
+  // The block builder serializes without schema access, so an option NAME that
+  // looks numeric or boolean ("123", "true") arrives scalar-coerced. Stringify
+  // scalars so the name still resolves; arrays/objects stay unresolvable.
+  const text =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : null
+  if (text === null) return null
+  const byId = options.find((o) => o.id === text)
   if (byId) return byId.id
   const byName =
-    options.find((o) => o.name === value) ??
-    options.find((o) => o.name.toLowerCase() === value.toLowerCase())
+    options.find((o) => o.name === text) ??
+    options.find((o) => o.name.toLowerCase() === text.toLowerCase())
   return byName ? byName.id : null
 }
 
@@ -469,12 +480,8 @@ export function validateUniqueConstraints(
 
     const duplicate = existingRows.find((row) => {
       if (excludeRowId && row.id === excludeRowId) return false
-
-      const existingValue = row.data[key]
-      if (typeof value === 'string' && typeof existingValue === 'string') {
-        return value.toLowerCase() === existingValue.toLowerCase()
-      }
-      return value === existingValue
+      // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
+      return value === row.data[key]
     })
 
     if (duplicate) {
@@ -517,27 +524,13 @@ export async function checkUniqueConstraintsDb(
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
-    if (!NAME_PATTERN.test(key)) {
-      throw new Error(`Invalid column id: ${key}`)
-    }
-
     const value = data[key]
     if (value === null || value === undefined) continue
 
-    if (typeof value === 'string') {
-      conditions.push({
-        column,
-        value,
-        sql: sql`lower(${userTableRows.data}->>${sql.raw(`'${key}'`)}) = ${value.toLowerCase()}`,
-      })
-    } else {
-      // For other types, use direct JSONB comparison
-      conditions.push({
-        column,
-        value,
-        sql: sql`(${userTableRows.data}->${sql.raw(`'${key}'`)})::jsonb = ${JSON.stringify(value)}::jsonb`,
-      })
-    }
+    // Same leaf as the upsert conflict probe → case-sensitive JSONB containment
+    // (GIN-indexed). `eq` always yields a clause for a non-null value.
+    const clause = fieldPredicate(USER_TABLE_ROWS_SQL_NAME, key, 'eq', value, column)
+    if (clause) conditions.push({ column, value, sql: clause })
   }
 
   if (conditions.length === 0) {
@@ -545,9 +538,9 @@ export async function checkUniqueConstraintsDb(
   }
 
   // Query for each unique column separately to provide specific error messages.
-  // Tenant-bounded: `lower(data->>'col') = ...` is unestimatable, so the planner
-  // otherwise seq-scans the whole shared relation per check — 3.5s on every
-  // insert/edit when the value is unique (no early exit). With an external
+  // The predicate is now case-sensitive JSONB containment (`data @> {...}`),
+  // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
+  // bounded) defensively for the small-table / cold-stats case. With an external
   // transaction the flag is set on it directly — opening our own transaction
   // inside the caller's would be the nested pool checkout the migration-
   // hardening work eliminated (self-deadlock under pool exhaustion).
@@ -635,8 +628,7 @@ export async function checkBatchUniqueConstraintsDb(
       const value = rowData[key]
       if (value === null || value === undefined) continue
 
-      const normalizedValue =
-        typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
+      const normalizedValue = typeof value === 'string' ? value : JSON.stringify(value)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -672,14 +664,22 @@ export async function checkBatchUniqueConstraintsDb(
 
       const valueArray = Array.from(values)
       const valueConditions = valueArray.map((normalizedValue) => {
-        // Check if the original values are strings (normalized values for strings are lowercase)
-        // We need to determine the type from the column definition or the first row that has this value
-        const isStringColumn = column.type === 'string'
-
-        if (isStringColumn) {
-          return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnId}'`)}) = ${normalizedValue}`
+        // Reconstruct the original typed value from its normalized key: string
+        // columns store the raw string; others store JSON.stringify(value).
+        const originalValue: JsonValue =
+          column.type === 'string' ? normalizedValue : JSON.parse(normalizedValue)
+        // Same case-sensitive containment leaf as every other matcher.
+        const clause = fieldPredicate(
+          USER_TABLE_ROWS_SQL_NAME,
+          columnId,
+          'eq',
+          originalValue,
+          column
+        )
+        if (!clause) {
+          throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
         }
-        return sql`(${userTableRows.data}->${sql.raw(`'${columnId}'`)})::jsonb = ${normalizedValue}::jsonb`
+        return clause
       })
 
       const conflictingRows = await ex
@@ -697,9 +697,7 @@ export async function checkBatchUniqueConstraintsDb(
         const conflictData = conflict.data as RowData
         const conflictValue = conflictData[columnId]
         const normalizedConflictValue =
-          typeof conflictValue === 'string'
-            ? conflictValue.toLowerCase()
-            : JSON.stringify(conflictValue)
+          typeof conflictValue === 'string' ? conflictValue : JSON.stringify(conflictValue)
 
         // Find which batch rows have this conflicting value
         for (let i = 0; i < rows.length; i++) {
@@ -707,7 +705,7 @@ export async function checkBatchUniqueConstraintsDb(
           if (rowValue === null || rowValue === undefined) continue
 
           const normalizedRowValue =
-            typeof rowValue === 'string' ? rowValue.toLowerCase() : JSON.stringify(rowValue)
+            typeof rowValue === 'string' ? rowValue : JSON.stringify(rowValue)
 
           if (normalizedRowValue === normalizedConflictValue) {
             // Check if this row already has errors for this column

@@ -88,13 +88,13 @@ import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
-  Filter,
   RowData,
   RowExecutionMetadata,
   RowExecutions,
-  Sort,
+  SortSpec,
   TableDefinition,
   TableMetadata,
+  TablePredicate,
   TableRow,
   WorkflowGroup,
   WorkflowGroupDependencies,
@@ -129,8 +129,8 @@ export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
-    filter?: Filter | null
-    sort?: Sort | null
+    filter?: TablePredicate | null
+    sort?: SortSpec | null
   }
 
 export type TableRowsResponse = Pick<
@@ -416,8 +416,8 @@ interface InfiniteTableRowsParams {
   workspaceId: string
   tableId: string
   pageSize: number
-  filter?: Filter | null
-  sort?: Sort | null
+  filter?: TablePredicate | null
+  sort?: SortSpec | null
   enabled?: boolean
 }
 
@@ -433,8 +433,8 @@ interface FindTableRowsParams {
   workspaceId: string
   tableId: string
   q: string
-  filter?: Filter | null
-  sort?: Sort | null
+  filter?: TablePredicate | null
+  sort?: SortSpec | null
 }
 
 export interface TableFindResult {
@@ -1225,7 +1225,7 @@ interface DeleteTableRowsAsyncVariables {
   filter?: DeleteTableRowsAsyncBody['filter']
   /** Active sort — together with `filter` it identifies the exact rows query to optimistically
    *  strip, so we don't clear unrelated cached views (other filters/sorts). */
-  sort?: Sort | null
+  sort?: SortSpec | null
   /** Rows deselected after "select all" — spared by the job. */
   excludeRowIds?: string[]
   /** Doomed-row estimate shown in the confirm — persisted on the job so server counts can
@@ -1259,7 +1259,13 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
       // Target the exact infinite-rows query for the view the user is on — not every cached view.
       const activeKey = tableKeys.infiniteRows(
         tableId,
-        tableRowsParamsKey({ pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT, filter: filter ?? null, sort })
+        tableRowsParamsKey({
+          pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
+          // The wire type is the dual-grammar union; the grid only ever sends its
+          // own predicate state, so the cache key narrows to that shape.
+          filter: (filter as TablePredicate | undefined) ?? null,
+          sort,
+        })
       )
       await queryClient.cancelQueries({ queryKey: activeKey })
       const previousRows =
@@ -1557,10 +1563,10 @@ interface CancelRunsParams {
   scope: 'all' | 'row'
   rowId?: string
   /** Scope-`all` only: cancel just the cells on rows matching this filter (filtered select-all Stop). */
-  filter?: Filter
+  filter?: TablePredicate
   /** Active sort — with `filter` it identifies the exact rows query whose cells the optimistic
    *  cancel may flip (other cached views contain rows the server won't touch). */
-  sort?: Sort | null
+  sort?: SortSpec | null
   /** Scope-`all` only: deselected rows whose cells keep running. */
   excludeRowIds?: string[]
 }
@@ -2192,7 +2198,7 @@ interface RunColumnVariables {
   /** "Select all under a filter" — run every row matching this filter (mutually exclusive with
    *  `rowIds`). Optimistic stamping is skipped (like `limit`) since the matching set isn't known
    *  client-side; the dispatcher's real pending stamps drive the UI. */
-  filter?: Filter
+  filter?: TablePredicate
   /** Select-all scope only: deselected rows — skipped by the dispatcher and the optimistic stamp. */
   excludeRowIds?: string[]
   /** Cap the run to the first `max` eligible rows. Omit for an unbounded run.
