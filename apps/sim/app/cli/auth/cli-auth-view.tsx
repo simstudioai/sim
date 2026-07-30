@@ -59,6 +59,18 @@ export function CliAuthView() {
 
   const { request } = resolution
 
+  /**
+   * Approval must wait for the workspace list.
+   *
+   * Until it arrives there is no selection to show, and the fallback would read
+   * as "No workspace (personal key)" — a real answer, not a pending one. Leaving
+   * Connect live through that window let a fast click approve a personal key
+   * with no default workspace, when a moment later the same click would have
+   * bound the key to the user's workspace. Blocking is the only way the card
+   * can promise what it is about to do.
+   */
+  const loadingWorkspaces = isPlatform && workspaces.isPending
+
   // The terminal's suggestion, then the user's last active workspace. Derived at
   // render rather than synced into state through an effect, so the first paint
   // after the list loads already shows the right row.
@@ -91,7 +103,11 @@ export function CliAuthView() {
               options={options}
               value={workspaceId ?? PERSONAL_VALUE}
               onChange={setSelected}
-              disabled={workspaces.isLoading}
+              disabled={loadingWorkspaces || workspaces.isError}
+              // A placeholder only shows when nothing is selected, and the
+              // fallback value always counts as a selection — so the loading
+              // state has to override the rendered label outright.
+              displayLabel={loadingWorkspaces ? 'Loading workspaces…' : undefined}
               placeholder='Select a workspace'
               searchable={options.length > 8}
               searchPlaceholder='Search workspaces'
@@ -99,15 +115,20 @@ export function CliAuthView() {
               dropdownWidth='trigger'
             />
             <p className='text-[var(--text-muted)] text-caption'>
-              {bindsToWorkspace
-                ? `Issues a key that can only reach ${chosen.name}.`
-                : 'Issues a personal key tied to your account, defaulting to this workspace. Workspace-scoped keys need admin.'}
+              {loadingWorkspaces
+                ? 'Checking which workspaces you can issue a key for…'
+                : workspaces.isError
+                  ? 'Could not load your workspaces. Connecting still works and issues a personal key; reload to pick a default workspace.'
+                  : bindsToWorkspace
+                    ? `Issues a key that can only reach ${chosen.name}.`
+                    : 'Issues a personal key tied to your account, defaulting to this workspace. Workspace-scoped keys need admin.'}
             </p>
           </div>
         )}
         <AuthSubmitButton
           type='button'
           loading={approve.isPending || approve.isSuccess}
+          disabled={loadingWorkspaces}
           loadingLabel='Connecting'
           onClick={() =>
             approve.mutate(
