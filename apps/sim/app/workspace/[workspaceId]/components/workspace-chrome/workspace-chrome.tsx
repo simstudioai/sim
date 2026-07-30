@@ -22,9 +22,18 @@ const SLIDE_TRANSITION =
  * The peek card's floating chrome.
  *
  * Every value is an existing token: `rounded-lg` is `--radius`, matching the content
- * pane it floats beside; `--border` is that pane's border; `shadow-overlay` and
- * `--z-modal` are what the app's other edge-anchored panels use. The card's fill is
- * the sidebar's own `--surface-1`, so docked and floating are the same surface.
+ * pane it floats beside; `--border` is that pane's border; `--z-modal` is what the
+ * app's other edge-anchored panels use. The card's fill is the sidebar's own
+ * `--surface-1`, so docked and floating are the same surface.
+ *
+ * Deliberately unshadowed. It separates on the same `--border` hairline the content
+ * pane beside it uses; `--shadow-overlay` reads as too heavy at this size, where the
+ * card abuts the window edge rather than floating over the middle of the page.
+ *
+ * The card hugs its content and caps at the pane height less the lane and the bottom
+ * gutter — pinning both edges left a tall empty slab below short lists. It is a flex
+ * column so the shell can shrink inside that cap and the sidebar's own scroll region
+ * still bounds itself; see the `[data-peek]` rule in `globals.css`.
  *
  * `w-auto` shrink-wraps the inner shell, which `[data-peek]` has already put at the
  * expanded width. It must not be a length: `width` cannot interpolate to or from
