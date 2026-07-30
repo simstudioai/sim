@@ -120,6 +120,20 @@ export function parseCurrencyInput(raw: unknown): number | null {
   const parenthesized = /^\((.*)\)$/.exec(trimmed)
   const body = parenthesized ? parenthesized[1] : trimmed
 
+  // Exponent form first, and taken at face value. `String()` emits it for any
+  // magnitude past 1e21, so a stored amount round-trips through the editor as
+  // `1e+21` — and stripping the `e` as decoration would read that back as 121,
+  // silently losing 19 orders of magnitude. Only a string that is *wholly* a
+  // numeric literal once symbols are removed qualifies, so `12 EUR` (whose `E`
+  // survives the strip) still falls through to the separator logic below.
+  const exponentCandidate = body.replace(/[^\d.,\-+eE]/g, '')
+  if (/[eE]/.test(exponentCandidate)) {
+    const parsed = Number(exponentCandidate)
+    if (Number.isFinite(parsed)) {
+      return parenthesized ? -Math.abs(parsed) : parsed
+    }
+  }
+
   // Drop symbols, letters, and every flavor of space, leaving only digits, the
   // two separator characters, and a leading sign.
   const stripped = body.replace(/[^\d.,\-+]/g, '')

@@ -19,6 +19,7 @@ import {
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef } from '@/lib/table/column-keys'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import {
   accessError,
   checkAccess,
@@ -177,6 +178,28 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     // changing: an options-only update on an existing select column carries the
     // same hazard as a conversion does.
     const resultingType = updates.type ?? currentColumn?.type
+    // Same reason as the constraint guard below: `renameColumn` runs first and
+    // commits on its own, so anything `updateColumnCurrency` would reject has
+    // to be caught before that write rather than inside the last one —
+    // otherwise the rename sticks and the request still errors.
+    if (updates.currencyCode !== undefined) {
+      if (resultingType !== 'currency') {
+        return NextResponse.json(
+          {
+            error: `Cannot set currency on column "${validated.columnName}" of type "${resultingType}"`,
+          },
+          { status: 400 }
+        )
+      }
+      if (!isSupportedCurrencyCode(updates.currencyCode)) {
+        return NextResponse.json(
+          {
+            error: `Invalid currency code "${updates.currencyCode}". Use an ISO 4217 code, e.g. USD`,
+          },
+          { status: 400 }
+        )
+      }
+    }
     if (updates.unique === true && resultingType === 'select') {
       return NextResponse.json({ error: 'Cannot set a select column as unique' }, { status: 400 })
     }

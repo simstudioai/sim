@@ -64,6 +64,31 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('1234.5')).toBe(1234.5)
   })
 
+  it('reads exponent form at face value', () => {
+    // `String()` emits exponent form past 1e21, so a stored amount round-trips
+    // through the editor as `1e+21`. Treating the `e` as decoration to strip
+    // read that back as 121 — a silent 19-orders-of-magnitude loss on the next
+    // edit of an untouched cell.
+    expect(parseCurrencyInput('1e5')).toBe(100000)
+    expect(parseCurrencyInput('1e+21')).toBe(1e21)
+    expect(parseCurrencyInput('1.5e-3')).toBe(0.0015)
+    expect(parseCurrencyInput('-1e5')).toBe(-100000)
+    expect(parseCurrencyInput('(1e5)')).toBe(-100000)
+    expect(parseCurrencyInput('$1e5')).toBe(100000)
+  })
+
+  it('does not mistake an ISO code or prose for an exponent', () => {
+    // `EUR` survives the symbol strip with its `E` intact; it must still parse
+    // through the ordinary separator path.
+    expect(parseCurrencyInput('12 EUR')).toBe(12)
+    expect(parseCurrencyInput('EUR 12,50')).toBe(12.5)
+    expect(parseCurrencyInput('Revenue 5')).toBe(5)
+  })
+
+  it('round-trips a magnitude that stringifies to exponent form', () => {
+    expect(parseCurrencyInput(formatCurrencyForInput(1e21))).toBe(1e21)
+  })
+
   it('rejects values carrying no amount', () => {
     expect(parseCurrencyInput('')).toBeNull()
     expect(parseCurrencyInput('   ')).toBeNull()
