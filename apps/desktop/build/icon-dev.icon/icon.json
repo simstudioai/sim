@@ -13,7 +13,7 @@
         {
           "image-name": "border.svg",
           "is-glass": false,
-          "name": "Staging Border"
+          "name": "Dev Border"
         }
       ],
       "shadow": {

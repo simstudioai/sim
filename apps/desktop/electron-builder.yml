@@ -39,7 +39,9 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
-  icon: build/generated-icon.icns
+  # Compiles to Assets.car + CFBundleIconName for the native macOS icon path;
+  # electron-builder derives the legacy .icns fallback from the same source.
+  icon: build/generated-icon.icon
   # node-pty keeps each architecture's binary at its own path, so both halves of
   # the universal build carry an identical copy of both. @electron/universal
   # refuses single-arch Mach-O files it wasn't told about, so name them here —

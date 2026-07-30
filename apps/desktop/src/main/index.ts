@@ -423,9 +423,10 @@ function main(): void {
   })
 
   void app.whenReady().then(async () => {
-    // Use the same high-resolution source in packaged and unpackaged apps so
-    // macOS renders every environment marker consistently in the Dock.
-    if (process.platform === 'darwin') {
+    // Packaged apps keep their native bundle icon so the Dock appearance does
+    // not change when the process starts. Unpackaged runs have no branded
+    // bundle, so they still need the channel-specific development icon.
+    if (process.platform === 'darwin' && !app.isPackaged) {
       const channel = channelForOrigin(config.getOrigin())
       app.dock?.setIcon(join(__dirname, '..', 'static', DOCK_ICON_FOR_CHANNEL[channel]))
     }
