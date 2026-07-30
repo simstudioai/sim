@@ -4,7 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import type { Filter, TableDefinition } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
-import { appendTableEvent } from '@/lib/table/events'
+import { appendTableEvent, signalTableRowsChanged } from '@/lib/table/events'
 import {
   getJobProgress,
   markJobCanceled,
@@ -178,6 +178,9 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
           status: 'running',
           progress: processed,
         })
+        // Refetch the live grid as rows drop out (throttled with the progress event above) — the `job`
+        // event only drives the progress meter, not the rows query.
+        signalTableRowsChanged(tableId)
       }
     }
 
@@ -194,6 +197,9 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
         status: 'ready',
         progress: processed,
       })
+      // Final grid refetch so the deleted rows are gone in every open editor (the last progress
+      // signal above may predate the tail batch).
+      signalTableRowsChanged(tableId)
       logger.info(`[${requestId}] Delete complete`, { tableId, rows: processed })
     } else {
       logger.info(

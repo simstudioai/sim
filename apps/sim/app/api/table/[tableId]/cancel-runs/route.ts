@@ -5,6 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
@@ -54,6 +55,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         rowId ? ` rowId=${rowId}` : ''
       } cancelled=${cancelled}`
     )
+
+    // Cancelling clears each affected row's exec state in the DB. The `dispatch: cancelled` events drop
+    // the run overlay, but the client then renders the row's authoritative DB state — so refetch the grid
+    // to pick up the cleared cells. Only when something was actually cancelled.
+    if (cancelled > 0) signalTableRowsChanged(tableId)
 
     return NextResponse.json({ success: true, data: { cancelled } })
   } catch (error) {

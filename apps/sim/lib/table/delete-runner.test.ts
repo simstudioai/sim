@@ -13,6 +13,7 @@ const {
   mockMarkJobFailed,
   mockMarkJobCanceled,
   mockAppendTableEvent,
+  mockSignalTableRowsChanged,
   mockBuildFilterClause,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockMarkJobFailed: vi.fn(),
   mockMarkJobCanceled: vi.fn(),
   mockAppendTableEvent: vi.fn(),
+  mockSignalTableRowsChanged: vi.fn(),
   mockBuildFilterClause: vi.fn(),
 }))
 
@@ -41,7 +43,10 @@ vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowIdPage: mockSelectRowIdPage,
   deletePageByIds: mockDeletePageByIds,
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
+vi.mock('@/lib/table/events', () => ({
+  appendTableEvent: mockAppendTableEvent,
+  signalTableRowsChanged: mockSignalTableRowsChanged,
+}))
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
 vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { DELETE_PAGE_SIZE: 2 },
@@ -141,6 +146,9 @@ describe('runTableDelete', () => {
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'ready', progress: 3 })
     )
+    // The live grid must be told rows changed so deleted rows drop out of every open editor —
+    // the `job` progress event only drives the delete meter, not the rows query.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
   })
 
   it('stops once maxRows is reached and caps the final page fetch to the remaining budget', async () => {
