@@ -345,7 +345,14 @@ describe('workspace file metadata and storage accounting', () => {
   const MD_ROW = { ...FILE_ROW, originalName: 'note.md', contentType: 'text/markdown' }
 
   it('streams a markdown overwrite into any open collaborative editor (the shared merge chokepoint)', async () => {
-    const updatedFile = { ...MD_ROW, size: 12 }
+    // Distinct updatedAt vs contentUpdatedAt so the assertion proves the merge carries the CONTENT
+    // version (the persist If-Match token), not `updatedAt` — reverting that wiring would fail here.
+    const updatedFile = {
+      ...MD_ROW,
+      size: 12,
+      updatedAt: new Date('2026-07-05T00:00:00.000Z'),
+      contentUpdatedAt: new Date('2026-07-04T00:00:00.000Z'),
+    }
     dbChainMockFns.limit.mockResolvedValueOnce([MD_ROW]).mockResolvedValueOnce([MD_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: MD_ROW.key })
@@ -360,7 +367,7 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockMergeEditIntoLiveFileDoc).toHaveBeenCalledWith(
       MD_ROW.id,
       '# new content',
-      updatedFile.updatedAt.getTime()
+      updatedFile.contentUpdatedAt.getTime()
     )
   })
 

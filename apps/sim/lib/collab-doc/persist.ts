@@ -54,13 +54,16 @@ export async function persistFileDoc(
   const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!record) return { status: 'missing' }
 
-  // Optimistic concurrency needs a version for any file that already has content. If none was supplied
-  // (the relay's synced-version token was momentarily unavailable — e.g. a Redis blip on a peer-seeded
-  // task), DEFER rather than write: an unconditional write could clobber an out-of-band edit, and a
-  // reconcile would wipe live edits even when nothing actually changed out-of-band (the version was
-  // merely missing). The live edits stay in the stream; a later persist writes them once the version is
-  // re-established. An empty file has nothing to clobber, so its first unconditional write stays allowed.
-  if (expectedVersion === undefined && record.size > 0) {
+  // Optimistic concurrency needs a version. If none was supplied — the relay's synced-version token was
+  // momentarily unavailable (a Redis blip on a peer-seeded task) — DEFER rather than write: an
+  // unconditional write could clobber an out-of-band edit, and a reconcile would wipe live edits even
+  // when nothing changed out-of-band (the version was merely missing). The edits stay in the stream; a
+  // later persist writes them once the version is re-established. There is deliberately NO empty-file
+  // unconditional-write carve-out: every existing file has a `content_updated_at`, so the relay always
+  // has a real version to send and a missing one is always transient — and `record.size` is read outside
+  // the write transaction, so trusting it (an empty file "has nothing to clobber") is a TOCTOU race a
+  // concurrent first content write would lose.
+  if (expectedVersion === undefined) {
     return { status: 'deferred' }
   }
 
