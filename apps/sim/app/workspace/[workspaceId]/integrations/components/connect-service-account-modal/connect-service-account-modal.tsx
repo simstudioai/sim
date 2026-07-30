@@ -504,20 +504,23 @@ function AtlassianServiceAccountModal({
       </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField type='custom' title='API token' required hint={ATLASSIAN_COVERAGE_HINT}>
-          <SecretInput
-            value={apiToken}
-            onChange={(value) => {
-              setApiToken(value)
-              if (error) setError(null)
-            }}
-            placeholder='Paste API token'
-            name='atlassian_service_account_api_token'
-            autoComplete='new-password'
-            autoCorrect='off'
-            autoCapitalize='off'
-            data-lpignore='true'
-            data-form-type='other'
-          />
+          {(aria) => (
+            <SecretInput
+              {...aria}
+              value={apiToken}
+              onChange={(value) => {
+                setApiToken(value)
+                if (error) setError(null)
+              }}
+              placeholder='Paste API token'
+              name='atlassian_service_account_api_token'
+              autoComplete='new-password'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+            />
+          )}
         </ChipModalField>
 
         <ChipModalField
