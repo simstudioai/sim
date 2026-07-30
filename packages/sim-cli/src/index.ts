@@ -7,6 +7,7 @@ import { configureCommand } from './commands/configure.js'
 import { filesCommand } from './commands/files.js'
 import { knowledgeCommand } from './commands/knowledge.js'
 import { logsCommand } from './commands/logs.js'
+import { tablesCommand } from './commands/tables.js'
 import { workflowsCommand } from './commands/workflows.js'
 import { OUTPUT_FORMATS } from './config/index.js'
 import { SimApiError } from './http/client.js'
@@ -29,6 +30,7 @@ program.addCommand(profilesCommand())
 program.addCommand(configureCommand())
 program.addCommand(workflowsCommand())
 program.addCommand(logsCommand())
+program.addCommand(tablesCommand())
 program.addCommand(filesCommand())
 program.addCommand(knowledgeCommand())
 

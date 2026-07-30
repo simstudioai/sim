@@ -114,6 +114,13 @@ sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--star
 sim logs get <id>
 sim logs execution <executionId>
 
+sim tables list
+sim tables get <tableId>
+sim tables columns <tableId>
+sim tables rows <tableId> [--filter <json>] [--sort <field:dir>…] [--limit <n>]
+sim tables insert <tableId> --data <json>
+sim tables delete-rows <tableId> (--row <id>… | --filter <json>) --yes
+
 sim files list
 sim files download <fileId> [-o <path>]
 sim files delete <fileId>
@@ -124,6 +131,25 @@ sim knowledge documents <id> [--search <text>]
 sim knowledge search <query> --kb <id>…
 ```
 
+### Filtering table rows
+
+`--filter` takes the same predicate tree the API uses — `all` (AND) or `any`
+(OR) groups of `{field, op, value}` conditions, nestable. It's JSON because the
+grammar is a tree; there's no honest flag encoding for it.
+
+```bash
+sim tables rows tbl_123 \
+  --filter '{"all":[{"field":"status","op":"eq","value":"open"},
+                    {"field":"score","op":"gt","value":10}]}' \
+  --sort score:desc --limit 50
+```
+
+Row columns are discovered at runtime from the returned data, unioned across the
+page so a sparse row doesn't hide a column.
+
+Deletions require an explicit selector *and* `--yes`; there is no "delete
+everything" default.
+
 Every command takes `--output json` for scripting; the JSON is the API's own
 response shape, so it pipes cleanly into `jq`.
 
@@ -131,11 +157,35 @@ response shape, so it pipes cleanly into `jq`.
 sim logs list --level error --output json | jq -r '.[].executionId'
 ```
 
+## How this stays in sync with the API
+
+`src/generated/v2-api.ts` is generated from the Zod route contracts in
+`apps/sim/lib/api/contracts/v2/**` — the same contracts the routes validate
+against, so a shape that disagrees with them is a shape the server would reject.
+It holds every response/request type plus the operation table (method, path,
+path params) the client dispatches through.
+
+```bash
+bun run generate:cli-api      # regenerate after changing a contract
+bun run check:cli-api         # CI: fails if the generated file is stale
+bun run check:openapi-drift   # CI: fails if the docs and contracts disagree
+```
+
+The generated file contains only type declarations and one const — no imports —
+so the `packages/*` must not import `apps/*` boundary is preserved; the script
+does the crossing at build time.
+
+The OpenAPI documents under `apps/docs` are deliberately **not** generated. They
+carry ~1000 hand-written descriptions and ~400 examples that Zod schemas don't
+encode, so regenerating them would trade real documentation for mechanical
+accuracy. `check:openapi-drift` reconciles their *structure* against the
+contracts instead — every v2 path and method must exist on both sides — so the
+prose survives while drift still fails the build.
+
 ## Notes
 
 - Commands talk to the `/api/v2` surface, which returns `{ data }` and
   `{ data, nextCursor }`. List commands auto-page up to `--limit`.
-- `sim tables` is not here yet — the tables v2 surface is still changing.
 
 ## License
 

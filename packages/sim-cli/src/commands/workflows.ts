@@ -1,26 +1,11 @@
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { clientFrom } from '../context.js'
+import type { GetWorkflowResponse, ListWorkflowsResponse } from '../generated/v2-api.js'
 import { bool, type Column, printList, printRecord, text, timestamp } from '../output/render.js'
 
-interface WorkflowListItem {
-  id: string
-  name: string
-  description: string | null
-  folderId: string | null
-  workspaceId: string
-  isDeployed: boolean
-  deployedAt: string | null
-  runCount: number
-  lastRunAt: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-interface WorkflowDetail extends WorkflowListItem {
-  variables: Record<string, unknown>
-  inputs: Array<{ name: string; type: string; description?: string }>
-}
+type WorkflowListItem = ListWorkflowsResponse['data'][number]
+type WorkflowDetail = GetWorkflowResponse['data']
 
 const LIST_COLUMNS: Column<WorkflowListItem>[] = [
   { header: 'id', value: (w) => w.id },

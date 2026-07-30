@@ -1,25 +1,12 @@
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { clientFrom } from '../context.js'
+import type { GetExecutionResponse, GetLogResponse, ListLogsResponse } from '../generated/v2-api.js'
 import { type Column, duration, printList, printRecord, text, timestamp } from '../output/render.js'
 
-interface LogListItem {
-  id: string
-  workflowId: string | null
-  executionId: string
-  level: string
-  trigger: string
-  startedAt: string
-  endedAt: string | null
-  totalDurationMs: number | null
-  cost: { total: number } | null
-  workflow?: { id: string | null; name: string; deleted: boolean }
-}
-
-interface LogDetail extends LogListItem {
-  executionData: unknown
-  createdAt: string
-}
+type LogListItem = ListLogsResponse['data'][number]
+type LogDetail = GetLogResponse['data']
+type ExecutionDetail = GetExecutionResponse['data']
 
 function level(value: string): string {
   return value === 'error' ? chalk.red(value) : value
@@ -128,17 +115,9 @@ export function logsCommand(): Command {
     .description('Show the workflow state snapshot for an execution')
     .action(async (executionId: string, _options: unknown, command: Command) => {
       const { client, profile } = clientFrom(command)
-      const execution = await client.getData<{
-        executionId: string
-        workflowId: string | null
-        executionMetadata: {
-          trigger: string
-          startedAt: string
-          endedAt: string | null
-          totalDurationMs: number | null
-          cost: { total: number } | null
-        }
-      }>(`/api/v2/logs/executions/${executionId}`)
+      const execution = await client.getData<ExecutionDetail>(
+        `/api/v2/logs/executions/${executionId}`
+      )
 
       printRecord(
         profile.output,

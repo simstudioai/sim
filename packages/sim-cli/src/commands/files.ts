@@ -4,18 +4,11 @@ import { basename } from 'node:path'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { clientFrom } from '../context.js'
+import type { ListFilesResponse } from '../generated/v2-api.js'
 import { SimApiError } from '../http/client.js'
 import { bytes, type Column, printList, timestamp } from '../output/render.js'
 
-interface WorkspaceFile {
-  id: string
-  name: string
-  size: number
-  type: string
-  key: string
-  uploadedBy: string
-  uploadedAt: string
-}
+type WorkspaceFile = ListFilesResponse['data'][number]
 
 /**
  * Streams a fetch body to disk, honouring backpressure.

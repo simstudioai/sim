@@ -1,38 +1,15 @@
 import { Command } from 'commander'
 import { clientFrom } from '../context.js'
+import type {
+  ListKnowledgeBasesResponse,
+  ListKnowledgeDocumentsResponse,
+  SearchKnowledgeResponse,
+} from '../generated/v2-api.js'
 import { bytes, type Column, printList, printRecord, text, timestamp } from '../output/render.js'
 
-interface KnowledgeBase {
-  id: string
-  name: string
-  description: string | null
-  docCount: number
-  tokenCount: number
-  embeddingModel: string
-  createdAt: string | null
-  updatedAt: string | null
-}
-
-interface KnowledgeDocument {
-  id: string
-  knowledgeBaseId: string
-  filename: string
-  fileSize: number
-  mimeType: string
-  processingStatus: string
-  chunkCount: number
-  tokenCount: number
-  enabled: boolean
-  createdAt: string | null
-}
-
-interface SearchHit {
-  documentId: string
-  documentName: string | null
-  content: string
-  chunkIndex: number
-  similarity: number
-}
+type KnowledgeBase = ListKnowledgeBasesResponse['data'][number]
+type KnowledgeDocument = ListKnowledgeDocumentsResponse['data'][number]
+type SearchHit = SearchKnowledgeResponse['data']['results'][number]
 
 const BASE_COLUMNS: Column<KnowledgeBase>[] = [
   { header: 'id', value: (kb) => kb.id },

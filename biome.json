@@ -32,6 +32,7 @@
       "!**/.venv",
       "!**/uploads",
       "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs",
+      "!**/packages/sim-cli/src/generated",
       "!**/test-results",
       "!**/playwright-report"
     ]

@@ -1,4 +1,5 @@
 import type { ResolvedProfile } from '../config/index.js'
+import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -191,4 +192,46 @@ export class SimClient {
 
     return items.slice(0, max)
   }
+
+  /**
+   * Calls a generated operation by name.
+   *
+   * Method and path come from `V2_OPERATIONS`, so a route that moves or changes
+   * verb in a contract moves here on the next `generate:cli-api` rather than
+   * failing at runtime against a URL the CLI still remembers.
+   */
+  async call<K extends V2OperationName>(
+    operation: K,
+    options: OperationOptions = {}
+  ): Promise<unknown> {
+    const spec = V2_OPERATIONS[operation]
+    return this.request(resolvePath(spec.path, options.pathParams), {
+      method: spec.method as RequestOptions['method'],
+      query: options.query,
+      body: options.body,
+    })
+  }
+}
+
+export interface OperationOptions {
+  pathParams?: Record<string, string>
+  query?: Record<string, QueryValue>
+  body?: unknown
+}
+
+/**
+ * Substitutes `[id]`-style path segments.
+ *
+ * Values are percent-encoded: table and workspace ids are opaque, and a `/` or
+ * `?` inside one would otherwise silently retarget the request at a different
+ * endpoint.
+ */
+export function resolvePath(template: string, params: Record<string, string> = {}): string {
+  return template.replace(/\[([^\]]+)\]/g, (_match, key: string) => {
+    const value = params[key]
+    if (value === undefined) {
+      throw new SimApiError(`Missing path parameter "${key}" for ${template}`, 0)
+    }
+    return encodeURIComponent(value)
+  })
 }
