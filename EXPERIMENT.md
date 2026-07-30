@@ -53,8 +53,14 @@ Read from each Build App log: `Report Next.js cache size (pre-build)`,
 
 Filled in as runs land.
 
-| run | pre-build | compile | post-build | run id |
-|---|---|---|---|---|
-| A — cold, cache on | | | | |
-| B — warm, cache on | | | | |
-| C — cache off | | | | |
+| run | pre-build | compile | post-build | job total | run id |
+|---|---|---|---|---|---|
+| A — cold, cache on | **4.0K** | **2.7 min** | 5.1G | 3m54s | 30504331243 |
+| B — warm, cache on | | | | | |
+| C — cache off | | | | | |
+
+Run A notes: single CI run on the branch, no cancelled sibling, `--force` confirmed in the
+log so this was a real build and not a Turbo replay. 4.0K pre-build settles a separate
+question — a brand-new sticky-disk key is **cold**; Blacksmith does not hydrate it. 2.7 min
+also lands exactly on the pre-#5869 no-FS-cache median (2.7 min), which is the first hint
+that the cache buys nothing on a cold run.
