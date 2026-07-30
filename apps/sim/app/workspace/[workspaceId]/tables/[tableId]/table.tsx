@@ -231,13 +231,11 @@ export function Table({
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
 
-  // Live table presence (avatars + cell-selection highlights). Scoped to the
-  // dedicated tables page — the embedded surface passes no id, disabling it.
-  const {
-    otherUsers: presenceUsers,
-    remoteSelections,
-    emitCellSelection,
-  } = useTableRoom(embedded ? '' : tableId)
+  // Live table presence (cell-selection carets + avatars). Runs in both modes so the
+  // mothership chat panel shows collaborators' live selections too. The avatar stack lives
+  // only in the `!embedded` Resource.Header, so the embedded panel gets carets without avatars
+  // for free — matching the panel's own-chrome layout.
+  const { otherUsers: presenceUsers, remoteSelections, emitCellSelection } = useTableRoom(tableId)
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
