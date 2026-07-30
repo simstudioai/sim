@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ExaBlock } from '@/blocks/blocks/exa'
+import { agentTool } from '@/tools/exa/agent'
 import { answerTool } from '@/tools/exa/answer'
 import { findSimilarLinksTool } from '@/tools/exa/find_similar_links'
 import { getContentsTool } from '@/tools/exa/get_contents'
@@ -169,22 +170,6 @@ describe('exa block', () => {
     expect(ExaBlock.tools.config?.tool?.({ operation: 'exa_research' })).toBe('exa_agent')
   })
 
-  it('maps a saved research model onto an agent effort level', () => {
-    const params = ExaBlock.tools.config?.params?.({
-      operation: 'exa_research',
-      model: 'exa-research-pro',
-    }) as Record<string, unknown>
-    expect(params.effort).toBe('high')
-  })
-
-  it('does not leak an effort value onto non-research operations', () => {
-    const params = ExaBlock.tools.config?.params?.({
-      operation: 'exa_search',
-      model: 'exa-research-pro',
-    }) as Record<string, unknown>
-    expect(params.effort).toBeUndefined()
-  })
-
   it('coerces maxAgeHours of 0 rather than dropping it as falsy', () => {
     const params = ExaBlock.tools.config?.params?.({
       operation: 'exa_search',
@@ -216,6 +201,46 @@ describe('exa block', () => {
     const operations = ExaBlock.subBlocks.find((block) => block.id === 'operation')
     const advertised = operations?.options as { id: string }[]
     expect(advertised.map((option) => option.id).sort()).toEqual([...ExaBlock.tools.access!].sort())
+  })
+})
+
+describe('exa_agent terminal statuses', () => {
+  const settle = (status: string, stopReason: string | null = null) =>
+    agentTool.postProcess?.(
+      {
+        success: true,
+        output: { runId: 'agent_run_1', status, stopReason, text: '', structured: { a: 1 } },
+      } as never,
+      { apiKey: API_KEY, query: 'q' } as never,
+      {} as never
+    )
+
+  it('reports a run that is already failed on creation as a failure', async () => {
+    const result = await settle('failed', 'error')
+    expect(result?.success).toBe(false)
+    expect(result?.error).toMatch(/failed: error/)
+  })
+
+  it('reports a cancelled run as a failure', async () => {
+    const result = await settle('cancelled')
+    expect(result?.success).toBe(false)
+    expect(result?.error).toMatch(/cancelled/)
+  })
+
+  it('falls back to the structured payload when a completed run has no text', async () => {
+    const result = await settle('completed')
+    expect(result?.success).toBe(true)
+    expect(result?.output.text).toBe(JSON.stringify({ a: 1 }, null, 2))
+  })
+
+  it('fails when the create call returns no run ID', async () => {
+    const result = await agentTool.postProcess?.(
+      { success: true, output: { text: '' } } as never,
+      { apiKey: API_KEY, query: 'q' } as never,
+      {} as never
+    )
+    expect(result?.success).toBe(false)
+    expect(result?.error).toMatch(/run ID/)
   })
 })
 

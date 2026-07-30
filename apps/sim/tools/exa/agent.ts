@@ -130,8 +130,9 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
       return { ...result, success: false, error: 'Exa agent run did not return a run ID' }
     }
 
+    /** A run can already be terminal on creation, including a failed one. */
     if (TERMINAL_STATUSES.has(result.output.status ?? '')) {
-      return finalize(result)
+      return settle(result)
     }
 
     logger.info(`Exa agent run ${runId} created, polling for completion`)
@@ -169,15 +170,7 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
           __costDollars: runData.costDollars,
         }
 
-        if (runData.status !== 'completed') {
-          return {
-            ...result,
-            success: false,
-            error: `Exa agent run ${runData.status}${runData.stopReason ? `: ${runData.stopReason}` : ''}`,
-          }
-        }
-
-        return finalize(result)
+        return settle(result)
       } catch (error) {
         logger.error('Error polling Exa agent run status', {
           message: getErrorMessage(error, 'Unknown error'),
@@ -224,16 +217,68 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
       description: 'Field-level citations backing the agent output',
       optional: true,
     },
+    research: {
+      type: 'array',
+      description:
+        'The agent answer in the shape the retired Research operation emitted, so workflows that reference it keep resolving',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          url: { type: 'string' },
+          summary: { type: 'string' },
+          text: { type: 'string' },
+          score: { type: 'number' },
+        },
+      },
+    },
   },
 }
 
 /**
- * A run that satisfies its schema can finish with an empty `text` body, so fall
- * back to the structured payload rather than returning a blank answer.
+ * Resolves a terminal run into a tool result.
+ *
+ * A run can reach a terminal status either on creation or while polling, and a
+ * `failed` or `cancelled` run must surface as a tool failure from both paths —
+ * routing them through here keeps the two in step.
  */
-function finalize(result: ExaAgentResponse): ExaAgentResponse {
+function settle(result: ExaAgentResponse): ExaAgentResponse {
+  const { status, stopReason } = result.output
+
+  if (status !== 'completed') {
+    return {
+      ...result,
+      success: false,
+      error: `Exa agent run ${status}${stopReason ? `: ${stopReason}` : ''}`,
+    }
+  }
+
+  /**
+   * A run that satisfies its schema can finish with an empty `text` body, so
+   * fall back to the structured payload rather than returning a blank answer.
+   */
   if (!result.output.text && result.output.structured !== undefined) {
     result.output.text = JSON.stringify(result.output.structured, null, 2)
   }
+
+  result.output.research = buildLegacyResearchOutput(result.output.text)
+
   return result
+}
+
+/**
+ * Mirrors the one-element array the retired Research operation returned. Saved
+ * workflows routed here from `exa_research` reference `research[0].text` and
+ * `research[0].summary`, which would otherwise resolve to undefined.
+ */
+function buildLegacyResearchOutput(text: string) {
+  return [
+    {
+      title: 'Research Complete',
+      url: '',
+      summary: text,
+      text,
+      score: 1,
+    },
+  ]
 }

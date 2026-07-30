@@ -231,17 +231,16 @@ export interface ExaAgentResponse extends ToolResponse {
     text: string
     structured?: unknown
     grounding?: ExaGrounding[]
+    /** Legacy shape kept so workflows saved against the retired Research op resolve. */
+    research?: {
+      title: string
+      url: string
+      summary: string
+      text: string
+      score: number
+    }[]
     __costDollars?: ExaCostDollars
   }
-}
-
-/**
- * Legacy research params. Exa retired `/research/v1` (HTTP 410), so this tool
- * now runs on the Agent API and maps its `model` onto an agent effort level.
- */
-export interface ExaResearchParams extends ExaBaseParams {
-  query: string
-  model?: 'exa-research-fast' | 'exa-research' | 'exa-research-pro'
 }
 
 export type ExaResponse =

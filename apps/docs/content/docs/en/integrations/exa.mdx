@@ -235,5 +235,6 @@ Run a deep research task with Exa Agent. Handles multi-step list building, enric
 | `text` | string | The written answer produced by the agent |
 | `structured` | json | Structured result matching outputSchema, when one was supplied |
 | `grounding` | json | Field-level citations backing the agent output |
+| `research` | array | The agent answer in the shape the retired Research operation emitted, so workflows that reference it keep resolving |
 
 

@@ -17,16 +17,13 @@ const CATEGORY_OPTIONS = [
 /**
  * Exa retired `/research/v1` (HTTP 410) and replaced it with the Agent API.
  * Workflows saved against the old Research operation are routed to the Agent
- * tool so they keep running instead of failing against a dead endpoint.
+ * tool so they keep running instead of failing against a dead endpoint. The
+ * Agent operation's inputs are conditioned on both ids so the serializer keeps
+ * carrying a stored research query forward — it drops any value whose sub-block
+ * condition no longer matches.
  */
 const LEGACY_RESEARCH_OPERATION = 'exa_research'
-
-/** Maps the retired research models onto the Agent API's effort levels. */
-const RESEARCH_MODEL_TO_EFFORT: Record<string, string> = {
-  'exa-research-fast': 'low',
-  'exa-research': 'medium',
-  'exa-research-pro': 'high',
-}
+const AGENT_OPERATIONS = ['exa_agent', LEGACY_RESEARCH_OPERATION]
 
 export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',
@@ -378,7 +375,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Research Query',
       type: 'long-input',
       placeholder: 'Enter your research topic or question...',
-      condition: { field: 'operation', value: 'exa_agent' },
+      condition: { field: 'operation', value: AGENT_OPERATIONS },
       required: true,
     },
     {
@@ -394,7 +391,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         { label: 'Extra High', id: 'xhigh' },
       ],
       value: () => 'auto',
-      condition: { field: 'operation', value: 'exa_agent' },
+      condition: { field: 'operation', value: AGENT_OPERATIONS },
     },
     {
       id: 'outputSchema',
@@ -403,7 +400,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       language: 'json',
       placeholder: '{\n  "type": "object",\n  "properties": {}\n}',
       description: 'JSON Schema describing the structured result to return',
-      condition: { field: 'operation', value: 'exa_agent' },
+      condition: { field: 'operation', value: AGENT_OPERATIONS },
       mode: 'advanced',
     },
     {
@@ -411,7 +408,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'System Prompt',
       type: 'long-input',
       placeholder: 'Guidance for how the agent should behave...',
-      condition: { field: 'operation', value: 'exa_agent' },
+      condition: { field: 'operation', value: AGENT_OPERATIONS },
       mode: 'advanced',
     },
     {
@@ -420,7 +417,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'short-input',
       placeholder: 'agent_run_...',
       description: 'Continue from a completed agent run for follow-up questions',
-      condition: { field: 'operation', value: 'exa_agent' },
+      condition: { field: 'operation', value: AGENT_OPERATIONS },
       mode: 'advanced',
     },
     // Find Similar Links operation inputs
@@ -559,10 +556,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         if (params.livecrawlTimeout) {
           result.livecrawlTimeout = Number(params.livecrawlTimeout)
         }
-        /** Carry a retired research model over to the Agent API's effort scale. */
-        if (params.operation === LEGACY_RESEARCH_OPERATION && params.model) {
-          result.effort = RESEARCH_MODEL_TO_EFFORT[params.model as string] ?? 'medium'
-        }
         return result
       },
     },
@@ -622,6 +615,10 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     stopReason: { type: 'string', description: 'Why the agent stopped' },
     text: { type: 'string', description: 'Agent written answer' },
     structured: { type: 'json', description: 'Agent structured result' },
+    research: {
+      type: 'json',
+      description: 'Agent answer in the retired Research operation output shape',
+    },
   },
 }
 
