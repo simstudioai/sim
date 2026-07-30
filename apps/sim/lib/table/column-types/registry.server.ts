@@ -111,6 +111,13 @@ export async function writeBackCoercedCells(
  * scalar id while multi filters compile to array containment, which a scalar
  * never matches. Either way the cell silently drops out until it is re-edited.
  *
+ * Scalar cells count, not just strings: `resolveSelectOptionId` stringifies a
+ * number or boolean before matching, so a `number` column whose values equal
+ * option NAMES passes the compatibility gate. Matching only `jsonb_typeof =
+ * 'string'` left those cells as raw numbers inside a select column, where they
+ * render as nothing and fail option membership on the next write. `data->>key`
+ * yields the text form for every scalar, so one widened predicate covers them.
+ *
  * The map keys ids, names, and lower-cased names — ids so re-running is a no-op,
  * lower-cased names because `resolveSelectOptionId` accepts a case-mismatched
  * name and a cell that passed that check must actually migrate. Duplicate option
@@ -162,7 +169,7 @@ async function migrateCellsToSelectIds(
                    ) d), '[]'::jsonb)
             END)
           WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+            AND jsonb_typeof(data->${columnKey}::text) IN ('string', 'number', 'boolean')`
     )
     await trx.execute(
       sql`UPDATE ${userTableRows}
@@ -186,7 +193,7 @@ async function migrateCellsToSelectIds(
                ELSE COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)
           END)
         WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+          AND jsonb_typeof(data->${columnKey}::text) IN ('string', 'number', 'boolean')`
   )
   // Compatibility already rejected multi-valued cells for a single target, so
   // any array here holds at most one option.

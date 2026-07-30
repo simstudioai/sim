@@ -10,6 +10,7 @@ import {
   isValueCompatibleWithType,
   selectValueForConversion,
 } from '@/lib/table/columns/service'
+import { resolveSelectOptionId } from '@/lib/table/select-options'
 import type { ColumnDefinition, SelectOption } from '@/lib/table/types'
 
 const OPTIONS: SelectOption[] = [
@@ -192,5 +193,32 @@ describe('rename folded into another write', () => {
     const columns: ColumnDefinition[] = [{ id: 'col_a', name: 'amount', type: 'currency' }]
     expect(() => applyPendingRename(columns, 0, '1bad')).toThrow(/must start with/)
     expect(() => applyPendingRename(columns, 0, 'a'.repeat(200))).toThrow(/maximum length/)
+  })
+})
+
+describe('select accepts scalar cells', () => {
+  // The resolver stringifies a scalar before matching, so a `number` or
+  // `boolean` column whose values equal option NAMES converts. The migration's
+  // JSONB predicate has to cover those types too — matching only `'string'`
+  // left the cells as raw numbers inside a select column, where they render as
+  // nothing and fail option membership on the next write.
+  const NUMERIC_OPTIONS: SelectOption[] = [
+    { id: 'opt_1', name: '123' },
+    { id: 'opt_t', name: 'true' },
+  ]
+
+  it('resolves a numeric or boolean cell to its option id', () => {
+    expect(resolveSelectOptionId(123, NUMERIC_OPTIONS)).toBe('opt_1')
+    expect(resolveSelectOptionId(true, NUMERIC_OPTIONS)).toBe('opt_t')
+  })
+
+  it('reports those cells as convertible, which is what obliges the migration', () => {
+    expect(isValueCompatibleWithType(123, 'select', NUMERIC_OPTIONS)).toBe(true)
+    expect(isValueCompatibleWithType(true, 'select', NUMERIC_OPTIONS)).toBe(true)
+    expect(isValueCompatibleWithType(999, 'select', NUMERIC_OPTIONS)).toBe(false)
+  })
+
+  it('leaves structured values unresolvable', () => {
+    expect(resolveSelectOptionId({ a: 1 } as never, NUMERIC_OPTIONS)).toBeNull()
   })
 })
