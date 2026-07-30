@@ -1136,6 +1136,17 @@ export const schemaMock = {
     updatedAt: 'updatedAt',
     completedAt: 'completedAt',
   },
+  tableViews: {
+    id: 'id',
+    tableId: 'tableId',
+    workspaceId: 'workspaceId',
+    name: 'name',
+    config: 'config',
+    isDefault: 'isDefault',
+    createdBy: 'createdBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   tableRowExecutions: {
     tableId: 'tableId',
     rowId: 'rowId',
