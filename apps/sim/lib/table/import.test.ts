@@ -136,6 +136,15 @@ describe('import', () => {
       expect(coerceValue('not a number', 'number')).toBeNull()
     })
 
+    it('coerces a formatted amount into a currency column', () => {
+      // Importing into an EXISTING currency column — inference never picks
+      // currency, so this is the only way the branch is reached.
+      expect(coerceValue('$1,234.56', 'currency')).toBe(1234.56)
+      expect(coerceValue('1.234,56', 'currency')).toBe(1234.56)
+      expect(coerceValue(12, 'currency')).toBe(12)
+      expect(coerceValue('ask sales', 'currency')).toBeNull()
+    })
+
     it('coerces booleans strictly', () => {
       expect(coerceValue('true', 'boolean')).toBe(true)
       expect(coerceValue('FALSE', 'boolean')).toBe(false)

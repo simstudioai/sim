@@ -18,6 +18,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { resolveCurrencyCode } from '@/lib/table/currency'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import {
@@ -209,7 +211,14 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       )}
     </>
   )
-  const hint = `Type: ${column.type}${column.required ? '' : ' (optional)'}`
+  // Currency names its code — the modal edits the bare amount, so without it
+  // there is nothing on screen saying which currency the number is in.
+  const typeLabel =
+    column.type === 'currency'
+      ? `currency (${resolveCurrencyCode(column.currencyCode)})`
+      : column.type
+  const hint = `Type: ${typeLabel}${column.required ? '' : ' (optional)'}`
+  const definition = columnTypeOf(column)
 
   if (column.type === 'boolean') {
     return (
@@ -290,7 +299,9 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       title={title}
       required={column.required}
       hint={hint}
-      inputType={column.type === 'number' ? 'number' : 'text'}
+      // Registry-driven, so a numeric type can't get the numeric keypad in the
+      // grid's inline editor but a plain text field here (currency did).
+      inputType={definition.inputMode === 'decimal' ? 'number' : 'text'}
       value={formatValueForInput(value, column.type)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}

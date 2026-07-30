@@ -15,6 +15,7 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
+  updateColumnCurrency,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
@@ -154,9 +155,22 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           newType: updates.type as NonNullable<typeof updates.type>,
           ...(updates.options !== undefined ? { options: updates.options } : {}),
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+          ...(updates.currencyCode !== undefined ? { currencyCode: updates.currencyCode } : {}),
           // Forwarded so the conversion validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+        },
+        requestId
+      )
+    } else if (updates.currencyCode !== undefined) {
+      // Re-denominating an existing currency column: schema-only, no cell
+      // rewrite. Reached only when the type is unchanged — a conversion INTO
+      // currency carries the code through `updateColumnType` above.
+      updatedTable = await updateColumnCurrency(
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          currencyCode: updates.currencyCode,
         },
         requestId
       )
@@ -217,7 +231,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       msg.includes('exceeds maximum') ||
       msg.includes('incompatible') ||
       msg.includes('duplicate') ||
-      msg.includes('option')
+      msg.includes('option') ||
+      msg.includes('currency')
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }

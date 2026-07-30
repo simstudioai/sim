@@ -20,6 +20,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
@@ -43,15 +44,10 @@ import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import {
-  cleanCellValue,
-  generateColumnName as sharedGenerateColumnName,
-  storageToDisplay,
-} from '../../utils'
+import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
-import { resolveSelectOptions } from '../select-field'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -294,10 +290,10 @@ interface TableGridProps {
  */
 function cellToText(value: unknown, column?: DisplayColumn): string {
   if (value === null || value === undefined) return ''
-  if (column?.type === 'select') {
-    return resolveSelectOptions(column, value)
-      .map((o) => o.name)
-      .join(', ')
+  // Types storing opaque ids copy their labels — the clipboard should hold what
+  // the user sees, and pasting it back round-trips through the same resolver.
+  if (column && columnTypeOf(column).storesOpaqueIds) {
+    return columnTypeOf(column).formatForDisplay(value, column)
   }
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
@@ -1595,27 +1591,18 @@ export function TableGrid({
       for (const row of currentRows) {
         const val = row.data[column.key]
         if (val == null) continue
+        // Measure what the cell actually RENDERS, not the stored value —
+        // otherwise auto-fit sizes a select column to its opaque option ids and
+        // a currency column to a bare number without its symbol or separators.
         let text: string
-        if (column.type === 'json') {
-          if (typeof val === 'string') {
-            text = val
-          } else {
-            try {
-              text = JSON.stringify(val)
-            } catch {
-              text = String(val)
-            }
+        if (column.type === 'json' && typeof val !== 'string') {
+          try {
+            text = JSON.stringify(val)
+          } catch {
+            text = String(val)
           }
-        } else if (column.type === 'date') {
-          text = storageToDisplay(String(val), { seconds: true })
-        } else if (column.type === 'select') {
-          // Cells store option ids; measure the rendered pill labels instead so
-          // auto-fit doesn't size the column to opaque ids.
-          text = resolveSelectOptions(column, val)
-            .map((o) => o.name)
-            .join(', ')
         } else {
-          text = String(val)
+          text = columnTypeOf(column).formatForDisplay(val, column)
         }
         measure.textContent = text
         maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 17)
@@ -2213,8 +2200,9 @@ export function TableGrid({
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
-      // Date/number: use inline editor (calendar picker / numeric input).
-      if ((column?.type === 'date' || column?.type === 'number') && canEditCellRef.current) {
+      // Types with a bounded value edit in place (calendar picker, numeric
+      // input); only free-form prose opens the big expanded popover.
+      if (column && !columnTypeOf(column).expandable && canEditCellRef.current) {
         setEditingCell({ rowId, columnName })
         setInitialCharacter(null)
         return
@@ -2713,8 +2701,11 @@ export function TableGrid({
         // workflow's value if they want. Booleans toggle on space/click —
         // typeahead doesn't apply to them.
         if (!col || col.type === 'boolean') return
-        if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
-        if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
+        // Types that parse their input only start an edit on a key they could
+        // actually accept, so a stray letter doesn't open an editor that can
+        // never save.
+        const typeahead = columnTypeOf(col).typeaheadPattern
+        if (typeahead && !typeahead.test(e.key)) return
         e.preventDefault()
 
         const row = currentRows[anchor.rowIndex]
@@ -3472,6 +3463,7 @@ export function TableGrid({
             // invalid with no options, and the saved cell data is option ids.
             ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
             ...(entry.def?.multiple ? { columnMultiple: true } : {}),
+            ...(entry.def?.currencyCode ? { columnCurrencyCode: entry.def.currencyCode } : {}),
             cellData,
             previousOrder: orderSnapshot,
             previousWidth,

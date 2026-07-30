@@ -61,6 +61,12 @@ export interface ColumnDefinition {
   options?: SelectOption[]
   /** When true, a `select` column accepts several options per cell (string[]). */
   multiple?: boolean
+  /**
+   * ISO 4217 code for a `currency` column, e.g. `USD`. Display metadata only —
+   * cells store a plain number, so changing this reformats without touching a
+   * single row. Absent means {@link DEFAULT_CURRENCY_CODE}.
+   */
+  currencyCode?: string
 }
 
 /** The column `type` discriminator, named so callers don't index into the interface. */
@@ -780,6 +786,8 @@ export interface UpdateColumnTypeData {
   options?: SelectOption[]
   /** Whether the `select` column accepts multiple options per cell. */
   multiple?: boolean
+  /** Currency to set when changing to the `currency` type. */
+  currencyCode?: string
   /**
    * The `required` value the same request is about to set, when it changes type
    * and constraints together. Those are separate transactions, so the
@@ -802,6 +810,17 @@ export interface UpdateColumnOptionsData {
    * the constraint write then fails, leaving the removal committed.
    */
   required?: boolean
+}
+
+/**
+ * Payload for `updateColumnCurrency`. Unlike an options update this rewrites no
+ * cells — a currency cell stores a plain number, and `currencyCode` only
+ * changes how it is rendered.
+ */
+export interface UpdateColumnCurrencyData {
+  tableId: string
+  columnName: string
+  currencyCode: string
 }
 
 export interface UpdateColumnConstraintsData {

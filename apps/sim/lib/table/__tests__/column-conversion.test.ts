@@ -113,3 +113,29 @@ describe('isValueCompatibleWithType — string target', () => {
     expect(isValueCompatibleWithType(flattened, 'string')).toBe(true)
   })
 })
+
+describe('isValueCompatibleWithType — currency', () => {
+  it('accepts numbers and the formatted shapes a text column holds', () => {
+    expect(isValueCompatibleWithType(1234.56, 'currency')).toBe(true)
+    expect(isValueCompatibleWithType(0, 'currency')).toBe(true)
+    expect(isValueCompatibleWithType('$1,234.56', 'currency')).toBe(true)
+    expect(isValueCompatibleWithType('1.234,56 €', 'currency')).toBe(true)
+    expect(isValueCompatibleWithType('(12.00)', 'currency')).toBe(true)
+  })
+
+  it('rejects values that would leave un-castable text in a numeric column', () => {
+    expect(isValueCompatibleWithType('ask sales', 'currency')).toBe(false)
+    expect(isValueCompatibleWithType('', 'currency')).toBe(false)
+    expect(isValueCompatibleWithType(true, 'currency')).toBe(false)
+    expect(isValueCompatibleWithType({ amount: 1 }, 'currency')).toBe(false)
+  })
+
+  it('treats an absent cell as convertible, like every other target type', () => {
+    expect(isValueCompatibleWithType(null, 'currency')).toBe(true)
+    expect(isValueCompatibleWithType(undefined, 'currency')).toBe(true)
+  })
+
+  it('accepts a currency cell converting back to a plain number', () => {
+    expect(isValueCompatibleWithType(1234.56, 'number')).toBe(true)
+  })
+})

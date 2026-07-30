@@ -341,5 +341,6 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
     ...(col.options ? { options: col.options } : {}),
     ...(col.multiple ? { multiple: true } : {}),
+    ...(col.currencyCode ? { currencyCode: col.currencyCode } : {}),
   }
 }

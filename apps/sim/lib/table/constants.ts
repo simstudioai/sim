@@ -163,7 +163,13 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
   }
 }
 
-export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json', 'select'] as const
+/**
+ * Re-exported from the column-type registry, which is the single source of
+ * truth. Kept here because this is where callers already import it from —
+ * restating the list would let the two drift, which is exactly the class of bug
+ * the registry exists to remove.
+ */
+export { COLUMN_TYPES } from '@/lib/table/column-types/registry'
 
 /** Maximum number of options a `select`/`multiselect` column may declare. */
 export const MAX_SELECT_OPTIONS = 100

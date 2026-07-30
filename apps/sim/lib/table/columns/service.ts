@@ -14,7 +14,10 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
+import { columnTypeById } from '@/lib/table/column-types'
+import { migrationFrom, migrationTo } from '@/lib/table/column-types/registry.server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { parseCurrencyInput, resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
@@ -32,14 +35,11 @@ import type {
   TableMetadata,
   TableSchema,
   UpdateColumnConstraintsData,
+  UpdateColumnCurrencyData,
   UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
-import {
-  resolveSelectOptionId,
-  splitMultiSelectInput,
-  validateColumnDefinition,
-} from '@/lib/table/validation'
+import { validateColumnDefinition } from '@/lib/table/validation'
 import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
@@ -64,6 +64,7 @@ export async function addTableColumn(
     position?: number
     options?: SelectOption[]
     multiple?: boolean
+    currencyCode?: string
   },
   requestId: string
 ): Promise<TableDefinition> {
@@ -108,6 +109,12 @@ export async function addTableColumn(
       unique: column.unique ?? false,
       ...(column.options ? { options: column.options } : {}),
       ...(column.multiple ? { multiple: true } : {}),
+      // Always stamped on a currency column so the rendered currency is
+      // explicit in the schema rather than an implicit default readers have to
+      // know about.
+      ...(column.type === 'currency'
+        ? { currencyCode: resolveCurrencyCode(column.currencyCode) }
+        : {}),
     }
 
     const columnValidation = validateColumnDefinition(newColumn)
@@ -533,6 +540,7 @@ export async function updateColumnType(
     // Options the column will carry after the change — a `select` value is only
     // compatible if it resolves against this set.
     const isSelectType = data.newType === 'select'
+    const isCurrencyType = data.newType === 'currency'
     const targetOptions = data.options ?? column.options ?? []
     const targetMultiple = data.multiple ?? column.multiple
     // Leaving `select` behind: stored cells hold option ids, which mean nothing
@@ -559,12 +567,24 @@ export async function updateColumnType(
 
     let incompatibleCount = 0
     let blankCount = 0
+    /**
+     * Row id → parsed amount, for a conversion into `currency`. Collected here
+     * rather than re-derived in the migration so it reads the same `effective`
+     * value the compatibility check accepted — which for a `select` source is
+     * the option name, not the stored id.
+     */
+    const currencyAmountByRowId = new Map<string, number>()
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
       if (value === null || value === undefined) continue
 
       const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
+
+      if (isCurrencyType && typeof effective !== 'number') {
+        const amount = parseCurrencyInput(effective)
+        if (amount !== null) currencyAmountByRowId.set(row.id, amount)
+      }
 
       if (
         !isValueCompatibleWithType(
@@ -594,8 +614,20 @@ export async function updateColumnType(
 
     const updatedColumns = schema.columns.map((c, i) => {
       if (i !== columnIndex) return c
-      // Drop any prior select config, then re-add when the target type uses it.
-      const { options: _prevOptions, multiple: _prevMultiple, ...rest } = c
+      // Drop any prior per-type config, then re-add whatever the target type uses.
+      const {
+        options: _prevOptions,
+        multiple: _prevMultiple,
+        currencyCode: _prevCurrencyCode,
+        ...rest
+      } = c
+      if (isCurrencyType) {
+        return {
+          ...rest,
+          type: data.newType,
+          currencyCode: resolveCurrencyCode(data.currencyCode ?? c.currencyCode),
+        }
+      }
       return isSelectType
         ? {
             ...rest,
@@ -620,11 +652,19 @@ export async function updateColumnType(
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
-    if (convertingAwayFromSelect) {
-      await migrateSelectCellsToNames(trx, data.tableId, columnKey, column.options ?? [])
-    } else if (isSelectType) {
-      await migrateCellsToSelectIds(trx, data.tableId, columnKey, targetOptions, !!targetMultiple)
+    // Cell rewrites are owned by the column-type registry, keyed by direction.
+    // Outbound runs first: leaving `select` turns opaque option ids into names,
+    // which is the form the inbound migration (if any) then reads.
+    const migrationContext = {
+      trx,
+      tableId: data.tableId,
+      columnKey,
+      previous: column,
+      target: updatedColumns[columnIndex],
+      resolved: currencyAmountByRowId,
     }
+    await migrationFrom(column.type)?.(migrationContext)
+    await migrationTo(data.newType)?.(migrationContext)
 
     await trx
       .update(userTableDefinitions)
@@ -859,7 +899,16 @@ export async function updateColumnOptions(
     // scalar, so leaving cells un-normalized would silently drop every
     // pre-toggle row out of its own column's filters.
     if (togglingCardinality) {
-      await migrateCellsToSelectIds(trx, data.tableId, columnKey, data.options, nextMultiple)
+      // Same registry migration the retype path uses — `updatedColumn` already
+      // carries the post-toggle `options`/`multiple`, which is all it reads.
+      await migrationTo('select')?.({
+        trx,
+        tableId: data.tableId,
+        columnKey,
+        previous: column,
+        target: updatedColumn,
+        resolved: new Map(),
+      })
     }
 
     await trx
@@ -876,140 +925,64 @@ export async function updateColumnOptions(
 }
 
 /**
- * Rewrites a column's cells from stored option **ids** to option **names**, for
- * a column that is ceasing to be a `select`. A multi cell joins comma-separated
- * — the same shape it exports as.
+ * Changes the currency a `currency` column renders in.
  *
- * An id whose option no longer exists becomes null, matching
- * {@link selectValueForConversion}, which is what the compatibility check ran
- * on. Passing it through instead would leave an opaque `opt_…` in a typed cell
- * the check had already accounted as empty.
+ * Deliberately the cheapest column mutation in this module: cells store a bare
+ * number, so re-denominating a column touches only the schema — no row rewrite,
+ * no compatibility scan, no scaled timeouts. It notably does **not** convert
+ * amounts between currencies; `1000` stays `1000`, now labelled in the new code.
  *
- * Set-based: one statement per stored shape, driven by a jsonb id→name map, so
- * cost is independent of row count.
+ * @param data - Column + target ISO 4217 code
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if the table or column is missing, or the column is not a currency column
  */
-async function migrateSelectCellsToNames(
-  trx: DbTransaction,
-  tableId: string,
-  columnKey: string,
-  options: SelectOption[]
-): Promise<void> {
-  const nameById = JSON.stringify(Object.fromEntries(options.map((o) => [o.id, o.name])))
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), 'null'::jsonb))
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
-  )
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
-              SELECT string_agg(${nameById}::jsonb ->> e.v, ', ' ORDER BY e.ord)
-              FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
-              WHERE ${nameById}::jsonb ? e.v
-            )), 'null'::jsonb))
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-  )
-}
+export async function updateColumnCurrency(
+  data: UpdateColumnCurrencyData,
+  requestId: string
+): Promise<TableDefinition> {
+  return withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
 
-/**
- * Rewrites a column's cells into the canonical `select` storage shape: the
- * option **id**, wrapped in an array when the column is `multiple`.
- *
- * Needed in both directions of a select change. Converting *to* select, cells
- * hold option names (that is what made them compatible) but every reader —
- * pills, filters, exports — resolves by id. Toggling single→multi, cells hold a
- * scalar id while multi filters compile to array containment, which a scalar
- * never matches. Either way the cell silently drops out until it is re-edited.
- *
- * The map keys ids, names, and lower-cased names — ids so re-running is a no-op,
- * lower-cased names because `resolveSelectOptionId` accepts a case-mismatched
- * name and a cell that passed that check must actually migrate. Duplicate option
- * names are rejected case-insensitively at validation, so the folded key is
- * unambiguous; lookups still try the exact form first to preserve its precedence.
- */
-async function migrateCellsToSelectIds(
-  trx: DbTransaction,
-  tableId: string,
-  columnKey: string,
-  options: SelectOption[],
-  multiple: boolean
-): Promise<void> {
-  // Ids are written last so an id always outranks any option's name, matching
-  // `resolveSelectOptionId`'s id-before-name precedence. A single flat pass
-  // would let a later option whose *name* equals an earlier option's *id*
-  // overwrite that id entry and repoint its cells at the wrong option.
-  // A Map, not plain-object assignment: an option named `__proto__` would set
-  // the prototype instead of an own key and drop out of the serialized map.
-  const refs = new Map<string, string>()
-  for (const o of options) {
-    refs.set(o.name.toLowerCase(), o.id)
-    refs.set(o.name, o.id)
-  }
-  for (const o of options) {
-    refs.set(o.id, o.id)
-  }
-  const idByRef = JSON.stringify(Object.fromEntries(refs))
+    const schema = table.schema
+    const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
+    if (columnIndex === -1) {
+      throw new Error(`Column "${data.columnName}" not found`)
+    }
 
-  if (multiple) {
-    // A string cell reaching a multi target is either one option name or the
-    // comma-joined form a multiselect converts to text as. Try the whole string
-    // first so an option whose own name contains a comma still wins, then split
-    // — mirroring `splitMultiSelectInput` on the write path, including its
-    // first-occurrence dedup.
-    await trx.execute(
-      sql`UPDATE ${userTableRows}
-          SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-            CASE WHEN data->>${columnKey}::text = '' THEN '[]'::jsonb
-                 WHEN COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)) IS NOT NULL
-                   THEN jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)))
-                 ELSE COALESCE((
-                   SELECT jsonb_agg(v ORDER BY ord) FROM (
-                     SELECT COALESCE(${idByRef}::jsonb -> btrim(part), ${idByRef}::jsonb -> lower(btrim(part)), to_jsonb(btrim(part))) AS v,
-                            min(o) AS ord
-                     FROM unnest(string_to_array(data->>${columnKey}::text, ',')) WITH ORDINALITY AS u(part, o)
-                     WHERE btrim(part) <> ''
-                     GROUP BY 1
-                   ) d), '[]'::jsonb)
-            END)
-          WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) = 'string'`
+    const column = schema.columns[columnIndex]
+    if (column.type !== 'currency') {
+      throw new Error(`Cannot set currency on column "${column.name}" of type "${column.type}"`)
+    }
+
+    const updatedColumn: ColumnDefinition = {
+      ...column,
+      currencyCode: resolveCurrencyCode(data.currencyCode),
+    }
+    const columnValidation = validateColumnDefinition(updatedColumn)
+    if (!columnValidation.valid) {
+      throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
+    }
+
+    if (updatedColumn.currencyCode === column.currencyCode) {
+      return table
+    }
+
+    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+    const now = new Date()
+
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    logger.info(
+      `[${requestId}] Set currency for column "${column.name}" to "${updatedColumn.currencyCode}" in table ${data.tableId}`
     )
-    await trx.execute(
-      sql`UPDATE ${userTableRows}
-          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
-                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e.v, ${idByRef}::jsonb -> lower(e.v), to_jsonb(e.v)) ORDER BY e.ord)
-                FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
-              ), '[]'::jsonb))
-          WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-    )
-    return
-  }
 
-  // A cleared cell is stored as '' — compatibility lets it through, so it has
-  // to land as null rather than an '' that fails option membership on the next
-  // write.
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          CASE WHEN data->>${columnKey}::text = '' THEN 'null'::jsonb
-               ELSE COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)
-          END)
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
-  )
-  // Compatibility already rejected multi-valued cells for a single target, so
-  // any array here holds at most one option.
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), ${idByRef}::jsonb -> lower(data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-  )
+    return { ...table, schema: updatedSchema, updatedAt: now }
+  })
 }
 
 /**
@@ -1164,58 +1137,13 @@ export function isValueCompatibleWithType(
   targetRequired = false
 ): boolean {
   if (value === null || value === undefined) return true
-
-  switch (targetType) {
-    case 'string':
-      // Arrays and objects can't become text — the write-path coercion rejects
-      // them and would null the cell. Multi-select values are flattened before
-      // this check, so anything still structured here is genuinely lossy.
-      return typeof value !== 'object'
-    case 'select': {
-      // A cleared select cell is written as '' — still convertible, unless the
-      // target is required. Required only rejects null/undefined on a write, so
-      // a required string column legitimately holds ''; the migration turns that
-      // into null (or [] for a multi), and every later update of that row would
-      // then fail its own required check.
-      if (value === '') return !targetRequired
-      // Read the value exactly as the write-path coercion will. A multi target
-      // splits a comma-delimited string, so a multiselect → text → multiselect
-      // round-trip (text holding this feature's own `Bug, Docs` export shape)
-      // stays convertible instead of being rejected as one unknown option.
-      const parts = targetMultiple
-        ? splitMultiSelectInput(value as JsonValue)
-        : Array.isArray(value)
-          ? value
-          : [value]
-      // A single-select target can't hold several options. `updateColumnOptions`
-      // blocks the same transition; without this the next coerce would silently
-      // keep only the first id.
-      if (!targetMultiple && parts.length > 1) return false
-      return parts.every((v) => resolveSelectOptionId(v as JsonValue, targetOptions) !== null)
-    }
-    case 'number': {
-      if (typeof value === 'number') return Number.isFinite(value)
-      if (typeof value === 'string') {
-        const num = Number(value)
-        return Number.isFinite(num) && value.trim() !== ''
-      }
-      return false
-    }
-    case 'boolean': {
-      if (typeof value === 'boolean') return true
-      if (typeof value === 'string')
-        return ['true', 'false', '1', '0'].includes(value.toLowerCase())
-      if (typeof value === 'number') return value === 0 || value === 1
-      return false
-    }
-    case 'date': {
-      if (value instanceof Date) return !Number.isNaN(value.getTime())
-      if (typeof value === 'string') return !Number.isNaN(Date.parse(value))
-      return false
-    }
-    case 'json':
-      return true
-    default:
-      return false
-  }
+  // The target column as it will exist after the change — each type reads only
+  // the metadata it owns.
+  return columnTypeById(targetType).isCompatibleWith(value, {
+    name: '',
+    type: targetType,
+    options: targetOptions,
+    multiple: targetMultiple,
+    required: targetRequired,
+  })
 }
