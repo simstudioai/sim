@@ -21,6 +21,7 @@ import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
+import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -346,6 +347,45 @@ describe('AgentBlockHandler', () => {
 
     it('treats an unknown MIME type as file rather than assuming it is an image', async () => {
       expect(buildAutoRoutingSignalsFor({ files: [{ id: 'f3' }] }).mediaKind).toBe('file')
+    })
+
+    it('overlays the routing charge on a streaming cost written after the fact', async () => {
+      // Mirrors the real streaming shape: the policy accessor is installed at
+      // provider-return time, the drain writes the final cost long after the
+      // handler returned, and consumers read it at log time.
+      const output: Record<string, unknown> = { cost: { input: 0, output: 0, total: 0 } }
+      installStreamingCostPolicy(output as never, { billable: true, multiplier: 1 })
+      const streaming = { stream: new ReadableStream(), execution: { output } }
+
+      ;(
+        handler as unknown as { applyRoutingCost: (r: unknown, c: number) => void }
+      ).applyRoutingCost(streaming, 0.002)
+
+      // The drain settles the model cost afterwards.
+
+      ;(output as { cost: unknown }).cost = { input: 0.01, output: 0.02, total: 0.03 }
+
+      expect(output.cost).toEqual({
+        input: 0.01,
+        output: 0.02,
+        total: expect.closeTo(0.032, 10),
+        routing: 0.002,
+      })
+    })
+
+    it('adds the routing charge to a settled non-streaming cost', async () => {
+      const result: Record<string, unknown> = { cost: { input: 0.01, output: 0.02, total: 0.03 } }
+
+      ;(
+        handler as unknown as { applyRoutingCost: (r: unknown, c: number) => void }
+      ).applyRoutingCost(result, 0.002)
+
+      expect(result.cost).toEqual({
+        input: 0.01,
+        output: 0.02,
+        total: expect.closeTo(0.032, 10),
+        routing: 0.002,
+      })
     })
 
     it('leaves the reported model alone for an explicitly selected model', async () => {

@@ -163,12 +163,8 @@ export class AgentBlockHandler implements BlockHandler {
 
     const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
 
-    // Routing cost lands on non-streaming outputs only for now; streaming
-    // outputs assemble cost at stream end where there is no hook yet. The
-    // charge is gated server-side by mothership's bill-model-router flag
-    // (default off), so this asymmetry currently bills nobody.
-    if (autoRouting && autoRouting.billableRoutingCost > 0 && !this.isStreamingExecution(result)) {
-      this.applyRoutingCost(result as BlockOutput, autoRouting.billableRoutingCost)
+    if (autoRouting && autoRouting.billableRoutingCost > 0) {
+      this.applyRoutingCost(result, autoRouting.billableRoutingCost)
     }
 
     if (autoRouting) {
@@ -289,17 +285,44 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   /**
-   * Adds the billable sim-auto routing charge to a non-streaming output's
-   * cost breakdown as a distinct `routing` component.
+   * Adds the billable sim-auto routing charge to the output's cost breakdown
+   * as a distinct `routing` component.
+   *
+   * A non-streaming cost is final, so it is mutated in place. A streaming
+   * output's cost settles at stream end — written through the accessor
+   * `installStreamingCostPolicy` installed — so the charge is layered as a
+   * read-time overlay on the property instead: whatever the drain writes,
+   * every later read (trace spans, cost summary, usage ledger) sees the
+   * routing component on top.
    */
-  private applyRoutingCost(output: BlockOutput, routingCost: number): void {
+  private applyRoutingCost(result: BlockOutput | StreamingExecution, routingCost: number): void {
+    const output = this.isStreamingExecution(result)
+      ? (result as StreamingExecution).execution?.output
+      : (result as BlockOutput)
+    if (!output || typeof output !== 'object') return
     const target = output as { cost?: Record<string, number> }
-    if (target.cost && typeof target.cost.total === 'number') {
-      target.cost.routing = routingCost
-      target.cost.total += routingCost
-    } else {
-      target.cost = { input: 0, output: 0, routing: routingCost, total: routingCost }
+
+    const withRouting = (cost: Record<string, number> | undefined): Record<string, number> =>
+      cost && typeof cost.total === 'number'
+        ? { ...cost, routing: routingCost, total: cost.total + routingCost }
+        : { input: 0, output: 0, routing: routingCost, total: routingCost }
+
+    if (!this.isStreamingExecution(result)) {
+      target.cost = withRouting(target.cost)
+      return
     }
+
+    const prior = Object.getOwnPropertyDescriptor(target, 'cost')
+    let raw = prior?.get ? undefined : (target.cost as Record<string, number> | undefined)
+    Object.defineProperty(target, 'cost', {
+      get: () => withRouting(prior?.get ? (prior.get.call(target) as never) : raw),
+      set: (value: Record<string, number> | undefined) => {
+        if (prior?.set) prior.set.call(target, value)
+        else raw = value
+      },
+      configurable: true,
+      enumerable: true,
+    })
   }
 
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {

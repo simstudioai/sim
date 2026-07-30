@@ -51,9 +51,10 @@ const ctx = {
 } as unknown as ExecutionContext
 
 /** Distinct-by-default signals so the module-level decision cache never collides across tests. */
+let signalSeq = 0
 function makeSignals(overrides: Partial<AutoRoutingSignals> = {}): AutoRoutingSignals {
   return {
-    systemPrompt: `analyze the quarterly report ${Math.random()}`,
+    systemPrompt: `analyze the quarterly report ${++signalSeq}`,
     lastMessage: 'here is the data to reconcile against the ledger',
     messageCount: 1,
     toolNames: ['exa_search'],
