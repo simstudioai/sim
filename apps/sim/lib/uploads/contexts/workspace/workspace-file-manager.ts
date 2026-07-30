@@ -73,6 +73,13 @@ export interface WorkspaceFileRecord {
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
+  /**
+   * Content-scoped version (see the `content_updated_at` column): advances only on content writes, never
+   * on metadata. The collab persist's optimistic-concurrency validator. Optional on the DTO because
+   * display/mothership constructors don't carry it — the real DB mapper (the only source seed/persist
+   * read) always populates it from the NOT NULL column.
+   */
+  contentUpdatedAt?: Date | null
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
   /** Public share state, attached at the API boundary. `null` when never shared. */
@@ -165,6 +172,8 @@ async function insertWorkspaceFileMetadataInTx(
       deletedAt: null,
       uploadedAt: new Date(),
       updatedAt: new Date(),
+      // Creation IS the first content write, so stamp the content version too (metadata writes never do).
+      contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
     .returning()
@@ -701,6 +710,7 @@ function mapWorkspaceFileRecord(
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
+    contentUpdatedAt: file.contentUpdatedAt,
   }
 }
 
@@ -1116,24 +1126,31 @@ export async function updateWorkspaceFileContent(
         }
 
         // Optimistic-concurrency guard: the row is `FOR UPDATE`-locked, so comparing its committed
-        // `updatedAt` to the caller's expected value and then writing is atomic — a racing writer blocks
-        // here until this transaction resolves. A mismatch means the file changed out-of-band since the
-        // caller last synced; abort rather than clobber it.
+        // CONTENT version to the caller's expected value and then writing is atomic — a racing writer
+        // blocks here until this transaction resolves. Compare `contentUpdatedAt` (which advances only on
+        // content writes), NOT `updatedAt` (which a rename/move also bumps): guarding on `updatedAt` let a
+        // metadata bump masquerade as an out-of-band CONTENT change, so a racing live-doc persist would
+        // reconcile stale durable content and clobber in-flight edits. Coalesce to `updatedAt` for rows
+        // predating the column. A mismatch means the CONTENT changed out-of-band; abort rather than clobber.
         if (
           options?.expectedUpdatedAt &&
-          currentFile.updatedAt.getTime() !== options.expectedUpdatedAt.getTime()
+          currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
         ) {
           throw new ContentVersionConflictError(fileId)
         }
 
         const sizeDiff = content.length - currentFile.size
+        // This IS a content write, so advance `contentUpdatedAt` in lockstep with `updatedAt` (same
+        // instant) — the new content version the collab relay records as its If-Match token.
+        const writeTimestamp = new Date()
         const [updatedFile] = await tx
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            updatedAt: new Date(),
+            updatedAt: writeTimestamp,
+            contentUpdatedAt: writeTimestamp,
           })
           .where(
             and(
@@ -1195,13 +1212,14 @@ export async function updateWorkspaceFileContent(
       options?.syncLiveDoc !== false &&
       isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
     ) {
-      // Pass the new `updatedAt` as the version this write produced, so the relay records that its live
-      // doc now incorporates this durable version — the collab persist's optimistic-concurrency guard
-      // then won't treat this (already-merged) write as an out-of-band conflict.
+      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
+      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
+      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
+      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
       await mergeEditIntoLiveFileDoc(
         fileId,
         content.toString('utf-8'),
-        finalized.file.updatedAt.getTime()
+        finalized.file.contentUpdatedAt.getTime()
       )
     }
 
@@ -1225,6 +1243,7 @@ export async function updateWorkspaceFileContent(
       deletedAt: finalized.file.deletedAt,
       uploadedAt: finalized.file.uploadedAt,
       updatedAt: finalized.file.updatedAt,
+      contentUpdatedAt: finalized.file.contentUpdatedAt,
     }
   } catch (error) {
     // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of

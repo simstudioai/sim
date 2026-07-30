@@ -46,7 +46,10 @@ export async function buildFileDocSeed(
   const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!record) return null
 
-  const version = record.updatedAt.getTime()
+  // The content-scoped version (advances only on content writes, never on rename/move) is the persist
+  // If-Match token — so a metadata bump can't make a racing persist reconcile stale content and clobber
+  // live edits. `getWorkspaceFile` always maps it from the NOT NULL column; coalesce is a type guard only.
+  const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
 
   // Cold-start fast path: if we hold a cached Yjs binary derived from THIS exact markdown, apply it
