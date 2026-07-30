@@ -533,8 +533,21 @@ export class DatabaseJobQueue implements JobQueueBackend {
       try {
         try {
           await runner(claim.payload, abortController.signal)
+          if (Date.now() >= leaseValidUntil) {
+            abortController.abort('Inline job claim expired')
+          }
+          abortController.signal.throwIfAborted()
           await this.completeInlineJob(jobId, claimToken)
         } catch (error) {
+          if (Date.now() >= leaseValidUntil) {
+            abortController.abort('Inline job claim expired')
+          }
+          if (abortController.signal.aborted) {
+            logger.info(`[${type}] Inline job ${jobId} stopped after ownership ended`, {
+              reason: toError(abortController.signal.reason).message,
+            })
+            return
+          }
           const message = toError(error).message
           logger.error(`[${type}] Inline job ${jobId} failed`, { error: message })
           try {

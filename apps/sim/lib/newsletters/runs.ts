@@ -627,10 +627,10 @@ const NEWSLETTER_CSV_PAGE_SIZE = 1000
 
 async function* generateNewsletterCsvLines(
   runId: string,
-  runSnapshotVersion: number,
-  resendExcludedEmails: Set<string>
+  runSnapshotVersion: number
 ): AsyncGenerator<string> {
   yield toCsvRow(['email', 'first_name', 'last_name', 'sim_user_id', 'inclusion_reason'])
+  const resendExcludedEmails = await getResendExcludedEmails()
 
   let afterEmail: string | null = null
   while (true) {
@@ -689,11 +689,10 @@ export async function createNewsletterCsvExport(
     .where(eq(newsletterAudienceRuns.id, runId))
     .limit(1)
   if (!row) throw new Error('Newsletter run not found')
-  const resendExcludedEmails = await getResendExcludedEmails()
 
   return {
     filename: `newsletter-${run.name.replace(/[^a-zA-Z0-9_-]+/g, '_')}-${run.id.slice(0, 8)}.csv`,
-    lines: generateNewsletterCsvLines(runId, row.snapshotVersion, resendExcludedEmails),
+    lines: generateNewsletterCsvLines(runId, row.snapshotVersion),
   }
 }
 

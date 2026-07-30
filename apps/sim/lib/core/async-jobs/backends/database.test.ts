@@ -227,9 +227,9 @@ describe('DatabaseJobQueue enqueue', () => {
       let runnerSignal: AbortSignal | undefined
       const runner = vi.fn(
         async (_payload: unknown, signal: AbortSignal) =>
-          new Promise<void>((resolve) => {
+          new Promise<void>((_resolve, reject) => {
             runnerSignal = signal
-            signal.addEventListener('abort', () => resolve(), { once: true })
+            signal.addEventListener('abort', () => reject(new Error('claim lost')), { once: true })
           })
       )
       const queue = new DatabaseJobQueue()
@@ -242,6 +242,12 @@ describe('DatabaseJobQueue enqueue', () => {
       await vi.advanceTimersByTimeAsync(30_000)
 
       expect(runnerSignal?.aborted).toBe(true)
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'failed' })
+      )
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'completed' })
+      )
     } finally {
       vi.useRealTimers()
     }
@@ -271,9 +277,41 @@ describe('DatabaseJobQueue enqueue', () => {
       await vi.advanceTimersByTimeAsync(120_000)
 
       expect(runnerSignal?.aborted).toBe(true)
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'failed' })
+      )
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'completed' })
+      )
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('keeps explicit cancellation terminal while the runner stops cooperatively', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ payload: EXISTING_JOB.payload }])
+    const runner = vi.fn(
+      async (_payload: unknown, signal: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })
+        })
+    )
+    const queue = new DatabaseJobQueue()
+
+    await queue.enqueue(
+      'workflow-execution',
+      { executionId: 'execution-1' },
+      { jobId: 'workflow:1', runner }
+    )
+    await queue.cancelJob('workflow:1')
+    await sleep(1)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', error: 'Cancelled' })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed' })
+    )
   })
 })
 
