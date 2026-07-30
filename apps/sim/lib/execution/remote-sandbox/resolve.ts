@@ -223,11 +223,21 @@ export async function resolveWorkspaceSandbox(args: {
 /**
  * Reads a build row, memoized on its content address.
  *
- * A `ready` row is terminal for that spec hash, so caching it cannot go stale in
- * a way that matters — editing a sandbox produces a different hash, and deleting
- * one is caught by the `workspace_sandbox` read that always runs. A non-ready
- * row is NOT cached: it is precisely the value that flips underneath us while a
- * build completes, and caching it would keep a just-finished build unusable.
+ * Editing a sandbox produces a different hash and deleting one is caught by the
+ * `workspace_sandbox` read that always runs, so those cannot serve a stale hit. A
+ * non-ready row is NOT cached either: it is precisely the value that flips
+ * underneath us while a build completes, and caching it would keep a just-finished
+ * build unusable.
+ *
+ * A `ready` row is no longer strictly terminal, though, and this cache is
+ * per-process. `releaseSandboxImage` clears only the replica that ran it, so
+ * another replica can serve a cached `ready` image for up to {@link IMAGE_TTL_MS}
+ * after its template was deleted — and because the hit looks healthy, resolution
+ * hands back a dead `imageRef` instead of reaching the repair path. Sandbox
+ * creation then fails on that replica until the entry expires and the row read
+ * finds nothing. Bounded and self-healing, but real; closing it needs either
+ * cross-replica invalidation or a provider-error path that invalidates on
+ * "template not found".
  */
 async function readImage(providerId: string, specHash: string): Promise<CachedImage | undefined> {
   const cacheKey = `${providerId}:${specHash}`
