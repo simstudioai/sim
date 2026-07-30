@@ -668,7 +668,7 @@ export async function processFilePreviewStreamEvent(input: {
           // no-op — so a slow relay can't backlog stale snapshots or make the doc lag the stream.
           const dueForLiveMerge =
             nextSession.fileId !== undefined &&
-            isMarkdownFile({ name: nextSession.fileName ?? '' }) &&
+            isMarkdownFile({ type: editIntent.contentType, name: nextSession.fileName ?? '' }) &&
             (editIntent.operation === 'append' || editIntent.operation === 'patch') &&
             currentPreview.session.baseContent !== undefined &&
             !isLiveDocMergeInFlight(nextSession.fileId) &&
