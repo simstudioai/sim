@@ -1,0 +1,381 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim Tables API v2",
+    "version": "2.0.0-preview",
+    "description": "Read access to Sim tables with the typed predicate filter grammar and opaque cursor pagination. This surface is feature-gated (`tables-v2-api`): when the flag is off for the caller, every endpoint returns 404 as if it does not exist. Filters are predicate trees — `{\"all\": [...]}` (AND) or `{\"any\": [...]}` (OR) groups whose members are `{field, op, value}` conditions or nested groups. Built-in columns `id`, `createdAt`, and `updatedAt` (camelCase) are filterable and sortable alongside user columns."
+  },
+  "servers": [{ "url": "https://www.sim.ai" }],
+  "security": [{ "apiKey": [] }],
+  "paths": {
+    "/api/v2/tables": {
+      "get": {
+        "operationId": "v2ListTables",
+        "summary": "List Tables",
+        "description": "List every table in a workspace with its column schema and row count.",
+        "tags": ["Tables v2"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tables in the workspace. Served with `Cache-Control: private, no-store`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": { "const": true },
+                    "data": {
+                      "type": "object",
+                      "required": ["tables", "totalCount"],
+                      "properties": {
+                        "tables": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/TableSummary" }
+                        },
+                        "totalCount": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFoundOrGated" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/query": {
+      "post": {
+        "operationId": "v2QueryTableRows",
+        "summary": "Query Rows",
+        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` — a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`. `totalCount` is computed on the first page only (requests with a `cursor` return `totalCount: null`).",
+        "tags": ["Tables v2"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Bodies over 1 MB are rejected with 413.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": { "type": "string", "minLength": 1 },
+                  "predicate": { "$ref": "#/components/schemas/Predicate" },
+                  "sort": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "description": "Ordered sort spec, highest priority first.",
+                    "items": {
+                      "type": "object",
+                      "required": ["field", "direction"],
+                      "properties": {
+                        "field": { "type": "string" },
+                        "direction": { "enum": ["asc", "desc"] }
+                      }
+                    }
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "default": 100,
+                    "description": "Omitted → 100. `1..1000` → page size. `0` → the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
+                  },
+                  "cursor": {
+                    "type": "string",
+                    "description": "Opaque token from a previous response's `nextCursor`. Pass back verbatim. Mutually exclusive with `sort`."
+                  }
+                }
+              },
+              "examples": {
+                "filtered": {
+                  "summary": "Multi-select membership + negated pattern",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "predicate": {
+                      "all": [
+                        { "field": "Color", "op": "contains", "value": "Purple" },
+                        { "field": "name", "op": "nlike", "value": "G*" }
+                      ]
+                    },
+                    "limit": 100
+                  }
+                },
+                "builtinColumns": {
+                  "summary": "Built-in column range (UTC, timezone-independent)",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "predicate": {
+                      "all": [
+                        { "field": "createdAt", "op": "gte", "value": "2026-07-24T03:00:00.000Z" },
+                        { "field": "createdAt", "op": "lte", "value": "2026-07-25T02:59:59.999Z" }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A page of rows. Served with `Cache-Control: private, no-store`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": { "const": true },
+                    "data": {
+                      "type": "object",
+                      "required": ["rows", "rowCount", "nextCursor"],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": ["id", "data", "createdAt", "updatedAt"],
+                            "properties": {
+                              "id": { "type": "string" },
+                              "data": {
+                                "type": "object",
+                                "description": "Column-NAME-keyed cell values.",
+                                "additionalProperties": true
+                              },
+                              "createdAt": { "type": "string", "format": "date-time" },
+                              "updatedAt": { "type": "string", "format": "date-time" }
+                            }
+                          }
+                        },
+                        "rowCount": { "type": "integer", "description": "Rows in THIS page." },
+                        "totalCount": {
+                          "type": ["integer", "null"],
+                          "description": "Rows matching the predicate across all pages. First page only; null when a cursor was supplied."
+                        },
+                        "limit": { "type": ["integer", "null"] },
+                        "nextCursor": {
+                          "type": ["string", "null"],
+                          "description": "Non-null ⇒ more rows exist. The ONLY termination signal is null."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure. Machine-readable `code` values include `INVALID_FILTER` (unknown column, operator/type mismatch, malformed tree), `INVALID_ORDER`, `INVALID_CURSOR`, `CURSOR_SORT_CONFLICT`, and `TABLE_QUERY_RESULT_TOO_LARGE` (unbounded result exceeded the 5 MB budget).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFoundOrGated" },
+          "413": {
+            "description": "Request body exceeded the 1 MB cap.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+            }
+          },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": { "type": "apiKey", "in": "header", "name": "X-API-Key" }
+    },
+    "schemas": {
+      "Predicate": {
+        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1–100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["all"],
+            "additionalProperties": false,
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "items": { "$ref": "#/components/schemas/PredicateNode" }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["any"],
+            "additionalProperties": false,
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "items": { "$ref": "#/components/schemas/PredicateNode" }
+              }
+            }
+          }
+        ]
+      },
+      "PredicateNode": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/Predicate" },
+          { "$ref": "#/components/schemas/Condition" }
+        ]
+      },
+      "Condition": {
+        "type": "object",
+        "required": ["field", "op"],
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase — snake_case is treated as a user column and matches nothing)."
+          },
+          "op": {
+            "enum": [
+              "eq",
+              "ne",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "in",
+              "nin",
+              "contains",
+              "ncontains",
+              "startsWith",
+              "endsWith",
+              "like",
+              "ilike",
+              "nlike",
+              "nilike",
+              "isEmpty",
+              "isNotEmpty",
+              "isNull",
+              "isNotNull"
+            ],
+            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches — except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
+          },
+          "value": {
+            "description": "Operand. Omit for the `is*` operators. Ranges on `number` columns require numbers, on `date` columns ISO strings (compared as UTC, independent of any session timezone); ranges on `boolean`/`json` columns are rejected."
+          }
+        }
+      },
+      "TableSummary": {
+        "type": "object",
+        "required": ["id", "name", "schema", "rowCount", "maxRows", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "type": { "enum": ["string", "number", "boolean", "date", "json", "select"] },
+                    "required": { "type": "boolean" },
+                    "unique": { "type": "boolean" },
+                    "options": {
+                      "type": "array",
+                      "description": "Declared choices on a `select` column.",
+                      "items": {
+                        "type": "object",
+                        "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+                      }
+                    },
+                    "multiple": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "rowCount": { "type": "integer" },
+          "maxRows": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable message naming the failing field/operator."
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable code, present on domain validation failures."
+          }
+        }
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "Malformed request.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid API key.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+        }
+      },
+      "Forbidden": {
+        "description": "The key's workspace scope does not cover this workspace, or the caller lacks read access.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+        }
+      },
+      "NotFoundOrGated": {
+        "description": "Table not found — or the `tables-v2-api` feature flag is off for this caller, in which case the entire surface answers 404. The gate is evaluated after authorization, so a 404 never distinguishes rollout cohort from missing resource for callers without access.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded for this key.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+        }
+      }
+    }
+  }
+}
