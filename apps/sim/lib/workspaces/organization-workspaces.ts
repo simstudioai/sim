@@ -13,6 +13,7 @@ import {
 import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('OrganizationWorkspaces')
@@ -93,10 +94,7 @@ export function ownedAttachableWorkspacesWhere({
   )
 }
 
-/**
- * Locks workspace rows before any membership billing path can lock user or
- * organization payer rows.
- */
+/** Locks workspace rows before any payer or membership mutation. */
 async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string[]): Promise<void> {
   if (workspaceIds.length === 0) return
   await tx
@@ -134,14 +132,15 @@ export async function attachOwnedWorkspacesToOrganization({
   }
 
   const attached = await db.transaction(async (tx) => {
-    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
-    // Match admin move and invitation acceptance: workspace/invitation scope
-    // first, then organization. Membership and assignment now commit or roll
-    // back together, so a concurrent move cannot leave stray org members.
+    // Match admin move and invitation acceptance: shared advisory scope first,
+    // then the workspace rows, then organization/membership locks. Reversing
+    // the first two can deadlock with an acceptance that already owns an
+    // invitation lock and is waiting to row-lock one of these workspaces.
     await acquireInvitationMutationLocks(tx, {
       invitationIds: [],
       workspaceIds: ownedWorkspaceIds,
     })
+    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
     await acquireOrganizationMutationLock(tx, organizationId)
     return attachOwnedWorkspacesToOrganizationTx(tx, {
       ownerUserId,
@@ -153,6 +152,9 @@ export async function attachOwnedWorkspacesToOrganization({
     })
   })
 
+  for (const workspaceId of attached.attachedWorkspaceIds) {
+    invalidateWorkspaceTableLimitsCache(workspaceId)
+  }
   for (const userId of attached.usageLimitUserIds) {
     try {
       await syncUsageLimitsFromSubscription(userId)

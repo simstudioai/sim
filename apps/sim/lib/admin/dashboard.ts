@@ -12,19 +12,7 @@ import {
 } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import {
-  and,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNull,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm'
+import { and, count, countDistinct, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
@@ -64,6 +52,7 @@ import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transac
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
+import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
   search: string
@@ -317,7 +306,7 @@ async function getDashboardOrganizationSummary(organizationId: string) {
           member,
           and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
         )
-        .where(and(isNull(member.id), isNull(workspace.archivedAt))),
+        .where(isNull(member.id)),
       getLatestSubscription(organizationId),
       getLatestEnterpriseProvisionings([organizationId]),
     ])
@@ -398,13 +387,7 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
           eq(member.organizationId, workspace.organizationId)
         )
       )
-      .where(
-        and(
-          inArray(workspace.organizationId, organizationIds),
-          isNull(member.id),
-          isNull(workspace.archivedAt)
-        )
-      )
+      .where(and(inArray(workspace.organizationId, organizationIds), isNull(member.id)))
       .groupBy(workspace.organizationId),
     db
       .selectDistinctOn([subscription.referenceId])
@@ -496,7 +479,7 @@ export async function getDashboardOrganization(organizationId: string) {
           member,
           and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
         )
-        .where(and(isNull(member.id), isNull(workspace.archivedAt)))
+        .where(isNull(member.id))
         .groupBy(user.id, user.name, user.email)
         .orderBy(user.name),
       db
@@ -939,7 +922,7 @@ export async function getDashboardMemberTransferPreflight(
     db
       .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
       .from(workspace)
-      .where(and(eq(workspace.ownerId, userId), ne(workspace.workspaceMode, 'organization')))
+      .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
       .orderBy(workspace.name, workspace.id),
   ])
   if (!destination) throw new Error('Destination organization not found')
@@ -985,22 +968,15 @@ export async function addDashboardOrganizationMember(
   actor: AdminMutationActor
 ) {
   const selectedWorkspaceIds = [...new Set(values.personalWorkspaceIds ?? [])]
-  if (selectedWorkspaceIds.length > 0) {
-    const selectable = await db
+  const attachableWorkspaceIds = (
+    await db
       .select({ id: workspace.id })
       .from(workspace)
-      .where(
-        and(
-          inArray(workspace.id, selectedWorkspaceIds),
-          eq(workspace.ownerId, values.userId),
-          ne(workspace.workspaceMode, 'organization')
-        )
-      )
-    if (selectable.length !== selectedWorkspaceIds.length) {
-      throw new Error('One or more selected personal workspaces can no longer be moved')
-    }
+      .where(ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }))
+  ).map((row) => row.id)
+  if (selectedWorkspaceIds.some((id) => !attachableWorkspaceIds.includes(id))) {
+    throw new Error('One or more selected personal workspaces can no longer be moved')
   }
-
   const [existingMembership] = await db
     .select({ id: member.id, organizationId: member.organizationId })
     .from(member)
@@ -1095,6 +1071,7 @@ export async function addDashboardOrganizationMember(
         workspaceId,
         destinationOrganizationId: organizationId,
         adminEmail: actor.email ?? 'admin-api',
+        expectedOwnerId: values.userId,
       })
       workspaceMoves.push({ workspaceId, success: true })
     } catch (error) {

@@ -67,7 +67,7 @@ export async function countPendingSeatInvitations(
  * Resolves the organization's seat capacity, honouring an Enterprise seat
  * change that is still in flight to Stripe.
  */
-async function resolveSeatCapacity(
+export async function resolveSeatCapacity(
   organizationSubscription: { id: string; plan: string; metadata?: unknown } & Record<
     string,
     unknown

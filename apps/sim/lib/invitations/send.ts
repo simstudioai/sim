@@ -69,7 +69,7 @@ export interface CreatePendingInvitationResult {
  * person per organization, which is what makes coalescing mandatory rather
  * than optional.
  */
-const PENDING_INVITATION_UNIQUE_INDEX = 'invitation_pending_email_org_unique'
+export const PENDING_INVITATION_UNIQUE_INDEX = 'invitation_pending_email_org_unique'
 
 /**
  * Raised when the granted workspaces changed organization between the

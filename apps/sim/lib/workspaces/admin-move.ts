@@ -12,16 +12,18 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { PERMISSION_RANK, type PermissionType } from '@sim/platform-authz/workspace'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, ilike, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
+import { planHasFixedSeatCap, resolveSeatCapacity } from '@/lib/billing/validation/seat-management'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
-import { getInvitationById } from '@/lib/invitations/core'
+import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
-import { sendInvitationEmail } from '@/lib/invitations/send'
+import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import {
   mergeInvitationMembershipIntent,
@@ -32,6 +34,10 @@ import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('AdminWorkspaceMove')
 const ENTITLED_STATUSES = ['active', 'past_due'] as const
+// A dashboard member add may move several grants from one invitation in
+// consecutive short transactions. Let that split/merge sequence settle before
+// the outbox resolves the live invitation and sends its final token.
+const MIGRATED_INVITATION_EMAIL_SETTLE_MS = 60_000
 
 export class WorkspaceMoveError extends Error {
   constructor(
@@ -39,6 +45,7 @@ export class WorkspaceMoveError extends Error {
     readonly code:
       | 'workspace-not-found'
       | 'organization-not-found'
+      | 'workspace-owner-changed'
       | 'already-organization-workspace'
   ) {
     super(message)
@@ -117,6 +124,13 @@ class InvitationSetChangedError extends Error {
   }
 }
 
+function isConcurrentPendingInvitationInsert(error: unknown): boolean {
+  return (
+    getPostgresErrorCode(error) === '23505' &&
+    getPostgresConstraintName(error) === PENDING_INVITATION_UNIQUE_INDEX
+  )
+}
+
 /** Returns movable personal/grandfathered workspaces by case-insensitive name or exact UUID. */
 export async function searchWorkspaceMoveCandidates(
   search: string,
@@ -142,6 +156,7 @@ export async function searchWorkspaceMoveCandidates(
     .where(
       and(
         ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
+        isNull(workspace.organizationId),
         or(eq(workspace.id, query), ilike(workspace.name, `%${query}%`))
       )
     )
@@ -195,6 +210,7 @@ export async function getWorkspaceMovePreflight(
       .where(eq(member.organizationId, destinationOrganizationId)),
     db
       .select({
+        id: subscription.id,
         plan: subscription.plan,
         status: subscription.status,
         metadata: subscription.metadata,
@@ -212,7 +228,15 @@ export async function getWorkspaceMovePreflight(
   const pendingInternalCount = invitationRows.filter(
     (row) => row.membershipIntent === 'internal'
   ).length
-  const seatCapacity = getEnterpriseSeatCapacity(subscriptionRows[0])
+  const organizationSubscription = subscriptionRows[0]
+  const seatCapacity =
+    organizationSubscription &&
+    ENTITLED_STATUSES.includes(
+      organizationSubscription.status as (typeof ENTITLED_STATUSES)[number]
+    ) &&
+    planHasFixedSeatCap(organizationSubscription.plan)
+      ? await resolveSeatCapacity(organizationSubscription)
+      : null
   const currentMembers = memberCountRows[0]?.value ?? 0
   const warning =
     seatCapacity !== null && currentMembers + pendingInternalCount > seatCapacity
@@ -235,15 +259,17 @@ export async function getWorkspaceMovePreflight(
 }
 
 /**
- * Moves one workspace and migrates every pending grant without changing
- * ownership, historical usage, credentials, storage attribution, or existing
- * collaborator permissions.
+ * Moves one workspace and migrates every pending grant. Workspace ownership,
+ * historical usage, credentials, and collaborator permissions are preserved;
+ * the current billing/storage payer changes to the destination organization.
  */
 export async function moveWorkspaceToOrganization(params: {
   workspaceId: string
   destinationOrganizationId: string
   adminEmail: string
-}): Promise<WorkspaceMovePreflight & { invitationEmailFailures: string[] }> {
+  /** Reject a stale batch selection instead of moving a newly owned workspace. */
+  expectedOwnerId?: string
+}): Promise<WorkspaceMovePreflight> {
   let candidateInvitationIds = await findInvitationMigrationLockIds(
     params.workspaceId,
     params.destinationOrganizationId
@@ -253,16 +279,10 @@ export async function moveWorkspaceToOrganization(params: {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       result = await db.transaction(async (tx) => {
-        await tx
-          .select({ id: workspace.id })
-          .from(workspace)
-          .where(eq(workspace.id, params.workspaceId))
-          .orderBy(asc(workspace.id))
-          .for('update')
-
-        // Acceptance takes invitation/workspace locks before the organization
-        // lock. Use the identical order here so a concurrent accept and move
-        // cannot wait on one another in opposite directions.
+        // Acceptance takes invitation/workspace advisory locks before it
+        // row-locks the workspace. Keep the exact same order here: taking the
+        // row lock first can deadlock when acceptance owns an invitation lock,
+        // waits for the workspace row, and this move waits for that invitation.
         await acquireInvitationMutationLocks(tx, {
           invitationIds: candidateInvitationIds,
           workspaceIds: [params.workspaceId],
@@ -295,6 +315,12 @@ export async function moveWorkspaceToOrganization(params: {
         if (!workspaceRow) {
           throw new WorkspaceMoveError('Workspace not found', 'workspace-not-found')
         }
+        if (params.expectedOwnerId && workspaceRow.ownerId !== params.expectedOwnerId) {
+          throw new WorkspaceMoveError(
+            'Workspace owner changed after it was selected',
+            'workspace-owner-changed'
+          )
+        }
         const moveState = classifyWorkspaceMoveState(workspaceRow, params.destinationOrganizationId)
 
         const destination = await getDestinationOrganization(params.destinationOrganizationId, tx)
@@ -316,8 +342,9 @@ export async function moveWorkspaceToOrganization(params: {
           } satisfies MoveTransactionResult
         }
 
-        const lockedInvitationIds = await lockCurrentPendingInvitations(tx, params.workspaceId)
         const now = new Date()
+        await expireLockedPendingInvitations(tx, candidateInvitationIds, now)
+        const lockedInvitationIds = await lockCurrentPendingInvitations(tx, params.workspaceId, now)
         const migration = await migratePendingInvitations(tx, {
           workspaceId: params.workspaceId,
           destinationOrganizationId: params.destinationOrganizationId,
@@ -325,7 +352,12 @@ export async function moveWorkspaceToOrganization(params: {
           now,
         })
         for (const invitationId of migration.invitationsToEmail) {
-          await enqueueOutboxEvent(tx, MIGRATED_INVITATION_EMAIL_EVENT_TYPE, { invitationId })
+          await enqueueOutboxEvent(
+            tx,
+            MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
+            { invitationId },
+            { availableAt: new Date(now.getTime() + MIGRATED_INVITATION_EMAIL_SETTLE_MS) }
+          )
         }
 
         await changeWorkspaceStoragePayerInTx(tx, {
@@ -374,8 +406,18 @@ export async function moveWorkspaceToOrganization(params: {
       })
       break
     } catch (error) {
-      if (!(error instanceof InvitationSetChangedError)) throw error
-      candidateInvitationIds = error.invitationIds
+      if (error instanceof InvitationSetChangedError) {
+        candidateInvitationIds = error.invitationIds
+        continue
+      }
+      if (isConcurrentPendingInvitationInsert(error)) {
+        candidateInvitationIds = await findInvitationMigrationLockIds(
+          params.workspaceId,
+          params.destinationOrganizationId
+        )
+        continue
+      }
+      throw error
     }
   }
 
@@ -383,13 +425,12 @@ export async function moveWorkspaceToOrganization(params: {
     throw new Error('Pending invitations kept changing; retry the workspace move')
   }
 
-  const invitationEmailFailures: string[] = []
   if (!result.performedMove) {
     logger.info('Workspace was already in destination organization', {
       workspaceId: params.workspaceId,
       destinationOrganizationId: params.destinationOrganizationId,
     })
-    return { ...result.summary, invitationEmailFailures }
+    return result.summary
   }
 
   invalidateWorkspaceTableLimitsCache(params.workspaceId)
@@ -433,10 +474,9 @@ export async function moveWorkspaceToOrganization(params: {
     workspaceId: params.workspaceId,
     destinationOrganizationId: params.destinationOrganizationId,
     invitationEvents: result.invitationEvents.length,
-    invitationEmailFailures: invitationEmailFailures.length,
   })
 
-  return { ...result.summary, invitationEmailFailures }
+  return result.summary
 }
 
 async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCandidate[]> {
@@ -465,8 +505,15 @@ async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCa
  * unarchive-later escape hatch outside the organization's purview, and
  * join-attach already sweeps them (`includeArchived`).
  */
-function assertWorkspaceMovable(row: { archivedAt?: Date | null; workspaceMode: string }): void {
-  if (row.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
+function assertWorkspaceMovable(row: {
+  archivedAt?: Date | null
+  workspaceMode: string
+  organizationId?: string | null
+}): void {
+  if (
+    row.workspaceMode === WORKSPACE_MODE.ORGANIZATION ||
+    (row.organizationId !== undefined && row.organizationId !== null)
+  ) {
     throw new WorkspaceMoveError(
       'Inter-organization workspace transfers are not supported',
       'already-organization-workspace'
@@ -519,7 +566,11 @@ async function getPendingInvitationSummaries(workspaceId: string, executor: DbOr
     .from(invitationWorkspaceGrant)
     .innerJoin(invitation, eq(invitation.id, invitationWorkspaceGrant.invitationId))
     .where(
-      and(eq(invitationWorkspaceGrant.workspaceId, workspaceId), eq(invitation.status, 'pending'))
+      and(
+        eq(invitationWorkspaceGrant.workspaceId, workspaceId),
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, new Date())
+      )
     )
 
   if (rows.length === 0) return []
@@ -541,20 +592,6 @@ async function getPendingInvitationSummaries(workspaceId: string, executor: DbOr
   }))
 }
 
-function getEnterpriseSeatCapacity(row?: {
-  plan: string
-  status: string | null
-  metadata: unknown
-}): number | null {
-  if (!row || row.plan !== 'enterprise' || !ENTITLED_STATUSES.includes(row.status as 'active')) {
-    return null
-  }
-  if (!row.metadata || typeof row.metadata !== 'object') return null
-  const seats = (row.metadata as Record<string, unknown>).seats
-  const parsed = typeof seats === 'number' ? seats : Number(seats)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
 /**
  * Lock the source invitations plus every pending invitation for the same
  * invitees. Those rows are potential split/merge targets and acceptance locks
@@ -566,12 +603,17 @@ async function findInvitationMigrationLockIds(
   _destinationOrganizationId: string,
   executor: DbOrTx = db
 ): Promise<string[]> {
+  const now = new Date()
   const sourceRows = await executor
     .select({ id: invitation.id, email: invitation.email })
     .from(invitation)
     .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
     .where(
-      and(eq(invitation.status, 'pending'), eq(invitationWorkspaceGrant.workspaceId, workspaceId))
+      and(
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, now),
+        eq(invitationWorkspaceGrant.workspaceId, workspaceId)
+      )
     )
   if (sourceRows.length === 0) return []
 
@@ -590,13 +632,39 @@ async function findInvitationMigrationLockIds(
   ].sort()
 }
 
-async function lockCurrentPendingInvitations(tx: DbOrTx, workspaceId: string): Promise<string[]> {
+async function expireLockedPendingInvitations(
+  tx: DbOrTx,
+  invitationIds: string[],
+  now: Date
+): Promise<void> {
+  if (invitationIds.length === 0) return
+  await tx
+    .update(invitation)
+    .set({ status: 'expired', updatedAt: now })
+    .where(
+      and(
+        inArray(invitation.id, invitationIds),
+        eq(invitation.status, 'pending'),
+        lte(invitation.expiresAt, now)
+      )
+    )
+}
+
+async function lockCurrentPendingInvitations(
+  tx: DbOrTx,
+  workspaceId: string,
+  now: Date
+): Promise<string[]> {
   const rows = await tx
     .select({ id: invitation.id })
     .from(invitation)
     .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
     .where(
-      and(eq(invitation.status, 'pending'), eq(invitationWorkspaceGrant.workspaceId, workspaceId))
+      and(
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, now),
+        eq(invitationWorkspaceGrant.workspaceId, workspaceId)
+      )
     )
     .orderBy(invitation.id)
     .for('update')
@@ -619,7 +687,13 @@ async function migratePendingInvitations(
     const [source] = await tx
       .select()
       .from(invitation)
-      .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
+      .where(
+        and(
+          eq(invitation.id, invitationId),
+          eq(invitation.status, 'pending'),
+          gt(invitation.expiresAt, params.now)
+        )
+      )
       .limit(1)
     if (!source) continue
 
@@ -639,6 +713,7 @@ async function migratePendingInvitations(
       email: source.email,
       organizationId: params.destinationOrganizationId,
       excludeInvitationId: source.id,
+      now: params.now,
     })
     const partition = partitionInvitationGrantsForWorkspaceMove({
       grants,
@@ -678,6 +753,7 @@ async function migratePendingInvitations(
           email: source.email,
           organizationId,
           excludeInvitationId: source.id,
+          now: params.now,
         })
         const siblingId =
           sibling?.id ??
@@ -734,6 +810,7 @@ async function findPendingInvitationForScope(
     email: string
     organizationId: string | null
     excludeInvitationId: string
+    now: Date
   }
 ) {
   // Membership intent is deliberately not part of destination identity. A
@@ -748,6 +825,7 @@ async function findPendingInvitationForScope(
     .from(invitation)
     .where(buildPendingInvitationMergeScopeCondition(params))
     .orderBy(invitation.createdAt)
+    .for('update')
     .limit(1)
   return row ?? null
 }
@@ -756,6 +834,7 @@ export function buildPendingInvitationMergeScopeCondition(params: {
   email: string
   organizationId: string | null
   excludeInvitationId: string
+  now?: Date
 }) {
   const scope = params.organizationId
     ? eq(invitation.organizationId, params.organizationId)
@@ -763,6 +842,7 @@ export function buildPendingInvitationMergeScopeCondition(params: {
   return and(
     sql`lower(${invitation.email}) = ${normalizeEmail(params.email)}`,
     eq(invitation.status, 'pending'),
+    gt(invitation.expiresAt, params.now ?? new Date()),
     ne(invitation.id, params.excludeInvitationId),
     scope
   )
@@ -855,7 +935,7 @@ async function mergeGrant(
 
 const sendMigratedInvitationLink: OutboxHandler<{ invitationId: string }> = async (payload) => {
   const migrated = await getInvitationById(payload.invitationId)
-  if (!migrated || migrated.status !== 'pending') return
+  if (!migrated || migrated.status !== 'pending' || isInvitationExpired(migrated)) return
   const result = await sendInvitationEmail({
     invitationId: migrated.id,
     token: migrated.token,
