@@ -172,13 +172,22 @@ describe('desktop title-bar surface audit', () => {
  *
  * So the check enumerates instead of listing what to look at: any new full-viewport root
  * fails here until it either composes `.desktop-title-bar-page` or is added below with a
- * reason. Reaching for this allowlist should feel like a claim you have to defend.
+ * reason. Reaching for this allowlist should feel like a claim you have to defend — the
+ * entry that read "marketing chrome, not reachable in the desktop shell" was false, and
+ * hid four live surfaces behind one unverified sentence.
+ *
+ * Granularity is per FILE, not per JSX root: a file holding two full-viewport roots still
+ * passes if only one reserves the lane. Catching that needs an AST pass, which is not
+ * worth the weight here — the check's job is to stop a whole surface being forgotten,
+ * which is how every instance of this bug actually shipped.
  */
 const LANE_EXEMPT: Record<string, string> = {
   'app/(landing)/components/landing-shell/landing-shell.tsx':
     'Marketing chrome. Verified: every consumer lives under app/(landing)/, and the desktop shell boots to /login or a workspace with no path to those routes.',
   'app/playground/page.tsx':
     'Verified dev-only: the page calls notFound() unless NEXT_PUBLIC_ENABLE_PLAYGROUND is set.',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/error/index.tsx':
+    'Renders <Sidebar>, which owns the workspace lane and its drag region (sidebar.tsx). Padding this root too would double the reservation.',
 }
 
 /**
@@ -188,13 +197,13 @@ const LANE_EXEMPT: Record<string, string> = {
  * shell's own definition file mentioning its name, would otherwise self-certify as
  * covered. Both mistakes were in the first draft of this check and made it unfailable.
  */
-const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell)\b/
+const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell|WorkspaceChrome)\b/
 
 describe('desktop traffic-light lane coverage', () => {
   it('leaves no full-viewport root outside workspace chrome unaccounted for', () => {
     const appDir = new URL('../', import.meta.url)
     const files = readdirSync(appDir, { recursive: true, encoding: 'utf8' })
-      .filter((f) => f.endsWith('.tsx') && !f.startsWith('workspace/'))
+      .filter((f) => f.endsWith('.tsx'))
       .map((f) => `app/${f}`)
 
     const unaccounted = files.filter((file) => {
