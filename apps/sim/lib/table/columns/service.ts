@@ -486,6 +486,26 @@ export async function deleteColumns(
 }
 
 /**
+ * Whether any two rows share a stored value in this column.
+ *
+ * Shared by the constraint write and the retype's pre-validation so the two
+ * cannot drift — the same reason {@link countEmptyCells} is shared. A retype
+ * that sets `unique` in the same request has to run this against the values the
+ * conversion is ABOUT to write, not the ones on disk: coercing `"5"` and `"5.0"`
+ * to a number manufactures a duplicate that no pre-scan of the raw text sees.
+ */
+async function hasDuplicateValues(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string
+): Promise<boolean> {
+  const duplicates = (await trx.execute(
+    sql`SELECT ${userTableRows.data}->>${columnKey}::text AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${tableId} AND ${userTableRows.data} ? ${columnKey} AND ${userTableRows.data}->>${columnKey}::text IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
+  )) as { val: string; cnt: number }[]
+  return duplicates.length > 0
+}
+
+/**
  * Validates a pending rename against the schema it will land in, and returns
  * the renamed column.
  *
@@ -762,6 +782,21 @@ export async function updateColumnType(
       await writeBackCoercedCells(trx, data.tableId, columnKey, coercedByRowId)
     }
 
+    // A `unique` arriving with this retype is validated HERE, against the values
+    // the conversion just wrote — not by the separate constraint write that
+    // follows. The conversion itself manufactures duplicates that no scan of the
+    // pre-conversion data can see (`"5"` and `"5.0"` both coerce to `5`), and
+    // that write runs in its own transaction, so discovering it there would
+    // report an error with the retype already committed and the original text
+    // irrecoverably rewritten.
+    if (data.unique === true && !column.unique) {
+      if (await hasDuplicateValues(trx, data.tableId, columnKey)) {
+        throw new Error(
+          `Cannot change column "${column.name}" to type "${data.newType}" and set it as unique: the converted values contain duplicates.`
+        )
+      }
+    }
+
     await trx
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, updatedAt: now })
@@ -829,11 +864,7 @@ export async function updateColumnConstraints(
     }
 
     if (data.unique === true && !column.unique) {
-      const duplicates = (await trx.execute(
-        sql`SELECT ${userTableRows.data}->>${columnKey}::text AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${data.tableId} AND ${userTableRows.data} ? ${columnKey} AND ${userTableRows.data}->>${columnKey}::text IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
-      )) as { val: string; cnt: number }[]
-
-      if (duplicates.length > 0) {
+      if (await hasDuplicateValues(trx, data.tableId, columnKey)) {
         throw new Error(`Cannot set column "${column.name}" as unique: duplicate values exist`)
       }
     }

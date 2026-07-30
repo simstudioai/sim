@@ -794,6 +794,12 @@ export interface UpdateColumnTypeData {
   /** Currency to set when changing to the `currency` type. */
   currencyCode?: string
   /**
+   * The `unique` value the same request is about to set. Validated inside the
+   * retype against the post-conversion values, because the conversion is what
+   * can create the duplicates.
+   */
+  unique?: boolean
+  /**
    * The `required` value the same request is about to set, when it changes type
    * and constraints together. Those are separate transactions, so the
    * conversion has to validate against the constraint the column will END UP

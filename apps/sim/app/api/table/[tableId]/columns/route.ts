@@ -182,6 +182,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
         { status: 400 }
       )
     }
+    if (
+      currentColumn?.workflowGroupId &&
+      (updates.required !== undefined || updates.unique !== undefined)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Cannot change constraints on workflow-output column "${currentColumn.name}". Constraints aren't applicable to columns whose values come from workflow execution.`,
+        },
+        { status: 400 }
+      )
+    }
     if (updates.unique === true && !columnTypeById(resultingType).supportsUnique) {
       return NextResponse.json(
         { error: `Cannot set a ${resultingType} column as unique` },
@@ -201,6 +212,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           // Forwarded so the conversion validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
         requestId

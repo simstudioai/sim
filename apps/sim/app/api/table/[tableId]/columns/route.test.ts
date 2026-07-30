@@ -170,6 +170,50 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
+  it('forwards unique to the retype so it validates post-conversion values', async () => {
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        workspaceId: WORKSPACE_ID,
+        schema: { columns: [{ id: 'col_a', name: 'amount', type: 'string' }] },
+      },
+    })
+    mockUpdateColumnType.mockResolvedValue({ schema: { columns: [] } })
+    mockUpdateColumnConstraints.mockResolvedValue({ schema: { columns: [] } })
+
+    const response = await patch({ type: 'number', unique: true })
+
+    expect(response.status).toBe(200)
+    // The conversion itself can manufacture duplicates ("5" and "5.0" both
+    // coerce to 5), so the retype has to see `unique` — discovering it in the
+    // separate constraint write would report an error with the conversion
+    // already committed and the original text irrecoverably rewritten.
+    expect(mockUpdateColumnType).toHaveBeenCalledWith(
+      expect.objectContaining({ newType: 'number', unique: true }),
+      expect.any(String)
+    )
+  })
+
+  it('rejects constraint changes on a workflow-output column before any write', async () => {
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        workspaceId: WORKSPACE_ID,
+        schema: {
+          columns: [{ id: 'col_a', name: 'amount', type: 'number', workflowGroupId: 'g1' }],
+        },
+      },
+    })
+
+    const response = await patch({ type: 'string', required: true })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining('workflow-output column'),
+    })
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
+  })
+
   it('rejects unique on a type that cannot carry it without renaming first', async () => {
     mockCheckAccess.mockResolvedValue({
       ok: true,
