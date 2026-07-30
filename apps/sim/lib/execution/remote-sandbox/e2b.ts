@@ -288,10 +288,24 @@ export const e2bProvider: SandboxProvider = {
     const templateName = templateFor(kind, options?.imageRef)
     logger.info('Creating E2B sandbox', { kind, template: templateName || '(default)' })
 
+    // E2B reaps a sandbox after `timeoutMs` (default five minutes). Omitted
+    // unless a caller asked for a lifetime, so the short-lived code/doc/shell
+    // kinds keep the SDK default.
+    //
+    // Tested against `undefined` rather than truthiness: a caller that derives
+    // the lifetime from an execution deadline can legitimately arrive at zero,
+    // and treating that as "unset" would hand an expired run the five-minute
+    // default — longer than the lifetime it asked for, which is the opposite of
+    // what it requested.
+    const createOptions = {
+      apiKey,
+      ...(options?.lifetimeMs !== undefined ? { timeoutMs: options.lifetimeMs } : {}),
+    }
+
     const { Sandbox } = await import('@e2b/code-interpreter')
     const sandbox = templateName
-      ? await Sandbox.create(templateName, { apiKey })
-      : await Sandbox.create({ apiKey })
+      ? await Sandbox.create(templateName, createOptions)
+      : await Sandbox.create(createOptions)
 
     return new E2BSandboxHandle(sandbox, options?.language ?? CodeLanguage.Python)
   },

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
   provisionRuntimeDependencies,
@@ -468,10 +469,23 @@ export interface PiSandboxRunner {
  * repo persists across the clone -> agent -> push commands), streams command
  * output, and always kills the sandbox afterward. Per-command envs are isolated,
  * so secrets handed to one command never leak into the next.
+ *
+ * `options.lifetimeMs` is the run's own budget from `resolvePiRunLifetimeMs`,
+ * which a caller holding the execution signal can narrow below the provider
+ * ceiling. Omitting it keeps that ceiling — correct for a caller with no
+ * deadline to honor, and never longer than before.
+ *
+ * Options precede the callback so that adding one did not re-indent every
+ * caller's sandbox body, which would have buried the change in whitespace.
  */
-export async function withPiSandbox<T>(fn: (runner: PiSandboxRunner) => Promise<T>): Promise<T> {
-  const sandbox = await createSandbox('pi')
-  logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId })
+export async function withPiSandbox<T>(
+  options: { lifetimeMs?: number },
+  fn: (runner: PiSandboxRunner) => Promise<T>
+): Promise<T> {
+  const lifetimeMs =
+    options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
+  const sandbox = await createSandbox('pi', { lifetimeMs })
+  logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
 
   const runner: PiSandboxRunner = {
     run: (command, options) =>

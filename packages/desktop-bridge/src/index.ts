@@ -52,6 +52,19 @@ export interface SimDesktopTerminalApi {
   ): Promise<TerminalToolResponse>
   /** Forward the user's keystrokes to one terminal's PTY. */
   write(terminalId: string, data: string): void
+  /**
+   * Paste the system clipboard into one terminal's PTY.
+   *
+   * The text is read in the main process rather than handed over by the caller:
+   * Electron removed the `clipboard` module from renderers precisely so page
+   * content cannot reach the clipboard, and it means a compromised renderer can
+   * only replay what the user already copied instead of choosing the bytes.
+   * Resolves false when the clipboard held nothing to paste.
+   *
+   * Optional: shells that predate it fall back to reading the clipboard in the
+   * renderer.
+   */
+  paste?(terminalId: string): Promise<boolean>
   resize(terminalId: string, cols: number, rows: number): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd?: string): Promise<TerminalTabsState>

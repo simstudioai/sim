@@ -1486,7 +1486,16 @@ function PreviewEditorContent({
                         subBlockValues={subBlockValues}
                         disabled={true}
                       />
-                      {index < visibleSubBlocks.length - 1 && <FieldDivider subblockMarker />}
+                      {index < visibleSubBlocks.length - 1 && (
+                        <FieldDivider
+                          subblockMarker
+                          className={
+                            visibleSubBlocks[index + 1]?.hideDividerBefore
+                              ? '[&>div]:invisible'
+                              : undefined
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

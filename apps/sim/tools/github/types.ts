@@ -322,6 +322,32 @@ export const BRANCH_REF_OUTPUT = {
 } as const satisfies OutputProperty
 
 /**
+ * Branch reference for the PR reader, which additionally derives the branch's
+ * repository. Separate from {@link BRANCH_REF_OUTPUT_PROPERTIES} because
+ * `list_prs` reuses those through a pass-through transform that never derives
+ * the field, so declaring it there would document an output that tool never emits.
+ *
+ * The spread sits at the top level of its own const rather than inline under
+ * `properties`, which is what lets `scripts/generate-docs.ts` resolve it — that
+ * script only expands spreads at depth 0 of a const, and silently emits nothing
+ * for the surrounding object otherwise.
+ */
+export const PR_BRANCH_REF_OUTPUT_PROPERTIES = {
+  ...BRANCH_REF_OUTPUT_PROPERTIES,
+  repo_full_name: {
+    type: 'string',
+    description: "Full name (owner/repo) of the branch's repository",
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const PR_BRANCH_REF_OUTPUT = {
+  type: 'object',
+  description: 'Branch reference info',
+  properties: PR_BRANCH_REF_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
  * Output definition for commit reference in branches (sha and url)
  */
 export const COMMIT_REF_OUTPUT_PROPERTIES = {
@@ -1036,6 +1062,13 @@ export interface GitHubPullRequestBranch {
   label: string
   ref: string
   sha: string
+  /**
+   * `owner/repo` of the branch's repository, or null when GitHub omits it (a
+   * deleted fork sends `repo: null`). Comparing the full name is stronger than
+   * inferring fork-ness from `label`'s owner prefix, which cannot distinguish a
+   * same-owner fork under a different repository name.
+   */
+  repo_full_name: string | null
 }
 
 /** Changed-file fields returned by the GitHub pull request files endpoint. */
@@ -2058,5 +2091,149 @@ export interface TreeResponse extends ToolResponse {
       items: TreeItemMetadata[]
       total_count: number
     }
+  }
+}
+
+/** One comment inside a pull request review thread. */
+export interface ReviewThreadComment {
+  body: string
+  /** `OWNER`, `MEMBER`, `COLLABORATOR`, `CONTRIBUTOR`, `NONE`, ... */
+  authorAssociation: string
+  authorLogin: string | null
+  /** GraphQL type of the author: `User`, `Bot`, or `Organization`. */
+  authorType: string | null
+}
+
+/** One pull request review thread with the comments fetched for it. */
+export interface ReviewThread {
+  id: string
+  isResolved: boolean
+  path: string
+  line: number | null
+  /** Total comments on the thread; exceeds `comments.length` when truncated. */
+  commentsTotalCount: number
+  comments: ReviewThreadComment[]
+}
+
+/** The newest submitted review on a pull request. */
+export interface SubmittedReviewSummary {
+  state: string
+  submittedAt: string
+  authorLogin: string | null
+  authorType: string | null
+}
+
+export interface ListReviewThreadsParams extends BaseGitHubParams {
+  pullNumber: number
+  threadsPerPage?: number
+  commentsPerThread?: number
+  cursor?: string
+}
+
+export interface ListReviewThreadsResponse extends ToolResponse {
+  output: {
+    threads: ReviewThread[]
+    totalCount: number
+    hasNextPage: boolean
+    endCursor: string | null
+    latestReview: SubmittedReviewSummary | null
+  }
+}
+
+export interface ReplyReviewThreadParams {
+  threadId: string
+  body: string
+  apiKey: string
+}
+
+export interface ReplyReviewThreadResponse extends ToolResponse {
+  output: {
+    id: string
+    url: string
+    createdAt: string
+  }
+}
+
+export interface ResolveReviewThreadParams {
+  threadId: string
+  apiKey: string
+}
+
+export interface ResolveReviewThreadResponse extends ToolResponse {
+  output: {
+    id: string
+    isResolved: boolean
+  }
+}
+
+/**
+ * One entry of a commit's merged check state. Check runs come from Actions and
+ * GitHub Apps; status contexts are the legacy commit-status API several
+ * providers still post to.
+ */
+export type StatusCheckRollupContext =
+  | {
+      __typename: 'CheckRun'
+      name: string
+      /** `QUEUED`, `IN_PROGRESS`, `COMPLETED`, `WAITING`, `REQUESTED`, `PENDING`. */
+      status: string
+      /** Null until the run completes. */
+      conclusion: string | null
+      detailsUrl: string | null
+      /** REST id of the check run; the Actions job id for an Actions check run. */
+      databaseId: number | null
+      /** Whether the check gates the merge for the pull request that was asked about. */
+      isRequired: boolean
+      /**
+       * The check run's reported output. GraphQL exposes these as flat fields on
+       * `CheckRun`, unlike REST's nested `output` object, and GitHub Actions
+       * leaves both null on every check run it creates — which is the common
+       * case, not the exceptional one.
+       */
+      title: string | null
+      summary: string | null
+    }
+  | {
+      __typename: 'StatusContext'
+      context: string
+      /** `EXPECTED`, `PENDING`, `SUCCESS`, `FAILURE`, `ERROR`. */
+      state: string
+      description: string | null
+      targetUrl: string | null
+      isRequired: boolean
+    }
+
+export interface StatusCheckRollupParams extends BaseGitHubParams {
+  sha: string
+  pullNumber: number
+  cursor?: string
+}
+
+export interface StatusCheckRollupResponse extends ToolResponse {
+  output: {
+    /** Null when the commit carries no checks at all. */
+    state: string | null
+    totalCount: number
+    hasNextPage: boolean
+    endCursor: string | null
+    contexts: StatusCheckRollupContext[]
+  }
+}
+
+export interface JobLogsParams extends BaseGitHubParams {
+  job_id: number
+  maxCharacters?: number
+}
+
+export interface JobLogsResponse extends ToolResponse {
+  output: {
+    logs: string
+    truncated: boolean
+    /**
+     * Full size of the log in bytes, or `null` when the server did not report it.
+     * Bytes rather than characters because the only authoritative source is the
+     * `Content-Range` total of a ranged read, which counts bytes.
+     */
+    totalBytes: number | null
   }
 }

@@ -141,6 +141,14 @@ export interface CreateSandboxOptions {
    * compiler's or the coding agent's.
    */
   imageRef?: string
+  /**
+   * How long the provider may keep the sandbox alive before reaping it. Only
+   * E2B honours this: its default is five minutes, so anything longer-running
+   * (the Pi modes) dies mid-run without it. Daytona's equivalent is an
+   * inactivity interval with different semantics and a 15-minute default that
+   * already outlasts these runs, so it is deliberately left alone.
+   */
+  lifetimeMs?: number
 }
 
 /**

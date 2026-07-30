@@ -43,7 +43,22 @@ function setPlatform(platform: NodeJS.Platform): void {
 }
 
 function request(credentialId: string) {
-  return { credentialId, reason: 'show a saved password', action: 'Show password' }
+  return {
+    credentialId,
+    operation: 'reveal' as const,
+    reason: 'show a saved password',
+    action: 'Show password',
+  }
+}
+
+/** The weaker of the two operations: plaintext never leaves the main process. */
+function copyRequest(credentialId: string) {
+  return {
+    credentialId,
+    operation: 'copy' as const,
+    reason: 'copy a saved password',
+    action: 'Copy password',
+  }
 }
 
 describe('authorizeForSecret', () => {
@@ -110,6 +125,54 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
+  it('never lets a copy consent stand in for a plaintext reveal', async () => {
+    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(1)
+
+    // The user approved "Copy password?"; revealing hands the string to the
+    // renderer, so it has to ask again rather than ride the copy grant.
+    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
+  })
+
+  it('never lets a reveal consent stand in for a copy either', async () => {
+    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(1)
+
+    // Copying publishes the plaintext to the pasteboard, where other processes
+    // and Universal Clipboard can reach it — an exposure "Show password?" never
+    // described, so it asks again.
+    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not re-prompt for an operation already proven in the window', async () => {
+    // reveal -> copy -> reveal: each is proven independently, so the third call
+    // rides the first grant instead of asking a third time.
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+    await authorizeForSecret(request('c1'))
+
+    expect(promptTouchID).toHaveBeenCalledTimes(2)
+  })
+
+  it('revokes every operation for a credential, not just the last proven', async () => {
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+    revokeSecretAuthorization('c1')
+
+    await authorizeForSecret(request('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+    expect(promptTouchID).toHaveBeenCalledTimes(4)
+  })
+
+  it('keeps a copy grant usable for further copies', async () => {
+    await authorizeForSecret(copyRequest('c1'))
+    await authorizeForSecret(copyRequest('c1'))
+
+    expect(promptTouchID).toHaveBeenCalledTimes(1)
+  })
+
   it('asks again after the credential is explicitly revoked', async () => {
     await authorizeForSecret(request('c1'))
     revokeSecretAuthorization('c1')
@@ -130,11 +193,7 @@ describe('authorizeForSecret', () => {
 
   it('labels the fallback dialog with the action it is authorizing', async () => {
     canPromptTouchID.mockReturnValue(false)
-    await authorizeForSecret({
-      credentialId: 'c1',
-      reason: 'copy a saved password',
-      action: 'Copy password',
-    })
+    await authorizeForSecret(copyRequest('c1'))
 
     expect(showMessageBox).toHaveBeenCalledWith(
       expect.objectContaining({
