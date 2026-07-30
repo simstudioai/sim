@@ -129,8 +129,36 @@ export async function notifyFolderResourceChanged(
  * content advances the live doc for viewers but is not a durable checkpoint, so the relay leaves its
  * synced version pinned to the last durable write — which is exactly the copilot tool's final
  * `edit_content` write, carrying the real version, that reconciles the durable file.
+ *
+ * Concurrency is coordinated per file so that ordering can never regress the doc: a STREAMING
+ * (versionless) merge is DROPPED while another is already in flight for the file — the next throttled
+ * caller sends the latest snapshot, and a stale snapshot can never land after a newer one; a DURABLE
+ * (versioned) write instead WAITS for the in-flight streaming merge, so the final content is always the
+ * last merge applied and cannot be clobbered by a late straggler.
  */
 export async function mergeEditIntoLiveFileDoc(
+  fileId: string,
+  markdown: string,
+  version?: number
+): Promise<void> {
+  const pending = liveDocMergeInFlight.get(fileId)
+  if (version === undefined && pending) return
+  if (pending) await pending
+
+  const run = applyLiveFileDocMerge(fileId, markdown, version)
+  liveDocMergeInFlight.set(fileId, run)
+  try {
+    await run
+  } finally {
+    if (liveDocMergeInFlight.get(fileId) === run) liveDocMergeInFlight.delete(fileId)
+  }
+}
+
+/** Files with a live-doc merge in flight → the running merge promise (never rejects). */
+const liveDocMergeInFlight = new Map<string, Promise<void>>()
+
+/** POST the merge to the relay. Never throws (a live-doc merge is best-effort). */
+async function applyLiveFileDocMerge(
   fileId: string,
   markdown: string,
   version?: number

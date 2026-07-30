@@ -178,34 +178,4 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     // A base-less snapshot would diff to a delete-everything wipe of the seeded doc, so it must be skipped.
     expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
   })
-
-  it('keeps at most one merge in-flight per file (second delta past the window is dropped while pending)', async () => {
-    let resolvePending: (() => void) | undefined
-    mergeEditIntoLiveFileDocMock.mockReturnValue(
-      new Promise<void>((resolve) => {
-        resolvePending = () => resolve()
-      })
-    )
-    const intent = makeIntent({
-      operation: 'update',
-      fileId: 'file-inflight',
-      fileName: 'notes.md',
-    })
-
-    await drive(editContentDelta('{"content":"first'), intent)
-    await flushMicrotasks()
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
-
-    // Advance WELL past the throttle window so the throttle is not what blocks the second call —
-    // only the in-flight guard can. The first merge promise is still pending.
-    nowMs += 5000
-    await drive(editContentDelta(' second'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
-
-    // Resolve so the in-flight slot clears and does not leak into other tests.
-    resolvePending?.()
-    await flushMicrotasks()
-  })
 })

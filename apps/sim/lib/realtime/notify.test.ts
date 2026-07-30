@@ -38,4 +38,52 @@ describe('mergeEditIntoLiveFileDoc', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     await expect(mergeEditIntoLiveFileDoc('file-1', '# hello', 42)).resolves.toBeUndefined()
   })
+
+  it('drops a streaming (versionless) merge while one is already in flight for the same file', async () => {
+    let resolveFirst: (value: { ok: boolean }) => void = () => {}
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+      .mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = mergeEditIntoLiveFileDoc('file-inflight', 'v1') // versionless → in flight (pending)
+    await Promise.resolve()
+    // A second versionless merge while the first is pending is dropped, not queued — so a stale
+    // snapshot can never land after a newer one and regress the doc.
+    await mergeEditIntoLiveFileDoc('file-inflight', 'v2')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    resolveFirst({ ok: true })
+    await first
+  })
+
+  it('a durable (versioned) merge waits for an in-flight streaming merge, then applies last', async () => {
+    let resolveStream: (value: { ok: boolean }) => void = () => {}
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveStream = resolve)))
+      .mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const stream = mergeEditIntoLiveFileDoc('file-durable', 'partial') // versionless, in flight
+    await Promise.resolve()
+    const durable = mergeEditIntoLiveFileDoc('file-durable', 'final content', 100) // versioned
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // The durable write waits for the in-flight streaming merge → its fetch has not fired yet, so it
+    // cannot be reordered before a straggler and cannot be clobbered by one.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    resolveStream({ ok: true })
+    await stream
+    await durable
+
+    // Only after the streaming merge completed does the durable (final) merge apply — always last.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[1][1].body).toBe(
+      JSON.stringify({ fileId: 'file-durable', markdown: 'final content', version: 100 })
+    )
+  })
 })
