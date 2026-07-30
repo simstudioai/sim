@@ -5166,6 +5166,18 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function SailPointIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>
+      <path
+        fill='currentColor'
+        d='M7.25 2.4c5.66 1.7 9.2 6.86 9.9 15.35a.75.75 0 0 1-.75.81H7.25a.75.75 0 0 1-.75-.75V3.12a.75.75 0 0 1 .95-.72Z'
+      />
+      <rect fill='currentColor' x='3' y='19.9' width='18' height='1.8' rx='.9' />
+    </svg>
+  )
+}
+
 export function SalesforceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 273 191'>
