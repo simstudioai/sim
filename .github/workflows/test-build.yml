@@ -322,8 +322,14 @@ jobs:
           # build only. #5869's 105s-cold/22s-warm was measured locally and has
           # never reproduced in CI (compile has ranged 3.5-17.8 min) — local
           # numbers, not a CI target.
+          # EXPERIMENT VARIABLE — flipped across runs on this branch.
           NEXT_TURBOPACK_BUILD_CACHE: '1'
-        run: bunx turbo run build --filter=sim
+        # EXPERIMENT ONLY, never merge: `--force` bypasses Turbo's task cache.
+        # Without it a commit touching only .github/** leaves Turbo's task
+        # inputs unchanged, so Turbo replays a cached log and reprints a STALE
+        # "Compiled successfully in Xmin" from an unrelated run. That is not a
+        # build, and it silently fabricates the exact number being measured.
+        run: bunx turbo run build --filter=sim --force
 
       - name: Report Next.js cache size (post-build)
         if: always()
