@@ -14,6 +14,13 @@ const workspaceChrome = read(
 )
 const sidebar = read('../workspace/[workspaceId]/w/components/sidebar/sidebar.tsx')
 const globalStyles = read('../_styles/globals.css')
+const pageHeaderBar = read('../../components/page-header-bar.ts')
+const resourceHeader = read(
+  '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
+)
+const mothershipView = read(
+  '../workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx'
+)
 
 describe('desktop title-bar surface audit', () => {
   it('applies the safe-area shell only when the auth route is login', () => {
@@ -64,5 +71,71 @@ describe('desktop title-bar surface audit', () => {
     expect(workspaceChrome).toContain('size-[var(--desktop-title-bar-control-size)]')
     expect(sidebar).toContain('[[data-sim-desktop-title-bar=inset]_&]:pt-[var(')
     expect(sidebar).not.toMatch(/\[\[data-sim-desktop-title-bar=inset\]_&\]:pt-\d/)
+  })
+
+  it('defines the content-pane lane once, defaulting to zero', () => {
+    // A `:root` default keeps the variable defined for bars that render outside
+    // `.workspace-content-shell` (the standalone settings shell at /account,
+    // /organization/[id], /selfhost; the landing tables preview). An undefined var()
+    // inside calc() is invalid at computed-value time and drops padding-top entirely.
+    expect(globalStyles).toMatch(/:root\s*\{[^}]*--workspace-content-title-bar-inset:\s*0px/s)
+    // The pane owns the lane in both arrangements where the sidebar is not there to
+    // own it: collapsed to zero width, and slid away for a fullscreen route (which
+    // leaves the sidebar expanded in the store, so the collapsed selector alone misses
+    // it and /upgrade's back chip lands under the traffic lights).
+    expect(globalStyles).toContain('.workspace-content-shell[data-sidebar-collapsed],')
+    expect(globalStyles).toContain('.workspace-content-shell[data-content-fullscreen] {')
+    expect(workspaceChrome).toContain('data-content-fullscreen={isFullscreen || undefined}')
+  })
+
+  it('sizes the peek card to its content, capped against the lane', () => {
+    // Pinning both edges made the card full height, so a short list (settings) left a
+    // tall empty slab over the content. It now hugs its content and caps at the pane
+    // height less the lane and the bottom gutter, so a long list still scrolls.
+    expect(workspaceChrome).toContain('max-h-[calc(100%-var(--desktop-title-bar-height)-8px)]')
+    expect(workspaceChrome).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
+  })
+
+  it('reserves the login lane inside the box, never as a collapsing margin', () => {
+    // `body` carries `min-height: 100vh`, and a `margin-top` here collapses through it
+    // (body is a plain block box, so it opens no BFC) and displaces body itself. The
+    // document then measured one full lane taller than the viewport, which is what made
+    // the desktop login page scroll. Verified live: 40px of overflow, now 0.
+    // Comments are stripped first: the rule documents why `margin-top` is wrong, and a
+    // raw `not.toContain` would match that prose instead of a declaration.
+    const rule = (globalStyles.match(/\.desktop-title-bar-page \{[^}]*\}/)?.[0] ?? '').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ''
+    )
+    expect(rule).toContain('padding-top: var(--desktop-title-bar-height)')
+    expect(rule).toContain('min-height: 100vh')
+    expect(rule).not.toContain('margin-top')
+  })
+
+  it('drops the content pane border where the pane meets the window edge', () => {
+    // Collapsing the sidebar in the desktop shell takes the pane's padding to 0, so a
+    // retained border and radius drew a hairline outline inset from the square window.
+    const flush = '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:'
+    expect(workspaceChrome).toContain(`${flush}rounded-none`)
+    expect(workspaceChrome).toContain(`${flush}border-0`)
+  })
+
+  it('clears the lane for panels that embed pages away from the lights', () => {
+    // The mothership panel is the right half of the pane and embeds whole pages
+    // (KnowledgeBase et al) whose header bars reserve the lane. It inherits the
+    // variable, so without this reset those bars gain the inset while sitting nowhere
+    // near the traffic lights.
+    expect(mothershipView).toContain('[--workspace-content-title-bar-inset:0px]')
+  })
+
+  it('reserves that lane in every top-of-pane header bar', () => {
+    // Both top-bar geometries must compose the shared lane padding. A bare
+    // `pt-`/`py-[8.5px]` in either is the bug: the bar then draws under the traffic
+    // lights and the sidebar expander whenever the sidebar is collapsed on desktop.
+    expect(pageHeaderBar).toContain('pt-[calc(8.5px+var(--workspace-content-title-bar-inset))]')
+    expect(pageHeaderBar).toContain('TITLE_BAR_LANE_PT')
+
+    expect(resourceHeader).toContain('TITLE_BAR_LANE_PT')
+    expect(resourceHeader).not.toMatch(/py-\[8\.5px\]/)
   })
 })

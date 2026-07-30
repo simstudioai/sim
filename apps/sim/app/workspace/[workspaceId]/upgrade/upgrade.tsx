@@ -5,6 +5,7 @@ import { ArrowLeft, Chip, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   getUpgradeCardCta,
@@ -99,7 +100,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div className={PAGE_HEADER_BAR}>
           <Chip leftIcon={ArrowLeft} onClick={handleBack}>
             Back
           </Chip>
@@ -192,7 +193,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={PAGE_HEADER_BAR}>
         <Chip leftIcon={ArrowLeft} onClick={handleBack}>
           Back
         </Chip>
