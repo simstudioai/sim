@@ -269,6 +269,15 @@ export interface SubBlockConfig {
    */
   emptyIsValid?: boolean
   /**
+   * Pins a "create a new one" row above the options of a picker, so authoring a
+   * resource never means leaving the workflow for Settings.
+   *
+   * Names the resource rather than carrying a component: block configs are read
+   * by the serializer and the executor, which must not pull in React. The picker
+   * owns the modal each name maps to.
+   */
+  createAction?: 'sandbox'
+  /**
    * Restricts where a subblock renders. `tool-input` means it configures how the
    * block behaves *as an agent tool* and has no meaning on the canvas, so the
    * canvas editor skips it while the agent's tool-input config still shows it.

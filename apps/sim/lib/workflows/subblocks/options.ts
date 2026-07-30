@@ -128,7 +128,7 @@ export async function fetchWorkspaceSandboxOptions(blockId: string): Promise<Sub
  *
  * A selection left over from before a language switch is still shown, flagged
  * rather than hidden. Returning `null` here would drop the field back to its
- * "Default image (no extra packages)" placeholder while the value stayed stored
+ * "Default image" placeholder while the value stayed stored
  * and stayed fatal at execution — the field would read as cleared and the run
  * would still fail, with nothing to point at. Labelling it is what lets the
  * author see what to fix.

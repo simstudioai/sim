@@ -2,19 +2,17 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Library, Plus } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { CodeIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
-  draftFromSandbox,
-  emptyDraft,
-  type SandboxDraft,
   SandboxEditor,
   SandboxStatus,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-editor'
@@ -22,6 +20,13 @@ import {
   sandboxIdParam,
   sandboxIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/search-params'
+import {
+  draftFromSandbox,
+  emptyDraft,
+  extractIssues,
+  type SandboxDraft,
+  toSubmittedLines,
+} from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -37,16 +42,6 @@ import {
   useUpdateSandbox,
 } from '@/hooks/queries/sandboxes'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-
-/** Splits the textarea into one entry per row so a rejection keeps its line number. */
-function toSubmittedLines(dependencies: string): string[] {
-  return dependencies.split('\n')
-}
-
-function extractIssues(error: unknown): SandboxDependencyIssue[] {
-  const issues = (error as { body?: { issues?: SandboxDependencyIssue[] } })?.body?.issues
-  return Array.isArray(issues) ? issues : []
-}
 
 export function Sandboxes() {
   const params = useParams()
@@ -286,7 +281,7 @@ export function Sandboxes() {
             {filtered.map((sandbox) => (
               <SettingsResourceRow
                 key={sandbox.id}
-                icon={<Library />}
+                icon={<CodeIcon />}
                 title={
                   <button
                     type='button'

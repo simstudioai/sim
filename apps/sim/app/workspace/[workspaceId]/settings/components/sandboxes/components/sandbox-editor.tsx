@@ -3,43 +3,14 @@
 import { useMemo, useState } from 'react'
 import { Chip, ChipDropdown, ChipInput, ChipTextarea, cn } from '@sim/emcn'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
+import {
+  DEPENDENCY_PLACEHOLDERS,
+  LANGUAGE_OPTIONS,
+  type SandboxDraft,
+  type SandboxLanguage,
+} from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import type { Sandbox } from '@/hooks/queries/sandboxes'
-
-const LANGUAGE_OPTIONS = [
-  { label: 'JavaScript', value: 'javascript' },
-  { label: 'Python', value: 'python' },
-] as const
-
-/**
- * Placeholders double as the format documentation, so they swap with the
- * language rather than describing one syntax for both.
- */
-const PLACEHOLDERS: Record<SandboxLanguage, string> = {
-  python: 'google-cloud-bigquery==3.25.0\npyairtable>=3.0\npandas',
-  javascript: 'axios@^1.7.0\n@aws-sdk/client-s3\nzod',
-}
-
-type SandboxLanguage = Sandbox['language']
-
-export interface SandboxDraft {
-  name: string
-  language: SandboxLanguage
-  /** Raw textarea contents — one dependency per line, comments allowed. */
-  dependencies: string
-}
-
-export function draftFromSandbox(sandbox: Sandbox): SandboxDraft {
-  return {
-    name: sandbox.name,
-    language: sandbox.language,
-    dependencies: sandbox.dependencies.join('\n'),
-  }
-}
-
-export function emptyDraft(): SandboxDraft {
-  return { name: '', language: 'python', dependencies: '' }
-}
 
 interface SandboxEditorProps {
   draft: SandboxDraft
@@ -101,7 +72,7 @@ export function SandboxEditor({
           <ChipTextarea
             value={draft.dependencies}
             onChange={(event) => onChange({ ...draft, dependencies: event.target.value })}
-            placeholder={PLACEHOLDERS[draft.language]}
+            placeholder={DEPENDENCY_PLACEHOLDERS[draft.language]}
             rows={8}
             disabled={disabled}
             error={issues.length > 0}

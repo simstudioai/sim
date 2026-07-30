@@ -103,11 +103,12 @@ try {
       searchable: true,
       // Empty means the default image — the picker must never auto-select for us.
       emptyIsValid: true,
+      createAction: 'sandbox',
       // Refetched whenever `language` changes, so the list is always scoped to
       // sandboxes this block can actually run in.
       dependsOn: ['language'],
       showWhenEnvSet: 'NEXT_PUBLIC_SANDBOX_ENABLED,NEXT_PUBLIC_E2B_ENABLED',
-      placeholder: 'Default image (no extra packages)',
+      placeholder: 'Default image',
       description:
         'Packages this block can import. Manage sandboxes in Settings > Sandboxes. Leaving this empty runs on the default image.',
       options: [],

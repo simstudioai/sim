@@ -1,6 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
+import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
+import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -12,6 +15,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel } from '@/providers/utils'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -21,6 +25,17 @@ const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
 const ZOOM_DURATION = 0
+
+const CREATE_ACTION_LABEL: Record<NonNullable<SubBlockConfig['createAction']>, string> = {
+  sandbox: 'Create Sandbox',
+}
+
+/**
+ * Reserved value for the pinned create row. It can never collide with a stored
+ * value: emcn short-circuits on the option's `onSelect`, so the row never
+ * reaches `onChange`.
+ */
+const CREATE_ACTION_VALUE = '__sub-block-create-action__'
 
 /**
  * Represents a selectable option in the combobox
@@ -134,6 +149,30 @@ export const ComboBox = memo(function ComboBox({
     localOptions: staticOptions,
   })
 
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createLanguage, setCreateLanguage] = useState<SandboxLanguage | undefined>(undefined)
+  const [createdOption, setCreatedOption] = useState<{ label: string; id: string } | null>(null)
+
+  /**
+   * The pinned "create a new one" row, when the field declares one. Seeded from
+   * the sibling the list is scoped by, so a sandbox created off a JavaScript
+   * block does not land in the Python list and vanish.
+   */
+  const createOption = useMemo((): ComboboxOption | null => {
+    const action = config.createAction
+    if (!action || isPreview || disabled) return null
+    return {
+      label: CREATE_ACTION_LABEL[action],
+      value: CREATE_ACTION_VALUE,
+      icon: Plus,
+      onSelect: () => {
+        const language = useSubBlockStore.getState().getValue(blockId, 'language')
+        setCreateLanguage(language === 'python' || language === 'javascript' ? language : undefined)
+        setIsCreateOpen(true)
+      },
+    }
+  }, [config.createAction, isPreview, disabled, blockId])
+
   // Normalize fetched options to match ComboBoxOption format
   const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
     return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
@@ -166,12 +205,25 @@ export const ComboBox = memo(function ComboBox({
       }
     }
 
+    // Something just created through the pinned create row is selected before any
+    // list has refetched, so without this the field would sit on the raw id until
+    // hydration answered. Dropped again the moment a real fetch carries it.
+    if (createdOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === createdOption.id : o.id === createdOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [createdOption, ...opts]
+      }
+    }
+
     return opts
   }, [
     fetchOptions,
     normalizedFetchedOptions,
     staticOptions,
     hydratedOption,
+    createdOption,
     subBlockId,
     isProviderAllowed,
     isModelAllowed,
@@ -179,13 +231,14 @@ export const ComboBox = memo(function ComboBox({
 
   // Convert options to Combobox format
   const comboboxOptions = useMemo((): ComboboxOption[] => {
-    return evaluatedOptions.map((option) => {
+    const mapped = evaluatedOptions.map((option): ComboboxOption => {
       if (typeof option === 'string') {
         return { label: option, value: option }
       }
       return { label: option.label, value: option.id, icon: option.icon }
     })
-  }, [evaluatedOptions])
+    return createOption ? [createOption, ...mapped] : mapped
+  }, [evaluatedOptions, createOption])
 
   /**
    * Extracts the value identifier from an option
@@ -471,6 +524,18 @@ export const ComboBox = memo(function ComboBox({
           )
         }}
       </SubBlockInputController>
+
+      {config.createAction === 'sandbox' && (
+        <SandboxCreateModal
+          open={isCreateOpen}
+          onOpenChange={setIsCreateOpen}
+          defaultLanguage={createLanguage}
+          onCreated={(sandbox) => {
+            setCreatedOption({ label: sandbox.name, id: sandbox.id })
+            setStoreValue(sandbox.id)
+          }}
+        />
+      )}
     </div>
   )
 })
