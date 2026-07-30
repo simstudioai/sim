@@ -89,6 +89,19 @@ describe('POST /api/tools/quickbooks/upload-attachment', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
+  it('rejects whitespace-only access tokens at the API boundary', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        ...baseBody,
+        accessToken: '   ',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockProcessFilesToUserFiles).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('uploads an authorized file using QuickBooks multipart field names', async () => {
     const response = await POST(createMockRequest('POST', baseBody))
     expect(response.status).toBe(200)

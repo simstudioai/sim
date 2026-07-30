@@ -43,6 +43,7 @@ export const QUICKBOOKS_READABLE_ENTITIES = [
   'Attachable',
   'Bill',
   'BillPayment',
+  'Budget',
   'Class',
   'CompanyCurrency',
   'CompanyInfo',

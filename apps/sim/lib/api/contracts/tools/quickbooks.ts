@@ -8,7 +8,8 @@ export const quickBooksUploadAttachmentBodySchema = z.object({
     .string()
     .min(1, 'Access token is required')
     .max(4096, 'Access token must be 4096 characters or less')
-    .regex(/^[^\r\n]+$/, 'Access token contains invalid characters'),
+    .regex(/^[^\r\n]+$/, 'Access token contains invalid characters')
+    .refine((value) => value.trim().length > 0, 'Access token is required'),
   realmId: z
     .string()
     .min(1, 'QuickBooks company ID is required')

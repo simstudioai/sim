@@ -64,14 +64,21 @@ export const quickBooksRunReportTool: ToolConfig<QuickBooksReportParams, QuickBo
       if (!params) throw new Error('QuickBooks report parameters are required')
       const { report } = buildQuickBooksReportUrl(params)
       const data = await parseQuickBooksJson(response)
+      if (
+        !isQuickBooksReportSection(data.Header) ||
+        !isQuickBooksReportSection(data.Columns) ||
+        !isQuickBooksReportSection(data.Rows)
+      ) {
+        throw new Error('QuickBooks report response did not include Header, Columns, and Rows')
+      }
 
       return {
         success: true,
         output: {
           report,
-          header: data.Header ?? {},
-          columns: data.Columns ?? {},
-          rows: data.Rows ?? {},
+          header: data.Header,
+          columns: data.Columns,
+          rows: data.Rows,
           time: typeof data.time === 'string' ? data.time : null,
         },
       }
@@ -98,3 +105,12 @@ export const quickBooksRunReportTool: ToolConfig<QuickBooksReportParams, QuickBo
       },
     },
   }
+
+function isQuickBooksReportSection(value: unknown): value is Record<string, unknown> {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length > 0
+  )
+}

@@ -110,6 +110,14 @@ describe('QuickBooks generic operations', () => {
     expect(
       buildQuickBooksRecordUrl({
         realmId: '123145',
+        entity: 'Budget',
+        operation: 'read',
+        recordId: '40',
+      }).url
+    ).toBe('https://quickbooks.api.intuit.com/v3/company/123145/budget/40?minorversion=75')
+    expect(
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
         entity: 'CreditCardPayment',
         operation: 'read',
         recordId: '41',
@@ -642,6 +650,19 @@ describe('QuickBooks generic operations', () => {
       rows: { Row: [{ type: 'Data' }] },
       time: '2026-01-20T10:00:00-08:00',
     })
+  })
+
+  it('rejects successful report responses without report sections', async () => {
+    await expect(
+      quickBooksRunReportTool.transformResponse?.(
+        new Response(JSON.stringify({ time: '2026-01-20T10:00:00-08:00' }), { status: 200 }),
+        {
+          accessToken: 'token',
+          realmId: '123145',
+          report: 'AgedPayables',
+        }
+      )
+    ).rejects.toThrow('QuickBooks report response did not include Header, Columns, and Rows')
   })
 
   it('transforms QuickBooks CDC entity groups and deleted records', async () => {
