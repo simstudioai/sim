@@ -121,6 +121,15 @@ const FEATURE_FLAGS = {
       'the woven-in asserts stay no-ops. Off-AppConfig falls back to TABLE_LOCKS.',
     fallback: 'TABLE_LOCKS',
   },
+  'api-reference-doc': {
+    description:
+      'Per-workspace API reference doc for deployed workflows: a provider publishes a deployed ' +
+      'workflow as a readable endpoint (derived input/output schema, version changelog, opt-in ' +
+      'trace/block exposure) that any org member can read without provider-workspace membership. ' +
+      'Gates the reader/provider routes and the Deploy-modal "Publication" settings. Off-AppConfig ' +
+      'falls back to API_REFERENCE_DOC.',
+    fallback: 'API_REFERENCE_DOC',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

@@ -29,6 +29,7 @@ import {
   PanelLeft,
   Plus,
   Search,
+  Server,
   Settings,
   Table,
   Task,
@@ -738,6 +739,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           href: `/workspace/${workspaceId}/integrations`,
           additionalActivePaths: [`/workspace/${workspaceId}/skills`],
           hidden: permissionConfig.hideIntegrationsTab,
+        },
+        {
+          id: 'org-resources',
+          label: 'Org resources',
+          icon: Server,
+          href: `/workspace/${workspaceId}/org-resources`,
         },
       ].filter((item) => !item.hidden),
     [workspaceId, openSearchModal, permissionConfig.hideIntegrationsTab]

@@ -4,6 +4,12 @@ import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson, requestRaw } from '@/lib/api/client/request'
 import {
+  getPublicationContract,
+  type PublicationSettingsApi,
+  type UpdatePublicationBody,
+  updatePublicationContract,
+} from '@/lib/api/contracts/api-reference'
+import {
   type ActivateDeploymentVersionResponse,
   activateDeploymentVersionContract,
   type ChatDeploymentStatus,
@@ -55,6 +61,9 @@ export const deploymentKeys = {
     [...deploymentKeys.chatStatuses(), workflowId ?? ''] as const,
   chatDetails: () => [...deploymentKeys.all, 'chatDetail'] as const,
   chatDetail: (chatId: string | null) => [...deploymentKeys.chatDetails(), chatId ?? ''] as const,
+  publications: () => [...deploymentKeys.all, 'publication'] as const,
+  publication: (workflowId: string | null) =>
+    [...deploymentKeys.publications(), workflowId ?? ''] as const,
 }
 
 /**
@@ -608,6 +617,59 @@ export function useUpdatePublicApi() {
 
       return queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
+      })
+    },
+  })
+}
+
+export const PUBLICATION_STALE_TIME = 30 * 1000
+
+/**
+ * Fetches a workflow's API-reference publication settings. Returns the safe defaults
+ * (unpublished, everything off) when the workflow has never been published.
+ */
+async function fetchPublicationSettings(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<PublicationSettingsApi> {
+  const data = await requestJson(getPublicationContract, {
+    params: { id: workflowId },
+    signal,
+  })
+  return data.publication
+}
+
+/** Hook to read a workflow's publication settings (provider-side, workflow-admin only). */
+export function usePublicationSettings(workflowId: string | null, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: deploymentKeys.publication(workflowId),
+    queryFn: ({ signal }) => fetchPublicationSettings(workflowId!, signal),
+    enabled: Boolean(workflowId) && (options?.enabled ?? true),
+    staleTime: PUBLICATION_STALE_TIME,
+  })
+}
+
+/** Mutation hook to upsert a workflow's publication settings. */
+export function useUpdatePublication() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      settings,
+    }: {
+      workflowId: string
+      settings: UpdatePublicationBody
+    }) => {
+      return requestJson(updatePublicationContract, {
+        params: { id: workflowId },
+        body: settings,
+      })
+    },
+    onSettled: (_data, error, variables) => {
+      if (error) logger.error('Failed to update publication settings', { error })
+      return queryClient.invalidateQueries({
+        queryKey: deploymentKeys.publication(variables.workflowId),
       })
     },
   })

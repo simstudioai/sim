@@ -3348,6 +3348,68 @@ export const customBlock = pgTable(
   })
 )
 
+/**
+ * Workflow Publication — the provider-side settings that expose a deployed workflow
+ * as a readable "endpoint" in its workspace's API reference doc. One row per workflow.
+ *
+ * Only prose and exposure toggles are stored here; the request/response **structure**
+ * is always derived live from the workflow's active `workflow_deployment_version`
+ * (never snapshotted), so editing the draft never changes the emitted doc until the
+ * next deploy — the same guarantee custom blocks get. Every field defaults to the
+ * safe value: an unpublished workflow is a completely opaque endpoint, and each
+ * optional exposure (trace, blocks) is off until deliberately turned on.
+ */
+export const workflowPublication = pgTable(
+  'workflow_publication',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+    /** Nothing is exposed unless deliberately published. */
+    published: boolean('published').notNull().default(false),
+    /** Consumer-facing name; falls back to the workflow's own name when null. */
+    displayName: text('display_name'),
+    /** One-line description of what the endpoint does. */
+    summary: text('summary'),
+    /** Longer markdown blurb: semantics, side effects, idempotency, rate expectations. */
+    description: text('description'),
+    /**
+     * Per-input prose overlay keyed by the derived Start field's stable `id` (or its
+     * name for legacy fields): `Array<{ id, description?, example?, required? }>`. Adds
+     * only prose/examples on top of the live-derived structure — an overlay entry whose
+     * field does not exist in the active deployment is rejected at save time and dropped
+     * from the emitted doc; it can never invent a field.
+     */
+    fieldOverlay:
+      json('field_overlay').$type<
+        Array<{ id: string; description?: string; example?: string; required?: boolean }>
+      >(),
+    /** `'off'` (default) hides the execution id; `'traceId'` surfaces it + a fetch URL. */
+    exposeTrace: text('expose_trace').notNull().default('off'),
+    /** Off by default: read-only, credential-redacted block introspection. */
+    exposeBlocks: boolean('expose_blocks').notNull().default(false),
+    /** `'org'` (default) = any org member reads; `'allowlist'` = only listed workspaces. */
+    visibility: text('visibility').notNull().default('org'),
+    /** Workspace ids allowed to read when `visibility='allowlist'`; ignored otherwise. */
+    allowlistWorkspaceIds: json('allowlist_workspace_ids').$type<string[]>(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdUnique: uniqueIndex('workflow_publication_workflow_id_unique').on(table.workflowId),
+    workspaceIdIdx: index('workflow_publication_workspace_id_idx').on(table.workspaceId),
+    organizationIdIdx: index('workflow_publication_organization_id_idx').on(table.organizationId),
+  })
+)
+
 export const auditLog = pgTable(
   'audit_log',
   {

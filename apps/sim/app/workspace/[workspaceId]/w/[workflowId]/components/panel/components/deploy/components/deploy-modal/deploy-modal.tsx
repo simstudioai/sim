@@ -56,7 +56,7 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { ApiDeploy, ChatDeploy, type ExistingChat, GeneralDeploy, McpDeploy } from './components'
-import { ApiInfoModal } from './components/general/components/api-info-modal'
+import { ApiSettingsModal } from './components/general/components/api-settings-modal'
 
 const logger = createLogger('DeployModal')
 
@@ -129,7 +129,7 @@ export function DeployModal({
   const activateVersionInFlightRef = useRef(false)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
-  const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false)
+  const [isApiSettingsModalOpen, setIsApiSettingsModalOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
@@ -619,23 +619,41 @@ export function DeployModal({
               }}
             />
           )}
-          {activeTab === 'api' && (
-            <ModalFooter className='items-center justify-between'>
-              <div />
-              <div className='flex items-center gap-2'>
-                <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
-                  Edit API Info
-                </Button>
-                <Button
-                  variant='tertiary'
-                  onClick={() => setIsCreateKeyModalOpen(true)}
-                  disabled={createButtonDisabled}
-                >
-                  Generate API Key
-                </Button>
-              </div>
-            </ModalFooter>
-          )}
+          {activeTab === 'api' &&
+            (() => {
+              const apiIsPublic = isPublicApiDisabled
+                ? false
+                : (deploymentInfoData?.isPublicApi ?? false)
+              const hasUsableKey = apiKeyWorkspaceKeys.length + apiKeyPersonalKeys.length > 0
+              return (
+                <ModalFooter className='items-center justify-between'>
+                  {/* A key is only a required step when the endpoint is api-key gated and
+                      none exists yet. When it's public, or a key already exists, don't make
+                      key generation look like an outstanding action. */}
+                  <div className='text-[var(--text-secondary)] text-caption'>
+                    {apiIsPublic
+                      ? 'Public endpoint - no API key needed.'
+                      : hasUsableKey
+                        ? null
+                        : 'Callers need an API key to reach this endpoint.'}
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Button variant='default' onClick={() => setIsApiSettingsModalOpen(true)}>
+                      API Settings
+                    </Button>
+                    {!apiIsPublic && (
+                      <Button
+                        variant={hasUsableKey ? 'default' : 'tertiary'}
+                        onClick={() => setIsCreateKeyModalOpen(true)}
+                        disabled={createButtonDisabled}
+                      >
+                        {hasUsableKey ? 'Manage API Keys' : 'Generate API Key'}
+                      </Button>
+                    )}
+                  </div>
+                </ModalFooter>
+              )
+            })()}
           {activeTab === 'chat' && (
             <ModalFooter className='items-center justify-between'>
               <div />
@@ -744,9 +762,9 @@ export function DeployModal({
       />
 
       {workflowId && (
-        <ApiInfoModal
-          open={isApiInfoModalOpen}
-          onOpenChange={setIsApiInfoModalOpen}
+        <ApiSettingsModal
+          open={isApiSettingsModalOpen}
+          onOpenChange={setIsApiSettingsModalOpen}
           workflowId={workflowId}
         />
       )}

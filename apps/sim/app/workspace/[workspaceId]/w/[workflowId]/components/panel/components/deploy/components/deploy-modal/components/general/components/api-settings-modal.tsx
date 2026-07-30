@@ -12,6 +12,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSwitch,
   Input,
   Label,
 } from '@sim/emcn'
@@ -21,7 +22,12 @@ import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deployments'
+import {
+  useDeploymentInfo,
+  usePublicationSettings,
+  useUpdatePublicApi,
+  useUpdatePublication,
+} from '@/hooks/queries/deployments'
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -30,13 +36,35 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type NormalizedField = InputFormatField & { name: string }
 
-interface ApiInfoModalProps {
+/** The org-publication half of the settings — everything that has no other home. */
+interface PublishDraft {
+  published: boolean
+  visibility: 'org' | 'allowlist'
+  exposeTrace: 'off' | 'traceId'
+  exposeBlocks: boolean
+}
+
+const EMPTY_PUBLISH: PublishDraft = {
+  published: false,
+  visibility: 'org',
+  exposeTrace: 'off',
+  exposeBlocks: false,
+}
+
+interface ApiSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId: string
 }
 
-export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalProps) {
+/**
+ * The single home for a workflow's API settings. Consolidates the contract prose
+ * (description + per-parameter descriptions - the same `workflow.description` the MCP
+ * schema and the API reference doc both read), the access mode (api key vs public),
+ * and org publication (publish toggle, visibility, and the opt-in trace/block
+ * exposures). One description, one modal, one Save.
+ */
+export function ApiSettingsModal({ open, onOpenChange, workflowId }: ApiSettingsModalProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const blocks = useWorkflowStore((state) => state.blocks)
   const setValue = useSubBlockStore((state) => state.setValue)
@@ -52,9 +80,13 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   const updatePublicApiMutation = useUpdatePublicApi()
   const { isPublicApiDisabled } = usePermissionConfig()
 
+  const { data: publicationData } = usePublicationSettings(workflowId, { enabled: open })
+  const updatePublicationMutation = useUpdatePublication()
+
   const [description, setDescription] = useState('')
   const [paramDescriptions, setParamDescriptions] = useState<Record<string, string>>({})
   const [accessMode, setAccessMode] = useState<'api_key' | 'public'>('api_key')
+  const [publish, setPublish] = useState<PublishDraft>(EMPTY_PUBLISH)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -62,6 +94,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   const initialDescriptionRef = useRef('')
   const initialParamDescriptionsRef = useRef<Record<string, string>>({})
   const initialAccessModeRef = useRef<'api_key' | 'public'>('api_key')
+  const initialPublishRef = useRef<PublishDraft>(EMPTY_PUBLISH)
 
   const starterBlockId = useMemo(() => {
     for (const [blockId, block] of Object.entries(blocks)) {
@@ -76,17 +109,16 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
   const inputFormat = useMemo((): NormalizedField[] => {
     if (!starterBlockId) return []
-
     const storeValue = subBlockValues[starterBlockId]?.inputFormat
     const normalized = normalizeInputFormatValue(storeValue) as NormalizedField[]
     if (normalized.length > 0) return normalized
-
     const startBlock = blocks[starterBlockId]
     const blockValue = startBlock?.subBlocks?.inputFormat?.value
     return normalizeInputFormatValue(blockValue) as NormalizedField[]
   }, [starterBlockId, subBlockValues, blocks])
 
   const accessModeInitializedRef = useRef(false)
+  const publishInitializedRef = useRef(false)
 
   useEffect(() => {
     if (open) {
@@ -98,15 +130,14 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
       const descriptions: Record<string, string> = {}
       for (const field of inputFormat) {
-        if (field.description) {
-          descriptions[field.name] = field.description
-        }
+        if (field.description) descriptions[field.name] = field.description
       }
       setParamDescriptions(descriptions)
       initialParamDescriptionsRef.current = { ...descriptions }
 
       setSaveError(null)
       accessModeInitializedRef.current = false
+      publishInitializedRef.current = false
     }
   }, [open, workflowMetadata, inputFormat])
 
@@ -119,25 +150,38 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     }
   }, [open, deploymentData])
 
+  useEffect(() => {
+    if (open && publicationData && !publishInitializedRef.current) {
+      const next: PublishDraft = {
+        published: publicationData.published,
+        visibility: publicationData.visibility,
+        exposeTrace: publicationData.exposeTrace,
+        exposeBlocks: publicationData.exposeBlocks,
+      }
+      setPublish(next)
+      initialPublishRef.current = next
+      publishInitializedRef.current = true
+    }
+  }, [open, publicationData])
+
   const hasChanges = useMemo(() => {
     if (description.trim() !== initialDescriptionRef.current.trim()) return true
     if (accessMode !== initialAccessModeRef.current) return true
-
+    if (JSON.stringify(publish) !== JSON.stringify(initialPublishRef.current)) return true
     for (const field of inputFormat) {
       const currentValue = (paramDescriptions[field.name] || '').trim()
       const initialValue = (initialParamDescriptionsRef.current[field.name] || '').trim()
       if (currentValue !== initialValue) return true
     }
-
     return false
-  }, [description, paramDescriptions, inputFormat, accessMode])
+  }, [description, paramDescriptions, inputFormat, accessMode, publish])
 
   const handleParamDescriptionChange = (fieldName: string, value: string) => {
-    setParamDescriptions((prev) => ({
-      ...prev,
-      [fieldName]: value,
-    }))
+    setParamDescriptions((prev) => ({ ...prev, [fieldName]: value }))
   }
+
+  const patchPublish = (partial: Partial<PublishDraft>) =>
+    setPublish((prev) => ({ ...prev, ...partial }))
 
   const handleCloseAttempt = () => {
     if (hasChanges && !isSaving) {
@@ -152,16 +196,14 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     setDescription(initialDescriptionRef.current)
     setParamDescriptions({ ...initialParamDescriptionsRef.current })
     setAccessMode(initialAccessModeRef.current)
+    setPublish(initialPublishRef.current)
     onOpenChange(false)
   }
 
   const handleSave = async () => {
     if (!workflowId) return
-
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-    if (activeWorkflowId !== workflowId) {
-      return
-    }
+    if (activeWorkflowId !== workflowId) return
 
     setIsSaving(true)
     setSaveError(null)
@@ -189,10 +231,21 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         setValue(starterBlockId, 'inputFormat', updatedValue)
       }
 
+      if (JSON.stringify(publish) !== JSON.stringify(initialPublishRef.current)) {
+        await updatePublicationMutation.mutateAsync({
+          workflowId,
+          settings: {
+            published: publish.published,
+            visibility: publish.visibility,
+            exposeTrace: publish.exposeTrace,
+            exposeBlocks: publish.exposeBlocks,
+          },
+        })
+      }
+
       onOpenChange(false)
     } catch (err: unknown) {
-      const message = getErrorMessage(err, 'Failed to update access settings')
-      setSaveError(message)
+      setSaveError(getErrorMessage(err, 'Failed to save API settings'))
     } finally {
       setIsSaving(false)
     }
@@ -203,9 +256,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       <ChipModal
         open={open}
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
-        srTitle='Edit API Info'
+        srTitle='API Settings'
       >
-        <ChipModalHeader onClose={() => onOpenChange(false)}>Edit API Info</ChipModalHeader>
+        <ChipModalHeader onClose={() => onOpenChange(false)}>API Settings</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='textarea'
@@ -214,6 +267,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             onChange={setDescription}
             placeholder='Describe what this workflow API does...'
             minHeight={80}
+            hint='Shown in the org API reference and used by the Sim agent.'
           />
 
           {!isPublicApiDisabled && (
@@ -265,6 +319,69 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                 ))}
               </div>
             </ChipModalField>
+          )}
+
+          <ChipModalField type='custom' title='Publish to org API reference'>
+            <ChipSwitch
+              value={publish.published ? 'on' : 'off'}
+              onChange={(v) => patchPublish({ published: v === 'on' })}
+              aria-label='Publish to org API reference'
+              options={[
+                { value: 'off', label: 'Unpublished' },
+                { value: 'on', label: 'Published' },
+              ]}
+            />
+            <p className='mt-1 text-[var(--text-secondary)] text-caption'>
+              When published, any member of your organization can discover this endpoint and its
+              contract - without access to this workspace's data.
+            </p>
+          </ChipModalField>
+
+          {publish.published && (
+            <>
+              <ChipModalField type='custom' title='Visibility'>
+                <ChipSwitch
+                  value={publish.visibility}
+                  onChange={(v) => patchPublish({ visibility: v as 'org' | 'allowlist' })}
+                  aria-label='Visibility'
+                  options={[
+                    { value: 'org', label: 'Whole org' },
+                    { value: 'allowlist', label: 'Allowlist' },
+                  ]}
+                />
+              </ChipModalField>
+
+              <ChipModalField type='custom' title='Expose execution trace'>
+                <ChipSwitch
+                  value={publish.exposeTrace}
+                  onChange={(v) => patchPublish({ exposeTrace: v as 'off' | 'traceId' })}
+                  aria-label='Expose execution trace'
+                  options={[
+                    { value: 'off', label: 'Off' },
+                    { value: 'traceId', label: 'Trace ID' },
+                  ]}
+                />
+                <p className='mt-1 text-[var(--text-secondary)] text-caption'>
+                  Lets a caller fetch the block-level trace of a run it triggered. Off by default.
+                </p>
+              </ChipModalField>
+
+              <ChipModalField type='custom' title='Expose block structure'>
+                <ChipSwitch
+                  value={publish.exposeBlocks ? 'on' : 'off'}
+                  onChange={(v) => patchPublish({ exposeBlocks: v === 'on' })}
+                  aria-label='Expose block structure'
+                  options={[
+                    { value: 'off', label: 'Off' },
+                    { value: 'on', label: 'On' },
+                  ]}
+                />
+                <p className='mt-1 text-[var(--text-secondary)] text-caption'>
+                  Read-only, credential-redacted block introspection for self-diagnosis. Off by
+                  default.
+                </p>
+              </ChipModalField>
+            </>
           )}
 
           <ChipModalError>{saveError}</ChipModalError>
