@@ -307,7 +307,7 @@ export function SettingsSidebar({
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 pb-2 transition-colors duration-150',
           !hasOverflowTop && 'border-transparent'
         )}
       >
