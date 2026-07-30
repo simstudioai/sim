@@ -543,6 +543,28 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
+  it('rejects a stale versioned merge (not newer than the synced version) without regressing the doc', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original')) // seed version 1
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
+
+    // A newer durable version lands and is recorded as the synced version.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', 100)).toBe('applied')
+    mockFetchFileDocMerge.mockClear()
+
+    // An older durable version arriving out of order (e.g. a concurrent write on another process) is
+    // stale: skipped before any diff is computed, so the live doc never regresses to older content and
+    // no diff is published that a later persist could write back.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', 50)).toBe('stale')
+    // The same version is idempotent — also skipped.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', 100)).toBe('stale')
+    expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
+  })
+
   it('serializes concurrent merges for the same file (second waits for the first)', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original'))
     const { io } = createIo()
