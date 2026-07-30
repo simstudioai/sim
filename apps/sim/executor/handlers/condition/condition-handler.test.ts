@@ -288,7 +288,7 @@ describe('ConditionBlockHandler', () => {
     expect(result).toHaveProperty('selectedOption', 'cond1')
   })
 
-  it('should throw error if target block is missing', async () => {
+  it('dead-ends the branch when the target block is missing', async () => {
     mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
 
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
@@ -296,9 +296,27 @@ describe('ConditionBlockHandler', () => {
 
     mockContext.workflow!.blocks = [mockSourceBlock, mockBlock, mockTargetBlock2]
 
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      `Target block ${mockTargetBlock1.id} not found`
-    )
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(result).toHaveProperty('conditionResult', true)
+    expect((result as any).selectedOption).toBe('cond1')
+    expect((result as any).selectedPath).toBeNull()
+  })
+
+  it('dead-ends the branch when the target block is disabled', async () => {
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+    const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
+    const inputs = { conditions: JSON.stringify(conditions) }
+
+    mockTargetBlock1.enabled = false
+
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(result).toHaveProperty('conditionResult', true)
+    expect((result as any).selectedOption).toBe('cond1')
+    expect((result as any).selectedPath).toBeNull()
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 
   it('should return no-match result if no condition matches and no else exists', async () => {

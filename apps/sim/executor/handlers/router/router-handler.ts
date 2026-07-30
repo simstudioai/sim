@@ -60,6 +60,31 @@ export class RouterBlockHandler implements BlockHandler {
   ): Promise<BlockOutput> {
     const targetBlocks = this.getTargetBlocks(ctx, block)
 
+    /**
+     * With nothing executable to route to there is no decision to make, so the path ends
+     * here rather than erroring — the same dead end a condition branch reaches when its
+     * target is disabled. Asking the model to choose from an empty list would only burn a
+     * call to produce an unusable answer.
+     */
+    if (!targetBlocks || targetBlocks.length === 0) {
+      logger.warn('Router has no executable target blocks; path ends here', {
+        blockId: block.id,
+      })
+
+      return {
+        prompt: inputs.prompt,
+        model: inputs.model || ROUTER.DEFAULT_MODEL,
+        tokens: {
+          input: DEFAULTS.TOKENS.PROMPT,
+          output: DEFAULTS.TOKENS.COMPLETION,
+          total: DEFAULTS.TOKENS.TOTAL,
+        },
+        cost: { input: 0, output: 0, total: 0 },
+        selectedPath: null,
+        selectedRoute: null,
+      } as BlockOutput
+    }
+
     const routerConfig = {
       prompt: inputs.prompt,
       model: inputs.model || ROUTER.DEFAULT_MODEL,
@@ -380,13 +405,22 @@ export class RouterBlockHandler implements BlockHandler {
     }
   }
 
+  /**
+   * Candidate blocks the router may route to. Disabled (and missing) targets are
+   * excluded so the model is never offered a route the DAG cannot execute.
+   */
   private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
     return ctx.workflow?.connections
       .filter((conn) => conn.source === block.id)
-      .map((conn) => {
+      .flatMap((conn) => {
         const targetBlock = ctx.workflow?.blocks.find((b) => b.id === conn.target)
-        if (!targetBlock) {
-          throw new Error(`Target block ${conn.target} not found`)
+        if (!targetBlock || targetBlock.enabled === false) {
+          logger.info('Skipping router target that is not executable', {
+            blockId: block.id,
+            targetBlockId: conn.target,
+            reason: targetBlock ? 'disabled' : 'missing',
+          })
+          return []
         }
 
         let systemPrompt = ''
@@ -399,17 +433,19 @@ export class RouterBlockHandler implements BlockHandler {
             ''
         }
 
-        return {
-          id: targetBlock.id,
-          type: targetBlock.metadata?.id,
-          title: targetBlock.metadata?.name,
-          description: targetBlock.metadata?.description,
-          subBlocks: {
-            ...targetBlock.config.params,
-            systemPrompt: systemPrompt,
+        return [
+          {
+            id: targetBlock.id,
+            type: targetBlock.metadata?.id,
+            title: targetBlock.metadata?.name,
+            description: targetBlock.metadata?.description,
+            subBlocks: {
+              ...targetBlock.config.params,
+              systemPrompt: systemPrompt,
+            },
+            currentState: ctx.blockStates.get(targetBlock.id)?.output,
           },
-          currentState: ctx.blockStates.get(targetBlock.id)?.output,
-        }
+        ]
       })
   }
 }

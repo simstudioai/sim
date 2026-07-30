@@ -82,6 +82,35 @@ describe('Serializer', () => {
       expect(falsePathConnection?.target).toBe('agent2')
     })
 
+    it.concurrent('should keep disabled blocks and the connections that reach them', () => {
+      const { blocks, edges, loops } = createConditionalWorkflowState()
+      const serializer = new Serializer()
+
+      blocks.agent1.enabled = false
+
+      const serialized = serializer.serializeWorkflow(blocks, edges, loops)
+
+      expect(serialized.blocks.find((b) => b.id === 'agent1')?.enabled).toBe(false)
+      expect(
+        serialized.connections.find((c) => c.source === 'condition1' && c.target === 'agent1')
+      ).toBeDefined()
+    })
+
+    it.concurrent('should drop connections that reference a block that does not exist', () => {
+      const { blocks, edges, loops } = createConditionalWorkflowState()
+      const serializer = new Serializer()
+
+      const { agent1: _removed, ...remainingBlocks } = blocks
+
+      const serialized = serializer.serializeWorkflow(remainingBlocks, edges, loops)
+
+      expect(serialized.blocks.find((b) => b.id === 'agent1')).toBeUndefined()
+      expect(serialized.connections.some((c) => c.target === 'agent1')).toBe(false)
+      expect(
+        serialized.connections.find((c) => c.source === 'condition1' && c.target === 'agent2')
+      ).toBeDefined()
+    })
+
     it.concurrent('should serialize a workflow with loops correctly', () => {
       const { blocks, edges, loops } = createLoopWorkflowState()
       const serializer = new Serializer()

@@ -232,13 +232,55 @@ describe('RouterBlockHandler', () => {
     })
   })
 
-  it('should throw error if target block is missing', async () => {
-    const inputs = { prompt: 'Test' }
+  it('excludes a missing target block from the routing candidates', async () => {
     mockContext.workflow!.blocks = [mockBlock, mockTargetBlock2]
 
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'Target block target-block-1 not found'
+    mockFetch.mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ content: 'target-block-2', model: 'mock-model' }),
+      })
     )
+
+    const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
+
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
+      expect.objectContaining({ id: 'target-block-2' }),
+    ])
+    expect((result as { selectedRoute: string }).selectedRoute).toBe('target-block-2')
+  })
+
+  it('excludes a disabled target block from the routing candidates', async () => {
+    mockTargetBlock1.enabled = false
+
+    mockFetch.mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ content: 'target-block-2', model: 'mock-model' }),
+      })
+    )
+
+    const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
+
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
+      expect.objectContaining({ id: 'target-block-2' }),
+    ])
+    expect((result as { selectedRoute: string }).selectedRoute).toBe('target-block-2')
+  })
+
+  it('dead-ends without calling the model when every target block is disabled', async () => {
+    mockTargetBlock1.enabled = false
+    mockTargetBlock2.enabled = false
+
+    const result = (await handler.execute(mockContext, mockBlock, { prompt: 'Test' })) as {
+      selectedRoute: string | null
+      selectedPath: unknown
+      cost: { total: number }
+    }
+
+    expect(result.selectedRoute).toBeNull()
+    expect(result.selectedPath).toBeNull()
+    expect(result.cost.total).toBe(0)
     expect(mockFetch).not.toHaveBeenCalled()
   })
 

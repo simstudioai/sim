@@ -180,17 +180,30 @@ export class Serializer {
       serializedBlocks.push(this.serializeBlock(block, { validateRequired, allBlocks: blocks }))
     }
 
+    // Every connection must reference blocks that exist. A dangling edge (dropped custom
+    // block, a caller that pruned blocks but not edges) otherwise reaches the executor and
+    // breaks handlers that resolve their target out of `workflow.blocks`.
+    const serializedBlockIds = new Set(serializedBlocks.map((b) => b.id))
+    const isConnectedToKnownBlocks = (edge: Edge): boolean => {
+      if (serializedBlockIds.has(edge.source) && serializedBlockIds.has(edge.target)) return true
+      if (!droppedBlockIds.has(edge.source) && !droppedBlockIds.has(edge.target)) {
+        logger.warn('Dropping connection that references a missing block', {
+          source: edge.source,
+          target: edge.target,
+        })
+      }
+      return false
+    }
+
     return {
       version: '1.0',
       blocks: serializedBlocks,
-      connections: edges
-        .filter((edge) => !droppedBlockIds.has(edge.source) && !droppedBlockIds.has(edge.target))
-        .map((edge) => ({
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: edge.sourceHandle || undefined,
-          targetHandle: edge.targetHandle || undefined,
-        })),
+      connections: edges.filter(isConnectedToKnownBlocks).map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle || undefined,
+        targetHandle: edge.targetHandle || undefined,
+      })),
       loops: safeLoops,
       parallels: safeParallels,
     }

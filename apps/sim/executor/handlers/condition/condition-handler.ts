@@ -143,13 +143,31 @@ export class ConditionBlockHandler implements BlockHandler {
       }
     }
 
-    const targetBlock = ctx.workflow?.blocks.find((b) => b.id === selectedConnection?.target)
-    if (!targetBlock) {
-      throw new Error(`Target block ${selectedConnection?.target} not found`)
-    }
+    const targetBlock = ctx.workflow?.blocks.find((b) => b.id === selectedConnection.target)
 
     const decisionKey = ctx.currentVirtualBlockId || block.id
     ctx.decisions.condition.set(decisionKey, selectedCondition.id)
+
+    /**
+     * A branch whose target is disabled (or no longer exists) is a dead end, not a
+     * failure: the condition still resolves, and the DAG — which excludes disabled
+     * blocks and their edges — simply has nothing left to activate on this path.
+     */
+    if (!targetBlock || targetBlock.enabled === false) {
+      logger.info('Condition branch target is not executable; path ends here', {
+        blockId: block.id,
+        conditionId: selectedCondition.id,
+        targetBlockId: selectedConnection.target,
+        reason: targetBlock ? 'disabled' : 'missing',
+      })
+
+      return {
+        ...((sourceOutput as any) || {}),
+        conditionResult: true,
+        selectedPath: null,
+        selectedOption: selectedCondition.id,
+      }
+    }
 
     return {
       ...((sourceOutput as any) || {}),
