@@ -43,8 +43,12 @@ export interface SandboxImageBuildPayload {
  * so two workspaces declaring identical dependencies share the key as well as
  * the resulting image.
  */
-export function sandboxBuildIdempotencyKey(provider: string, specHash: string): string {
-  return `sandbox-image-${provider}-${specHash}`
+export function sandboxBuildIdempotencyKey(
+  provider: string,
+  specHash: string,
+  attemptAt: Date
+): string {
+  return `sandbox-image-${provider}-${specHash}-${attemptAt.getTime()}`
 }
 
 /**
@@ -151,16 +155,23 @@ export async function ensureSandboxImage(
         )
       ),
     })
-    .returning({ id: sandboxImage.id, status: sandboxImage.status })
+    .returning({
+      id: sandboxImage.id,
+      status: sandboxImage.status,
+      updatedAt: sandboxImage.updatedAt,
+    })
 
   // No row returned means the conflict target matched but `setWhere` rejected the
   // update — an existing `ready`, `pending`, or `building` row. Nothing to do.
   if (inserted.length === 0) return
 
-  await enqueueSandboxImageBuild({ provider: provider.id, specHash })
+  await enqueueSandboxImageBuild({ provider: provider.id, specHash }, inserted[0].updatedAt)
 }
 
-async function enqueueSandboxImageBuild(payload: SandboxImageBuildPayload): Promise<void> {
+async function enqueueSandboxImageBuild(
+  payload: SandboxImageBuildPayload,
+  attemptAt: Date
+): Promise<void> {
   if (!isTriggerDevEnabled) {
     runDetached('sandbox-image-build', () => runSandboxImageBuild(payload))
     return
@@ -172,10 +183,14 @@ async function enqueueSandboxImageBuild(payload: SandboxImageBuildPayload): Prom
     import('@/lib/core/async-jobs/region'),
   ])
   await tasks.trigger<typeof sandboxImageBuildTask>('sandbox-image-build', payload, {
-    idempotencyKey: sandboxBuildIdempotencyKey(payload.provider, payload.specHash),
-    // Short TTL on purpose: the key exists to collapse concurrent saves of the
-    // same spec into one build, not to suppress a retry after one failed. The
-    // default 30-day window would make a transient failure permanent.
+    // Keyed by the claim, not by the spec alone. Concurrent saves are already
+    // collapsed by the conditional update above — only one caller gets a row back,
+    // so only one reaches here. A spec-only key would instead suppress the *next*
+    // legitimate attempt: Trigger.dev returns the finished run rather than starting
+    // one, leaving the row `pending` with no worker and unclaimable until it goes
+    // stale. That is half an hour of a save-to-retry doing nothing.
+    idempotencyKey: sandboxBuildIdempotencyKey(payload.provider, payload.specHash, attemptAt),
+    // Still short, so even a duplicate delivery of one attempt cannot linger.
     idempotencyKeyTTL: '5m',
     tags: [`sandboxSpec:${payload.specHash}`],
     region: await resolveTriggerRegion(),

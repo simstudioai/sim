@@ -67,6 +67,7 @@ import {
   ensureSandboxImage,
   FAILED_BUILD_RETRY_COOLDOWN_MS,
   releaseSandboxImage,
+  sandboxBuildIdempotencyKey,
 } from '@/lib/execution/remote-sandbox/image-registry'
 
 const READY_IMAGE = {
@@ -402,5 +403,36 @@ describe('ensureSandboxImage failed-build cooldown', () => {
     // Excludes only in-flight statuses, so `ready` and `failed` both qualify.
     expect(branch).toContain('pending')
     expect(branch).not.toContain('failed')
+  })
+})
+
+/**
+ * The claim already collapses concurrent saves, so the trigger key only has to
+ * distinguish attempts. Keyed by spec alone it suppressed the next legitimate one
+ * instead — Trigger.dev returns the finished run, the row stays `pending` with no
+ * worker, and nothing can re-claim it until it goes stale.
+ */
+describe('sandboxBuildIdempotencyKey', () => {
+  it('differs between two attempts at the same spec', () => {
+    const first = sandboxBuildIdempotencyKey('e2b', 'hash-1', new Date(1_000))
+    const second = sandboxBuildIdempotencyKey('e2b', 'hash-1', new Date(2_000))
+
+    expect(first).not.toBe(second)
+  })
+
+  it('still collapses a duplicate delivery of one attempt', () => {
+    const attemptAt = new Date(1_000)
+
+    expect(sandboxBuildIdempotencyKey('e2b', 'hash-1', attemptAt)).toBe(
+      sandboxBuildIdempotencyKey('e2b', 'hash-1', attemptAt)
+    )
+  })
+
+  it('keeps providers apart for the same content address', () => {
+    const attemptAt = new Date(1_000)
+
+    expect(sandboxBuildIdempotencyKey('e2b', 'hash-1', attemptAt)).not.toBe(
+      sandboxBuildIdempotencyKey('daytona', 'hash-1', attemptAt)
+    )
   })
 })
