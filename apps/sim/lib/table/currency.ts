@@ -29,6 +29,9 @@ function hasValidGrouping(text: string, separator: string): boolean {
   return /^\d{1,3}$/.test(groups[0]) && groups.slice(1).every((group) => /^\d{3}$/.test(group))
 }
 
+/** A decimal/grouping separator followed by whitespace — a list, not an amount. */
+const SEPARATOR_THEN_SPACE = /[.,]\s/
+
 /** An `e` with a digit on both sides — an exponent marker, however spaced. */
 const INTERIOR_EXPONENT = /\d\s*[eE][+-]?\s*\d/
 
@@ -147,6 +150,12 @@ export function parseCurrencyInput(raw: unknown): number | null {
 
   const parenthesized = /^\((.*)\)$/.exec(trimmed)
   const body = parenthesized ? parenthesized[1] : trimmed
+
+  // No real amount puts whitespace after a separator, but a delimited LIST
+  // does — and a multi-select column flattens to exactly that when it converts.
+  // Without this, `12, 34` reads as 12.34 and `100, 200` as 100200, so a
+  // multi-select column of numeric option names would convert to nonsense.
+  if (SEPARATOR_THEN_SPACE.test(body)) return null
 
   // Exponent form is taken at face value. `String()` emits it for any magnitude
   // past 1e21, so a stored amount round-trips through the editor as `1e+21` —

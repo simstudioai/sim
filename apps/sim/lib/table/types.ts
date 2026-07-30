@@ -816,6 +816,8 @@ export interface UpdateColumnOptionsData {
    * what stops a combined request from committing one half and then failing.
    */
   newName?: string
+  /** Constraints to apply in the SAME transaction as this write. */
+  unique?: boolean
   options: SelectOption[]
   /** Toggle single/multi selection alongside the options update. */
   multiple?: boolean
@@ -841,6 +843,8 @@ export interface UpdateColumnCurrencyData {
    * what stops a combined request from committing one half and then failing.
    */
   newName?: string
+  /** Constraints to apply in the SAME transaction as this write. */
+  unique?: boolean
   currencyCode: string
 }
 

@@ -17,6 +17,7 @@ import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import {
   columnTypeById,
+  columnTypeOf,
   isValueCompatible,
   TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
@@ -483,6 +484,55 @@ export async function deleteColumns(
     stripColumnDataInBackground(data.tableId, stripKeys, def.rowCount ?? 0, requestId)
   }
   return def
+}
+
+/**
+ * Validates a constraint change against the column's stored data, and returns
+ * the column with those constraints applied.
+ *
+ * Shared by every write that can carry constraints, for the reason the
+ * duplicate scan and {@link countEmptyCells} are shared: three copies of these
+ * rules is the drift that produced the original required-check bug. Applying
+ * them in the same write as the change they accompany is what stops a combined
+ * request from committing one half and then failing on the other.
+ */
+async function applyConstraints(
+  trx: DbTransaction,
+  tableId: string,
+  column: ColumnDefinition,
+  columnKey: string,
+  data: { required?: boolean; unique?: boolean }
+): Promise<ColumnDefinition> {
+  if (data.required === undefined && data.unique === undefined) return column
+
+  if (column.workflowGroupId) {
+    throw new Error(
+      `Cannot change constraints on workflow-output column "${column.name}". Constraints aren't applicable to columns whose values come from workflow execution.`
+    )
+  }
+  if (data.required === true && !column.required) {
+    const emptyCount = await countEmptyCells(trx, tableId, columnKey)
+    if (emptyCount > 0) {
+      throw new Error(
+        `Cannot set column "${column.name}" as required: ${emptyCount} row(s) have null, missing, or empty values`
+      )
+    }
+  }
+  if (data.unique === true && !column.unique) {
+    if (!columnTypeOf(column).supportsUnique) {
+      throw new Error(
+        `Cannot set column "${column.name}" as unique: ${column.type} columns compare stored values that would allow only one row per value.`
+      )
+    }
+    if (await hasDuplicateValues(trx, tableId, columnKey)) {
+      throw new Error(`Cannot set column "${column.name}" as unique: duplicate values exist`)
+    }
+  }
+  return {
+    ...column,
+    ...(data.required !== undefined ? { required: data.required } : {}),
+    ...(data.unique !== undefined ? { unique: data.unique } : {}),
+  }
 }
 
 /** Persists a column list as the table's schema and returns the updated definition. */
@@ -964,7 +1014,14 @@ export async function updateColumnOptions(
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
-    const withOptions = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const constrainedColumn = await applyConstraints(
+      trx,
+      data.tableId,
+      updatedColumn,
+      columnKey,
+      data
+    )
+    const withOptions = schema.columns.map((c, i) => (i === columnIndex ? constrainedColumn : c))
     const updatedColumns = withOptions.map((c, i) =>
       i === columnIndex ? applyPendingRename(withOptions, columnIndex, data.newName) : c
     )
@@ -1129,13 +1186,25 @@ export async function updateColumnCurrency(
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
-    // Only a no-op when the currency is unchanged AND no rename is riding along.
+    const constrained = await applyConstraints(
+      trx,
+      data.tableId,
+      updatedColumn,
+      getColumnId(column),
+      data
+    )
+
+    // Only a no-op when nothing at all changed — currency, constraints, name.
     const renamePending = data.newName !== undefined && data.newName !== column.name
-    if (updatedColumn.currencyCode === column.currencyCode && !renamePending) {
+    if (
+      constrained === updatedColumn &&
+      updatedColumn.currencyCode === column.currencyCode &&
+      !renamePending
+    ) {
       return table
     }
 
-    const withCurrency = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const withCurrency = schema.columns.map((c, i) => (i === columnIndex ? constrained : c))
     const updatedColumns = withCurrency.map((c, i) =>
       i === columnIndex ? applyPendingRename(withCurrency, columnIndex, data.newName) : c
     )

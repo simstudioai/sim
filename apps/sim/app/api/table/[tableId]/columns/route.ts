@@ -139,8 +139,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     // A retype applies and validates the constraints itself, so the separate
     // constraint write only runs when the type is unchanged. The rename rides
     // whichever write actually runs last.
+    const typedWriteRuns =
+      typeChanging ||
+      updates.currencyCode !== undefined ||
+      updates.options !== undefined ||
+      updates.multiple !== undefined
     const constraintsWriteRuns =
-      !typeChanging && (updates.required !== undefined || updates.unique !== undefined)
+      !typedWriteRuns && (updates.required !== undefined || updates.unique !== undefined)
     const renameWithTypedWrite =
       updates.name && !constraintsWriteRuns ? { newName: updates.name } : {}
 
@@ -230,6 +235,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           tableId,
           columnName: columnRef,
           currencyCode: updates.currencyCode,
+          ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
         requestId
@@ -244,15 +251,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           // Forwarded so the removal guard validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
         requestId
       )
     }
 
-    // Skipped when the type changed: that write already applied and validated
-    // these, in one transaction with the conversion.
-    if (!typeChanging && (updates.required !== undefined || updates.unique !== undefined)) {
+    // Skipped whenever a typed write ran: that write already applied and
+    // validated these, in one transaction with the change they accompany.
+    if (constraintsWriteRuns) {
       updatedTable = await updateColumnConstraints(
         {
           tableId,
