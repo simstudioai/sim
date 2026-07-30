@@ -9,9 +9,10 @@ import { useQueryState } from 'nuqs'
 import {
   blockTypeToIconMap,
   type Integration,
+  resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
@@ -65,13 +66,21 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
   useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
+  /**
+   * Credentials that authenticate this integration. Matching goes through
+   * `credentialProviderMatchesService` so a family service account lists on
+   * every product it powers — one Atlassian token covers Jira, Jira Service
+   * Management, and Confluence. Comparing resolved `providerId`s instead would
+   * hide it from all three, since `atlassian-service-account` resolves to its
+   * own pseudo-service rather than to any product.
+   */
   const connectedCredentials = useMemo(() => {
     if (!oauthService) return []
     return credentials.filter(
       (c) =>
         (c.type === 'oauth' || c.type === 'service_account') &&
         c.providerId &&
-        getServiceConfigByProviderId(c.providerId)?.providerId === oauthService.providerId
+        credentialProviderMatchesService(c.providerId, oauthService)
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
@@ -112,7 +121,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         {
           value: CONNECT_MODE.serviceAccount,
           label: serviceAccountConnectLabel,
-          icon: oauthService.serviceIcon,
+          icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
         },
       ]
     : []
@@ -170,14 +179,14 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      {hasServiceAccount && oauthService?.serviceAccountProviderId && (
+      {hasServiceAccount && serviceAccountTarget && (
         <ConnectServiceAccountModal
           open={serviceAccountOpen}
           onOpenChange={setServiceAccountOpen}
           workspaceId={workspaceId}
-          serviceAccountProviderId={oauthService.serviceAccountProviderId}
-          serviceName={oauthService.serviceName}
-          serviceIcon={oauthService.serviceIcon}
+          serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          serviceName={serviceAccountTarget.serviceName}
+          serviceIcon={serviceAccountTarget.serviceIcon}
         />
       )}
       <div
@@ -219,7 +228,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                       {credential.displayName}
                     </span>
                     <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                      {credential.description || oauthService?.serviceName}
+                      {credential.description || resolveCredentialDisplay(credential).subtitle}
                     </span>
                   </div>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />

@@ -2221,6 +2221,57 @@ export function EyeIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * Corporate Atlassian mark, used for family-wide Atlassian credentials — one
+ * API token authenticates Jira, Jira Service Management, and Confluence, so no
+ * single product mark represents it. Individual products keep their own icons.
+ */
+export function AtlassianIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradientId = `atlassian_gradient_${id}`
+
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      /*
+       * The mark's artwork spans ~66 units; the box is padded to 84.5 so it
+       * fills ~78% of its viewBox, matching the inset Atlassian ships on the
+       * Jira and Confluence marks (artwork 16→116 inside 128). Without the
+       * padding this renders ~30% heavier than its siblings in the same tile.
+       */
+      viewBox='-9.2 -8.9 84.5 84.5'
+      focusable='false'
+      fill='none'
+      aria-hidden='true'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <defs>
+        <linearGradient
+          id={gradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='28.536019'
+          y1='35.528544'
+          x2='11.406018'
+          y2='65.208544'
+        >
+          <stop offset='0' stopColor='#0052cc' />
+          <stop offset='0.92' stopColor='#2684ff' />
+        </linearGradient>
+      </defs>
+      <path
+        fill={`url(#${gradientId})`}
+        d='m 19.636018,30.518546 a 1.88,1.88 0 0 0 -3.2,0.35 l -16.2299998,32.46 a 1.94,1.94 0 0 0 1.73,2.81 H 24.536018 a 1.87,1.87 0 0 0 1.74,-1.1 c 4.87,-10 1.92,-25.37 -6.64,-34.52 z'
+      />
+      <path
+        fill='#2684ff'
+        d='m 31.546018,1.038546 a 42.81,42.81 0 0 0 -2.5,42.27 l 10.95,21.73 a 1.94,1.94 0 0 0 1.73,1.08 h 22.6 a 2,2 0 0 0 1.67,-2.79 l -31.15,-62.29 a 1.83,1.83 0 0 0 -3.3,0 z'
+      />
+    </svg>
+  )
+}
+
 export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
