@@ -77,12 +77,12 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('$1e5')).toBe(100000)
   })
 
-  it('does not mistake an ISO code or prose for an exponent', () => {
+  it('does not mistake an ISO code for an exponent', () => {
     // `EUR` survives the symbol strip with its `E` intact; it must still parse
     // through the ordinary separator path.
     expect(parseCurrencyInput('12 EUR')).toBe(12)
     expect(parseCurrencyInput('EUR 12,50')).toBe(12.5)
-    expect(parseCurrencyInput('Revenue 5')).toBe(5)
+    expect(parseCurrencyInput('USD 1,234.56')).toBe(1234.56)
   })
 
   it('round-trips a magnitude that stringifies to exponent form', () => {
@@ -101,6 +101,29 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('-12')).toBe(-12)
     expect(parseCurrencyInput('+12')).toBe(12)
     expect(parseCurrencyInput('-$12.50')).toBe(-12.5)
+  })
+
+  it('rejects text that merely contains digits', () => {
+    // Scraping digits out of arbitrary text invents a value. A string column of
+    // SKUs, phone numbers, or US-format dates converting to currency would
+    // otherwise report zero incompatible rows and rewrite every cell.
+    expect(parseCurrencyInput('01/02/2024')).toBeNull()
+    expect(parseCurrencyInput('Room 101')).toBeNull()
+    expect(parseCurrencyInput('Invoice 2024')).toBeNull()
+    expect(parseCurrencyInput('A1B2')).toBeNull()
+    expect(parseCurrencyInput('1_000')).toBeNull()
+  })
+
+  it('rejects malformed separator runs and invalid grouping', () => {
+    // `0.1.2` and `1,000,00` would read as 12 and 100000 under a plain
+    // strip-the-separator rule.
+    expect(parseCurrencyInput('1..2')).toBeNull()
+    expect(parseCurrencyInput('1,,2')).toBeNull()
+    expect(parseCurrencyInput('0.1.2')).toBeNull()
+    expect(parseCurrencyInput('1,000,00')).toBeNull()
+    // Valid grouping still works.
+    expect(parseCurrencyInput('1.234.567')).toBe(1234567)
+    expect(parseCurrencyInput('1,234,567.89')).toBe(1234567.89)
   })
 
   it('rejects values carrying no amount', () => {

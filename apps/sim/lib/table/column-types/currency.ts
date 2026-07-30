@@ -13,7 +13,6 @@ export const currencyColumnType: ColumnTypeDefinition = {
   label: 'Currency',
   icon: TypeCurrency,
   jsonbCast: 'numeric',
-  filterOperators: null,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 123,

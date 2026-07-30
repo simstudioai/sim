@@ -54,9 +54,8 @@ describe('registry shape', () => {
   it('restricts filter operators only for types storing opaque ids', () => {
     // Restricting a comparable type would silently drop valid filters.
     for (const definition of ALL_COLUMN_TYPES) {
-      if (definition.filterOperators !== null) {
-        expect(definition.storesOpaqueIds).toBe(true)
-      }
+      const restricted = definition.filterOperatorsFor?.({ name: 'c', type: definition.id })
+      if (restricted) expect(definition.storesOpaqueIds).toBe(true)
     }
   })
 
@@ -127,15 +126,35 @@ describe('intentional divergences from the pre-registry behavior', () => {
     }
   })
 
-  it('accepts epoch numbers converting to date, which the old gate rejected', () => {
-    // The write path already accepted epoch numbers; only the gate disagreed.
-    // Now that they agree, the conversion is allowed — and safe, because the
-    // conversion writes the coerced ISO string back rather than leaving a bare
-    // number that `::timestamptz` cannot cast.
+  it('refuses to bulk-convert a number column to date', () => {
+    // `date.coerce` accepts an epoch for a single deliberate write, but
+    // reinterpreting a whole numeric column as epoch milliseconds is
+    // destructive and irreversible — 1, 5, 42 would become three timestamps in
+    // January 1970. The gate may be stricter than `coerce`, never looser.
     const column: ColumnDefinition = { name: 'd', type: 'date' }
-    expect(isValueCompatible(0, column)).toBe(true)
-    const coerced = COLUMN_TYPE_REGISTRY.date.coerce(0 as never, column)
-    expect(coerced.ok && typeof coerced.value).toBe('string')
+    for (const value of [0, 1, 42, 1700000000]) {
+      expect(isValueCompatible(value, column)).toBe(false)
+      // The write path still accepts it.
+      expect(COLUMN_TYPE_REGISTRY.date.coerce(value as never, column).ok).toBe(true)
+    }
+    expect(isValueCompatible('2024-01-01', column)).toBe(true)
+  })
+
+  it('never lets a gate be LOOSER than its write path', () => {
+    // The dangerous direction: a gate that accepts what `coerce` rejects
+    // reports zero incompatible rows and then nulls every one of them.
+    const samples: unknown[] = ['', '0', '1', 'abc', 0, 1, 42, true, '2024-01-01', '$1.50']
+    for (const definition of ALL_COLUMN_TYPES) {
+      if (definition.id === 'select') continue
+      const column: ColumnDefinition = { name: 'c', type: definition.id }
+      for (const value of samples) {
+        if (!isValueCompatible(value, column)) continue
+        expect(
+          definition.coerce(value as never, column).ok,
+          `${definition.id} gate accepts ${JSON.stringify(value)} but coerce rejects it`
+        ).toBe(true)
+      }
+    }
   })
 })
 

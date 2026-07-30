@@ -6,7 +6,6 @@ export const stringColumnType: ColumnTypeDefinition = {
   label: 'Text',
   icon: TypeText,
   jsonbCast: null,
-  filterOperators: null,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 'example',

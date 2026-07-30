@@ -81,11 +81,13 @@ export interface ColumnTypeDefinition {
   readonly jsonbCast: 'numeric' | 'timestamptz' | null
 
   /**
-   * Wire operators this type accepts, or `null` for "all operators". Only types
-   * whose stored value is opaque (a `select`'s option id) need to restrict.
-   * Multi-cardinality variants resolve through {@link filterOperatorsFor}.
+   * Wire operators a column of this type accepts, or `null` for "all
+   * operators". Only types whose stored value is opaque (a `select`'s option
+   * id) need to restrict. Takes the column, so a type whose answer depends on
+   * its own configuration — select's single vs multi cardinality — owns that
+   * rule instead of the registry special-casing it.
    */
-  readonly filterOperators: ReadonlySet<string> | null
+  filterOperatorsFor?(column: ColumnDefinition): ReadonlySet<string> | null
 
   /**
    * True when the stored value is an opaque identifier that must be resolved to
@@ -165,8 +167,13 @@ export interface ColumnTypeDefinition {
    * Defaults to "whatever {@link coerce} accepts", which is what makes the
    * retype gate and the write path incapable of disagreeing — a gate that is
    * more permissive than the write path reports zero incompatible rows and
-   * then nulls every one of them. Override only when compatibility genuinely
-   * cannot be expressed as a coercion.
+   * then rewrites every one of them.
+   *
+   * An override may only ever be **stricter** than `coerce`, never looser.
+   * Stricter is safe: the bulk conversion is refused while individual writes
+   * still work. Looser is the direction that corrupts data. Use it when a
+   * coercion that is reasonable for a single deliberate write would be
+   * destructive applied to a whole column at once.
    */
   isCompatibleWith?(value: unknown, target: ColumnDefinition): boolean
 

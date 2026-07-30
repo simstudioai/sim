@@ -12,9 +12,14 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
-import { columnTypeById, isValueCompatible } from '@/lib/table/column-types'
+import {
+  columnTypeById,
+  isValueCompatible,
+  TYPE_SPECIFIC_COLUMN_KEYS,
+} from '@/lib/table/column-types'
 import {
   migrationFrom,
   migrationTo,
@@ -490,7 +495,10 @@ function buildConvertedColumn(
   data: UpdateColumnTypeData,
   { isSelectType, targetMultiple }: { isSelectType: boolean; targetMultiple: boolean }
 ): ColumnDefinition {
-  const { options: _options, multiple: _multiple, currencyCode: _currencyCode, ...rest } = column
+  // Strip EVERY type-specific key generically, so a future type's metadata
+  // cannot ride through `...rest` onto a target that does not own it — which
+  // `validateColumnDefinition` would then reject on every later write.
+  const rest = omit(column, [...TYPE_SPECIFIC_COLUMN_KEYS]) as ColumnDefinition
 
   if (isSelectType) {
     return {
@@ -507,14 +515,17 @@ function buildConvertedColumn(
     }
   }
 
+  // Then carry back only the keys the TARGET type declares it owns, preferring
+  // the value this request supplied over the column's existing one. Iterating
+  // the key list rather than naming keys is what keeps this zero-edit for a
+  // future type.
   const definition = columnTypeById(data.newType)
   const owned = new Set<string>(definition.ownedMetadata)
-  const carried: ColumnDefinition = {
-    ...rest,
-    type: data.newType,
-    ...(owned.has('currencyCode') && (data.currencyCode ?? column.currencyCode) !== undefined
-      ? { currencyCode: data.currencyCode ?? column.currencyCode }
-      : {}),
+  const carried: ColumnDefinition = { ...rest, type: data.newType }
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    if (!owned.has(key)) continue
+    const value = data[key] ?? column[key]
+    if (value !== undefined) Object.assign(carried, { [key]: value })
   }
   return { ...carried, ...definition.defaultMetadata?.(carried) }
 }

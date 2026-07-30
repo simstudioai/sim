@@ -15,6 +15,20 @@ export const DEFAULT_CURRENCY_CODE = 'USD'
 /** A bare numeric literal in exponent form, e.g. `1e+21` or `-1.5e-3`. */
 const EXPONENT_LITERAL = /^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/
 
+/** Only digits and separators, with at least one digit. */
+const AMOUNT_SHAPE = /^[+-]?[\d.,]*\d[\d.,]*$/
+
+/**
+ * Whether `text` is validly grouped by `separator`: a first group of 1-3 digits
+ * and every later group exactly 3. Rejects `0.1.2` and `1,000,00`, which the
+ * plain "strip the separator" reading would silently turn into 12 and 100000.
+ */
+function hasValidGrouping(text: string, separator: string): boolean {
+  const groups = text.split(separator)
+  if (groups.length === 1) return true
+  return /^\d{1,3}$/.test(groups[0]) && groups.slice(1).every((group) => /^\d{3}$/.test(group))
+}
+
 /** An `e` with a digit on both sides — an exponent marker, however spaced. */
 const INTERIOR_EXPONENT = /\d\s*[eE][+-]?\s*\d/
 
@@ -150,20 +164,18 @@ export function parseCurrencyInput(raw: unknown): number | null {
   // is what distinguishes this from the `E` inside an ISO code like `12 EUR`.
   if (INTERIOR_EXPONENT.test(body)) return null
 
-  // Drop symbols, letters, and every flavor of space, leaving only digits, the
-  // two separator characters, and a leading sign.
-  const stripped = body.replace(/[^\d.,\-+]/g, '')
-  if (!/\d/.test(stripped)) return null
+  // What remains once currency symbols, spacing, and an ISO code are removed
+  // must be ONLY digits and separators. Scraping digits out of anything else
+  // invents a value: a US-format date, a SKU, or a room number would all parse.
+  const cleaned = body
+    .replace(/\p{Sc}/gu, '')
+    .replace(/\s/g, '')
+    .replace(/^[A-Za-z]{3}|[A-Za-z]{3}$/g, '')
+  if (!AMOUNT_SHAPE.test(cleaned)) return null
 
-  // A sign is only meaningful at the front. An interior one means this is not a
-  // single amount, and dropping it would join unrelated digit groups — an ISO
-  // date (`2024-01-01`) would otherwise read as 20240101, so converting a date
-  // column to currency would silently turn every cell into a huge number.
-  const signed = /^[+-]/.test(stripped)
-  const digitsAndSeps = signed ? stripped.slice(1) : stripped
-  if (/[+-]/.test(digitsAndSeps)) return null
-
-  const negative = parenthesized !== null || (signed && stripped.startsWith('-'))
+  const signed = /^[+-]/.test(cleaned)
+  const digitsAndSeps = signed ? cleaned.slice(1) : cleaned
+  const negative = parenthesized !== null || (signed && cleaned.startsWith('-'))
 
   const lastComma = digitsAndSeps.lastIndexOf(',')
   const lastDot = digitsAndSeps.lastIndexOf('.')
@@ -172,12 +184,22 @@ export function parseCurrencyInput(raw: unknown): number | null {
     // Both present: whichever comes last is the decimal separator.
     const decimalSeparator = lastComma > lastDot ? ',' : '.'
     const groupSeparator = decimalSeparator === ',' ? '.' : ','
-    normalized = digitsAndSeps.split(groupSeparator).join('').replace(decimalSeparator, '.')
+    const [integerPart, ...decimalParts] = digitsAndSeps.split(decimalSeparator)
+    if (decimalParts.length > 1 || !hasValidGrouping(integerPart, groupSeparator)) return null
+    normalized = `${integerPart.split(groupSeparator).join('')}.${decimalParts[0]}`
   } else if (lastComma !== -1) {
+    // A single comma followed by exactly three digits is grouping (`1,500`);
+    // anything else is a decimal comma (`1,50`).
     const grouping = digitsAndSeps.indexOf(',') !== lastComma || /,\d{3}$/.test(digitsAndSeps)
-    normalized = grouping ? digitsAndSeps.split(',').join('') : digitsAndSeps.replace(',', '.')
+    if (grouping) {
+      if (!hasValidGrouping(digitsAndSeps, ',')) return null
+      normalized = digitsAndSeps.split(',').join('')
+    } else {
+      normalized = digitsAndSeps.replace(',', '.')
+    }
   } else if (lastDot !== -1 && digitsAndSeps.indexOf('.') !== lastDot) {
     // More than one dot can only be grouping: `1.234.567`.
+    if (!hasValidGrouping(digitsAndSeps, '.')) return null
     normalized = digitsAndSeps.split('.').join('')
   } else {
     normalized = digitsAndSeps

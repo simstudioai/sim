@@ -6,7 +6,6 @@ export const booleanColumnType: ColumnTypeDefinition = {
   label: 'Boolean',
   icon: TypeBoolean,
   jsonbCast: null,
-  filterOperators: null,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: true,

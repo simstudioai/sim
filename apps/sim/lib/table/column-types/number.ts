@@ -6,7 +6,6 @@ export const numberColumnType: ColumnTypeDefinition = {
   label: 'Number',
   icon: TypeNumber,
   jsonbCast: 'numeric',
-  filterOperators: null,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 123,

@@ -8,7 +8,7 @@ import {
   splitMultiSelectInput,
 } from '@/lib/table/select-options'
 import { selectValueToNames } from '@/lib/table/select-values'
-import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
+import type { JsonValue } from '@/lib/table/types'
 
 /**
  * Operators that make sense on a `select` column (whose values are opaque option
@@ -37,7 +37,6 @@ export const selectColumnType: ColumnTypeDefinition = {
   icon: TagIcon,
   // Cells hold opaque option ids; comparison is by id, never by cast.
   jsonbCast: null,
-  filterOperators: SINGLE_SELECT_OPERATORS,
   storesOpaqueIds: true,
   supportsUnique: false,
   sampleValue: 'Option',
@@ -45,6 +44,10 @@ export const selectColumnType: ColumnTypeDefinition = {
   workflowInputType: 'string',
   editor: 'select',
   expandable: false,
+
+  filterOperatorsFor(column) {
+    return column.multiple ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
+  },
 
   coerce(value, column) {
     const resolved = resolveSelectCellValue(value, column)
@@ -137,9 +140,4 @@ export const selectColumnType: ColumnTypeDefinition = {
   formatForInput(value, column) {
     return selectColumnType.formatForDisplay(value, column)
   },
-}
-
-/** Operator whitelist for a select column, which depends on its cardinality. */
-export function selectOperatorsFor(column: ColumnDefinition): ReadonlySet<string> {
-  return column.multiple ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
 }

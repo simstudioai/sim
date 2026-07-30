@@ -28,11 +28,10 @@ import {
   MULTI_SELECT_OPERATORS,
   SINGLE_SELECT_OPERATORS,
   selectColumnType,
-  selectOperatorsFor,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
 import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
-import { COLUMN_TYPES } from '@/lib/table/column-types/types'
+import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 export { COLUMN_TYPES }
@@ -97,11 +96,22 @@ export function validateTypeMetadata(column: ColumnDefinition): string[] {
 }
 
 /**
- * Wire operators a column accepts, or `null` for "all operators". Resolves the
- * cardinality-dependent select sets, which are the only case where the
- * whitelist depends on the column and not just its type.
+ * A column's type-specific metadata, as a spreadable object.
+ *
+ * Callers that copy a column — the API response serializer, the undo snapshot —
+ * used to name `options`/`multiple`/`currencyCode` by hand, so a new type's
+ * metadata was stored but silently dropped on the way out. Reading the key list
+ * keeps them zero-edit.
  */
+export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefinition> {
+  const metadata: Partial<ColumnDefinition> = {}
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    if (column[key] !== undefined) Object.assign(metadata, { [key]: column[key] })
+  }
+  return metadata
+}
+
+/** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
-  if (column.type === 'select') return selectOperatorsFor(column)
-  return columnTypeOf(column).filterOperators
+  return columnTypeOf(column).filterOperatorsFor?.(column) ?? null
 }

@@ -11,6 +11,7 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
+import { typeMetadataOf } from '@/lib/table/column-types'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
@@ -339,8 +340,8 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     required: col.required ?? false,
     unique: col.unique ?? false,
     ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
-    ...(col.options ? { options: col.options } : {}),
-    ...(col.multiple ? { multiple: true } : {}),
-    ...(col.currencyCode ? { currencyCode: col.currencyCode } : {}),
+    // Type-specific metadata is forwarded generically: naming keys here meant a
+    // new type's metadata was stored server-side but silently never returned.
+    ...typeMetadataOf(col),
   }
 }
