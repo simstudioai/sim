@@ -248,7 +248,9 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   const userId = room.lastEditorUserId
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
   // this yields. Only meaningful once seeded; used only when the authoritative stream state is absent.
-  const localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
+  // NULLED on the first conflict (below): once the durable file has advanced out-of-band, this snapshot
+  // predates that change, so it must never be persisted as a fallback or it would re-clobber the write.
+  let localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
 
   // Capture the AUTHORITATIVE doc state: the shared stream when enabled (a copilot merge or a peer's
   // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
@@ -346,6 +348,13 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
       // the chokepoint (`mergeEditIntoLiveFileDoc`, which every external markdown write goes through), never
       // here — so the only unmerged out-of-band write is one whose chokepoint merge itself failed, a rare
       // degraded case we accept over the far more frequent reconcile-wipes-live-edits race.
+      //
+      // Drop `localState` first: the durable body has changed, so the pre-await session snapshot is now
+      // stale. Without this, a retry whose fresh read is unavailable — single-pod after last-leave teardown
+      // (room already destroyed), or a transient stream-read failure — would fall back to that snapshot and
+      // CAS-pass over the committed out-of-band write. Nulling it makes `captureState` return null there, so
+      // the retry stops and leaves the durable content authoritative (the external-wins last-leave policy).
+      localState = null
       ifMatch = result.version
     }
   } catch (error) {
