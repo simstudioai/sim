@@ -182,6 +182,15 @@ describe('rename folded into another write', () => {
     expect(() => applyPendingRename(columns, 0, 'TAKEN')).toThrow(/already exists/)
   })
 
+  it('signals a no-op by identity, which is how callers detect nothing to write', () => {
+    // The early returns in `updateColumnType` / `updateColumnCurrency` rely on
+    // this: same reference means there is genuinely nothing to persist.
+    const columns: ColumnDefinition[] = [{ id: 'col_a', name: 'amount', type: 'currency' }]
+    expect(applyPendingRename(columns, 0, undefined)).toBe(columns[0])
+    expect(applyPendingRename(columns, 0, 'amount')).toBe(columns[0])
+    expect(applyPendingRename(columns, 0, 'renamed')).not.toBe(columns[0])
+  })
+
   it('applies a valid rename and is a no-op without one', () => {
     const columns: ColumnDefinition[] = [{ id: 'col_a', name: 'amount', type: 'currency' }]
     expect(applyPendingRename(columns, 0, 'total').name).toBe('total')

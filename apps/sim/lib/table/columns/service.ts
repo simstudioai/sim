@@ -485,6 +485,21 @@ export async function deleteColumns(
   return def
 }
 
+/** Persists a column list as the table's schema and returns the updated definition. */
+async function persistColumns(
+  trx: DbTransaction,
+  table: TableDefinition,
+  columns: ColumnDefinition[]
+): Promise<TableDefinition> {
+  const updatedSchema: TableSchema = { ...table.schema, columns }
+  const now = new Date()
+  await trx
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, updatedAt: now })
+    .where(eq(userTableDefinitions.id, table.id))
+  return { ...table, schema: updatedSchema, updatedAt: now }
+}
+
 /**
  * Whether any two rows share a stored value in this column.
  *
@@ -627,7 +642,15 @@ export async function updateColumnType(
 
     const column = schema.columns[columnIndex]
     if (column.type === data.newType) {
-      return table
+      // The type is unchanged, but a rename folded into this same request still
+      // has to land — returning here unconditionally would drop it silently.
+      const renamed = applyPendingRename(schema.columns, columnIndex, data.newName)
+      if (renamed === column) return table
+      return persistColumns(
+        trx,
+        table,
+        schema.columns.map((c, i) => (i === columnIndex ? renamed : c))
+      )
     }
     const columnKey = getColumnId(column)
 
@@ -1097,7 +1120,9 @@ export async function updateColumnCurrency(
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
-    if (updatedColumn.currencyCode === column.currencyCode) {
+    // Only a no-op when the currency is unchanged AND no rename is riding along.
+    const renamePending = data.newName !== undefined && data.newName !== column.name
+    if (updatedColumn.currencyCode === column.currencyCode && !renamePending) {
       return table
     }
 

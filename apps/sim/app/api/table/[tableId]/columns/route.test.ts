@@ -113,6 +113,29 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
+  it('still applies a rename when the currency it rides on is unchanged', async () => {
+    // `updateColumnCurrency` no-ops on an unchanged code. The rename folded into
+    // the same request must not be dropped with it.
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        workspaceId: WORKSPACE_ID,
+        schema: {
+          columns: [{ id: 'col_a', name: 'amount', type: 'currency', currencyCode: 'USD' }],
+        },
+      },
+    })
+    mockUpdateColumnCurrency.mockResolvedValue({ schema: { columns: [] } })
+
+    const response = await patch({ name: 'renamed', currencyCode: 'USD' })
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateColumnCurrency).toHaveBeenCalledWith(
+      expect.objectContaining({ currencyCode: 'USD', newName: 'renamed' }),
+      expect.any(String)
+    )
+  })
+
   it('renames standalone when there is no other write to ride on', async () => {
     mockRenameColumn.mockResolvedValue({ schema: { columns: [] } })
 
