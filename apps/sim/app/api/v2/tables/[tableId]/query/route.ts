@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
+import { getErrorMessage } from '@sim/utils/errors'
+import type { NextRequest } from 'next/server'
 import { TABLE_QUERY_MAX_BODY_BYTES } from '@/lib/api/contracts/tables'
 import { V2_DEFAULT_ROW_LIMIT, v2QueryRowsContract } from '@/lib/api/contracts/v2/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TablePredicate, TableSchema } from '@/lib/table'
@@ -13,20 +14,21 @@ import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/v
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
-import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
+import { checkAccess } from '@/app/api/table/utils'
+import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
-  checkRateLimit,
-  checkWorkspaceScope,
-  createRateLimitResponse,
-} from '@/app/api/v1/middleware'
+  v2CursorList,
+  v2Error,
+  v2RateLimitError,
+  v2ValidationError,
+  v2WorkspaceAccessError,
+} from '@/app/api/v2/lib/response'
+import { toApiRow, v2TablesGateError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableQueryAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-/** Filters may carry user data; keep query responses out of shared caches. */
-const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
 
 interface QueryRouteParams {
   params: Promise<{ tableId: string }>
@@ -41,32 +43,32 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
   const requestId = generateRequestId()
 
   try {
-    const rateLimit = await checkRateLimit(request, 'v2-table-rows')
-    if (!rateLimit.allowed) return createRateLimitResponse(rateLimit)
+    const rateLimit = await checkRateLimit(request, 'table-rows')
+    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
     const parsed = await parseRequest(v2QueryRowsContract, request, context, {
       maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES,
+      validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
 
     const { tableId } = parsed.data.params
     const { workspaceId, sort, cursor: cursorToken, limit } = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
-    if (scopeError) return scopeError
+    const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return v2WorkspaceAccessError(scopeError)
 
     const accessResult = await checkAccess(tableId, userId, 'read')
-    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-    const { table } = accessResult
+    // Mask not-authorized and not-found alike so cross-workspace existence never leaks.
+    if (!accessResult.ok) return v2Error('NOT_FOUND', 'Table not found')
 
+    const { table } = accessResult
     if (workspaceId !== table.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    // After authz: the gate reads the workspace's org off the primary DB, and its
-    // 404 would otherwise distinguish "not in the rollout cohort" from "no access".
-    const gateError = await tablesV2GateError(userId, workspaceId)
+    const gateError = await v2TablesGateError(userId, workspaceId)
     if (gateError) return gateError
 
     const schema = table.schema as TableSchema
@@ -108,44 +110,29 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
         limit: effectiveLimit,
         after: cursor?.after,
         offset: cursor?.offset,
-        includeTotal: !cursorToken,
+        includeTotal: false,
         withExecutions: false,
       },
       requestId
     )
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          rows: result.rows.map((r) => ({
-            id: r.id,
-            data: toNamedRow(r.data),
-            createdAt:
-              r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-            updatedAt:
-              r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-          })),
-          rowCount: result.rowCount,
-          totalCount: result.totalCount,
-          limit: result.limit,
-          nextCursor: result.nextCursor,
-        },
-      },
-      { headers: PRIVATE_NO_STORE }
+    return v2CursorList(
+      result.rows.map((r) => toApiRow(r, toNamedRow)),
+      result.nextCursor,
+      { rateLimit }
     )
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
-    if (validationResponse) return validationResponse
+    if (isZodError(error)) return v2ValidationError(error)
 
     if (error instanceof TableQueryValidationError) {
-      return NextResponse.json(
-        { error: error.message, ...(error.code ? { code: error.code } : {}) },
-        { status: 400, headers: PRIVATE_NO_STORE }
-      )
+      return v2Error('BAD_REQUEST', error.message, {
+        details: error.code ? { code: error.code } : undefined,
+      })
     }
 
-    logger.error(`[${requestId}] Error querying rows (v2 public):`, error)
-    return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
+    logger.error(`[${requestId}] Error querying rows (v2 public)`, {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return v2Error('INTERNAL_ERROR', 'Internal server error')
   }
 })

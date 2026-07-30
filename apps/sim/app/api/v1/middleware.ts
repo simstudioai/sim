@@ -44,8 +44,7 @@ export type ApiEndpoint =
   | 'knowledge-detail'
   | 'knowledge-search'
   | 'copilot-chat'
-  | 'v2-tables'
-  | 'v2-table-rows'
+  | 'billing-usage'
 
 export interface RateLimitResult {
   allowed: boolean
@@ -239,21 +238,6 @@ export async function resolveWorkspaceScope(
 }
 
 /**
- * Resolves the usage actor for a workspace-scoped v1 request. Personal keys
- * identify their human owner; shared workspace keys use the billed account as
- * the explicit system actor because the credential does not identify a human.
- */
-export async function resolveWorkspaceRequestActor(
-  rateLimit: RateLimitResult,
-  workspaceId: string
-): Promise<string | null> {
-  if (rateLimit.keyType === 'workspace') {
-    return getWorkspaceBilledAccountUserId(workspaceId)
-  }
-  return rateLimit.userId ?? null
-}
-
-/**
  * Core workspace-access check (scope + the user's workspace permission level),
  * shared by v1 and v2. Returns a structured failure or null on success.
  */
@@ -282,6 +266,21 @@ export async function checkWorkspaceScope(
 ): Promise<NextResponse | null> {
   const failure = await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)
   return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
+}
+
+/**
+ * Resolves the usage actor for a workspace-scoped v1 request. Personal keys
+ * identify their human owner; shared workspace keys use the billed account as
+ * the explicit system actor because the credential does not identify a human.
+ */
+export async function resolveWorkspaceRequestActor(
+  rateLimit: RateLimitResult,
+  workspaceId: string
+): Promise<string | null> {
+  if (rateLimit.keyType === 'workspace') {
+    return getWorkspaceBilledAccountUserId(workspaceId)
+  }
+  return rateLimit.userId ?? null
 }
 
 /**

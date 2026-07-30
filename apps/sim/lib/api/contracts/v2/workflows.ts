@@ -2,8 +2,11 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1DeployWorkflowDataSchema,
+  v1ImportWorkflowBodySchema,
+  v1ImportWorkflowDataSchema,
   v1ListWorkflowsQuerySchema,
   v1RollbackWorkflowDataSchema,
+  v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -108,5 +111,30 @@ export const v2RollbackWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v1RollbackWorkflowDataSchema),
+  },
+})
+
+/**
+ * Export/import reuse the v1 payload and body schemas verbatim — the portable
+ * envelope must round-trip across both surfaces — with only the response
+ * envelope upgraded.
+ */
+export const v2ExportWorkflowContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/export',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v1WorkflowExportPayloadSchema),
+  },
+})
+
+export const v2ImportWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/import',
+  body: v1ImportWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v1ImportWorkflowDataSchema),
   },
 })

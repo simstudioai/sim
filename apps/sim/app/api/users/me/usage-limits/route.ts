@@ -2,11 +2,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { usageLimitsRequestSchema } from '@/lib/api/contracts/usage-limits'
-import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage'
-import { RateLimiter } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
@@ -23,22 +22,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const authenticatedUserId = auth.userId
 
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
-    const rateLimiter = new RateLimiter()
-    const triggerType = auth.authType === AuthType.API_KEY ? 'api' : 'manual'
-    const [syncStatus, asyncStatus] = await Promise.all([
-      rateLimiter.getRateLimitStatusWithSubscription(
-        authenticatedUserId,
-        userSubscription,
-        triggerType,
-        false
-      ),
-      rateLimiter.getRateLimitStatusWithSubscription(
-        authenticatedUserId,
-        userSubscription,
-        triggerType,
-        true
-      ),
-    ])
 
     const [usageCheck, storageUsage, storageLimit] = await Promise.all([
       checkServerSideUsageLimits(authenticatedUserId),
@@ -52,23 +35,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({
       success: true,
-      rateLimit: {
-        sync: {
-          isLimited: syncStatus.remaining === 0,
-          requestsPerMinute: syncStatus.requestsPerMinute,
-          maxBurst: syncStatus.maxBurst,
-          remaining: syncStatus.remaining,
-          resetAt: syncStatus.resetAt,
-        },
-        async: {
-          isLimited: asyncStatus.remaining === 0,
-          requestsPerMinute: asyncStatus.requestsPerMinute,
-          maxBurst: asyncStatus.maxBurst,
-          remaining: asyncStatus.remaining,
-          resetAt: asyncStatus.resetAt,
-        },
-        authType: triggerType,
-      },
       usage: {
         currentPeriodCost,
         limit: usageCheck.limit,

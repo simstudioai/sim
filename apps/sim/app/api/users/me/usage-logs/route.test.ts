@@ -57,7 +57,7 @@ describe('GET /api/users/me/usage-logs', () => {
         source: 'workflow',
         workflowName: null,
         creditCost: 100,
-        dollarCost: 0.5,
+        hasCost: true,
       },
     ])
     expect(body.summary).toEqual({

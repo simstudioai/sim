@@ -67,8 +67,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (access) return v2WorkspaceAccessError(access)
 
     /**
-     * A query incurs hosted embedding (+ optional rerank) cost; a tag-only
-     * search does not, so it is not gated and not attributed. Workspace keys
+     * A query incurs hosted embedding (+ optional rerank) cost — gate the
+     * actor's usage before spending; tag-only search is free. Workspace keys
      * resolve their system actor and immutable payer from one workspace read.
      */
     const hasBillableQuery = Boolean(query?.trim())
@@ -78,7 +78,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
       : undefined
     const billingActorUserId = billingAttribution?.actorUserId ?? userId
-
     if (billingAttribution) {
       const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {

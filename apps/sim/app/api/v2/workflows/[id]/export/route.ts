@@ -3,31 +3,27 @@ import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { type NextRequest, NextResponse } from 'next/server'
-import { v1ExportWorkflowContract } from '@/lib/api/contracts/v1/workflows'
+import type { NextRequest } from 'next/server'
+import { v2ExportWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildWorkflowExportPayload } from '@/lib/workflows/operations/export-workflow'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import {
-  checkRateLimit,
-  createRateLimitResponse,
-  validateWorkspaceAccess,
-} from '@/app/api/v1/middleware'
+import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
-const logger = createLogger('V1WorkflowExportAPI')
+const logger = createLogger('V2WorkflowExportAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
- * GET /api/v1/workflows/[id]/export
+ * GET /api/v2/workflows/[id]/export
  *
  * Exports a workflow as a portable JSON envelope that
- * `POST /api/v1/workflows/import` accepts verbatim. Payload assembly and the
+ * `POST /api/v2/workflows/import` accepts verbatim. Payload assembly and the
  * sanitization guarantees are documented on the shared
  * {@link buildWorkflowExportPayload}; this route authenticates and renders the
- * v1 envelope.
+ * v2 envelope.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -35,14 +31,11 @@ export const GET = withRouteHandler(
 
     try {
       const rateLimit = await checkRateLimit(request, 'workflow-export')
-      if (!rateLimit.allowed) {
-        return createRateLimitResponse(rateLimit)
-      }
+      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
-      const parsed = await parseRequest(v1ExportWorkflowContract, request, context, {
-        validationErrorResponse: () =>
-          NextResponse.json({ error: 'Invalid workflow ID' }, { status: 400 }),
+      const parsed = await parseRequest(v2ExportWorkflowContract, request, context, {
+        validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
 
@@ -51,19 +44,14 @@ export const GET = withRouteHandler(
       logger.info(`[${requestId}] Exporting workflow ${id}`, { userId })
 
       const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData?.workspaceId) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
+      if (!workflowData?.workspaceId) return v2Error('NOT_FOUND', 'Workflow not found')
 
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
-      if (accessError) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
+      // Mask an authorization failure as 404 so existence is not leaked.
+      const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
+      if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
       const payload = await buildWorkflowExportPayload(workflowData)
-      if (!payload) {
-        return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
-      }
+      if (!payload) return v2Error('NOT_FOUND', 'Workflow state not found')
 
       recordAudit({
         workspaceId: workflowData.workspaceId,
@@ -82,14 +70,12 @@ export const GET = withRouteHandler(
         request,
       })
 
-      const limits = await getUserLimits(userId)
-      const apiResponse = createApiResponse({ data: payload }, limits, rateLimit)
-
-      return NextResponse.json(apiResponse.body, { headers: apiResponse.headers })
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Workflow export error`, { error: message })
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      return v2Data(payload, { rateLimit })
+    } catch (error) {
+      logger.error(`[${requestId}] Workflow export error`, {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return v2Error('INTERNAL_ERROR', 'Internal server error')
     }
   }
 )

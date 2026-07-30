@@ -49,7 +49,7 @@ export const POST = withRouteHandler(
 
       const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
       if (!target.ok) return v2Error('NOT_FOUND', 'Workflow not found')
-      const { workflow, workspaceId } = target
+      const { workspaceId } = target
 
       await assertWorkflowMutable(id)
 

@@ -1,33 +1,31 @@
 /**
  * @vitest-environment node
  *
- * Public v2 tables list: auth/scope gating, typed summary output, private cache header.
+ * Public v2 tables list: auth/scope gating, rollout gate ordering, typed
+ * summary output in the `{ data, nextCursor }` envelope, private cache header.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockListTables, mockCheckRateLimit, mockValidateWorkspaceAccess, mockGate } = vi.hoisted(
-  () => ({
-    mockListTables: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockValidateWorkspaceAccess: vi.fn(),
-    mockGate: vi.fn(),
-  })
-)
+const {
+  mockListTables,
+  mockCheckRateLimit,
+  mockResolveWorkspaceAccess,
+  mockIsFeatureEnabled,
+  mockGetWorkspaceOrganizationId,
+} = vi.hoisted(() => ({
+  mockListTables: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockResolveWorkspaceAccess: vi.fn(),
+  mockIsFeatureEnabled: vi.fn(),
+  mockGetWorkspaceOrganizationId: vi.fn(),
+}))
 
-vi.mock('@/app/api/v1/middleware', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkRateLimit: mockCheckRateLimit,
-    validateWorkspaceAccess: mockValidateWorkspaceAccess,
-    createRateLimitResponse: (r: { error?: string }) =>
-      NextResponse.json(
-        { error: r.error ?? 'Rate limit exceeded' },
-        { status: r.error ? 401 : 429 }
-      ),
-  }
-})
+vi.mock('@/app/api/v1/middleware', () => ({
+  checkRateLimit: mockCheckRateLimit,
+  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+}))
 
 vi.mock('@/lib/table', async () => {
   const actual = await import('@/lib/table/column-keys')
@@ -36,10 +34,28 @@ vi.mock('@/lib/table', async () => {
 
 vi.mock('@/app/api/table/utils', () => ({
   normalizeColumn: (col: Record<string, unknown>) => col,
-  tablesV2GateError: mockGate,
+  rootErrorMessage: (error: unknown) => String(error),
+  rowWriteErrorResponse: () => null,
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mockIsFeatureEnabled,
+}))
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
 }))
 
 import { GET } from '@/app/api/v2/tables/route'
+
+const RATE_LIMIT_OK = {
+  allowed: true,
+  userId: 'user-1',
+  keyType: 'workspace',
+  limit: 100,
+  remaining: 99,
+  resetAt: new Date('2024-01-01T01:00:00Z'),
+}
 
 function buildTable(): TableDefinition {
   return {
@@ -66,37 +82,40 @@ function callList(query: string) {
 describe('GET /api/v2/tables', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1', keyType: 'workspace' })
-    mockValidateWorkspaceAccess.mockResolvedValue(null)
+    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
+    mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockListTables.mockResolvedValue([buildTable()])
-    mockGate.mockResolvedValue(null)
+    mockIsFeatureEnabled.mockResolvedValue(true)
+    mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
   })
 
   it('returns 404 when the tables-v2-api flag is off', async () => {
-    const { NextResponse } = await import('next/server')
-    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+    mockIsFeatureEnabled.mockResolvedValue(false)
     const res = await callList('workspaceId=workspace-1')
     expect(res.status).toBe(404)
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
     expect(mockListTables).not.toHaveBeenCalled()
   })
 
   it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
-    const { NextResponse } = await import('next/server')
-    mockValidateWorkspaceAccess.mockResolvedValue(
-      NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    )
+    mockResolveWorkspaceAccess.mockResolvedValue({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+    })
     const res = await callList('workspaceId=workspace-1')
     expect(res.status).toBe(403)
-    expect(mockGate).not.toHaveBeenCalled()
+    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
   })
 
-  it('returns a typed table summary with a private cache header', async () => {
+  it('returns typed table summaries in the cursor envelope with a private cache header', async () => {
     const res = await callList('workspaceId=workspace-1')
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
     const body = await res.json()
-    expect(body.data.totalCount).toBe(1)
-    expect(body.data.tables[0]).toMatchObject({
+    expect(body.nextCursor).toBeNull()
+    expect(body.data).toHaveLength(1)
+    expect(body.data[0]).toMatchObject({
       id: 'tbl_1',
       name: 'People',
       description: 'A table',
@@ -104,28 +123,38 @@ describe('GET /api/v2/tables', () => {
       maxRows: 100,
       createdAt: '2024-01-01T00:00:00.000Z',
     })
-    expect(body.data.tables[0].schema.columns[0].name).toBe('name')
+    expect(body.data[0].schema.columns[0].name).toBe('name')
   })
 
   it('400s when workspaceId is missing', async () => {
     const res = await callList('')
     expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
     expect(mockListTables).not.toHaveBeenCalled()
   })
 
-  it('surfaces an access-denied response from the middleware', async () => {
-    const { NextResponse } = await import('next/server')
-    mockValidateWorkspaceAccess.mockResolvedValue(
-      NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    )
+  it('surfaces an access-denied failure in the v2 error envelope', async () => {
+    mockResolveWorkspaceAccess.mockResolvedValue({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+    })
     const res = await callList('workspaceId=workspace-1')
     expect(res.status).toBe(403)
+    expect((await res.json()).error).toMatchObject({ code: 'FORBIDDEN', message: 'Access denied' })
     expect(mockListTables).not.toHaveBeenCalled()
   })
 
   it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false })
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      limit: 100,
+      remaining: 0,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+      retryAfterMs: 1000,
+    })
     const res = await callList('workspaceId=workspace-1')
     expect(res.status).toBe(429)
+    expect((await res.json()).error.code).toBe('RATE_LIMITED')
   })
 })

@@ -179,9 +179,8 @@ export const POST = withRouteHandler(
       if (result instanceof NextResponse) return result
 
       /**
-       * Gate before storage and indexing. Workspace keys bill the billed account
-       * and its immutable payer from one read; personal keys keep their human
-       * actor. Mirrors the v1 upload path so the two attribute identically.
+       * Gate before storage and indexing. Workspace keys use the billed account
+       * and immutable payer from one read; personal keys preserve their human actor.
        */
       const billingAttribution =
         rateLimit.keyType === 'workspace'
@@ -249,7 +248,7 @@ export const POST = withRouteHandler(
         },
         knowledgeBaseId,
         requestId,
-        userId
+        billingAttribution.actorUserId
       )
 
       const documentData: DocumentData = {

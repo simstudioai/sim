@@ -341,12 +341,16 @@ export const usageLogEntrySchema = z.object({
    * Credit-denominated cost of this event (Sim's usage unit; 1,000 credits =
    * $5), apportioned across the page so row credits always sum exactly to
    * the page's rounded total — this can legitimately be 0 for a row with a
-   * real but sub-credit `dollarCost` once a sibling row absorbs the shared
-   * rounding remainder.
+   * real but sub-credit charge once a sibling row absorbs the shared
+   * rounding remainder (see `hasCost`).
    */
   creditCost: z.number(),
-  /** Raw dollar cost, so a 0 `creditCost` can be distinguished from a genuinely free event. */
-  dollarCost: z.number(),
+  /**
+   * Whether the event carried any real charge — distinguishes a row whose
+   * `creditCost` apportioned to 0 from a genuinely free event, without putting
+   * raw dollar costs on the wire.
+   */
+  hasCost: z.boolean(),
 })
 
 export const usageLogsApiResponseSchema = z.object({

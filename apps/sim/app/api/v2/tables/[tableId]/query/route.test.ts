@@ -2,44 +2,40 @@
  * @vitest-environment node
  *
  * Public v2 query POST: typed predicate name→id translation, bounded-default vs
- * explicit-unbounded limit, cursor validation, workspace scoping,
- * and name-keyed row output.
+ * explicit-unbounded limit, cursor validation, workspace scoping, and
+ * name-keyed row output in the `{ data, nextCursor }` envelope.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockCheckAccess, mockQueryRows, mockCheckRateLimit, mockCheckWorkspaceScope, mockGate } =
-  vi.hoisted(() => ({
-    mockCheckAccess: vi.fn(),
-    mockQueryRows: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockCheckWorkspaceScope: vi.fn(),
-    mockGate: vi.fn(),
-  }))
+const {
+  mockCheckAccess,
+  mockQueryRows,
+  mockCheckRateLimit,
+  mockResolveWorkspaceScope,
+  mockIsFeatureEnabled,
+  mockGetWorkspaceOrganizationId,
+} = vi.hoisted(() => ({
+  mockCheckAccess: vi.fn(),
+  mockQueryRows: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockResolveWorkspaceScope: vi.fn(),
+  mockIsFeatureEnabled: vi.fn(),
+  mockGetWorkspaceOrganizationId: vi.fn(),
+}))
 
-vi.mock('@/app/api/v1/middleware', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkRateLimit: mockCheckRateLimit,
-    checkWorkspaceScope: mockCheckWorkspaceScope,
-    createRateLimitResponse: (r: { error?: string }) =>
-      NextResponse.json(
-        { error: r.error ?? 'Rate limit exceeded' },
-        { status: r.error ? 401 : 429 }
-      ),
-  }
-})
+vi.mock('@/app/api/v1/middleware', () => ({
+  checkRateLimit: mockCheckRateLimit,
+  resolveWorkspaceScope: mockResolveWorkspaceScope,
+}))
 
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-    tablesV2GateError: mockGate,
-  }
-})
+vi.mock('@/app/api/table/utils', () => ({
+  checkAccess: mockCheckAccess,
+  normalizeColumn: (col: Record<string, unknown>) => col,
+  rootErrorMessage: (error: unknown) => String(error),
+  rowWriteErrorResponse: () => null,
+}))
 
 vi.mock('@/lib/table', async () => {
   const columnKeys = await import('@/lib/table/column-keys')
@@ -48,8 +44,26 @@ vi.mock('@/lib/table', async () => {
 
 vi.mock('@/lib/table/rows/service', () => ({ queryRows: mockQueryRows }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mockIsFeatureEnabled,
+}))
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
+}))
+
 import { encodeCursor } from '@/lib/table/rows/cursor'
 import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
+
+const RATE_LIMIT_OK = {
+  allowed: true,
+  userId: 'user-1',
+  keyType: 'workspace',
+  workspaceId: 'workspace-1',
+  limit: 100,
+  remaining: 99,
+  resetAt: new Date('2024-01-01T01:00:00Z'),
+}
 
 function buildTable(): TableDefinition {
   return {
@@ -95,31 +109,28 @@ function callQuery(body: Record<string, unknown>) {
 describe('POST /api/v2/tables/[tableId]/query', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: true,
-      userId: 'user-1',
-      keyType: 'workspace',
-      workspaceId: 'workspace-1',
-    })
-    mockCheckWorkspaceScope.mockResolvedValue(null)
+    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
+    mockResolveWorkspaceScope.mockResolvedValue(null)
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     mockQueryRows.mockResolvedValue(EMPTY_RESULT)
-    mockGate.mockResolvedValue(null)
+    mockIsFeatureEnabled.mockResolvedValue(true)
+    mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
   })
 
   it('returns 404 when the tables-v2-api flag is off', async () => {
-    const { NextResponse } = await import('next/server')
-    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+    mockIsFeatureEnabled.mockResolvedValue(false)
     const res = await callQuery({ workspaceId: 'workspace-1' })
     expect(res.status).toBe(404)
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
   it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
     mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
     const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(403)
-    expect(mockGate).not.toHaveBeenCalled()
+    // Read path masks not-authorized as 404 so existence never leaks.
+    expect(res.status).toBe(404)
+    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
   })
 
   it('translates a name-keyed predicate to storage ids', async () => {
@@ -174,7 +185,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       predicate: { all: [{ field: 'nope', op: 'eq', value: 1 }] },
     })
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/Unknown filter column/)
+    expect((await res.json()).error.message).toMatch(/Unknown filter column/)
   })
 
   it('rejects a keyset cursor combined with a custom sort', async () => {
@@ -189,7 +200,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       cursor,
     })
     expect(res.status).toBe(400)
-    expect((await res.json()).code).toBe('CURSOR_SORT_CONFLICT')
+    expect((await res.json()).error.details.code).toBe('CURSOR_SORT_CONFLICT')
   })
 
   it('returns 400 INVALID_CURSOR for a malformed cursor', async () => {
@@ -198,23 +209,28 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       cursor: Buffer.from('42').toString('base64url'),
     })
     expect(res.status).toBe(400)
-    expect((await res.json()).code).toBe('INVALID_CURSOR')
+    expect((await res.json()).error.details.code).toBe('INVALID_CURSOR')
   })
 
-  it('surfaces a workspace-scope 403 from the middleware', async () => {
-    const { NextResponse } = await import('next/server')
-    mockCheckWorkspaceScope.mockResolvedValue(
-      NextResponse.json({ error: 'not authorized' }, { status: 403 })
-    )
+  it('surfaces a workspace-scope 403 in the v2 error envelope', async () => {
+    mockResolveWorkspaceScope.mockResolvedValue({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'API key is not authorized for this workspace',
+    })
     const res = await callQuery({ workspaceId: 'workspace-1' })
     expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('FORBIDDEN')
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
-  it('rejects a workspace-id mismatch against the table', async () => {
+  it('masks a workspace-id mismatch against the table as 404', async () => {
     const res = await callQuery({ workspaceId: 'other-ws' })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toBe('Invalid workspace ID')
+    expect(res.status).toBe(404)
+    expect((await res.json()).error).toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Table not found',
+    })
   })
 
   it('returns name-keyed row data with no storage internals and a private cache header', async () => {
@@ -238,7 +254,9 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     })
     const res = await callQuery({ workspaceId: 'workspace-1' })
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    expect((await res.json()).data.rows[0]).toEqual({
+    const body = await res.json()
+    expect(body.nextCursor).toBeNull()
+    expect(body.data[0]).toEqual({
       id: 'r1',
       data: { status: 'active', wins: 12 },
       createdAt: '2024-02-02T00:00:00.000Z',
@@ -247,7 +265,13 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
   })
 
   it('returns the rate-limit response when the limiter denies the request', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false })
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      limit: 100,
+      remaining: 0,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+      retryAfterMs: 1000,
+    })
     const res = await callQuery({ workspaceId: 'workspace-1' })
     expect(res.status).toBe(429)
     expect(mockCheckAccess).not.toHaveBeenCalled()

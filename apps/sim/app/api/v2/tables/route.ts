@@ -1,78 +1,146 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
-import { v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { getErrorMessage } from '@sim/utils/errors'
+import type { NextRequest } from 'next/server'
+import { v2CreateTableContract, v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
+import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listTables, type TableSchema } from '@/lib/table'
-import { normalizeColumn, tablesV2GateError } from '@/app/api/table/utils'
+import { createTable, getWorkspaceTableLimits, listTables, type TableSchema } from '@/lib/table'
+import { normalizeColumn } from '@/app/api/table/utils'
+import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import {
-  checkRateLimit,
-  createRateLimitResponse,
-  validateWorkspaceAccess,
-} from '@/app/api/v1/middleware'
+  v2CursorList,
+  v2Data,
+  v2Error,
+  v2RateLimitError,
+  v2ValidationError,
+  v2WorkspaceAccessError,
+} from '@/app/api/v2/lib/response'
+import { toApiTable, v2TablesGateError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TablesAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** Filters/ids can appear in query strings; keep list responses out of shared caches. */
-const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
-
-/** GET /api/v2/tables — list all tables in a workspace. */
+/** GET /api/v2/tables — List all tables in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const rateLimit = await checkRateLimit(request, 'v2-tables')
-    if (!rateLimit.allowed) return createRateLimitResponse(rateLimit)
+    const rateLimit = await checkRateLimit(request, 'tables')
+    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v2ListTablesContract, request, {})
+    const parsed = await parseRequest(
+      v2ListTablesContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v2ValidationError,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
-    if (accessError) return accessError
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
+    if (access) return v2WorkspaceAccessError(access)
 
-    // After authz: the gate reads the workspace's org off the primary DB, and its
-    // 404 would otherwise distinguish "not in the rollout cohort" from "no access".
-    const gateError = await tablesV2GateError(userId, workspaceId)
+    const gateError = await v2TablesGateError(userId, workspaceId)
     if (gateError) return gateError
 
     const tables = await listTables(workspaceId)
+    const items = tables.map(toApiTable)
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          tables: tables.map((t) => {
-            const schemaData = t.schema as TableSchema
-            return {
-              id: t.id,
-              name: t.name,
-              description: t.description,
-              schema: { columns: schemaData.columns.map(normalizeColumn) },
-              rowCount: t.rowCount,
-              maxRows: t.maxRows,
-              createdAt:
-                t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
-              updatedAt:
-                t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
-            }
-          }),
-          totalCount: tables.length,
-        },
-      },
-      { headers: PRIVATE_NO_STORE }
-    )
+    // `listTables` returns the full bounded workspace set → single page.
+    return v2CursorList(items, null, { rateLimit })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
-    if (validationResponse) return validationResponse
+    logger.error(`[${requestId}] Error listing tables`, {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return v2Error('INTERNAL_ERROR', 'Internal server error')
+  }
+})
 
-    logger.error(`[${requestId}] Error listing tables:`, error)
-    return NextResponse.json({ error: 'Failed to list tables' }, { status: 500 })
+/** POST /api/v2/tables — Create a new table. */
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const requestId = generateRequestId()
+
+  try {
+    const rateLimit = await checkRateLimit(request, 'tables')
+    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+
+    const userId = rateLimit.userId!
+    const parsed = await parseRequest(
+      v2CreateTableContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v2ValidationError,
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const params = parsed.data.body
+
+    const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'write')
+    if (access) return v2WorkspaceAccessError(access)
+
+    const gateError = await v2TablesGateError(userId, params.workspaceId)
+    if (gateError) return gateError
+
+    const planLimits = await getWorkspaceTableLimits(params.workspaceId)
+
+    const normalizedSchema: TableSchema = {
+      columns: params.schema.columns.map(normalizeColumn),
+    }
+
+    const table = await createTable(
+      {
+        name: params.name,
+        description: params.description,
+        schema: normalizedSchema,
+        workspaceId: params.workspaceId,
+        userId,
+        maxTables: planLimits.maxTables,
+      },
+      requestId
+    )
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_CREATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: table.id,
+      resourceName: table.name,
+      description: `Created table "${table.name}" via API`,
+      metadata: { columnCount: params.schema.columns.length },
+      request,
+    })
+
+    return v2Data({ table: toApiTable(table) }, { rateLimit, status: 201 })
+  } catch (error) {
+    if (isZodError(error)) return v2ValidationError(error)
+
+    if (error instanceof Error) {
+      if (error.message.includes('maximum table limit')) {
+        return v2Error('FORBIDDEN', error.message)
+      }
+      if (
+        error.message.includes('Invalid table name') ||
+        error.message.includes('Invalid schema') ||
+        error.message.includes('already exists')
+      ) {
+        return v2Error('BAD_REQUEST', error.message)
+      }
+    }
+
+    logger.error(`[${requestId}] Error creating table`, {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return v2Error('INTERNAL_ERROR', 'Internal server error')
   }
 })

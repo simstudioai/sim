@@ -37,7 +37,8 @@ export type EnterpriseAuditAccessResult =
  * Core enterprise audit-access check (no response rendering).
  *
  * Checks:
- * 1. User belongs to an organization
+ * 1. User belongs to an organization (the target one when
+ *    `targetOrganizationId` is given)
  * 2. User has admin or owner role
  * 3. The organization is entitled to audit logs — an active enterprise
  *    subscription when billing runs, otherwise the deployment's audit-logs
@@ -46,6 +47,8 @@ export type EnterpriseAuditAccessResult =
  * The subscription query is skipped entirely with billing off. Requiring it
  * there made audit logs unreachable on every self-hosted deployment, since no
  * subscription row is ever written without billing.
+ *
+ * Returns the organization ID and all member user IDs on success.
  */
 export async function resolveEnterpriseAuditAccess(
   userId: string,
