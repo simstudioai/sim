@@ -123,7 +123,10 @@ html[data-sim-desktop-title-bar="inset"]
   letter-spacing: 0.02em;
 }
 
-.workspace-content-shell[data-sidebar-collapsed] {
+/* The pane owns the lane whenever the sidebar is not there to own it: collapsed to
+   zero width, or slid away for a fullscreen route. */
+.workspace-content-shell[data-sidebar-collapsed],
+.workspace-content-shell[data-content-fullscreen] {
   --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 

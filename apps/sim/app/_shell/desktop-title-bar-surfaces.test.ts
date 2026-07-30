@@ -18,6 +18,9 @@ const pageHeaderBar = read('../../components/page-header-bar.ts')
 const resourceHeader = read(
   '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
 )
+const mothershipView = read(
+  '../workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx'
+)
 
 describe('desktop title-bar surface audit', () => {
   it('applies the safe-area shell only when the auth route is login', () => {
@@ -76,9 +79,21 @@ describe('desktop title-bar surface audit', () => {
     // /organization/[id], /selfhost; the landing tables preview). An undefined var()
     // inside calc() is invalid at computed-value time and drops padding-top entirely.
     expect(globalStyles).toMatch(/:root\s*\{[^}]*--workspace-content-title-bar-inset:\s*0px/s)
-    expect(globalStyles).toContain(
-      '.workspace-content-shell[data-sidebar-collapsed] {\n  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);'
-    )
+    // The pane owns the lane in both arrangements where the sidebar is not there to
+    // own it: collapsed to zero width, and slid away for a fullscreen route (which
+    // leaves the sidebar expanded in the store, so the collapsed selector alone misses
+    // it and /upgrade's back chip lands under the traffic lights).
+    expect(globalStyles).toContain('.workspace-content-shell[data-sidebar-collapsed],')
+    expect(globalStyles).toContain('.workspace-content-shell[data-content-fullscreen] {')
+    expect(workspaceChrome).toContain('data-content-fullscreen={isFullscreen || undefined}')
+  })
+
+  it('clears the lane for panels that embed pages away from the lights', () => {
+    // The mothership panel is the right half of the pane and embeds whole pages
+    // (KnowledgeBase et al) whose header bars reserve the lane. It inherits the
+    // variable, so without this reset those bars gain the inset while sitting nowhere
+    // near the traffic lights.
+    expect(mothershipView).toContain('[--workspace-content-title-bar-inset:0px]')
   })
 
   it('reserves that lane in every top-of-pane header bar', () => {

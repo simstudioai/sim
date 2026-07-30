@@ -295,6 +295,9 @@ export function WorkspaceChrome({
           isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'
         )}
         data-sidebar-collapsed={isCollapsed || undefined}
+        /* A fullscreen route slides the sidebar away without collapsing it, so the pane
+           inherits the traffic-light lane the same way a collapsed sidebar does. */
+        data-content-fullscreen={isFullscreen || undefined}
       >
         <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
           {children}
