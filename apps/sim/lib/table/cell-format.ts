@@ -25,8 +25,6 @@ import type { ColumnDefinition, JsonValue, RowData } from '@/lib/table/types'
  * must reach consumers byte-identical to what is stored.
  */
 export function formatCellValue(value: unknown, column: ColumnDefinition): JsonValue {
-  // Only types storing opaque ids need translating; the passthrough for
-  // everything else is load-bearing (see the module doc).
   if (columnTypeOf(column).storesOpaqueIds) return selectValueToNames(column, value)
   return value as JsonValue
 }

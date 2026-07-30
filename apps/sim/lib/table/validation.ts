@@ -650,7 +650,6 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     errors.push(`Column "${column.name}" of type "${column.type}" cannot be unique`)
   }
 
-  // Generic foreign-metadata check, driven by each type's declared ownership.
   // Type-specific metadata stored on the wrong type is inert until a later
   // conversion inherits it — silently overriding what that request asked for.
   const owned = new Set<string>(definition.ownedMetadata)

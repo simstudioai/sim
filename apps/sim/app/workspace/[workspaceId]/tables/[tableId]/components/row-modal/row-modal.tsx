@@ -220,7 +220,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   const hint = `Type: ${typeLabel}${column.required ? '' : ' (optional)'}`
   const definition = columnTypeOf(column)
 
-  if (column.type === 'boolean') {
+  if (definition.editor === 'toggle') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
@@ -240,6 +240,9 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
+  // The one type wanting a mono multi-line field; `editor: 'text'` covers both
+  // this and a plain input, so it stays explicit rather than inventing a field
+  // only one type would ever set.
   if (column.type === 'json') {
     return (
       <ChipModalField
@@ -256,7 +259,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (column.type === 'date') {
+  if (definition.editor === 'date') {
     const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
@@ -285,7 +288,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (column.type === 'select') {
+  if (definition.editor === 'select') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <SelectValueEditor column={column} value={value} onChange={onChange} fullWidth />

@@ -609,7 +609,6 @@ export async function updateColumnType(
 
     const updatedColumns = schema.columns.map((c, i) => {
       if (i !== columnIndex) return c
-      // Drop any prior per-type config, then re-add whatever the target type uses.
       const {
         options: _prevOptions,
         multiple: _prevMultiple,
@@ -1136,8 +1135,7 @@ export function isValueCompatibleWithType(
   targetRequired = false
 ): boolean {
   if (value === null || value === undefined) return true
-  // The target column as it will exist after the change — each type reads only
-  // the metadata it owns.
+  // Each type reads only the metadata it owns.
   return columnTypeById(targetType).isCompatibleWith(value, {
     name: '',
     type: targetType,

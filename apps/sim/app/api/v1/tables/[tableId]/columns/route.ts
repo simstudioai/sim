@@ -157,13 +157,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const { updates } = validated
     let updatedTable = null
 
-    if (updates.name) {
-      updatedTable = await renameColumn(
-        { tableId, oldName: validated.columnName, newName: updates.name },
-        requestId
-      )
-    }
-
     // A payload that repeats the current type must not go through
     // `updateColumnType` — it early-returns on an unchanged type and would drop
     // any `options` alongside it. Only a real type change routes there; an
@@ -174,15 +167,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
 
     // Every write below is its own locked transaction, so any of them paired
-    // with a constraint write that is going to fail commits and then errors.
+    // with a write that is going to fail commits and then errors. These run
+    // ahead of EVERY write — including the rename — because `renameColumn`
+    // commits on its own, so a rejection raised later would return an error
+    // with the rename already applied.
     // Gate on the type the column ENDS UP with, not on whether the type is
     // changing: an options-only update on an existing select column carries the
     // same hazard as a conversion does.
     const resultingType = updates.type ?? currentColumn?.type
-    // Same reason as the constraint guard below: `renameColumn` runs first and
-    // commits on its own, so anything `updateColumnCurrency` would reject has
-    // to be caught before that write rather than inside the last one —
-    // otherwise the rename sticks and the request still errors.
     if (updates.currencyCode !== undefined) {
       if (resultingType !== 'currency') {
         return NextResponse.json(
@@ -205,6 +197,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return NextResponse.json(
         { error: `Cannot set a ${resultingType} column as unique` },
         { status: 400 }
+      )
+    }
+
+    if (updates.name) {
+      updatedTable = await renameColumn(
+        { tableId, oldName: validated.columnName, newName: updates.name },
+        requestId
       )
     }
 

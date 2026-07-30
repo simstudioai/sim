@@ -44,8 +44,8 @@ export function formatCsvValue(value: unknown): string {
  * (comma-joined for multi) so the file shows the enum label, not the id.
  */
 export function formatCsvCell(column: ColumnDefinition, value: unknown): string {
-  // Types storing opaque ids must be resolved to their labels; every other type
-  // writes its stored value verbatim so the file re-imports byte-identically.
+  // Every other type writes its stored value verbatim so the file re-imports
+  // byte-identically.
   if (columnTypeOf(column).storesOpaqueIds) {
     return neutralizeCsvFormula(columnTypeOf(column).formatForDisplay(value, column))
   }
