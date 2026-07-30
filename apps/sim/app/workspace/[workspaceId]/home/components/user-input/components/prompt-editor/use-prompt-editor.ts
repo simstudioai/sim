@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  attachSelectionContextToClipboard,
+  readSelectionContextFromClipboard,
+} from '@/lib/copilot/chat/selection-clipboard'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,
   chipLinkToContext,
   parseChipLinks,
+  selectionContextsInText,
   serializeSelectionForClipboard,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/chip-clipboard-codec'
 import {
@@ -20,6 +25,7 @@ import {
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
+  isContextAlreadySelected,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
@@ -462,6 +468,40 @@ export function usePromptEditor({
   )
 
   /**
+   * Inserts a context as an `@label` chip at the caret and registers it. Unlike
+   * the menu-driven inserts, this is triggered programmatically (the
+   * highlight-to-chat action in the file/table viewers) rather than by a typed
+   * `@`/`/` trigger, so it always inserts at the current cursor position.
+   */
+  const insertContextChip = useCallback(
+    (context: ChatContext) => {
+      // A chip's `@label` token must be unique — `addContext` dedupes a matching
+      // label, so inserting a token for an already-present context would orphan
+      // it (a second token with no backing context). Skip and just focus.
+      if (isContextAlreadySelected(context, contextManagementRef.current.selectedContexts)) {
+        textareaRef.current?.focus()
+        return
+      }
+      const textarea = textareaRef.current
+      if (textarea) {
+        const currentValue = valueRef.current
+        const insertAt = textarea.selectionStart ?? currentValue.length
+        const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
+        const insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
+        const newValue = `${currentValue.slice(0, insertAt)}${insertText}${currentValue.slice(insertAt)}`
+        const newPos = insertAt + insertText.length
+
+        pendingCursorRef.current = newPos
+        valueRef.current = newValue
+        setValueState(newValue)
+      }
+
+      addContextNotified(context)
+    },
+    [textareaRef, addContextNotified]
+  )
+
+  /**
    * Only reachable via Radix's own dismiss detection (outside click /
    * Escape) — programmatic closes (`skillsMenuRef.current?.close()`) bypass
    * `onOpenChange` and never call this.
@@ -876,6 +916,36 @@ export function usePromptEditor({
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
 
+    // A selection copied from a file/table (Cmd+C) carries its context on a
+    // custom clipboard type — paste it as a reference chip instead of plain text.
+    // Registers via `addContext` (not the notified path) so paste never opens a
+    // side panel, matching the portable-chip-link paste below.
+    const selectionContext = readSelectionContextFromClipboard(e.clipboardData)
+    if (selectionContext) {
+      e.preventDefault()
+      // A chip's `@label` token must be unique — `addContext` dedupes a matching
+      // label, so inserting a token for an already-present selection would orphan
+      // it (a second token with no backing context). Skip and keep focus, mirroring
+      // insertContextChip.
+      if (
+        isContextAlreadySelected(selectionContext, contextManagementRef.current.selectedContexts)
+      ) {
+        return
+      }
+      const selStart = textarea.selectionStart ?? valueRef.current.length
+      const selEnd = textarea.selectionEnd ?? selStart
+      const needsSpaceBefore = selStart > 0 && !/\s/.test(valueRef.current.charAt(selStart - 1))
+      const insert = `${needsSpaceBefore ? ' ' : ''}@${selectionContext.label} `
+      textarea.setRangeText(insert, selStart, selEnd, 'end')
+      const newValue = textarea.value
+      const caret = selStart + insert.length
+      contextManagementRef.current.addContext(selectionContext)
+      valueRef.current = newValue
+      setValueState(newValue)
+      requestAnimationFrame(() => textarea.setSelectionRange(caret, caret))
+      return
+    }
+
     // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
     // paste-back. Rewrite each link span to its `@label ` token (the trailing
     // space is REQUIRED so useContextManagement's sync effect doesn't purge the
@@ -967,6 +1037,15 @@ export function usePromptEditor({
    * text and round-trip by name. Returns true when it took over the clipboard
    * (the caller must then perform the cut deletion itself, since the default
    * was prevented).
+   *
+   * Selection chips (`file_selection` / `table_selection`) can't fit a portable
+   * link — their inline text / row-id payload lives only in the context. When
+   * the selection is exactly one such chip (the common copy/cut of a
+   * highlight-to-chat chip), ride its full context on the custom
+   * `text/x-sim-selection` MIME so paste restores it; otherwise it would leave a
+   * bare `@label` with no backing data. Mixed selections keep the portable/plain
+   * path (the single-slot MIME can't carry more than one), so the chip degrades
+   * to its label text there rather than dropping the rest of the selection.
    */
   const writeSanitizedClipboard = useCallback(
     (e: React.ClipboardEvent<HTMLTextAreaElement>): boolean => {
@@ -975,10 +1054,18 @@ export function usePromptEditor({
       const end = textarea.selectionEnd ?? 0
       const selected = textarea.value.slice(start, end)
       if (!selected) return false
-      const serialized = serializeSelectionForClipboard(
-        selected,
-        contextManagementRef.current.selectedContexts
-      )
+      const contexts = contextManagementRef.current.selectedContexts
+      const selectionChips = selectionContextsInText(selected, contexts)
+      const soleSelectionChip =
+        selectionChips.length === 1 &&
+        selected.replace(chipDisplayToken(selectionChips[0]), '').trim().length === 0
+      if (soleSelectionChip) {
+        e.preventDefault()
+        e.clipboardData.setData('text/plain', selected)
+        attachSelectionContextToClipboard(e.clipboardData, selectionChips[0])
+        return true
+      }
+      const serialized = serializeSelectionForClipboard(selected, contexts)
       if (serialized === selected) return false
       e.preventDefault()
       e.clipboardData.setData('text/plain', serialized)
@@ -1023,6 +1110,8 @@ export function usePromptEditor({
     clear,
     focusAtEnd,
     insertResources,
+    /** Inserts a context as an `@label` chip at the caret (highlight-to-chat). */
+    insertContextChip,
     insertSlashTrigger,
     openResourceMenu,
     /** The editor's textarea element — focus management, caret restore. */

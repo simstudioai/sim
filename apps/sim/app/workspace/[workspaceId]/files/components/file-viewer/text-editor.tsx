@@ -5,13 +5,21 @@ import type { OnMount } from '@monaco-editor/react'
 import { cn } from '@sim/emcn'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
+import {
+  buildFileSelectionLabel,
+  selectionKey,
+  truncateSelectionText,
+} from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { useAddToChat } from '@/hooks/use-add-to-chat'
+import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import { PreviewLoadingFrame } from './preview-shared'
 import { useEditableFileContent } from './use-editable-file-content'
+import { useSelectionCopyBridge } from './use-selection-copy-bridge'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -373,6 +381,31 @@ export const TextEditor = memo(function TextEditor({
 
   const monacoLanguage = resolveMonacoLanguage(file)
   const monacoTheme = useMonacoTheme()
+  const addToChat = useAddToChat()
+
+  const buildSelectionContext = useCallback((): ChatContext | null => {
+    const editor = monacoEditorRef.current
+    const sel = editor?.getSelection()
+    const model = editor?.getModel()
+    if (!editor || !sel || sel.isEmpty() || !model) return null
+    const text = model.getValueInRange(sel)
+    if (!text.trim()) return null
+    const startLine = sel.startLineNumber
+    const endLine = sel.endLineNumber
+    return {
+      kind: 'file_selection',
+      fileId: file.id,
+      label: buildFileSelectionLabel(file.name, startLine, endLine, selectionKey([text])),
+      text: truncateSelectionText(text),
+      startLine,
+      endLine,
+    }
+  }, [file.id, file.name])
+
+  const handleAddSelectionToChat = useCallback(() => {
+    const context = buildSelectionContext()
+    if (context) addToChat(context)
+  }, [addToChat, buildSelectionContext])
 
   const {
     content,
@@ -393,6 +426,10 @@ export const TextEditor = memo(function TextEditor({
     discardRef,
   })
   contentRef.current = content
+
+  // Enable once content has loaded — the container (and Monaco) only mount after
+  // the `isContentLoading` early return below, so the bridge must (re-)attach then.
+  useSelectionCopyBridge(containerRef, buildSelectionContext, !isContentLoading)
 
   useEffect(() => {
     const editor = monacoEditorRef.current
@@ -650,6 +687,10 @@ export const TextEditor = memo(function TextEditor({
           onClose={closeContextMenu}
           hasSelection={contextMenu.hasSelection}
           canEdit={!isEditorReadOnly}
+          onAddToChat={() => {
+            handleAddSelectionToChat()
+            closeContextMenu()
+          }}
           onCut={() => {
             monacoEditorRef.current?.focus()
             monacoEditorRef.current?.trigger(

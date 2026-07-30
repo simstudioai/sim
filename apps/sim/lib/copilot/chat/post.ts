@@ -22,6 +22,11 @@ import {
   processContextsServer,
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
+import {
+  MAX_FILE_SELECTION_TEXT_LENGTH,
+  MAX_TABLE_SELECTION_COLUMNS,
+  MAX_TABLE_SELECTION_ROWS,
+} from '@/lib/copilot/chat/selection-context'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
@@ -145,7 +150,9 @@ const ChatContextSchema = z.object({
     'knowledge',
     'docs',
     'table',
+    'table_selection',
     'file',
+    'file_selection',
     'folder',
     'filefolder',
     'scheduledtask',
@@ -171,6 +178,11 @@ const ChatContextSchema = z.object({
   scheduleId: z.string().optional(),
   tabId: z.string().optional(),
   terminalId: z.string().optional(),
+  text: z.string().max(MAX_FILE_SELECTION_TEXT_LENGTH).optional(),
+  startLine: z.number().int().positive().optional(),
+  endLine: z.number().int().positive().optional(),
+  rowIds: z.array(z.string()).max(MAX_TABLE_SELECTION_ROWS).optional(),
+  columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
 })
 
 const ChatMessageSchema = z.object({

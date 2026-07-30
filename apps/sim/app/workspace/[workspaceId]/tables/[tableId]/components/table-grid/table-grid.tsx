@@ -10,6 +10,13 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
+import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
+import {
+  buildTableSelectionLabel,
+  MAX_TABLE_SELECTION_COLUMNS,
+  MAX_TABLE_SELECTION_ROWS,
+  selectionKey,
+} from '@/lib/copilot/chat/selection-context'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -38,6 +45,7 @@ import {
   useUpdateTableRow,
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
+import { useAddToChat } from '@/hooks/use-add-to-chat'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -960,6 +968,9 @@ export function TableGrid({
 
   const rowSelectionRef = useRef(rowSelection)
   rowSelectionRef.current = rowSelection
+
+  const tableNameRef = useRef(tableData?.name)
+  tableNameRef.current = tableData?.name
 
   columnsRef.current = displayColumns
   schemaColumnsRef.current = columns
@@ -2854,6 +2865,45 @@ export function TableGrid({
 
       if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
+        // The async Clipboard API (`navigator.clipboard.write`) used by the paged
+        // path below replaces the whole clipboard and can't carry a custom MIME
+        // type. For an explicit multi-row ('some') selection whose rows are all
+        // loaded, do a SYNCHRONOUS event write instead so the chat-selection chip
+        // rides alongside `text/plain` (same as the cell-range path). 'all'
+        // (filtered select-all) and oversized selections fall through to the
+        // paged plain-text write, which can't carry the chip.
+        if (rowSel.kind === 'some') {
+          const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
+          const allLoaded = selectedRows.length === rowSel.ids.size
+          if (
+            allLoaded &&
+            selectedRows.length > 0 &&
+            selectedRows.length <= MAX_TABLE_SELECTION_ROWS
+          ) {
+            const text = selectedRows
+              .map((row) => cols.map((col) => cellToText(row.data[col.key], col)).join('\t'))
+              .join('\n')
+            e.clipboardData?.setData('text/plain', text)
+            if (tableNameRef.current) {
+              const rowIds = selectedRows.map((row) => row.id)
+              attachSelectionContextToClipboard(e.clipboardData, {
+                kind: 'table_selection',
+                tableId,
+                label: buildTableSelectionLabel(
+                  tableNameRef.current,
+                  rowIds.length,
+                  undefined,
+                  selectionKey(rowIds)
+                ),
+                rowIds,
+              })
+            }
+            toast.success(
+              `Copied ${selectedRows.length} ${selectedRows.length === 1 ? 'row' : 'rows'}`
+            )
+            return
+          }
+        }
         writeSelectionToClipboard({
           loadRows:
             rowSel.kind === 'all'
@@ -2891,6 +2941,42 @@ export function TableGrid({
           estimatedCount: selectAllTotalRef.current,
         })
         return
+      }
+
+      // Ride a table_selection (bounded rows + the range's columns) onto the
+      // clipboard so pasting this cell range into Chat yields the same chip.
+      if (tableNameRef.current) {
+        const rangeRowIds: string[] = []
+        for (
+          let r = sel.startRow;
+          r <= sel.endRow && rangeRowIds.length < MAX_TABLE_SELECTION_ROWS;
+          r++
+        ) {
+          const row = currentRows[r]
+          if (row) rangeRowIds.push(row.id)
+        }
+        const rangeColumnIds: string[] = []
+        for (let c = sel.startCol; c <= sel.endCol && c < cols.length; c++) {
+          rangeColumnIds.push(getColumnId(cols[c]))
+        }
+        const columnIds =
+          rangeColumnIds.length > 0 && rangeColumnIds.length < cols.length
+            ? rangeColumnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS)
+            : undefined
+        if (rangeRowIds.length > 0) {
+          attachSelectionContextToClipboard(e.clipboardData, {
+            kind: 'table_selection',
+            tableId,
+            label: buildTableSelectionLabel(
+              tableNameRef.current,
+              rangeRowIds.length,
+              columnIds?.length,
+              selectionKey([...rangeRowIds, ...(columnIds ?? [])])
+            ),
+            rowIds: rangeRowIds,
+            ...(columnIds ? { columnIds } : {}),
+          })
+        }
       }
 
       const lines: string[] = []
@@ -3610,6 +3696,80 @@ export function TableGrid({
       )
     : contextMenuRowIds.length || 1
 
+  /**
+   * Column ids for an "Add to chat" table selection. A spreadsheet-style cell
+   * range AND a column-header selection (which spans every row of the chosen
+   * columns) narrow the columns; whole-row (gutter) selections and single rows
+   * send every column (undefined). A range spanning all columns is equivalent to
+   * whole rows, so it also collapses to undefined.
+   */
+  const contextMenuColumnIds = useMemo<string[] | undefined>(() => {
+    if (!contextMenu.isOpen || !contextMenu.row) return undefined
+    if (
+      !rowSelectionIsEmpty(rowSelection) &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+    ) {
+      return undefined
+    }
+    const sel = normalizedSelection
+    if (!sel) return undefined
+    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+    if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return undefined
+    const ids: string[] = []
+    for (let c = sel.startCol; c <= sel.endCol; c++) {
+      const col = displayColumns[c]
+      if (col) ids.push(getColumnId(col))
+    }
+    return ids.length > 0 && ids.length < displayColumns.length ? ids : undefined
+  }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows, displayColumns])
+
+  const addToChat = useAddToChat()
+  const handleAddSelectionToChat = useCallback(async () => {
+    // A gutter select-all (filtered) or a column-header selection (every row of
+    // the chosen columns) covers rows beyond the loaded page that
+    // `contextMenuRowIds` reflects; drain up to the cap so the chip references as
+    // many rows as it can carry (bounded by MAX_TABLE_SELECTION_ROWS) instead of a
+    // silent loaded-only subset — mirroring how the copy path loads before writing.
+    let sourceRowIds = contextMenuRowIds
+    if (contextMenuIsSelectAll || isColumnSelectionRef.current) {
+      try {
+        const { rows: loaded } = await ensureRowsLoadedUpToRef.current(MAX_TABLE_SELECTION_ROWS)
+        // A column selection spans all rows; a gutter select-all filters by the
+        // (exclusion-aware) row selection.
+        const drained = (
+          contextMenuIsSelectAll
+            ? loaded.filter((row) => rowSelectionIncludes(rowSelectionRef.current, row.id))
+            : loaded
+        ).map((row) => row.id)
+        if (drained.length > 0) sourceRowIds = drained
+      } catch {
+        // Fall back to the already-loaded rows if the drain fails.
+      }
+    }
+    if (sourceRowIds.length === 0) return
+    const rowIds = sourceRowIds.slice(0, MAX_TABLE_SELECTION_ROWS)
+    const columnIds = contextMenuColumnIds?.slice(0, MAX_TABLE_SELECTION_COLUMNS)
+    addToChat({
+      kind: 'table_selection',
+      tableId,
+      label: buildTableSelectionLabel(
+        tableData?.name ?? 'Table',
+        rowIds.length,
+        columnIds?.length,
+        selectionKey([...rowIds, ...(columnIds ?? [])])
+      ),
+      rowIds,
+      ...(columnIds && columnIds.length > 0 ? { columnIds } : {}),
+    })
+  }, [
+    addToChat,
+    contextMenuRowIds,
+    contextMenuColumnIds,
+    contextMenuIsSelectAll,
+    tableId,
+    tableData?.name,
+  ])
+
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
   /**
@@ -4323,6 +4483,8 @@ export function TableGrid({
         disableInsert={!canManualAddRow}
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
+        onAddToChat={contextMenuRowIds.length > 0 ? handleAddSelectionToChat : undefined}
+        addToChatLabel={contextMenuColumnIds ? 'Add cell range to chat' : 'Add rows to chat'}
       />
 
       <ExpandedCellPopover

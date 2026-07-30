@@ -45,3 +45,36 @@ export function sendMothershipMessage(message: string, contexts?: ChatContext[])
   })
   return consumed
 }
+
+/**
+ * Custom-event name used to attach a context chip to the Mothership chat input
+ * WITHOUT sending a message. The mounted chat input listens for this and inserts
+ * the chip, leaving the user to type their prompt and send when ready.
+ */
+export const MOTHERSHIP_ADD_CONTEXT_EVENT = 'mothership-add-context'
+
+export interface MothershipAddContextDetail {
+  /** The context to attach as a chip in the input. */
+  context: ChatContext
+}
+
+/**
+ * Dispatches a passive "add this context chip" request to a mounted Mothership
+ * chat input. Producers (the highlight-to-chat action in the file/table viewers)
+ * call this; the mounted input listens for {@link MOTHERSHIP_ADD_CONTEXT_EVENT}
+ * and `preventDefault`s to claim it.
+ *
+ * @returns `true` when a mounted input consumed it, `false` when none was
+ * listening — callers fall back to persisting the context for the next chat
+ * mount (see `MothershipPendingContextStorage`).
+ */
+export function addMothershipContext(context: ChatContext): boolean {
+  const consumed = !window.dispatchEvent(
+    new CustomEvent<MothershipAddContextDetail>(MOTHERSHIP_ADD_CONTEXT_EVENT, {
+      detail: { context },
+      cancelable: true,
+    })
+  )
+  logger.info('Dispatched mothership add-context event', { kind: context.kind, consumed })
+  return consumed
+}

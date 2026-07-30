@@ -8,7 +8,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
+import { Blimp, Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
 import { Scissors } from 'lucide-react'
 
 interface EditorContextMenuProps {
@@ -23,6 +23,8 @@ interface EditorContextMenuProps {
   onPaste: () => void
   onSelectAll: () => void
   onFind: () => void
+  /** Adds the current selection to Chat as a reference. Omit to hide the item. */
+  onAddToChat?: () => void
 }
 
 export function EditorContextMenu({
@@ -37,6 +39,7 @@ export function EditorContextMenu({
   onPaste,
   onSelectAll,
   onFind,
+  onAddToChat,
 }: EditorContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -60,6 +63,15 @@ export function EditorContextMenu({
         sideOffset={2}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {onAddToChat && (
+          <>
+            <DropdownMenuItem disabled={!hasSelection} onSelect={onAddToChat}>
+              <Blimp />
+              Add to chat
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {canEdit && (
           <DropdownMenuItem disabled={!hasSelection} onSelect={onCut}>
             <Scissors />

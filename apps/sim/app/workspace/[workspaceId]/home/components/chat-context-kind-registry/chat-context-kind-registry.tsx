@@ -12,6 +12,7 @@ import {
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { fileNameFromSelectionLabel } from '@/lib/copilot/chat/selection-context'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getBareIconStyle } from '@/blocks/icon-color'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -75,10 +76,23 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'Table',
     renderIcon: ({ className }) => <TableIcon className={className} />,
   },
+  table_selection: {
+    label: 'Table selection',
+    renderIcon: ({ className }) => <TableIcon className={className} />,
+  },
   file: {
     label: 'File',
     renderIcon: ({ context, className }) => {
       const FileDocIcon = getDocumentIcon('', context.label)
+      return <FileDocIcon className={className} />
+    },
+  },
+  file_selection: {
+    label: 'File selection',
+    renderIcon: ({ context, className }) => {
+      // Strip the `:line` suffix so `getDocumentIcon` reads the real extension
+      // (e.g. `md`, not `md:12-40`) and shows the correct file glyph.
+      const FileDocIcon = getDocumentIcon('', fileNameFromSelectionLabel(context.label))
       return <FileDocIcon className={className} />
     },
   },

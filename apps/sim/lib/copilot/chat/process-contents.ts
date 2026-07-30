@@ -6,6 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { truncateSelectionText } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
@@ -23,7 +24,10 @@ import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { getColumnId } from '@/lib/table/column-keys'
+import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
+import type { ColumnDefinition } from '@/lib/table/types'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
@@ -41,7 +45,9 @@ type AgentContextType =
   | 'logs'
   | 'knowledge'
   | 'table'
+  | 'table_selection'
   | 'file'
+  | 'file_selection'
   | 'workflow_block'
   | 'docs'
   | 'folder'
@@ -189,6 +195,31 @@ export async function processContextsServer(
           content: result.content,
           path: result.path,
         }
+      }
+      if (ctx.kind === 'file_selection' && ctx.fileId && currentWorkspaceId) {
+        return await resolveFileSelectionResource(
+          ctx.fileId,
+          currentWorkspaceId,
+          ctx.text ?? '',
+          ctx.label,
+          ctx.startLine,
+          ctx.endLine
+        )
+      }
+      if (
+        ctx.kind === 'table_selection' &&
+        ctx.tableId &&
+        Array.isArray(ctx.rowIds) &&
+        ctx.rowIds.length > 0 &&
+        currentWorkspaceId
+      ) {
+        return await resolveTableSelectionResource(
+          ctx.tableId,
+          currentWorkspaceId,
+          ctx.rowIds,
+          ctx.columnIds,
+          ctx.label
+        )
       }
       if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId && currentWorkspaceId) {
         const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
@@ -844,6 +875,96 @@ async function resolveFileResource(
     tag: '@active_resource',
     content: '',
     path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+  }
+}
+
+/**
+ * Resolves a highlighted passage from a file into an inline, citable snippet.
+ * The selected text travels with the request (it is the user's own content), so
+ * the agent sees the exact bytes without re-reading; the canonical VFS path is
+ * still attached so the agent can open the full file for surrounding context.
+ */
+async function resolveFileSelectionResource(
+  fileId: string,
+  workspaceId: string,
+  text: string,
+  label: string,
+  startLine?: number,
+  endLine?: number
+): Promise<AgentContext | null> {
+  const record = await getWorkspaceFile(workspaceId, fileId)
+  if (!record) return null
+  const path = canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+  const snippet = truncateSelectionText(text)
+  const lineRange =
+    startLine && endLine && endLine !== startLine
+      ? ` (lines ${startLine}-${endLine})`
+      : startLine
+        ? ` (line ${startLine})`
+        : ''
+  const content = `Selected passage from ${record.name}${lineRange}:\n\n\`\`\`\n${snippet}\n\`\`\``
+  return {
+    type: 'file_selection',
+    tag: label ? `@${label}` : '@',
+    content,
+    path,
+  }
+}
+
+/**
+ * Resolves a table selection into an inline markdown table. Rows are re-fetched
+ * by id from the DB (never trusting client-sent cell values); when `columnIds`
+ * is present the projection is narrowed to that cell range, otherwise every
+ * column is included.
+ */
+async function resolveTableSelectionResource(
+  tableId: string,
+  workspaceId: string,
+  rowIds: string[],
+  columnIds: string[] | undefined,
+  label: string
+): Promise<AgentContext | null> {
+  const table = await getTableById(tableId)
+  if (!table || table.workspaceId !== workspaceId) return null
+
+  const rows = await getRowsByIds(tableId, rowIds, workspaceId)
+  if (rows.length === 0) return null
+
+  const allColumns: ColumnDefinition[] = table.schema?.columns ?? []
+  // A cell range (`columnIds` present) narrows to those columns; whole-row
+  // selections use every column. If a cell range's columns no longer resolve
+  // (schema changed since the selection was made), keep the range scope empty
+  // and drop the resource — never silently expand a narrow selection into a
+  // full-table dump.
+  const hasColumnScope = Boolean(columnIds && columnIds.length > 0)
+  const columns = hasColumnScope
+    ? allColumns.filter((col) => columnIds?.includes(getColumnId(col)))
+    : allColumns
+  if (columns.length === 0) return null
+
+  const header = `| ${columns.map((c) => c.name).join(' | ')} |`
+  const divider = `| ${columns.map(() => '---').join(' | ')} |`
+  const body = rows
+    .map((row) => {
+      const cells = columns.map((col) => {
+        const value = row.data[getColumnId(col)]
+        if (value === null || value === undefined) return ''
+        const cell = typeof value === 'string' ? value : JSON.stringify(value)
+        return cell.replace(/\|/g, '\\|').replace(/\n/g, ' ')
+      })
+      return `| ${cells.join(' | ')} |`
+    })
+    .join('\n')
+
+  const scope = columnIds && columnIds.length > 0 ? 'cell range' : 'rows'
+  const content = `Selected ${scope} from table "${table.name}" (${rows.length} ${
+    rows.length === 1 ? 'row' : 'rows'
+  }):\n\n${header}\n${divider}\n${body}`
+  return {
+    type: 'table_selection',
+    tag: label ? `@${label}` : '@',
+    content,
+    path: canonicalTableVfsPath(table.name),
   }
 }
 

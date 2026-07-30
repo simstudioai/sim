@@ -161,6 +161,31 @@ export function serializeSelectionForClipboard(
 }
 
 /**
+ * Finds the selection-scoped chips (`file_selection` / `table_selection`) whose
+ * highlighted token falls inside `selectedText`. These kinds carry an inline
+ * text blob / row-id array that can't fit a portable `sim:kind/id` link, so the
+ * chat input's copy/cut path round-trips them through the custom
+ * `text/x-sim-selection` clipboard MIME instead. Uses the overlay's exact
+ * tokenization so a label that is a substring of another never false-matches.
+ */
+export function selectionContextsInText(
+  selectedText: string,
+  contexts: ChatContext[]
+): ChatContext[] {
+  const ranges = computeMentionHighlightRanges(selectedText, extractContextTokens(contexts))
+  if (ranges.length === 0) return []
+  const found: ChatContext[] = []
+  for (const range of ranges) {
+    const label = stripMentionTrigger(range.token)
+    const matched = contexts.find((c) => c.label === label)
+    if (matched && (matched.kind === 'file_selection' || matched.kind === 'table_selection')) {
+      found.push(matched)
+    }
+  }
+  return found
+}
+
+/**
  * Parses all portable chip markdown links from a string, in source order.
  *
  * Pure string→data: never fetches or executes. Matches whose kind is not a

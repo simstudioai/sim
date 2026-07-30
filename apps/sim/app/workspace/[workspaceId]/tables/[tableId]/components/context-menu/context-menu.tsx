@@ -8,6 +8,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Blimp,
   Duplicate,
   Eye,
   Pencil,
@@ -55,6 +56,10 @@ interface ContextMenuProps {
    */
   disableDuplicate?: boolean
   disableDelete?: boolean
+  /** Adds the selected rows / cell range to Chat as a reference. Omit to hide. */
+  onAddToChat?: () => void
+  /** Label describing the current selection scope, e.g. "3 rows" or "cell range". */
+  addToChatLabel?: string
 }
 
 export function ContextMenu({
@@ -79,6 +84,8 @@ export function ContextMenu({
   disableInsert = false,
   disableDuplicate = false,
   disableDelete = false,
+  onAddToChat,
+  addToChatLabel = 'Add to chat',
 }: ContextMenuProps) {
   const count = selectedRowCount.toLocaleString()
   const deleteLabel = selectedRowCount > 1 ? `Delete ${count} rows` : 'Delete row'
@@ -127,6 +134,15 @@ export function ContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {onAddToChat && (
+          <>
+            <DropdownMenuItem onSelect={onAddToChat}>
+              <Blimp />
+              {addToChatLabel}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {contextMenu.columnName && canEditCell && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
             <Pencil />

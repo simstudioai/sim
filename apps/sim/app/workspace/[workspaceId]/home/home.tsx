@@ -19,14 +19,20 @@ import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import {
+  fileNameFromSelectionLabel,
+  tableNameFromSelectionLabel,
+} from '@/lib/copilot/chat/selection-context'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
   MothershipHandoffStorage,
+  MothershipPendingContextStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
+  addMothershipContext,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
@@ -344,6 +350,29 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
   }, [chatId, workspaceId, sendMessage])
 
+  /**
+   * Drains contexts persisted by the highlight-to-chat action (standalone
+   * Files/Tables page). Runs after this component's mount effects — including
+   * `useChat`'s chat-init `setResources([])` — so re-dispatching each context
+   * inserts its chip in the (already mounted) conversation input AND opens its
+   * resource in the slideover without the reset wiping it. A ref guards against
+   * the StrictMode double-invoke draining twice.
+   */
+  const hasDrainedPendingContextRef = useRef(false)
+  useEffect(() => {
+    if (hasDrainedPendingContextRef.current || !workspaceId) return
+    hasDrainedPendingContextRef.current = true
+    const pending = MothershipPendingContextStorage.consume(workspaceId)
+    for (const context of pending) {
+      // Open the resource in the slideover directly (deterministic — not
+      // dependent on the input's event listener being mounted yet), then
+      // dispatch the event so the mounted input inserts the chip.
+      handleContextAdd(context)
+      addMothershipContext(context)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only drain; handleContextAdd is stable enough for a one-shot
+  }, [workspaceId])
+
   function resolveResourceFromContext(
     context: ChatContext
   ): { type: MothershipResourceType; id: string } | null {
@@ -355,24 +384,48 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
       case 'table':
         return context.tableId ? { type: 'table', id: context.tableId } : null
+      case 'table_selection':
+        return context.tableId ? { type: 'table', id: context.tableId } : null
       case 'file':
+        return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
       default:
         return null
     }
   }
 
+  /**
+   * Tab title for the resource a chip opens. Selection chips carry a
+   * location suffix in their label (`notes.md:12-40`, `Sales (3 rows)`); the
+   * underlying resource is the whole file/table, so strip the suffix.
+   */
+  function resourceTitleForContext(context: ChatContext): string {
+    if (context.kind === 'file_selection') return fileNameFromSelectionLabel(context.label)
+    if (context.kind === 'table_selection') return tableNameFromSelectionLabel(context.label)
+    return context.label
+  }
+
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: context.label })
+      addResource({ ...resolved, title: resourceTitleForContext(context) })
       handleResourceEvent()
     }
   }
 
-  function handleInitialContextRemove(context: ChatContext) {
+  function handleInitialContextRemove(context: ChatContext, remaining: ChatContext[]) {
     const resolved = resolveResourceFromContext(context)
     if (!resolved) return
+    // A whole-file chip and one or more of its selection chips (or several
+    // selections of the same file/table) all resolve to the same resource tab.
+    // Only close the tab once no remaining chip still references it, so removing
+    // one of several chips doesn't yank a slideover the others still point at.
+    const stillReferenced = remaining.some((other) => {
+      const otherResolved = resolveResourceFromContext(other)
+      return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
+    })
+    if (stillReferenced) return
     removeResource(resolved.type, resolved.id)
   }
 

@@ -24,7 +24,29 @@ export type ChatContext =
   | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'table'; tableId: string; label: string }
+  | {
+      kind: 'table_selection'
+      tableId: string
+      label: string
+      /** Ids of the selected rows. Always present (materialized from the grid selection). */
+      rowIds: string[]
+      /**
+       * Ids of the selected columns. Present only for a spreadsheet-style cell
+       * range; absent when whole rows are selected.
+       */
+      columnIds?: string[]
+    }
   | { kind: 'file'; fileId: string; label: string }
+  | {
+      kind: 'file_selection'
+      fileId: string
+      label: string
+      /** The literal selected text, carried inline so the agent sees the exact passage. */
+      text: string
+      /** 1-based inclusive line range of the selection, when the source has lines. */
+      startLine?: number
+      endLine?: number
+    }
   | { kind: 'folder'; folderId: string; label: string }
   | { kind: 'filefolder'; fileFolderId: string; label: string }
   | { kind: 'scheduledtask'; scheduleId: string; label: string }

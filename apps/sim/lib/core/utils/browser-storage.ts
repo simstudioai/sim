@@ -105,6 +105,7 @@ export const STORAGE_KEYS = {
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
   WORKSPACE_RECENCY: 'sim_workspace_recency',
   MOTHERSHIP_HANDOFF: 'sim_mothership_handoff',
+  MOTHERSHIP_PENDING_CONTEXTS: 'sim_mothership_pending_contexts',
 } as const
 
 export class WorkspaceRecencyStorage {
@@ -378,5 +379,61 @@ export class MothershipHandoffStorage {
 
   static clear(): boolean {
     return BrowserStorage.removeItem(MothershipHandoffStorage.KEY)
+  }
+}
+
+interface PendingContextsEntry {
+  contexts: ChatContext[]
+  workspaceId: string
+  timestamp: number
+}
+
+/**
+ * Accumulates context chips to seed into the Chat input when it next mounts,
+ * used by the highlight-to-chat action when no chat is currently listening
+ * (e.g. the user is on the standalone Files/Tables page). Unlike
+ * {@link MothershipHandoffStorage}, this never auto-sends — it only pre-fills
+ * the input with reference chips, matching the passive "add to chat" behavior.
+ * Multiple adds accumulate; `consume` drains and clears the list.
+ */
+export class MothershipPendingContextStorage {
+  private static readonly KEY = STORAGE_KEYS.MOTHERSHIP_PENDING_CONTEXTS
+
+  /** Appends a context for the workspace, replacing any entry from another workspace. */
+  static store(context: ChatContext, workspaceId: string): boolean {
+    if (!workspaceId) return false
+    const existing = BrowserStorage.getItem<PendingContextsEntry | null>(
+      MothershipPendingContextStorage.KEY,
+      null
+    )
+    const contexts =
+      existing && existing.workspaceId === workspaceId ? [...existing.contexts, context] : [context]
+    return BrowserStorage.setItem(MothershipPendingContextStorage.KEY, {
+      contexts,
+      workspaceId,
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Retrieves and clears the pending contexts for `workspaceId`. Entries owned
+   * by another workspace are left untouched; stale entries past `maxAge` are
+   * dropped.
+   * @param maxAge - Maximum age in milliseconds (default: 5 minutes)
+   */
+  static consume(workspaceId: string, maxAge: number = 5 * 60 * 1000): ChatContext[] {
+    const data = BrowserStorage.getItem<PendingContextsEntry | null>(
+      MothershipPendingContextStorage.KEY,
+      null
+    )
+    if (!data) return []
+    if (data.workspaceId !== workspaceId) return []
+    MothershipPendingContextStorage.clear()
+    if (!data.timestamp || Date.now() - data.timestamp > maxAge) return []
+    return Array.isArray(data.contexts) ? data.contexts : []
+  }
+
+  static clear(): boolean {
+    return BrowserStorage.removeItem(MothershipPendingContextStorage.KEY)
   }
 }

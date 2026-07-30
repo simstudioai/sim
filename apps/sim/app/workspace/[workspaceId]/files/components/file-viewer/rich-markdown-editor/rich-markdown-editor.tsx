@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { Fragment, Slice } from '@tiptap/pm/model'
@@ -9,13 +9,21 @@ import { dropPoint } from '@tiptap/pm/transform'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
+import {
+  buildFileSelectionLabel,
+  selectionKey,
+  truncateSelectionText,
+} from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
+import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
+import type { ChatContext } from '@/stores/panel'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
+import { useSelectionCopyBridge } from '../use-selection-copy-bridge'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
 import {
@@ -557,12 +565,46 @@ export function LoadedRichMarkdownEditor({
     []
   )
 
+  const addToChat = useAddToChat()
+  const buildSelectionContext = useCallback((): ChatContext | null => {
+    if (!editor) return null
+    const { from, to } = editor.state.selection
+    if (from === to) return null
+    const text = editor.state.doc.textBetween(from, to, '\n')
+    if (!text.trim()) return null
+    // Markdown has no native line numbers; approximate from newlines before the
+    // selection so repeated selections in the same file get distinct labels.
+    const startLine = editor.state.doc.textBetween(0, from, '\n').split('\n').length
+    const endLine = startLine + text.split('\n').length - 1
+    return {
+      kind: 'file_selection',
+      fileId: file.id,
+      label: buildFileSelectionLabel(file.name, startLine, endLine, selectionKey([text])),
+      text: truncateSelectionText(text),
+      startLine,
+      endLine,
+    }
+  }, [editor, file.id, file.name])
+
+  const handleAddSelectionToChat = useCallback(() => {
+    const context = buildSelectionContext()
+    if (context) addToChat(context)
+  }, [addToChat, buildSelectionContext])
+
+  useSelectionCopyBridge(containerRef, buildSelectionContext)
+
   return (
     <div
       ref={containerRef}
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
-      {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && (
+        <EditorBubbleMenu
+          editor={editor}
+          scrollContainerRef={containerRef}
+          onAddToChat={handleAddSelectionToChat}
+        />
+      )}
       {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <LinkHoverCard editor={editor} />}
       <input

@@ -148,6 +148,15 @@ export interface ChatMessageContext {
   blockType?: string
   skillId?: string
   serverId?: string
+  /** Selected passage for a `file_selection` context. */
+  text?: string
+  /** 1-based inclusive line range for a `file_selection` context. */
+  startLine?: number
+  endLine?: number
+  /** Selected row ids for a `table_selection` context. */
+  rowIds?: string[]
+  /** Selected column ids for a `table_selection` cell range. */
+  columnIds?: string[]
 }
 
 export interface ChatMessage {

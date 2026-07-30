@@ -15,6 +15,10 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import {
+  MOTHERSHIP_ADD_CONTEXT_EVENT,
+  type MothershipAddContextDetail,
+} from '@/lib/mothership/events'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
@@ -172,6 +176,24 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
+  /**
+   * Attaches a context chip pushed from elsewhere in the app (the
+   * highlight-to-chat action in the file/table viewers). `preventDefault` claims
+   * the event so the producer knows a live input consumed it and skips its
+   * persist-and-navigate fallback.
+   */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<MothershipAddContextDetail>).detail
+      if (!detail?.context) return
+      e.preventDefault()
+      editorRef.current.insertContextChip(detail.context)
+      textareaRef.current?.focus()
+    }
+    window.addEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handler)
+    return () => window.removeEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handler)
+  }, [textareaRef])
+
   const isFirstSaveRef = useRef(true)
   useEffect(() => {
     if (isFirstSaveRef.current) {
@@ -223,7 +245,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }
     }
     const removed = prev.filter((p) => !curr.some((c) => contextId(c) === contextId(p)))
-    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx))
+    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx, curr))
     prevSelectedContextsRef.current = curr
   }, [editor.contexts])
 
