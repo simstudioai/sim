@@ -298,8 +298,21 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
         return
       }
       // Reconcile the out-of-band durable content into the live doc (advances the synced version), then
-      // loop to re-project and re-persist the converged state.
-      await applyMarkdownToLiveFileDoc(room.fileId, result.markdown, result.version)
+      // loop to re-project and re-persist the converged state. If there is no live doc to reconcile into
+      // — e.g. the last collaborator has left and the room is being torn down with no shared stream
+      // (single-pod) — stop: re-projecting the same pre-teardown snapshot would only re-conflict. The
+      // durable (out-of-band) content is left authoritative, which is the intended conflict policy.
+      const reconciled = await applyMarkdownToLiveFileDoc(
+        room.fileId,
+        result.markdown,
+        result.version
+      )
+      if (reconciled === 'no-live-room') {
+        logger.warn(
+          `Persist conflict for file ${room.fileId} with no live doc to reconcile; durable content left authoritative`
+        )
+        return
+      }
     }
   } catch (error) {
     logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
