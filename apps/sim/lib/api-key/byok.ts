@@ -122,6 +122,35 @@ export async function getApiKeyWithBYOK(
         return byokResult
       }
     }
+
+    /**
+     * On hosted Sim the platform Fireworks key backs the static catalog (the
+     * sim-auto pool) and nothing else, exactly as the platform Anthropic and
+     * OpenAI keys back only their catalogued models. A dynamic `fireworks/*`
+     * id a workspace configured itself carries no catalog pricing, so
+     * `shouldBillModelUsage` would return false for it — serving it on Sim's
+     * key would be unmetered inference.
+     */
+    if (isHosted) {
+      const isModelHosted = getHostedModels().some((m) => m.toLowerCase() === model.toLowerCase())
+      if (isModelHosted) {
+        try {
+          const serverKey = getRotatingApiKey('fireworks')
+          return { apiKey: serverKey, isBYOK: false }
+        } catch (_error) {
+          if (userProvidedKey) {
+            return { apiKey: userProvidedKey, isBYOK: false }
+          }
+          throw new Error(`No API key available for fireworks ${model}`)
+        }
+      }
+
+      if (userProvidedKey) {
+        return { apiKey: userProvidedKey, isBYOK: false }
+      }
+      throw new Error(`API key is required for Fireworks ${model}`)
+    }
+
     if (userProvidedKey) {
       return { apiKey: userProvidedKey, isBYOK: false }
     }

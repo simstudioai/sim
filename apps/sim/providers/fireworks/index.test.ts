@@ -9,11 +9,13 @@ const {
   mockSupportsNativeStructuredOutputs,
   mockPrepareToolsWithUsageControl,
   mockExecuteTool,
+  mockResolveFireworksWireModel,
 } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockSupportsNativeStructuredOutputs: vi.fn(),
   mockPrepareToolsWithUsageControl: vi.fn(),
   mockExecuteTool: vi.fn(),
+  mockResolveFireworksWireModel: vi.fn(),
 }))
 
 vi.mock('openai', () => ({
@@ -45,6 +47,7 @@ vi.mock('@/providers/fireworks/utils', () => ({
     () => new ReadableStream({ start: (controller) => controller.close() })
   ),
   checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
+  resolveFireworksWireModel: mockResolveFireworksWireModel,
 }))
 
 vi.mock('@/providers/trace-enrichment', () => ({
@@ -109,6 +112,7 @@ describe('fireworksProvider', () => {
       forcedTools: [],
     }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
+    mockResolveFireworksWireModel.mockImplementation((stripped: string) => stripped)
   })
 
   const baseRequest = {
@@ -131,9 +135,25 @@ describe('fireworksProvider', () => {
 
     expect(result).toMatchObject({
       content: 'hi there',
-      model: 'llama-v3p1-70b-instruct',
+      model: 'fireworks/llama-v3p1-70b-instruct',
       tokens: { input: 10, output: 5, total: 15 },
     })
+  })
+
+  it('sends the resolved wire model name while reporting the catalog id', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+    mockResolveFireworksWireModel.mockReturnValueOnce('accounts/fireworks/models/glm-5p2')
+
+    const result = await fireworksProvider.executeRequest({
+      ...baseRequest,
+      model: 'fireworks/glm-5.2',
+    })
+
+    expect(mockResolveFireworksWireModel).toHaveBeenCalledWith('glm-5.2')
+    expect(callBody(0).model).toBe('accounts/fireworks/models/glm-5p2')
+    // The catalog id is the billing/logging identity: the central cost policy,
+    // the usage ledger row, and the trace span all key on it.
+    expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
   })
 
   it('wraps API errors in a ProviderError', async () => {

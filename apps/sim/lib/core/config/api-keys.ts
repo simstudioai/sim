@@ -14,7 +14,8 @@ export function getRotatingApiKey(provider: string): string {
     provider !== 'cohere' &&
     provider !== 'zai' &&
     provider !== 'xai' &&
-    provider !== 'kimi'
+    provider !== 'kimi' &&
+    provider !== 'fireworks'
   ) {
     throw new Error(`No rotation implemented for provider: ${provider}`)
   }
@@ -49,6 +50,13 @@ export function getRotatingApiKey(provider: string): string {
     if (env.KIMI_API_KEY_1) keys.push(env.KIMI_API_KEY_1)
     if (env.KIMI_API_KEY_2) keys.push(env.KIMI_API_KEY_2)
     if (env.KIMI_API_KEY_3) keys.push(env.KIMI_API_KEY_3)
+  } else if (provider === 'fireworks') {
+    if (env.FIREWORKS_API_KEY_1) keys.push(env.FIREWORKS_API_KEY_1)
+    if (env.FIREWORKS_API_KEY_2) keys.push(env.FIREWORKS_API_KEY_2)
+    if (env.FIREWORKS_API_KEY_3) keys.push(env.FIREWORKS_API_KEY_3)
+    // The platform Fireworks key predates the rotation slots and ships as a
+    // single secret; it stands in as a one-key pool until slots are populated.
+    if (keys.length === 0 && env.FIREWORKS_API_KEY) keys.push(env.FIREWORKS_API_KEY)
   }
 
   if (keys.length === 0) {
