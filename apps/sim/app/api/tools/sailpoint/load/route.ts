@@ -61,7 +61,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     apiVersion: normalizeApiVersion(body.apiVersion),
   }
 
-  const formData = new FormData()
+  let fileBuffer: Buffer | null = null
+  let fileName = 'aggregation.csv'
+  let fileType = 'text/csv'
 
   if (body.file && typeof body.file === 'object') {
     const userFiles = processFilesToUserFiles([body.file as RawFileInput], requestId, logger)
@@ -75,11 +77,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     try {
       const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger)
-      formData.append(
-        'file',
-        new Blob([new Uint8Array(buffer)], { type: userFile.type || 'text/csv' }),
-        userFile.name || 'aggregation.csv'
-      )
+      fileBuffer = buffer
+      fileName = userFile.name || 'aggregation.csv'
+      fileType = userFile.type || 'text/csv'
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
@@ -90,22 +90,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   }
 
-  if (body.operation === 'sailpoint_load_accounts' && body.disableOptimization) {
-    formData.append('disableOptimization', 'true')
-  }
-
+  const includeDisableOptimization =
+    body.operation === 'sailpoint_load_accounts' && body.disableOptimization === true
   const loadPath = LOAD_PATHS[body.operation]
+
+  /**
+   * Builds a fresh multipart body for every attempt. A single FormData instance can be a consumed
+   * (non-replayable) stream, so reusing it across the client's 401/429 retries could send the
+   * aggregation without the CSV - rebuild it per request instead.
+   */
+  const buildFormData = (): FormData => {
+    const formData = new FormData()
+    if (fileBuffer) {
+      formData.append('file', new Blob([new Uint8Array(fileBuffer)], { type: fileType }), fileName)
+    }
+    if (includeDisableOptimization) {
+      formData.append('disableOptimization', 'true')
+    }
+    return formData
+  }
 
   try {
     logger.info(`[${requestId}] SailPoint aggregation`, {
       operation: body.operation,
       apiVersion: creds.apiVersion,
-      hasFile: formData.has('file'),
+      hasFile: fileBuffer != null,
     })
 
     const result = await sailpointFetch(creds, (_token, hosts) => ({
       url: `${hosts.apiBaseUrl}/sources/${encodeURIComponent(body.sourceId)}/${loadPath}`,
-      init: { method: 'POST', body: formData },
+      init: { method: 'POST', body: buildFormData() },
     }))
 
     if (!result.ok) {

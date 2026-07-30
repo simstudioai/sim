@@ -124,6 +124,34 @@ describe('SailPoint query route', () => {
     expect(data.output.results).toEqual([{ _type: 'identity', id: 'i1' }])
   })
 
+  it('preserves the aggregation object returned by /search/aggregate', async () => {
+    const aggregationResult = {
+      aggregations: { department: { buckets: [{ key: 'Finance', count: 12 }] } },
+      hits: [],
+    }
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse(aggregationResult))
+
+    const request = createMockRequest('POST', {
+      ...baseCreds,
+      tenant: 'acme-aggregate',
+      operation: 'sailpoint_search_aggregate',
+      indices: 'identities',
+      query: 'attributes.department:*',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      'https://acme-aggregate.api.identitynow.com/v2025/search/aggregate'
+    )
+    // The full AggregationResult object is preserved under `item`, not dropped as an empty list.
+    expect(data.output).toEqual({ item: aggregationResult })
+  })
+
   it('caches the token across calls with the same credentials', async () => {
     fetchMock
       .mockResolvedValueOnce(tokenResponse())
@@ -202,6 +230,38 @@ describe('SailPoint query route', () => {
 
     expect(response.status).toBe(400)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-SailPoint tenant host without sending credentials (SSRF guard)', async () => {
+    const request = createMockRequest('POST', {
+      ...baseCreds,
+      tenant: 'evil.example.com',
+      operation: 'sailpoint_list_identities',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(data.error).toContain('not an allowed')
+  })
+
+  it('accepts a full *.api.identitynow.com host', async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse([{ id: 'i1' }]))
+
+    const request = createMockRequest('POST', {
+      ...baseCreds,
+      tenant: 'https://acme.api.identitynow.com',
+      operation: 'sailpoint_list_identities',
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://acme.api.identitynow.com/v2025/identities')
   })
 
   it('propagates a SailPoint error body', async () => {

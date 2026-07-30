@@ -167,7 +167,8 @@ function dispatch(
         query: body.query ? { query: body.query } : undefined,
         sort: toStringList(body.sort),
         searchAfter: toStringList(body.searchAfter),
-        includeNested: body.includeNested,
+        // Only send includeNested when explicitly false; the API already defaults it to true.
+        includeNested: body.includeNested === false ? false : undefined,
       })
       return execute(
         creds,
@@ -195,6 +196,7 @@ function dispatch(
       const searchBody = filterUndefined({
         indices: toStringList(body.indices) ?? ['identities'],
         query: body.query ? { query: body.query } : undefined,
+        aggregationsDsl: body.aggregationsDsl,
       })
       return execute(
         creds,
@@ -203,7 +205,9 @@ function dispatch(
           url: `${h.apiBaseUrl}/search/aggregate${qs({ limit: body.limit, offset: body.offset })}`,
           init: jsonInit(searchBody),
         }),
-        'search'
+        // /search/aggregate returns an AggregationResult object (aggregations + hits), not an
+        // array - route it as an item so the buckets are preserved rather than dropped.
+        'item'
       )
     }
     case 'sailpoint_list_identities':

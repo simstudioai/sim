@@ -16156,7 +16156,7 @@
         },
         {
           "name": "Search Aggregate",
-          "description": "Return aggregation buckets for a SailPoint search query (e.g. counts grouped by a field)."
+          "description": "Return the aggregation result (buckets under `aggregations`, plus `hits`) for a SailPoint search query."
         },
         {
           "name": "List Identities",
@@ -16261,7 +16261,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "operations"]
+      "tags": ["identity", "automation"]
     },
     {
       "type": "salesforce",

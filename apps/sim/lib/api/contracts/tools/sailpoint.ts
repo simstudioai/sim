@@ -95,6 +95,7 @@ const searchAggregateSchema = z.object({
   operation: z.literal('sailpoint_search_aggregate'),
   indices: stringListField,
   query: z.string().optional(),
+  aggregationsDsl: z.preprocess(parseJson, z.record(z.string(), z.unknown())).optional(),
   limit: limitField(LIMIT_STANDARD),
   offset: offsetField,
 })

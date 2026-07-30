@@ -717,14 +717,15 @@ Run a global search across SailPoint indices (identities, entitlements, roles, a
 
 ### `sailpoint_search_aggregate`
 
-Return aggregation buckets for a SailPoint search query (e.g. counts grouped by a field).
+Return the aggregation result (buckets under `aggregations`, plus `hits`) for a SailPoint search query.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `indices` | json | No | Indices to aggregate over \(defaults to \["identities"\]\) |
-| `query` | string | No | Elasticsearch query string |
+| `query` | string | No | Elasticsearch query string to scope the documents before aggregating |
+| `aggregationsDsl` | json | No | Elasticsearch aggregations DSL object defining the buckets/metrics to compute, e.g. \{ "department": \{ "terms": \{ "field": "attributes.department" \} \} \} |
 | `limit` | number | No | Maximum number of aggregation results \(max 250\) |
 | `offset` | number | No | Pagination offset \(0-based\) |
 

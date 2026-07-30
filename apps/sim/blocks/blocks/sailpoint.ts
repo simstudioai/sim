@@ -200,6 +200,22 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'aggregationsDsl',
+      title: 'Aggregations',
+      type: 'code',
+      language: 'json',
+      placeholder: '{ "department": { "terms": { "field": "attributes.department" } } }',
+      condition: { field: 'operation', value: 'sailpoint_search_aggregate' },
+      required: { field: 'operation', value: 'sailpoint_search_aggregate' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a SailPoint search aggregations DSL object (Elasticsearch aggregations syntax) defining the buckets or metrics to compute over the matched documents. Return ONLY valid JSON.',
+        placeholder: 'Describe the aggregation, e.g. "count identities grouped by department"...',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'filters',
       title: 'Filters',
       type: 'short-input',
@@ -235,6 +251,18 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
+      condition: { field: 'operation', value: LIMIT_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'count',
+      title: 'Include Total Count',
+      type: 'dropdown',
+      options: [
+        { label: 'No (default)', id: '' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => '',
       condition: { field: 'operation', value: LIMIT_OPERATIONS },
       mode: 'advanced',
     },
@@ -575,6 +603,9 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
         const applyPagination = () => {
           setNum('limit', params.limit)
           setNum('offset', params.offset)
+          if (params.count === 'true' || params.count === true) {
+            mapped.count = true
+          }
         }
         const applyFilters = () => {
           setStr('filters', params.filters)
@@ -595,11 +626,14 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
             setStr('indices', params.indices)
             setStr('query', params.query)
             break
-          case 'sailpoint_search_aggregate':
+          case 'sailpoint_search_aggregate': {
             setStr('indices', params.indices)
             setStr('query', params.query)
+            const aggregationsDsl = parseOptionalJsonInput(params.aggregationsDsl, 'aggregations')
+            if (aggregationsDsl !== undefined) mapped.aggregationsDsl = aggregationsDsl
             applyPagination()
             break
+          }
           case 'sailpoint_list_identities':
             applyFilters()
             setStr('defaultFilter', params.defaultFilter)
@@ -731,10 +765,15 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     query: { type: 'string', description: 'Elasticsearch query string' },
     includeNested: { type: 'string', description: 'Include nested objects in search results' },
     sort: { type: 'string', description: 'Search sort fields' },
+    aggregationsDsl: {
+      type: 'json',
+      description: 'Elasticsearch aggregations DSL for search aggregate',
+    },
     filters: { type: 'string', description: 'V3 filter expression' },
     sorters: { type: 'string', description: 'Sort expression' },
     limit: { type: 'number', description: 'Maximum records to return' },
     offset: { type: 'number', description: 'Pagination offset' },
+    count: { type: 'string', description: 'Include the total matching record count' },
     defaultFilter: {
       type: 'string',
       description: 'Identity default filter (CORRELATED_ONLY or NONE)',
@@ -794,7 +833,7 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
 }
 
 export const SailPointBlockMeta = {
-  tags: ['identity', 'operations'],
+  tags: ['identity', 'automation'],
   url: 'https://www.sailpoint.com',
   templates: [
     {
@@ -811,7 +850,7 @@ export const SailPointBlockMeta = {
       icon: SailPointIcon,
       title: 'SailPoint access request bot',
       prompt:
-        'Build a workflow where a user describes the access they need in Chat, the agent searches SailPoint entitlements and access profiles, and submits a SailPoint access request on their behalf with a correlation note in client metadata.',
+        'Build a Slack bot where a user describes the access they need, the agent searches SailPoint entitlements and access profiles, and submits a SailPoint access request on their behalf with a correlation note in client metadata.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['automation', 'self-service'],
@@ -840,7 +879,7 @@ export const SailPointBlockMeta = {
       icon: SailPointIcon,
       title: 'SailPoint leaver access revocation',
       prompt:
-        'Create a workflow that, given a departing employee, searches their SailPoint identity access, and submits revoke access requests for each directly-assigned entitlement with a comment referencing the offboarding ticket.',
+        'Create a workflow that, given a departing employee, searches their SailPoint identity access, and submits revoke access requests for each directly-assigned entitlement with a comment referencing the offboarding ticket in Jira.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['automation', 'security'],

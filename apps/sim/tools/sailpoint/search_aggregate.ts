@@ -1,24 +1,20 @@
 import {
   SAILPOINT_QUERY_ROUTE,
   sailpointCredentialParams,
-  sailpointSearchOutputs,
+  sailpointItemOutputs,
   unwrapSailPointOutput,
 } from '@/tools/sailpoint/common'
-import type {
-  SailPointSearchAggregateParams,
-  SailPointSearchOutput,
-  SailPointSearchResponse,
-} from '@/tools/sailpoint/types'
+import type { SailPointItemResponse, SailPointSearchAggregateParams } from '@/tools/sailpoint/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sailpointSearchAggregateTool: ToolConfig<
   SailPointSearchAggregateParams,
-  SailPointSearchResponse
+  SailPointItemResponse
 > = {
   id: 'sailpoint_search_aggregate',
   name: 'SailPoint Search Aggregate',
   description:
-    'Return aggregation buckets for a SailPoint search query (e.g. counts grouped by a field).',
+    'Return the aggregation result (buckets under `aggregations`, plus `hits`) for a SailPoint search query.',
   version: '1.0.0',
 
   params: {
@@ -33,7 +29,14 @@ export const sailpointSearchAggregateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Elasticsearch query string',
+      description: 'Elasticsearch query string to scope the documents before aggregating',
+    },
+    aggregationsDsl: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Elasticsearch aggregations DSL object defining the buckets/metrics to compute, e.g. { "department": { "terms": { "field": "attributes.department" } } }',
     },
     limit: {
       type: 'number',
@@ -61,12 +64,13 @@ export const sailpointSearchAggregateTool: ToolConfig<
       apiVersion: params.apiVersion,
       indices: params.indices,
       query: params.query,
+      aggregationsDsl: params.aggregationsDsl,
       limit: params.limit,
       offset: params.offset,
     }),
   },
 
-  transformResponse: (response) => unwrapSailPointOutput<SailPointSearchOutput>(response),
+  transformResponse: (response) => unwrapSailPointOutput<{ item: unknown }>(response),
 
-  outputs: sailpointSearchOutputs,
+  outputs: sailpointItemOutputs,
 }

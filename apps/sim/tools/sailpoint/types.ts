@@ -73,6 +73,7 @@ export interface SailPointSearchCountParams extends SailPointCredentials {
 export interface SailPointSearchAggregateParams extends SailPointCredentials {
   indices?: string[] | string
   query?: string
+  aggregationsDsl?: Record<string, unknown> | string
   limit?: number
   offset?: number
 }

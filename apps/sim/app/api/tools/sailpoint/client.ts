@@ -46,19 +46,48 @@ export function normalizeApiVersion(value: string | undefined | null): SailPoint
 }
 
 /**
- * Resolves the API + token hosts for a tenant. Accepts either a bare tenant subdomain (`acme`) or a
- * full host/URL (`https://acme.api.identitynow.com`, `acme.api.identitynow.com`), stripping any
- * protocol, path, or version segment the caller may have included.
+ * Allowed SailPoint API host suffixes. A user-supplied full host must end with one of these; this
+ * prevents SSRF and PAT-secret disclosure by ensuring the client-credentials request (which carries
+ * `client_secret`) can only ever be sent to a SailPoint tenant host, never an arbitrary destination.
+ */
+const ALLOWED_HOST_SUFFIXES = ['.api.identitynow.com', '.api.identitynowgov.com'] as const
+
+/**
+ * Resolves the API + token hosts for a tenant. Accepts either a bare tenant subdomain (`acme` →
+ * `acme.api.identitynow.com`) or a full SailPoint host/URL (`https://acme.api.identitynow.com`),
+ * stripping any protocol, path, or version segment. Throws when the resolved host is not a SailPoint
+ * identitynow.com host - the credentials must never be posted to an attacker-controlled or internal
+ * host.
  */
 export function resolveSailPointHosts(
   tenant: string,
   apiVersion: SailPointApiVersion
 ): SailPointHosts {
   let host = tenant.trim().replace(/^https?:\/\//i, '')
-  host = host.replace(/[/?#].*$/, '').replace(/\.+$/, '')
-  if (!host.includes('.')) {
+  host = host
+    .replace(/[/?#].*$/, '')
+    .replace(/\.+$/, '')
+    .toLowerCase()
+
+  if (!host) {
+    throw new Error('SailPoint tenant is required')
+  }
+
+  if (host.includes('.')) {
+    const isAllowed =
+      /^[a-z0-9.-]+$/.test(host) && ALLOWED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+    if (!isAllowed) {
+      throw new Error(
+        `SailPoint host "${host}" is not an allowed identitynow.com host. Enter your tenant name (e.g. "acme") or a full *.api.identitynow.com host.`
+      )
+    }
+  } else {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(host)) {
+      throw new Error(`Invalid SailPoint tenant "${tenant}"`)
+    }
     host = `${host}.api.identitynow.com`
   }
+
   return {
     host,
     apiBaseUrl: `https://${host}/${apiVersion}`,
@@ -92,10 +121,12 @@ interface CachedToken {
 }
 
 const TOKEN_EXPIRY_BUFFER_MS = 60_000
+const MAX_FETCH_RETRIES = 4
 const tokenCache = new Map<string, CachedToken>()
 
 function cacheKey(creds: SailPointServerCredentials): string {
-  return `${creds.tenant}:${creds.clientId}:${creds.apiVersion}`
+  const { host } = resolveSailPointHosts(creds.tenant, creds.apiVersion)
+  return `${host}:${creds.clientId}:${creds.apiVersion}`
 }
 
 /** Drops any cached token for these credentials so the next call re-exchanges. */
@@ -112,19 +143,32 @@ export async function getSailPointAccessToken(creds: SailPointServerCredentials)
   }
 
   const { tokenUrl } = resolveSailPointHosts(creds.tenant, creds.apiVersion)
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: creds.clientId,
-      client_secret: creds.clientSecret,
-    }).toString(),
-    cache: 'no-store',
-  })
+
+  let attempt = 0
+  let response: Response
+  while (true) {
+    response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
+      }).toString(),
+      cache: 'no-store',
+    })
+    // The token endpoint shares SailPoint's per-client_id rate limit, so back off on a 429 too.
+    if (response.status === 429 && attempt < MAX_FETCH_RETRIES) {
+      const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+      attempt += 1
+      await sleep(backoffWithJitter(attempt, retryAfterMs))
+      continue
+    }
+    break
+  }
 
   const data: unknown = await response.json().catch(() => null)
   if (!response.ok) {
@@ -134,7 +178,8 @@ export async function getSailPointAccessToken(creds: SailPointServerCredentials)
     throw new Error('SailPoint authentication did not return an access token')
   }
 
-  const expiresInSec = typeof data.expires_in === 'number' ? data.expires_in : 3600
+  const parsedExpiry = Number(data.expires_in)
+  const expiresInSec = Number.isFinite(parsedExpiry) && parsedExpiry > 0 ? parsedExpiry : 3600
   tokenCache.set(key, {
     token: data.access_token,
     expiresAt: Date.now() + Math.max(expiresInSec * 1000 - TOKEN_EXPIRY_BUFFER_MS, 0),
@@ -163,7 +208,7 @@ export async function sailpointFetch(
   buildRequest: (token: string, hosts: SailPointHosts) => { url: string; init: RequestInit },
   options: { maxRetries?: number } = {}
 ): Promise<SailPointFetchResult> {
-  const maxRetries = options.maxRetries ?? 4
+  const maxRetries = options.maxRetries ?? MAX_FETCH_RETRIES
   const hosts = resolveSailPointHosts(creds.tenant, creds.apiVersion)
   let attempt = 0
   let refreshedOn401 = false
