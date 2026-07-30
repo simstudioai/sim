@@ -28,10 +28,10 @@ import {
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
-import { TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -192,6 +192,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
         totalCount: result.totalCount,
         limit: result.limit,
         offset: result.offset,
+        // Non-null when more rows exist; a page may return fewer than `limit`
+        // rows (byte budget) with more remaining, so page fullness is not a
+        // termination signal — external pagers should stop on null.
+        nextCursor: result.nextCursor,
       },
     })
   } catch (error) {

@@ -17,6 +17,11 @@
  * same-origin iframe belongs to that frame's realm, so `instanceof` against
  * the top frame's constructor returns false and would skip the check on
  * exactly the nested login forms that need it most.
+ *
+ * Every tag comparison here is upper-cased. `tagName` is lower-case for HTML
+ * elements in an XHTML document, and a raw compare there reports every
+ * credential field as ordinary — failing open on both the value redaction and
+ * the keystroke refusal that read it.
  */
 
 declare global {
@@ -99,13 +104,48 @@ export function collectSnapshot(): unknown {
   }
 
   const isSecretField = (el: Element | null): boolean => {
-    if (!el || el.tagName !== 'INPUT') return false
+    // Upper-cased: tagName is lower-case for HTML elements in an XHTML
+    // document, where a raw compare would report every credential field as
+    // ordinary — failing open on both the value redaction and the keystroke
+    // refusal that read this.
+    if (!el || String(el.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((el as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     // A reveal toggle flips the field to type="text" without making its
     // contents any less secret, and some forms never use type="password" at
     // all. The autocomplete token is the page's own declaration either way.
+    // Space-separated detail tokens are spec-legal and WebAuthn recommends
+    // `current-password webauthn`, so whole-string equality missed real values
+    // on exactly the type=text credential fields where autocomplete is the
+    // only signal there is.
     const hint = String(el.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
+  }
+
+  /**
+   * Fields whose value is as sensitive as a password but which the agent must
+   * still be able to FILL: one-time codes and payment details.
+   *
+   * Deliberately separate from isSecretField. That one also gates keystrokes
+   * (activeElementSecrecy feeds the driver's press-key guard), so folding these
+   * tokens into it would stop the agent completing a checkout or an OTP prompt —
+   * work it is legitimately asked to do. Only the value is withheld here.
+   */
+  const isSensitiveValueField = (el: Element | null): boolean => {
+    if (!el || String(el.tagName || '').toUpperCase() !== 'INPUT') return false
+    const hint = String(el.getAttribute('autocomplete') || '').toLowerCase()
+    return hint
+      .split(/\s+/)
+      .some(
+        (token) =>
+          token === 'one-time-code' ||
+          token === 'cc-number' ||
+          token === 'cc-csc' ||
+          token === 'cc-exp' ||
+          token === 'cc-exp-month' ||
+          token === 'cc-exp-year'
+      )
   }
 
   const roleFor = (el: Element): string => {
@@ -170,7 +210,8 @@ export function collectSnapshot(): unknown {
       // like any other. Redaction above is realm-safe and runs first, so
       // widening this cannot expose a credential field.
       const value = (el as HTMLInputElement).value
-      if (value) parts.push(`value="${cut(String(value), 120)}"`)
+      if (value && isSensitiveValueField(el)) parts.push('value-withheld')
+      else if (value) parts.push(`value="${cut(String(value), 120)}"`)
     }
     if (el.tagName === 'A') {
       const href = el.getAttribute('href')
@@ -269,10 +310,12 @@ export function collectSnapshot(): unknown {
 
 export function clickElement(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const el = (window.__simAgentElements || [])[id]
@@ -319,10 +362,12 @@ export function clickElement(id: number): unknown {
  */
 export function focusElementForTyping(id: number): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const el = (window.__simAgentElements || [])[id]
@@ -370,10 +415,29 @@ export function focusElementForTyping(id: number): unknown {
  */
 export function readActiveElementState(): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
+  }
+
+  /** Sensitive-but-fillable fields; see collectSnapshot's copy for why. */
+  const isSensitiveValueField = (node: Element | null): boolean => {
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
+    const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
+    return hint
+      .split(/\s+/)
+      .some(
+        (token) =>
+          token === 'one-time-code' ||
+          token === 'cc-number' ||
+          token === 'cc-csc' ||
+          token === 'cc-exp' ||
+          token === 'cc-exp-month' ||
+          token === 'cc-exp-year'
+      )
   }
 
   // Focus inside a frame or an open shadow root surfaces on the outer document
@@ -385,7 +449,12 @@ export function readActiveElementState(): unknown {
       active = shadow.activeElement as HTMLElement
       continue
     }
-    if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
+    // Upper-cased for the same reason as in activeElementSecrecy: tagName is
+    // lower-case for HTML elements in an XHTML document.
+    if (
+      String(active.tagName || '').toUpperCase() === 'IFRAME' ||
+      String(active.tagName || '').toUpperCase() === 'FRAME'
+    ) {
       try {
         const inner = (active as HTMLIFrameElement).contentDocument
         if (inner?.activeElement && inner.activeElement !== inner.body) {
@@ -413,9 +482,26 @@ export function readActiveElementState(): unknown {
       redacted: true,
     }
   }
+  // Only the preview is withheld, and the real tag is kept: the agent is allowed
+  // to fill these, so it still needs the readback this function exists for.
+  // Zeroing valueLength told it the field was empty after a successful type, and
+  // the natural next move is to type again — a doubled OTP or card number.
+  // A length is not a disclosure here; 6 and 16 are properties of the format.
+  if (isSensitiveValueField(active)) {
+    const field = active as HTMLInputElement
+    const current = String(field.value ?? '')
+    return {
+      activeElement: active.tagName.toLowerCase(),
+      selectedChars: Math.abs((field.selectionEnd ?? 0) - (field.selectionStart ?? 0)),
+      valueLength: current.length,
+      valuePreview: '',
+      redacted: true,
+    }
+  }
   let value = ''
   let selectedChars = 0
-  if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') {
+  const activeTag = String(active.tagName || '').toUpperCase()
+  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
     const field = active as HTMLInputElement | HTMLTextAreaElement
     value = field.value
     selectedChars = Math.abs((field.selectionEnd ?? 0) - (field.selectionStart ?? 0))
@@ -449,10 +535,12 @@ export function readActiveElementState(): unknown {
  */
 export function activeElementSecrecy(): string {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   let active = document.activeElement as HTMLElement | null
@@ -463,7 +551,57 @@ export function activeElementSecrecy(): string {
       active = shadow.activeElement as HTMLElement
       continue
     }
-    if (active.tagName === 'IFRAME' || active.tagName === 'FRAME') {
+    // A CLOSED shadow root reports `shadowRoot === null` by design and cannot
+    // be traversed from script, while focus inside it retargets to the HOST —
+    // whose tagName is never INPUT, so the fallthrough below would call it
+    // 'safe' and let a trusted CDP keystroke land on a password field the page
+    // has hidden from us. Sequential focus navigation crosses closed boundaries
+    // natively, so Tab alone is enough to get there. Treated like a
+    // cross-origin frame: not inspectable is not safe.
+    //
+    // Detected by focusability rather than by tag: `attachShadow` accepts plain
+    // div/span/section as well as custom elements, so a tag test would miss
+    // half of them. An element that is not focusable in its own right cannot be
+    // `activeElement` unless focus was retargeted out of a shadow tree, which
+    // makes "not focusable yet focused" the reliable signal. Frames stay out of
+    // it so the branch below still classifies them.
+    // Tag compared upper-cased: tagName preserves case outside the HTML
+    // namespace and is lower-case for HTML elements in an XHTML document, where
+    // every comparison below would otherwise miss.
+    const tag = String(active.tagName || '').toUpperCase()
+    // RESIDUAL, stated rather than papered over: `tabindex` and
+    // `contenteditable` exempt an element even on a shadow-capable tag, so a
+    // host carrying either — `<div tabindex="0">` with a closed root — still
+    // reports 'safe'. A closed root is indistinguishable from no root at all
+    // (that is what `mode: 'closed'` buys the page), and `<div tabindex="0">`
+    // buttons and menu items are everywhere, so refusing them would block Enter
+    // and Space on ordinary pages to close a targeted case. The only reliable
+    // detector is `attachShadow` throwing, which is destructive. Narrowing this
+    // needs the driver to stop trusting a page-derived signal, not a better
+    // guess here.
+    const FOCUSABLE_TAGS = [
+      'INPUT',
+      'TEXTAREA',
+      'SELECT',
+      'BUTTON',
+      'A',
+      'AREA',
+      'SUMMARY',
+      'DIALOG',
+      'VIDEO',
+      'AUDIO',
+      'EMBED',
+      'OBJECT',
+      'IFRAME',
+      'FRAME',
+    ]
+    const focusableItself =
+      active === active.ownerDocument.body ||
+      active.isContentEditable ||
+      active.hasAttribute('tabindex') ||
+      FOCUSABLE_TAGS.indexOf(tag) !== -1
+    if (!shadow && !focusableItself) return 'opaque'
+    if (tag === 'IFRAME' || tag === 'FRAME') {
       let inner: Document | null = null
       try {
         inner = (active as HTMLIFrameElement).contentDocument
@@ -484,10 +622,12 @@ export function activeElementSecrecy(): string {
 
 export function typeIntoElement(id: number, text: string, submit: boolean): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const el = (window.__simAgentElements || [])[id]
@@ -554,10 +694,12 @@ export function pressKeyOnPage(
   alt: boolean
 ): unknown {
   const isSecretField = (node: Element | null): boolean => {
-    if (!node || node.tagName !== 'INPUT') return false
+    if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
     const hint = String(node.getAttribute('autocomplete') || '').toLowerCase()
-    return hint === 'current-password' || hint === 'new-password'
+    return hint
+      .split(/\s+/)
+      .some((token) => token === 'current-password' || token === 'new-password')
   }
 
   const target = (document.activeElement as HTMLElement | null) ?? document.body

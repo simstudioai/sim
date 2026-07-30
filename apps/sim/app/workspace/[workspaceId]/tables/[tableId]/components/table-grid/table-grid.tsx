@@ -14,9 +14,9 @@ import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tabl
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
-  Filter,
   TableLocks,
   TableMetadata,
+  TablePredicate,
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
@@ -125,7 +125,7 @@ export interface SelectionSnapshot {
     allRows: boolean
     rowCount: number
     /** Active filter when `allRows` is set — lets a filtered "select all" run only matching rows. */
-    filter?: Filter
+    filter?: TablePredicate
     /** Deselected rows when `allRows` is set — runs/stops skip them. */
     excludeRowIds?: string[]
   } | null
@@ -207,7 +207,7 @@ interface TableGridProps {
     runMode: RunMode,
     rowIds?: string[],
     limit?: RunLimit,
-    filter?: Filter,
+    filter?: TablePredicate,
     excludeRowIds?: string[]
   ) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
@@ -217,14 +217,14 @@ interface TableGridProps {
   onRunRows: (
     rowIds: string[] | undefined,
     runMode: RunMode,
-    filter?: Filter,
+    filter?: TablePredicate,
     excludeRowIds?: string[]
   ) => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
   onStopRows: (rowIds: string[]) => void
   /** Select-all Stop: table-wide, or scoped to the active filter when one is set.
    *  `excludeRowIds` (deselected rows) keep running. */
-  onStopAllRows: (filter?: Filter, excludeRowIds?: string[]) => void
+  onStopAllRows: (filter?: TablePredicate, excludeRowIds?: string[]) => void
   /** Single-row stop for the per-row gutter button. */
   onStopRow: (rowId: string) => void
   /**

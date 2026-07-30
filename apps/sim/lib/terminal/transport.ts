@@ -125,6 +125,23 @@ export function writeToTerminal(terminalId: string, data: string): void {
   bridge()?.write(terminalId, data)
 }
 
+/**
+ * Pastes the system clipboard into a terminal, reading it in the main process
+ * when the shell can.
+ *
+ * Returns false when this shell predates `paste`, so the caller can fall back to
+ * reading the clipboard itself. Main-side is preferred for two reasons: the read
+ * is synchronous there, so there is no window in which the paste can be refused
+ * for want of a recent gesture, and the renderer never touches the clipboard —
+ * which is the direction Electron itself took when it removed the `clipboard`
+ * module from renderers.
+ */
+export async function pasteIntoTerminal(terminalId: string): Promise<boolean> {
+  const paste = bridge()?.paste
+  if (!paste) return false
+  return paste(terminalId)
+}
+
 export function resizeTerminal(terminalId: string, cols: number, rows: number): void {
   bridge()?.resize(terminalId, cols, rows)
 }

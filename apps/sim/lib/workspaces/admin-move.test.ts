@@ -127,15 +127,13 @@ describe('classifyWorkspaceMoveState', () => {
     )
   })
 
-  it('keeps archived personal workspaces ineligible for a new move', () => {
-    expect(() =>
+  it('keeps archived personal workspaces movable so they cannot dodge organization purview', () => {
+    expect(
       classifyWorkspaceMoveState(
         { workspaceMode: WORKSPACE_MODE.PERSONAL, organizationId: null, archivedAt: new Date() },
         'org-1'
       )
-    ).toThrowError(
-      expect.objectContaining<Partial<WorkspaceMoveError>>({ code: 'workspace-archived' })
-    )
+    ).toBe('move')
   })
 })
 

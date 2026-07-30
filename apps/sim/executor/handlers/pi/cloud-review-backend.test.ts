@@ -60,7 +60,7 @@ const mockModelRuntime = {
 }
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: (fn: (runner: unknown) => unknown) =>
+  withPiSandbox: (_options: unknown, fn: (runner: unknown) => unknown) =>
     fn({ run: mockRun, writeFile: mockWriteFile }),
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
@@ -138,8 +138,10 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     body: 'Does the thing',
     html_url: 'https://github.com/octo/demo/pull/7',
     state: 'open',
-    head: { sha: HEAD_SHA },
-    base: { sha: BASE_SHA, ref: 'staging' },
+    merged: false,
+    mergeable: true,
+    head: { sha: HEAD_SHA, ref: 'feature', repo_full_name: 'octo/demo' },
+    base: { sha: BASE_SHA, ref: 'staging', repo_full_name: 'octo/demo' },
     ...overrides,
   }
 }
@@ -284,7 +286,17 @@ describe('runCloudReviewPi', () => {
         metadataFetches += 1
         return Promise.resolve({
           success: true,
-          output: snapshot(metadataFetches === 2 ? { head: { sha: 'c'.repeat(40) } } : {}),
+          output: snapshot(
+            metadataFetches === 2
+              ? {
+                  head: {
+                    sha: 'c'.repeat(40),
+                    ref: 'feature',
+                    repo_full_name: 'octo/demo',
+                  },
+                }
+              : {}
+          ),
         })
       }
       if (toolId === 'github_create_pr_review_v2') {
@@ -460,7 +472,6 @@ describe('runCloudReviewPi', () => {
         search: {
           provider: 'exa',
           apiKey: 'sk-search',
-          keySource: 'block',
           tool: {
             name: 'web_search',
             description: 'Search the web',
@@ -513,6 +524,15 @@ describe('runCloudReviewPi', () => {
       ).toBe(false)
       expect(JSON.stringify({ result, toolResult })).not.toContain('sk-search')
     })
+  })
+
+  it('refuses a PR that is no longer open, before creating a sandbox', async () => {
+    mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
+
+    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
+      /only open PRs are supported/
+    )
+    expect(mockRun).not.toHaveBeenCalled()
   })
 
   it('rejects malformed repository coordinates before making an authenticated request', async () => {

@@ -1,10 +1,11 @@
+import dns from 'node:dns/promises'
 import { Readable } from 'node:stream'
 import zlib from 'node:zlib'
-import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -65,19 +66,21 @@ export async function validateUrlWithDNS(
   const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways) — still-pinned consumers (providers, SSO,
-    // A2A) depend on this ordering.
-    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    // Refused records are filtered rather than failing the whole host, matching
+    // createSsrfGuardedLookup below. Pinning to a surviving public address is
+    // just as safe as refusing outright, and rejecting the host would break a
+    // split-horizon resolver that answers with a private record alongside the
+    // public one — with no operator opt-out on this path.
+    const { addresses } = await resolveHostAddresses(cleanHostname)
+    const usable = addresses.filter(
+      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
+    )
 
-    const resolvedIsLoopback = isLoopbackIp(address)
-
-    if (isPrivateIp(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (usable.length === 0) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: address,
+        resolvedIP: addresses.find((address) => isPrivateIp(address)),
       })
       return {
         isValid: false,
@@ -87,7 +90,9 @@ export async function validateUrlWithDNS(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      // Re-preferred over the surviving set so the pin is never an address the
+      // filter above just refused.
+      resolvedIP: preferIpv4(usable as [string, ...string[]]),
       originalHostname: hostname,
     }
   } catch (error) {
@@ -206,16 +211,16 @@ export async function validateDatabaseHost(
   }
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways).
-    const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
+    const blockedAddress = isPrivateDatabaseHostsAllowed
+      ? undefined
+      : addresses.find((candidate) => isPrivateIp(candidate))
 
-    if (isPrivateIp(address) && !isPrivateDatabaseHostsAllowed) {
+    if (blockedAddress !== undefined) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
-        resolvedIP: address,
+        resolvedIP: blockedAddress,
       })
       return {
         isValid: false,
@@ -225,7 +230,7 @@ export async function validateDatabaseHost(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      resolvedIP: preferred,
       originalHostname: host,
     }
   } catch (error) {
@@ -487,10 +492,7 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
   }
-  const host =
-    url.hostname.startsWith('[') && url.hostname.endsWith(']')
-      ? url.hostname.slice(1, -1)
-      : url.hostname
+  const host = unwrapIpv6Brackets(url.hostname)
   if (ipaddr.isValid(host) && isPrivateIp(host)) {
     // The pinned-private carve-out permits exactly its own validated IP as a target (a
     // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing

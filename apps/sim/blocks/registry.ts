@@ -24,8 +24,24 @@ export function getBlock(type: string): BlockConfig | undefined {
   return BLOCK_REGISTRY[type] ?? BLOCK_REGISTRY[normalizeType(type)] ?? resolveOverlayBlock(type)
 }
 
-/** Whether any registered block is an unreleased `preview` block. Static — computed once. */
-const HAS_PREVIEW_BLOCKS = Object.values(BLOCK_REGISTRY).some((block) => block.preview)
+/**
+ * Whether any registered block is an unreleased `preview` block. Computed once,
+ * on first use rather than at module scope.
+ *
+ * `blocks/registry-maps` and this module sit in an import cycle (a block config
+ * reaches back here through `providers/utils` → `tools/params` → `blocks/index`),
+ * so whichever module the cycle is entered through evaluates first. Reading
+ * `BLOCK_REGISTRY` at module scope therefore threw
+ * `ReferenceError: Cannot access 'BLOCK_REGISTRY' before initialization` for
+ * anything that imported `blocks/registry-maps` directly — scripts and tests
+ * under Bun. It only worked under Turbopack because that bundler happened to
+ * order the modules favourably, which is not a guarantee to build on.
+ */
+let hasPreviewBlocks: boolean | undefined
+function anyPreviewBlocks(): boolean {
+  hasPreviewBlocks ??= Object.values(BLOCK_REGISTRY).some((block) => block.preview)
+  return hasPreviewBlocks
+}
 
 /**
  * True when the visibility projection cannot change any block, so accessors can
@@ -33,7 +49,7 @@ const HAS_PREVIEW_BLOCKS = Object.values(BLOCK_REGISTRY).some((block) => block.p
  * even with a null state) and no kill-switch entries apply.
  */
 function visibilityInert(vis: BlockVisibilityState | null): boolean {
-  if (HAS_PREVIEW_BLOCKS) return false
+  if (anyPreviewBlocks()) return false
   return vis === null || vis.disabled.size === 0
 }
 
@@ -232,9 +248,16 @@ export function getSuggestedSkillsForBlock(type: string): readonly SuggestedSkil
 
 /**
  * Raw block registry map keyed by block type. Prefer the typed accessors
- * (`getBlock`, `getAllBlocks`, `getCanonicalBlocksByCategory`); this alias is
- * retained for callers that need the underlying record directly.
+ * (`getBlock`, `getAllBlocks`, `getCanonicalBlocksByCategory`); this is retained
+ * for callers that need the underlying record directly.
+ *
+ * A function rather than an eager `const` alias: binding `BLOCK_REGISTRY` at
+ * module scope re-introduces the initialization-order failure that
+ * {@link anyPreviewBlocks} documents, since this module can evaluate before
+ * `blocks/registry-maps` has finished.
  */
-export const registry: Record<string, BlockConfig> = BLOCK_REGISTRY
+export function getBlockRegistry(): Record<string, BlockConfig> {
+  return BLOCK_REGISTRY
+}
 
 export type { BlockCategory }

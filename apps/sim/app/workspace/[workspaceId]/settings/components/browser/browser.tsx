@@ -166,28 +166,25 @@ export function Browser() {
           </div>
         </SettingsSection>
 
-        {canClearData &&
-          DATA_ROWS.map((row) => (
-            <SettingsSection
-              key={row.kind}
-              label={row.label}
-              action={
-                <Chip disabled={clearPending} onClick={() => setConfirming(row)}>
-                  {row.action}
-                </Chip>
-              }
-            >
-              {null}
-            </SettingsSection>
-          ))}
-
         {canClearData && (
-          <p className='text-[var(--text-muted)] text-caption'>
-            {siteCount === 0
-              ? 'Nothing saved. Sites you sign into in the browser stay on this device.'
-              : `${siteCount} ${siteCount === 1 ? 'site is' : 'sites are'} signed in or holding cookies, saved on this device only.`}{' '}
-            Saved passwords are never deleted here.
-          </p>
+          <SettingsSection label='Browsing data'>
+            <div className='flex flex-col gap-3'>
+              {DATA_ROWS.map((row) => (
+                <div key={row.kind} className='flex items-center justify-between'>
+                  <Label>{row.label}</Label>
+                  <Chip disabled={clearPending} onClick={() => setConfirming(row)}>
+                    {row.action}
+                  </Chip>
+                </div>
+              ))}
+              <p className='text-[var(--text-muted)] text-caption'>
+                {siteCount === 0
+                  ? 'Nothing saved. Sites you sign into in the browser stay on this device.'
+                  : `${siteCount} ${siteCount === 1 ? 'site is' : 'sites are'} signed in or holding cookies, saved on this device only.`}{' '}
+                Saved passwords are never deleted here.
+              </p>
+            </div>
+          </SettingsSection>
         )}
       </SettingsPanel>
 

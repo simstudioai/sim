@@ -106,7 +106,7 @@ export const env = createEnv({
     ENTERPRISE_TABLES_LIMIT:               z.number().optional(),                  // Max user tables per workspace on enterprise tier (default: 10000)
     ENTERPRISE_TABLE_ROWS_LIMIT:           z.number().optional(),                  // Max rows per table on enterprise tier (default: 1000000)
     TABLE_MAX_ROW_SIZE_BYTES:              z.number().optional(),                  // Max serialized size in bytes of a single user-table row (default: 409600)
-    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Dev-preview: byte budget per row-page read; pages cut early past it (unset = disabled)
+    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Byte budget per row-page read; pages cut early past it (unset = disabled)
     TABLE_DISPATCH_CONCURRENCY_FREE:       z.number().optional(),                  // Rows one table run executes in parallel on free tier (default: 20)
     TABLE_DISPATCH_CONCURRENCY_PAID:       z.number().optional(),                  // Rows one table run executes in parallel on paid tiers (default: 50)
 
@@ -455,7 +455,8 @@ export const env = createEnv({
     E2B_API_KEY:                           z.string().optional(),                  // E2B API key for sandbox creation
     MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Custom E2B template with pre-installed CLI tools for shell execution
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
-    E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR and Review Code)
+    E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR, its Babysit continuation, and Review Code)
+    PI_SANDBOX_LIFETIME_MS:                 z.string().optional(),                  // Lower the Pi sandbox lifetime (ms) below the default; E2B caps a sandbox at 1h on Hobby accounts and 24h on Pro
 
     // Remote Code Execution provider selection
     SANDBOX_PROVIDER:                      z.string().optional(),                  // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
@@ -464,7 +465,7 @@ export const env = createEnv({
     DAYTONA_API_KEY:                       z.string().optional(),                  // Daytona API key; needs write:snapshots to build images, write:sandboxes to run them
     DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Daytona snapshot mirroring mothership-shell (must carry an explicit tag; latest is rejected)
     DAYTONA_DOC_SNAPSHOT_ID:               z.string().optional(),                  // Daytona snapshot mirroring mothership-docs
-    DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR and Review Code)
+    DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR, its Babysit continuation, and Review Code)
 
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)
@@ -480,6 +481,7 @@ export const env = createEnv({
     SESSION_POLICIES_ENABLED:             z.boolean().optional(),                 // Enable org session policies on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
     TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
     TABLE_VIEWS:                          z.boolean().optional(),                 // Enable saved table views (named filter/sort/column-visibility presets) and the column show/hide menu
 

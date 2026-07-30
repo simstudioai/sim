@@ -12,6 +12,7 @@
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
   --desktop-title-bar-control-offset: 0px; /* centres a lane control; desktop overrides */
@@ -152,6 +153,24 @@ html[data-sim-desktop-title-bar="inset"]
  */
 .sidebar-shell-outer[data-collapsed] {
   --sidebar-width: var(--sidebar-collapsed-width);
+}
+
+/**
+ * Hover-peek: the shell floats out of flow as a card, so its subtree reads the restore
+ * width instead of the collapsed one. Re-declaring the same variable the rule above
+ * sets carries the inner shell and the aside along with no per-element overrides.
+ *
+ * Lives here rather than on the component because a Tailwind arbitrary property is one
+ * class (0,1,0) and would lose to that rule's (0,2,0) selector.
+ */
+.sidebar-shell-outer[data-collapsed][data-peek] {
+  --sidebar-width: var(--sidebar-expanded-width);
+}
+
+/* The card appears at full width, so the aside's own width transition would animate
+   0 -> expanded inside it. */
+.sidebar-shell-outer[data-peek] .sidebar-container {
+  transition: none;
 }
 
 .sidebar-container span,

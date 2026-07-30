@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -30,9 +30,8 @@ import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
   columnMatchesRef,
-  filterNamesToIds,
   rowDataNameToId,
-  sortNamesToIds,
+  sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
@@ -49,6 +48,9 @@ import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/ev
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -62,15 +64,17 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
-import { resolveFilterSelectValues } from '@/lib/table/select-values'
+import { predicateToStorage } from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
   RowData,
   SelectOption,
+  SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
+  TablePredicate,
   TableSchema,
   TableUpdateJobPayload,
   WorkflowGroup,
@@ -678,33 +682,68 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
+          // Typed predicate/sort objects, validated against the schema (column
+          // NAMES) then translated to storage ids.
+          let predicate: TablePredicate | undefined
+          if (args.filter) {
+            validatePredicate(args.filter, table.schema.columns)
+            predicate = predicateToStorage(args.filter, table.schema)
+          }
+          let orderSpec = args.order as SortSpec | undefined
+          if (orderSpec?.length) {
+            validateSortSpec(orderSpec, table.schema.columns)
+            orderSpec = sortSpecNamesToIds(orderSpec, idByName)
+          }
+          const sort = orderSpec?.length
+            ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
+            : undefined
+
+          // Opaque cursor pagination (keyset seek on the default order; the token
+          // hides an internal offset only for custom-sorted views, which a keyset
+          // physically can't page). A keyset cursor is bound to the default order,
+          // so it can't be combined with a fresh sort.
+          const cursor = args.cursor ? decodeCursor(args.cursor) : undefined
+          if (cursor) {
+            try {
+              // Keyset cursors bind to the default order; offset cursors to the
+              // exact sort they were minted under.
+              assertCursorSortBinding(cursor, sort)
+            } catch (bindError) {
+              return { success: false, message: getErrorMessage(bindError, 'Invalid cursor') }
+            }
+          }
+
+          // No limit returns the ENTIRE matching result, failing fast once the
+          // 5MB byte budget is exceeded (caught below → structured tool error
+          // the model can react to by adding a filter or a limit). An explicit
+          // limit pages; byte-cut pages set nextCursor and the message says to
+          // continue with the opaque cursor.
           const toNamedRow = namedRowMapper(table.schema.columns)
-          // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
-          // tool result can't drain a whole table. `totalCount` in the response signals truncation,
-          // and the model pages with `offset`.
           const result = await queryRows(
             table,
             {
-              filter: args.filter
-                ? resolveFilterSelectValues(
-                    filterNamesToIds(args.filter, idByName),
-                    table.schema.columns
-                  )
-                : undefined,
-              sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
-              limit:
-                args.limit !== undefined
-                  ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
-                  : undefined,
-              offset: args.offset,
+              predicate,
+              sort,
+              limit: args.limit,
+              after: cursor?.after,
+              offset: cursor?.offset,
+              // Only the first page (no inbound cursor) pays for the COUNT(*).
+              includeTotal: !args.cursor,
               withExecutions: false,
             },
             requestId
           )
 
+          // nextCursor covers both cut kinds (explicit limit or the 5MB byte
+          // budget) — either way the truthful signal is "more rows exist". The
+          // token is opaque; the agent echoes it back as `cursor` to continue.
+          const countSuffix = result.totalCount != null ? ` of ${result.totalCount}` : ''
+          const message = result.nextCursor
+            ? `Returned ${result.rows.length}${countSuffix} rows (more available — pass cursor=${result.nextCursor} to continue)`
+            : `Returned ${result.rows.length}${countSuffix} rows`
           return {
             success: true,
-            message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
+            message,
             data: {
               ...result,
               rows: result.rows.map((r) => ({
@@ -827,10 +866,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = resolveFilterSelectValues(
-            filterNamesToIds(args.filter, idByName),
-            table.schema.columns
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
+          // operands arrive as option NAMES and must resolve to stored ids.
+          validatePredicate(args.filter, table.schema.columns)
+          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -929,10 +969,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = resolveFilterSelectValues(
-            filterNamesToIds(args.filter, idByName),
-            table.schema.columns
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
+          // operands arrive as option NAMES and must resolve to stored ids.
+          validatePredicate(args.filter, table.schema.columns)
+          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background

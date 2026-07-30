@@ -157,12 +157,45 @@ export function isTimeoutAbortReason(reason: unknown): boolean {
   )
 }
 
+/**
+ * Absolute deadline of each timeout signal, keyed by the signal that enforces it.
+ *
+ * Recorded here rather than threaded through {@link ExecutionContext} so the
+ * number can never disagree with the timer that acts on it: both are established
+ * in the one place the timeout exists. Every entry point already hands the
+ * executor `timeoutController.signal`, so a block that holds the signal can ask
+ * how long it really has without any call site remembering to pass a second
+ * field. Weakly keyed, so an finished execution's entry is collectable.
+ */
+const signalDeadlines = new WeakMap<AbortSignal, number>()
+
+/**
+ * Wall-clock milliseconds left before `signal`'s own timeout fires.
+ *
+ * `undefined` means the deadline is unknown — an untimed execution, or a derived
+ * signal rather than the one {@link createTimeoutAbortController} produced. Treat
+ * that as "no information", not as "no limit": callers that need a bound should
+ * keep their own conservative fallback rather than assume the run is untimed.
+ *
+ * Use this instead of {@link getMaxExecutionTimeout} when the question is "how
+ * much time does *this* run have left" — that function answers the different
+ * question of how long the longest-lived plan may ever run, and is a large
+ * overestimate for a sync run or a lower-tier plan.
+ */
+export function getRemainingExecutionMs(signal?: AbortSignal): number | undefined {
+  if (!signal) return undefined
+  const deadline = signalDeadlines.get(signal)
+  if (deadline === undefined) return undefined
+  return Math.max(0, deadline - Date.now())
+}
+
 export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortController {
   const abortController = new AbortController()
   let isTimedOut = false
   let timeoutId: NodeJS.Timeout | undefined
 
   if (timeoutMs) {
+    signalDeadlines.set(abortController.signal, Date.now() + timeoutMs)
     timeoutId = setTimeout(() => {
       isTimedOut = true
       // AbortError with a typed message — see isTimeoutAbortReason.

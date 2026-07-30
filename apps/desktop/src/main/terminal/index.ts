@@ -40,6 +40,7 @@ import {
   awaitRun,
   capturePane,
   closeRunWindow,
+  isRunComplete,
   isTmuxUnavailable,
   killPane,
   listPanes,
@@ -49,6 +50,7 @@ import {
   startRun,
   TMUX_KEY_NAMES,
   type TmuxAttachment,
+  type TmuxRunHandle,
 } from '@/main/terminal/tmux'
 
 const logger = createLogger('DesktopTerminal')
@@ -176,6 +178,14 @@ export class TerminalService {
   private readonly handoffs = new Map<string, boolean>()
   /** Recently resolved tmux attachments, by terminal id, to avoid re-spawning. */
   private readonly tmuxCache = new Map<string, { at: number; attachment: TmuxAttachment | null }>()
+  /**
+   * Run handles for commands that outlived their wait window, keyed by
+   * terminal. `startRun` makes a temp directory per run and only its handle can
+   * remove it, so a handle dropped on the still-running path leaks that
+   * directory for the life of the process while `tee` keeps appending to it.
+   * Held here so the terminal's own lifecycle can reclaim them.
+   */
+  private readonly pendingRuns = new Map<string, TmuxRunHandle[]>()
 
   constructor(private readonly options: TerminalServiceOptions = {}) {}
 
@@ -295,6 +305,37 @@ export class TerminalService {
   }
 
   /**
+   * Removes the temp directories of tracked runs that have since finished.
+   *
+   * Called when a new run starts on the same terminal, which is the one moment
+   * the service is already doing run bookkeeping — a dedicated reaper timer
+   * would be a subsystem to own for something this cheap. A run still going is
+   * left alone: its `tee` is still appending to that directory.
+   */
+  private reapFinishedRuns(terminalId: string): void {
+    const pending = this.pendingRuns.get(terminalId)
+    if (!pending) return
+    const stillRunning: TmuxRunHandle[] = []
+    for (const handle of pending) {
+      if (isRunComplete(handle)) handle.dispose()
+      else stillRunning.push(handle)
+    }
+    if (stillRunning.length === 0) this.pendingRuns.delete(terminalId)
+    else this.pendingRuns.set(terminalId, stillRunning)
+  }
+
+  /**
+   * Releases every tracked run for a terminal, finished or not. The terminal is
+   * going away, so nothing will ever read these files again.
+   */
+  private releasePendingRuns(terminalId: string): void {
+    const pending = this.pendingRuns.get(terminalId)
+    if (!pending) return
+    for (const handle of pending) handle.dispose()
+    this.pendingRuns.delete(terminalId)
+  }
+
+  /**
    * Drops a terminal and decides what replaces it. Closing and exiting share
    * this so the two cannot drift into different answers for "what happens to
    * the last one".
@@ -310,6 +351,7 @@ export class TerminalService {
     session.dispose()
     this.sessions.delete(terminalId)
     this.tmuxCache.delete(terminalId)
+    this.releasePendingRuns(terminalId)
 
     if (this.sessions.size === 0) {
       this.spawn(this.resolveCwd(closedCwd), cols, rows)
@@ -459,6 +501,10 @@ export class TerminalService {
     }
     this.sessions.clear()
     this.tmuxCache.clear()
+    for (const handles of this.pendingRuns.values()) {
+      for (const handle of handles) handle.dispose()
+    }
+    this.pendingRuns.clear()
     this.activeId = null
     // A stale claim here is what let Cmd-W close a shell that no longer exists.
     this.setPanelFocused(false)
@@ -784,6 +830,7 @@ export class TerminalService {
     if (!command) throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
 
     const started = Date.now()
+    this.reapFinishedRuns(terminal.terminalId)
     const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
 
@@ -792,6 +839,12 @@ export class TerminalService {
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
       handle.dispose()
+    } else {
+      // Still going, and nothing polls the status file again — `read` captures
+      // the pane instead.
+      const pending = this.pendingRuns.get(terminal.terminalId)
+      if (pending) pending.push(handle)
+      else this.pendingRuns.set(terminal.terminalId, [handle])
     }
 
     const { text, truncated } = elideOutput(outcome.output)
