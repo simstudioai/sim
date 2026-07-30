@@ -57,7 +57,10 @@ vi.mock('@/hooks/queries/workspace', () => ({
   },
 }))
 
-import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal/invite-modal'
+import {
+  buildInviteFailureMessage,
+  InviteModal,
+} from '@/app/workspace/[workspaceId]/components/invite-modal/invite-modal'
 
 let container: HTMLDivElement
 let root: Root
@@ -157,5 +160,72 @@ describe('InviteModal organization billing isolation', () => {
     })
 
     expect(mockUseAdminWorkspaces).toHaveBeenCalledWith('user-1', undefined, { enabled: false })
+  })
+})
+
+describe('buildInviteFailureMessage', () => {
+  const notPaid = (email: string) =>
+    `${email} is not on a paid Sim plan, so they cannot be added as an external collaborator. Invite them as a Member or Admin instead — that adds a seat.`
+
+  it('returns the reason alone for a single failure, which already names the address', () => {
+    expect(buildInviteFailureMessage([{ email: 'a@x.com', error: notPaid('a@x.com') }], 3)).toBe(
+      notPaid('a@x.com')
+    )
+  })
+
+  it('names every address when a whole batch is rejected for the same cause', () => {
+    const message = buildInviteFailureMessage(
+      [
+        { email: 'a@x.com', error: notPaid('a@x.com') },
+        { email: 'b@x.com', error: notPaid('b@x.com') },
+        { email: 'c@x.com', error: notPaid('c@x.com') },
+      ],
+      3
+    )
+
+    expect(message).toContain('None of the 3 invitations could be sent.')
+    expect(message).toContain('a@x.com')
+    expect(message).toContain('b@x.com')
+    expect(message).toContain('c@x.com')
+  })
+
+  it('reports the denominator when only some of the batch failed', () => {
+    const message = buildInviteFailureMessage(
+      [
+        { email: 'a@x.com', error: notPaid('a@x.com') },
+        { email: 'b@x.com', error: 'b@x.com has already been invited to this workspace' },
+      ],
+      5
+    )
+
+    expect(message).toContain('2 of 5 invitations could not be sent.')
+    expect(message).toContain('b@x.com has already been invited to this workspace')
+  })
+
+  it('collapses identical reasons instead of repeating them', () => {
+    const message = buildInviteFailureMessage(
+      [
+        { email: 'a@x.com', error: 'Something went wrong' },
+        { email: 'b@x.com', error: 'Something went wrong' },
+      ],
+      2
+    )
+
+    expect(message).toBe('None of the 2 invitations could be sent. Something went wrong')
+  })
+
+  it('counts the reasons it cannot list rather than dropping them silently', () => {
+    const message = buildInviteFailureMessage(
+      ['a', 'b', 'c', 'd', 'e'].map((name) => ({
+        email: `${name}@x.com`,
+        error: notPaid(`${name}@x.com`),
+      })),
+      5
+    )
+
+    expect(message).toContain('None of the 5 invitations could be sent.')
+    expect(message).toContain('c@x.com')
+    expect(message).not.toContain('d@x.com')
+    expect(message).toContain('And 2 more.')
   })
 })
