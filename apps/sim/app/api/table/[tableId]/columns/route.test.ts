@@ -7,6 +7,7 @@
  * caller cannot see or undo. These pin the pre-flight guards ahead of it.
  */
 import { hybridAuthMockFns } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,7 +44,7 @@ vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
   normalizeColumn: (c: unknown) => c,
-  rootErrorMessage: (e: unknown) => (e instanceof Error ? e.message : String(e)),
+  rootErrorMessage: (e: unknown) => getErrorMessage(e),
   tableLockErrorResponse: () => null,
 }))
 
