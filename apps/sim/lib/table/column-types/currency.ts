@@ -52,13 +52,6 @@ export const currencyColumnType: ColumnTypeDefinition = {
     return []
   },
 
-  isCompatibleWith(value) {
-    // Read the value exactly as the write-path coercion will: a formatted
-    // amount left in a text column (`$1,234.56`) converts, arbitrary prose
-    // does not.
-    return parseCurrencyInput(value) !== null
-  },
-
   formatForDisplay(value, column) {
     return formatCurrencyDisplay(value, column.currencyCode)
   },

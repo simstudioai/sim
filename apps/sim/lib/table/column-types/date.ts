@@ -42,16 +42,6 @@ export const dateColumnType: ColumnTypeDefinition = {
     return valid ? null : `${column.name} must be valid date`
   },
 
-  validateDefinition() {
-    return []
-  },
-
-  isCompatibleWith(value) {
-    if (value instanceof Date) return !Number.isNaN(value.getTime())
-    if (typeof value === 'string') return !Number.isNaN(Date.parse(value))
-    return false
-  },
-
   formatForDisplay(value) {
     return formatDateCellDisplay(String(value), { seconds: true })
   },

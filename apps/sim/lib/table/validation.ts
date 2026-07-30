@@ -14,6 +14,7 @@ import {
   columnTypeOf,
   isColumnType,
   TYPE_SPECIFIC_COLUMN_KEYS,
+  validateTypeMetadata,
 } from '@/lib/table/column-types'
 import {
   getMaxRowSizeBytes,
@@ -641,7 +642,7 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
   }
 
   const definition = COLUMN_TYPE_REGISTRY[column.type]
-  errors.push(...definition.validateDefinition(column))
+  errors.push(...validateTypeMetadata(column))
 
   // Uniqueness compares the stored value, which is meaningless for a type whose
   // storage is an opaque id — it would cap each option at one row for the whole

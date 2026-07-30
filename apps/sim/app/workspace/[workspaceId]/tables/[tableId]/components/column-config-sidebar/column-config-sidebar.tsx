@@ -6,7 +6,11 @@ import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
-import { CURRENCY_OPTIONS, DEFAULT_CURRENCY_CODE, resolveCurrencyCode } from '@/lib/table/currency'
+import {
+  DEFAULT_CURRENCY_CODE,
+  getCurrencyOptions,
+  resolveCurrencyCode,
+} from '@/lib/table/currency'
 import {
   FieldError,
   RequiredLabel,
@@ -24,7 +28,7 @@ function isSelectType(type: ColumnDefinition['type']): boolean {
  * Picker entries, built once at module load: the option list is derived from the
  * runtime's currency data and never varies per column.
  */
-const CURRENCY_COMBOBOX_OPTIONS = CURRENCY_OPTIONS.map((c) => ({
+const CURRENCY_COMBOBOX_OPTIONS = getCurrencyOptions().map((c) => ({
   value: c.code,
   label: `${c.code} · ${c.name}`,
 }))

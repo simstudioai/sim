@@ -31,17 +31,6 @@ export const booleanColumnType: ColumnTypeDefinition = {
     return typeof value === 'boolean' ? null : `${column.name} must be boolean`
   },
 
-  validateDefinition() {
-    return []
-  },
-
-  isCompatibleWith(value) {
-    if (typeof value === 'boolean') return true
-    if (typeof value === 'string') return ['true', 'false', '1', '0'].includes(value.toLowerCase())
-    if (typeof value === 'number') return value === 0 || value === 1
-    return false
-  },
-
   formatForDisplay(value) {
     return String(value)
   },

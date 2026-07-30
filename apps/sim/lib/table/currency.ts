@@ -72,20 +72,14 @@ export interface CurrencyOption {
 
 /**
  * Codes for the column-config picker: the pinned set first, then every other
- * code the runtime supports, alphabetically. Computed once at module load —
- * the list is fixed for the process lifetime.
+ * code the runtime supports, alphabetically.
+ *
+ * Built on first call, not at module load: constructing `Intl.DisplayNames` and
+ * naming ~160 currencies costs several milliseconds of ICU work, and the only
+ * caller is the column-config sidebar — every table API route imports this
+ * module and would otherwise pay for a list it never reads.
  */
-export const CURRENCY_OPTIONS: readonly CurrencyOption[] = (() => {
-  const pinned = new Set<string>(PINNED_CURRENCY_CODES)
-  const rest = supportedCurrencyCodes
-    ? [...supportedCurrencyCodes].filter((code) => !pinned.has(code)).sort()
-    : []
-  const displayNames = currencyDisplayNames()
-  return [...PINNED_CURRENCY_CODES, ...rest].map((code) => ({
-    code,
-    name: displayNames?.of(code) ?? code,
-  }))
-})()
+let currencyOptions: readonly CurrencyOption[] | null = null
 
 function currencyDisplayNames(): Intl.DisplayNames | null {
   try {
@@ -93,6 +87,20 @@ function currencyDisplayNames(): Intl.DisplayNames | null {
   } catch {
     return null
   }
+}
+
+export function getCurrencyOptions(): readonly CurrencyOption[] {
+  if (currencyOptions) return currencyOptions
+  const pinned = new Set<string>(PINNED_CURRENCY_CODES)
+  const rest = supportedCurrencyCodes
+    ? [...supportedCurrencyCodes].filter((code) => !pinned.has(code)).sort()
+    : []
+  const displayNames = currencyDisplayNames()
+  currencyOptions = [...PINNED_CURRENCY_CODES, ...rest].map((code) => ({
+    code,
+    name: displayNames?.of(code) ?? code,
+  }))
+  return currencyOptions
 }
 
 /**

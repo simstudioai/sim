@@ -67,8 +67,6 @@ const MULTI_SELECT_OPS = new Set<FilterOp>([
 ])
 
 /**
-
-/**
  * Returns the Postgres cast needed to compare a JSONB text value of the given
  * column type, or `null` when text comparison is correct. Single source of
  * truth for both filter range operators and sort ordering — keeps the two

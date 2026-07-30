@@ -32,8 +32,10 @@ import {
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
 import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
-import type { ColumnDefinition } from '@/lib/table/types'
+import { COLUMN_TYPES } from '@/lib/table/column-types/types'
+import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
+export { COLUMN_TYPES }
 export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
 
 /**
@@ -50,12 +52,6 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   currency: currencyColumnType,
 }
 
-/**
- * Type ids in picker order. Derived from the registry so the list can never
- * disagree with it.
- */
-export const COLUMN_TYPES = Object.keys(COLUMN_TYPE_REGISTRY) as [ColumnType, ...ColumnType[]]
-
 /** Every definition, in the same order as {@link COLUMN_TYPES}. */
 export const ALL_COLUMN_TYPES: readonly ColumnTypeDefinition[] = COLUMN_TYPES.map(
   (id) => COLUMN_TYPE_REGISTRY[id]
@@ -63,7 +59,9 @@ export const ALL_COLUMN_TYPES: readonly ColumnTypeDefinition[] = COLUMN_TYPES.ma
 
 /** Whether `value` is a known column type. */
 export function isColumnType(value: unknown): value is ColumnType {
-  return typeof value === 'string' && value in COLUMN_TYPE_REGISTRY
+  // `in` would also match inherited keys, so `'toString'` would type-guard as a
+  // column type and then resolve to `Function.prototype.toString`.
+  return typeof value === 'string' && Object.hasOwn(COLUMN_TYPE_REGISTRY, value)
 }
 
 /**
@@ -78,6 +76,24 @@ export function columnTypeOf(column: Pick<ColumnDefinition, 'type'>): ColumnType
 /** The definition for a type id, or `string`'s when the id is unknown. */
 export function columnTypeById(type: string | undefined): ColumnTypeDefinition {
   return (isColumnType(type) && COLUMN_TYPE_REGISTRY[type]) || stringColumnType
+}
+
+/**
+ * Whether an existing cell survives a conversion **to** `target`'s type.
+ *
+ * Falls back to "whatever the type's `coerce` accepts". Only `select`
+ * overrides, because its rules (a cleared `''` against `required`, and single
+ * vs multi cardinality) are about the column, not the value.
+ */
+export function isValueCompatible(value: unknown, target: ColumnDefinition): boolean {
+  const definition = columnTypeOf(target)
+  if (definition.isCompatibleWith) return definition.isCompatibleWith(value, target)
+  return definition.coerce(value as JsonValue, target).ok
+}
+
+/** This type's own metadata errors; types carrying no metadata report none. */
+export function validateTypeMetadata(column: ColumnDefinition): string[] {
+  return columnTypeOf(column).validateDefinition?.(column) ?? []
 }
 
 /**

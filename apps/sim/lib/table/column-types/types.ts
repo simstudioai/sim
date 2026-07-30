@@ -22,8 +22,25 @@
 import type React from 'react'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
-/** Every column type id. The registry is keyed by this, which is what makes it exhaustive. */
-export type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select' | 'currency'
+/**
+ * Every column type id, in picker order. Declared here — not derived from the
+ * registry — so `constants.ts` can re-export it without dragging the registry's
+ * icon imports into the 44 server modules that read the `@/lib/table` barrel.
+ *
+ * The registry's `Record<ColumnType, …>` annotation is what keeps the two in
+ * step: adding an id here fails compilation until both registries have an entry.
+ */
+export const COLUMN_TYPES = [
+  'string',
+  'number',
+  'currency',
+  'boolean',
+  'date',
+  'json',
+  'select',
+] as const
+
+export type ColumnType = (typeof COLUMN_TYPES)[number]
 
 /** Which inline editor the grid mounts for a cell of this type. */
 export type ColumnCellEditor =
@@ -138,16 +155,20 @@ export interface ColumnTypeDefinition {
 
   /**
    * Validates this type's own column metadata (a `select`'s options, a
-   * `currency`'s code). Returns accumulated error messages.
+   * `currency`'s code). Omitted by types that carry none.
    */
-  validateDefinition(column: ColumnDefinition): string[]
+  validateDefinition?(column: ColumnDefinition): string[]
 
   /**
-   * Whether an existing cell survives a conversion **to** this type. Reads the
-   * value exactly as {@link coerce} will, so the retype gate and the write path
-   * cannot drift.
+   * Whether an existing cell survives a conversion **to** this type.
+   *
+   * Defaults to "whatever {@link coerce} accepts", which is what makes the
+   * retype gate and the write path incapable of disagreeing — a gate that is
+   * more permissive than the write path reports zero incompatible rows and
+   * then nulls every one of them. Override only when compatibility genuinely
+   * cannot be expressed as a coercion.
    */
-  isCompatibleWith(value: unknown, target: ColumnDefinition): boolean
+  isCompatibleWith?(value: unknown, target: ColumnDefinition): boolean
 
   /** Stored value → display text (grid cell, CSV, clipboard, width measurement). */
   formatForDisplay(value: unknown, column: ColumnDefinition): string

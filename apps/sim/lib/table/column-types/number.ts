@@ -35,19 +35,6 @@ export const numberColumnType: ColumnTypeDefinition = {
       : `${column.name} must be number`
   },
 
-  validateDefinition() {
-    return []
-  },
-
-  isCompatibleWith(value) {
-    if (typeof value === 'number') return Number.isFinite(value)
-    if (typeof value === 'string') {
-      const num = Number(value)
-      return Number.isFinite(num) && value.trim() !== ''
-    }
-    return false
-  },
-
   formatForDisplay(value) {
     return String(value)
   },

@@ -29,14 +29,6 @@ export const jsonColumnType: ColumnTypeDefinition = {
     }
   },
 
-  validateDefinition() {
-    return []
-  },
-
-  isCompatibleWith() {
-    return true
-  },
-
   formatForDisplay(value) {
     return JSON.stringify(value)
   },

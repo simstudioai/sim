@@ -27,17 +27,6 @@ export const stringColumnType: ColumnTypeDefinition = {
     return typeof value === 'string' ? null : `${column.name} must be string, got ${typeof value}`
   },
 
-  validateDefinition() {
-    return []
-  },
-
-  isCompatibleWith(value) {
-    // Arrays and objects can't become text — the write-path coercion rejects
-    // them and would null the cell. Multi-select values are flattened before
-    // this check, so anything still structured here is genuinely lossy.
-    return typeof value !== 'object'
-  },
-
   formatForDisplay(value) {
     if (typeof value === 'string') return value
     if (value === null || value === undefined) return ''

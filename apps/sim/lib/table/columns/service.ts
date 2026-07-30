@@ -14,7 +14,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
-import { columnTypeById } from '@/lib/table/column-types'
+import { columnTypeById, isValueCompatible } from '@/lib/table/column-types'
 import { migrationFrom, migrationTo } from '@/lib/table/column-types/registry.server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { parseCurrencyInput, resolveCurrencyCode } from '@/lib/table/currency'
@@ -615,16 +615,21 @@ export async function updateColumnType(
         currencyCode: _prevCurrencyCode,
         ...rest
       } = c
-      if (isCurrencyType) {
-        return {
+      // Carry forward only metadata the TARGET type owns — everything else was
+      // destructured off above and must not survive the conversion — then let
+      // the type stamp its own defaults, so a type carrying metadata gets it on
+      // a conversion and not only on create.
+      if (!isSelectType) {
+        const definition = columnTypeById(data.newType)
+        const owned = new Set<string>(definition.ownedMetadata)
+        const converted: ColumnDefinition = {
           ...rest,
           type: data.newType,
-          ...columnTypeById(data.newType).defaultMetadata?.({
-            ...rest,
-            type: data.newType,
-            currencyCode: data.currencyCode ?? c.currencyCode,
-          }),
+          ...(owned.has('currencyCode') && (data.currencyCode ?? c.currencyCode) !== undefined
+            ? { currencyCode: data.currencyCode ?? c.currencyCode }
+            : {}),
         }
+        return { ...converted, ...definition.defaultMetadata?.(converted) }
       }
       return isSelectType
         ? {
@@ -1136,7 +1141,7 @@ export function isValueCompatibleWithType(
 ): boolean {
   if (value === null || value === undefined) return true
   // Each type reads only the metadata it owns.
-  return columnTypeById(targetType).isCompatibleWith(value, {
+  return isValueCompatible(value, {
     name: '',
     type: targetType,
     options: targetOptions,

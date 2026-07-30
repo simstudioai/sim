@@ -7,10 +7,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  CURRENCY_OPTIONS,
   DEFAULT_CURRENCY_CODE,
   formatCurrencyDisplay,
   formatCurrencyForInput,
+  getCurrencyOptions,
   isSupportedCurrencyCode,
   parseCurrencyInput,
   resolveCurrencyCode,
@@ -163,8 +163,9 @@ describe('currency codes', () => {
   })
 
   it('offers the pinned codes first and no duplicates', () => {
-    expect(CURRENCY_OPTIONS[0].code).toBe('USD')
-    const codes = CURRENCY_OPTIONS.map((c) => c.code)
+    const options = getCurrencyOptions()
+    expect(options[0].code).toBe('USD')
+    const codes = options.map((c) => c.code)
     expect(new Set(codes).size).toBe(codes.length)
     expect(codes).toContain('JPY')
   })
