@@ -15,9 +15,13 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById, isValueCompatible } from '@/lib/table/column-types'
-import { migrationFrom, migrationTo } from '@/lib/table/column-types/registry.server'
+import {
+  migrationFrom,
+  migrationTo,
+  writeBackCoercedCells,
+} from '@/lib/table/column-types/registry.server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { parseCurrencyInput, resolveCurrencyCode } from '@/lib/table/currency'
+import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
@@ -477,6 +481,45 @@ export async function deleteColumns(
 }
 
 /**
+ * The column definition a retype produces: prior per-type metadata dropped,
+ * then only what the TARGET type declares it owns carried forward, then that
+ * type's own defaults stamped on.
+ */
+function buildConvertedColumn(
+  column: ColumnDefinition,
+  data: UpdateColumnTypeData,
+  { isSelectType, targetMultiple }: { isSelectType: boolean; targetMultiple: boolean }
+): ColumnDefinition {
+  const { options: _options, multiple: _multiple, currencyCode: _currencyCode, ...rest } = column
+
+  if (isSelectType) {
+    return {
+      ...rest,
+      type: data.newType,
+      options: data.options ?? column.options,
+      ...(targetMultiple ? { multiple: true } : {}),
+      // Select columns carry no unique constraint: it would compare the stored
+      // option id, capping each option at one row table-wide, and the UI hides
+      // the toggle so it could never be cleared again. Dropped here rather than
+      // in each caller — the sidebar was the only one clearing it, leaving the
+      // v1 and agent paths to strand it.
+      unique: false,
+    }
+  }
+
+  const definition = columnTypeById(data.newType)
+  const owned = new Set<string>(definition.ownedMetadata)
+  const carried: ColumnDefinition = {
+    ...rest,
+    type: data.newType,
+    ...(owned.has('currencyCode') && (data.currencyCode ?? column.currencyCode) !== undefined
+      ? { currencyCode: data.currencyCode ?? column.currencyCode }
+      : {}),
+  }
+  return { ...carried, ...definition.defaultMetadata?.(carried) }
+}
+
+/**
  * Changes the type of a column. Validates that existing data is compatible.
  *
  * @param data - Update column type data
@@ -535,7 +578,6 @@ export async function updateColumnType(
     // Options the column will carry after the change — a `select` value is only
     // compatible if it resolves against this set.
     const isSelectType = data.newType === 'select'
-    const isCurrencyType = data.newType === 'currency'
     const targetOptions = data.options ?? column.options ?? []
     const targetMultiple = data.multiple ?? column.multiple
     // Leaving `select` behind: stored cells hold option ids, which mean nothing
@@ -560,26 +602,40 @@ export async function updateColumnType(
       }
     }
 
+    /**
+     * The column definition the table ends up with. Built before the scan so
+     * the coercion below reads the same metadata (option set, currency) the
+     * stored value will be validated against afterwards.
+     */
+    const convertedColumn = buildConvertedColumn(column, data, {
+      isSelectType,
+      targetMultiple: !!targetMultiple,
+    })
+
     let incompatibleCount = 0
     let blankCount = 0
     /**
-     * Row id → parsed amount, for a conversion into `currency`. Collected here
-     * rather than re-derived in the migration so it reads the same `effective`
-     * value the compatibility check accepted — which for a `select` source is
-     * the option name, not the stored id.
+     * Row id → the value the cell must END UP holding.
+     *
+     * Collected during the compatibility scan rather than re-derived later, so
+     * it reads the same `effective` value the check accepted — which for a
+     * `select` source is the option name, not the stored id.
+     *
+     * Load-bearing: a conversion is allowed exactly when the target type's
+     * `coerce` accepts the value, and `coerce` frequently *transforms* it (an
+     * epoch number becomes an ISO date, a formatted amount becomes a number).
+     * Without writing the transformed value back, the cell keeps its old bytes
+     * under the new type — and since filters and sorts apply the type's
+     * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
+     * `::timestamptz` fail on EVERY query against it.
      */
-    const currencyAmountByRowId = new Map<string, number>()
+    const coercedByRowId = new Map<string, JsonValue>()
     for (const row of rows) {
       const rowData = row.data as RowData
       const value = rowData[columnKey]
       if (value === null || value === undefined) continue
 
       const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
-
-      if (isCurrencyType && typeof effective !== 'number') {
-        const amount = parseCurrencyInput(effective)
-        if (amount !== null) currencyAmountByRowId.set(row.id, amount)
-      }
 
       if (
         !isValueCompatibleWithType(
@@ -592,6 +648,16 @@ export async function updateColumnType(
       ) {
         if (effective === null || effective === '') blankCount++
         else incompatibleCount++
+        continue
+      }
+
+      // `select` keeps its own id↔name migrations; everything else writes back
+      // whatever `coerce` produced, when that differs from what is stored.
+      if (!isSelectType && effective !== null) {
+        const coerced = columnTypeById(data.newType).coerce(effective as JsonValue, convertedColumn)
+        if (coerced.ok && !Object.is(coerced.value, value)) {
+          coercedByRowId.set(row.id, coerced.value)
+        }
       }
     }
 
@@ -607,45 +673,7 @@ export async function updateColumnType(
       )
     }
 
-    const updatedColumns = schema.columns.map((c, i) => {
-      if (i !== columnIndex) return c
-      const {
-        options: _prevOptions,
-        multiple: _prevMultiple,
-        currencyCode: _prevCurrencyCode,
-        ...rest
-      } = c
-      // Carry forward only metadata the TARGET type owns — everything else was
-      // destructured off above and must not survive the conversion — then let
-      // the type stamp its own defaults, so a type carrying metadata gets it on
-      // a conversion and not only on create.
-      if (!isSelectType) {
-        const definition = columnTypeById(data.newType)
-        const owned = new Set<string>(definition.ownedMetadata)
-        const converted: ColumnDefinition = {
-          ...rest,
-          type: data.newType,
-          ...(owned.has('currencyCode') && (data.currencyCode ?? c.currencyCode) !== undefined
-            ? { currencyCode: data.currencyCode ?? c.currencyCode }
-            : {}),
-        }
-        return { ...converted, ...definition.defaultMetadata?.(converted) }
-      }
-      return isSelectType
-        ? {
-            ...rest,
-            type: data.newType,
-            options: data.options ?? c.options,
-            ...(targetMultiple ? { multiple: true } : {}),
-            // Select columns carry no unique constraint: it would compare the
-            // stored option id, capping each option at one row table-wide, and
-            // the UI hides the toggle so it could never be cleared again. Drop
-            // it here rather than in each caller — the sidebar was the only one
-            // clearing it, leaving the v1 and agent paths to strand it.
-            unique: false,
-          }
-        : { ...rest, type: data.newType }
-    })
+    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
 
     const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
     if (!columnValidation.valid) {
@@ -664,10 +692,14 @@ export async function updateColumnType(
       columnKey,
       previous: column,
       target: updatedColumns[columnIndex],
-      resolved: currencyAmountByRowId,
+      resolved: coercedByRowId,
     }
     await migrationFrom(column.type)?.(migrationContext)
-    await migrationTo(data.newType)?.(migrationContext)
+    if (isSelectType) {
+      await migrationTo(data.newType)?.(migrationContext)
+    } else {
+      await writeBackCoercedCells(trx, data.tableId, columnKey, coercedByRowId)
+    }
 
     await trx
       .update(userTableDefinitions)

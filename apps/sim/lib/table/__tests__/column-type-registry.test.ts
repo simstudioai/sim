@@ -10,6 +10,7 @@
  * here.
  */
 import { describe, expect, it } from 'vitest'
+import type { ColumnType } from '@/lib/table/column-types'
 import {
   ALL_COLUMN_TYPES,
   COLUMN_TYPE_REGISTRY,
@@ -71,6 +72,36 @@ describe('registry shape', () => {
     // no explanation.
     for (const definition of ALL_COLUMN_TYPES) {
       if (definition.typeaheadPattern) expect(definition.parseErrorMessage).toBeTruthy()
+    }
+  })
+})
+
+describe('conversion write-back', () => {
+  // A retype is allowed exactly when the target's `coerce` accepts the value,
+  // and `coerce` often TRANSFORMS it. The conversion must therefore write the
+  // transformed value back — filters and sorts apply `jsonbCast` to whatever is
+  // stored, so a value left in its old shape breaks every query on the column.
+  it.each`
+    type          | stored           | expected
+    ${'date'}     | ${1700000000000} | ${'2023-11-14T22:13:20.000Z'}
+    ${'date'}     | ${'2024-01-01'}  | ${'2024-01-01'}
+    ${'currency'} | ${'$1,234.56'}   | ${1234.56}
+    ${'currency'} | ${'1.234,56'}    | ${1234.56}
+    ${'number'}   | ${'1999'}        | ${1999}
+  `('$type coerces $stored to a value its jsonbCast can read', ({ type, stored, expected }) => {
+    const column = { name: 'c', type } as ColumnDefinition
+    const result = COLUMN_TYPE_REGISTRY[type as ColumnType].coerce(stored, column)
+    expect(result.ok && result.value).toEqual(expected)
+  })
+
+  it('never leaves a numeric-cast type holding something Postgres cannot cast', () => {
+    // The concrete failure this guards: an epoch number left in a `date`
+    // column makes `(data->>'col')::timestamptz` throw on every query.
+    for (const definition of ALL_COLUMN_TYPES) {
+      if (definition.jsonbCast !== 'timestamptz') continue
+      const coerced = definition.coerce(1700000000000, { name: 'c', type: definition.id })
+      expect(coerced.ok).toBe(true)
+      expect(typeof (coerced as { value: unknown }).value).toBe('string')
     }
   })
 })

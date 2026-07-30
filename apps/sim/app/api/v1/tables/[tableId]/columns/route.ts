@@ -191,6 +191,23 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
         )
       }
     }
+    // The rename runs last (see below), so a name already taken would fail after
+    // the typed write committed. This is the only rename failure a caller can
+    // cause; catching it here leaves just the concurrent-collision race, which
+    // no pre-flight check can close.
+    if (
+      updates.name &&
+      table.schema.columns.some(
+        (c) =>
+          c.name.toLowerCase() === updates.name?.toLowerCase() &&
+          !columnMatchesRef(c, validated.columnName)
+      )
+    ) {
+      return NextResponse.json(
+        { error: `Column "${updates.name}" already exists` },
+        { status: 400 }
+      )
+    }
     if (updates.unique === true && !columnTypeById(resultingType).supportsUnique) {
       return NextResponse.json(
         { error: `Cannot set a ${resultingType} column as unique` },

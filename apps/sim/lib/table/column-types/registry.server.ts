@@ -62,34 +62,35 @@ async function migrateSelectCellsToNames(
 }
 
 /** Rows rewritten per statement, bounding the size of the jsonb map parameter. */
-const CURRENCY_MIGRATION_BATCH_SIZE = 5000
+const COERCED_WRITE_BACK_BATCH_SIZE = 5000
 
 /**
- * Rewrites a column's cells into the canonical `currency` storage shape: a bare
- * JSON number.
+ * Writes back the values a conversion's coercion produced.
  *
- * Load-bearing, not cosmetic. Filters and sorts cast the stored text to
- * `numeric`, so a `$1,234.56` left behind by a text → currency conversion would
- * make **every** query against the column fail — not just render oddly.
+ * A retype is allowed exactly when the target type's `coerce` accepts the
+ * value, and `coerce` frequently *transforms* it — an epoch number becomes an
+ * ISO date, `$1,234.56` becomes `1234.56`. Without this, the cell keeps its old
+ * bytes under the new type, and since filters and sorts apply the type's
+ * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
+ * `::timestamptz` fail on EVERY query against that column.
  *
- * Unlike the `select` migrations this cannot be expressed set-based:
- * `parseCurrencyInput` disambiguates grouping from decimal separators in JS, and
- * a naive SQL strip would turn `1.234.567` into an invalid numeric and abort the
- * conversion. The already-parsed amounts are folded into a jsonb map instead, so
- * it is still one statement per batch rather than one per row.
+ * The values arrive already computed (the compatibility scan derived them), so
+ * this is purely the write. It cannot be expressed set-based — the coercions
+ * are JS, and a naive SQL equivalent would mangle exactly the inputs they
+ * disambiguate — so the map is folded into one statement per batch.
  */
-async function migrateCellsToCurrencyNumbers(
+export async function writeBackCoercedCells(
   trx: DbTransaction,
   tableId: string,
   columnKey: string,
-  amountByRowId: ReadonlyMap<string, JsonValue>
+  valueByRowId: ReadonlyMap<string, JsonValue>
 ): Promise<void> {
-  if (amountByRowId.size === 0) return
+  if (valueByRowId.size === 0) return
 
-  const entries = [...amountByRowId]
-  for (let start = 0; start < entries.length; start += CURRENCY_MIGRATION_BATCH_SIZE) {
+  const entries = [...valueByRowId]
+  for (let start = 0; start < entries.length; start += COERCED_WRITE_BACK_BATCH_SIZE) {
     const batch = JSON.stringify(
-      Object.fromEntries(entries.slice(start, start + CURRENCY_MIGRATION_BATCH_SIZE))
+      Object.fromEntries(entries.slice(start, start + COERCED_WRITE_BACK_BATCH_SIZE))
     )
     await trx.execute(
       sql`UPDATE ${userTableRows} AS r
@@ -216,11 +217,7 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
     migrateCellsFrom: ({ trx, tableId, columnKey, previous }) =>
       migrateSelectCellsToNames(trx, tableId, columnKey, previous.options ?? []),
   },
-  currency: {
-    ...COLUMN_TYPE_REGISTRY.currency,
-    migrateCellsTo: ({ trx, tableId, columnKey, resolved }) =>
-      migrateCellsToCurrencyNumbers(trx, tableId, columnKey, resolved),
-  },
+  currency: COLUMN_TYPE_REGISTRY.currency,
 }
 
 /** The inbound migration for a target type, if it has one. */

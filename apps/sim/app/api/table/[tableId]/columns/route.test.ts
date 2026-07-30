@@ -133,6 +133,31 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
+  it('rejects a name already taken before any write runs', async () => {
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        workspaceId: WORKSPACE_ID,
+        schema: {
+          columns: [
+            { id: 'col_a', name: 'amount', type: 'currency' },
+            { id: 'col_b', name: 'taken', type: 'string' },
+          ],
+        },
+      },
+    })
+
+    const response = await patch({ name: 'taken', currencyCode: 'EUR' })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining('already exists'),
+    })
+    // The typed write would otherwise have committed under a rename that fails.
+    expect(mockUpdateColumnCurrency).not.toHaveBeenCalled()
+    expect(mockRenameColumn).not.toHaveBeenCalled()
+  })
+
   it('rejects unique on a type that cannot carry it without renaming first', async () => {
     mockCheckAccess.mockResolvedValue({
       ok: true,

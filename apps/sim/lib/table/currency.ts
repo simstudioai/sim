@@ -12,6 +12,12 @@
 /** Currency assumed when a column declares none. */
 export const DEFAULT_CURRENCY_CODE = 'USD'
 
+/** A bare numeric literal in exponent form, e.g. `1e+21` or `-1.5e-3`. */
+const EXPONENT_LITERAL = /^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/
+
+/** An `e` with a digit on both sides — an exponent marker, however spaced. */
+const INTERIOR_EXPONENT = /\d\s*[eE][+-]?\s*\d/
+
 /** ISO 4217 alphabetic code: exactly three letters. */
 const CURRENCY_CODE_PATTERN = /^[A-Za-z]{3}$/
 
@@ -128,19 +134,21 @@ export function parseCurrencyInput(raw: unknown): number | null {
   const parenthesized = /^\((.*)\)$/.exec(trimmed)
   const body = parenthesized ? parenthesized[1] : trimmed
 
-  // Exponent form first, and taken at face value. `String()` emits it for any
-  // magnitude past 1e21, so a stored amount round-trips through the editor as
-  // `1e+21` — and stripping the `e` as decoration would read that back as 121,
-  // silently losing 19 orders of magnitude. Only a string that is *wholly* a
-  // numeric literal once symbols are removed qualifies, so `12 EUR` (whose `E`
-  // survives the strip) still falls through to the separator logic below.
+  // Exponent form is taken at face value. `String()` emits it for any magnitude
+  // past 1e21, so a stored amount round-trips through the editor as `1e+21` —
+  // and stripping the `e` as decoration would read that back as 121, silently
+  // losing 19 orders of magnitude.
   const exponentCandidate = body.replace(/[^\d.,\-+eE]/g, '')
-  if (/[eE]/.test(exponentCandidate)) {
+  if (EXPONENT_LITERAL.test(exponentCandidate)) {
     const parsed = Number(exponentCandidate)
-    if (Number.isFinite(parsed)) {
-      return parenthesized ? -Math.abs(parsed) : parsed
-    }
+    if (Number.isFinite(parsed)) return parenthesized ? -Math.abs(parsed) : parsed
   }
+  // An `e` sitting between digits is an exponent marker, not decoration. If the
+  // string is not a clean literal we cannot read it unambiguously, and dropping
+  // the `e` would join the digit groups and change the magnitude (`1e5 EUR`
+  // would become 15) — so refuse instead of guessing. The digit on BOTH sides
+  // is what distinguishes this from the `E` inside an ISO code like `12 EUR`.
+  if (INTERIOR_EXPONENT.test(body)) return null
 
   // Drop symbols, letters, and every flavor of space, leaving only digits, the
   // two separator characters, and a leading sign.
