@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-29",
+  "updatedAt": "2026-07-30",
   "integrations": [
     {
       "type": "onepassword",
@@ -5929,7 +5929,7 @@
       "slug": "exa",
       "name": "Exa",
       "description": "Search with Exa AI",
-      "longDescription": "Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.",
+      "longDescription": "Integrate Exa into the workflow. Can search the web, get page contents, find similar links, answer a question with citations, and run deep research with Exa Agent.",
       "bgColor": "#1F40ED",
       "iconName": "ExaAIIcon",
       "docsUrl": "https://docs.sim.ai/integrations/exa",
@@ -5943,16 +5943,16 @@
           "description": "Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL."
         },
         {
-          "name": "Find Similar Links",
-          "description": "Find webpages similar to a given URL using Exa AI. Returns a list of similar links with titles and text snippets."
-        },
-        {
           "name": "Answer",
           "description": "Get an AI-generated answer to a question with citations from the web using Exa AI."
         },
         {
-          "name": "Research",
-          "description": "Perform comprehensive research using AI to generate detailed reports with citations"
+          "name": "Agent",
+          "description": "Run a deep research task with Exa Agent. Handles multi-step list building, enrichment, and research, returning a written answer with field-level citations and optional structured output."
+        },
+        {
+          "name": "Find Similar Links",
+          "description": "Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows."
         }
       ],
       "operationCount": 5,
