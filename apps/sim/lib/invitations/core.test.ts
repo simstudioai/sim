@@ -147,6 +147,65 @@ describe('acceptInvitation', () => {
     })
   })
 
+  it('rejects when the disclosed join outcome no longer matches (empty sweep set)', async () => {
+    /**
+     * The workspace-id token cannot express this: the invitee owns nothing, so
+     * both a no-join and a will-join preview disclose []. Without the explicit
+     * membership half of the token, leaving another org between preview and
+     * accept would silently create a seat-consuming membership the screen said
+     * would stay external.
+     */
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'inviter-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Inviter', email: 'inviter@example.com' }],
+      [],
+      [],
+      [{ variables: {} }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      actorName: 'Invitee',
+      // The screen promised "you will not join" — acceptance resolves to a join.
+      disclosedWorkspaceIds: [],
+      disclosedWillJoinOrganization: false,
+      request: new Request('http://localhost/api/invitations/inv-1/accept'),
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.kind).toBe('disclosure-outdated')
+    }
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+  })
+
   it('accepts a forced-external invitation from a free invitee already in another org', async () => {
     /**
      * Cross-org invitees are stamped external regardless of the inviter's

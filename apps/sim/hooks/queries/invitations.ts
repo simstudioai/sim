@@ -166,13 +166,15 @@ export function useAcceptMyInvitation() {
     mutationFn: async ({
       invitationId,
       disclosedWorkspaceIds,
+      disclosedWillJoinOrganization,
     }: {
       invitationId: string
       disclosedWorkspaceIds?: string[]
+      disclosedWillJoinOrganization?: boolean
     }) =>
       requestJson(acceptInvitationContract, {
         params: { id: invitationId },
-        body: { disclosedWorkspaceIds },
+        body: { disclosedWorkspaceIds, disclosedWillJoinOrganization },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })

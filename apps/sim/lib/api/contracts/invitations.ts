@@ -107,6 +107,13 @@ export const invitationActionBodySchema = z.object({
    * set the user saw.
    */
   disclosedWorkspaceIds: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT).optional(),
+  /**
+   * The membership outcome the accept screen disclosed. The workspace-id list
+   * alone cannot express it — a no-join preview and a will-join preview for
+   * someone who owns nothing both disclose `[]` — so consent to becoming a
+   * seat-consuming member is carried explicitly.
+   */
+  disclosedWillJoinOrganization: z.boolean().optional(),
 })
 
 export const invitationDetailsSchema = z.object({

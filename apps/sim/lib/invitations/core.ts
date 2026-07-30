@@ -396,6 +396,13 @@ export interface AcceptInvitationInput {
    * differs — the user must see the refreshed notice before consenting.
    */
   disclosedWorkspaceIds?: string[]
+  /**
+   * Whether the accept screen told the invitee they would join the
+   * organization. Verified against the resolved outcome so a membership the
+   * user was never shown can never be created, and a membership they were
+   * promised can never be silently downgraded.
+   */
+  disclosedWillJoinOrganization?: boolean
   request?: { headers: { get(name: string): string | null } }
 }
 
@@ -717,6 +724,22 @@ async function acceptLockedInvitation(
     (await getInvitePlanCategoryForUser(input.userId, tx)) === 'free'
   ) {
     return { success: false, kind: 'external-requires-paid-plan' }
+  }
+
+  /**
+   * Membership consent guard. The workspace-id token cannot distinguish "you
+   * will join, and nothing of yours moves" from "you will not join at all" —
+   * both disclose an empty set — so the disclosed join outcome is compared
+   * directly. Catches an invitee who left their other organization between
+   * preview and accept (promised external, would now consume a seat) and the
+   * mirror case (promised membership, would now be external). Runs before any
+   * write, so a plain failure return needs no rollback.
+   */
+  if (
+    input.disclosedWillJoinOrganization !== undefined &&
+    input.disclosedWillJoinOrganization !== shouldJoinOrganization
+  ) {
+    return { success: false, kind: 'disclosure-outdated' }
   }
 
   /**

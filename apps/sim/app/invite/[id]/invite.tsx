@@ -266,6 +266,7 @@ export default function Invite() {
            * must also conflict if acceptance would sweep anything.
            */
           disclosedWorkspaceIds: joinPreview ? joinPreview.workspaceIdsToMove : undefined,
+          disclosedWillJoinOrganization: joinPreview ? joinPreview.willJoinOrganization : undefined,
         },
       })
 

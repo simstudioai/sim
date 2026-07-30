@@ -93,6 +93,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
       const result = await acceptInvitation.mutateAsync({
         invitationId: inv.id,
         disclosedWorkspaceIds: inv.joinPreview?.workspaceIdsToMove,
+        disclosedWillJoinOrganization: inv.joinPreview?.willJoinOrganization,
       })
       toast.success(`Joined ${invitationLabel(inv)}`)
       onOpenChange(false)

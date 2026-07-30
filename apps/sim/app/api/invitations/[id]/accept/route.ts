@@ -28,6 +28,7 @@ export const POST = withRouteHandler(
       invitationId: id,
       token: parsed.data.body.token ?? null,
       disclosedWorkspaceIds: parsed.data.body.disclosedWorkspaceIds,
+      disclosedWillJoinOrganization: parsed.data.body.disclosedWillJoinOrganization,
       request,
     })
 
