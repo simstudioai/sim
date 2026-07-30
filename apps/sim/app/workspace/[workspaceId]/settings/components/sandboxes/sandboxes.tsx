@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Chip, toast } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Plus } from '@sim/emcn/icons'
+import { toast } from '@sim/emcn'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
@@ -24,6 +24,8 @@ import {
   draftFromSandbox,
   emptyDraft,
   extractIssues,
+  SANDBOX_UPGRADE_DESCRIPTION,
+  SANDBOX_UPGRADE_TITLE,
   type SandboxDraft,
   toSubmittedLines,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
@@ -32,6 +34,7 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
@@ -41,12 +44,10 @@ import {
   useSandboxes,
   useUpdateSandbox,
 } from '@/hooks/queries/sandboxes'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 export function Sandboxes() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { navigateToSettings } = useSettingsNavigation()
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedId, setSelectedId] = useQueryState(sandboxIdParam.key, {
@@ -170,26 +171,11 @@ export function Sandboxes() {
   if (!entitled) {
     return (
       <SettingsPanel>
-        <div className='flex flex-col items-center justify-center gap-4 py-20'>
-          <div className='text-center'>
-            <h3 className='font-medium text-[var(--text-primary)] text-md'>
-              Sandboxes require an active Max plan
-            </h3>
-            <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
-              Upgrade to Max and ensure billing is active to install Python or npm packages that
-              your Function blocks can import.
-            </p>
-          </div>
-          {canAdmin && (
-            <Chip
-              variant='primary'
-              rightIcon={ArrowRight}
-              onClick={() => navigateToSettings({ section: 'billing' })}
-            >
-              Upgrade to Max
-            </Chip>
-          )}
-        </div>
+        <SettingsUpgradeNotice
+          title={SANDBOX_UPGRADE_TITLE}
+          description={SANDBOX_UPGRADE_DESCRIPTION}
+          canUpgrade={canAdmin}
+        />
       </SettingsPanel>
     )
   }

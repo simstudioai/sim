@@ -20,14 +20,15 @@ import {
   emptyDraft,
   extractIssues,
   LANGUAGE_OPTIONS,
+  SANDBOX_UPGRADE_DESCRIPTION,
+  SANDBOX_UPGRADE_TITLE,
   type SandboxDraft,
   type SandboxLanguage,
   toSubmittedLines,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { type Sandbox, useCreateSandbox, useSandboxes } from '@/hooks/queries/sandboxes'
-
-const NOT_ENTITLED_MESSAGE = 'Sandboxes require an active Max plan.'
-const NOT_ADMIN_MESSAGE = 'Only workspace admins can create sandboxes.'
 
 interface SandboxCreateModalProps {
   open: boolean
@@ -85,9 +86,10 @@ export function SandboxCreateModal({
     }
   }
 
-  const blockedReason = !canAdmin ? NOT_ADMIN_MESSAGE : !entitled ? NOT_ENTITLED_MESSAGE : null
+  // A gate answers the whole dialog rather than reddening a form the user can
+  // never submit — the same call the settings page makes.
+  const gate = !entitled ? 'plan' : !canAdmin ? 'permission' : null
   const saving = createSandbox.isPending
-  const disabled = saving || blockedReason !== null
 
   const handleCreate = async () => {
     setIssues([])
@@ -116,66 +118,84 @@ export function SandboxCreateModal({
       <ChipModalHeader onClose={() => onOpenChange(false)}>Create sandbox</ChipModalHeader>
 
       <ChipModalBody>
-        <ChipModalField
-          type='input'
-          title='Name'
-          value={draft.name}
-          onChange={(name) => setDraft((prev) => ({ ...prev, name }))}
-          placeholder='bigquery-etl'
-          maxLength={64}
-          autoComplete='off'
-          required
-          disabled={disabled}
-        />
-
-        <ChipModalField type='custom' title='Language'>
-          <ChipDropdown
-            value={draft.language}
-            onChange={(language) =>
-              setDraft((prev) => ({ ...prev, language: language as SandboxLanguage }))
-            }
-            options={LANGUAGE_OPTIONS.map((option) => ({
-              label: option.label,
-              value: option.value,
-            }))}
-            disabled={disabled}
-            aria-label='Language'
+        {gate === 'plan' ? (
+          <SettingsUpgradeNotice
+            title={SANDBOX_UPGRADE_TITLE}
+            description={SANDBOX_UPGRADE_DESCRIPTION}
+            canUpgrade={canAdmin}
+            compact
           />
-        </ChipModalField>
+        ) : gate === 'permission' ? (
+          <SettingsEmptyState variant='inline'>
+            Only workspace admins can create sandboxes.
+          </SettingsEmptyState>
+        ) : (
+          <>
+            <ChipModalField
+              type='input'
+              title='Name'
+              value={draft.name}
+              onChange={(name) => setDraft((prev) => ({ ...prev, name }))}
+              placeholder='bigquery-etl'
+              maxLength={64}
+              autoComplete='off'
+              required
+              disabled={saving}
+            />
 
-        <ChipModalField
-          type='textarea'
-          title='Dependencies'
-          value={draft.dependencies}
-          onChange={(dependencies) => setDraft((prev) => ({ ...prev, dependencies }))}
-          placeholder={DEPENDENCY_PLACEHOLDERS[draft.language]}
-          rows={8}
-          disabled={disabled}
-          hint='One per line. Version pins are optional.'
-          error={
-            issues.length > 0 ? (
-              <>
-                {issues.map((issue) => (
-                  <span key={issue.line} className='block'>
-                    Line {issue.line}: {issue.reason}
-                  </span>
-                ))}
-              </>
-            ) : undefined
-          }
-        />
+            <ChipModalField type='custom' title='Language'>
+              <ChipDropdown
+                value={draft.language}
+                onChange={(language) =>
+                  setDraft((prev) => ({ ...prev, language: language as SandboxLanguage }))
+                }
+                options={LANGUAGE_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                }))}
+                disabled={saving}
+                aria-label='Language'
+              />
+            </ChipModalField>
 
-        <ChipModalError>{blockedReason ?? error}</ChipModalError>
+            <ChipModalField
+              type='textarea'
+              title='Dependencies'
+              value={draft.dependencies}
+              onChange={(dependencies) => setDraft((prev) => ({ ...prev, dependencies }))}
+              placeholder={DEPENDENCY_PLACEHOLDERS[draft.language]}
+              rows={8}
+              disabled={saving}
+              hint='One per line. Version pins are optional.'
+              error={
+                issues.length > 0 ? (
+                  <>
+                    {issues.map((issue) => (
+                      <span key={issue.line} className='block'>
+                        Line {issue.line}: {issue.reason}
+                      </span>
+                    ))}
+                  </>
+                ) : undefined
+              }
+            />
+
+            <ChipModalError>{error}</ChipModalError>
+          </>
+        )}
       </ChipModalBody>
 
-      <ChipModalFooter
-        onCancel={() => onOpenChange(false)}
-        primaryAction={{
-          label: saving ? 'Creating...' : 'Create',
-          onClick: () => void handleCreate(),
-          disabled: disabled || draft.name.trim().length === 0,
-        }}
-      />
+      {gate === null && (
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={saving}
+          primaryAction={{
+            label: saving ? 'Creating...' : 'Create',
+            onClick: () => void handleCreate(),
+            disabled: saving || draft.name.trim().length === 0,
+          }}
+        />
+      )}
     </ChipModal>
   )
 }

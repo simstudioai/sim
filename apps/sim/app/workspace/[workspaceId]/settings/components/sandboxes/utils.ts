@@ -2,6 +2,11 @@ import type { Sandbox, SandboxDependencyIssue } from '@/lib/api/contracts/sandbo
 
 export type SandboxLanguage = Sandbox['language']
 
+/** Shared by the settings page and the picker's create modal so the wall reads identically. */
+export const SANDBOX_UPGRADE_TITLE = 'Sandboxes require an active Max plan'
+export const SANDBOX_UPGRADE_DESCRIPTION =
+  'Upgrade to Max and ensure billing is active to install Python or npm packages that your Function blocks can import.'
+
 /** Ordered to match the Function block's own `language` dropdown. */
 export const LANGUAGE_OPTIONS = [
   { label: 'JavaScript', value: 'javascript' },
