@@ -300,7 +300,14 @@ export async function getInvitationJoinPreview(
      */
     const inTargetOrganization =
       !!workspaceOrganizationId && existingMembership.organizationId === workspaceOrganizationId
-    return withOutcome(inTargetOrganization ? 'already-member' : 'external')
+    if (inTargetOrganization) return withOutcome('already-member')
+    /**
+     * In a DIFFERENT organization. Acceptance only downgrades a workspace-kind
+     * invite with live grants to external; an organization-kind invite (or one
+     * with no grants) hard-fails with `already-in-organization`, so promising
+     * external access there would be a disclosure the accept can never honour.
+     */
+    return withOutcome(inv.kind === 'workspace' && inv.grants.length > 0 ? 'external' : 'blocked')
   }
 
   if (!(await stampedOrganizationAllowsEscalation(inv, workspaceOrganizationId)))
@@ -742,6 +749,7 @@ async function acceptLockedInvitation(
    * workspaces because sharing a personal workspace has no seat economics.
    */
   if (
+    isBillingEnabled &&
     inv.membershipIntent === 'external' &&
     !inviteeAlreadyInDifferentOrg &&
     workspaceOrganizationId &&

@@ -6,6 +6,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
   type DirectGrantOutcome,
@@ -183,6 +184,14 @@ async function assertSeatAvailable(organizationId: string, email: string): Promi
  * they must be invited as a Member or Admin instead.
  */
 async function inviteeCanBeExternal(userId: string | undefined): Promise<boolean> {
+  /**
+   * The requirement exists because an external collaborator consumes no seat, so
+   * somebody else must be paying for them. With billing disabled there are no
+   * seats and no subscriptions at all — every account resolves as `free` — so
+   * enforcing it would leave a self-hosted deployment no way to grant
+   * workspace-only access without an organization join and a workspace sweep.
+   */
+  if (!isBillingEnabled) return true
   if (!userId) return false
   return (await getInvitePlanCategoryForUser(userId)) !== 'free'
 }

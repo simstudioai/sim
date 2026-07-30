@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, createMockRequest, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  auditMock,
+  createMockRequest,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetUserOrganization,
@@ -125,10 +132,14 @@ const request = createMockRequest(
   'http://localhost/api/workspaces/invitations/batch'
 )
 
+afterAll(resetEnvFlagsMock)
+
 describe('createWorkspaceInvitation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    /** Production default; the billing-disabled case opts out explicitly. */
+    setEnvFlags({ isBillingEnabled: true })
     mockGrantWorkspaceAccessDirectly.mockResolvedValue({ outcome: 'added', permission: 'write' })
     mockCreatePendingInvitation.mockResolvedValue({
       invitationId: 'inv-1',
@@ -257,6 +268,31 @@ describe('createWorkspaceInvitation', () => {
     expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
       expect.objectContaining({ membershipIntent: 'internal', role: 'admin' })
     )
+  })
+
+  it('allows an external invite with billing disabled, where nobody has a plan', async () => {
+    /**
+     * The paid-plan requirement is seat economics: an external collaborator takes
+     * no seat, so somebody else must be paying for them. With billing off there
+     * are no seats and no subscriptions, so every account reads as free —
+     * enforcing it would leave a self-hosted deployment no way to grant
+     * workspace-only access without an organization join and a workspace sweep.
+     */
+    setEnvFlags({ isBillingEnabled: false })
+    queueWhereResponses([[{ id: 'user-9', email: 'selfhost@example.com' }], []])
+    mockGetUserOrganization.mockResolvedValueOnce(null)
+
+    const result = await createWorkspaceInvitation({
+      context: makeContext(),
+      email: 'selfhost@example.com',
+      permission: 'write',
+      membership: 'external',
+      request,
+    })
+
+    expect(result.membershipIntent).toBe('external')
+    /** Short-circuits before the plan lookup — there is nothing to look up. */
+    expect(mockGetInvitePlanCategoryForUser).not.toHaveBeenCalled()
   })
 
   it('rejects an explicit external invite for an invitee with no paid plan', async () => {

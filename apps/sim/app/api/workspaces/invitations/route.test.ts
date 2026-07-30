@@ -10,7 +10,9 @@ import {
   posthogServerMock,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,6 +92,8 @@ const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
 
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 import { POST } from '@/app/api/workspaces/invitations/batch/route'
+
+afterAll(resetEnvFlagsMock)
 
 describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
@@ -404,6 +408,12 @@ describe('POST /api/workspaces/invitations/batch', () => {
       organizationId: 'org-1',
       upgradeRequired: false,
     })
+    /**
+     * The paid-plan requirement is a billing rule, so it only applies when
+     * billing is on — with billing off there are no seats to protect and every
+     * account reads as free.
+     */
+    setEnvFlags({ isBillingEnabled: true })
     queueTableRows(schemaMock.user, [{ id: 'free-user', email: 'free@example.com' }])
     mockGetUserOrganization.mockResolvedValueOnce(null)
     mockGetInvitePlanCategoryForUser.mockResolvedValueOnce('free')
