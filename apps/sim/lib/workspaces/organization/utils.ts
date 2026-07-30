@@ -4,6 +4,7 @@
  */
 
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { normalizeEmail } from '@sim/utils/string'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { Organization } from '@/lib/workspaces/organization/types'
 
@@ -88,5 +89,5 @@ export function validateSlug(slug: string): boolean {
  * Validate email format
  */
 export function validateEmail(email: string): boolean {
-  return quickValidateEmail(email.trim().toLowerCase()).isValid
+  return quickValidateEmail(normalizeEmail(email)).isValid
 }

@@ -42,12 +42,12 @@ export const discordArchiveThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordArchiveThreadParams) => {
-      return `https://discord.com/api/v10/channels/${params.threadId}`
+      return `https://discord.com/api/v10/channels/${params.threadId.trim()}`
     },
     method: 'PATCH',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordArchiveThreadParams) => {
       return {

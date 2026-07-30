@@ -1,6 +1,17 @@
 import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
+ * Params shared by every Pipedrive tool. `authStyle` is injected by the
+ * credential resolver when the credential is a token-paste service account
+ * whose pasted API token must be sent as `x-api-token` instead of
+ * `Authorization: Bearer`; it is absent for OAuth credentials.
+ */
+export interface PipedriveBaseParams {
+  accessToken: string
+  authStyle?: 'x-api-token'
+}
+
+/**
  * Output property definitions for Pipedrive API responses.
  * @see https://developers.pipedrive.com/docs/api/v1
  */
@@ -357,8 +368,7 @@ interface PipedriveMailMessage {
 }
 
 // GET All Deals
-export interface PipedriveGetAllDealsParams {
-  accessToken: string
+export interface PipedriveGetAllDealsParams extends PipedriveBaseParams {
   status?: string
   person_id?: string
   org_id?: string
@@ -383,8 +393,7 @@ export interface PipedriveGetAllDealsResponse extends ToolResponse {
 }
 
 // GET Deal
-export interface PipedriveGetDealParams {
-  accessToken: string
+export interface PipedriveGetDealParams extends PipedriveBaseParams {
   deal_id: string
 }
 
@@ -398,8 +407,7 @@ export interface PipedriveGetDealResponse extends ToolResponse {
 }
 
 // CREATE Deal
-export interface PipedriveCreateDealParams {
-  accessToken: string
+export interface PipedriveCreateDealParams extends PipedriveBaseParams {
   title: string
   value?: string
   currency?: string
@@ -421,8 +429,7 @@ export interface PipedriveCreateDealResponse extends ToolResponse {
 }
 
 // UPDATE Deal
-export interface PipedriveUpdateDealParams {
-  accessToken: string
+export interface PipedriveUpdateDealParams extends PipedriveBaseParams {
   deal_id: string
   title?: string
   value?: string
@@ -441,8 +448,7 @@ export interface PipedriveUpdateDealResponse extends ToolResponse {
 }
 
 // GET Files
-export interface PipedriveGetFilesParams {
-  accessToken: string
+export interface PipedriveGetFilesParams extends PipedriveBaseParams {
   sort?: string
   limit?: string
   start?: string
@@ -462,8 +468,7 @@ export interface PipedriveGetFilesResponse extends ToolResponse {
   output: PipedriveGetFilesOutput
 }
 
-export interface PipedriveGetMailMessagesParams {
-  accessToken: string
+export interface PipedriveGetMailMessagesParams extends PipedriveBaseParams {
   folder?: string
   limit?: string
   start?: string
@@ -482,8 +487,7 @@ export interface PipedriveGetMailMessagesResponse extends ToolResponse {
 }
 
 // GET Mail Thread
-export interface PipedriveGetMailThreadParams {
-  accessToken: string
+export interface PipedriveGetMailThreadParams extends PipedriveBaseParams {
   thread_id: string
 }
 
@@ -501,8 +505,7 @@ export interface PipedriveGetMailThreadResponse extends ToolResponse {
 }
 
 // GET All Pipelines
-export interface PipedriveGetPipelinesParams {
-  accessToken: string
+export interface PipedriveGetPipelinesParams extends PipedriveBaseParams {
   sort_by?: string
   sort_direction?: string
   limit?: string
@@ -522,8 +525,7 @@ export interface PipedriveGetPipelinesResponse extends ToolResponse {
 }
 
 // GET Pipeline Deals
-export interface PipedriveGetPipelineDealsParams {
-  accessToken: string
+export interface PipedriveGetPipelineDealsParams extends PipedriveBaseParams {
   pipeline_id: string
   stage_id?: string
   limit?: string
@@ -546,8 +548,7 @@ export interface PipedriveGetPipelineDealsResponse extends ToolResponse {
 }
 
 // GET All Projects (or single project if project_id provided)
-export interface PipedriveGetProjectsParams {
-  accessToken: string
+export interface PipedriveGetProjectsParams extends PipedriveBaseParams {
   project_id?: string
   status?: string
   limit?: string
@@ -568,8 +569,7 @@ export interface PipedriveGetProjectsResponse extends ToolResponse {
 }
 
 // CREATE Project
-export interface PipedriveCreateProjectParams {
-  accessToken: string
+export interface PipedriveCreateProjectParams extends PipedriveBaseParams {
   title: string
   description?: string
   start_date?: string
@@ -586,8 +586,7 @@ export interface PipedriveCreateProjectResponse extends ToolResponse {
 }
 
 // GET All Activities
-export interface PipedriveGetActivitiesParams {
-  accessToken: string
+export interface PipedriveGetActivitiesParams extends PipedriveBaseParams {
   user_id?: string
   type?: string
   done?: string
@@ -608,8 +607,7 @@ export interface PipedriveGetActivitiesResponse extends ToolResponse {
 }
 
 // CREATE Activity
-export interface PipedriveCreateActivityParams {
-  accessToken: string
+export interface PipedriveCreateActivityParams extends PipedriveBaseParams {
   subject: string
   type: string
   due_date: string
@@ -631,8 +629,7 @@ export interface PipedriveCreateActivityResponse extends ToolResponse {
 }
 
 // UPDATE Activity
-export interface PipedriveUpdateActivityParams {
-  accessToken: string
+export interface PipedriveUpdateActivityParams extends PipedriveBaseParams {
   activity_id: string
   subject?: string
   due_date?: string
@@ -652,8 +649,7 @@ export interface PipedriveUpdateActivityResponse extends ToolResponse {
 }
 
 // GET Leads
-export interface PipedriveGetLeadsParams {
-  accessToken: string
+export interface PipedriveGetLeadsParams extends PipedriveBaseParams {
   lead_id?: string
   archived?: string
   owner_id?: string
@@ -677,8 +673,7 @@ export interface PipedriveGetLeadsResponse extends ToolResponse {
 }
 
 // CREATE Lead
-export interface PipedriveCreateLeadParams {
-  accessToken: string
+export interface PipedriveCreateLeadParams extends PipedriveBaseParams {
   title: string
   person_id?: string
   organization_id?: string
@@ -699,8 +694,7 @@ export interface PipedriveCreateLeadResponse extends ToolResponse {
 }
 
 // UPDATE Lead
-export interface PipedriveUpdateLeadParams {
-  accessToken: string
+export interface PipedriveUpdateLeadParams extends PipedriveBaseParams {
   lead_id: string
   title?: string
   person_id?: string
@@ -722,8 +716,7 @@ export interface PipedriveUpdateLeadResponse extends ToolResponse {
 }
 
 // DELETE Lead
-export interface PipedriveDeleteLeadParams {
-  accessToken: string
+export interface PipedriveDeleteLeadParams extends PipedriveBaseParams {
   lead_id: string
 }
 

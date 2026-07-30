@@ -14,6 +14,7 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | Mod+Z | Undo |
 | Mod+Shift+Z | Redo |
 | Mod+C | Copy selected blocks |
+| Mod+X | Cut selected blocks |
 | Mod+V | Paste blocks |
 | Delete/Backspace | Delete selected blocks or edges |
 | Shift+L | Auto-layout canvas |
@@ -23,9 +24,6 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 ### Panel Navigation
 | Shortcut | Action |
 |----------|--------|
-| C | Focus Copilot tab |
-| T | Focus Toolbar tab |
-| E | Focus Editor tab |
 | Mod+F | Open workflow search and replace |
 | Mod+Alt+F | Focus Toolbar search |
 
@@ -34,6 +32,8 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 |----------|--------|
 | Mod+K | Open search |
 | Mod+Shift+A | Add new agent workflow |
+| Mod+Shift+P | Create workflow |
+| Mod+B | Toggle sidebar |
 | Mod+L | Go to logs |
 
 ### Utility
@@ -44,10 +44,10 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 ### Mouse Controls
 | Action | Control |
 |--------|---------|
-| Pan/move canvas | Left-drag on empty space, scroll, or trackpad |
-| Select multiple blocks | Right-drag to draw selection box |
+| Pan/move canvas | Left-drag on empty space (hand mode, the default), middle-drag, scroll, or trackpad |
+| Select multiple blocks | Shift+drag to draw a selection box. In cursor mode, left-drag on empty space draws it instead |
 | Drag block | Left-drag on block header |
-| Add to selection | Mod+Click on blocks |
+| Add to selection | Mod+Click or Shift+Click on blocks |
 
 ## Quick Reference — Workspaces
 | Action | How |
@@ -71,13 +71,15 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | Action | How |
 |--------|-----|
 | Add a block | Drag from Toolbar panel, or right-click canvas → Add Block |
-| Multi-select blocks | Mod+Click additional blocks, or shift-drag selection box |
+| Multi-select blocks | Mod+Click or Shift+Click additional blocks, or Shift+drag a selection box |
 | Copy/Paste blocks | Mod+C / Mod+V |
 | Duplicate/Delete blocks | Right-click → action |
 | Rename a block | Click block name in header |
 | Enable/Disable block | Right-click → Enable/Disable |
 | Lock/Unlock block | Hover block → Click lock icon (Admin only) |
 | Toggle handle orientation | Right-click → Toggle Handles |
+| Open a block in the Editor panel | Right-click → Open Editor |
+| Move a block out of a loop/parallel | Right-click → Remove from Subflow |
 | Configure a block | Select block → use Editor panel on right |
 
 ## Quick Reference — Connections
@@ -111,6 +113,6 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 |--------|-----|
 | Add/Edit/Delete workflow variable | Panel → Variables → Add Variable |
 | Add environment variable | Settings → Environment Variables → Add |
-| Reference workflow variable | Use <blockName.itemName> syntax |
+| Reference workflow variable | Use <variable.variableName> syntax |
 | Reference environment variable | Use {{ENV_VAR}} syntax |
 `

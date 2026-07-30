@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScreenshotParams,
   ContextDevScreenshotResponse,
@@ -46,6 +47,8 @@ export const contextDevScreenshotTool: ToolConfig<
   name: 'Context.dev Screenshot',
   description: 'Capture a screenshot of any web page and store it as a downloadable image file.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScreenshotParams>(),
 
   params: {
     url: {

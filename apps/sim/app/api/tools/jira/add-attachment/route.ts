@@ -6,7 +6,8 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -47,9 +48,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     for (const file of userFiles) {
       const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
       if (denied) return denied
-      const buffer = await downloadFileFromStorage(file, requestId, logger)
+      let buffer: Buffer
+      let downloadedContentType = ''
+      try {
+        const result = await downloadServableFileFromStorage(file, requestId, logger)
+        buffer = result.buffer
+        downloadedContentType = result.contentType
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        throw error
+      }
       const blob = new Blob([new Uint8Array(buffer)], {
-        type: file.type || 'application/octet-stream',
+        type: downloadedContentType || file.type || 'application/octet-stream',
       })
       formData.append('file', blob, file.name)
     }

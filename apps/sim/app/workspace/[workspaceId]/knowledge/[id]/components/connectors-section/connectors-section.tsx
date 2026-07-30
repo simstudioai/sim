@@ -1,7 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Badge, Button, Checkbox, ChipConfirmModal, cn, Loader, Tooltip } from '@sim/emcn'
+import {
+  Badge,
+  Button,
+  Checkbox,
+  ChipConfirmModal,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Loader,
+  Tooltip,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
@@ -22,6 +34,7 @@ import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -95,12 +108,13 @@ export function ConnectorsSection({
   }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
+  cooldownTimersRef.current ??= new Set()
   const [, forceUpdate] = useState(0)
 
   useEffect(() => {
     return () => {
-      for (const timer of cooldownTimers.current) {
+      for (const timer of cooldownTimersRef.current ?? []) {
         clearTimeout(timer)
       }
     }
@@ -113,22 +127,22 @@ export function ConnectorsSection({
   }, [])
 
   const handleSync = useCallback(
-    (connectorId: string) => {
+    (connectorId: string, rehydrate = false) => {
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
       addToSet(setSyncingIds, connectorId)
 
       triggerSync(
-        { knowledgeBaseId, connectorId },
+        { knowledgeBaseId, connectorId, rehydrate },
         {
           onSuccess: () => {
             setError(null)
             const timer = setTimeout(() => {
-              cooldownTimers.current.delete(timer)
+              cooldownTimersRef.current?.delete(timer)
               forceUpdate((n) => n + 1)
             }, SYNC_COOLDOWN_MS)
-            cooldownTimers.current.add(timer)
+            cooldownTimersRef.current?.add(timer)
           },
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
@@ -212,7 +226,7 @@ export function ConnectorsSection({
               isSyncPending={syncingIds.has(connector.id)}
               isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
-              onSync={() => handleSync(connector.id)}
+              onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
@@ -271,7 +285,7 @@ interface ConnectorCardProps {
   isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
-  onSync: () => void
+  onSync: (rehydrate?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
   onDelete: () => void
@@ -301,8 +315,10 @@ function ConnectorCard({
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
+  const requiredScopes = useMemo(
+    () => (connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []),
+    [connectorDef]
+  )
 
   const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
     workspaceId,
@@ -322,6 +338,14 @@ function ConnectorCard({
     expanded ? connector.id : undefined
   )
   const syncLogs = detail?.syncLogs ?? []
+
+  const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
+  const syncDisabled =
+    connector.status === 'syncing' ||
+    connector.status === 'disabled' ||
+    isSyncPending ||
+    syncCooldown
+  const syncTooltip = syncCooldown ? 'Sync recently triggered' : canFullResync ? 'Sync' : 'Sync now'
 
   return (
     <div
@@ -346,7 +370,10 @@ function ConnectorCard({
             >
               {Icon && (
                 <Icon
-                  className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')}
+                  className={cn(
+                    'size-5',
+                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                  )}
                 />
               )}
             </div>
@@ -402,28 +429,60 @@ function ConnectorCard({
         <div className='flex flex-shrink-0 items-center gap-0.5'>
           {canEdit && (
             <>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onSync}
-                    disabled={
-                      connector.status === 'syncing' ||
-                      connector.status === 'disabled' ||
-                      isSyncPending ||
-                      syncCooldown
-                    }
-                  >
-                    <RefreshCw
-                      className={cn('size-3.5', connector.status === 'syncing' && 'animate-spin')}
-                    />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  {syncCooldown ? 'Sync recently triggered' : 'Sync now'}
-                </Tooltip.Content>
-              </Tooltip.Root>
+              {canFullResync ? (
+                <DropdownMenu>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      {/* span keeps the tooltip hoverable while the trigger button is disabled */}
+                      <span className='inline-flex'>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            aria-label='Sync options'
+                            className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                            disabled={syncDisabled}
+                          >
+                            <RefreshCw
+                              className={cn(
+                                'size-3.5',
+                                connector.status === 'syncing' && 'animate-spin'
+                              )}
+                            />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>{syncTooltip}</Tooltip.Content>
+                  </Tooltip.Root>
+                  <DropdownMenuContent align='end'>
+                    <DropdownMenuItem onSelect={() => onSync(false)}>Sync now</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onSync(true)}>Full resync</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    {/* span keeps the tooltip hoverable while the button is disabled */}
+                    <span className='inline-flex'>
+                      <Button
+                        variant='ghost'
+                        aria-label='Sync now'
+                        className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                        disabled={syncDisabled}
+                        onClick={() => onSync(false)}
+                      >
+                        <RefreshCw
+                          className={cn(
+                            'size-3.5',
+                            connector.status === 'syncing' && 'animate-spin'
+                          )}
+                        />
+                      </Button>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{syncTooltip}</Tooltip.Content>
+                </Tooltip.Root>
+              )}
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>

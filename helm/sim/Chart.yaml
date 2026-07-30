@@ -2,8 +2,8 @@ apiVersion: v2
 name: sim
 description: A Helm chart for Sim - the open-source AI workspace where teams build, deploy, and manage AI agents
 type: application
-version: 1.0.0
-appVersion: "0.6.73"
+version: 1.3.0
+appVersion: "v0.7.44"
 kubeVersion: ">=1.25.0-0"
 home: https://sim.ai
 icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/logo/primary/primary.svg
@@ -29,5 +29,5 @@ annotations:
       url: https://docs.sim.ai
     - name: Source
       url: https://github.com/simstudioai/sim
-    - name: Discord
-      url: https://discord.gg/Hr4UWYEcTT
+    - name: Slack
+      url: https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA

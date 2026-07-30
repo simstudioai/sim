@@ -9,11 +9,11 @@ import {
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
+import { isZodError, parseJsonBody, validationErrorResponse } from '@/lib/api/server/validation'
 import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
+import type { Filter, RowData, Sort, SortSpec, TableRowsCursor, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -25,12 +25,55 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
+import {
+  validatePredicateShape,
+  validateStoragePredicate,
+} from '@/lib/table/query-builder/validate'
 import { queryRows } from '@/lib/table/rows/service'
-import { TableQueryValidationError } from '@/lib/table/sql'
-import { rowWireTranslators } from '@/app/api/table/row-wire'
+import type { TablePredicate } from '@/lib/table/types'
+import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
+
+/** Dual-grammar sort: an ordered spec (v2) or the legacy record, either keying. */
+function resolveWireSort(
+  sort: Sort | SortSpec | undefined,
+  wire: RowWireTranslators
+): Sort | undefined {
+  if (!sort) return undefined
+  if (!Array.isArray(sort)) return wire.sortIn(sort)
+  const spec = wire.sortSpecIn(sort)
+  return spec.length > 0 ? Object.fromEntries(spec.map((s) => [s.field, s.direction])) : undefined
+}
+
+/**
+ * Resolves a bulk-op filter to a storage-id-keyed legacy `Filter`. The v2
+ * predicate tree is column-NAME-keyed by construction (the caller authors
+ * names), so it validates then translates names → ids unconditionally — unlike
+ * the legacy object form, whose keying follows the caller's wire dialect
+ * (`wire.filterIn`: ids from the UI, names from workflow tools).
+ */
+function resolveBulkFilter(
+  raw: TablePredicate | Filter,
+  schema: TableSchema,
+  wire: RowWireTranslators
+): Filter {
+  if (isTablePredicate(raw)) {
+    // Shape first (keying-agnostic: hybrid nodes, leaf value rules), then let
+    // the wire translate — identity for the ID-keyed grid, names→ids for
+    // workflow tools — and validate the RESULT against storage keys. Post-
+    // translation, any unresolved field is a typo in the caller's own keying,
+    // and on a destructive path a typo must 400, not silently match nothing.
+    validatePredicateShape(raw)
+    const translated = wire.predicateIn(raw)
+    validateStoragePredicate(translated, schema.columns)
+    return predicateToFilter(translated)
+  }
+  return wire.filterIn(raw)
+}
 
 interface TableRowsRouteParams {
   params: Promise<{ tableId: string }>
@@ -74,7 +117,6 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId,
-        positions: validated.positions,
         orderKeys: validated.orderKeys,
       },
       table,
@@ -260,8 +302,22 @@ export const GET = withRouteHandler(
       const result = await queryRows(
         table,
         {
-          filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined,
-          sort: validated.sort ? wire.sortIn(validated.sort) : undefined,
+          ...(validated.filter && isTablePredicate(validated.filter as Filter | TablePredicate)
+            ? {
+                predicate: (() => {
+                  // Shape-check first: nothing upstream validates this branch, and
+                  // an unchecked hybrid node would silently widen the result.
+                  validatePredicateShape(validated.filter as TablePredicate)
+                  const translated = wire.predicateIn(validated.filter as TablePredicate)
+                  // Post-translation storage check, mirroring the bulk PUT/DELETE
+                  // paths: a typo'd field must 400, not compile to a clause that
+                  // matches nothing and read back as an empty page.
+                  validateStoragePredicate(translated, (table.schema as TableSchema).columns)
+                  return translated
+                })(),
+              }
+            : { filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined }),
+          sort: resolveWireSort(validated.sort as Sort | SortSpec | undefined, wire),
           limit: validated.limit,
           offset: validated.offset,
           after: validated.after,
@@ -288,6 +344,7 @@ export const GET = withRouteHandler(
           totalCount: result.totalCount,
           limit: result.limit,
           offset: result.offset,
+          nextCursor: result.nextCursor,
         },
       })
     } catch (error) {
@@ -317,12 +374,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      // Bulk write bodies carry caller-supplied row data, so they can legitimately
+      // be large — but not unbounded. `parseJsonBody` applies the platform cap
+      // (413 past it) that a raw `request.json()` on this destructive surface skips.
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data
 
       const validated = updateRowsByFilterBodySchema.parse(body)
 
@@ -352,7 +409,11 @@ export const PUT = withRouteHandler(
       const result = await updateRowsByFilter(
         table,
         {
-          filter: wire.filterIn(validated.filter as Filter),
+          filter: resolveBulkFilter(
+            validated.filter as TablePredicate | Filter,
+            table.schema as TableSchema,
+            wire
+          ),
           data: patchData,
           limit: validated.limit,
           actorUserId: authResult.userId,
@@ -411,12 +472,12 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      // Bulk write bodies carry caller-supplied row data, so they can legitimately
+      // be large — but not unbounded. `parseJsonBody` applies the platform cap
+      // (413 past it) that a raw `request.json()` on this destructive surface skips.
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data
 
       const validated = deleteTableRowsBodySchema.parse(body)
 
@@ -434,6 +495,7 @@ export const DELETE = withRouteHandler(
 
       if (validated.rowIds) {
         const result = await deleteRowsByIds(
+          table,
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
@@ -457,7 +519,11 @@ export const DELETE = withRouteHandler(
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: wire.filterIn(validated.filter as Filter),
+          filter: resolveBulkFilter(
+            validated.filter as TablePredicate | Filter,
+            table.schema as TableSchema,
+            wire
+          ),
           limit: validated.limit,
         },
         requestId
@@ -504,12 +570,12 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      // Bulk write bodies carry caller-supplied row data, so they can legitimately
+      // be large — but not unbounded. `parseJsonBody` applies the platform cap
+      // (413 past it) that a raw `request.json()` on this destructive surface skips.
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data
 
       const validated = batchUpdateTableRowsBodySchema.parse(body)
 

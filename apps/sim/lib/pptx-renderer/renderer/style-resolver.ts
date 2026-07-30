@@ -2,10 +2,11 @@
  * Style resolver — converts OOXML color and fill nodes to CSS values.
  */
 
+import { toCssColor } from '@/lib/colors'
 import { angleToDeg, emuToPx, pctToDecimal } from '../parser/units'
 import type { SafeXmlNode } from '../parser/xml-parser'
 import type { ColorModifier } from '../utils/color'
-import { applyColorModifiers, hexToRgb, hslToRgb, presetColorToHex, rgbToHex } from '../utils/color'
+import { applyColorModifiers, hslToRgb, presetColorToHex, rgbToHex } from '../utils/color'
 import type { RenderContext } from './render-context'
 
 // ---------------------------------------------------------------------------
@@ -188,23 +189,11 @@ function resolveColorUncached(
 
 /**
  * Resolve a color node and return a CSS color string.
- * Convenience wrapper combining resolveColor + colorToCss.
+ * Convenience wrapper combining resolveColor + toCssColor.
  */
 export function resolveColorToCss(node: SafeXmlNode, ctx: RenderContext): string {
   const { color, alpha } = resolveColor(node, ctx)
-  return colorToCss(color, alpha)
-}
-
-/**
- * Convert a resolved color + alpha into a CSS rgba() string.
- */
-function colorToCss(color: string, alpha: number): string {
-  const hex = color.startsWith('#') ? color : `#${color}`
-  const { r, g, b } = hexToRgb(hex)
-  if (alpha >= 1) {
-    return hex
-  }
-  return `rgba(${r},${g},${b},${alpha.toFixed(3)})`
+  return toCssColor(color, alpha)
 }
 
 function resolveColorWithPlaceholder(
@@ -233,7 +222,7 @@ export function resolveFill(spPr: SafeXmlNode, ctx: RenderContext): string {
   const solidFill = spPr.child('solidFill')
   if (solidFill.exists()) {
     const { color, alpha } = resolveColor(solidFill, ctx)
-    return colorToCss(color, alpha)
+    return toCssColor(color, alpha)
   }
 
   // gradFill
@@ -294,13 +283,13 @@ function resolvePatternFill(pattFill: SafeXmlNode, ctx: RenderContext): string {
   const fgClr = pattFill.child('fgClr')
   if (fgClr.exists()) {
     const { color, alpha } = resolveColor(fgClr, ctx)
-    fg = colorToCss(color, alpha)
+    fg = toCssColor(color, alpha)
   }
 
   const bgClr = pattFill.child('bgClr')
   if (bgClr.exists()) {
     const { color, alpha } = resolveColor(bgClr, ctx)
-    bg = colorToCss(color, alpha)
+    bg = toCssColor(color, alpha)
   }
 
   // Size of pattern tile in px
@@ -452,7 +441,7 @@ function resolveGradient(
     const pos = gs.numAttr('pos') ?? 0
     const posPercent = pctToDecimal(pos) * 100
     const { color, alpha } = resolveColorWithPlaceholder(gs, ctx, placeholderColorNode)
-    stops.push({ position: posPercent, color: colorToCss(color, alpha) })
+    stops.push({ position: posPercent, color: toCssColor(color, alpha) })
   }
 
   if (stops.length === 0) {
@@ -543,10 +532,10 @@ export function resolveLineStyle(
       const base = resolveColor(lnRef, ctx)
       const baseHex = base.color.startsWith('#') ? base.color.slice(1) : base.color
       const adjusted = applyColorModifiers(baseHex, collectModifiers(phClr))
-      color = colorToCss(adjusted.color, adjusted.alpha * base.alpha)
+      color = toCssColor(adjusted.color, adjusted.alpha * base.alpha)
     } else {
       const resolved = resolveColor(solidFill, ctx)
-      color = colorToCss(resolved.color, resolved.alpha)
+      color = toCssColor(resolved.color, resolved.alpha)
     }
   } else if (lnRef?.exists() && (lnRef.numAttr('idx') ?? 0) > 0) {
     const idx = lnRef.numAttr('idx') ?? 0
@@ -560,11 +549,11 @@ export function resolveLineStyle(
       }
       // Get color: prefer lnRef's own color child, fall back to theme line's solidFill
       const resolved = resolveColor(lnRef, ctx)
-      color = colorToCss(resolved.color, resolved.alpha)
+      color = toCssColor(resolved.color, resolved.alpha)
     } else {
       // Fallback: use lnRef color directly, approximate width from idx
       const resolved = resolveColor(lnRef, ctx)
-      color = colorToCss(resolved.color, resolved.alpha)
+      color = toCssColor(resolved.color, resolved.alpha)
       if (width === 0 && idx > 0) {
         width = idx * 0.75 // approximate: idx 1 = ~0.75px, idx 2 = ~1.5px
       }
@@ -665,7 +654,7 @@ function resolveGradientFillNode(
     const pos = gs.numAttr('pos') ?? 0
     const posPercent = pctToDecimal(pos) * 100
     const { color, alpha } = resolveColorWithPlaceholder(gs, ctx, placeholderColorNode)
-    stops.push({ position: posPercent, color: colorToCss(color, alpha) })
+    stops.push({ position: posPercent, color: toCssColor(color, alpha) })
   }
 
   if (stops.length === 0) return null
@@ -743,7 +732,7 @@ export function resolveThemeFillReference(
 
   if (themeFill.localName === 'solidFill') {
     const resolved = resolveColorWithPlaceholder(themeFill, ctx, fillRef)
-    return { fillCss: colorToCss(resolved.color, resolved.alpha), gradientFillData: null }
+    return { fillCss: toCssColor(resolved.color, resolved.alpha), gradientFillData: null }
   }
 
   if (themeFill.localName === 'gradFill') {
@@ -793,7 +782,7 @@ export function resolveGradientStroke(
     const pos = gs.numAttr('pos') ?? 0
     const posPercent = pctToDecimal(pos) * 100
     const { color, alpha } = resolveColor(gs, ctx)
-    const cssColor = colorToCss(color, alpha)
+    const cssColor = toCssColor(color, alpha)
     stops.push({ position: posPercent, color: cssColor })
   }
 

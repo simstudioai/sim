@@ -11,24 +11,22 @@ import {
 import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, TableSchema } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
   buildIdByName,
-  buildNameById,
   deleteRowsByFilter,
   deleteRowsByIds,
-  filterNamesToIds,
   insertRow,
   rowDataNameToId,
-  sortNamesToIds,
   updateRowsByFilter,
   validateBatchRows,
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { queryRows } from '@/lib/table/rows/service'
-import { TableQueryValidationError } from '@/lib/table/sql'
 import { checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -47,9 +45,11 @@ import {
 } from '@/app/api/v2/lib/response'
 import {
   toApiRow,
+  v2BulkPredicateToFilter,
   v2RowValidationError,
   v2RowWriteError,
   v2TableAccessError,
+  v2TablesGateError,
 } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableRowsAPI')
@@ -81,9 +81,12 @@ async function handleBatchInsert(
     return v2Error('NOT_FOUND', 'Table not found')
   }
 
+  const gateError = await v2TablesGateError(userId, validated.workspaceId)
+  if (gateError) return gateError
+
   // External callers key row data by column name; storage keys by id.
   const idByName = buildIdByName(table.schema as TableSchema)
-  const nameById = buildNameById(table.schema as TableSchema)
+  const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
   const rows = (validated.rows as RowData[]).map((r) => rowDataNameToId(r, idByName))
 
   const validation = await validateBatchRows({
@@ -102,7 +105,7 @@ async function handleBatchInsert(
 
     return v2Data(
       {
-        rows: insertedRows.map((r) => toApiRow(r, nameById)),
+        rows: insertedRows.map((r) => toApiRow(r, toNamedRow)),
         insertedCount: insertedRows.length,
       },
       { rateLimit }
@@ -118,7 +121,10 @@ async function handleBatchInsert(
   }
 }
 
-/** GET /api/v2/tables/[tableId]/rows — Query rows with filtering, sorting, offset pagination. */
+/**
+ * GET /api/v2/tables/[tableId]/rows — Plain cursor page over the default row
+ * order. Filtered/sorted reads go through `POST /query`.
+ */
 export const GET = withRouteHandler(async (request: NextRequest, context: TableRowsRouteParams) => {
   const requestId = generateRequestId()
 
@@ -147,13 +153,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    // Translate name-keyed filter/sort fields → column ids; translate rows back.
-    const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
-    const filter = validated.filter
-      ? filterNamesToIds(validated.filter as Filter, idByName)
-      : undefined
-    const sort = validated.sort ? sortNamesToIds(validated.sort, idByName) : undefined
+    const gateError = await v2TablesGateError(userId, validated.workspaceId)
+    if (gateError) return gateError
+
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
 
     // Cursor-uniform v2 pagination: the opaque cursor encodes the underlying
     // offset (upgradeable to keyset later without an interface change). Total row
@@ -165,8 +168,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const result = await queryRows(
       table,
       {
-        filter,
-        sort,
         limit: validated.limit,
         offset,
         includeTotal: true,
@@ -180,7 +181,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const nextCursor = hasMore ? encodeCursor({ offset: offset + validated.limit }) : null
 
     return v2CursorList(
-      result.rows.map((r) => toApiRow(r, nameById)),
+      result.rows.map((r) => toApiRow(r, toNamedRow)),
       nextCursor,
       { rateLimit }
     )
@@ -231,8 +232,11 @@ export const POST = withRouteHandler(
         return v2Error('NOT_FOUND', 'Table not found')
       }
 
+      const gateError = await v2TablesGateError(userId, validated.workspaceId)
+      if (gateError) return gateError
+
       const idByName = buildIdByName(table.schema as TableSchema)
-      const nameById = buildNameById(table.schema as TableSchema)
+      const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
       const rowData = rowDataNameToId(validated.data as RowData, idByName)
 
       const validation = await validateRowData({
@@ -248,7 +252,7 @@ export const POST = withRouteHandler(
         requestId
       )
 
-      return v2Data({ row: toApiRow(row, nameById) }, { rateLimit })
+      return v2Data({ row: toApiRow(row, toNamedRow) }, { rateLimit })
     } catch (error) {
       if (isZodError(error)) return v2ValidationError(error)
 
@@ -263,7 +267,7 @@ export const POST = withRouteHandler(
   }
 )
 
-/** PUT /api/v2/tables/[tableId]/rows — Bulk update rows by filter. */
+/** PUT /api/v2/tables/[tableId]/rows — Bulk update rows by predicate filter. */
 export const PUT = withRouteHandler(async (request: NextRequest, context: TableRowsRouteParams) => {
   const requestId = generateRequestId()
 
@@ -291,6 +295,9 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
+    const gateError = await v2TablesGateError(userId, validated.workspaceId)
+    if (gateError) return gateError
+
     const idByName = buildIdByName(table.schema as TableSchema)
     const patchData = rowDataNameToId(validated.data as RowData, idByName)
 
@@ -302,7 +309,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const result = await updateRowsByFilter(
       table,
       {
-        filter: filterNamesToIds(validated.filter as Filter, idByName),
+        filter: v2BulkPredicateToFilter(validated.filter, table.schema as TableSchema),
         data: patchData,
         limit: validated.limit,
         actorUserId: userId,
@@ -330,7 +337,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
   }
 })
 
-/** DELETE /api/v2/tables/[tableId]/rows — Delete rows by filter or IDs. */
+/** DELETE /api/v2/tables/[tableId]/rows — Delete rows by predicate filter or IDs. */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: TableRowsRouteParams) => {
     const requestId = generateRequestId()
@@ -359,11 +366,15 @@ export const DELETE = withRouteHandler(
         return v2Error('NOT_FOUND', 'Table not found')
       }
 
+      const gateError = await v2TablesGateError(userId, validated.workspaceId)
+      if (gateError) return gateError
+
       // id-based and filter-based deletes share one envelope; `requestedCount`/
       // `missingRowIds` are populated only for the id-based delete (which has a
       // requested set) and omitted for the filter-based delete.
       if (validated.rowIds) {
         const result = await deleteRowsByIds(
+          table,
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
@@ -379,10 +390,12 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      const idByName = buildIdByName(table.schema as TableSchema)
       const result = await deleteRowsByFilter(
         table,
-        { filter: filterNamesToIds(validated.filter as Filter, idByName), limit: validated.limit },
+        {
+          filter: v2BulkPredicateToFilter(validated.filter!, table.schema as TableSchema),
+          limit: validated.limit,
+        },
         requestId
       )
 

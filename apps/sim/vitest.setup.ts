@@ -2,17 +2,30 @@ import {
   authMock,
   databaseMock,
   drizzleOrmMock,
+  envFlagsMock,
+  environmentUtilsMock,
+  envMock,
   hybridAuthMock,
   loggerMock,
+  redisConfigMock,
   requestUtilsMock,
   schemaMock,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
   terminalConsoleMock,
+  urlsMock,
   workflowAuthzMock,
 } from '@sim/testing'
 import { afterAll, vi } from 'vitest'
-import '@testing-library/jest-dom/vitest'
+
+/**
+ * jest-dom only registers DOM matchers (`toBeVisible`, `toHaveTextContent`, …),
+ * so it is dead weight in a `node` environment — which is 985 of the 1,219 test
+ * files here. Loading it unconditionally made every one of them pay for it.
+ */
+if (typeof document !== 'undefined') {
+  await import('@testing-library/jest-dom/vitest')
+}
 
 setupGlobalFetchMock()
 setupGlobalStorageMocks()
@@ -25,6 +38,11 @@ vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/core/config/env', () => envMock)
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
+vi.mock('@/lib/environment/utils', () => environmentUtilsMock)
 
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {
@@ -87,7 +105,19 @@ vi.mock('@/blocks/registry', () => ({
     subBlocks: [],
     outputs: {},
   })),
-  getAllBlocks: vi.fn(() => ({})),
+  getAllBlocks: vi.fn(() => []),
+  getLatestBlock: vi.fn(() => undefined),
+  getBlockByToolName: vi.fn((toolName: string) =>
+    toolName.startsWith('gmail_')
+      ? {
+          name: 'Gmail',
+          description: 'Gmail integration',
+          icon: () => null,
+          subBlocks: [],
+          outputs: {},
+        }
+      : undefined
+  ),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({

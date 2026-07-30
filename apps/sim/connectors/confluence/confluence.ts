@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import * as cheerio from 'cheerio'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -8,11 +9,172 @@ import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/con
 
 const logger = createLogger('ConfluenceConnector')
 
+/** Label prefixes for Confluence's built-in Info/Note/Warning/Tip macros, by their rendered CSS suffix. */
+const CALLOUT_LABELS: Record<string, string> = {
+  information: '[INFO]',
+  note: '[NOTE]',
+  warning: '[WARNING]',
+  tip: '[TIP]',
+  error: '[ERROR]',
+}
+
+/**
+ * Inline formatting tags whose text flows directly into their surrounding
+ * sentence with no implied word break — e.g. `un<b>believe</b>able` must stay
+ * `unbelievable`, and `Hello<b>!</b>` must stay `Hello!`, not gain an
+ * artificial space. Anything not in this set (p, li, td, div, headings, br,
+ * etc.) is treated as a block boundary that always implies a break, even when
+ * the source HTML has no literal whitespace there.
+ */
+const INLINE_FORMATTING_TAGS = new Set([
+  'b',
+  'strong',
+  'i',
+  'em',
+  'u',
+  's',
+  'strike',
+  'del',
+  'ins',
+  'sup',
+  'sub',
+  'small',
+  'mark',
+  'code',
+  'span',
+  'a',
+  'abbr',
+  'cite',
+  'q',
+  'kbd',
+  'var',
+  'samp',
+  'time',
+])
+
+/**
+ * Cheerio's `.text()` concatenates every descendant text node with no
+ * separator at all, so pulling a macro body's text in one call fuses adjacent
+ * blocks together (e.g. a `<p>...for:</p>` immediately followed by
+ * `<li>GitLab</li>` becomes `for:GitLab`, corrupting the very word boundaries
+ * RAG chunking depends on). Simply joining every text node with a space isn't
+ * right either — that would corrupt genuinely inline-formatted text the same
+ * way. This walks the DOM, accumulating text through inline tags without a
+ * separator (preserving exact source adjacency) and flushing to a new segment
+ * at every other tag boundary (a block always implies a break, regardless of
+ * source whitespace) — matching how `html-parser.ts` already walks HTML for a
+ * related reason elsewhere in this codebase, extended with the inline/block
+ * distinction real Confluence rich text requires.
+ */
+function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>): string {
+  const parts: string[] = []
+  let current = ''
+
+  const flush = () => {
+    const text = current.trim()
+    if (text) parts.push(text)
+    current = ''
+  }
+
+  const visit = ($node: cheerio.Cheerio<any>) => {
+    $node.contents().each((_, child) => {
+      if (child.type === 'text') {
+        current += $(child).text()
+      } else if (child.type === 'tag') {
+        const tag = child.tagName?.toLowerCase()
+        if (tag && INLINE_FORMATTING_TAGS.has(tag)) {
+          visit($(child))
+        } else {
+          flush()
+          visit($(child))
+          flush()
+        }
+      }
+    })
+  }
+
+  visit($el)
+  flush()
+  return parts.join(' ').trim()
+}
+
+/** Matches either flavor of panel/macro this function rewrites. */
+const MACRO_SELECTOR = 'div.confluence-information-macro, div.panel'
+
+/**
+ * Confluence's rendered `view` HTML wraps Info/Note/Warning/Tip macros in
+ * `confluence-information-macro confluence-information-macro-{type}` divs, and
+ * the customizable Panel macro in `.panel` > `.panelHeader` + `.panelContent`
+ * divs. `htmlToPlainText`'s blind tag-stripping discards the divs' classes along
+ * with the tags, so a red "do not use" warning panel becomes indistinguishable
+ * from a plain paragraph once flattened — and its trailing whitespace collapse
+ * would erase any newline-based separation too. Each detected panel is rewritten
+ * into a single bracketed label plus its own text so the callout semantic
+ * survives both the tag strip and the whitespace collapse.
+ *
+ * A panel can itself contain another panel or macro (e.g. a nested Note inside
+ * a Warning panel). Processing matches in document order — outermost first —
+ * would read a not-yet-converted nested macro as plain body text before it
+ * ever got its own label, silently dropping the inner callout's semantic, and
+ * `.find('.panelHeader')` would then risk pulling a nested panel's header up
+ * as if it were the outer panel's own title. Converting only "leaf" macros
+ * (ones with no remaining nested macro/panel inside them) and repeating until
+ * none are left processes innermost-first, so a nested macro is already a
+ * bracketed `<p>` by the time its parent's body/header text is read — at which
+ * point it correctly reads as plain text carrying its own label.
+ */
+export function preserveConfluenceCallouts(html: string): string {
+  if (!html) return html
+
+  const $ = cheerio.load(html)
+
+  let progressed = true
+  while (progressed) {
+    progressed = false
+    const leaves = $(MACRO_SELECTOR).filter((_, el) => $(el).find(MACRO_SELECTOR).length === 0)
+    if (leaves.length === 0) break
+
+    leaves.each((_, el) => {
+      const $el = $(el)
+      if ($el.hasClass('confluence-information-macro')) {
+        const type = ($el.attr('class') ?? '')
+          .match(/confluence-information-macro-(\w+)/)?.[1]
+          ?.toLowerCase()
+        const label = (type && CALLOUT_LABELS[type]) || CALLOUT_LABELS.information
+        const macroBody = $el.find('.confluence-information-macro-body').first()
+        const body = extractBlockJoinedText($, macroBody.length > 0 ? macroBody : $el)
+        $el.replaceWith($('<p></p>').text(`${label} ${body}`))
+      } else {
+        const headerText = extractBlockJoinedText($, $el.find('.panelHeader').first())
+        const panelContent = $el.find('.panelContent').first()
+        const bodyText = extractBlockJoinedText($, panelContent.length > 0 ? panelContent : $el)
+        const label = headerText ? `[CALLOUT: ${headerText}]` : '[CALLOUT]'
+        $el.replaceWith($('<p></p>').text(`${label} ${bodyText}`))
+      }
+      progressed = true
+    })
+  }
+
+  return $.html()
+}
+
 /**
  * Escapes a value for use inside CQL double-quoted strings.
  */
 export function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
+ * Keeps only content that is still current in Confluence. The v2
+ * `/spaces/{id}/pages` endpoint includes `archived` pages by default and CQL has
+ * no status filter, so without this guard archived pages stay in every listing,
+ * keep getting upserted, and never fall out via deletion reconciliation (which
+ * removes only documents absent from the listing). Items with no status field
+ * are kept — only an explicit non-current status excludes a result.
+ */
+export function isCurrentContent(item: Record<string, unknown>): boolean {
+  return item.status == null || item.status === 'current'
 }
 
 /**
@@ -92,6 +254,18 @@ async function fetchLabelsForPages(
 }
 
 /**
+ * Body representation marker embedded in the contentHash. Bumping this
+ * invalidates every previously-synced Confluence document so a one-time
+ * re-hydration picks up content newly reachable by the current extraction
+ * (e.g. the switch from `storage` to rendered `view`, which expands Include
+ * Page / Excerpt macros; or `preserveConfluenceCallouts`, which stops
+ * flattening panel/info/note/warning/tip macros into indistinguishable plain
+ * text). Without it, already-indexed pages whose version is unchanged
+ * classify as `unchanged` and keep their stale (pre-fix) content.
+ */
+const CONTENT_REPRESENTATION = 'view-callouts'
+
+/**
  * Produces a canonical metadata stub with a deterministic contentHash that
  * does not depend on which API surface (v1 CQL or v2) returned the page.
  */
@@ -115,7 +289,7 @@ function pageToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
-    contentHash: `confluence:${page.id}:${versionKey}`,
+    contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
       status: page.status,
@@ -233,10 +407,18 @@ export const confluenceConnector: ConnectorConfig = {
       if (syncContext) syncContext.cloudId = cloudId
     }
 
-    // Try pages first, fall back to blogposts if not found
+    /**
+     * Fetch the `view` representation rather than `storage`. Storage format only
+     * carries unexpanded macro references (e.g. Include Page / Excerpt Include),
+     * so "mirrored" content that pulls in another page's body is stripped to
+     * nothing by `htmlToPlainText`. The `view` representation is server-rendered
+     * HTML with those macros expanded inline, so included content is indexed too.
+     * The v2 single-item GET (`/pages/{id}`, `/blogposts/{id}`) supports
+     * `body-format=view`; only the bulk list endpoints are limited to storage/adf.
+     */
     let page: Record<string, unknown> | null = null
     for (const endpoint of ['pages', 'blogposts']) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=storage`
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=view`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
@@ -254,11 +436,11 @@ export const confluenceConnector: ConnectorConfig = {
       }
     }
 
-    if (!page) return null
+    if (!page || !isCurrentContent(page)) return null
     const body = page.body as Record<string, unknown> | undefined
-    const storage = body?.storage as Record<string, unknown> | undefined
-    const rawContent = (storage?.value as string) || ''
-    const plainText = htmlToPlainText(rawContent)
+    const view = body?.view as Record<string, unknown> | undefined
+    const rawContent = (view?.value as string) || ''
+    const plainText = htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
     const labels = labelMap.get(String(page.id)) ?? []
@@ -363,6 +545,12 @@ async function listDocumentsV2(
 ): Promise<ExternalDocumentList> {
   const queryParams = new URLSearchParams()
   queryParams.append('limit', '250')
+  /**
+   * Restrict to current content: the pages endpoint defaults to
+   * `current,archived`, so archived pages would otherwise stay in the listing
+   * forever and never be purged by deletion reconciliation.
+   */
+  queryParams.append('status', 'current')
   if (cursor) {
     queryParams.append('cursor', cursor)
   }
@@ -392,13 +580,15 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = results.map((page: Record<string, unknown>) => {
-    const links = page._links as Record<string, string> | undefined
-    return pageToStub(page, {
-      spaceId: page.spaceId,
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+    .filter(isCurrentContent)
+    .map((page) => {
+      const links = page._links as Record<string, string> | undefined
+      return pageToStub(page, {
+        spaceId: page.spaceId,
+        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+      })
     })
-  })
 
   let nextCursor: string | undefined
   const nextLink = (data._links as Record<string, string>)?.next
@@ -576,9 +766,9 @@ async function listDocumentsViaCql(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = results.map((item: Record<string, unknown>) =>
-    cqlResultToStub(item, domain)
-  )
+  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+    .filter(isCurrentContent)
+    .map((item) => cqlResultToStub(item, domain))
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched

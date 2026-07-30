@@ -1,14 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { randomFloat } from '@sim/utils/random'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
+  validateAndPinProxyUrl,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -28,6 +34,7 @@ import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-c
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import type {
@@ -52,6 +59,7 @@ interface ToolExecutionScope {
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
+  billingAttribution?: BillingAttributionSnapshot
 }
 
 function resolveToolScope(
@@ -73,6 +81,8 @@ function resolveToolScope(
     copilotToolExecution: (executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution) as
       | boolean
       | undefined,
+    billingAttribution: (executionContext?.metadata.billingAttribution ??
+      ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
   }
 }
 
@@ -172,6 +182,71 @@ async function normalizeCopilotFileParams(
         values.map((item) => resolveCopilotFileReference(item, scope.workspaceId!, paramId))
       )
     }
+  }
+}
+
+/**
+ * Resolves whole-value {{ENV_VAR}} references in user-only params for copilot
+ * tool executions. Chat agents never see secret values (the workspace VFS
+ * exposes env var names only), so they pass references; workflow runs resolve
+ * these in the executor, and this is the equivalent step for direct tool
+ * calls, delegating to the executor's resolver so both paths share one set of
+ * reference semantics. Resolution is deliberately restricted to params
+ * declared `visibility: 'user-only'` (API keys and other operator-supplied
+ * secrets) and to values that are exactly one reference, so LLM-writable
+ * params (URLs, headers, bodies) can never be used to extract secret values.
+ *
+ * Mutates only the given params object — callers pass the per-execution copy,
+ * never the copilot-side tool-call state, so decrypted values cannot leak
+ * into failure logs or persisted chat state.
+ */
+async function resolveCopilotEnvReferences(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  scope: ToolExecutionScope
+): Promise<void> {
+  if (!scope.copilotToolExecution) {
+    return
+  }
+
+  const pending: Array<{ paramId: string; value: string }> = []
+  for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
+    if (paramDef?.visibility !== 'user-only') continue
+    const value = params[paramId]
+    if (typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')) {
+      pending.push({ paramId, value })
+    }
+  }
+
+  if (pending.length === 0) {
+    return
+  }
+
+  if (!scope.userId) {
+    throw new Error(
+      `Cannot resolve environment variable reference in parameter "${pending[0].paramId}" without an authenticated user context.`
+    )
+  }
+
+  const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
+  const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
+
+  for (const { paramId, value } of pending) {
+    const missingKeys: string[] = []
+    const resolved = resolveEnvVarReferences(value, envVars, {
+      allowEmbedded: false,
+      missingKeys,
+    })
+    if (missingKeys.length > 0) {
+      const scopeHint = scope.workspaceId
+        ? ''
+        : ' (no workspace context — only personal variables are available here)'
+      throw new Error(
+        `Environment variable "${missingKeys[0]}" referenced by parameter "${paramId}" was not found${scopeHint}. ` +
+          `Check environment/variables.json for available variable names.`
+      )
+    }
+    params[paramId] = resolved as string
   }
 }
 
@@ -475,7 +550,7 @@ async function executeWithRetry<T>(
         throw error
       }
 
-      const delayMs = baseDelayMs * 2 ** attempt
+      const delayMs = backoffWithJitter(attempt + 1, null, { baseMs: baseDelayMs })
 
       // Track throttling event via telemetry
       PlatformEvents.hostedKeyRateLimited({
@@ -506,23 +581,36 @@ interface ToolCostResult {
 }
 
 /**
+ * Rejects a cost that cannot be billed. `NaN` would silently vanish from every
+ * downstream sum and `Infinity` would poison the ledger, so a pricing bug must
+ * surface as a metering failure instead of a corrupt charge.
+ */
+function assertBillableCost(cost: unknown, toolId: string): number {
+  if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) {
+    throw new Error(`Hosted-key pricing for ${toolId} produced an unusable cost: ${String(cost)}`)
+  }
+  return cost
+}
+
+/**
  * Calculate cost based on pricing model
  */
 function calculateToolCost(
   pricing: ToolHostingPricing,
   params: Record<string, unknown>,
-  response: Record<string, unknown>
+  response: Record<string, unknown>,
+  toolId: string
 ): ToolCostResult {
   switch (pricing.type) {
     case 'per_request':
-      return { cost: pricing.cost }
+      return { cost: assertBillableCost(pricing.cost, toolId) }
 
     case 'custom': {
       const result = pricing.getCost(params, response)
       if (typeof result === 'number') {
-        return { cost: result }
+        return { cost: assertBillableCost(result, toolId) }
       }
-      return result
+      return { ...result, cost: assertBillableCost(result.cost, toolId) }
     }
 
     default: {
@@ -552,7 +640,7 @@ async function processHostedKeyCost(
     return { cost: 0 }
   }
 
-  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
+  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response, tool.id)
 
   if (cost <= 0) return { cost: 0 }
 
@@ -635,6 +723,15 @@ export function postProcessToolOutput(toolId: string, output: Record<string, unk
 /**
  * Apply post-execution hosted-key cost tracking to a successful tool result.
  * Reports custom dimension usage, calculates cost, and merges it into the output.
+ *
+ * Billing capture differs by caller:
+ * - Workflow executions bill `output.cost.total` through trace spans and the
+ *   execution ledger (`recordUsage`), so the `cost` field alone suffices.
+ * - Copilot tool executions have no execution ledger. Their only billing hook
+ *   is Go's `extractServiceCost`, which reads a top-level `_serviceCost` field
+ *   from the tool result and charges it through the per-round update-cost
+ *   callback (the same path the media tools use). Without it, hosted-key spend
+ *   from copilot-dispatched integration tools is never charged.
  */
 async function applyHostedKeyCostToResult(
   finalResult: ToolResponse,
@@ -646,26 +743,45 @@ async function applyHostedKeyCostToResult(
 ): Promise<void> {
   await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
 
-  const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
-    tool,
-    params,
-    finalResult.output,
-    executionContext,
-    requestId
-  )
-
   const provider = tool.hosting?.byokProviderId || tool.id
   const key = envVarName ?? 'unknown'
+
+  let hostedKeyCost = 0
+  let metadata: Record<string, unknown> | undefined
+
+  try {
+    ;({ cost: hostedKeyCost, metadata } = await processHostedKeyCost(
+      tool,
+      params,
+      finalResult.output,
+      executionContext,
+      requestId
+    ))
+  } catch (error) {
+    // The provider already ran and already charged Sim's key. Failing the
+    // execution here would destroy the caller's result without recovering the
+    // spend, so the run stands and the gap is raised for reconciliation.
+    logger.error(
+      `[${requestId}] Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`,
+      { provider, error: getErrorMessage(error) }
+    )
+    hostedKeyMetrics.recordFailed({ provider, tool: tool.id, key, reason: 'metering' })
+  }
+
   hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
   hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
 
   if (hostedKeyCost > 0) {
+    const { copilotToolExecution } = resolveToolScope(params, executionContext)
     finalResult.output = {
       ...finalResult.output,
       cost: {
         ...metadata,
         total: hostedKeyCost,
       },
+      // Copilot-only: workflow runs must not emit _serviceCost or the cost
+      // would be billed twice (execution ledger + Go service charge).
+      ...(copilotToolExecution ? { _serviceCost: { service: provider, cost: hostedKeyCost } } : {}),
     }
   }
 }
@@ -928,7 +1044,7 @@ export async function executeTool(
     const scope = resolveToolScope(params, executionContext)
 
     const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
-      normalizedToolId === 'load_skill' || normalizedToolId === 'load_user_skill'
+      normalizedToolId === 'load_skill'
         ? 'skill'
         : isCustomTool(normalizedToolId)
           ? 'custom'
@@ -948,7 +1064,7 @@ export async function executeTool(
       })
     }
 
-    if (normalizedToolId === 'load_skill' || normalizedToolId === 'load_user_skill') {
+    if (normalizedToolId === 'load_skill') {
       const skillName = params.skill_name
       if (!skillName || !scope.workspaceId) {
         return {
@@ -999,6 +1115,12 @@ export async function executeTool(
 
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
+    if (scope.billingAttribution) {
+      contextParams._context = {
+        ...(contextParams._context as Record<string, unknown> | undefined),
+        billingAttribution: scope.billingAttribution,
+      }
+    }
 
     // Validate the tool and its parameters
     validateRequiredParametersAfterMerge(toolId, tool, contextParams)
@@ -1011,6 +1133,7 @@ export async function executeTool(
     await normalizeCopilotFileParams(tool, contextParams, scope)
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
+    await resolveCopilotEnvReferences(tool, contextParams, scope)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
@@ -1117,6 +1240,9 @@ export async function executeTool(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
+        if (data.authStyle && !contextParams.authStyle) {
+          contextParams.authStyle = data.authStyle
+        }
 
         logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
 
@@ -1140,10 +1266,35 @@ export async function executeTool(
       }
     }
 
+    // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
+    // The runner is dynamic-imported from a server-only module so the client-bundled
+    // tool registry never pulls in the executor/db dependency graph (a static or
+    // dynamic executor import in the tool descriptor itself would break the client
+    // build — and with it `getTool('workflow_executor')`).
+    if (normalizedToolId === 'deployed_block_executor') {
+      logger.info(`[${requestId}] Running custom block tool ${toolId}`)
+      const { runCustomBlockTool } = await import(
+        '@/executor/handlers/workflow/custom-block-tool-runner'
+      )
+      const result = await runCustomBlockTool(contextParams)
+      const endTime = new Date()
+      return {
+        ...result,
+        // Strip internal `__`-prefixed fields the same way every other tool path does,
+        // so child-workflow internals never reach the agent's tool result.
+        output: postProcessToolOutput(normalizedToolId, result.output ?? {}),
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTime.toISOString(),
+          duration: endTime.getTime() - startTime.getTime(),
+        },
+      }
+    }
+
     // Check for direct execution (no HTTP request needed)
     if (tool.directExecution) {
       logger.info(`[${requestId}] Using directExecution for ${toolId}`)
-      const result = await tool.directExecution(contextParams)
+      const result = await tool.directExecution(contextParams, effectiveSignal)
 
       // Apply post-processing if available and not skipped
       let finalResult = result
@@ -1486,26 +1637,6 @@ function isRetryableFailure(error: unknown, status?: number): boolean {
   return false
 }
 
-function calculateBackoff(attempt: number, initialDelayMs: number, maxDelayMs: number): number {
-  const base = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs)
-  return Math.round(base / 2 + randomFloat() * (base / 2))
-}
-
-function parseRetryAfterHeader(header: string | null): number {
-  if (!header) return 0
-  const trimmed = header.trim()
-  if (/^\d+$/.test(trimmed)) {
-    const seconds = Number.parseInt(trimmed, 10)
-    return seconds > 0 ? seconds * 1000 : 0
-  }
-  const date = new Date(trimmed)
-  if (!Number.isNaN(date.getTime())) {
-    const deltaMs = date.getTime() - Date.now()
-    return deltaMs > 0 ? deltaMs : 0
-  }
-  return 0
-}
-
 function shouldRetryWithoutReadingBody(
   status: number,
   headers: { get(name: string): string | null },
@@ -1515,7 +1646,10 @@ function shouldRetryWithoutReadingBody(
   if (!retryConfig || isLastAttempt || !isRetryableFailure(null, status)) {
     return false
   }
-  return parseRetryAfterHeader(headers.get('retry-after')) <= retryConfig.maxDelayMs
+  return (
+    (parseRetryAfter(headers.get('retry-after'), Number.POSITIVE_INFINITY) ?? 0) <=
+    retryConfig.maxDelayMs
+  )
 }
 
 /**
@@ -1591,6 +1725,12 @@ async function executeToolRequest(
       toolId,
       params._context?.userId
     )
+    if (isInternalRoute && params._context?.billingAttribution) {
+      headers.set(
+        BILLING_ATTRIBUTION_HEADER,
+        serializeBillingAttributionHeader(params._context.billingAttribution)
+      )
+    }
 
     const shouldPropagateCallChain = isInternalRoute || isSelfOriginUrl(fullUrl)
     if (shouldPropagateCallChain) {
@@ -1698,6 +1838,15 @@ async function executeToolRequest(
             throw new Error(`Invalid tool URL: ${urlValidation.error}`)
           }
 
+          let proxyOption: string | undefined
+          if (requestParams.proxyUrl) {
+            const proxyValidation = await validateAndPinProxyUrl(requestParams.proxyUrl)
+            if (!proxyValidation.isValid) {
+              throw new Error(`Invalid proxy URL: ${proxyValidation.error}`)
+            }
+            proxyOption = proxyValidation.pinnedProxyUrl
+          }
+
           const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
             method: requestParams.method,
             headers: headersRecord,
@@ -1705,6 +1854,8 @@ async function executeToolRequest(
             timeout: requestParams.timeout,
             maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
             signal,
+            proxyUrl: proxyOption,
+            stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())
@@ -1742,11 +1893,10 @@ async function executeToolRequest(
         if (!retryConfig || isLastAttempt || !isRetryableFailure(error)) {
           throw error
         }
-        const delayMs = calculateBackoff(
-          attempt,
-          retryConfig.initialDelayMs,
-          retryConfig.maxDelayMs
-        )
+        const delayMs = backoffWithJitter(attempt + 1, null, {
+          baseMs: retryConfig.initialDelayMs,
+          maxMs: retryConfig.maxDelayMs,
+        })
         logger.warn(
           `[${requestId}] Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }
@@ -1762,8 +1912,11 @@ async function executeToolRequest(
         !response.ok &&
         isRetryableFailure(null, response.status)
       ) {
-        const retryAfterMs = parseRetryAfterHeader(response.headers.get('retry-after'))
-        if (retryAfterMs > retryConfig.maxDelayMs) {
+        const retryAfterMs = parseRetryAfter(
+          response.headers.get('retry-after'),
+          Number.POSITIVE_INFINITY
+        )
+        if (retryAfterMs !== null && retryAfterMs > retryConfig.maxDelayMs) {
           logger.warn(
             `[${requestId}] Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`
           )
@@ -1774,12 +1927,10 @@ async function executeToolRequest(
         } catch {
           // Ignore errors when consuming body
         }
-        const backoffMs = calculateBackoff(
-          attempt,
-          retryConfig.initialDelayMs,
-          retryConfig.maxDelayMs
-        )
-        const delayMs = Math.max(backoffMs, retryAfterMs)
+        const delayMs = backoffWithJitter(attempt + 1, retryAfterMs, {
+          baseMs: retryConfig.initialDelayMs,
+          maxMs: retryConfig.maxDelayMs,
+        })
         logger.warn(
           `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }
@@ -1876,13 +2027,16 @@ async function executeToolRequest(
     // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
-        // Create a mock response object that provides the methods transformResponse needs
+        // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
+        // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
+        // and otherwise mis-reports a false "response exceeded maximum size" error.
         const mockResponse = {
           ok: response.ok,
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
           url: fullUrl,
+          body: response.body,
           json: () => response.json(),
           text: () => response.text(),
           arrayBuffer: () => response.arrayBuffer(),
@@ -2054,12 +2208,29 @@ async function executeMcpTool(
     if (mcpScope.callChain && mcpScope.callChain.length > 0) {
       headers[SIM_VIA_HEADER] = serializeCallChain(mcpScope.callChain)
     }
+    if (mcpScope.billingAttribution) {
+      headers[BILLING_ATTRIBUTION_HEADER] = serializeBillingAttributionHeader(
+        mcpScope.billingAttribution
+      )
+    }
 
     if (!mcpScope.workspaceId) {
       return {
         success: false,
         output: {},
         error: `Missing workspaceId in execution context for MCP tool ${toolName}`,
+        timing: {
+          startTime: actualStartTime,
+          endTime: new Date().toISOString(),
+          duration: Date.now() - new Date(actualStartTime).getTime(),
+        },
+      }
+    }
+    if (!mcpScope.billingAttribution) {
+      return {
+        success: false,
+        output: {},
+        error: `Missing billing attribution in execution context for MCP tool ${toolName}`,
         timing: {
           startTime: actualStartTime,
           endTime: new Date().toISOString(),

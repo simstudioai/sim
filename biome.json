@@ -27,10 +27,13 @@
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
       "!**/apps/docs/.source",
+      "!**/apps/desktop/release",
       "!**/venv",
       "!**/.venv",
       "!**/uploads",
-      "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs"
+      "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs",
+      "!**/test-results",
+      "!**/playwright-report"
     ]
   },
   "formatter": {
@@ -150,6 +153,9 @@
     }
   },
   "css": {
+    "parser": {
+      "cssModules": true
+    },
     "formatter": {
       "enabled": true,
       "indentWidth": 2

@@ -61,6 +61,26 @@ export const TOKENIZATION_CONFIG = {
       confidence: 'medium',
       supportedMethods: ['heuristic', 'fallback'],
     },
+    nvidia: {
+      avgCharsPerToken: 4,
+      confidence: 'medium',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
+    meta: {
+      avgCharsPerToken: 4,
+      confidence: 'medium',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
+    zai: {
+      avgCharsPerToken: 4,
+      confidence: 'medium',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
+    kimi: {
+      avgCharsPerToken: 4,
+      confidence: 'medium',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
     ollama: {
       avgCharsPerToken: 4,
       confidence: 'low',

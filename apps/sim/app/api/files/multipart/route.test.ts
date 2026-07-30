@@ -53,16 +53,27 @@ vi.mock('@/lib/uploads/providers/blob/client', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-const { mockCheckStorageQuota, mockInitiateS3MultipartUpload } = vi.hoisted(() => ({
-  mockCheckStorageQuota: vi.fn(),
-  mockInitiateS3MultipartUpload: vi.fn(),
-}))
+const { mockCheckStorageQuota, mockInitiateS3MultipartUpload, mockResolveStorageBillingContext } =
+  vi.hoisted(() => ({
+    mockCheckStorageQuota: vi.fn(),
+    mockInitiateS3MultipartUpload: vi.fn(),
+    mockResolveStorageBillingContext: vi.fn(),
+  }))
 
 vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuota: mockCheckStorageQuota,
+  checkStorageQuotaForBillingContext: mockCheckStorageQuota,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
 }))
 
 import { POST } from '@/app/api/files/multipart/route'
+
+const STORAGE_CONTEXT = {
+  workspaceId: 'ws-1',
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'organization' as const, id: 'workspace-org' },
+  plan: 'team_25000',
+  customStorageLimitGB: null,
+}
 
 const tokenPayload = {
   uploadId: 'upload-1',
@@ -226,6 +237,7 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
     mockGetStorageProvider.mockReturnValue('s3')
     mockGetStorageConfig.mockReturnValue({ bucket: 'b', region: 'r' })
     mockSignUploadToken.mockReturnValue('signed-token')
+    mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockInitiateS3MultipartUpload.mockResolvedValue({ uploadId: 'up-1', key: 'k/file.bin' })
   })
@@ -258,7 +270,26 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
 
     const response = await POST(res)
     expect(response.status).toBe(200)
-    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 99999)
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledWith('ws-1')
+    expect(mockCheckStorageQuota).toHaveBeenCalledWith(STORAGE_CONTEXT, 99999)
+    expect(mockInitiateS3MultipartUpload).toHaveBeenCalled()
+  })
+
+  it('keeps mothership chat uploads outside workspace storage quotas', async () => {
+    mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
+
+    const res = await makeInitiateRequest({
+      fileName: 'conversation.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 99999,
+      workspaceId: 'ws-1',
+      context: 'mothership',
+    })
+
+    const response = await POST(res)
+    expect(response.status).toBe(200)
+    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mockCheckStorageQuota).not.toHaveBeenCalled()
     expect(mockInitiateS3MultipartUpload).toHaveBeenCalled()
   })
 

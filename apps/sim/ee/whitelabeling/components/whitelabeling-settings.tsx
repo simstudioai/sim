@@ -3,21 +3,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, ChipInput, cn, Label, Loader, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
-import { useParams } from 'next/navigation'
-import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -29,8 +25,8 @@ import {
   useWhitelabelSettings,
   type WhitelabelSettingsPayload,
 } from '@/ee/whitelabeling/hooks/whitelabel'
-import { useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WhitelabelingSettings')
 
@@ -83,7 +79,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
 
   return (
     <div className='flex flex-col gap-1.5'>
-      <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
+      <Label>{label}</Label>
       <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
         <div
           className={cn(
@@ -109,7 +105,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
         />
       </div>
       {!isValidHex && (
-        <p className='text-[12px] text-[var(--text-error)]'>
+        <p className='text-[var(--text-error)] text-caption'>
           Must be a valid hex color (e.g. #33c482)
         </p>
       )}
@@ -117,23 +113,18 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
   )
 }
 
-export function WhitelabelingSettings() {
-  const params = useParams<{ workspaceId: string }>()
-  const { data: session } = useSession()
-  const { data: orgsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+interface WhitelabelingSettingsProps {
+  organizationId: string
+}
 
-  const activeOrganization = orgsData?.activeOrganization
-  const orgId = activeOrganization?.id
-
+export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSettingsProps) {
+  const { data: organizationBillingData } = useOrganizationBilling(orgId)
+  const { data: workspaces } = useWorkspacesQuery(true)
+  const uploadWorkspaceId = workspaces?.find((workspace) => workspace.organizationId === orgId)?.id
   const { data: savedSettings, isLoading } = useWhitelabelSettings(orgId)
   const updateSettings = useUpdateWhitelabelSettings()
 
-  const userEmail = session?.user?.email
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = isOrgAdminRole(userRole)
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
+  const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
 
   const [brandName, setBrandName] = useState('')
   const [primaryColor, setPrimaryColor] = useState('')
@@ -202,7 +193,7 @@ export function WhitelabelingSettings() {
     onUpload: (url) => setLogoUrl(url),
     onError: (error) => toast.error(error),
     context: 'workspace-logos',
-    workspaceId: params.workspaceId,
+    workspaceId: uploadWorkspaceId,
   })
 
   const wordmarkUpload = useProfilePictureUpload({
@@ -210,7 +201,7 @@ export function WhitelabelingSettings() {
     onUpload: (url) => setWordmarkUrl(url),
     onError: (error) => toast.error(error),
     context: 'workspace-logos',
-    workspaceId: params.workspaceId,
+    workspaceId: uploadWorkspaceId,
   })
 
   const hasChanges =
@@ -295,26 +286,10 @@ export function WhitelabelingSettings() {
   }
 
   if (isBillingEnabled) {
-    if (!activeOrganization) {
-      return (
-        <SettingsEmptyState>
-          You must be part of an organization to configure whitelabeling.
-        </SettingsEmptyState>
-      )
-    }
-
     if (!hasEnterprisePlan) {
       return (
         <SettingsEmptyState>
           Whitelabeling is available on Enterprise plans only.
-        </SettingsEmptyState>
-      )
-    }
-
-    if (!canManage) {
-      return (
-        <SettingsEmptyState>
-          Only organization owners and admins can configure whitelabeling settings.
         </SettingsEmptyState>
       )
     }
@@ -328,15 +303,13 @@ export function WhitelabelingSettings() {
 
   return (
     <SettingsPanel
-      actions={
-        <SaveDiscardActions
-          dirty={hasChanges}
-          saving={updateSettings.isPending}
-          saveDisabled={isUploading}
-          onSave={handleSave}
-          onDiscard={handleDiscard}
-        />
-      }
+      actions={saveDiscardActions({
+        dirty: hasChanges,
+        saving: updateSettings.isPending,
+        saveDisabled: isUploading,
+        onSave: handleSave,
+        onDiscard: handleDiscard,
+      })}
     >
       <SettingsSection label='Brand Identity'>
         <div className='flex flex-col gap-5'>
@@ -363,7 +336,9 @@ export function WhitelabelingSettings() {
                     type='button'
                     onClick={logoUpload.handleThumbnailClick}
                     disabled={logoUpload.isUploading}
-                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    aria-label={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
+                    title={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
+                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {logoUpload.isUploading ? (
                       <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -380,27 +355,17 @@ export function WhitelabelingSettings() {
                     )}
                   </button>
                 </DropZone>
-                <div className='flex gap-2'>
+                {logoUpload.previewUrl && (
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={logoUpload.handleThumbnailClick}
-                    disabled={logoUpload.isUploading}
-                    className='text-[13px]'
+                    onClick={logoUpload.handleRemove}
+                    aria-label='Remove logo'
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
-                    {logoUpload.previewUrl ? 'Change' : 'Upload'}
+                    <X className='size-[14px]' />
                   </Button>
-                  {logoUpload.previewUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={logoUpload.handleRemove}
-                      className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                    >
-                      <X className='size-[14px]' />
-                    </Button>
-                  )}
-                </div>
+                )}
                 <input
                   ref={logoUpload.fileInputRef}
                   type='file'
@@ -421,7 +386,9 @@ export function WhitelabelingSettings() {
                     type='button'
                     onClick={wordmarkUpload.handleThumbnailClick}
                     disabled={wordmarkUpload.isUploading}
-                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    aria-label={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
+                    title={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
+                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {wordmarkUpload.isUploading ? (
                       <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -438,27 +405,17 @@ export function WhitelabelingSettings() {
                     )}
                   </button>
                 </DropZone>
-                <div className='flex gap-2'>
+                {wordmarkUpload.previewUrl && (
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={wordmarkUpload.handleThumbnailClick}
-                    disabled={wordmarkUpload.isUploading}
-                    className='text-[13px]'
+                    onClick={wordmarkUpload.handleRemove}
+                    aria-label='Remove wordmark'
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
-                    {wordmarkUpload.previewUrl ? 'Change' : 'Upload'}
+                    <X className='size-[14px]' />
                   </Button>
-                  {wordmarkUpload.previewUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={wordmarkUpload.handleRemove}
-                      className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                    >
-                      <X className='size-[14px]' />
-                    </Button>
-                  )}
-                </div>
+                )}
                 <input
                   ref={wordmarkUpload.fileInputRef}
                   type='file'

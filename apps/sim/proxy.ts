@@ -3,9 +3,10 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
-import { isAuthDisabled, isHosted } from './lib/core/config/env-flags'
+import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
+import { isNonCanonicalSimHost } from './lib/core/utils/urls'
 
 const logger = createLogger('Proxy')
 
@@ -20,7 +21,7 @@ const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
 const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id'
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
@@ -138,8 +139,8 @@ function handleRootPathRedirects(
     return null
   }
 
-  if (!isHosted) {
-    // Self-hosted: Always redirect based on session
+  if (!isHosted && !isDev) {
+    // Self-hosted production: Always redirect based on session.
     if (hasActiveSession) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
@@ -183,7 +184,11 @@ function handleInvitationRedirects(
       new URL(`/login?callbackUrl=${callbackParam}&invite_flow=true`, request.url)
     )
   }
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+  return response
 }
 
 /**
@@ -192,7 +197,10 @@ function handleInvitationRedirects(
 function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   const userAgent = request.headers.get('user-agent') || ''
   const { pathname } = request.nextUrl
-  const isWebhookEndpoint = pathname.startsWith('/api/webhooks/trigger/')
+  const isWebhookEndpoint =
+    pathname.startsWith('/api/webhooks/trigger/') ||
+    pathname.startsWith('/api/webhooks/tiktok') ||
+    pathname.startsWith('/api/webhooks/agentmail')
   const isMcpEndpoint = pathname.startsWith('/api/mcp/')
   const isMcpOauthDiscoveryEndpoint =
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
@@ -283,19 +291,38 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  if (url.pathname === '/') {
-    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
-    response.headers.set('X-Content-Type-Options', 'nosniff')
-    response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-  }
+  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
   return track(request, response)
+}
+
+/**
+ * Keeps non-production sim.ai deployments out of search results.
+ *
+ * `noindex` rather than a robots.txt `Disallow` is deliberate: a disallowed URL
+ * can still be indexed when linked externally, and blocking the crawl stops
+ * search engines from ever seeing the directive that removes pages already in
+ * the index. robots.txt is excluded from this proxy's matcher so it keeps
+ * serving the crawlable rules this header depends on.
+ */
+function applyIndexingPolicy(request: NextRequest, response: NextResponse): void {
+  const host =
+    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    request.headers.get('host') ||
+    request.nextUrl.host
+
+  if (isNonCanonicalSimHost(host)) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+  }
 }
 
 /**
  * Sends request data to Profound analytics (fire-and-forget) and returns the response.
  */
 function track(request: NextRequest, response: NextResponse): NextResponse {
+  applyIndexingPolicy(request, response)
   sendToProfound(request, response.status)
   return response
 }
@@ -313,6 +340,6 @@ export const config = {
     '/invite/:path*', // Match invitation routes
     '/api/:path*', // Runtime CORS
     // Catch-all for other pages, excluding static assets and public directories
-    '/((?!api/|api$|_next/static|_next/image|ingest|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
+    '/((?!api/|api$|_next/static|_next/image|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }

@@ -11,7 +11,8 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { BREX_API_BASE, buildBrexHeaders } from '@/tools/brex/utils'
 
@@ -48,7 +49,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
-    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+    let fileBuffer: Buffer
+    try {
+      const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+      fileBuffer = resolved.buffer
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download receipt file:`, error)
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Unknown error') },
+        { status: 500 }
+      )
+    }
     if (fileBuffer.length > MAX_RECEIPT_SIZE_BYTES) {
       return NextResponse.json(
         { success: false, error: 'Receipt file exceeds the 50 MB limit' },

@@ -45,6 +45,7 @@ import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/p
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
@@ -385,7 +386,8 @@ function ConnectionsSection({
                   {Icon && (
                     <Icon
                       className={cn(
-                        'text-white transition-transform duration-200',
+                        'transition-transform duration-200',
+                        getTileIconColorClass(bgColor),
                         hasFields && 'group-hover:scale-110',
                         '!h-[9px] !w-[9px]'
                       )}
@@ -1109,7 +1111,7 @@ function PreviewEditorContent({
             className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: subflowBgColor }}
           >
-            <SubflowIcon className='size-[12px] text-white' />
+            <SubflowIcon className={cn('size-[12px]', getTileIconColorClass(subflowBgColor))} />
           </div>
           <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
             {subflowName}
@@ -1196,10 +1198,13 @@ function PreviewEditorContent({
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && (
           <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
-            <IconComponent icon={blockConfig.icon} className='size-[12px] text-white' />
+            <IconComponent
+              icon={blockConfig.icon}
+              className={cn('size-[12px]', getTileIconColorClass(blockConfig.bgColor))}
+            />
           </div>
         )}
         <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
@@ -1477,7 +1482,16 @@ function PreviewEditorContent({
                         subBlockValues={subBlockValues}
                         disabled={true}
                       />
-                      {index < visibleSubBlocks.length - 1 && <FieldDivider subblockMarker />}
+                      {index < visibleSubBlocks.length - 1 && (
+                        <FieldDivider
+                          subblockMarker
+                          className={
+                            visibleSubBlocks[index + 1]?.hideDividerBefore
+                              ? '[&>div]:invisible'
+                              : undefined
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

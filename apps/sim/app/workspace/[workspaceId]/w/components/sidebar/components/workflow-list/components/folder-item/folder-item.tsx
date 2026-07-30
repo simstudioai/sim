@@ -1,14 +1,16 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { chipVariants, cn } from '@sim/emcn'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { chipVariants, cn, toast } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { generateSubfolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -49,15 +51,20 @@ import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
+  workspaceId: string
   folder: FolderTreeNode
 }
 
-export function FolderItem({ folder }: FolderItemProps) {
-  const { isAnyDragActive, dragDisabled, onFolderClick, onItemDragStart, onItemDragEnd } =
-    useSidebarListContext()
-  const params = useParams()
+export const FolderItem = memo(function FolderItem({ workspaceId, folder }: FolderItemProps) {
+  const {
+    isAnyDragActive,
+    dragDisabled,
+    activeWorkflowIdRef,
+    onFolderClick,
+    onItemDragStart,
+    onItemDragEnd,
+  } = useSidebarListContext()
   const router = useRouter()
-  const workspaceId = params.workspaceId as string
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
   const createFolderMutation = useCreateFolder()
@@ -95,7 +102,7 @@ export function FolderItem({ folder }: FolderItemProps) {
     workspaceId,
     workflowIds: capturedSelectionRef.current?.workflowIds || [],
     folderIds: capturedSelectionRef.current?.folderIds || [],
-    isActiveWorkflow: (id) => id === params.workflowId,
+    isActiveWorkflow: (id) => id === activeWorkflowIdRef.current,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
@@ -117,10 +124,13 @@ export function FolderItem({ folder }: FolderItemProps) {
     hasWorkflows,
     handleExportFolder: handleExportThisFolder,
   } = useExportFolder({
+    workspaceId,
     folderId: folder.id,
   })
 
-  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection()
+  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection({
+    workspaceId,
+  })
 
   const isExporting = isExportingThisFolder || isExportingSelection
 
@@ -157,9 +167,17 @@ export function FolderItem({ folder }: FolderItemProps) {
   const handleCreateFolderInFolder = useCallback(async () => {
     if (effectiveLocked) return
     try {
+      /**
+       * The name has to be unique before it is sent: `folder` has a partial unique index on
+       * active (workspaceId, resourceType, parentId, name), so a hardcoded 'New folder'
+       * 409s on the second invocation — and the user never chose this name, so there is
+       * nothing for them to correct. Mirrors the root-level create in
+       * `use-folder-operations`, which already names through this helper.
+       */
+      const name = await generateSubfolderName(workspaceId, folder.id)
       const result = await createFolderMutation.mutateAsync({
         workspaceId,
-        name: 'New folder',
+        name,
         parentId: folder.id,
         id: generateId(),
       })
@@ -171,6 +189,7 @@ export function FolderItem({ folder }: FolderItemProps) {
       }
     } catch (error) {
       logger.error('Failed to create folder:', error)
+      toast.error(getErrorMessage(error, 'Failed to create folder'))
     }
   }, [createFolderMutation, workspaceId, folder.id, effectiveLocked, expandFolder])
 
@@ -567,6 +586,7 @@ export function FolderItem({ folder }: FolderItemProps) {
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
+        renameInputRef={inputRef}
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicate}
@@ -606,4 +626,4 @@ export function FolderItem({ folder }: FolderItemProps) {
       />
     </>
   )
-}
+})

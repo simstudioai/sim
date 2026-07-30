@@ -31,6 +31,13 @@ const logger = createLogger('DeploymentQueries')
 
 export type { ChatDetail, DeploymentVersionsResponse }
 
+export const DEPLOYMENT_INFO_STALE_TIME = 30 * 1000
+export const DEPLOYMENT_STATUS_REFETCH_INTERVAL = 5 * 1000
+export const DEPLOYED_WORKFLOW_STATE_STALE_TIME = 30 * 1000
+export const DEPLOYMENT_VERSIONS_STALE_TIME = 30 * 1000
+export const CHAT_DEPLOYMENT_STATUS_STALE_TIME = 30 * 1000
+export const CHAT_DETAIL_STALE_TIME = 30 * 1000
+
 /**
  * Query key factory for deployment-related queries
  */
@@ -96,6 +103,9 @@ async function fetchDeploymentInfo(
     apiKey: data.apiKey ?? null,
     needsRedeployment: data.needsRedeployment ?? false,
     isPublicApi: data.isPublicApi ?? false,
+    warnings: data.warnings,
+    activeDeployment: data.activeDeployment ?? null,
+    latestDeploymentAttempt: data.latestDeploymentAttempt ?? null,
   }
 }
 
@@ -103,16 +113,21 @@ async function fetchDeploymentInfo(
  * Hook to fetch deployment info for a workflow.
  * Provides isDeployed status, deployedAt timestamp, apiKey info, and needsRedeployment flag.
  */
-export function useDeploymentInfo(
-  workflowId: string | null,
-  options?: { enabled?: boolean; refetchOnMount?: boolean | 'always' }
-) {
+export function useDeploymentInfo(workflowId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.info(workflowId),
     queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
-    ...(options?.refetchOnMount !== undefined && { refetchOnMount: options.refetchOnMount }),
+    staleTime: DEPLOYMENT_INFO_STALE_TIME,
+    refetchInterval: (query) => {
+      const status = query.state.data?.latestDeploymentAttempt?.status
+      return status === 'preparing' || status === 'activating'
+        ? DEPLOYMENT_STATUS_REFETCH_INTERVAL
+        : false
+    },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 }
 
@@ -142,7 +157,7 @@ export function useDeployedWorkflowState(
     queryKey: deploymentKeys.deployedState(workflowId),
     queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: DEPLOYED_WORKFLOW_STATE_STALE_TIME,
   })
 }
 
@@ -164,14 +179,24 @@ async function fetchDeploymentVersions(
 
 /**
  * Hook to fetch deployment versions for a workflow.
- * Returns a list of all deployment versions with their metadata.
+ * Returns a list of all deployment versions with their metadata. Polls while
+ * any version has an in-flight deployment attempt so preparing/activating
+ * labels resolve to their terminal state without a manual refresh.
  */
 export function useDeploymentVersions(workflowId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.versions(workflowId),
     queryFn: ({ signal }) => fetchDeploymentVersions(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: DEPLOYMENT_VERSIONS_STALE_TIME,
+    refetchInterval: (query) => {
+      const hasInFlightVersion = query.state.data?.versions.some(
+        (version) =>
+          version.latestOperationStatus === 'preparing' ||
+          version.latestOperationStatus === 'activating'
+      )
+      return hasInFlightVersion ? DEPLOYMENT_STATUS_REFETCH_INTERVAL : false
+    },
   })
 }
 
@@ -204,7 +229,7 @@ export function useChatDeploymentStatus(
     queryKey: deploymentKeys.chatStatus(workflowId),
     queryFn: ({ signal }) => fetchChatDeploymentStatus(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: CHAT_DEPLOYMENT_STATUS_STALE_TIME,
   })
 }
 
@@ -227,7 +252,7 @@ export function useChatDetail(chatId: string | null, options?: { enabled?: boole
     queryKey: deploymentKeys.chatDetail(chatId),
     queryFn: ({ signal }) => fetchChatDetail(chatId!, signal),
     enabled: Boolean(chatId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: CHAT_DETAIL_STALE_TIME,
   })
 }
 
@@ -253,7 +278,7 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
       await queryClient.fetchQuery({
         queryKey: deploymentKeys.chatDetail(nextChatId),
         queryFn: ({ signal }) => fetchChatDetail(nextChatId, signal),
-        staleTime: 30 * 1000,
+        staleTime: CHAT_DETAIL_STALE_TIME,
       })
     }
   }, [queryClient, statusQuery.refetch])
@@ -298,6 +323,8 @@ export function useDeployWorkflow() {
         deployedAt: data.deployedAt ?? undefined,
         apiKey: data.apiKey ?? undefined,
         warnings: data.warnings,
+        activeDeployment: data.activeDeployment,
+        latestDeploymentAttempt: data.latestDeploymentAttempt,
       }
     },
     onSettled: (_data, error, variables) => {
@@ -533,40 +560,14 @@ export function useActivateDeploymentVersion() {
         body: { isActive: true },
       })
     },
-    onMutate: async ({ workflowId, version }) => {
-      await queryClient.cancelQueries({ queryKey: deploymentKeys.versions(workflowId) })
-
-      const previousVersions = queryClient.getQueryData<DeploymentVersionsResponse>(
-        deploymentKeys.versions(workflowId)
-      )
-
-      if (previousVersions) {
-        queryClient.setQueryData<DeploymentVersionsResponse>(deploymentKeys.versions(workflowId), {
-          versions: previousVersions.versions.map((v) => ({
-            ...v,
-            isActive: v.version === version,
-          })),
-        })
-      }
-
-      return { previousVersions }
-    },
-    onError: (_, variables, context) => {
-      logger.error('Failed to activate deployment version')
-
-      if (context?.previousVersions) {
-        queryClient.setQueryData(
-          deploymentKeys.versions(variables.workflowId),
-          context.previousVersions
-        )
-      }
-    },
     onSettled: (_data, error, variables) => {
       if (!error) {
         logger.info('Deployment version activated', {
           workflowId: variables.workflowId,
           version: variables.version,
         })
+      } else {
+        logger.error('Failed to activate deployment version', { error })
       }
       return invalidateDeploymentQueries(queryClient, variables.workflowId)
     },

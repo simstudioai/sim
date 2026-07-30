@@ -340,3 +340,493 @@ export type OutlookExtendedResponse =
   | OutlookMarkReadResponse
   | OutlookDeleteResponse
   | OutlookCopyResponse
+  | OutlookCalendarResponse
+
+/**
+ * Output definition for mail folder objects.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/mailfolder
+ */
+export const OUTLOOK_FOLDER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique folder identifier' },
+  displayName: { type: 'string', description: 'Display name of the folder', optional: true },
+  parentFolderId: {
+    type: 'string',
+    description: 'Identifier of the parent folder',
+    optional: true,
+  },
+  childFolderCount: {
+    type: 'number',
+    description: 'Number of immediate child folders',
+    optional: true,
+  },
+  unreadItemCount: {
+    type: 'number',
+    description: 'Number of unread items in the folder',
+    optional: true,
+  },
+  totalItemCount: {
+    type: 'number',
+    description: 'Total number of items in the folder',
+    optional: true,
+  },
+  isHidden: { type: 'boolean', description: 'Whether the folder is hidden', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for attachment metadata returned by list/get attachment tools.
+ */
+export const OUTLOOK_ATTACHMENT_METADATA_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique attachment identifier' },
+  name: { type: 'string', description: 'Attachment filename', optional: true },
+  contentType: { type: 'string', description: 'MIME type of the attachment', optional: true },
+  size: { type: 'number', description: 'Attachment size in bytes', optional: true },
+  isInline: {
+    type: 'boolean',
+    description: 'Whether the attachment is rendered inline in the message body',
+    optional: true,
+  },
+  attachmentType: {
+    type: 'string',
+    description: 'Microsoft Graph attachment type (e.g. #microsoft.graph.fileAttachment)',
+    optional: true,
+  },
+  lastModifiedDateTime: {
+    type: 'string',
+    description: 'When the attachment was last modified (ISO 8601)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Cleaned mail folder returned by our tools. */
+export interface CleanedOutlookFolder {
+  id: string
+  displayName?: string | null
+  parentFolderId?: string | null
+  childFolderCount?: number | null
+  unreadItemCount?: number | null
+  totalItemCount?: number | null
+  isHidden?: boolean | null
+}
+
+/** Cleaned attachment metadata returned by our tools. */
+export interface CleanedOutlookAttachmentMetadata {
+  id: string
+  name?: string | null
+  contentType?: string | null
+  size?: number | null
+  isInline?: boolean | null
+  attachmentType?: string | null
+  lastModifiedDateTime?: string | null
+}
+
+export interface OutlookReplyParams {
+  accessToken: string
+  messageId: string
+  comment?: string
+}
+
+export interface OutlookReplyResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      status: string
+      timestamp: string
+      httpStatus?: number
+      requestId?: string
+    }
+  }
+}
+
+export interface OutlookListFoldersParams {
+  accessToken: string
+  maxResults?: number
+  includeHiddenFolders?: boolean
+}
+
+export interface OutlookListFoldersResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookFolder[]
+  }
+}
+
+export interface OutlookCreateFolderParams {
+  accessToken: string
+  displayName: string
+  isHidden?: boolean
+}
+
+export interface OutlookCreateFolderResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookFolder
+  }
+}
+
+export interface OutlookListAttachmentsParams {
+  accessToken: string
+  messageId: string
+}
+
+export interface OutlookListAttachmentsResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookAttachmentMetadata[]
+  }
+}
+
+export interface OutlookGetAttachmentParams {
+  accessToken: string
+  messageId: string
+  attachmentId: string
+}
+
+export interface OutlookGetAttachmentResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookAttachmentMetadata
+    attachments: OutlookAttachment[]
+  }
+}
+
+export interface OutlookSearchParams {
+  accessToken: string
+  query: string
+  maxResults?: number
+}
+
+export interface OutlookSearchResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookMessage[]
+  }
+}
+
+export interface OutlookUpdateMessageParams {
+  accessToken: string
+  messageId: string
+  categories?: string[]
+  flagStatus?: 'notFlagged' | 'flagged' | 'complete'
+  importance?: 'low' | 'normal' | 'high'
+}
+
+export interface OutlookUpdateMessageResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      messageId: string
+      subject?: string | null
+      categories: string[]
+      flagStatus?: string | null
+      importance?: string | null
+      isRead?: boolean | null
+    }
+  }
+}
+
+/**
+ * Calendar output-property definitions for Microsoft Graph event responses.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/event
+ */
+
+/**
+ * Output definition for a Graph dateTimeTimeZone value.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/datetimetimezone
+ */
+export const OUTLOOK_EVENT_DATETIME_OUTPUT_PROPERTIES = {
+  dateTime: {
+    type: 'string',
+    description: 'Local date and time (ISO 8601, no offset)',
+    optional: true,
+  },
+  timeZone: { type: 'string', description: 'IANA or Windows time zone name', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a flattened event attendee.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/attendee
+ */
+export const OUTLOOK_EVENT_ATTENDEE_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Attendee display name', optional: true },
+  address: { type: 'string', description: 'Attendee email address', optional: true },
+  type: {
+    type: 'string',
+    description: 'Attendee type (required, optional, or resource)',
+    optional: true,
+  },
+  response: {
+    type: 'string',
+    description: 'Attendee response status (none, accepted, declined, tentativelyAccepted, ...)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output definition for the flattened online-meeting info. */
+export const OUTLOOK_EVENT_ONLINE_MEETING_OUTPUT_PROPERTIES = {
+  joinUrl: { type: 'string', description: 'URL to join the online meeting', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output definition for a cleaned calendar event returned by our tools. */
+export const OUTLOOK_EVENT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique event identifier' },
+  subject: { type: 'string', description: 'Event subject/title', optional: true },
+  bodyPreview: { type: 'string', description: 'Preview of the event body', optional: true },
+  start: {
+    type: 'object',
+    description: 'Event start',
+    optional: true,
+    properties: OUTLOOK_EVENT_DATETIME_OUTPUT_PROPERTIES,
+  },
+  end: {
+    type: 'object',
+    description: 'Event end',
+    optional: true,
+    properties: OUTLOOK_EVENT_DATETIME_OUTPUT_PROPERTIES,
+  },
+  isAllDay: {
+    type: 'boolean',
+    description: 'Whether the event lasts the entire day',
+    optional: true,
+  },
+  location: { type: 'string', description: 'Event location display name', optional: true },
+  organizer: {
+    type: 'object',
+    description: 'Event organizer',
+    optional: true,
+    properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+  },
+  attendees: {
+    type: 'array',
+    description: 'Event attendees',
+    items: {
+      type: 'object',
+      properties: OUTLOOK_EVENT_ATTENDEE_OUTPUT_PROPERTIES,
+    },
+  },
+  onlineMeeting: {
+    type: 'object',
+    description: 'Online-meeting join details, if any',
+    optional: true,
+    properties: OUTLOOK_EVENT_ONLINE_MEETING_OUTPUT_PROPERTIES,
+  },
+  webLink: {
+    type: 'string',
+    description: 'URL that opens the event in Outlook on the web',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Cleaned dateTimeTimeZone value returned by our tools. */
+export interface CleanedOutlookEventDateTime {
+  dateTime?: string
+  timeZone?: string
+}
+
+/** Cleaned event attendee returned by our tools. */
+export interface CleanedOutlookEventAttendee {
+  name?: string
+  address?: string
+  type?: string
+  response?: string
+}
+
+/** Cleaned calendar event returned by our tools. */
+export interface CleanedOutlookEvent {
+  id: string
+  subject?: string
+  bodyPreview?: string
+  start?: CleanedOutlookEventDateTime
+  end?: CleanedOutlookEventDateTime
+  isAllDay?: boolean
+  location?: string
+  organizer?: {
+    name?: string
+    address?: string
+  }
+  attendees: CleanedOutlookEventAttendee[]
+  onlineMeeting?: {
+    joinUrl?: string
+  } | null
+  webLink?: string
+}
+
+/** Raw Microsoft Graph dateTimeTimeZone value. */
+export interface GraphDateTimeTimeZone {
+  dateTime: string
+  timeZone?: string
+}
+
+/** Raw Microsoft Graph emailAddress value. */
+export interface GraphEmailAddress {
+  name?: string
+  address?: string
+}
+
+/** Raw Microsoft Graph attendee value. */
+export interface GraphAttendee {
+  type?: string
+  status?: {
+    response?: string
+    time?: string
+  }
+  emailAddress?: GraphEmailAddress
+}
+
+/** Raw Microsoft Graph event resource (subset of fields we consume). */
+export interface GraphEvent {
+  id: string
+  subject?: string
+  bodyPreview?: string
+  body?: {
+    contentType?: string
+    content?: string
+  }
+  start?: GraphDateTimeTimeZone
+  end?: GraphDateTimeTimeZone
+  isAllDay?: boolean
+  isOnlineMeeting?: boolean
+  onlineMeeting?: {
+    joinUrl?: string
+  } | null
+  webLink?: string
+  location?: {
+    displayName?: string
+  }
+  organizer?: {
+    emailAddress?: GraphEmailAddress
+  }
+  attendees?: GraphAttendee[]
+  '@odata.etag'?: string
+}
+
+/** Raw Microsoft Graph list response for events / calendarView. */
+export interface GraphEventsResponse {
+  '@odata.context'?: string
+  '@odata.nextLink'?: string
+  value: GraphEvent[]
+}
+
+export interface OutlookCalendarListEventsParams {
+  accessToken: string
+  /** Calendar to read. Omit for the mailbox's default calendar. */
+  calendarId?: string
+  /** Required unless `pageToken` is supplied, which already encodes the window. */
+  startDateTime?: string
+  /** Required unless `pageToken` is supplied, which already encodes the window. */
+  endDateTime?: string
+  maxResults?: number
+  orderBy?: string
+  /** Full `@odata.nextLink` URL from a previous page. */
+  pageToken?: string
+}
+
+export interface OutlookCalendarListEventsResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent[]
+    nextLink?: string
+  }
+}
+
+export interface OutlookCalendarGetEventParams {
+  accessToken: string
+  eventId: string
+}
+
+export interface OutlookCalendarGetEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent
+  }
+}
+
+export interface OutlookCalendarCreateEventParams {
+  accessToken: string
+  /** Calendar to create the event in. Omit for the mailbox's default calendar. */
+  calendarId?: string
+  subject: string
+  startDateTime: string
+  endDateTime: string
+  timeZone?: string
+  body?: string
+  contentType?: 'text' | 'html'
+  location?: string
+  attendees?: string | string[]
+  isAllDay?: boolean
+  isOnlineMeeting?: boolean
+}
+
+export interface OutlookCalendarCreateEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent
+  }
+}
+
+export interface OutlookCalendarUpdateEventParams {
+  accessToken: string
+  eventId: string
+  subject?: string
+  startDateTime?: string
+  endDateTime?: string
+  timeZone?: string
+  body?: string
+  contentType?: 'text' | 'html'
+  location?: string
+  attendees?: string | string[]
+  isAllDay?: boolean
+  isOnlineMeeting?: boolean
+}
+
+export interface OutlookCalendarUpdateEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookEvent
+  }
+}
+
+export interface OutlookCalendarDeleteEventParams {
+  accessToken: string
+  eventId: string
+}
+
+export interface OutlookCalendarDeleteEventResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      eventId: string
+      status: string
+    }
+  }
+}
+
+export type OutlookCalendarResponseType = 'accept' | 'tentativelyAccept' | 'decline'
+
+export interface OutlookCalendarRespondParams {
+  accessToken: string
+  eventId: string
+  responseType: OutlookCalendarResponseType
+  comment?: string
+  sendResponse?: boolean
+}
+
+export interface OutlookCalendarRespondResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      eventId: string
+      responseType: OutlookCalendarResponseType
+      status: string
+      httpStatus?: number
+      requestId?: string
+    }
+  }
+}
+
+export type OutlookCalendarResponse =
+  | OutlookCalendarListEventsResponse
+  | OutlookCalendarGetEventResponse
+  | OutlookCalendarCreateEventResponse
+  | OutlookCalendarUpdateEventResponse
+  | OutlookCalendarDeleteEventResponse
+  | OutlookCalendarRespondResponse

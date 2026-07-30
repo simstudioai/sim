@@ -25,16 +25,15 @@ interface ErrorShellProps {
   title: string
   description: string
   icon?: ReactNode
-  digest?: string
   children: ReactNode
 }
 
 /**
  * Centered layout shared by the workspace error boundary and not-found page.
- * Renders a framed glyph, serif headline, supporting paragraph, optional
- * digest pill, and a row of action buttons.
+ * Renders a framed glyph, serif headline, supporting paragraph, and a row of
+ * action buttons.
  */
-export function ErrorShell({ title, description, icon, digest, children }: ErrorShellProps) {
+export function ErrorShell({ title, description, icon, children }: ErrorShellProps) {
   return (
     <div className='flex h-full flex-1 items-center justify-center bg-[var(--bg)] px-6 py-12'>
       <div className='flex w-full max-w-[420px] flex-col items-center gap-5 text-center'>
@@ -51,12 +50,6 @@ export function ErrorShell({ title, description, icon, digest, children }: Error
             {description}
           </p>
         </div>
-        {digest && (
-          <span className='inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-1 font-mono text-[11px]'>
-            <span className='text-[var(--text-muted)]'>digest</span>
-            <span className='truncate text-[var(--text-body)]'>{digest}</span>
-          </span>
-        )}
         <div className='flex flex-wrap items-center justify-center gap-2 pt-1'>{children}</div>
       </div>
     </div>
@@ -85,7 +78,7 @@ export function ErrorState({
   }, [error.message, error.digest, loggerName])
 
   return (
-    <ErrorShell title={title} description={description} icon={icon} digest={error.digest}>
+    <ErrorShell title={title} description={description} icon={icon}>
       {children}
       <Button variant='primary' size='md' onClick={reset}>
         Refresh

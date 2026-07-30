@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -9,12 +9,32 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+
+export type CreateWorkspaceTarget =
+  | { type: 'personal' }
+  | { type: 'organization'; organizationName: string }
+
+export function getCreateWorkspaceCopy(target: CreateWorkspaceTarget) {
+  if (target.type === 'organization') {
+    return {
+      title: `Create workspace in ${target.organizationName}`,
+      description: `This workspace will belong to ${target.organizationName} and use its workspace policy.`,
+    }
+  }
+
+  return {
+    title: 'Create personal workspace',
+    description: 'This workspace will belong to your personal account.',
+  }
+}
 
 interface CreateWorkspaceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (name: string) => Promise<void>
   isCreating: boolean
+  target: CreateWorkspaceTarget
 }
 
 /**
@@ -25,44 +45,54 @@ export function CreateWorkspaceModal({
   onOpenChange,
   onConfirm,
   isCreating,
+  target,
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
     if (open) {
       setName('')
+      setError(null)
     }
-  }, [open])
+  }
 
   const handleSubmit = async () => {
     const trimmed = name.trim()
     if (!trimmed || isCreating) return
-    await onConfirm(trimmed)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      void handleSubmit()
+    try {
+      await onConfirm(trimmed)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to create workspace'))
     }
   }
 
+  const handleNameChange = (value: string) => {
+    setName(value)
+    setError(null)
+  }
+
+  const copy = getCreateWorkspaceCopy(target)
+
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create workspace'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Create workspace</ChipModalHeader>
-      <ChipModalBody onKeyDown={handleKeyDown}>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={copy.title}>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{copy.title}</ChipModalHeader>
+      <ChipModalBody>
+        <p className='px-2 text-[var(--text-muted)] text-sm'>{copy.description}</p>
         <ChipModalField
           type='input'
           title='Name'
           value={name}
-          onChange={setName}
+          onChange={handleNameChange}
           placeholder='Workspace name'
           maxLength={100}
           autoComplete='off'
           disabled={isCreating}
           required
         />
-        <ChipModalError>{undefined}</ChipModalError>
+        <ChipModalError>{error ?? undefined}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}

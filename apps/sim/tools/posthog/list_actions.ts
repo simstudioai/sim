@@ -1,11 +1,14 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListActionsParams {
   apiKey: string
   projectId: string
   region: string
+  host?: string
   limit?: number
   offset?: number
+  search?: string
 }
 
 interface PostHogListActionsResponse {
@@ -37,6 +40,7 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
   description:
     'List all actions in a PostHog project. Returns action definitions, steps, and metadata.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -58,6 +62,13 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -70,16 +81,23 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
       visibility: 'user-or-llm',
       description: 'Number of results to skip for pagination (e.g., 0, 100, 200)',
     },
+    search: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Search term to filter actions by name',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       let url = `${baseUrl}/api/projects/${params.projectId}/actions/`
 
       const queryParams = []
       if (params.limit) queryParams.push(`limit=${params.limit}`)
       if (params.offset) queryParams.push(`offset=${params.offset}`)
+      if (params.search) queryParams.push(`search=${encodeURIComponent(params.search)}`)
 
       if (queryParams.length > 0) {
         url += `?${queryParams.join('&')}`

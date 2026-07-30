@@ -5,6 +5,7 @@ export const BLOCK_OPERATIONS = {
   UPDATE_PARENT: 'update-parent',
   UPDATE_ADVANCED_MODE: 'update-advanced-mode',
   UPDATE_CANONICAL_MODE: 'update-canonical-mode',
+  REPLACE_CANONICAL_MODES: 'replace-canonical-modes',
   TOGGLE_HANDLES: 'toggle-handles',
 } as const
 

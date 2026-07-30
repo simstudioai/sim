@@ -12,8 +12,8 @@ import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
+  getOrgMemberUsageForCurrentPeriod,
   getOrgMemberUsageLimit,
-  getOrgMemberWorkspaceUsage,
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
 import { isHosted } from '@/lib/core/config/env-flags'
@@ -24,9 +24,10 @@ const logger = createLogger('OrgMemberUsageLimitAPI')
 /**
  * GET /api/organizations/[id]/members/[memberId]/usage-limit
  *
- * Returns the member's current-period credits used inside the org's workspaces
- * and their per-member credit cap (both in credits). Owner/admin only and
- * hosted-only (the feature is meaningless where Sim does not own the DB/billing).
+ * Returns the member's current-period credits used against this organization
+ * and their per-member credit cap (both in credits), read through the same
+ * usage definition the cap enforcement uses. Owner/admin only and hosted-only
+ * (the feature is meaningless where Sim does not own the DB/billing).
  * `memberId` is the target user id, so external members are supported.
  */
 export const GET = withRouteHandler(
@@ -50,11 +51,11 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    const [usage, limitDollars, orgSubscription] = await Promise.all([
-      getOrgMemberWorkspaceUsage(organizationId, memberId),
+    const [limitDollars, orgSubscription] = await Promise.all([
       getOrgMemberUsageLimit(organizationId, memberId),
       getOrganizationSubscription(organizationId),
     ])
+    const usage = await getOrgMemberUsageForCurrentPeriod(organizationId, memberId, orgSubscription)
 
     return NextResponse.json({
       success: true,

@@ -13,6 +13,12 @@ export interface AlgoliaSearchParams extends AlgoliaBaseParams {
   page?: number | string
   filters?: string
   attributesToRetrieve?: string
+  facets?: string
+  getRankingInfo?: boolean | string
+  aroundLatLng?: string
+  aroundRadius?: number | string
+  insideBoundingBox?: string | number[][]
+  insidePolygon?: string | number[][]
 }
 
 export interface AlgoliaSearchResponse extends ToolResponse {
@@ -116,6 +122,10 @@ export interface AlgoliaBrowseRecordsParams extends AlgoliaBaseParams {
   attributesToRetrieve?: string
   hitsPerPage?: number | string
   cursor?: string
+  aroundLatLng?: string
+  aroundRadius?: number | string
+  insideBoundingBox?: string | number[][]
+  insidePolygon?: string | number[][]
 }
 
 export interface AlgoliaBrowseRecordsResponse extends ToolResponse {
@@ -264,5 +274,17 @@ export interface AlgoliaDeleteByFilterResponse extends ToolResponse {
   output: {
     taskID: number
     updatedAt: string | null
+  }
+}
+
+// Get Task Status
+export interface AlgoliaGetTaskStatusParams extends AlgoliaBaseParams {
+  indexName: string
+  taskID: number | string
+}
+
+export interface AlgoliaGetTaskStatusResponse extends ToolResponse {
+  output: {
+    status: string
   }
 }

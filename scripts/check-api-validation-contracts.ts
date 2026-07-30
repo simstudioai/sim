@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 887,
-  zodRoutes: 887,
+  totalRoutes: 1020,
+  zodRoutes: 1020,
   nonZodRoutes: 0,
 } as const
 
@@ -25,14 +25,19 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
   doubleCasts: 8,
-  rawJsonReads: 21,
+  rawJsonReads: 6,
   untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
-  'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
+  // Input-less session-bound GET: nothing to validate; response is
+  // contract-typed via `satisfies InvitationDetails` in the route.
+  // Public updater feed: input-less GET, session-less, returns YAML (not JSON),
+  // so it can't be JSON-contract-bound. Wrapped in withRouteHandler.
+  'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
+  'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
@@ -46,7 +51,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/auth/oauth/connections/route.ts',
   'apps/sim/app/api/auth/providers/route.ts',
   'apps/sim/app/api/auth/socket-token/route.ts',
-  'apps/sim/app/api/credential-sets/invitations/route.ts',
+  'apps/sim/app/api/desktop/auth/handoff/route.ts',
   'apps/sim/app/api/workspaces/invitations/route.ts',
   // Internal cron entry point that authenticates via `Authorization: Bearer
   // CRON_SECRET` and ignores query/body. The boundary contract is "no
@@ -65,11 +70,17 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
+  'apps/sim/app/api/cron/reconcile-inbox-entitlement/route.ts',
   'apps/sim/app/api/cron/run-data-drains/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
   'apps/sim/app/api/webhooks/outbox/process/route.ts',
   'apps/sim/app/api/webhooks/cleanup/idempotency/route.ts',
+  // Shared Slack app event ingest. The body is an opaque, HMAC-verified Slack
+  // event envelope (varies per event type) read via parseWebhookBody; there is
+  // no client contract to bind — authenticity is enforced by signature.
+  'apps/sim/app/api/webhooks/slack/route.ts',
+  'apps/sim/app/api/webhooks/slack/custom/[credentialId]/route.ts',
   'apps/sim/app/api/resume/poll/route.ts',
   // MCP routes that take only auth context (no client-supplied params/query/body).
   'apps/sim/app/api/mcp/discover/route.ts',
@@ -101,7 +112,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
  */
 const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/billing/portal/route.ts',
-  'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/copilot/api-keys/generate/route.ts',
   'apps/sim/app/api/copilot/api-keys/validate/route.ts',
   'apps/sim/app/api/copilot/chat/abort/route.ts',

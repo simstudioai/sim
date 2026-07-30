@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
@@ -71,14 +71,31 @@ export function PromptEditor({
   onArrowUpOnEmpty,
 }: PromptEditorProps) {
   const { textareaRef, value } = editor
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  /**
+   * Latched on first focus and never cleared: it only starts the resource
+   * lists early so an `@`-mention has candidates by the time Enter is pressed.
+   * Un-warming on blur would just re-open the race on the next focus.
+   */
+  const [hasFocused, setHasFocused] = useState(false)
 
+  /**
+   * Autosize: grow the textarea to its full content height; the scroller caps
+   * the visible height and scrolls textarea + overlay together natively. The
+   * scroller's box is locked while the textarea collapses to `auto` for
+   * measurement — the scrollHeight read forces a layout at the collapsed
+   * height, and without the lock that transient layout grows the chat scroll
+   * container, letting the browser clamp a bottom-pinned transcript upward by
+   * the input's grown height on every multi-line edit.
+   */
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    // Grow the textarea to its full content height; the scroller caps the
-    // visible height and scrolls textarea + overlay together natively.
+    const scroller = scrollerRef.current
+    if (scroller) scroller.style.height = `${scroller.offsetHeight}px`
     textarea.style.height = 'auto'
     textarea.style.height = `${textarea.scrollHeight}px`
+    if (scroller) scroller.style.height = ''
   }, [value, textareaRef])
 
   useEffect(() => {
@@ -122,6 +139,11 @@ export function PromptEditor({
       return <span>{displayText}</span>
     }
 
+    const contextByLabel = new Map<string, (typeof contexts)[number]>()
+    for (const c of contexts) {
+      if (!contextByLabel.has(c.label)) contextByLabel.set(c.label, c)
+    }
+
     const elements: React.ReactNode[] = []
     let lastIndex = 0
     for (let i = 0; i < ranges.length; i++) {
@@ -133,7 +155,7 @@ export function PromptEditor({
       }
 
       const mentionLabel = stripMentionTrigger(range.token)
-      const matchingCtx = contexts.find((c) => c.label === mentionLabel)
+      const matchingCtx = contextByLabel.get(mentionLabel)
 
       const mentionIconNode = matchingCtx ? (
         <ContextMentionIcon
@@ -166,7 +188,11 @@ export function PromptEditor({
   }, [value, editor.contexts])
 
   return (
-    <div className={cn(SCROLLER_CLASSES, 'cursor-text', className)} onClick={handleSurfaceClick}>
+    <div
+      ref={scrollerRef}
+      className={cn(SCROLLER_CLASSES, 'cursor-text', className)}
+      onClick={handleSurfaceClick}
+    >
       {/* Sizer for textarea + overlay: the textarea grows to full content
           height and the overlay fills it via `inset-0`, so both are flow
           children of the same scroller and co-scroll natively. */}
@@ -183,6 +209,7 @@ export function PromptEditor({
           onKeyDown={
             readOnly ? undefined : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })
           }
+          onFocus={readOnly ? undefined : () => setHasFocused(true)}
           onPaste={readOnly ? undefined : editor.handlePaste}
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
@@ -199,7 +226,8 @@ export function PromptEditor({
         <>
           <PlusMenuDropdown
             ref={editor.plusMenuRef}
-            availableResources={editor.availableResources}
+            workspaceId={editor.workspaceId}
+            warm={hasFocused}
             onResourceSelect={editor.insertResource}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
@@ -209,7 +237,9 @@ export function PromptEditor({
           <SkillsMenuDropdown
             ref={editor.skillsMenuRef}
             skills={editor.skills}
+            mcpServers={editor.mcpServers}
             onSkillSelect={editor.handleSkillSelect}
+            onMcpSelect={editor.handleMcpSelect}
             onClose={editor.handleSkillsMenuClose}
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}

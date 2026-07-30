@@ -8,7 +8,8 @@ import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -143,31 +144,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = accessResults.find((r) => r !== null)
     if (denied) return denied
 
-    const buffers = await Promise.all(
-      userFiles.map(async (file, i) => {
-        try {
+    let resolved: Array<{ buffer: Buffer; contentType: string }>
+    try {
+      resolved = await Promise.all(
+        userFiles.map(async (file, i) => {
           logger.info(`[${requestId}] Downloading file ${i}: ${file.name}`)
-          return await downloadFileFromStorage(file, requestId, logger)
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
-          throw new Error(
-            `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
-          )
-        }
-      })
-    )
+          return await downloadServableFileFromStorage(file, requestId, logger)
+        })
+      )
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download an attachment:`, error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Failed to download attachment: ${getErrorMessage(error, 'Unknown error')}`,
+        },
+        { status: 500 }
+      )
+    }
 
     for (let i = 0; i < userFiles.length; i++) {
       const userFile = userFiles[i]
-      const buffer = buffers[i]
+      const buffer = resolved[i].buffer
+      const mimeType = resolved[i].contentType || userFile.type || 'application/octet-stream'
       logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
       filesOutput.push({
         name: userFile.name,
-        mimeType: userFile.type || 'application/octet-stream',
+        mimeType,
         data: buffer.toString('base64'),
         size: buffer.length,
       })
-      const blob = new Blob([new Uint8Array(buffer)], { type: userFile.type })
+      const blob = new Blob([new Uint8Array(buffer)], { type: mimeType })
       formData.append(`files[${i}]`, blob, userFile.name)
     }
 

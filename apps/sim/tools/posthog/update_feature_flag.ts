@@ -1,9 +1,12 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface UpdateFeatureFlagParams {
   projectId: string
   flagId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   name?: string
   key?: string
@@ -37,6 +40,7 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
     name: 'PostHog Update Feature Flag',
     description: 'Update an existing feature flag in PostHog',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -56,6 +60,13 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
         required: true,
         visibility: 'user-only',
         description: 'PostHog cloud region: us or eu',
+      },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
       },
       apiKey: {
         type: 'string',
@@ -103,8 +114,8 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
-        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}`
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}/`
       },
       method: 'PATCH',
       headers: (params) => ({
@@ -125,8 +136,8 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
         if (params.filters) {
           try {
             body.filters = JSON.parse(params.filters)
-          } catch {
-            body.filters = {}
+          } catch (error) {
+            throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
           }
         }
 

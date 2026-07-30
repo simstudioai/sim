@@ -85,12 +85,13 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
 
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
       const pageId = optionalTrim(params.pageId)
+      const encodedSiteId = encodeURIComponent(siteId)
 
       let baseUrl: string
       if (pageId) {
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageId}/microsoft.graph.sitePage`
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${encodeURIComponent(pageId)}/microsoft.graph.sitePage`
       } else {
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/microsoft.graph.sitePage`
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/microsoft.graph.sitePage`
       }
 
       const url = new URL(baseUrl)
@@ -156,7 +157,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       const pageData = data
       const contentData = {
         content: extractTextFromCanvasLayout(data.canvasLayout),
-        canvasLayout: data.canvasLayout as any,
+        canvasLayout: data.canvasLayout ?? null,
       }
 
       return {
@@ -180,7 +181,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     if (!data.value || data.value.length === 0) {
       logger.info('No pages found', {
         searchName: params?.pageName,
-        siteId: params?.siteId || params?.siteSelector || 'root',
+        siteId: optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root',
         totalResults: data.value?.length || 0,
       })
       const message = params?.pageName
@@ -199,14 +200,14 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
 
     logger.info('Found pages', {
       searchName: params?.pageName,
-      foundPages: data.value.map((p: any) => ({ id: p.id, name: p.name, title: p.title })),
+      foundPages: data.value.map((p) => ({ id: p.id, name: p.name, title: p.title })),
       totalCount: data.value.length,
     })
 
     if (params?.pageName) {
       const pageData = data.value[0]
-      const siteId = params?.siteId || params?.siteSelector || 'root'
-      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageData.id}/microsoft.graph.sitePage?$expand=canvasLayout`
+      const siteId = optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root'
+      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages/${encodeURIComponent(pageData.id)}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       logger.info('Making API call to get page content for searched page', {
         pageId: pageData.id,
@@ -253,7 +254,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       }
     }
 
-    const siteId = params?.siteId || params?.siteSelector || 'root'
+    const siteId = optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root'
     const pagesWithContent = []
     const nextPageUrl = getGraphNextPageUrl(data)
 
@@ -262,8 +263,9 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       siteId,
     })
 
+    const encodedSiteId = encodeURIComponent(siteId)
     for (const pageInfo of data.value) {
-      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageInfo.id}/microsoft.graph.sitePage?$expand=canvasLayout`
+      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${encodeURIComponent(pageInfo.id)}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       try {
         const contentResponse = await fetch(contentUrl, {

@@ -32,7 +32,7 @@ import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-enve
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflows, removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import {
   getWorkflowListQueryOptions,
@@ -49,6 +49,9 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('WorkflowQueries')
 
 export { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+
+export const WORKFLOW_STATE_STALE_TIME = 30 * 1000
+export const WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME = 5 * 60 * 1000
 
 /**
  * Projects the in-state slice of the workflow envelope into the canvas-facing
@@ -78,7 +81,7 @@ export function useWorkflowState(workflowId: string | undefined) {
     queryKey: workflowKeys.state(workflowId),
     queryFn: workflowId ? ({ signal }) => fetchWorkflowEnvelope(workflowId, signal) : skipToken,
     select: mapWorkflowState,
-    staleTime: 30 * 1000,
+    staleTime: WORKFLOW_STATE_STALE_TIME,
   })
 }
 
@@ -98,7 +101,12 @@ export function useWorkflowStates(
       queryKey: workflowKeys.state(id),
       queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowEnvelope(id, signal),
       select: mapWorkflowState,
-      staleTime: 30 * 1000,
+      staleTime: WORKFLOW_STATE_STALE_TIME,
+      // Read-only preview consumer that fans out one full workflow envelope
+      // per id. Left off the desktop focus-refetch default so returning to a
+      // table with many workflow columns doesn't fire N heavy envelope
+      // fetches at once. No-op on the web (default is already false).
+      refetchOnWindowFocus: false as const,
     })),
   })
   const map = new Map<string, WorkflowState | null>()
@@ -108,12 +116,16 @@ export function useWorkflowStates(
   return map
 }
 
-export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQueryScope }) {
+export function useWorkflows(
+  workspaceId?: string,
+  options?: { scope?: WorkflowQueryScope; enabled?: boolean }
+) {
   const { scope = 'active' } = options || {}
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
+    enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: WORKFLOW_LIST_STALE_TIME,
   })
@@ -172,7 +184,7 @@ export function useCreateWorkflow() {
         body: {
           id,
           name: name || generateCreativeWorkflowName(),
-          description: description || 'New workflow',
+          description,
           workspaceId,
           folderId: folderId || null,
           sortOrder,
@@ -223,7 +235,7 @@ export function useCreateWorkflow() {
         name: variables.name || generateCreativeWorkflowName(),
         lastModified: new Date(),
         createdAt: new Date(),
-        description: variables.description || 'New workflow',
+        description: variables.description ?? '',
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,
@@ -531,13 +543,10 @@ export function useDeleteWorkflowMutation() {
         queryKey: workflowKeys.list(variables.workspaceId, 'active'),
       })
 
-      const snapshot = queryClient.getQueryData<WorkflowMetadata[]>(
-        workflowKeys.list(variables.workspaceId, 'active')
-      )
-
-      queryClient.setQueryData<WorkflowMetadata[]>(
-        workflowKeys.list(variables.workspaceId, 'active'),
-        (old) => (old ?? []).filter((w) => w.id !== variables.workflowId)
+      const snapshot = removeWorkflowFromActiveCache(
+        queryClient,
+        variables.workspaceId,
+        variables.workflowId
       )
 
       return { snapshot }
@@ -563,7 +572,7 @@ export function useDeploymentVersionState(workflowId: string | null, version: nu
       workflowId && version !== null
         ? ({ signal }) => fetchDeploymentVersionState(workflowId, version, signal)
         : skipToken,
-    staleTime: 5 * 60 * 1000,
+    staleTime: WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME,
   })
 }
 

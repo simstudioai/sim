@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import {
   CALENDAR_API_BASE,
+  type GoogleCalendarApiEventResponse,
   type GoogleCalendarQuickAddParams,
   type GoogleCalendarQuickAddResponse,
 } from '@/tools/google_calendar/types'
@@ -77,9 +78,9 @@ export const quickAddTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params) => {
-    const data = await response.json()
+    const data: GoogleCalendarApiEventResponse = await response.json()
 
-    let finalEventData = data
+    let finalEventData: GoogleCalendarApiEventResponse = data
     if (params?.attendees) {
       let attendeeList: string[] = []
       const attendees = params.attendees as string | string[]
@@ -181,16 +182,16 @@ interface GoogleCalendarQuickAddV2Response {
   success: boolean
   output: {
     id: string
-    htmlLink?: string
-    status?: string
-    summary?: string
-    description?: string
-    location?: string
-    start?: any
-    end?: any
-    attendees?: any
-    creator?: any
-    organizer?: any
+    htmlLink: string
+    status: string
+    summary: string | null
+    description: string | null
+    location: string | null
+    start: GoogleCalendarApiEventResponse['start']
+    end: GoogleCalendarApiEventResponse['end']
+    attendees: GoogleCalendarApiEventResponse['attendees'] | null
+    creator: GoogleCalendarApiEventResponse['creator']
+    organizer: GoogleCalendarApiEventResponse['organizer']
   }
 }
 
@@ -206,9 +207,9 @@ export const quickAddV2Tool: ToolConfig<
   params: quickAddTool.params,
   request: quickAddTool.request,
   transformResponse: async (response: Response, params) => {
-    const data = await response.json()
+    const data: GoogleCalendarApiEventResponse = await response.json()
 
-    let finalEventData = data
+    let finalEventData: GoogleCalendarApiEventResponse = data
     if (params?.attendees) {
       let attendeeList: string[] = []
       const attendees = params.attendees as string | string[]

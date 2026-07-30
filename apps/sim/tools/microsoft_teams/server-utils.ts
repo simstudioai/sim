@@ -6,7 +6,7 @@
 import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import type { GraphApiErrorResponse, GraphDriveItem } from '@/tools/microsoft_teams/types'
@@ -80,10 +80,19 @@ export async function uploadFilesForTeamsMessage(params: {
     }
 
     // Download file from storage
-    const buffer = await downloadFileFromStorage(file, requestId, log)
+    const { buffer, contentType } = await downloadServableFileFromStorage(file, requestId, log)
+
+    if (buffer.length > MAX_TEAMS_FILE_SIZE) {
+      const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+      throw new Error(
+        `File "${file.name}" (${sizeMB}MB) exceeds the 4MB limit for Teams attachments. Use smaller files or upload to SharePoint/OneDrive first.`
+      )
+    }
+
+    const resolvedMimeType = contentType || file.type || 'application/octet-stream'
     filesOutput.push({
       name: file.name,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType: resolvedMimeType,
       data: buffer.toString('base64'),
       size: buffer.length,
     })
@@ -102,7 +111,7 @@ export async function uploadFilesForTeamsMessage(params: {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': file.type || 'application/octet-stream',
+          'Content-Type': resolvedMimeType,
         },
         body: buffer,
       },

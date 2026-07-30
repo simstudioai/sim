@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { taskContext } from '@trigger.dev/core/v3'
-import { runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
+import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
+  AsyncJobEnqueueError,
   type EnqueueOptions,
   JOB_STATUS,
   type Job,
@@ -14,6 +16,22 @@ import {
 
 const logger = createLogger('TriggerDevJobQueue')
 
+function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
+  if (error instanceof ApiError && error.status && error.status >= 400 && error.status < 500) {
+    return new AsyncJobEnqueueError(toError(error).message, {
+      acceptance: 'rejected',
+      retryable: error.status === 408 || error.status === 409 || error.status === 429,
+      cause: error,
+    })
+  }
+
+  return new AsyncJobEnqueueError(toError(error).message, {
+    acceptance: 'unknown',
+    retryable: true,
+    cause: error,
+  })
+}
+
 /**
  * Maps trigger.dev task IDs to our JobType
  */
@@ -21,6 +39,7 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'workflow-execution': 'workflow-execution',
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
+  'tiktok-webhook-ingress': 'tiktok-webhook-ingress',
   'resume-execution': 'resume-execution',
   'workflow-group-cell': 'workflow-group-cell',
   'cleanup-logs': 'cleanup-logs',
@@ -85,8 +104,22 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     if (options?.delayMs && options.delayMs > 0) {
       triggerOptions.delay = new Date(Date.now() + options.delayMs)
     }
-    triggerOptions.region = await resolveTriggerRegion()
-    const handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
+    try {
+      triggerOptions.region = await resolveTriggerRegion()
+    } catch (error) {
+      throw new AsyncJobEnqueueError(toError(error).message, {
+        acceptance: 'rejected',
+        retryable: true,
+        cause: error,
+      })
+    }
+
+    let handle: Awaited<ReturnType<typeof tasks.trigger>>
+    try {
+      handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
+    } catch (error) {
+      throw classifyTriggerEnqueueError(error)
+    }
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
     return handle.id

@@ -18,6 +18,8 @@ import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsQuery')
 
+export const PROVIDER_MODELS_STALE_TIME = 5 * 60 * 1000
+
 export const providerKeys = {
   all: ['provider-models'] as const,
   lists: () => [...providerKeys.all, 'list'] as const,
@@ -90,6 +92,6 @@ export function useProviderModels(provider: ProviderName, workspaceId?: string) 
   return useQuery({
     queryKey: providerKeys.list(provider, workspaceId),
     queryFn: ({ signal }) => fetchProviderModels(provider, signal, workspaceId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: PROVIDER_MODELS_STALE_TIME,
   })
 }

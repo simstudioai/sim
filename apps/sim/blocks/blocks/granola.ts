@@ -177,7 +177,8 @@ export const GranolaBlock: BlockConfig = {
     invitees: { type: 'json', description: 'Calendar event invitee emails' },
     transcript: {
       type: 'json',
-      description: 'Meeting transcript entries (speaker, speakerLabel, text, startTime, endTime)',
+      description:
+        'Meeting transcript entries (speaker, speakerLabel, speakerName, text, startTime, endTime)',
     },
   },
 }

@@ -1,6 +1,7 @@
 import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -139,7 +140,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               } catch (rowError) {
                 logger.warn('Skipping unserializable execution data for export row', {
                   executionId: r.executionId,
-                  error: rowError instanceof Error ? rowError.message : String(rowError),
+                  error: getErrorMessage(rowError),
                 })
               }
               const line = [

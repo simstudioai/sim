@@ -1,10 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, drizzleOrmMock } from '@sim/testing'
+import { dbChainMockFns, drizzleOrmMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('drizzle-orm', () => {
   const sqlTag = () => {

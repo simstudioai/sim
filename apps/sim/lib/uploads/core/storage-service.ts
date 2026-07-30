@@ -3,8 +3,14 @@ import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
-import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import {
+  getStorageConfig,
+  USE_BLOB_STORAGE,
+  USE_GCS_STORAGE,
+  USE_S3_STORAGE,
+} from '@/lib/uploads/config'
 import type { AzureMultipartPart, BlobConfig } from '@/lib/uploads/providers/blob/types'
+import type { GcsConfig, GcsMultipartPart } from '@/lib/uploads/providers/gcs/types'
 import type { S3Config, S3MultipartPart } from '@/lib/uploads/providers/s3/types'
 import type {
   DeleteFileOptions,
@@ -29,13 +35,13 @@ const logger = createLogger('StorageService')
  * @throws Error if required properties are missing
  */
 function createBlobConfig(config: StorageConfig): BlobConfig {
-  if (!config.containerName || !config.accountName) {
-    throw new Error('Blob configuration missing required properties: containerName and accountName')
+  if (!config.containerName) {
+    throw new Error('Blob configuration missing required property: containerName')
   }
 
-  if (!config.connectionString && !config.accountKey) {
+  if (!config.connectionString && !(config.accountName && config.accountKey)) {
     throw new Error(
-      'Blob configuration missing authentication: either connectionString or accountKey must be provided'
+      'Blob configuration missing authentication: either connectionString or both accountName and accountKey must be provided'
     )
   }
 
@@ -59,6 +65,20 @@ function createS3Config(config: StorageConfig): S3Config {
   return {
     bucket: config.bucket,
     region: config.region,
+  }
+}
+
+/**
+ * Create a GCS config from StorageConfig
+ * @throws Error if required properties are missing
+ */
+function createGcsConfig(config: StorageConfig): GcsConfig {
+  if (!config.bucket) {
+    throw new Error('GCS configuration missing required property: bucket')
+  }
+
+  return {
+    bucket: config.bucket,
   }
 }
 
@@ -90,7 +110,16 @@ async function insertFileMetadataHelper(
  * Upload a file to the configured storage provider with context-aware configuration
  */
 export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> {
-  const { file, fileName, contentType, context, preserveKey, customKey, metadata } = options
+  const {
+    file,
+    fileName,
+    contentType,
+    context,
+    preserveKey,
+    customKey,
+    metadata,
+    persistMetadata = true,
+  } = options
 
   logger.info(`Uploading file to ${context} storage: ${fileName}`)
 
@@ -110,7 +139,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       metadata
     )
 
-    if (metadata) {
+    if (metadata && persistMetadata) {
       await insertFileMetadataHelper(
         uploadResult.key,
         metadata,
@@ -136,7 +165,33 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       metadata
     )
 
-    if (metadata) {
+    if (metadata && persistMetadata) {
+      await insertFileMetadataHelper(
+        uploadResult.key,
+        metadata,
+        context,
+        fileName,
+        contentType,
+        file.length
+      )
+    }
+
+    return uploadResult
+  }
+
+  if (USE_GCS_STORAGE) {
+    const { uploadToGcs } = await import('@/lib/uploads/providers/gcs/client')
+    const uploadResult = await uploadToGcs(
+      file,
+      keyToUse,
+      contentType,
+      createGcsConfig(config),
+      file.length,
+      preserveKey,
+      metadata
+    )
+
+    if (metadata && persistMetadata) {
       await insertFileMetadataHelper(
         uploadResult.key,
         metadata,
@@ -162,7 +217,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   await writeFile(filesystemPath, file)
 
-  if (metadata) {
+  if (metadata && persistMetadata) {
     await insertFileMetadataHelper(
       storageKey,
       metadata,
@@ -253,6 +308,36 @@ async function createBlobBackend(
   }
 }
 
+async function createGcsBackend(
+  key: string,
+  config: GcsConfig,
+  contentType: string,
+  purpose: string
+): Promise<MultipartBackend> {
+  const {
+    initiateGcsMultipartUpload,
+    uploadGcsPart,
+    completeGcsMultipartUpload,
+    abortGcsMultipartUpload,
+  } = await import('@/lib/uploads/providers/gcs/client')
+  const { uploadId } = await initiateGcsMultipartUpload({
+    fileName: key,
+    contentType,
+    fileSize: 0,
+    customConfig: config,
+    customKey: key,
+    purpose,
+  })
+  const parts: GcsMultipartPart[] = []
+  return {
+    async uploadPart(partNumber, body) {
+      parts.push(await uploadGcsPart(key, uploadId, partNumber, body, config))
+    },
+    finish: () => completeGcsMultipartUpload(key, uploadId, parts, config).then(() => undefined),
+    abort: () => abortGcsMultipartUpload(key, uploadId, config),
+  }
+}
+
 /**
  * Open a streaming multipart upload to the configured provider. On the local
  * filesystem provider (and for any payload smaller than one part) the bytes are
@@ -283,9 +368,13 @@ export async function createMultipartUpload(options: {
 
   const ensureBackend = async (): Promise<MultipartBackend> => {
     if (!backend) {
-      backend = USE_BLOB_STORAGE
-        ? await createBlobBackend(key, createBlobConfig(config), contentType)
-        : await createS3Backend(key, createS3Config(config), contentType, context)
+      if (USE_BLOB_STORAGE) {
+        backend = await createBlobBackend(key, createBlobConfig(config), contentType)
+      } else if (USE_GCS_STORAGE) {
+        backend = await createGcsBackend(key, createGcsConfig(config), contentType, context)
+      } else {
+        backend = await createS3Backend(key, createS3Config(config), contentType, context)
+      }
     }
     return backend
   }
@@ -384,6 +473,14 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
         ? downloadFromS3(key, s3Config)
         : downloadFromS3(key, s3Config, maxBytes)
     }
+
+    if (USE_GCS_STORAGE) {
+      const { downloadFromGcs } = await import('@/lib/uploads/providers/gcs/client')
+      const gcsConfig = createGcsConfig(config)
+      return maxBytes === undefined
+        ? downloadFromGcs(key, gcsConfig)
+        : downloadFromGcs(key, gcsConfig, maxBytes)
+    }
   }
 
   const { readFile, stat } = await import('fs/promises')
@@ -423,6 +520,11 @@ export async function downloadFileStream(options: {
     return downloadFromS3Stream(key, createS3Config(config))
   }
 
+  if (USE_GCS_STORAGE) {
+    const { downloadFromGcsStream } = await import('@/lib/uploads/providers/gcs/client')
+    return downloadFromGcsStream(key, createGcsConfig(config))
+  }
+
   const { createReadStream } = await import('fs')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
@@ -446,6 +548,11 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     if (USE_S3_STORAGE) {
       const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
       return deleteFromS3(key, createS3Config(config))
+    }
+
+    if (USE_GCS_STORAGE) {
+      const { deleteFromGcs } = await import('@/lib/uploads/providers/gcs/client')
+      return deleteFromGcs(key, createGcsConfig(config))
     }
   }
 
@@ -522,6 +629,11 @@ export async function headObject(
     return headS3Object(key, createS3Config(config))
   }
 
+  if (USE_GCS_STORAGE) {
+    const { headGcsObject } = await import('@/lib/uploads/providers/gcs/client')
+    return headGcsObject(key, createGcsConfig(config))
+  }
+
   return null
 }
 
@@ -577,7 +689,38 @@ export async function generatePresignedUploadUrl(
     return generateBlobPresignedUrl(key, contentType, allMetadata, config, expirationSeconds)
   }
 
+  if (USE_GCS_STORAGE) {
+    return generateGcsPresignedUrl(key, contentType, allMetadata, config, expirationSeconds)
+  }
+
   throw new Error('Cloud storage not configured. Cannot generate presigned URL for local storage.')
+}
+
+/**
+ * Generate presigned URL for GCS
+ */
+async function generateGcsPresignedUrl(
+  key: string,
+  contentType: string,
+  metadata: Record<string, string>,
+  config: StorageConfig,
+  expirationSeconds: number
+): Promise<PresignedUrlResponse> {
+  const { getGcsPresignedUploadUrl } = await import('@/lib/uploads/providers/gcs/client')
+
+  const { url, signedHeaders } = await getGcsPresignedUploadUrl(
+    key,
+    contentType,
+    metadata,
+    createGcsConfig(config),
+    expirationSeconds
+  )
+
+  return {
+    url,
+    key,
+    uploadHeaders: signedHeaders,
+  }
 }
 
 /**
@@ -635,7 +778,9 @@ async function generateBlobPresignedUrl(
   },
   expirationSeconds: number
 ): Promise<PresignedUrlResponse> {
-  const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
+  const { getBlobServiceClient, parseConnectionString } = await import(
+    '@/lib/uploads/providers/blob/client'
+  )
   const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
     await import('@azure/storage-blob')
 
@@ -650,26 +795,29 @@ async function generateBlobPresignedUrl(
   const startsOn = new Date()
   const expiresOn = new Date(startsOn.getTime() + expirationSeconds * 1000)
 
-  let sasToken: string
-
-  if (config.accountName && config.accountKey) {
-    const sharedKeyCredential = new StorageSharedKeyCredential(
-      config.accountName,
-      config.accountKey
-    )
-    sasToken = generateBlobSASQueryParameters(
-      {
-        containerName: config.containerName,
-        blobName: key,
-        permissions: BlobSASPermissions.parse('w'), // write permission for upload
-        startsOn,
-        expiresOn,
-      },
-      sharedKeyCredential
-    ).toString()
-  } else {
-    throw new Error('Azure Blob SAS generation requires accountName and accountKey')
+  let accountName = config.accountName
+  let accountKey = config.accountKey
+  if ((!accountName || !accountKey) && config.connectionString) {
+    ;({ accountName, accountKey } = parseConnectionString(config.connectionString))
   }
+
+  if (!accountName || !accountKey) {
+    throw new Error(
+      'Azure Blob SAS generation requires accountName/accountKey or a connectionString'
+    )
+  }
+
+  const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey)
+  const sasToken = generateBlobSASQueryParameters(
+    {
+      containerName: config.containerName,
+      blobName: key,
+      permissions: BlobSASPermissions.parse('w'), // write permission for upload
+      startsOn,
+      expiresOn,
+    },
+    sharedKeyCredential
+  ).toString()
 
   return {
     url: `${blobClient.url}?${sasToken}`,
@@ -738,6 +886,11 @@ export async function generatePresignedDownloadUrl(
     return getPresignedUrlWithConfig(key, createBlobConfig(config), expirationSeconds)
   }
 
+  if (USE_GCS_STORAGE) {
+    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/gcs/client')
+    return getPresignedUrlWithConfig(key, createGcsConfig(config), expirationSeconds)
+  }
+
   const { getBaseUrl } = await import('@/lib/core/utils/urls')
   const baseUrl = getBaseUrl()
   return `${baseUrl}/api/files/serve/${encodeURIComponent(key)}`
@@ -747,7 +900,7 @@ export async function generatePresignedDownloadUrl(
  * Check if cloud storage is available
  */
 export function hasCloudStorage(): boolean {
-  return USE_BLOB_STORAGE || USE_S3_STORAGE
+  return USE_BLOB_STORAGE || USE_S3_STORAGE || USE_GCS_STORAGE
 }
 
 /**

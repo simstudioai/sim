@@ -7,21 +7,10 @@ import {
   auditMock,
   authMockFns,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockSyncAllWebhooksForCredentialSet } = vi.hoisted(() => ({
-  mockSyncAllWebhooksForCredentialSet: vi.fn().mockResolvedValue({}),
-}))
-
-vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@/lib/webhooks/utils.server', () => ({
-  syncAllWebhooksForCredentialSet: mockSyncAllWebhooksForCredentialSet,
-}))
 
 vi.mock('@sim/audit', () => auditMock)
 

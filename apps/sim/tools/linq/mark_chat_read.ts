@@ -5,7 +5,8 @@ import type { ToolConfig } from '@/tools/types'
 export const linqMarkChatReadTool: ToolConfig<LinqChatActionParams, LinqSuccessResult> = {
   id: 'linq_mark_chat_read',
   name: 'Mark Chat as Read',
-  description: 'Mark all messages in a chat as read',
+  description:
+    'Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)',
   version: '1.0.0',
 
   params: {

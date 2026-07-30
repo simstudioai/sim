@@ -27,7 +27,8 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   },
 
   request: {
-    url: (params: DiscordGetUserParams) => `https://discord.com/api/v10/users/${params.userId}`,
+    url: (params: DiscordGetUserParams) =>
+      `https://discord.com/api/v10/users/${params.userId.trim()}`,
     method: 'GET',
     headers: (params: DiscordGetUserParams) => {
       const headers: Record<string, string> = {
@@ -35,7 +36,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
       }
 
       if (params.botToken) {
-        headers.Authorization = `Bot ${params.botToken}`
+        headers.Authorization = `Bot ${params.botToken.trim()}`
       }
 
       return headers

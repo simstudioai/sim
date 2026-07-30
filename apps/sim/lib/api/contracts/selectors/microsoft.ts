@@ -77,6 +77,14 @@ export const outlookFoldersSelectorContract = defineGetSelector(
   z.object({ folders: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()) })
 )
 
+export const outlookCalendarsQuerySchema = credentialIdQuerySchema
+
+export const outlookCalendarsSelectorContract = defineGetSelector(
+  '/api/tools/outlook/calendars',
+  outlookCalendarsQuerySchema,
+  z.object({ calendars: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()) })
+)
+
 export const microsoftTeamsSelectorContract = definePostSelector(
   '/api/tools/microsoft-teams/teams',
   credentialWorkflowBodySchema,

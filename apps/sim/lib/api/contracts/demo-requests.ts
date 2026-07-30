@@ -1,10 +1,8 @@
-import freeEmailDomains from 'free-email-domains'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { isFreeEmailDomain } from '@/lib/messaging/email/free-email'
 import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-
-const FREE_EMAIL_DOMAINS = new Set(freeEmailDomains)
 
 export const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
   '1_10',
@@ -46,10 +44,7 @@ export const demoRequestSchema = z.object({
     .max(320)
     .transform((value) => value.toLowerCase())
     .refine((value) => quickValidateEmail(value).isValid, 'Enter a valid work email')
-    .refine((value) => {
-      const domain = value.split('@')[1]
-      return domain ? !FREE_EMAIL_DOMAINS.has(domain) : true
-    }, 'Please use your work email address'),
+    .refine((value) => !isFreeEmailDomain(value), 'Please use your work email address'),
   phoneNumber: z
     .string()
     .trim()
@@ -73,6 +68,8 @@ export const demoRequestResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
 })
+
+export type DemoRequestResult = z.output<typeof demoRequestResponseSchema>
 
 export const submitDemoRequestContract = defineRouteContract({
   method: 'POST',

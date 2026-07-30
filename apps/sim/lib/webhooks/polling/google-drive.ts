@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -86,12 +87,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const accessToken = await resolveOAuthCredential(
-        webhookData,
-        'google-drive',
-        requestId,
-        logger
-      )
+      const accessToken = await resolveOAuthCredential(webhookData, 'google-drive', requestId)
 
       const config = getProviderConfig<GoogleDriveWebhookConfig>(webhookData.providerConfig)
 
@@ -335,7 +331,8 @@ function filterChanges(
 
     if (file.trashed) return false
 
-    const folderId = config.folderId || config.manualFolderId
+    // Canonical key `folderId` first; `manualFolderId` is a transitional basic-first fallback.
+    const folderId = readCanonicalTriggerValue(config.folderId, config.manualFolderId)
     if (folderId) {
       if (!file.parents || !file.parents.includes(folderId)) {
         return false

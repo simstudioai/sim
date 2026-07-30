@@ -1,14 +1,14 @@
-import { db, member, ssoProvider } from '@sim/db'
+import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { normalizeSSODomain } from '@sim/utils/sso-domain'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
-import { normalizeSSODomain } from '@/lib/auth/sso/domain'
 import { hasSSOAccess } from '@/lib/billing'
-import { env } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -19,9 +19,56 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSORegisterRoute')
 
+type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
+
+/**
+ * Prefers client_secret_post over client_secret_basic when an IdP supports both:
+ * better-auth sends client_secret_basic credentials without URL-encoding per
+ * RFC 6749 §2.3.1, so a '+' in the client secret is decoded as a space, causing
+ * invalid_client errors. Matches the same default in register-sso-provider.ts.
+ */
+function selectTokenEndpointAuthMethod(
+  supportedMethods: unknown,
+  existing?: TokenEndpointAuthMethod
+): TokenEndpointAuthMethod {
+  if (existing) return existing
+  if (!Array.isArray(supportedMethods) || supportedMethods.length === 0) {
+    return 'client_secret_post'
+  }
+  if (supportedMethods.includes('client_secret_post')) return 'client_secret_post'
+  if (supportedMethods.includes('client_secret_basic')) return 'client_secret_basic'
+  return 'client_secret_post'
+}
+
+type DiscoveryResult =
+  | { ok: true; discovery: Record<string, unknown> }
+  | { ok: false; error: string }
+
+const OIDC_DISCOVERY_TIMEOUT_MS = 10000
+
+async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<DiscoveryResult> {
+  const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
+  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+    return { ok: false, error: urlValidation.error ?? 'SSRF validation failed' }
+  }
+
+  try {
+    const response = await secureFetchWithPinnedIP(discoveryUrl, urlValidation.resolvedIP, {
+      headers: { Accept: 'application/json' },
+      timeout: OIDC_DISCOVERY_TIMEOUT_MS,
+    })
+    if (!response.ok) {
+      return { ok: false, error: `Discovery request failed with status ${response.status}` }
+    }
+    return { ok: true, discovery: (await response.json()) as Record<string, unknown> }
+  } catch (error) {
+    return { ok: false, error: getErrorMessage(error, 'Unknown error') }
+  }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    if (!env.SSO_ENABLED) {
+    if (!isSsoEnabled) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
     }
 
@@ -70,8 +117,47 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const domain = normalizeSSODomain(body.domain)
     if (!domain) {
-      return NextResponse.json({ error: 'Enter a valid domain like company.com' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Enter a valid domain, for example acme.com' },
+        { status: 400 }
+      )
     }
+
+    // Security gate: configuring org SSO for a domain requires the org to have
+    // proven ownership of it (DNS TXT verification). Without this, the old
+    // first-come claim let any org wire another company's domain to their own
+    // IdP — an account-takeover primitive. Existing domains were grandfathered
+    // as verified by migration 0266, so live tenants are unaffected. Personal
+    // (org-less) SSO is not gated.
+    const isOrgDomainVerified = async (): Promise<boolean> => {
+      if (!orgId) return true
+      const [verified] = await db
+        .select({ id: ssoDomain.id })
+        .from(ssoDomain)
+        .where(
+          and(
+            eq(ssoDomain.organizationId, orgId),
+            eq(ssoDomain.domain, domain),
+            eq(ssoDomain.status, 'verified')
+          )
+        )
+        .limit(1)
+      return Boolean(verified)
+    }
+
+    const domainNotVerifiedResponse = () =>
+      NextResponse.json(
+        {
+          error: `Verify ownership of ${domain} under Verified domains above before configuring SSO for it.`,
+          code: 'SSO_DOMAIN_NOT_VERIFIED',
+        },
+        { status: 403 }
+      )
+
+    // Fail fast before the expensive OIDC discovery. Re-checked immediately
+    // before the provider write below to close the TOCTOU window (the verified
+    // row could be removed while discovery is in flight).
+    if (!(await isOrgDomainVerified())) return domainNotVerifiedResponse()
 
     const isOwnedByCaller = (provider: {
       userId: string | null
@@ -119,7 +205,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       providerId,
       issuer,
       domain,
-      mapping,
       ...(orgId ? { organizationId: orgId } : {}),
     }
 
@@ -132,6 +217,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         authorizationEndpoint,
         tokenEndpoint,
         userInfoEndpoint,
+        skipUserInfoEndpoint,
         jwksEndpoint,
       } = body
 
@@ -139,7 +225,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (rawClientSecret === REDACTED_MARKER) {
         const ownerClause = orgId
           ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
-          : and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.userId, session.user.id))
+          : and(
+              eq(ssoProvider.providerId, providerId),
+              eq(ssoProvider.userId, session.user.id),
+              isNull(ssoProvider.organizationId)
+            )
         const [existing] = await db
           .select({ oidcConfig: ssoProvider.oidcConfig })
           .from(ssoProvider)
@@ -180,8 +270,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const userProvidedEndpoints: Record<string, string | undefined> = {
         authorizationEndpoint,
         tokenEndpoint,
-        userInfoEndpoint,
         jwksEndpoint,
+        ...(skipUserInfoEndpoint ? {} : { userInfoEndpoint }),
       }
 
       for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
@@ -206,104 +296,74 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const needsDiscovery =
         !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 
+      const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
+      const discoveryResult = await fetchOIDCDiscoveryDocument(discoveryUrl)
+
       if (needsDiscovery) {
-        const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
-        try {
-          logger.info('Fetching OIDC discovery document for missing endpoints', {
-            discoveryUrl,
-            hasAuthEndpoint: !!oidcConfig.authorizationEndpoint,
-            hasTokenEndpoint: !!oidcConfig.tokenEndpoint,
-            hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
-          })
+        logger.info('Fetching OIDC discovery document for missing endpoints', {
+          discoveryUrl,
+          hasAuthEndpoint: !!oidcConfig.authorizationEndpoint,
+          hasTokenEndpoint: !!oidcConfig.tokenEndpoint,
+          hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
+        })
 
-          const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
-          if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-            logger.warn('OIDC discovery URL failed SSRF validation', {
-              discoveryUrl,
-              error: urlValidation.error,
-            })
-            return NextResponse.json(
-              { error: urlValidation.error ?? 'SSRF validation failed' },
-              { status: 400 }
-            )
-          }
-
-          const discoveryResponse = await secureFetchWithPinnedIP(
-            discoveryUrl,
-            urlValidation.resolvedIP,
-            {
-              headers: { Accept: 'application/json' },
-            }
-          )
-
-          if (!discoveryResponse.ok) {
-            logger.error('Failed to fetch OIDC discovery document', {
-              status: discoveryResponse.status,
-            })
-            return NextResponse.json(
-              {
-                error:
-                  'Failed to fetch OIDC discovery document. Provide all endpoints explicitly or verify the issuer URL.',
-              },
-              { status: 400 }
-            )
-          }
-
-          const discovery = (await discoveryResponse.json()) as Record<string, unknown>
-
-          const discoveredEndpoints: Record<string, unknown> = {
-            authorization_endpoint: discovery.authorization_endpoint,
-            token_endpoint: discovery.token_endpoint,
-            userinfo_endpoint: discovery.userinfo_endpoint,
-            jwks_uri: discovery.jwks_uri,
-          }
-
-          for (const [key, value] of Object.entries(discoveredEndpoints)) {
-            if (typeof value === 'string') {
-              const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
-              if (!endpointValidation.isValid) {
-                logger.warn('OIDC discovered endpoint failed SSRF validation', {
-                  endpoint: key,
-                  url: value,
-                  error: endpointValidation.error,
-                })
-                return NextResponse.json(
-                  {
-                    error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}`,
-                  },
-                  { status: 400 }
-                )
-              }
-            }
-          }
-
-          oidcConfig.authorizationEndpoint =
-            oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
-          oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
-          oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
-          oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
-
-          logger.info('Merged OIDC endpoints (user-provided + discovery)', {
-            providerId,
-            issuer,
-            authorizationEndpoint: oidcConfig.authorizationEndpoint,
-            tokenEndpoint: oidcConfig.tokenEndpoint,
-            userInfoEndpoint: oidcConfig.userInfoEndpoint,
-            jwksEndpoint: oidcConfig.jwksEndpoint,
-          })
-        } catch (error) {
-          logger.error('Error fetching OIDC discovery document', {
-            error: getErrorMessage(error, 'Unknown error'),
-            discoveryUrl,
-          })
+        if (!discoveryResult.ok) {
+          logger.error('Failed to fetch OIDC discovery document', { discoveryResult })
           return NextResponse.json(
             {
-              error:
-                'Failed to fetch OIDC discovery document. Please verify the issuer URL is correct or provide all endpoints explicitly.',
+              error: `Failed to fetch OIDC discovery document: ${discoveryResult.error}. Provide all endpoints explicitly or verify the issuer URL.`,
             },
             { status: 400 }
           )
         }
+
+        const { discovery } = discoveryResult
+
+        const discoveredEndpoints: Record<string, unknown> = {
+          authorization_endpoint: discovery.authorization_endpoint,
+          token_endpoint: discovery.token_endpoint,
+          jwks_uri: discovery.jwks_uri,
+          ...(skipUserInfoEndpoint ? {} : { userinfo_endpoint: discovery.userinfo_endpoint }),
+        }
+
+        for (const [key, value] of Object.entries(discoveredEndpoints)) {
+          if (typeof value === 'string') {
+            const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+            if (!endpointValidation.isValid) {
+              logger.warn('OIDC discovered endpoint failed SSRF validation', {
+                endpoint: key,
+                url: value,
+                error: endpointValidation.error,
+              })
+              return NextResponse.json(
+                {
+                  error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}`,
+                },
+                { status: 400 }
+              )
+            }
+          }
+        }
+
+        oidcConfig.authorizationEndpoint =
+          oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
+        oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
+        oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
+        oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
+        oidcConfig.tokenEndpointAuthentication = selectTokenEndpointAuthMethod(
+          discovery.token_endpoint_auth_methods_supported,
+          oidcConfig.tokenEndpointAuthentication
+        )
+
+        logger.info('Merged OIDC endpoints (user-provided + discovery)', {
+          providerId,
+          issuer,
+          authorizationEndpoint: oidcConfig.authorizationEndpoint,
+          tokenEndpoint: oidcConfig.tokenEndpoint,
+          userInfoEndpoint: oidcConfig.userInfoEndpoint,
+          jwksEndpoint: oidcConfig.jwksEndpoint,
+          tokenEndpointAuthentication: oidcConfig.tokenEndpointAuthentication,
+        })
       } else {
         logger.info('Using explicitly provided OIDC endpoints (all present)', {
           providerId,
@@ -312,6 +372,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           tokenEndpoint: oidcConfig.tokenEndpoint,
           userInfoEndpoint: oidcConfig.userInfoEndpoint,
           jwksEndpoint: oidcConfig.jwksEndpoint,
+        })
+
+        if (!discoveryResult.ok) {
+          logger.info('OIDC discovery unavailable; falling back to the default token auth method', {
+            providerId,
+            discoveryUrl,
+          })
+        }
+        oidcConfig.tokenEndpointAuthentication = selectTokenEndpointAuthMethod(
+          discoveryResult.ok
+            ? discoveryResult.discovery.token_endpoint_auth_methods_supported
+            : undefined,
+          oidcConfig.tokenEndpointAuthentication
+        )
+      }
+
+      if (skipUserInfoEndpoint) {
+        oidcConfig.userInfoEndpoint = undefined
+        logger.info('Skipping UserInfo endpoint for provider, claims will come from the ID token', {
+          providerId,
         })
       }
 
@@ -339,6 +419,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      oidcConfig.skipDiscovery = true
+      // Better Auth reads the attribute mapping from oidcConfig.mapping, not a
+      // top-level field — nesting it here is what makes a custom mapping apply.
+      if (mapping) oidcConfig.mapping = mapping
       providerConfig.oidcConfig = oidcConfig
     } else if (providerType === 'saml') {
       const {
@@ -420,6 +504,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
       if (identifierFormat) samlConfig.identifierFormat = identifierFormat
+      // Better Auth reads the attribute mapping from samlConfig.mapping.
+      if (mapping) samlConfig.mapping = mapping
 
       providerConfig.samlConfig = samlConfig
     }
@@ -460,10 +546,103 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return domainConflictResponse()
     }
 
+    // Authoritative verification re-check: the verified row could have been
+    // removed during OIDC discovery. Re-checking here (not just at handler
+    // entry) ensures ownership still holds at the moment of the write.
+    if (!(await isOrgDomainVerified())) {
+      logger.warn(
+        'Rejected SSO registration: domain verification was revoked during registration',
+        {
+          domain,
+          orgId,
+          userId: session.user.id,
+        }
+      )
+      return domainNotVerifiedResponse()
+    }
+
+    // Better Auth's registerSSOProvider is create-only (it throws on an existing
+    // providerId). If the caller already owns a provider with this id, route the
+    // edit through updateSSOProvider so re-saving an SSO config works instead of
+    // failing. The verification gate above already ran against the target domain,
+    // so an edit that moves SSO to an unverified domain is still blocked.
+    // The personal branch MUST require a null org: org providers store
+    // userId = their creator, so without it an org admin could send a
+    // personal-mode request (which skips the membership check and the
+    // verification gate) yet still match — and then update — their org's
+    // provider, moving it to an unverified domain. Mirrors isOwnedByCaller.
+    const ownerClause = orgId
+      ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
+      : and(
+          eq(ssoProvider.providerId, providerId),
+          eq(ssoProvider.userId, session.user.id),
+          isNull(ssoProvider.organizationId)
+        )
+    const [existingOwnedProvider] = await db
+      .select({ id: ssoProvider.id })
+      .from(ssoProvider)
+      .where(ownerClause)
+      .limit(1)
+
+    if (existingOwnedProvider) {
+      await auth.api.updateSSOProvider({
+        body: {
+          providerId,
+          issuer,
+          domain,
+          ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
+          ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),
+        },
+        headers,
+      })
+      logger.info('SSO provider updated successfully', { providerId, providerType, domain })
+      return NextResponse.json({
+        success: true,
+        providerId,
+        providerType,
+        message: `${providerType.toUpperCase()} provider updated successfully`,
+      })
+    }
+
     const registration = await auth.api.registerSSOProvider({
       body: providerConfig,
       headers,
     })
+
+    // Close the residual TOCTOU between the re-check above and Better Auth
+    // persisting the provider: the verified sso_domain row could be removed in
+    // that window. registerSSOProvider is create-only (it throws if the
+    // providerId already exists), so a successful call always created a brand-new
+    // row — we roll it back by its primary-key `id` (not the logical providerId,
+    // which a concurrent delete+recreate could point at a different row). Personal
+    // SSO is not gated, so this only runs for org-scoped registration.
+    if (orgId && !(await isOrgDomainVerified())) {
+      // registerSSOProvider spreads the created row's `id` at runtime, but the
+      // typed return omits it — read it defensively and only delete when it's a
+      // real id, so a future shape change can't turn the rollback into a silent
+      // no-op that leaves a provider on an unverified domain.
+      // double-cast-allowed: Better Auth's return type omits the runtime `id`
+      const createdRowId = (registration as unknown as { id?: unknown }).id
+      if (typeof createdRowId === 'string' && createdRowId.length > 0) {
+        await db
+          .delete(ssoProvider)
+          .where(and(eq(ssoProvider.id, createdRowId), eq(ssoProvider.organizationId, orgId)))
+        logger.warn('Rolled back SSO provider: domain verification revoked mid-registration', {
+          domain,
+          orgId,
+          providerId: registration.providerId,
+          userId: session.user.id,
+        })
+      } else {
+        logger.error('Could not roll back SSO provider: registration returned no usable id', {
+          domain,
+          orgId,
+          providerId: registration.providerId,
+          userId: session.user.id,
+        })
+      }
+      return domainNotVerifiedResponse()
+    }
 
     logger.info('SSO provider registered successfully', {
       providerId,
@@ -478,16 +657,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       message: `${providerType.toUpperCase()} provider registered successfully`,
     })
   } catch (error) {
-    logger.error('Failed to register SSO provider', {
+    logger.error('Failed to save SSO provider', {
       error,
       errorMessage: getErrorMessage(error, 'Unknown error'),
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: JSON.stringify(error),
     })
 
+    // Surface Better Auth's own APIError (e.g. a 409 when identity fields change
+    // while linked accounts exist, or a 404) with its status and message instead
+    // of a generic 500, so the client shows an actionable error.
+    const apiError = error as { statusCode?: unknown; body?: { message?: unknown } }
+    if (typeof apiError.statusCode === 'number' && typeof apiError.body?.message === 'string') {
+      return NextResponse.json({ error: apiError.body.message }, { status: apiError.statusCode })
+    }
+
     return NextResponse.json(
       {
-        error: 'Failed to register SSO provider',
+        error: 'Failed to save the SSO provider',
         details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }

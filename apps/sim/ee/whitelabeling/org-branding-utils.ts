@@ -1,4 +1,5 @@
 import type { BrandConfig, OrganizationWhitelabelSettings } from '@/lib/branding/types'
+import { getContrastTextColor } from '@/lib/colors'
 
 /**
  * Merge org-level whitelabel settings over the instance-level brand config.
@@ -37,24 +38,6 @@ export function mergeOrgBrandConfig(
           orgSettings.primaryColor
       ),
   }
-}
-
-function isDarkBackground(hex: string): boolean {
-  let clean = hex.replace('#', '')
-  if (clean.length === 3) {
-    clean = clean
-      .split('')
-      .map((c) => c + c)
-      .join('')
-  }
-  const r = Number.parseInt(clean.slice(0, 2), 16)
-  const g = Number.parseInt(clean.slice(2, 4), 16)
-  const b = Number.parseInt(clean.slice(4, 6), 16)
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5
-}
-
-function getContrastTextColor(hex: string): string {
-  return isDarkBackground(hex) ? '#ffffff' : '#000000'
 }
 
 /**

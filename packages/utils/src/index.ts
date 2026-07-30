@@ -12,6 +12,8 @@ export {
 } from './formatting.js'
 export { noop, sleep } from './helpers.js'
 export { generateId, generateShortId, isValidUuid } from './id.js'
+export type { EmbedInfo } from './media-embed.js'
+export { getEmbedInfo } from './media-embed.js'
 export {
   filterUndefined,
   isPlainRecord,
@@ -30,4 +32,10 @@ export {
 } from './random.js'
 export type { BackoffOptions } from './retry.js'
 export { backoffWithJitter, parseRetryAfter } from './retry.js'
-export { normalizeEmail, truncate } from './string.js'
+export { normalizeSSODomain } from './sso-domain.js'
+export {
+  normalizeEmail,
+  sanitizeForJsonb,
+  sanitizeValueForJsonb,
+  truncate,
+} from './string.js'

@@ -220,6 +220,7 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
   className,
   role,
   id,
+  offset = TOOLTIP_OFFSET,
 }: {
   /** Text shown when no `children` are provided (the overflow-tooltip case). */
   label?: string
@@ -231,6 +232,12 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
   role?: 'tooltip'
   /** Element id, used to wire `aria-describedby` on the trigger for general tooltips. */
   id?: string
+  /**
+   * Cursor-to-bubble gap in px. Defaults to the standard 16; pass a smaller
+   * value where the tooltip floats over miniaturized UI (e.g. a scaled product
+   * preview) so the gap stays proportionate.
+   */
+  offset?: number
 }) {
   if (typeof document === 'undefined' || !state.visible) return null
 
@@ -239,13 +246,14 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
       id={id}
       role={role}
       aria-hidden={role ? undefined : 'true'}
+      data-native-surface-overlay=''
       className={cn(
         'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-caption opacity-100 shadow-sm transition-[opacity,filter,transform] duration-150 ease-out',
         'motion-reduce:transition-none',
         className
       )}
       style={{
-        transform: `${getTooltipTranslate(state)} skew(${state.skew}deg) scale(${state.scaleX}, ${state.scaleY})`,
+        transform: `${getTooltipTranslate(state, offset)} skew(${state.skew}deg) scale(${state.scaleX}, ${state.scaleY})`,
         transformOrigin: state.alignX === 'left' ? '12px 12px' : 'calc(100% - 12px) 12px',
       }}
     >
@@ -274,11 +282,9 @@ function getTooltipPosition(
   }
 }
 
-function getTooltipTranslate(state: FloatingTooltipState): string {
-  const xOffset =
-    state.alignX === 'left' ? `${TOOLTIP_OFFSET}px` : `calc(-100% - ${TOOLTIP_OFFSET}px)`
-  const yOffset =
-    state.alignY === 'below' ? `${TOOLTIP_OFFSET}px` : `calc(-100% - ${TOOLTIP_OFFSET}px)`
+function getTooltipTranslate(state: FloatingTooltipState, offset: number): string {
+  const xOffset = state.alignX === 'left' ? `${offset}px` : `calc(-100% - ${offset}px)`
+  const yOffset = state.alignY === 'below' ? `${offset}px` : `calc(-100% - ${offset}px)`
 
   return `translate3d(${state.x}px, ${state.y}px, 0) translate(${xOffset}, ${yOffset})`
 }
@@ -392,6 +398,12 @@ Trigger.displayName = 'Tooltip.Trigger'
 
 interface ContentProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
+   * Cursor-to-bubble gap in px. Defaults to the standard 16; pass a smaller
+   * value where the tooltip floats over miniaturized UI (e.g. a scaled product
+   * preview) so the gap stays proportionate.
+   */
+  offset?: number
+  /**
    * Legacy positioning props from the previous Radix tooltip. Accepted for drop-in compatibility
    * but ignored — the tooltip now follows the cursor.
    */
@@ -419,10 +431,16 @@ interface ContentProps extends React.HTMLAttributes<HTMLDivElement> {
  * </Tooltip.Content>
  * ```
  */
-function Content({ className, children }: ContentProps) {
+function Content({ className, children, offset }: ContentProps) {
   const ctx = useTooltipContext('Content')
   return (
-    <FloatingTooltip state={ctx.state} role='tooltip' id={ctx.contentId} className={className}>
+    <FloatingTooltip
+      state={ctx.state}
+      role='tooltip'
+      id={ctx.contentId}
+      className={className}
+      offset={offset}
+    >
       {children}
     </FloatingTooltip>
   )

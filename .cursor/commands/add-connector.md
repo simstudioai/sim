@@ -10,6 +10,21 @@ When the user asks you to create a connector:
 3. Create the connector directory: a client-safe `meta.ts` (declarative metadata) plus the runtime module that spreads it
 4. Register it in BOTH the server registry and the client-safe meta registry
 
+## Hard Rule: No Guessed Response Or Document Schemas
+
+If the service docs do not clearly show the document list response, document fetch response, pagination shape, or metadata fields, you MUST tell the user instead of guessing.
+
+- Do NOT invent document fields
+- Do NOT guess pagination cursors or next-page fields
+- Do NOT infer metadata/tag mappings from unrelated endpoints
+- Do NOT fabricate `ExternalDocument` content structure from partial docs
+
+If the source schema is unknown, do one of these instead:
+1. Ask the user for sample API responses
+2. Ask the user for test credentials so you can verify live payloads
+3. Implement only the documented parts of the connector
+4. Leave the connector incomplete and explicitly say which fields remain unknown
+
 ## Directory Structure
 
 Each connector is split into a client-safe metadata file and a server-only runtime file. This mirrors the `XBlockMeta` / `BLOCK_META_REGISTRY` split in `apps/sim/blocks` — client components (the knowledge UI) only need the metadata (icon, name, auth, config fields), so the runtime functions (which pull server-only helpers like `input-validation.server` → `undici` → `node:net`) must stay out of the client bundle.
@@ -66,7 +81,7 @@ export const {service}ConnectorMeta: ConnectorMeta = {
 
   configFields: [
     // Rendered dynamically by the add-connector modal UI
-    // Supports 'short-input' and 'dropdown' types
+    // Supports 'short-input', 'dropdown', and 'selector' types — see ConfigField Types below
   ],
 
   // Optional: tag definitions are metadata too — declare them here
@@ -110,6 +125,8 @@ export const {service}Connector: ConnectorConfig = {
   },
 }
 ```
+
+Only map fields in `listDocuments`, `getDocument`, `validateConfig`, and `mapTags` when the source payload shape is documented or live-verified. If not, tell the user and stop rather than guessing.
 
 ### API key connector example
 
@@ -435,6 +452,16 @@ Each entry has:
 Users can opt out of specific tags in the modal. Disabled IDs are stored in `sourceConfig.disabledTagIds`.
 The assigned mapping (`semantic id → slot`) is stored in `sourceConfig.tagSlotMapping`.
 
+## `@/connectors/utils` Helpers
+
+Reuse these instead of inlining the same logic (the validator enforces them):
+
+- `htmlToPlainText(html)` — strip HTML to plain text before indexing `ExternalDocument.content`. Never index raw HTML.
+- `computeContentHash(content)` — stable content hash for change detection.
+- `parseTagDate(value)` — parse to a valid `Date` or `undefined` (guards Invalid Date). Use in `mapTags` for date fields.
+- `joinTagArray(value)` — validate an array and join to a comma-separated string, or `undefined`. Use in `mapTags` for array/label fields.
+- `parseMultiValue(value)` — normalize a value into a `string[]`.
+
 ## mapTags — Metadata to Semantic Keys
 
 Maps source metadata to semantic tag keys. Required if `tagDefinitions` is set.
@@ -443,13 +470,17 @@ using the `tagSlotMapping` stored on the connector.
 
 Return keys must match the `id` values declared in `tagDefinitions`.
 
+Use the `@/connectors/utils` helpers for the common transforms — don't hand-roll date/array validation:
+
 ```typescript
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
+
 mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
 
-  // Validate arrays before casting — metadata may be malformed
-  const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]) : []
-  if (labels.length > 0) result.labels = labels.join(', ')
+  // joinTagArray validates the array and joins to a comma-separated string (undefined if empty)
+  const labels = joinTagArray(metadata.labels)
+  if (labels) result.labels = labels
 
   // Validate numbers — guard against NaN
   if (metadata.version != null) {
@@ -457,11 +488,9 @@ mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     if (!Number.isNaN(num)) result.version = num
   }
 
-  // Validate dates — guard against Invalid Date
-  if (typeof metadata.lastModified === 'string') {
-    const date = new Date(metadata.lastModified)
-    if (!Number.isNaN(date.getTime())) result.lastModified = date
-  }
+  // parseTagDate returns a valid Date or undefined (guards against Invalid Date)
+  const lastModified = parseTagDate(metadata.lastModified)
+  if (lastModified) result.lastModified = lastModified
 
   return result
 }
@@ -489,6 +518,24 @@ const response = await fetchWithRetry(url, { ... }, VALIDATE_RETRY_OPTIONS)
 ## sourceUrl
 
 If `ExternalDocument.sourceUrl` is set, the sync engine stores it on the document record. Always construct the full URL (not a relative path).
+
+## Capped or Incomplete Listings — `syncContext.listingCapped` (REQUIRED)
+
+If `listDocuments` can ever return **less than the full source set** on a non-incremental sync — a `maxItems`/`maxDocuments`-style cap, or a transient per-item error that drops a still-existing document from the listing — it MUST set `syncContext.listingCapped = true` when that happens.
+
+The sync engine reconciles deletions by comparing the full listing against stored documents: anything not seen is **hard-deleted** (sync-engine.ts, gated on `!syncContext?.listingCapped`). A truncated listing without this flag deletes every real document beyond the cap. This was the single most common bug found when auditing connectors — do not omit it.
+
+```typescript
+if (hitLimit && syncContext) {
+  syncContext.listingCapped = true
+}
+```
+
+Rules:
+- Set it when a user-configured cap truncates the listing while more documents exist
+- Set it when a thrown error caused a still-present document to be skipped during listing
+- Do NOT set it when the source is genuinely exhausted (deleted documents must still reconcile)
+- Do NOT set it for intentional scope filters (e.g. a date cutoff) — out-of-scope documents should be reconciled normally
 
 ## Sync Engine Behavior (Do Not Modify)
 
@@ -558,6 +605,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   - `dependsOn` references selector field IDs (not `canonicalParamId`)
   - Dependency `canonicalParamId` values exist in `SELECTOR_CONTEXT_FIELDS`
 - [ ] `listDocuments` handles pagination with metadata-based content hashes
+- [ ] `syncContext.listingCapped = true` set whenever the listing is truncated (max-items cap or transient per-item error) — required to prevent the engine's deletion reconciliation from removing unseen documents
 - [ ] `contentDeferred: true` used if content requires per-doc API calls (file download, export, blocks fetch)
 - [ ] `contentHash` is metadata-based (not content-based) and identical between stub and `getDocument`
 - [ ] `sourceUrl` set on each ExternalDocument (full URL, not relative)

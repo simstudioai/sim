@@ -1,5 +1,5 @@
 ---
-description: Add hosted API key support to a tool so Sim provides the key when users don't bring their own
+description: Add hosted API key support to a tool so Sim provides the key (metered and billed to the workspace) when a user has not brought their own. Use when adding a `hosting` config to a tool under `apps/sim/tools/{service}/`.
 argument-hint: <service-name>
 ---
 

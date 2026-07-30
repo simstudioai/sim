@@ -2,8 +2,111 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { convertToGeminiFormat, ensureStructResponse } from '@/providers/google/utils'
+import {
+  convertToGeminiFormat,
+  convertUsageMetadata,
+  ensureStructResponse,
+  mapToThinkingBudget,
+  supportsDisablingGemini25Thinking,
+} from '@/providers/google/utils'
 import type { ProviderRequest } from '@/providers/types'
+
+describe('convertUsageMetadata', () => {
+  it('carries the cached prompt subset through so callers can discount it', () => {
+    expect(
+      convertUsageMetadata({
+        promptTokenCount: 100_000,
+        cachedContentTokenCount: 80_000,
+        candidatesTokenCount: 1_000,
+        totalTokenCount: 101_000,
+      })
+    ).toEqual({
+      promptTokenCount: 100_000,
+      candidatesTokenCount: 1_000,
+      cachedContentTokenCount: 80_000,
+      totalTokenCount: 101_000,
+    })
+  })
+
+  it('reports no cache hit when the field is absent or the metadata is missing', () => {
+    expect(
+      convertUsageMetadata({
+        promptTokenCount: 10,
+        candidatesTokenCount: 5,
+        totalTokenCount: 15,
+      }).cachedContentTokenCount
+    ).toBe(0)
+    expect(convertUsageMetadata(undefined).cachedContentTokenCount).toBe(0)
+  })
+
+  it('keeps the cached count a subset of the tool-use-inclusive prompt total', () => {
+    const usage = convertUsageMetadata({
+      promptTokenCount: 8_000,
+      toolUsePromptTokenCount: 2_000,
+      cachedContentTokenCount: 6_000,
+      candidatesTokenCount: 100,
+      thoughtsTokenCount: 40,
+      totalTokenCount: 10_140,
+    })
+
+    expect(usage.promptTokenCount).toBe(10_000)
+    expect(usage.candidatesTokenCount).toBe(140)
+    expect(usage.cachedContentTokenCount).toBeLessThan(usage.promptTokenCount)
+  })
+})
+
+describe('mapToThinkingBudget', () => {
+  it('maps named levels to a within-range budget for gemini-2.5-pro (128-32768, cannot disable)', () => {
+    expect(mapToThinkingBudget('gemini-2.5-pro', 'low')).toBeGreaterThanOrEqual(128)
+    expect(mapToThinkingBudget('gemini-2.5-pro', 'high')).toBeLessThanOrEqual(32768)
+  })
+
+  it('maps named levels to a within-range budget for gemini-2.5-flash (0-24576)', () => {
+    expect(mapToThinkingBudget('gemini-2.5-flash', 'low')).toBeLessThanOrEqual(24576)
+    expect(mapToThinkingBudget('gemini-2.5-flash', 'high')).toBeLessThanOrEqual(24576)
+  })
+
+  it('maps named levels to a within-range budget for gemini-2.5-flash-lite (512-24576)', () => {
+    expect(mapToThinkingBudget('gemini-2.5-flash-lite', 'low')).toBeGreaterThanOrEqual(512)
+    expect(mapToThinkingBudget('gemini-2.5-flash-lite', 'high')).toBeLessThanOrEqual(24576)
+  })
+
+  it('strips the vertex/ prefix before looking up the model', () => {
+    expect(mapToThinkingBudget('vertex/gemini-2.5-flash', 'medium')).toBe(
+      mapToThinkingBudget('gemini-2.5-flash', 'medium')
+    )
+  })
+
+  it('falls back to dynamic budget (-1) for models with no explicit mapping', () => {
+    expect(mapToThinkingBudget('gemini-2.0-flash', 'medium')).toBe(-1)
+  })
+
+  it('falls back to the high budget for an unrecognized level on a mapped model', () => {
+    expect(mapToThinkingBudget('gemini-2.5-flash', 'unknown-level')).toBe(
+      mapToThinkingBudget('gemini-2.5-flash', 'high')
+    )
+  })
+})
+
+describe('supportsDisablingGemini25Thinking', () => {
+  it('returns true for gemini-2.5-flash and gemini-2.5-flash-lite', () => {
+    expect(supportsDisablingGemini25Thinking('gemini-2.5-flash')).toBe(true)
+    expect(supportsDisablingGemini25Thinking('gemini-2.5-flash-lite')).toBe(true)
+  })
+
+  it('returns false for gemini-2.5-pro, which cannot disable thinking', () => {
+    expect(supportsDisablingGemini25Thinking('gemini-2.5-pro')).toBe(false)
+  })
+
+  it('strips the vertex/ prefix before checking', () => {
+    expect(supportsDisablingGemini25Thinking('vertex/gemini-2.5-flash')).toBe(true)
+    expect(supportsDisablingGemini25Thinking('vertex/gemini-2.5-pro')).toBe(false)
+  })
+
+  it('returns false for models with no explicit mapping', () => {
+    expect(supportsDisablingGemini25Thinking('gemini-3.5-flash')).toBe(false)
+  })
+})
 
 describe('ensureStructResponse', () => {
   describe('should return objects unchanged', () => {

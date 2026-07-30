@@ -16,7 +16,9 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -25,6 +27,12 @@ import {
 } from '@/hooks/queries/copilot-keys'
 
 const logger = createLogger('CopilotSettings')
+
+/** Formats a key's last-used timestamp, falling back to "Never" when unset. */
+function formatLastUsed(dateString?: string | null): string {
+  if (!dateString) return 'Never'
+  return formatDate(new Date(dateString))
+}
 
 /**
  * Copilot Keys management component for handling API keys used with the Copilot feature.
@@ -41,7 +49,7 @@ export function Copilot() {
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [createError, setCreateError] = useState<string | null>(null)
 
   const filteredKeys = useMemo(() => {
@@ -94,14 +102,22 @@ export function Copilot() {
     }
   }
 
-  const formatLastUsed = (dateString?: string | null) => {
-    if (!dateString) return 'Never'
-    return formatDate(new Date(dateString))
-  }
-
   const hasKeys = keys.length > 0
   const showEmptyState = !hasKeys
   const showNoResults = searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0
+
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        setIsCreateDialogOpen(true)
+        setCreateError(null)
+      },
+      disabled: isLoading,
+    },
+  ]
 
   return (
     <>
@@ -111,36 +127,24 @@ export function Copilot() {
           onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => {
-              setIsCreateDialogOpen(true)
-              setCreateError(null)
-            }}
-            disabled={isLoading}
-          >
-            Create API Key
-          </Chip>
-        }
+        actions={actions}
       >
         {isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredKeys.map((key) => (
               <div key={key.id} className='flex items-center justify-between gap-3'>
                 <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                   <div className='flex items-center gap-1.5'>
-                    <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                    <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                       {key.name || 'Unnamed Key'}
                     </span>
                     <span className='text-[var(--text-secondary)] text-sm'>
                       (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                     </span>
                   </div>
-                  <p className='truncate text-[12px] text-[var(--text-muted)]'>{key.displayKey}</p>
+                  <p className='truncate text-[var(--text-muted)] text-caption'>{key.displayKey}</p>
                 </div>
                 <Chip
                   className='flex-shrink-0'

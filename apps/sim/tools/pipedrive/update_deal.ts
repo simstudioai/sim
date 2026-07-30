@@ -3,6 +3,7 @@ import type {
   PipedriveUpdateDealParams,
   PipedriveUpdateDealResponse,
 } from '@/tools/pipedrive/types'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveUpdateDeal')
@@ -22,6 +23,13 @@ export const pipedriveUpdateDealTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
+    },
+    authStyle: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Auth scheme for the token; set by the credential resolver for API-token service accounts',
     },
     deal_id: {
       type: 'string',
@@ -64,17 +72,10 @@ export const pipedriveUpdateDealTool: ToolConfig<
   request: {
     url: (params) => `https://api.pipedrive.com/api/v2/deals/${params.deal_id}`,
     method: 'PATCH',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      ...getPipedriveAuthHeaders(params),
+      'Content-Type': 'application/json',
+    }),
     body: (params) => {
       const body: Record<string, any> = {}
 

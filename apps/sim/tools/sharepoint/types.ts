@@ -24,40 +24,12 @@ export interface SharepointPage {
   publishingState?: {
     level: string
   }
-  canvasLayout?: {
-    horizontalSections: Array<{
-      layout: string
-      id: string
-      emphasis: string
-      columns?: Array<{
-        id: string
-        width: number
-        webparts: Array<{
-          id: string
-          innerHtml: string
-        }>
-      }>
-      webparts?: Array<{
-        id: string
-        innerHtml: string
-      }>
-    }>
-  }
+  canvasLayout?: CanvasLayout
 }
 
 export interface SharepointPageContent {
   content: string
-  canvasLayout?: {
-    horizontalSections: Array<{
-      layout: string
-      id: string
-      emphasis: string
-      webparts: Array<{
-        id: string
-        innerHtml: string
-      }>
-    }>
-  } | null
+  canvasLayout?: CanvasLayout | null
 }
 
 interface SharepointColumn {
@@ -132,9 +104,8 @@ export interface SharepointReadSiteResponse extends ToolResponse {
       createdDateTime?: string
       lastModifiedDateTime?: string
       isPersonalSite?: boolean
-      root?: {
-        serverRelativeUrl: string
-      }
+      // Graph returns an empty object marker (not a URL) when this site is the root of its site collection
+      root?: Record<string, never>
       siteCollection?: {
         hostname: string
       }
@@ -177,14 +148,15 @@ export interface SharepointToolParams {
   listDisplayName?: string
   listDescription?: string
   listTemplate?: string
-  // Update List Item
+  // Update List Item / Delete List Item / Get List Item
   itemId?: string
   listItemFields?: Record<string, unknown>
-  // Upload File
+  // Upload File / Download File / Delete File / Get Drive Item
   driveId?: string
   folderPath?: string
   fileName?: string
   files?: UserFile[]
+  driveItemId?: string
 }
 
 export interface GraphApiResponse {
@@ -220,6 +192,8 @@ export interface CanvasLayout {
     id?: string
     emphasis?: string
     columns?: Array<{
+      id?: string
+      width?: number
       webparts?: Array<{
         id?: string
         innerHtml?: string
@@ -242,6 +216,14 @@ export type SharepointResponse =
   | SharepointUpdateListItemResponse
   | SharepointAddListItemResponse
   | SharepointUploadFileResponse
+  | SharepointDeleteListItemResponse
+  | SharepointGetListItemResponse
+  | SharepointDeletePageResponse
+  | SharepointUpdatePageResponse
+  | SharepointPublishPageResponse
+  | SharepointDownloadFileResponse
+  | SharepointDeleteFileResponse
+  | SharepointGetDriveItemResponse
 
 export interface SharepointGetListResponse extends ToolResponse {
   output: {
@@ -305,5 +287,85 @@ export interface SharepointUploadFileResponse extends ToolResponse {
     skippedFiles?: SharepointSkippedFile[]
     skippedCount?: number
     errors?: SharepointUploadError[]
+  }
+}
+
+export interface SharepointDeleteListItemResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    itemId: string
+  }
+}
+
+export interface SharepointGetListItemResponse extends ToolResponse {
+  output: {
+    item: {
+      id: string
+      fields?: Record<string, unknown>
+    }
+  }
+}
+
+export interface SharepointDeletePageResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    pageId: string
+  }
+}
+
+export interface SharepointUpdatePageResponse extends ToolResponse {
+  output: {
+    page: SharepointPage
+  }
+}
+
+export interface SharepointPublishPageResponse extends ToolResponse {
+  output: {
+    published: boolean
+    pageId: string
+  }
+}
+
+export interface SharepointDriveItem {
+  id: string
+  name: string
+  webUrl?: string
+  size?: number
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+  file?: {
+    mimeType?: string
+  } | null
+  folder?: {
+    childCount?: number
+  } | null
+  parentReference?: {
+    id?: string
+    driveId?: string
+    path?: string
+  } | null
+}
+
+export interface SharepointDownloadFileResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer | string
+      size: number
+    }
+  }
+}
+
+export interface SharepointDeleteFileResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    itemId: string
+  }
+}
+
+export interface SharepointGetDriveItemResponse extends ToolResponse {
+  output: {
+    driveItem: SharepointDriveItem
   }
 }

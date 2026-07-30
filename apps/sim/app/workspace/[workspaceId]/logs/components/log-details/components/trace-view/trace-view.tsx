@@ -46,6 +46,7 @@ import {
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
@@ -331,7 +332,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
         )}
         {!isIterationType(span.type) && (
           <div
-            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className={cn('size-[10px]', iconColorClass(bgColor))} />}
@@ -667,7 +668,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   const endedAt = parseTime(span.endTime)
 
   const metaEntries: { label: string; value: string }[] = []
-  metaEntries.push({ label: 'Type', value: span.type })
+  metaEntries.push({
+    label: 'Type',
+    value: isCustomBlockType(span.type) ? 'custom block' : span.type,
+  })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })
@@ -703,7 +707,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
       <div className='flex items-start gap-2'>
         {!isIterationType(span.type) && (
           <div
-            className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className={cn('size-[12px]', iconColorClass(bgColor))} />}

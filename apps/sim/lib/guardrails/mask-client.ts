@@ -1,66 +1,116 @@
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 
 /**
- * Per-request limits. A chunk is flushed when it hits either bound, keeping each
- * request small enough for one short Presidio pass under a tight timeout and far
- * below the contract's 100k-entry cap — so large executions split across
- * requests instead of failing validation.
+ * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
+ * batch — default 64, sized to saturate the load-balanced Presidio fleet behind
+ * the internal ALB (which spreads each request across tasks). Effective throughput
+ * is capped by fleet worker capacity, so past that this just queues; tune via
+ * `PII_MASK_CHUNK_CONCURRENCY` to the fleet size (and lower to 1 for a single
+ * self-hosted instance). No request timeout: masking a large batch is slow and the
+ * (scaled) Presidio service is expected to eventually respond; an unreachable
+ * service still rejects fast (connection refused) so the caller scrubs.
  */
-const REQUEST_MAX_BYTES = 256 * 1024
-const REQUEST_MAX_COUNT = 2_000
-/** Bounds one mask-batch request; an unreachable/stuck Presidio sidecar aborts so the caller scrubs. */
-const REQUEST_TIMEOUT_MS = 45_000
+const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
+
+/**
+ * Per-chunk retry budget for transient failures (network errors, 408/429/5xx).
+ * A large payload fans out into many chunk requests, so a single blip — an ALB
+ * 502 during a deploy, a Presidio pod restart — must not fail the whole
+ * redaction (and, on the execution-altering stages, abort the run). With the
+ * default 500ms→30s jittered backoff this rides out ~2 minutes of outage per
+ * chunk before giving up. Deterministic failures (4xx, shape mismatches) throw
+ * immediately.
+ */
+const MAX_CHUNK_ATTEMPTS = 8
+
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+
+class MaskChunkHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs: number | null
+  ) {
+    super(message)
+    this.name = 'MaskChunkHttpError'
+  }
+}
+
+function isRetryableChunkError(error: unknown): boolean {
+  if (error instanceof MaskChunkHttpError) {
+    return RETRYABLE_STATUSES.has(error.status)
+  }
+  // A rejected fetch (connection refused/reset, DNS, socket drop) is transient —
+  // Node wraps these in TypeError('fetch failed'). Runtime-level request
+  // timeouts (undici's default 300s headers/body timeout, Bun's TimeoutError)
+  // and mid-flight socket closes surface with their own names/codes per runtime;
+  // all are congestion or connection churn, not a deterministic failure: a chunk
+  // queued behind a saturated Presidio fleet must retry, not fail the payload.
+  if (error instanceof TypeError) {
+    return true
+  }
+  const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown }
+  if (name === 'TimeoutError' || name === 'HeadersTimeoutError' || name === 'BodyTimeoutError') {
+    return true
+  }
+  return (
+    typeof code === 'string' &&
+    [
+      'ECONNRESET',
+      'ECONNREFUSED',
+      'EPIPE',
+      'ETIMEDOUT',
+      'ConnectionClosed',
+      'ConnectionRefused',
+    ].includes(code)
+  )
+}
 
 /**
  * Mask PII across many strings via the internal app-container endpoint.
  *
- * The Presidio sidecars run only in the app task, but the log-redaction persist
- * path also runs inside the trigger.dev runtime — so redaction always routes
- * through HTTP, the same way the guardrails tool does.
- * Strings are grouped into byte/count-budgeted chunks; order is preserved, so
- * the returned array matches `texts` length.
+ * Only the app task reaches the Presidio service (it holds `PII_URL`), but the
+ * log-redaction persist path also runs inside the trigger.dev runtime — so
+ * redaction always routes through HTTP, the same way the guardrails tool does.
+ * Strings are grouped into byte/count-budgeted chunks (keeping each request far
+ * under the 10MB Next body limit) and the chunks are sent with bounded
+ * concurrency, so a large payload fans out rather than serializing; order is
+ * preserved, so the returned array matches `texts` length.
  *
- * Rejects on any non-2xx, timeout, or shape mismatch so the caller can apply
- * its own fail-safe (scrubbing rather than leaking).
+ * Transient chunk failures (network errors, 408/429/5xx) retry with jittered
+ * backoff (see {@link MAX_CHUNK_ATTEMPTS}); only a deterministic failure or an
+ * exhausted retry budget rejects, so the caller can apply its own fail-safe
+ * (scrubbing rather than leaking).
  */
 export async function maskPIIBatchViaHttp(
   texts: string[],
   entityTypes: string[],
-  language?: string
+  language?: string,
+  customPatterns?: CustomPiiPattern[]
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
   const url = `${getInternalApiBaseUrl()}/api/guardrails/mask-batch`
+  const masked = new Array<string>(texts.length)
 
-  const masked: string[] = []
-  let batch: string[] = []
-  let batchBytes = 0
-
-  const flush = async () => {
-    if (batch.length === 0) return
-    const out = await postChunk(url, batch, entityTypes, language)
-    if (out.length !== batch.length) {
+  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
+    const chunk = indices.map((i) => texts[i])
+    const out = await postChunk(url, chunk, entityTypes, language, customPatterns)
+    if (out.length !== chunk.length) {
       throw new Error('PII mask-batch returned an unexpected result')
     }
-    for (const item of out) masked.push(item)
-    batch = []
-    batchBytes = 0
-  }
-
-  for (const text of texts) {
-    const bytes = Buffer.byteLength(text, 'utf8')
-    if (
-      batch.length > 0 &&
-      (batch.length >= REQUEST_MAX_COUNT || batchBytes + bytes > REQUEST_MAX_BYTES)
-    ) {
-      await flush()
-    }
-    batch.push(text)
-    batchBytes += bytes
-  }
-  await flush()
+    indices.forEach((originalIndex, k) => {
+      masked[originalIndex] = out[k]
+    })
+  })
 
   return masked
 }
@@ -69,10 +119,32 @@ async function postChunk(
   url: string,
   texts: string[],
   entityTypes: string[],
-  language: string | undefined
+  language: string | undefined,
+  customPatterns: CustomPiiPattern[] | undefined
 ): Promise<string[]> {
-  // Mint per request: a single token (5min TTL) can expire mid-batch when a
-  // large execution fans out into many sequential chunk requests.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await postChunkOnce(url, texts, entityTypes, language, customPatterns)
+    } catch (error) {
+      if (attempt >= MAX_CHUNK_ATTEMPTS || !isRetryableChunkError(error)) {
+        throw error
+      }
+      const retryAfterMs = error instanceof MaskChunkHttpError ? error.retryAfterMs : null
+      await sleep(backoffWithJitter(attempt, retryAfterMs))
+    }
+  }
+}
+
+async function postChunkOnce(
+  url: string,
+  texts: string[],
+  entityTypes: string[],
+  language: string | undefined,
+  customPatterns: CustomPiiPattern[] | undefined
+): Promise<string[]> {
+  // Mint per attempt: a single token (5min TTL) can expire mid-batch when a
+  // large execution fans out into many sequential chunk requests or a chunk
+  // spends its retry budget waiting out an outage.
   const token = await generateInternalToken()
 
   // boundary-raw-fetch: internal server-to-server call to the app container (internal JWT auth, configurable base URL)
@@ -82,17 +154,20 @@ async function postChunk(
       'content-type': 'application/json',
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ texts, entityTypes, language }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    body: JSON.stringify({ texts, entityTypes, language, customPatterns }),
   })
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(`PII mask-batch request failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw new MaskChunkHttpError(
+      `PII mask-batch request failed (${response.status}): ${detail.slice(0, 200)}`,
+      response.status,
+      parseRetryAfter(response.headers.get('retry-after'))
+    )
   }
 
-  const data = (await response.json()) as GuardrailsMaskBatchResult
-  if (!Array.isArray(data.masked)) {
+  const data = (await response.json()) as GuardrailsMaskBatchResult | null
+  if (!data || !Array.isArray(data.masked)) {
     throw new Error('PII mask-batch returned an unexpected result')
   }
   return data.masked

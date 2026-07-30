@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { inboxTasksQuerySchema, inboxWorkspaceParamsSchema } from '@/lib/api/contracts/inbox'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { hasInboxAccess } from '@/lib/billing/core/subscription'
+import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -24,7 +24,7 @@ export const GET = withRouteHandler(
     }
 
     const [hasAccess, permission] = await Promise.all([
-      hasInboxAccess(session.user.id),
+      hasWorkspaceInboxAccess(workspaceId),
       getUserEntityPermissions(session.user.id, 'workspace', workspaceId),
     ])
     if (!hasAccess) {

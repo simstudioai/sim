@@ -4,6 +4,7 @@ import type {
   DataverseUpsertRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORD_OUTPUT } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseUpsertRecord')
@@ -56,8 +57,8 @@ export const dataverseUpsertRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})`
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})`
     },
     method: 'PATCH',
     headers: (params) => ({

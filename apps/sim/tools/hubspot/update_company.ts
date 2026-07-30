@@ -55,7 +55,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
     url: (params) => {
       const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${params.companyId.trim()}`
       if (params.idProperty) {
-        return `${baseUrl}?idProperty=${params.idProperty}`
+        return `${baseUrl}?${new URLSearchParams({ idProperty: params.idProperty })}`
       }
       return baseUrl
     },

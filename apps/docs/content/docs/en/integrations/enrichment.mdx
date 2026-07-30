@@ -10,6 +10,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#9333EA"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+Data Enrichment is a built-in Sim block that looks up missing data — work email, phone number, company domain, company info, and more — from fields you map in from your workflow. It runs a registered enrichment (like "Work Email" or "Phone Number") against the same provider cascade used by table enrichments, trying multiple providers until one returns a match.
+
+In Sim, the enrichment block allows your agents to fill in gaps in a record by supplying an enrichment id and a map of input values, then reading back whether a match was found and which provider (e.g. Hunter, People Data Labs) supplied the result. This lets workflows enrich leads or contacts inline — for example, taking a name and company and resolving a work email — without agents needing to call each provider's API directly.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.

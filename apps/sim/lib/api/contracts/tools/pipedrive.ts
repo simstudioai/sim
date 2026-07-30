@@ -27,6 +27,7 @@ export const pipedriveGetFilesResponseSchema = z.object({
 
 export const pipedriveGetFilesBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
+  authStyle: z.enum(['x-api-token']).optional(),
   sort: z.enum(['id', 'update_time']).optional().nullable(),
   limit: z.string().optional().nullable(),
   start: z.string().optional().nullable(),

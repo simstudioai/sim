@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   downloadFile,
   exportWorkflowsToZip,
@@ -17,6 +16,10 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 const logger = createLogger('useExportSelection')
 
 interface UseExportSelectionProps {
+  /**
+   * Active workspace id
+   */
+  workspaceId: string | undefined
   /**
    * Optional callback after successful export
    */
@@ -88,11 +91,8 @@ function collectSubfoldersForMultipleFolders(
  * Handles mixed selection by collecting all workflows from selected folders
  * and combining with directly selected workflows.
  */
-export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) {
+export function useExportSelection({ workspaceId, onSuccess }: UseExportSelectionProps) {
   const [isExporting, setIsExporting] = useState(false)
-  const params = useParams()
-  const workspaceId = params.workspaceId as string | undefined
-
   const onSuccessRef = useRef(onSuccess)
   onSuccessRef.current = onSuccess
 

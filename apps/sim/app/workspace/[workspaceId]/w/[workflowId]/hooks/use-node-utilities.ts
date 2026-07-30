@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import { useReactFlow } from 'reactflow'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,

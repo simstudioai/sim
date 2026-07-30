@@ -1,8 +1,15 @@
 import { z } from 'zod'
+import {
+  requiredFieldSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
-const executionIdSchema = z
+export const WORKFLOW_EXECUTION_ID_HEADER = 'X-Execution-Id'
+
+export const executionIdSchema = z
   .string()
   .min(1, 'Invalid execution ID')
   .max(128, 'Execution ID too long')
@@ -219,12 +226,14 @@ export const workflowListItemSchema = z.object({
   updatedAt: z.string(),
   archivedAt: z.string().nullable(),
   locked: z.boolean(),
+  /** Defaulted so a new client tolerates an old server's response during rollout. */
+  forkSyncExcluded: z.boolean().default(false),
   isDeployed: z.boolean().optional(),
 })
 
 export const createWorkflowBodySchema = z.object({
   id: z.string().uuid().optional(),
-  name: z.string().min(1, 'Name is required'),
+  name: requiredFieldSchema('Name is required'),
   description: z.string().optional().default(''),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
@@ -249,7 +258,7 @@ export type CreateWorkflowBody = z.input<typeof createWorkflowBodySchema>
 export type CreateWorkflowResponse = z.output<typeof createWorkflowResponseSchema>
 
 export const duplicateWorkflowBodySchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: requiredFieldSchema('Name is required'),
   description: z.string().optional(),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
@@ -273,11 +282,12 @@ export type DuplicateWorkflowBody = z.input<typeof duplicateWorkflowBodySchema>
 export type DuplicateWorkflowResponse = z.output<typeof duplicateWorkflowResponseSchema>
 
 export const updateWorkflowBodySchema = z.object({
-  name: z.string().min(1, 'Name is required').optional(),
+  name: requiredFieldSchema('Name is required').optional(),
   description: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   locked: z.boolean().optional(),
+  forkSyncExcluded: z.boolean().optional(),
 })
 
 export type UpdateWorkflowBody = z.input<typeof updateWorkflowBodySchema>
@@ -296,7 +306,7 @@ export const reorderWorkflowsBodySchema = z.object({
 export type ReorderWorkflowsBody = z.input<typeof reorderWorkflowsBodySchema>
 
 export const executeWorkflowRunFromBlockSchema = z.object({
-  startBlockId: z.string().min(1, 'Start block ID is required'),
+  startBlockId: requiredFieldSchema('Start block ID is required'),
   sourceSnapshot: z
     .object({
       blockStates: z.record(z.string(), z.any()),
@@ -328,21 +338,46 @@ export const executeWorkflowTriggerTypeSchema = z.enum([
   'workflow',
 ])
 
+export const executeWorkflowHeadersSchema = z.object({
+  [WORKFLOW_EXECUTION_ID_HEADER]: executionIdSchema.optional(),
+})
+
 export const executeWorkflowBodySchema = z.object({
   selectedOutputs: z.array(z.string()).optional().default([]),
   triggerType: executeWorkflowTriggerTypeSchema.optional(),
   stream: z.boolean().optional(),
+  /**
+   * Streaming runs only: expose the agent's reasoning as `thinking` frames.
+   * Requires the caller to also send the `agent-events-v1` protocol header.
+   * Off by default so existing integrations keep their current frame set.
+   */
+  includeThinking: z.boolean().optional().default(false),
+  /**
+   * Streaming runs only: expose tool lifecycle as `tool` frames (name and
+   * status only — arguments and results ride the terminal `final` envelope).
+   * Requires the protocol header. Off by default.
+   */
+  includeToolCalls: z.boolean().optional().default(false),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
   isClientSession: z.boolean().optional(),
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
-  executionId: executionIdSchema.optional(),
+  /** Internal MCP bridge pin for calls admitted before a deployment cutover. */
+  deploymentVersionId: z.string().min(1).optional(),
+  executionId: z.unknown().optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),
   runFromBlock: executeWorkflowRunFromBlockSchema.optional(),
+  /**
+   * Workspace of the parent execution when this call is a workflow-in-workflow
+   * invocation (e.g. the agent `workflow_executor` tool). When present, the
+   * route rejects execution of a workflow that lives in a different workspace.
+   * Direct API callers omit it and are unaffected.
+   */
+  parentWorkspaceId: workspaceIdSchema.optional(),
 })
 export type ExecuteWorkflowBody = z.input<typeof executeWorkflowBodySchema>
 
@@ -423,14 +458,14 @@ export const workflowLogResultSchema = z.object({
 
 export const workflowLogBodySchema = z.object({
   logs: z.array(z.any()).optional(),
-  executionId: z.string().min(1, 'Execution ID is required').optional(),
+  executionId: requiredFieldSchema('Execution ID is required').optional(),
   result: workflowLogResultSchema.optional(),
 })
 export type WorkflowLogBody = z.input<typeof workflowLogBodySchema>
 
 export const importWorkflowAsSuperuserBodySchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required'),
-  targetWorkspaceId: z.string().min(1, 'Target workspace ID is required'),
+  workflowId: workflowIdSchema,
+  targetWorkspaceId: requiredFieldSchema('Target workspace ID is required'),
 })
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
@@ -521,6 +556,7 @@ const workflowExecutionPausedDetailSchema = z.object({
   resumeAt: z.string().nullable(),
   pauseKind: z.enum(['time', 'human']).nullable(),
   blockedOnBlockId: z.string().nullable(),
+  automaticResumeWaitingReason: z.string().nullable(),
   pausedExecutionId: z.string(),
   pausePointCount: z.number(),
   resumedCount: z.number(),

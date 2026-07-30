@@ -15,6 +15,8 @@ const logger = createLogger('UserProfileQuery')
 /**
  * Query key factories for user profile
  */
+export const USER_PROFILE_STALE_TIME = 5 * 60 * 1000
+
 export const userProfileKeys = {
   all: ['userProfile'] as const,
   profile: () => [...userProfileKeys.all, 'profile'] as const,
@@ -54,7 +56,7 @@ export function useUserProfile() {
   return useQuery({
     queryKey: userProfileKeys.profile(),
     queryFn: ({ signal }) => fetchUserProfile(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: USER_PROFILE_STALE_TIME,
   })
 }
 

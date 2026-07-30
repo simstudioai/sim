@@ -5,7 +5,7 @@ export const downloadExportFileTool: ToolConfig<GoogleVaultDownloadExportFilePar
   id: 'google_vault_download_export_file',
   name: 'Vault Download Export File',
   description: 'Download a single file from a Google Vault export (GCS object)',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,

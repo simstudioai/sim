@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
@@ -25,13 +24,19 @@ export const POST = withRouteHandler(
     const result = await acceptInvitation({
       userId: session.user.id,
       userEmail: session.user.email,
+      actorName: session.user.name ?? undefined,
       invitationId: id,
       token: parsed.data.body.token ?? null,
+      disclosedWorkspaceIds: parsed.data.body.disclosedWorkspaceIds,
+      disclosedOutcome: parsed.data.body.disclosedOutcome,
+      request,
     })
 
     if (!result.success) {
       const statusMap: Record<string, number> = {
         'not-found': 404,
+        'workspace-not-found': 404,
+        'disclosure-outdated': 409,
         'invalid-token': 400,
         'already-processed': 400,
         expired: 400,
@@ -39,37 +44,21 @@ export const POST = withRouteHandler(
         'already-in-organization': 409,
         'no-seats-available': 400,
         'upgrade-required': 402,
+        'external-requires-paid-plan': 402,
         'server-error': 500,
       }
       const status = statusMap[result.kind] ?? 500
       logger.warn('Invitation accept rejected', { invitationId: id, reason: result.kind })
-      return NextResponse.json({ error: result.kind }, { status })
+      /**
+       * `error` stays the machine-readable kind (the client maps it to UX
+       * states); `message` carries the human copy when the failure provides
+       * one — e.g. the retryable concurrent-workspace-change conflict.
+       */
+      const message = result.kind === 'server-error' ? result.message : undefined
+      return NextResponse.json({ error: result.kind, ...(message ? { message } : {}) }, { status })
     }
 
     const inv = result.invitation
-
-    recordAudit({
-      workspaceId: result.acceptedWorkspaceIds[0] ?? null,
-      actorId: session.user.id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      action:
-        inv.kind === 'workspace'
-          ? AuditAction.INVITATION_ACCEPTED
-          : AuditAction.ORG_INVITATION_ACCEPTED,
-      resourceType:
-        inv.kind === 'workspace' ? AuditResourceType.WORKSPACE : AuditResourceType.ORGANIZATION,
-      resourceId: inv.organizationId ?? result.acceptedWorkspaceIds[0] ?? inv.id,
-      description: `Accepted ${inv.kind} invitation for ${inv.email}`,
-      metadata: {
-        invitationId: inv.id,
-        targetEmail: inv.email,
-        targetRole: inv.role,
-        kind: inv.kind,
-        workspaceIds: result.acceptedWorkspaceIds,
-      },
-      request,
-    })
 
     return NextResponse.json({
       success: true,

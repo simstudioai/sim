@@ -1,40 +1,32 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { account } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdate, mockSet, mockWhere, sqlCalls } = vi.hoisted(() => ({
-  mockUpdate: vi.fn(),
-  mockSet: vi.fn(),
-  mockWhere: vi.fn(),
+const { sqlCalls } = vi.hoisted(() => ({
   sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
 }))
 
-vi.mock('@sim/db', () => ({ db: { update: mockUpdate } }))
-vi.mock('@sim/db/schema', () => ({
-  webhook: {
-    id: 'webhook.id',
-    providerConfig: 'webhook.providerConfig',
-    updatedAt: 'webhook.updatedAt',
-  },
-  account: {},
-  credentialSet: {},
-  workflow: {},
-  workflowDeploymentVersion: {},
-}))
-vi.mock('drizzle-orm', () => ({
-  sql: (strings: readonly string[], ...values: unknown[]) => {
+vi.mock('drizzle-orm', () => {
+  const sql = (strings: readonly string[], ...values: unknown[]) => {
     const node = { strings, values }
     sqlCalls.push(node)
     return node
-  },
-  and: vi.fn(),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  isNull: vi.fn(),
-  ne: vi.fn(),
-  or: vi.fn(),
-}))
-vi.mock('@/lib/billing', () => ({ isOrganizationOnTeamOrEnterprisePlan: vi.fn() }))
+  }
+  // Identity, so an interpolated value still shows up verbatim in `values`.
+  sql.param = (value: unknown) => value
+  sql.join = (fragments: unknown[], separator: unknown) => ({ fragments, separator })
+  return {
+    sql,
+    and: vi.fn(),
+    eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
+    isNull: vi.fn(),
+    ne: vi.fn(),
+    or: vi.fn(),
+  }
+})
 vi.mock('@/app/api/auth/oauth/utils', () => ({
   getOAuthToken: vi.fn(),
   refreshAccessTokenIfNeeded: vi.fn(),
@@ -42,7 +34,15 @@ vi.mock('@/app/api/auth/oauth/utils', () => ({
 }))
 vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
 
-import { updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
+import type { WebhookRecord } from '@/lib/webhooks/polling/types'
+import { resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
+import {
+  getOAuthToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
+
+afterAll(resetDbChainMock)
 
 const logger = { error: vi.fn() } as never
 
@@ -57,10 +57,8 @@ function allSqlText(): string {
 describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     sqlCalls.length = 0
-    mockWhere.mockResolvedValue(undefined)
-    mockSet.mockReturnValue({ where: mockWhere })
-    mockUpdate.mockReturnValue({ set: mockSet })
   })
 
   it('merges defined keys (null preserved) and removes undefined keys', async () => {
@@ -70,9 +68,9 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
       logger
     )
 
-    expect(mockUpdate).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(allInterpolatedValues()).toContain(JSON.stringify({ historyId: 'h1', nulled: null }))
-    expect(allInterpolatedValues()).toContainEqual(['cleared'])
+    expect(allInterpolatedValues()).toContain('cleared')
   })
 
   it('uses merge only (no key-removal expression) when nothing is undefined', async () => {
@@ -90,5 +88,80 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
     expect(sqlText).toContain('COALESCE(::jsonb')
     // Merge runs in jsonb space, result cast back to the json column: `(<expr>)::json`
     expect(sqlText).toContain(')::json')
+  })
+})
+
+describe('resolveOAuthCredential (single-credential polling)', () => {
+  const makeWebhook = (providerConfig: Record<string, unknown>): WebhookRecord =>
+    ({ id: 'wh-1', providerConfig }) as unknown as WebhookRecord
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('resolves via credentialId: account lookup then token refresh', async () => {
+    vi.mocked(resolveOAuthAccountId).mockResolvedValue({
+      accountId: 'acc-1',
+    } as Awaited<ReturnType<typeof resolveOAuthAccountId>>)
+    queueTableRows(account, [{ userId: 'owner-1' }])
+    vi.mocked(refreshAccessTokenIfNeeded).mockResolvedValue('tok-abc')
+
+    const token = await resolveOAuthCredential(
+      makeWebhook({ credentialId: 'cred-1' }),
+      'google-email',
+      'req-1'
+    )
+
+    expect(token).toBe('tok-abc')
+    expect(resolveOAuthAccountId).toHaveBeenCalledWith('cred-1')
+    expect(refreshAccessTokenIfNeeded).toHaveBeenCalledWith('acc-1', 'owner-1', 'req-1')
+    expect(getOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it('throws when the credential cannot be resolved to an OAuth account', async () => {
+    vi.mocked(resolveOAuthAccountId).mockResolvedValue(null)
+
+    await expect(
+      resolveOAuthCredential(makeWebhook({ credentialId: 'cred-gone' }), 'google-email', 'req-1')
+    ).rejects.toThrow('Failed to resolve OAuth account for credential cred-gone')
+  })
+
+  it('throws when the resolved account row does not exist', async () => {
+    vi.mocked(resolveOAuthAccountId).mockResolvedValue({
+      accountId: 'acc-missing',
+    } as Awaited<ReturnType<typeof resolveOAuthAccountId>>)
+
+    await expect(
+      resolveOAuthCredential(makeWebhook({ credentialId: 'cred-1' }), 'google-email', 'req-1')
+    ).rejects.toThrow('Credential cred-1 not found for webhook wh-1')
+  })
+
+  it('falls back to the legacy userId path via getOAuthToken', async () => {
+    vi.mocked(getOAuthToken).mockResolvedValue('tok-legacy')
+
+    const token = await resolveOAuthCredential(
+      makeWebhook({ userId: 'user-1' }),
+      'outlook',
+      'req-1'
+    )
+
+    expect(token).toBe('tok-legacy')
+    expect(getOAuthToken).toHaveBeenCalledWith('user-1', 'outlook')
+    expect(resolveOAuthAccountId).not.toHaveBeenCalled()
+  })
+
+  it('throws when neither credentialId nor userId is present', async () => {
+    await expect(resolveOAuthCredential(makeWebhook({}), 'gmail', 'req-1')).rejects.toThrow(
+      'Missing credential info for webhook wh-1'
+    )
+  })
+
+  it('throws when the legacy userId path yields no token', async () => {
+    vi.mocked(getOAuthToken).mockResolvedValue(null)
+
+    await expect(
+      resolveOAuthCredential(makeWebhook({ userId: 'user-1' }), 'outlook', 'req-1')
+    ).rejects.toThrow('Failed to get outlook access token for webhook wh-1')
   })
 })

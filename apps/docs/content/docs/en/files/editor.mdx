@@ -1,0 +1,56 @@
+---
+title: Editor
+description: A rich markdown editor for your files — type markdown and watch it render, or edit visually.
+pageType: concept
+---
+
+import { Image } from '@/components/ui/image'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Every markdown file in your workspace opens in a **rich editor**. Type markdown and it renders as you go, or format visually with the toolbar and slash menu. What you see is exactly what gets saved — plain markdown underneath, no lock-in.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Image src="/static/files/editor/overview.png" alt="A markdown file rendered in the editor: headings, bold, italic, and a link, a nested bullet list, and a table" width={900} height={410} />
+</div>
+
+## Formatting text
+
+Select any text to bring up the formatting toolbar — bold, italic, strikethrough, inline code, and links. The same marks appear instantly as you type the markdown for them, like `**bold**` or `*italic*`. Links show a hover card so you can open, copy, edit, or remove them without hunting through the source.
+
+## Structure
+
+Headings, blockquotes, and dividers keep long documents scannable. Type `# ` through `###### ` for headings, `> ` for a quote, and `---` for a divider.
+
+## Lists and checklists
+
+Bullet, ordered, and nested lists all work, plus task lists you can tick right in the document.
+
+## Tables
+
+Insert a table from the slash menu, then click any cell for the floating table toolbar — add or remove rows and columns, toggle the header row, or delete the table. Drag a column border to resize it.
+
+## Code blocks
+
+Fenced code blocks are syntax-highlighted, with a language picker in the corner. Pick `mermaid` to render a live diagram instead of code.
+
+## Images
+
+Paste or drag an image straight into the document, then drag a corner to resize it.
+
+## Slash menu and shortcuts
+
+Type `/` anywhere to insert any block — heading, list, table, code block, image, and more — without leaving the keyboard. Familiar shortcuts work too: **Cmd/Ctrl + B** for bold, **Cmd/Ctrl + I** for italic, and **Cmd/Ctrl + K** to add a link over selected text.
+
+## Markdown fidelity
+
+The editor round-trips your markdown exactly — it saves what you wrote, with no reformatting churn.
+
+<Callout type="info">
+A few constructs can't be represented visually without losing information on save — footnotes, raw HTML, and HTML comments. When a file contains one of these, it opens **read-only** so the original source is preserved untouched. Everything is still rendered faithfully; you just can't edit that file inline.
+</Callout>
+
+<Cards>
+  <Card title="Generating files" href="/files/generating" description="Have a workflow produce a document from a run." />
+  <Card title="Using files in workflows" href="/files/using-in-workflows" description="Read a file into a workflow and produce one from a run." />
+</Cards>

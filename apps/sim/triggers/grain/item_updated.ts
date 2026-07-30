@@ -8,6 +8,7 @@ export const grainItemUpdatedTrigger: TriggerConfig = {
   provider: 'grain',
   description: 'Trigger when an item is updated in a Grain view (recording, highlight, or story)',
   version: '1.0.0',
+  deprecated: true,
   icon: GrainIcon,
 
   subBlocks: [

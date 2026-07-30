@@ -1,6 +1,6 @@
 ---
 description: SEO and GEO guidelines for the landing page
-globs: ["apps/sim/app/(home)/**/*.tsx"]
+globs: ["apps/sim/app/(landing)/**/*.tsx"]
 ---
 # Landing Page — SEO / GEO
 

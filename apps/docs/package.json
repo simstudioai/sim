@@ -8,7 +8,7 @@
     "build": "fumadocs-mdx && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
-    "type-check": "tsc --noEmit",
+    "type-check": "fumadocs-mdx && tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
@@ -19,7 +19,7 @@
     "@ai-sdk/react": "2.0.205",
     "@sim/db": "workspace:*",
     "@sim/emcn": "workspace:*",
-    "@vercel/og": "^0.6.5",
+    "@sim/workflow-renderer": "workspace:*",
     "ai": "5.0.203",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -29,27 +29,28 @@
     "fumadocs-openapi": "10.8.1",
     "fumadocs-ui": "16.8.5",
     "lucide-react": "^0.511.0",
-    "next": "16.2.6",
+    "next": "16.2.12",
     "next-themes": "^0.4.6",
-    "postgres": "^3.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "shiki": "4.0.0",
+    "remark-breaks": "^4.0.0",
+    "shiki": "4.3.1",
     "streamdown": "2.5.0",
     "tailwind-merge": "^3.0.2",
     "reactflow": "^11.11.4",
     "framer-motion": "^12.5.0",
-    "zod": "^4.3.6"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.0.12",
     "@types/mdx": "^2.0.13",
-    "@types/node": "^22.14.1",
+    "@types/node": "24.2.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.0.4",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.0.12",
-    "typescript": "^5.8.2"
+    "typescript": "^7.0.2"
   }
 }

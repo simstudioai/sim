@@ -1,6 +1,6 @@
 import React from 'react'
 import { Badge } from '@sim/emcn'
-import { formatDuration } from '@sim/utils/formatting'
+import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
@@ -18,7 +18,14 @@ export const LOG_COLUMNS = {
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 
-export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled' | 'cancelling'
+export type LogStatus =
+  | 'error'
+  | 'pending'
+  | 'running'
+  | 'redacting'
+  | 'info'
+  | 'cancelled'
+  | 'cancelling'
 
 /**
  * Maps raw status string to LogStatus for display.
@@ -29,6 +36,8 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
   switch (status) {
     case 'running':
       return 'running'
+    case 'redacting':
+      return 'redacting'
     case 'pending':
       return 'pending'
     case 'cancelling':
@@ -55,6 +64,7 @@ export const STATUS_CONFIG: Record<
   error: { variant: 'red', label: 'Error', color: 'var(--text-error)', filterable: true },
   pending: { variant: 'amber', label: 'Pending', color: '#f59e0b', filterable: true },
   running: { variant: 'amber', label: 'Running', color: '#f59e0b', filterable: true },
+  redacting: { variant: 'amber', label: 'Redacting', color: '#f59e0b', filterable: false },
   cancelling: { variant: 'amber', label: 'Cancelling...', color: '#f59e0b', filterable: false },
   cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316', filterable: true },
   info: {
@@ -224,23 +234,7 @@ export const formatDate = (dateString: string) => {
     compact: format(date, 'MMM d HH:mm:ss'),
     compactDate: format(date, 'MMM d').toUpperCase(),
     compactTime: format(date, 'h:mm a'),
-    relative: (() => {
-      const now = new Date()
-      const diffMs = now.getTime() - date.getTime()
-      const diffMins = Math.floor(diffMs / 60000)
-
-      if (diffMins < 1) return 'just now'
-      if (diffMins < 60) return `${diffMins}m ago`
-
-      const diffHours = Math.floor(diffMins / 60)
-      if (diffHours < 24) return `${diffHours}h ago`
-
-      const diffDays = Math.floor(diffHours / 24)
-      if (diffDays === 1) return 'yesterday'
-      if (diffDays < 7) return `${diffDays}d ago`
-
-      return format(date, 'MMM d')
-    })(),
+    relative: formatRelativeTime(dateString),
   }
 }
 

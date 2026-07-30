@@ -13,7 +13,8 @@ import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { buildIdByName, buildNameById, rowDataNameToId, updateRow } from '@/lib/table'
+import { buildIdByName, rowDataNameToId, updateRow } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
@@ -23,7 +24,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
+import { toApiRow, v2TableAccessError, v2TablesGateError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableRowAPI')
 
@@ -62,11 +63,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
+    const gateError = await v2TablesGateError(userId, workspaceId)
+    if (gateError) return gateError
+
     const [row] = await db
       .select({
         id: userTableRows.id,
         data: userTableRows.data,
-        position: userTableRows.position,
         createdAt: userTableRows.createdAt,
         updatedAt: userTableRows.updatedAt,
       })
@@ -82,18 +85,17 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
 
     if (!row) return v2Error('NOT_FOUND', 'Row not found')
 
-    const nameById = buildNameById(result.table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((result.table.schema as TableSchema).columns)
     return v2Data(
       {
         row: toApiRow(
           {
             id: row.id,
             data: row.data as RowData,
-            position: row.position,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
           },
-          nameById
+          toNamedRow
         ),
       },
       { rateLimit }
@@ -134,8 +136,11 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
+    const gateError = await v2TablesGateError(userId, validated.workspaceId)
+    if (gateError) return gateError
+
     const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
     const updatedRow = await updateRow(
       {
         tableId,
@@ -151,7 +156,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     // Defensive narrowing for TypeScript.
     if (!updatedRow) return v2Error('NOT_FOUND', 'Row not found')
 
-    return v2Data({ row: toApiRow(updatedRow, nameById) }, { rateLimit })
+    return v2Data({ row: toApiRow(updatedRow, toNamedRow) }, { rateLimit })
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
@@ -201,6 +206,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     if (result.table.workspaceId !== workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
+
+    const gateError = await v2TablesGateError(userId, workspaceId)
+    if (gateError) return gateError
 
     const [deletedRow] = await db
       .delete(userTableRows)

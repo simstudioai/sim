@@ -21,8 +21,7 @@ export async function generateMetadata({ searchParams }: DocumentPageProps): Pro
 }
 
 export default async function DocumentChunksPage({ params, searchParams }: DocumentPageProps) {
-  const { id, documentId } = await params
-  const { kbName, docName } = await searchParams
+  const [{ id, documentId }, { kbName, docName }] = await Promise.all([params, searchParams])
 
   return (
     <Suspense fallback={null}>

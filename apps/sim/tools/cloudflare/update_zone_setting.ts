@@ -11,7 +11,7 @@ export const updateZoneSettingTool: ToolConfig<
   id: 'cloudflare_update_zone_setting',
   name: 'Cloudflare Update Zone Setting',
   description:
-    'Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration.',
+    'Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.',
   version: '1.0.0',
 
   params: {
@@ -26,14 +26,14 @@ export const updateZoneSettingTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Setting to update (e.g., "ssl", "security_level", "cache_level", "minify", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers")',
+        'Setting to update (e.g., "ssl", "security_level", "cache_level", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers")',
     },
     value: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'New value for the setting as a string or JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'{"css":"on","html":"on","js":"on"}\' for minify, \'["ECDHE-RSA-AES128-GCM-SHA256"]\' for ciphers)',
+        'New value for the setting as a string or JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'["ECDHE-RSA-AES128-GCM-SHA256"]\' for ciphers)',
     },
     apiKey: {
       type: 'string',
@@ -52,11 +52,38 @@ export const updateZoneSettingTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      try {
-        return { value: JSON.parse(params.value) }
-      } catch {
+      // A block reference can pass an already-structured array/object straight
+      // through despite the declared string param type — send it as-is rather
+      // than stringifying it (String([...]) comma-joins, String({...}) yields
+      // "[object Object]", neither of which is the JSON shape Cloudflare expects).
+      if (params.value !== null && typeof params.value === 'object') {
         return { value: params.value }
       }
+
+      // Wand-generated values can also arrive as a non-string primitive
+      // (e.g. a number, or null/undefined) at runtime despite the declared
+      // param type — coerce null/undefined to '' rather than the literal
+      // "null"/"undefined" strings String() would otherwise produce.
+      const trimmed = (params.value == null ? '' : String(params.value)).trim()
+
+      // browser_cache_ttl is the one setting whose value must be a number.
+      // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
+      if (params.settingId === 'browser_cache_ttl') {
+        const numeric = trimmed === '' ? Number.NaN : Number(trimmed)
+        return { value: Number.isNaN(numeric) ? trimmed : numeric }
+      }
+
+      // Only parse JSON object/array literals (e.g. ciphers). Scalar settings like
+      // min_tls_version ("1.2") or tls_1_3 ("on") must stay strings — a blind JSON.parse would
+      // silently coerce them to numbers/booleans and the Cloudflare API would reject the type.
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          return { value: JSON.parse(trimmed) }
+        } catch {
+          return { value: trimmed }
+        }
+      }
+      return { value: trimmed }
     },
   },
 
@@ -92,7 +119,7 @@ export const updateZoneSettingTool: ToolConfig<
   outputs: {
     id: {
       type: 'string',
-      description: 'Setting identifier (e.g., ssl, minify, cache_level)',
+      description: 'Setting identifier (e.g., ssl, cache_level, security_level)',
     },
     value: {
       type: 'string',

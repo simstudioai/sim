@@ -2,31 +2,27 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  ensureWorkflowAccessMock,
-  ensureWorkspaceAccessMock,
-  getDefaultWorkspaceIdMock,
-  upsertPersonalEnvVarsMock,
-  upsertWorkspaceEnvVarsMock,
-} = vi.hoisted(() => ({
-  ensureWorkflowAccessMock: vi.fn(),
-  ensureWorkspaceAccessMock: vi.fn(),
-  getDefaultWorkspaceIdMock: vi.fn(),
-  upsertPersonalEnvVarsMock: vi.fn(),
-  upsertWorkspaceEnvVarsMock: vi.fn(),
-}))
+  mockUpsertPersonalEnvVars: upsertPersonalEnvVarsMock,
+  mockUpsertWorkspaceEnvVars: upsertWorkspaceEnvVarsMock,
+} = environmentUtilsMockFns
+
+afterAll(resetEnvironmentUtilsMock)
+
+const { ensureWorkflowAccessMock, ensureWorkspaceAccessMock, getDefaultWorkspaceIdMock } =
+  vi.hoisted(() => ({
+    ensureWorkflowAccessMock: vi.fn(),
+    ensureWorkspaceAccessMock: vi.fn(),
+    getDefaultWorkspaceIdMock: vi.fn(),
+  }))
 
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
   ensureWorkflowAccess: ensureWorkflowAccessMock,
   ensureWorkspaceAccess: ensureWorkspaceAccessMock,
   getDefaultWorkspaceId: getDefaultWorkspaceIdMock,
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  upsertPersonalEnvVars: upsertPersonalEnvVarsMock,
-  upsertWorkspaceEnvVars: upsertWorkspaceEnvVarsMock,
 }))
 
 import { setEnvironmentVariablesServerTool } from './set-environment-variables'

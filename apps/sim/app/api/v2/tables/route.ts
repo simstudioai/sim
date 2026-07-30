@@ -17,7 +17,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiTable } from '@/app/api/v2/tables/utils'
+import { toApiTable, v2TablesGateError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TablesAPI')
 
@@ -47,6 +47,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
+
+    const gateError = await v2TablesGateError(userId, workspaceId)
+    if (gateError) return gateError
 
     const tables = await listTables(workspaceId)
     const items = tables.map(toApiTable)
@@ -84,6 +87,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
+
+    const gateError = await v2TablesGateError(userId, params.workspaceId)
+    if (gateError) return gateError
 
     const planLimits = await getWorkspaceTableLimits(params.workspaceId)
 

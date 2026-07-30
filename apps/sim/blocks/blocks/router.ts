@@ -157,6 +157,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   bgColor: '#28C43F',
   icon: ConnectIcon,
   hideFromToolbar: true, // Hide legacy version from toolbar
+  sunset: { status: 'legacy', replacedBy: 'router_v2' },
   subBlocks: [
     {
       id: 'prompt',
@@ -171,7 +172,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-6',
+      defaultValue: 'claude-sonnet-5',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
@@ -298,7 +299,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-6',
+      defaultValue: 'claude-sonnet-5',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),

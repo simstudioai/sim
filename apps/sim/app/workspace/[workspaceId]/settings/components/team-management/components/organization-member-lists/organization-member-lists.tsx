@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipDropdown, ChipInput, Search, toast } from '@sim/emcn'
+import { ChipDropdown, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import {
   type OrgRole,
   type PermissionType,
@@ -58,20 +59,26 @@ function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function formatJoinedDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US')
-}
-
 function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text)
 }
 
+function buildActionsMenu(actions: RowAction[]) {
+  return <RowActionsMenu label='Member actions' actions={actions} />
+}
+
 interface OrganizationMemberListsProps {
+  canManage: boolean
   organizationId: string
   roster: OrganizationRoster | null | undefined
   isLoadingRoster: boolean
   currentUserId: string
-  currentUserEmail: string
+  /**
+   * The roster filter, owned by the page so it can live in the URL — this
+   * component renders the shared `SettingsPanel` search box's results, it does
+   * not own the box.
+   */
+  query: string
   onRemoveMember: (member: Member) => void
   onTransferOwnership?: () => void
 }
@@ -83,15 +90,15 @@ interface OrganizationMemberListsProps {
  * section; sections with no matches collapse while a search is active.
  */
 export function OrganizationMemberLists({
+  canManage,
   organizationId,
   roster,
   isLoadingRoster,
   currentUserId,
-  currentUserEmail,
+  query,
   onRemoveMember,
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
-  const [query, setQuery] = useState('')
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
   const updateMemberRole = useUpdateOrganizationMemberRole()
@@ -111,16 +118,12 @@ export function OrganizationMemberLists({
 
   const isActiveSearch = q.length > 0
 
-  const buildActionsMenu = (actions: RowAction[]) => (
-    <RowActionsMenu label='Member actions' actions={actions} />
-  )
-
   const renderOrgMemberRow = (member: RosterMember) => {
     const isSelf = member.userId === currentUserId
     const isOwner = member.role === 'owner'
     const isExternal = member.role === 'external'
-    const editable = !isSelf && !isOwner && !isExternal
-    const canRemove = !isSelf && !isOwner
+    const editable = canManage && !isSelf && !isOwner && !isExternal
+    const canRemove = canManage && !isSelf && !isOwner
 
     return (
       <MemberRow
@@ -128,7 +131,7 @@ export function OrganizationMemberLists({
         name={member.name}
         email={member.email}
         image={member.image}
-        status={`Joined ${formatJoinedDate(member.createdAt)}`}
+        status={`Joined ${formatDate(new Date(member.createdAt))}`}
         roleControl={
           editable ? (
             <ChipDropdown
@@ -157,7 +160,7 @@ export function OrganizationMemberLists({
         }
         menu={buildActionsMenu([
           { label: 'Copy email', onSelect: () => copyToClipboard(member.email) },
-          ...(!isOwner
+          ...(canManage && !isOwner
             ? [
                 {
                   label: 'Manage Credits',
@@ -192,7 +195,7 @@ export function OrganizationMemberLists({
           ...(isSelf && isOwner && onTransferOwnership
             ? [{ label: 'Transfer ownership', onSelect: () => onTransferOwnership() }]
             : []),
-          ...(isSelf && !isOwner
+          ...(canManage && isSelf && !isOwner
             ? [
                 {
                   label: 'Leave organization',
@@ -230,21 +233,25 @@ export function OrganizationMemberLists({
       roleControl={roleControl}
       menu={buildActionsMenu([
         { label: 'Copy email', onSelect: () => copyToClipboard(invitation.email) },
-        {
-          label: 'Resend invite',
-          onSelect: () =>
-            resendInvitation
-              .mutateAsync({ invitationId: invitation.id, orgId: organizationId })
-              .catch((error) => logger.error('Failed to resend invitation', { error })),
-        },
-        {
-          label: 'Revoke invite',
-          destructive: true,
-          onSelect: () =>
-            cancelInvitation
-              .mutateAsync({ invitationId: invitation.id, orgId: organizationId })
-              .catch((error) => logger.error('Failed to revoke invitation', { error })),
-        },
+        ...(canManage
+          ? [
+              {
+                label: 'Resend invite',
+                onSelect: () =>
+                  resendInvitation
+                    .mutateAsync({ invitationId: invitation.id, orgId: organizationId })
+                    .catch((error) => logger.error('Failed to resend invitation', { error })),
+              },
+              {
+                label: 'Revoke invite',
+                destructive: true,
+                onSelect: () =>
+                  cancelInvitation
+                    .mutateAsync({ invitationId: invitation.id, orgId: organizationId })
+                    .catch((error) => logger.error('Failed to revoke invitation', { error })),
+              },
+            ]
+          : []),
       ])}
     />
   )
@@ -272,7 +279,7 @@ export function OrganizationMemberLists({
         }
         options={ORG_ROLE_OPTIONS}
         matchTriggerWidth={false}
-        disabled={updateInvitation.isPending}
+        disabled={!canManage || updateInvitation.isPending}
       />
     )
     return renderInviteRow(invitation, 'org-invite', roleControl)
@@ -286,9 +293,10 @@ export function OrganizationMemberLists({
     const rowUserIsOrgAdmin = isOrgAdminRole(member.role)
     const isSelf = member.userId === currentUserId
     const wouldDemoteSelf = isSelf && access.permission === 'admin'
-    const disabled = rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending
+    const disabled =
+      !canManage || rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending
     const lockReason = rowUserIsOrgAdmin ? workspaceRoleLockReason('org-admin') : null
-    const canRemoveFromWorkspace = !rowUserIsOrgAdmin && !isSelf
+    const canRemoveFromWorkspace = canManage && !rowUserIsOrgAdmin && !isSelf
 
     return (
       <MemberRow
@@ -296,7 +304,7 @@ export function OrganizationMemberLists({
         name={member.name}
         email={member.email}
         image={member.image}
-        status={`Joined ${formatJoinedDate(member.createdAt)}`}
+        status={`Joined ${formatDate(new Date(member.createdAt))}`}
         roleControl={
           <RoleLockTooltip reason={lockReason}>
             <ChipDropdown
@@ -361,7 +369,7 @@ export function OrganizationMemberLists({
         }
         options={WORKSPACE_ROLE_OPTIONS}
         matchTriggerWidth={false}
-        disabled={updateInvitation.isPending}
+        disabled={!canManage || updateInvitation.isPending}
       />
     )
     return renderInviteRow(invitation, `ws-${workspaceId}-invite`, roleControl)
@@ -376,18 +384,53 @@ export function OrganizationMemberLists({
   const hasOrgMatches = filteredOrgMembers.length + filteredOrgPending.length > 0
   const showMembersSection = !isActiveSearch || hasOrgMatches
 
+  /**
+   * Group each workspace's members and pending invites once per roster change.
+   * Indexed by a single pass over the roster rather than a `.find` per
+   * workspace × member — that inner scan made this O(workspaces × members ×
+   * access-entries). Members are appended in roster order, so each group keeps
+   * the same ordering the per-workspace scan produced.
+   */
+  const workspaceGroups = useMemo(() => {
+    const membersByWorkspace = new Map<
+      string,
+      { member: RosterMember; access: RosterWorkspaceAccess }[]
+    >()
+    for (const member of members) {
+      const seen = new Set<string>()
+      for (const access of member.workspaces) {
+        if (seen.has(access.workspaceId)) continue
+        seen.add(access.workspaceId)
+        const entries = membersByWorkspace.get(access.workspaceId)
+        if (entries) entries.push({ member, access })
+        else membersByWorkspace.set(access.workspaceId, [{ member, access }])
+      }
+    }
+
+    const invitesByWorkspace = new Map<
+      string,
+      { invitation: RosterPendingInvitation; access: RosterWorkspaceAccess }[]
+    >()
+    for (const invitation of pendingInvitations) {
+      const seen = new Set<string>()
+      for (const access of invitation.workspaces) {
+        if (seen.has(access.workspaceId)) continue
+        seen.add(access.workspaceId)
+        const entries = invitesByWorkspace.get(access.workspaceId)
+        if (entries) entries.push({ invitation, access })
+        else invitesByWorkspace.set(access.workspaceId, [{ invitation, access }])
+      }
+    }
+
+    return workspaces.map((workspace) => ({
+      workspace,
+      workspaceMembers: membersByWorkspace.get(workspace.id) ?? [],
+      workspaceInvites: invitesByWorkspace.get(workspace.id) ?? [],
+    }))
+  }, [workspaces, members, pendingInvitations])
+
   return (
     <>
-      <div className='flex items-center gap-2'>
-        <ChipInput
-          icon={Search}
-          placeholder='Search members...'
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className='flex-1'
-        />
-      </div>
-
       {showMembersSection && (
         <MemberSection
           label={`Members (${orgRowCount})`}
@@ -399,27 +442,7 @@ export function OrganizationMemberLists({
         </MemberSection>
       )}
 
-      {workspaces.map((workspace) => {
-        const workspaceMembers = members
-          .map((member) => ({
-            member,
-            access: member.workspaces.find((w) => w.workspaceId === workspace.id),
-          }))
-          .filter((entry): entry is { member: RosterMember; access: RosterWorkspaceAccess } =>
-            Boolean(entry.access)
-          )
-        const workspaceInvites = pendingInvitations
-          .map((invitation) => ({
-            invitation,
-            access: invitation.workspaces.find((w) => w.workspaceId === workspace.id),
-          }))
-          .filter(
-            (
-              entry
-            ): entry is { invitation: RosterPendingInvitation; access: RosterWorkspaceAccess } =>
-              Boolean(entry.access)
-          )
-
+      {workspaceGroups.map(({ workspace, workspaceMembers, workspaceInvites }) => {
         const visibleMembers = workspaceMembers.filter(({ member }) =>
           matches(member.name, member.email)
         )
@@ -450,15 +473,17 @@ export function OrganizationMemberLists({
         )
       })}
 
-      <ManageCreditsModal
-        key={creditsTarget?.userId ?? 'none'}
-        open={creditsTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setCreditsTarget(null)
-        }}
-        organizationId={organizationId}
-        member={creditsTarget}
-      />
+      {canManage && (
+        <ManageCreditsModal
+          key={creditsTarget?.userId ?? 'none'}
+          open={creditsTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setCreditsTarget(null)
+          }}
+          organizationId={organizationId}
+          member={creditsTarget}
+        />
+      )}
     </>
   )
 }

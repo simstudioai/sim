@@ -30,7 +30,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.gong.io/v2/calls/${params.callId.trim()}`,
+    url: (params) => `https://api.gong.io/v2/calls/${encodeURIComponent(params.callId.trim())}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -47,6 +47,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         id: call.id ?? '',
         title: call.title ?? null,
         url: call.url ?? null,
@@ -72,6 +73,11 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     id: { type: 'string', description: "Gong's unique numeric identifier for the call" },
     title: { type: 'string', description: 'Call title', optional: true },
     url: { type: 'string', description: 'URL to the call in the Gong web app', optional: true },

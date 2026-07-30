@@ -96,6 +96,7 @@ export const getCallTranscriptTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         callTranscripts,
         cursor: data.records?.cursor ?? null,
       },
@@ -103,6 +104,11 @@ export const getCallTranscriptTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     callTranscripts: {
       type: 'array',
       description: 'List of call transcripts with speaker turns and sentences',

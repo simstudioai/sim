@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { tableExportFormatSchema, tableIdParamsSchema } from '@/lib/api/contracts/tables'
@@ -6,7 +7,10 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { getColumnId } from '@/lib/table/column-keys'
+import { formatCsvCell } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -29,6 +33,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
+  const userId = auth.userId
 
   const { searchParams } = new URL(request.url)
   const formatValidation = tableExportFormatSchema.safeParse(
@@ -49,9 +54,30 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const columns = table.schema.columns
   // Stored row data is id-keyed; CSV headers and JSON keys are display names, so
   // translate id → name on the way out (export is a name-friendly boundary).
-  const nameById = buildNameById(table.schema)
+  const toNamedRow = namedRowMapper(columns)
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
+
+  // Audit before streaming: rows leave incrementally, so a mid-stream failure still exfiltrates partial data.
+  recordAudit({
+    workspaceId: table.workspaceId ?? null,
+    actorId: userId,
+    action: AuditAction.TABLE_EXPORTED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: tableId,
+    resourceName: table.name,
+    description: `Exported table "${table.name}" as ${format.toUpperCase()}`,
+    metadata: { format, rowCount: table.rowCount },
+    request,
+  })
+  if (table.workspaceId) {
+    captureServerEvent(
+      userId,
+      'table_exported',
+      { table_id: tableId, workspace_id: table.workspaceId },
+      { groups: { workspace: table.workspaceId } }
+    )
+  }
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -76,18 +102,18 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 
           for (const row of result.rows) {
             if (format === 'csv') {
-              const values = columns.map((c) => formatCsvValue(row.data[getColumnId(c)]))
+              const values = columns.map((c) => formatCsvCell(c, row.data[getColumnId(c)]))
               controller.enqueue(encoder.encode(`${toCsvRow(values)}\n`))
             } else {
               const prefix = firstJsonRow ? '' : ','
               firstJsonRow = false
-              controller.enqueue(
-                encoder.encode(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
-              )
+              controller.enqueue(encoder.encode(prefix + JSON.stringify(toNamedRow(row.data))))
             }
           }
 
-          if (result.rows.length < EXPORT_BATCH_SIZE) break
+          // A page can be cut by the byte budget before reaching EXPORT_BATCH_SIZE,
+          // so a short page does NOT mean the export is done — only a null cursor does.
+          if (!result.nextCursor) break
           offset += result.rows.length
         }
 
@@ -118,18 +144,6 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 function sanitizeFilename(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
   return cleaned || 'table'
-}
-
-/**
- * Serializes a cell for CSV. Only string cells are formula-neutralized; numbers,
- * booleans, dates, and JSON objects can never form a trigger and pass through verbatim.
- */
-function formatCsvValue(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (value instanceof Date) return value.toISOString()
-  if (typeof value === 'object') return JSON.stringify(value)
-  if (typeof value === 'string') return neutralizeCsvFormula(value)
-  return String(value)
 }
 
 function toCsvRow(values: string[]): string {

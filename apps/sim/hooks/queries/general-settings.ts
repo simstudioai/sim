@@ -7,7 +7,7 @@ import {
   type MothershipEnvironment,
   type UserSettingsApi,
   updateUserSettingsContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 
@@ -20,6 +20,8 @@ export const generalSettingsKeys = {
   all: ['generalSettings'] as const,
   settings: () => [...generalSettingsKeys.all, 'settings'] as const,
 }
+
+export const GENERAL_SETTINGS_STALE_TIME = 60 * 60 * 1000
 
 /**
  * General settings type
@@ -35,6 +37,8 @@ export interface GeneralSettings {
   errorNotificationsEnabled: boolean
   snapToGridSize: number
   showActionBar: boolean
+  /** Copilot tool ids the user picked "always allow" for. */
+  copilotAutoAllowedTools: string[]
   /** Saved IANA timezone, or `null` when unset (the app falls back to the browser zone). */
   timezone: string | null
 }
@@ -55,6 +59,7 @@ export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettin
     errorNotificationsEnabled: data.errorNotificationsEnabled,
     snapToGridSize: data.snapToGridSize,
     showActionBar: data.showActionBar,
+    copilotAutoAllowedTools: data.copilotAutoAllowedTools ?? [],
     timezone: data.timezone ?? null,
   }
 }
@@ -79,7 +84,7 @@ export function useGeneralSettings() {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 
@@ -95,7 +100,7 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 

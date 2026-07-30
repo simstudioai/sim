@@ -11,7 +11,7 @@ export const updateSecretTool: ToolConfig<
   id: 'secrets_manager_update_secret',
   name: 'Secrets Manager Update Secret',
   description: 'Update the value of an existing secret in AWS Secrets Manager',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

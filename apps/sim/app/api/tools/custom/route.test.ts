@@ -6,42 +6,22 @@
 import {
   authMockFns,
   createMockRequest,
+  dbChainMockFns,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
   workflowAuthzMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockFrom,
-  mockWhere,
-  mockOrderBy,
-  mockInsert,
-  mockValues,
-  mockUpdate,
-  mockSet,
-  mockDelete,
-  mockLimit,
-  mockUpsertCustomTools,
-} = vi.hoisted(() => {
-  return {
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockOrderBy: vi.fn(),
-    mockInsert: vi.fn(),
-    mockValues: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockSet: vi.fn(),
-    mockDelete: vi.fn(),
-    mockLimit: vi.fn(),
-    mockUpsertCustomTools: vi.fn(),
-  }
-})
+const { mockUpsertCustomTools } = vi.hoisted(() => ({
+  mockUpsertCustomTools: vi.fn(),
+}))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
@@ -102,82 +82,7 @@ const sampleTools = [
   },
 ]
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: (...args: unknown[]) => mockSelect(...args),
-    insert: (...args: unknown[]) => mockInsert(...args),
-    update: (...args: unknown[]) => mockUpdate(...args),
-    delete: (...args: unknown[]) => mockDelete(...args),
-    transaction: vi
-      .fn()
-      .mockImplementation(async (callback: (tx: Record<string, unknown>) => unknown) => {
-        const txMockSelect = vi.fn().mockReturnValue({ from: mockFrom })
-        const txMockInsert = vi.fn().mockReturnValue({ values: mockValues })
-        const txMockUpdate = vi.fn().mockReturnValue({ set: mockSet })
-        const txMockDelete = vi.fn().mockReturnValue({ where: mockWhere })
-
-        const txMockOrderBy = vi.fn().mockImplementation(() => {
-          const queryBuilder = {
-            limit: mockLimit,
-            then: (resolve: (value: typeof sampleTools) => void) => {
-              resolve(sampleTools)
-              return queryBuilder
-            },
-            catch: (_reject: (error: Error) => void) => queryBuilder,
-          }
-          return queryBuilder
-        })
-
-        const txMockWhere = vi.fn().mockImplementation(() => {
-          const queryBuilder = {
-            orderBy: txMockOrderBy,
-            limit: mockLimit,
-            then: (resolve: (value: typeof sampleTools) => void) => {
-              resolve(sampleTools)
-              return queryBuilder
-            },
-            catch: (_reject: (error: Error) => void) => queryBuilder,
-          }
-          return queryBuilder
-        })
-
-        const txMockFrom = vi.fn().mockReturnValue({ where: txMockWhere })
-        txMockSelect.mockReturnValue({ from: txMockFrom })
-
-        return await callback({
-          select: txMockSelect,
-          insert: txMockInsert,
-          update: txMockUpdate,
-          delete: txMockDelete,
-        })
-      }),
-  },
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn().mockImplementation((field: unknown, value: unknown) => ({
-    field,
-    value,
-    operator: 'eq',
-  })),
-  and: vi.fn().mockImplementation((...conditions: unknown[]) => ({
-    operator: 'and',
-    conditions,
-  })),
-  or: vi.fn().mockImplementation((...conditions: unknown[]) => ({
-    operator: 'or',
-    conditions,
-  })),
-  isNull: vi.fn().mockImplementation((field: unknown) => ({ field, operator: 'isNull' })),
-  ne: vi.fn().mockImplementation((field: unknown, value: unknown) => ({
-    field,
-    value,
-    operator: 'ne',
-  })),
-  desc: vi.fn().mockImplementation((field: unknown) => ({ field, operator: 'desc' })),
-}))
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   upsertCustomTools: (...args: unknown[]) => mockUpsertCustomTools(...args),
@@ -192,38 +97,7 @@ describe('Custom Tools API Routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockImplementation(() => {
-      const queryBuilder = {
-        orderBy: mockOrderBy,
-        limit: mockLimit,
-        then: (resolve: (value: typeof sampleTools) => void) => {
-          resolve(sampleTools)
-          return queryBuilder
-        },
-        catch: (_reject: (error: Error) => void) => queryBuilder,
-      }
-      return queryBuilder
-    })
-    mockOrderBy.mockImplementation(() => {
-      const queryBuilder = {
-        limit: mockLimit,
-        then: (resolve: (value: typeof sampleTools) => void) => {
-          resolve(sampleTools)
-          return queryBuilder
-        },
-        catch: (_reject: (error: Error) => void) => queryBuilder,
-      }
-      return queryBuilder
-    })
-    mockLimit.mockResolvedValue(sampleTools)
-    mockInsert.mockReturnValue({ values: mockValues })
-    mockValues.mockResolvedValue({ id: 'new-tool-id' })
-    mockUpdate.mockReturnValue({ set: mockSet })
-    mockSet.mockReturnValue({ where: mockWhere })
-    mockDelete.mockReturnValue({ where: mockWhere })
+    resetDbChainMock()
 
     authMockFns.mockGetSession.mockResolvedValue(mockSession)
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
@@ -240,6 +114,10 @@ describe('Custom Tools API Routes', () => {
     })
   })
 
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   /**
    * Test GET endpoint
    */
@@ -249,9 +127,7 @@ describe('Custom Tools API Routes', () => {
         'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
       )
 
-      mockWhere.mockReturnValueOnce({
-        orderBy: mockOrderBy.mockReturnValueOnce(Promise.resolve(sampleTools)),
-      })
+      queueTableRows(schemaMock.customTools, sampleTools)
 
       const response = await GET(req)
       const data = await response.json()
@@ -260,10 +136,10 @@ describe('Custom Tools API Routes', () => {
       expect(data).toHaveProperty('data')
       expect(data.data).toEqual(sampleTools)
 
-      expect(mockSelect).toHaveBeenCalled()
-      expect(mockFrom).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
-      expect(mockOrderBy).toHaveBeenCalled()
+      expect(dbChainMockFns.select).toHaveBeenCalled()
+      expect(dbChainMockFns.from).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
+      expect(dbChainMockFns.orderBy).toHaveBeenCalled()
     })
 
     it('should handle unauthorized access', async () => {
@@ -286,13 +162,15 @@ describe('Custom Tools API Routes', () => {
     it('should handle workflowId parameter', async () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?workflowId=workflow-123')
 
+      queueTableRows(schemaMock.customTools, sampleTools)
+
       const response = await GET(req)
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('data')
 
-      expect(mockWhere).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
     })
   })
 
@@ -336,7 +214,7 @@ describe('Custom Tools API Routes', () => {
    */
   describe('DELETE /api/tools/custom', () => {
     it('should delete a workspace-scoped tool by ID', async () => {
-      mockLimit.mockResolvedValueOnce([sampleTools[0]])
+      queueTableRows(schemaMock.customTools, [sampleTools[0]])
 
       const req = new NextRequest(
         'http://localhost:3000/api/tools/custom?id=tool-1&workspaceId=workspace-123'
@@ -348,8 +226,8 @@ describe('Custom Tools API Routes', () => {
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('success', true)
 
-      expect(mockDelete).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
     it('should reject requests missing tool ID', async () => {
@@ -363,8 +241,7 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should handle tool not found', async () => {
-      const mockLimitNotFound = vi.fn().mockResolvedValue([])
-      mockWhere.mockReturnValueOnce({ limit: mockLimitNotFound })
+      queueTableRows(schemaMock.customTools, [])
 
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=non-existent')
 
@@ -383,8 +260,7 @@ describe('Custom Tools API Routes', () => {
       })
 
       const userScopedTool = { ...sampleTools[0], workspaceId: null, userId: 'user-123' }
-      const mockLimitUserScoped = vi.fn().mockResolvedValue([userScopedTool])
-      mockWhere.mockReturnValueOnce({ limit: mockLimitUserScoped })
+      queueTableRows(schemaMock.customTools, [userScopedTool])
 
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 

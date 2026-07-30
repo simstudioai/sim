@@ -13,6 +13,15 @@ export function escapeODataString(value: string): string {
   return value.replace(/'/g, "''")
 }
 
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export function getGraphNextPageUrl(data: object): string | undefined {
   const nextLink = (data as Record<string, unknown>)['@odata.nextLink']
   return typeof nextLink === 'string' ? nextLink : undefined
@@ -100,6 +109,57 @@ export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | 
   })
 
   return finalContent
+}
+
+/** SharePoint list item fields that are system-managed and cannot be set via the Graph API. */
+export const READ_ONLY_LIST_ITEM_FIELDS = new Set<string>([
+  'Id',
+  'id',
+  'UniqueId',
+  'GUID',
+  'ContentTypeId',
+  'Created',
+  'Modified',
+  'Author',
+  'Editor',
+  'CreatedBy',
+  'ModifiedBy',
+  'AuthorId',
+  'EditorId',
+  '_UIVersionString',
+  'Attachments',
+  'FileRef',
+  'FileDirRef',
+  'FileLeafRef',
+])
+
+/**
+ * Removes read-only/system-managed fields from a SharePoint list item field set, logging any
+ * fields that were stripped. Throws if no updatable fields remain.
+ */
+export function sanitizeListItemFields(
+  fields: Record<string, unknown>,
+  context: { action: 'update' | 'create' }
+): Record<string, unknown> {
+  const entries = Object.entries(fields)
+  const updatableEntries = entries.filter(([key]) => !READ_ONLY_LIST_ITEM_FIELDS.has(key))
+
+  if (updatableEntries.length !== entries.length) {
+    const removed = entries
+      .filter(([key]) => READ_ONLY_LIST_ITEM_FIELDS.has(key))
+      .map(([key]) => key)
+    logger.warn(`Removed read-only SharePoint fields from ${context.action}`, { removed })
+  }
+
+  if (updatableEntries.length === 0) {
+    const requestedKeys = Object.keys(fields)
+    const verb = context.action === 'update' ? 'updated' : 'set'
+    throw new Error(
+      `All provided fields are read-only and cannot be ${verb}: ${requestedKeys.join(', ')}`
+    )
+  }
+
+  return Object.fromEntries(updatableEntries)
 }
 
 export function cleanODataMetadata<T>(obj: T): T {

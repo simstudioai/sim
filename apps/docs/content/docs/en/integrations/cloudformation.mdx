@@ -29,7 +29,7 @@ In Sim, the CloudFormation integration enables your agents to monitor infrastruc
 
 ## Usage Instructions
 
-Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.
+Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.
 
 
 
@@ -53,6 +53,171 @@ List and describe CloudFormation stacks
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `stacks` | array | List of CloudFormation stacks with status, outputs, and tags |
+
+### `cloudformation_create_stack`
+
+Create a new CloudFormation stack from a template
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Name for the new stack \(must be unique in the Region\) |
+| `templateBody` | string | Yes | The CloudFormation template body \(JSON or YAML\) |
+| `parameters` | json | No | Template input parameters \(e.g., \[\{"parameterKey": "InstanceType", "parameterValue": "t3.micro"\}\]\) |
+| `capabilities` | string | No | Comma-separated capabilities to acknowledge \(CAPABILITY_IAM, CAPABILITY_NAMED_IAM, CAPABILITY_AUTO_EXPAND\) required when the template creates IAM resources or uses macros |
+| `tags` | json | No | Tags to apply to the stack and its resources \(e.g., \[\{"key": "env", "value": "prod"\}\]\) |
+| `onFailure` | string | No | Action to take on creation failure: ROLLBACK \(default\), DELETE, or DO_NOTHING |
+| `timeoutInMinutes` | number | No | Amount of time before the stack creation times out and rolls back |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stackId` | string | The unique ID of the created stack |
+
+### `cloudformation_update_stack`
+
+Update an existing CloudFormation stack with a new or previous template
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Name or ID of the stack to update |
+| `templateBody` | string | No | The new CloudFormation template body \(JSON or YAML\). Required unless usePreviousTemplate is true |
+| `usePreviousTemplate` | boolean | No | Reuse the template currently associated with the stack instead of providing templateBody |
+| `parameters` | json | No | Template input parameters \(e.g., \[\{"parameterKey": "InstanceType", "parameterValue": "t3.micro"\}\]\) |
+| `capabilities` | string | No | Comma-separated capabilities to acknowledge \(CAPABILITY_IAM, CAPABILITY_NAMED_IAM, CAPABILITY_AUTO_EXPAND\) |
+| `tags` | json | No | Tags to apply to the stack and its resources \(e.g., \[\{"key": "env", "value": "prod"\}\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stackId` | string | The unique ID of the updated stack |
+
+### `cloudformation_delete_stack`
+
+Delete a CloudFormation stack and its resources
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Name or ID of the stack to delete |
+| `retainResources` | string | No | Comma-separated logical resource IDs to retain instead of deleting \(only applies to stacks in DELETE_FAILED state\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `cloudformation_cancel_update_stack`
+
+Cancel an in-progress stack update and roll back to the last known stable state
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Name or ID of the stack whose update should be cancelled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `cloudformation_create_change_set`
+
+Preview the changes a stack create or update would make before applying them
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Name of the stack to create or update \(new name for CREATE type, existing name for UPDATE\) |
+| `changeSetName` | string | Yes | Name for the new change set |
+| `templateBody` | string | No | The CloudFormation template body \(JSON or YAML\). Required unless usePreviousTemplate is true |
+| `usePreviousTemplate` | boolean | No | Reuse the template currently associated with the stack \(UPDATE change sets only\) |
+| `parameters` | json | No | Template input parameters \(e.g., \[\{"parameterKey": "InstanceType", "parameterValue": "t3.micro"\}\]\) |
+| `capabilities` | string | No | Comma-separated capabilities to acknowledge \(CAPABILITY_IAM, CAPABILITY_NAMED_IAM, CAPABILITY_AUTO_EXPAND\) |
+| `changeSetType` | string | No | CREATE \(default, new stack\), UPDATE \(existing stack\), or IMPORT \(import existing resources\) |
+| `description` | string | No | Description of the change set for reference |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changeSetId` | string | The unique ID of the created change set |
+| `stackId` | string | The unique ID of the target stack |
+
+### `cloudformation_describe_change_set`
+
+View the resource changes a change set would make and its execution status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `changeSetName` | string | Yes | Name or ARN of the change set to describe |
+| `stackName` | string | No | Name or ID of the stack the change set belongs to \(required if changeSetName is not an ARN\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changeSetName` | string | Name of the change set |
+| `changeSetId` | string | The unique ID of the change set |
+| `stackId` | string | The unique ID of the target stack |
+| `stackName` | string | Name of the target stack |
+| `description` | string | Description of the change set |
+| `executionStatus` | string | Whether the change set can be executed \(AVAILABLE, UNAVAILABLE, EXECUTE_IN_PROGRESS, EXECUTE_COMPLETE, EXECUTE_FAILED, OBSOLETE\) |
+| `status` | string | Current status of the change set \(CREATE_PENDING, CREATE_IN_PROGRESS, CREATE_COMPLETE, DELETE_COMPLETE, FAILED\) |
+| `statusReason` | string | Reason for the current status, particularly if failed |
+| `creationTime` | number | Timestamp the change set was created |
+| `capabilities` | array | Capabilities required to execute the change set |
+| `changes` | array | List of resource changes \(action, logical/physical resource ID, resource type, replacement\) |
+
+### `cloudformation_execute_change_set`
+
+Apply a previously created and reviewed change set to its stack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `changeSetName` | string | Yes | Name or ARN of the change set to execute |
+| `stackName` | string | No | Name or ID of the stack the change set belongs to \(required if changeSetName is not an ARN\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
 
 ### `cloudformation_list_stack_resources`
 
@@ -149,6 +314,7 @@ Retrieve the template body for a CloudFormation stack
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `stackName` | string | Yes | Stack name or ID |
+| `templateStage` | string | No | Which template version to retrieve: Processed \(default, with transforms applied\) or Original \(as submitted\) |
 
 #### Output
 
@@ -156,6 +322,32 @@ Retrieve the template body for a CloudFormation stack
 | --------- | ---- | ----------- |
 | `templateBody` | string | The template body as a JSON or YAML string |
 | `stagesAvailable` | array | Available template stages |
+
+### `cloudformation_get_template_summary`
+
+Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `templateBody` | string | No | The CloudFormation template body \(JSON or YAML\). Required if stackName is not provided |
+| `stackName` | string | No | Name or ID of a deployed stack to summarize instead of a template body |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `description` | string | Template description |
+| `parameters` | array | Template parameters with types, defaults, and descriptions |
+| `capabilities` | array | Required capabilities \(e.g., CAPABILITY_IAM\) |
+| `capabilitiesReason` | string | Reason capabilities are required |
+| `resourceTypes` | array | AWS resource types declared in the template \(e.g., AWS::S3::Bucket\) |
+| `version` | string | Template format version |
+| `declaredTransforms` | array | Transforms used in the template \(e.g., AWS::Serverless-2016-10-31\) |
 
 ### `cloudformation_validate_template`
 

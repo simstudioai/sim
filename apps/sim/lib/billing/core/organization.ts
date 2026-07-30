@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { invitation, member, organization, user, userStats } from '@sim/db/schema'
+import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, gt, ne } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import {
@@ -19,6 +19,7 @@ import {
   hasUsableSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import type { DbClient } from '@/lib/db/types'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -235,18 +236,8 @@ export async function getOrganizationBillingData(
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
-    const [pendingInvitationCount] = await executor
-      .select({ count: count() })
-      .from(invitation)
-      .where(
-        and(
-          eq(invitation.organizationId, organizationId),
-          eq(invitation.status, 'pending'),
-          ne(invitation.membershipIntent, 'external'),
-          gt(invitation.expiresAt, new Date())
-        )
-      )
-    const usedSeats = members.length + (pendingInvitationCount?.count ?? 0)
+    const pendingSeats = await countPendingSeatInvitations(organizationId, executor)
+    const usedSeats = members.length + pendingSeats
 
     const billingPeriodStart = subscription.periodStart || null
     const billingPeriodEnd = subscription.periodEnd || null
@@ -401,7 +392,11 @@ async function getOrganizationBillingSummary(organizationId: string) {
       seats: {
         total: billingData.totalSeats,
         used: billingData.usedSeats,
-        available: billingData.totalSeats - billingData.usedSeats,
+        /**
+         * Clamped: Team seats track the member count rather than a ceiling, so
+         * any outstanding invitation would otherwise report negative headroom.
+         */
+        available: Math.max(0, billingData.totalSeats - billingData.usedSeats),
       },
       alerts: {
         membersOverLimit,

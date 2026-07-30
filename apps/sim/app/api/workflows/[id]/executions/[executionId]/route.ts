@@ -10,6 +10,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import type { PausePoint } from '@/executor/types'
 
@@ -146,6 +147,7 @@ export const GET = withRouteHandler(
         id: pausedExecutions.id,
         status: pausedExecutions.status,
         pausePoints: pausedExecutions.pausePoints,
+        metadata: pausedExecutions.metadata,
         resumedCount: pausedExecutions.resumedCount,
         pausedAt: pausedExecutions.pausedAt,
         nextResumeAt: pausedExecutions.nextResumeAt,
@@ -168,11 +170,14 @@ export const GET = withRouteHandler(
     if (isCurrentlyPaused && pausedRow) {
       const points = normalizePausePoints(pausedRow.pausePoints)
       const earliest = pickEarliestPausePoint(points)
+      const automaticResumeWaiting = getAutomaticResumeWaitingMetadata(pausedRow.metadata)
       paused = {
         pausedAt: pausedRow.pausedAt.toISOString(),
         resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest?.resumeAt ?? null,
         pauseKind: earliest?.pauseKind ?? null,
         blockedOnBlockId: earliest?.blockId ?? null,
+        automaticResumeWaitingReason:
+          automaticResumeWaiting?.reason ?? earliest?.automaticResumeWaitingReason ?? null,
         pausedExecutionId: pausedRow.id,
         pausePointCount: points.length,
         resumedCount: pausedRow.resumedCount,

@@ -2,22 +2,9 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({
-  knowledgeBase: {},
-  knowledgeConnector: {},
-  mcpServers: {},
-  userTableDefinitions: {},
-  userTableRows: {},
-  workflow: {},
-  workflowFolder: {},
-  workflowSchedule: {},
-}))
-
+import { describe, expect, it } from 'vitest'
 import { canonicalWorkflowVfsDir } from '@/lib/copilot/vfs/path-utils'
-import { buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
+import { buildVfsSnapshot, buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
 
 function baseData(overrides: Partial<WorkspaceMdData> = {}): WorkspaceMdData {
   return {
@@ -74,6 +61,21 @@ describe('buildWorkspaceMd - workflow VFS state paths', () => {
     expect(md).toContain('VFS dir: `workflows/Root%20Flow`')
     expect(md).toContain('VFS state path: `workflows/Root%20Flow/state.json`')
   })
+
+  it('never exposes workflow descriptions in markdown or the typed snapshot', () => {
+    const workflowWithPrivateDescription = {
+      id: 'wf-1',
+      name: 'Private Flow',
+      description: 'PRIVATE WORKFLOW DESCRIPTION',
+      isDeployed: false,
+      folderPath: null,
+    }
+    const data = baseData({ workflows: [workflowWithPrivateDescription] })
+
+    expect(buildWorkspaceMd(data)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+    expect(JSON.stringify(buildVfsSnapshot(data))).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+    expect(buildVfsSnapshot(data).workflows?.[0]).not.toHaveProperty('description')
+  })
 })
 
 describe('buildWorkspaceMd - connected integrations / credentials', () => {
@@ -114,6 +116,16 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
   it('renders (none) when no integrations are connected', () => {
     const md = buildWorkspaceMd(baseData({ oauthIntegrations: [] }))
     expect(md).toContain('## Connected Integrations\n(none)')
+  })
+
+  it('injects available environment credential names into markdown and the typed snapshot', () => {
+    const data = baseData({ envVariables: ['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'] })
+
+    const md = buildWorkspaceMd(data)
+    expect(md).toContain('## Environment Variables (2)')
+    expect(md).toContain('- OPENAI_API_KEY')
+    expect(md).toContain('- STRIPE_SECRET_KEY')
+    expect(buildVfsSnapshot(data).envVars).toEqual(['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'])
   })
 })
 
@@ -268,5 +280,30 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
     )
     expect(a).toBe(b)
     expect(a).not.toContain('rows')
+  })
+})
+
+describe('custom blocks', () => {
+  const customBlocks = [
+    { type: 'custom_block_abc', name: 'Invoice Parser', description: 'Parses invoices' },
+  ]
+
+  it('renders a Custom Blocks section in the workspace markdown', () => {
+    const md = buildWorkspaceMd(baseData({ customBlocks }))
+    expect(md).toContain('## Custom Blocks (1)')
+    expect(md).toContain('- **Invoice Parser** (custom_block_abc) — Parses invoices')
+  })
+
+  it('omits the section when there are no custom blocks', () => {
+    expect(buildWorkspaceMd(baseData())).not.toContain('## Custom Blocks')
+  })
+
+  it('carries custom blocks in the typed snapshot keyed by type (Go diffs the customBlocks kind)', () => {
+    const withBlocks = buildVfsSnapshot(baseData({ customBlocks }))
+    expect(withBlocks.customBlocks).toEqual([
+      { type: 'custom_block_abc', name: 'Invoice Parser', description: 'Parses invoices' },
+    ])
+    const without = buildVfsSnapshot(baseData())
+    expect(without.customBlocks).toEqual([])
   })
 })

@@ -1,28 +1,31 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { Button, ChipInput, ChipModalTabs } from '@sim/emcn'
-import { Folder, Search, Workflow } from '@sim/emcn/icons'
+import { useMemo, useState } from 'react'
+import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
+import { Search } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
-  DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
-  DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
-  RECENTLY_DELETED_SORT_COLUMNS,
-  type RecentlyDeletedSortColumn,
   type RecentlyDeletedTab,
   recentlyDeletedParsers,
+  recentlyDeletedSortParams,
   recentlyDeletedUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useMothershipChats, useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import {
@@ -30,6 +33,7 @@ import {
   useWorkspaceFileFolders,
 } from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -41,6 +45,9 @@ type ResourceType =
   | 'file'
   | 'folder'
   | 'workspace_folder'
+  | 'knowledge_folder'
+  | 'table_folder'
+  | 'chat'
 
 function getResourceHref(
   workspaceId: string,
@@ -61,20 +68,14 @@ function getResourceHref(
       return `${base}/w`
     case 'workspace_folder':
       return `${base}/files?folderId=${id}`
+    case 'knowledge_folder':
+      return `${base}/knowledge?folderId=${id}`
+    case 'table_folder':
+      return `${base}/tables?folderId=${id}`
+    case 'chat':
+      return `${base}/chat/${id}`
   }
 }
-
-type SortColumn = 'deleted' | 'name' | 'type'
-
-interface SortConfig {
-  column: SortColumn
-  direction: 'asc' | 'desc'
-}
-
-const DEFAULT_SORT: SortConfig = { column: 'deleted', direction: 'desc' }
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
 
 const SORT_OPTIONS: ColumnOption[] = [
   { id: 'deleted', label: 'Deleted' },
@@ -82,15 +83,18 @@ const SORT_OPTIONS: ColumnOption[] = [
   { id: 'type', label: 'Type' },
 ]
 
-const ICON_CLASS = 'size-[14px]'
+const ICON_CLASS = 'size-5 shrink-0'
 
-const RESOURCE_TYPE_TO_MOTHERSHIP: Partial<
-  Record<Exclude<ResourceType, 'all'>, MothershipResourceType>
-> = {
+const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, MothershipResourceType> = {
   workflow: 'workflow',
+  folder: 'folder',
+  workspace_folder: 'filefolder',
+  knowledge_folder: 'folder',
+  table_folder: 'folder',
   table: 'table',
   knowledge: 'knowledgebase',
   file: 'file',
+  chat: 'task',
 }
 
 interface DeletedResource {
@@ -99,7 +103,6 @@ interface DeletedResource {
   type: Exclude<ResourceType, 'all'>
   deletedAt: Date
   workspaceId: string
-  color?: string
 }
 
 interface RestoredResourceEntry {
@@ -114,29 +117,23 @@ const TABS: { id: ResourceType; label: string }[] = [
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
+  { id: 'chat', label: 'Chats' },
 ]
 
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   workflow: 'Workflow',
   folder: 'Folder',
   workspace_folder: 'File Folder',
+  knowledge_folder: 'Knowledge Folder',
+  table_folder: 'Table Folder',
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
+  chat: 'Chat',
 }
 
 function ResourceIcon({ resource }: { resource: DeletedResource }) {
-  if (resource.type === 'workflow') {
-    return <Workflow className={`${ICON_CLASS} shrink-0 text-[var(--text-icon)]`} />
-  }
-
-  if (resource.type === 'folder' || resource.type === 'workspace_folder') {
-    const color = resource.color ?? '#6B7280'
-    return <Folder className={ICON_CLASS} style={{ color }} />
-  }
-
   const mothershipType = RESOURCE_TYPE_TO_MOTHERSHIP[resource.type]
-  if (!mothershipType) return null
   const config = RESOURCE_REGISTRY[mothershipType]
   return config.renderTabIcon(
     { type: mothershipType, id: resource.id, title: resource.name },
@@ -144,46 +141,71 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
   )
 }
 
+/**
+ * Folder trees served by the generic folders API, other than the workflow tree that owns the
+ * standalone "Folders" tab. Each entry names the deleted-resource type it produces, the
+ * `resourceType` its rows are read and restored under, and the tab it files beneath — a
+ * foldered resource's folders belong with the resource, the way a file folder sits under
+ * Files. Declared once so adding a foldered resource is one row here rather than a fourth
+ * copy of the query/collect/restore triple below.
+ */
+const FOLDERED_RESOURCE_TREES = [
+  { type: 'knowledge_folder', resourceType: 'knowledge_base', tab: 'knowledge' },
+  { type: 'table_folder', resourceType: 'table', tab: 'table' },
+] as const satisfies readonly {
+  type: Exclude<ResourceType, 'all'>
+  resourceType: ServedFolderResourceType
+  tab: ResourceType
+}[]
+
+const FOLDER_TREE_TAB_BY_TYPE = new Map<ResourceType, ResourceType>(
+  FOLDERED_RESOURCE_TREES.map((tree) => [tree.type, tree.tab])
+)
+
+/**
+ * Restore brings a workflow back but deliberately does NOT re-enable its schedules, webhooks,
+ * or chats. Archive overwrites their enabled state without recording what it was, so restoring
+ * to a constant would re-enable something the user had deliberately switched off — and a
+ * deliberately-disabled schedule or webhook is a common state, not an edge case, so that would
+ * be wrong more often than right.
+ *
+ * Leaving it off is the safe choice; leaving it UNSAID is not. Restoring anything that carries
+ * automations says so at the moment of restore, so re-enabling is a known step rather than a
+ * silent surprise.
+ */
+const PAUSED_AUTOMATION_TYPES = new Set<ResourceType>(['workflow', 'folder'])
+
 function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
   if (activeTab === 'all') return true
   if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
-  return resource.type === activeTab
+  return resource.type === activeTab || FOLDER_TREE_TAB_BY_TYPE.get(resource.type) === activeTab
 }
 
 export function RecentlyDeleted() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
-  const [
-    { tab: activeTab, sort: sortColumn, dir: sortDirection, search: urlSearchTerm },
-    setRecentlyDeletedFilters,
-  ] = useQueryStates(recentlyDeletedParsers, recentlyDeletedUrlKeys)
+  const workspacePermissions = useUserPermissionsContext()
+  const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
+  const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
+    recentlyDeletedParsers,
+    recentlyDeletedUrlKeys
+  )
+
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort,
+    onClear,
+  } = useUrlSort(recentlyDeletedSortParams, recentlyDeletedUrlKeys)
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
    * write is debounced. Filtering below is cheap in-memory over a small list, so
    * it reads the instant value too.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setRecentlyDeletedFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setRecentlyDeletedFilters]
-  )
-
-  const activeSort = useMemo<SortConfig | null>(
-    () =>
-      sortColumn === DEFAULT_RECENTLY_DELETED_SORT_COLUMN &&
-      sortDirection === DEFAULT_RECENTLY_DELETED_SORT_DIRECTION
-        ? null
-        : { column: sortColumn, direction: sortDirection },
-    [sortColumn, sortDirection]
-  )
+  const [urlSearchTerm, setSearchTerm] = useSettingsSearch()
 
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
@@ -193,8 +215,18 @@ export function RecentlyDeleted() {
   const activeFoldersQuery = useFolders(workspaceId)
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
+  /**
+   * One archived-folder query per non-workflow tree, in the fixed order of
+   * {@link FOLDERED_RESOURCE_TREES} so the hook call order stays stable.
+   */
+  const knowledgeFoldersQuery = useFolders(workspaceId, {
+    scope: 'archived',
+    resourceType: 'knowledge_base',
+  })
+  const tableFoldersQuery = useFolders(workspaceId, { scope: 'archived', resourceType: 'table' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
   const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
+  const chatsQuery = useMothershipChats(workspaceId, { scope: 'archived' })
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
@@ -202,22 +234,29 @@ export function RecentlyDeleted() {
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
+  const restoreChat = useRestoreMothershipChat(workspaceId)
 
   const isLoading =
     workflowsQuery.isLoading ||
     foldersQuery.isLoading ||
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
+    knowledgeFoldersQuery.isLoading ||
+    tableFoldersQuery.isLoading ||
     filesQuery.isLoading ||
-    workspaceFoldersQuery.isLoading
+    workspaceFoldersQuery.isLoading ||
+    chatsQuery.isLoading
 
   const error =
     workflowsQuery.error ||
     foldersQuery.error ||
     tablesQuery.error ||
     knowledgeQuery.error ||
+    knowledgeFoldersQuery.error ||
+    tableFoldersQuery.error ||
     filesQuery.error ||
-    workspaceFoldersQuery.error
+    workspaceFoldersQuery.error ||
+    chatsQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -237,9 +276,8 @@ export function RecentlyDeleted() {
         id: folder.id,
         name: folder.name,
         type: 'folder',
-        deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
+        deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
-        color: folder.color,
       })
     }
 
@@ -263,6 +301,30 @@ export function RecentlyDeleted() {
       })
     }
 
+    /**
+     * Keyed by `tree.type`, not by array position: an index-aligned pairing would silently file
+     * knowledge folders under Tables (and vice versa) if the const above were ever reordered,
+     * with no type error and no test to catch it.
+     */
+    const folderTreeData: Record<
+      (typeof FOLDERED_RESOURCE_TREES)[number]['type'],
+      typeof knowledgeFoldersQuery.data
+    > = {
+      knowledge_folder: knowledgeFoldersQuery.data,
+      table_folder: tableFoldersQuery.data,
+    }
+    FOLDERED_RESOURCE_TREES.forEach((tree) => {
+      for (const folder of folderTreeData[tree.type] ?? []) {
+        items.push({
+          id: folder.id,
+          name: folder.name,
+          type: tree.type,
+          deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
+          workspaceId: folder.workspaceId,
+        })
+      }
+    })
+
     for (const f of filesQuery.data ?? []) {
       items.push({
         id: f.id,
@@ -283,28 +345,40 @@ export function RecentlyDeleted() {
       })
     }
 
+    for (const chat of chatsQuery.data ?? []) {
+      if (!chat.deletedAt) continue
+      items.push({
+        id: chat.id,
+        name: chat.name,
+        type: 'chat',
+        deletedAt: chat.deletedAt,
+        workspaceId,
+      })
+    }
+
     return items
   }, [
     workflowsQuery.data,
     foldersQuery.data,
     tablesQuery.data,
     knowledgeQuery.data,
+    knowledgeFoldersQuery.data,
+    tableFoldersQuery.data,
     filesQuery.data,
     workspaceFoldersQuery.data,
+    chatsQuery.data,
     workspaceId,
   ])
 
   const filtered = useMemo(() => {
     let items = resources.filter((resource) => matchesActiveTab(resource, activeTab))
-    if (urlSearchTerm.trim()) {
-      const normalized = urlSearchTerm.toLowerCase()
+    const normalized = urlSearchTerm.trim().toLowerCase()
+    if (normalized) {
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))
     }
-    const col = (activeSort ?? DEFAULT_SORT).column
-    const dir = (activeSort ?? DEFAULT_SORT).direction
-    items = [...items].sort((a, b) => {
+    items.sort((a, b) => {
       let cmp = 0
-      switch (col) {
+      switch (sortColumn) {
         case 'name':
           cmp = a.name.localeCompare(b.name)
           break
@@ -315,24 +389,21 @@ export function RecentlyDeleted() {
           cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
           break
       }
-      return dir === 'asc' ? cmp : -cmp
+      return sortDirection === 'asc' ? cmp : -cmp
     })
 
     const itemIds = new Set(items.map((item) => item.id))
     for (const [id, entry] of restoredItems) {
       if (itemIds.has(id)) continue
       if (!matchesActiveTab(entry.resource, activeTab)) continue
-      if (
-        urlSearchTerm.trim() &&
-        !entry.resource.name.toLowerCase().includes(urlSearchTerm.toLowerCase())
-      ) {
+      if (normalized && !entry.resource.name.toLowerCase().includes(normalized)) {
         continue
       }
       items.splice(Math.min(entry.displayIndex, items.length), 0, entry.resource)
     }
 
     return items
-  }, [resources, activeTab, urlSearchTerm, activeSort, restoredItems])
+  }, [resources, activeTab, urlSearchTerm, sortColumn, sortDirection, restoredItems])
 
   const showNoResults = urlSearchTerm.trim() && filtered.length === 0 && resources.length > 0
 
@@ -393,6 +464,20 @@ export function RecentlyDeleted() {
             folderId: resource.id,
           })
           break
+        case 'knowledge_folder':
+        case 'table_folder': {
+          const tree = FOLDERED_RESOURCE_TREES.find((entry) => entry.type === resource.type)
+          if (!tree) break
+          await restoreFolder.mutateAsync({
+            folderId: resource.id,
+            workspaceId: resource.workspaceId,
+            resourceType: tree.resourceType,
+          })
+          break
+        }
+        case 'chat':
+          await restoreChat.mutateAsync(resource.id)
+          break
       }
 
       setRestoredItems((prev) => new Map(prev).set(resource.id, { resource, displayIndex }))
@@ -422,17 +507,8 @@ export function RecentlyDeleted() {
           config={{
             options: SORT_OPTIONS,
             active: activeSort,
-            onSort: (column, direction) => {
-              const sort = (RECENTLY_DELETED_SORT_COLUMNS as readonly string[]).includes(column)
-                ? (column as RecentlyDeletedSortColumn)
-                : DEFAULT_RECENTLY_DELETED_SORT_COLUMN
-              setRecentlyDeletedFilters({ sort, dir: direction })
-            },
-            onClear: () =>
-              setRecentlyDeletedFilters({
-                sort: DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
-                dir: DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
-              }),
+            onSort,
+            onClear,
           }}
         />
       </div>
@@ -462,47 +538,46 @@ export function RecentlyDeleted() {
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
+            // Chats are per-user (the archived list and restore are scoped to the
+            // viewer's own rows), so chat restore skips the workspace edit gate —
+            // mirroring that any member can delete their own chats.
+            const canRestore = resource.type === 'chat' || canEdit
 
             return (
-              <div
+              <SettingsResourceRow
                 key={resource.id}
-                className='flex items-center gap-2.5 rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-              >
-                <ResourceIcon resource={resource} />
-
-                <div className='flex min-w-0 flex-1 flex-col'>
-                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                    {resource.name}
-                  </span>
-                  <span className='text-[var(--text-muted)] text-small'>
+                icon={<ResourceIcon resource={resource} />}
+                title={resource.name}
+                description={
+                  <>
                     {TYPE_LABEL[resource.type]}
                     {' \u00b7 '}
                     Deleted {formatDate(resource.deletedAt)}
-                  </span>
-                </div>
-
-                {isRestoring ? (
-                  <Button variant='primary' size='sm' disabled className='shrink-0'>
-                    Restoring...
-                  </Button>
-                ) : isRestored ? (
-                  <div className='flex shrink-0 items-center gap-2'>
-                    <span className='text-[var(--text-muted)] text-small'>Restored</span>
-                    <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
-                      View
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant='primary'
-                    size='sm'
-                    onClick={() => void handleRestore(resource)}
-                    className='shrink-0'
-                  >
-                    Restore
-                  </Button>
-                )}
-              </div>
+                  </>
+                }
+                trailing={
+                  !canRestore ? null : isRestoring ? (
+                    <Chip variant='primary' disabled>
+                      Restoring...
+                    </Chip>
+                  ) : isRestored ? (
+                    <div className='flex items-center gap-2'>
+                      <span className='text-[var(--text-muted)] text-small'>
+                        {PAUSED_AUTOMATION_TYPES.has(resource.type)
+                          ? 'Restored \u00b7 schedules and webhooks stay paused'
+                          : 'Restored'}
+                      </span>
+                      <Chip variant='primary' onClick={() => handleView(resource)}>
+                        View
+                      </Chip>
+                    </div>
+                  ) : (
+                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
+                      Restore
+                    </Chip>
+                  )
+                }
+              />
             )
           })}
         </div>

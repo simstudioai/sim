@@ -50,6 +50,9 @@ Assume an IAM role and receive temporary security credentials
 | `externalId` | string | No | External ID for cross-account access |
 | `serialNumber` | string | No | MFA device serial number or ARN |
 | `tokenCode` | string | No | MFA token code \(6 digits\) |
+| `policyArns` | string | No | Comma-separated ARNs of up to 10 IAM managed policies to use as session policies |
+| `tags` | string | No | JSON object of up to 50 session tag key/value pairs for attribute-based access control |
+| `transitiveTagKeys` | string | No | Comma-separated tag keys that propagate through role chaining |
 
 #### Output
 
@@ -61,6 +64,73 @@ Assume an IAM role and receive temporary security credentials
 | `expiration` | string | Credential expiration timestamp |
 | `assumedRoleArn` | string | ARN of the assumed role |
 | `assumedRoleId` | string | Assumed role ID with session name |
+| `packedPolicySize` | number | Percentage of allowed policy size used |
+| `sourceIdentity` | string | Source identity set on the role session, if any |
+
+### `sts_assume_role_with_web_identity`
+
+Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `roleArn` | string | Yes | ARN of the IAM role to assume |
+| `roleSessionName` | string | Yes | Identifier for the assumed role session |
+| `webIdentityToken` | string | Yes | OAuth 2.0 access token or OpenID Connect ID token from the identity provider \(up to 20000 chars\) |
+| `providerId` | string | No | Fully qualified host of a legacy OAuth 2.0 provider \(e.g. www.amazon.com\); omit for OpenID Connect providers |
+| `policyArns` | string | No | Comma-separated ARNs of up to 10 IAM managed policies to use as session policies |
+| `policy` | string | No | JSON IAM policy to further restrict session permissions \(max 2048 chars\) |
+| `durationSeconds` | number | No | Duration of the session in seconds \(900-43200, default 3600\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeyId` | string | Temporary access key ID |
+| `secretAccessKey` | string | Temporary secret access key |
+| `sessionToken` | string | Temporary session token |
+| `expiration` | string | Credential expiration timestamp |
+| `assumedRoleArn` | string | ARN of the assumed role |
+| `assumedRoleId` | string | Assumed role ID with session name |
+| `subjectFromWebIdentityToken` | string | Unique user identifier from the identity provider's token subject claim |
+| `audience` | string | Intended audience \(client ID\) of the web identity token |
+| `provider` | string | Issuing authority of the presented web identity token |
+| `packedPolicySize` | number | Percentage of allowed policy size used |
+| `sourceIdentity` | string | Source identity set on the role session, if any |
+
+### `sts_assume_role_with_saml`
+
+Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `roleArn` | string | Yes | ARN of the IAM role to assume |
+| `principalArn` | string | Yes | ARN of the SAML provider in IAM that describes the identity provider |
+| `samlAssertion` | string | Yes | Base64-encoded SAML authentication response from the identity provider |
+| `policyArns` | string | No | Comma-separated ARNs of up to 10 IAM managed policies to use as session policies |
+| `policy` | string | No | JSON IAM policy to further restrict session permissions \(max 2048 chars\) |
+| `durationSeconds` | number | No | Duration of the session in seconds \(900-43200, default 3600\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeyId` | string | Temporary access key ID |
+| `secretAccessKey` | string | Temporary secret access key |
+| `sessionToken` | string | Temporary session token |
+| `expiration` | string | Credential expiration timestamp |
+| `assumedRoleArn` | string | ARN of the assumed role |
+| `assumedRoleId` | string | Assumed role ID with session name |
+| `subject` | string | Value of the NameID element in the Subject of the SAML assertion |
+| `subjectType` | string | Format of the name ID \(e.g. transient, persistent\) |
+| `issuer` | string | Value of the Issuer element of the SAML assertion |
+| `audience` | string | Value of the SAML assertion's SubjectConfirmationData Recipient attribute |
+| `nameQualifier` | string | Hash uniquely identifying the issuer, account, and SAML provider |
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
 

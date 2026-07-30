@@ -67,19 +67,17 @@ function appendQuery(path: string, query: unknown): string {
     if (value === undefined || value === null || value === '') continue
 
     if (Array.isArray(value)) {
+      // An array of objects (e.g. a SortSpec) is not repeat-append-able — each
+      // item would stringify to "[object Object]" and silently corrupt the
+      // request (the knowledge tagFilters bug). Encode the WHOLE array as one
+      // JSON string param, mirroring how plain objects are sent below; the
+      // server-side contract decodes it. Scalar arrays keep repeat-append.
+      if (value.some((item) => item !== null && typeof item === 'object')) {
+        searchParams.set(key, JSON.stringify(value))
+        continue
+      }
       for (const item of value) {
         if (item === undefined || item === null || item === '') continue
-        // A non-scalar in a query array would stringify to "[object Object]" and
-        // silently corrupt the request. Encode such values as a single JSON
-        // string param and decode them server-side instead. Failing loudly here
-        // keeps the boundary honest (this is how the knowledge tagFilters bug
-        // shipped undetected).
-        if (typeof item === 'object') {
-          throw new Error(
-            `Cannot serialize query param "${key}": arrays of objects are not URL-safe — ` +
-              'encode the value as a JSON string param and decode it server-side.'
-          )
-        }
         searchParams.append(key, String(item))
       }
       continue
@@ -161,6 +159,26 @@ function isSchemaValidationError(error: unknown): boolean {
   )
 }
 
+/**
+ * Compresses a ZodError's issues into a short, readable "field: reason" summary
+ * so a failed response tells you which field was wrong instead of a bare
+ * "Response failed contract validation".
+ */
+function summarizeSchemaIssues(error: unknown): string {
+  const issues = (error as { issues?: unknown }).issues
+  if (!Array.isArray(issues)) return ''
+  const summary = issues
+    .slice(0, 3)
+    .map((issue) => {
+      const path = Array.isArray(issue?.path) ? issue.path.join('.') : ''
+      const message = typeof issue?.message === 'string' ? issue.message : 'invalid'
+      return path ? `${path}: ${message}` : message
+    })
+    .join('; ')
+  const extra = issues.length > 3 ? ` (+${issues.length - 3} more)` : ''
+  return summary ? `${summary}${extra}` : ''
+}
+
 export async function requestJson<C extends AnyApiRouteContract>(
   contract: C,
   input: ApiClientRequest<C>
@@ -199,9 +217,12 @@ export async function requestJson<C extends AnyApiRouteContract>(
     return contract.response.schema.parse(parsed) as ContractJsonResponse<C>
   } catch (error) {
     if (isSchemaValidationError(error)) {
+      const details = summarizeSchemaIssues(error)
       throw new ApiClientError({
         status: response.status,
-        message: 'Response failed contract validation',
+        message: details
+          ? `Response failed contract validation — ${details}`
+          : 'Response failed contract validation',
         body: parsed,
         rawBody: raw,
       })

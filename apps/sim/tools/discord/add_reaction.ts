@@ -46,11 +46,11 @@ export const discordAddReactionTool: ToolConfig<
   request: {
     url: (params: DiscordAddReactionParams) => {
       const encodedEmoji = encodeURIComponent(params.emoji)
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages/${params.messageId}/reactions/${encodedEmoji}/@me`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/reactions/${encodedEmoji}/@me`
     },
     method: 'PUT',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

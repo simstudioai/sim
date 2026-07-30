@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
+import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import {
@@ -211,12 +212,9 @@ export class ConditionBlockHandler implements BlockHandler {
     selectedCondition: { id: string; title: string; value: string } | null
   }> {
     for (const condition of conditions) {
-      if (condition.title === CONDITION.ELSE_TITLE) {
+      if (isElseConditionTitle(condition.title)) {
         const connection = this.findConnectionForCondition(outgoingConnections, condition.id)
-        if (connection) {
-          return { selectedConnection: connection, selectedCondition: condition }
-        }
-        continue
+        return { selectedConnection: connection ?? null, selectedCondition: condition }
       }
 
       const conditionValueString = String(condition.value || '')
@@ -239,15 +237,6 @@ export class ConditionBlockHandler implements BlockHandler {
         logger.error(`Failed to evaluate condition "${condition.title}": ${error.message}`)
         throw new Error(`Evaluation error in condition "${condition.title}": ${error.message}`)
       }
-    }
-
-    const elseCondition = conditions.find((c) => c.title === CONDITION.ELSE_TITLE)
-    if (elseCondition) {
-      const elseConnection = this.findConnectionForCondition(outgoingConnections, elseCondition.id)
-      if (elseConnection) {
-        return { selectedConnection: elseConnection, selectedCondition: elseCondition }
-      }
-      return { selectedConnection: null, selectedCondition: elseCondition }
     }
 
     return { selectedConnection: null, selectedCondition: null }

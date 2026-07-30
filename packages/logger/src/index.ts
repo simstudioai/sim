@@ -4,6 +4,7 @@
  * Framework-agnostic logging utilities for the Sim platform.
  * Provides standardized console logging with environment-aware configuration.
  */
+import { filterUndefined } from '@sim/utils/object'
 import chalk from 'chalk'
 import { getRequestContext } from './request-context'
 
@@ -200,7 +201,10 @@ export class Logger {
   private shouldLog(level: LogLevel): boolean {
     if (!this.config.enabled) return false
 
-    if (getNodeEnv() === 'production' && typeof window !== 'undefined') {
+    if (
+      getNodeEnv() === 'production' &&
+      typeof (globalThis as { window?: unknown }).window !== 'undefined'
+    ) {
       return false
     }
 
@@ -240,7 +244,7 @@ export class Logger {
           ...this.metadata,
         }
       : this.metadata
-    const metadataEntries = Object.entries(effectiveMetadata).filter(([_, v]) => v !== undefined)
+    const metadataEntries = Object.entries(filterUndefined(effectiveMetadata))
     const metadataStr =
       metadataEntries.length > 0
         ? ` {${metadataEntries.map(([k, v]) => `${k}=${v}`).join(' ')}}`

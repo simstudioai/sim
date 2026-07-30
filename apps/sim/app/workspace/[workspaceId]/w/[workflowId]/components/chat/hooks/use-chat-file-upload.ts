@@ -9,8 +9,8 @@ export interface ChatFile {
   file: File
 }
 
-const MAX_FILES = 15
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+export const MAX_CHAT_FILES = 15
+export const MAX_CHAT_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 /**
  * Hook for handling file uploads in the chat modal
@@ -29,14 +29,14 @@ export function useChatFileUpload() {
    */
   const addFiles = useCallback((files: File[]) => {
     setChatFiles((currentFiles) => {
-      const remainingSlots = Math.max(0, MAX_FILES - currentFiles.length)
+      const remainingSlots = Math.max(0, MAX_CHAT_FILES - currentFiles.length)
       const candidateFiles = files.slice(0, remainingSlots)
       const errors: string[] = []
       const validNewFiles: ChatFile[] = []
 
       for (const file of candidateFiles) {
         // Check file size
-        if (file.size > MAX_FILE_SIZE) {
+        if (file.size > MAX_CHAT_FILE_SIZE_BYTES) {
           errors.push(`${file.name} is too large (max 10MB)`)
           continue
         }
@@ -82,6 +82,13 @@ export function useChatFileUpload() {
    */
   const removeFile = useCallback((fileId: string) => {
     setChatFiles((prev) => prev.filter((f) => f.id !== fileId))
+  }, [])
+
+  /**
+   * Surface an execution-time upload failure without removing the selected files.
+   */
+  const reportUploadError = useCallback((message: string) => {
+    setUploadErrors([message])
   }, [])
 
   /**
@@ -166,6 +173,7 @@ export function useChatFileUpload() {
     isDragOver,
     addFiles,
     removeFile,
+    reportUploadError,
     clearFiles,
     clearErrors,
     handleFileInputChange,

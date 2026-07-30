@@ -16,6 +16,12 @@ import {
   calcomSchedulesSelectorContract,
 } from '@/lib/api/contracts/selectors/calcom'
 import {
+  clickupFoldersSelectorContract,
+  clickupListsSelectorContract,
+  clickupSpacesSelectorContract,
+  clickupWorkspacesSelectorContract,
+} from '@/lib/api/contracts/selectors/clickup'
+import {
   cloudwatchLogGroupsSelectorContract,
   cloudwatchLogStreamsSelectorContract,
 } from '@/lib/api/contracts/selectors/cloudwatch'
@@ -67,6 +73,7 @@ import {
   onedriveFilesSelectorContract,
   onedriveFolderSelectorContract,
   onedriveFoldersSelectorContract,
+  outlookCalendarsSelectorContract,
   outlookFoldersSelectorContract,
 } from '@/lib/api/contracts/selectors/microsoft'
 import {
@@ -107,6 +114,7 @@ export * from '@/lib/api/contracts/selectors/asana'
 export * from '@/lib/api/contracts/selectors/attio'
 export * from '@/lib/api/contracts/selectors/bigquery'
 export * from '@/lib/api/contracts/selectors/calcom'
+export * from '@/lib/api/contracts/selectors/clickup'
 export * from '@/lib/api/contracts/selectors/cloudwatch'
 export * from '@/lib/api/contracts/selectors/confluence'
 export * from '@/lib/api/contracts/selectors/google'
@@ -137,6 +145,10 @@ export const selectorContractsByPath = {
   '/api/tools/google_bigquery/tables': bigQueryTablesSelectorContract,
   '/api/tools/calcom/event-types': calcomEventTypesSelectorContract,
   '/api/tools/calcom/schedules': calcomSchedulesSelectorContract,
+  '/api/tools/clickup/workspaces': clickupWorkspacesSelectorContract,
+  '/api/tools/clickup/spaces': clickupSpacesSelectorContract,
+  '/api/tools/clickup/folders': clickupFoldersSelectorContract,
+  '/api/tools/clickup/lists': clickupListsSelectorContract,
   '/api/tools/confluence/selector-spaces': confluenceSpacesSelectorContract,
   '/api/tools/jsm/selector-servicedesks': jsmServiceDesksSelectorContract,
   '/api/tools/jsm/selector-requesttypes': jsmRequestTypesSelectorContract,
@@ -161,6 +173,7 @@ export const selectorContractsByPath = {
   '/api/tools/hubspot/pipelines': hubspotPipelinesSelectorContract,
   '/api/tools/hubspot/owners': hubspotOwnersSelectorContract,
   '/api/tools/outlook/folders': outlookFoldersSelectorContract,
+  '/api/tools/outlook/calendars': outlookCalendarsSelectorContract,
   '/api/tools/google_calendar/calendars': googleCalendarSelectorContract,
   '/api/tools/microsoft-teams/teams': microsoftTeamsSelectorContract,
   '/api/tools/microsoft-teams/chats': microsoftChatsSelectorContract,

@@ -9,12 +9,25 @@ authors:
 readingTime: 10
 tags: [Release, Mothership, Tables, Knowledge Base, Connectors, RAG, Sim]
 ogImage: /blog/mothership/cover.jpg
-ogAlt: 'Sim v0.6 release announcement'
+ogAlt: 'Introducing Mothership airship illustration'
 about: ['AI Agents', 'Workflow Automation', 'Developer Tools']
 timeRequired: PT10M
 canonical: https://www.sim.ai/blog/mothership
 featured: true
 draft: false
+faq:
+  - q: "What is Mothership in Sim?"
+    a: "Mothership is the control plane for a Sim workspace—an orchestrator with full context over your workflows, tables, knowledge bases, files, and connected integrations. It can build, test, and deploy workflows from a plain-English description and call any of your 100+ integration tools directly."
+  - q: "Can I trigger Mothership by email?"
+    a: "Yes. Enabling a Sim inbox lets Mothership read incoming emails, execute tasks using your integrations and data, and reply—turning your workspace into an email-driven automation layer."
+  - q: "What is Tables in Sim and how does it work with agents?"
+    a: "Tables gives your workspace a built-in database with typed columns (string, number, boolean, date, JSON) that agents can query, insert into, and update over time. It acts as persistent memory, with 10+ operations available as workflow blocks and direct management by Mothership."
+  - q: "How do Knowledge Base Connectors ground agent responses?"
+    a: "Connectors sync documents from sources like Google Docs, Notion, Confluence, Slack, GitHub, Jira, Linear, HubSpot, Salesforce, Zendesk, Dropbox, OneDrive, Gmail, Discord, and 15+ more, automatically chunking, embedding, and indexing them with incremental sync to stay current. This produces a vector-searchable knowledge base that any workflow block or Mothership can search directly, grounding responses in real business context instead of generic answers."
+  - q: "What's the difference between persistent and until_complete Scheduled Tasks?"
+    a: "Persistent tasks run indefinitely on a set schedule, while until_complete tasks poll repeatedly until a defined success condition is met and then stop automatically. Both support configurable max runs, 40+ timezones, and automatic disabling after 3 consecutive failures."
+  - q: "Can I upload a CSV file and turn it into a queryable table?"
+    a: "Yes. Files uploaded as CSV can be imported directly into Tables—Sim auto-detects delimiters, infers column types, and batch-inserts up to 1,000 rows, turning a raw export into a workflow-ready table in one click."
 ---
 
 I often wonder why AI agents don't already do everything for me today. Why don't they take my meetings for me? Why can't they send follow-ups to customers? Why can't they track the progress of our product launches and just start solving problems for us?
@@ -137,4 +150,4 @@ That's what v0.6 is.
 
 Sim v0.6 is available now at [sim.ai](https://sim.ai). Check out our [documentation](https://docs.sim.ai) for detailed guides on Mothership, Tables, Connectors, and more.
 
-*Questions? [help@sim.ai](mailto:help@sim.ai) · [Discord](https://sim.ai/discord)*
+*Questions? [help@sim.ai](mailto:help@sim.ai) · [Slack](https://sim.ai/slack)*

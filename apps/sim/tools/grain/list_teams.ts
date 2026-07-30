@@ -36,7 +36,7 @@ export const grainListTeamsTool: ToolConfig<GrainListTeamsParams, GrainListTeams
     return {
       success: true,
       output: {
-        teams: data.teams || data || [],
+        teams: data.teams || [],
       },
     }
   },

@@ -51,8 +51,8 @@ export const discordSendMessageTool: ToolConfig<
     }),
     body: (params: DiscordSendMessageParams) => {
       return {
-        botToken: params.botToken,
-        channelId: params.channelId,
+        botToken: params.botToken.trim(),
+        channelId: params.channelId.trim(),
         content: params.content || 'Message sent from Sim',
         files: params.files || null,
       }

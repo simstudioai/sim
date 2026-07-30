@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
+import { getErrorMessage } from '@sim/utils/errors'
 import busboy from 'busboy'
 
 /**
@@ -115,12 +116,7 @@ export function readMultipart(
         limits: { fileSize: maxFileBytes, files: 1 },
       })
     } catch (err) {
-      reject(
-        new MultipartError(
-          'NOT_MULTIPART',
-          err instanceof Error ? err.message : 'Invalid multipart request'
-        )
-      )
+      reject(new MultipartError('NOT_MULTIPART', getErrorMessage(err, 'Invalid multipart request')))
       return
     }
 
@@ -228,7 +224,7 @@ export function readMultipart(
     })
 
     bb.on('error', (err) => {
-      const message = err instanceof Error ? err.message : 'Failed to parse multipart body'
+      const message = getErrorMessage(err, 'Failed to parse multipart body')
       settle(() => reject(new MultipartError('PARSE_ERROR', message)))
     })
 
@@ -243,10 +239,7 @@ export function readMultipart(
         reject(
           err instanceof MultipartError
             ? err
-            : new MultipartError(
-                'PARSE_ERROR',
-                err instanceof Error ? err.message : 'Failed to read request body'
-              )
+            : new MultipartError('PARSE_ERROR', getErrorMessage(err, 'Failed to read request body'))
         )
       )
     })

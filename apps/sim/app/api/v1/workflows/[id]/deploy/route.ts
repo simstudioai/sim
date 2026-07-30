@@ -7,14 +7,18 @@ import {
   v1DeployWorkflowContract,
   v1UndeployWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
-import { parseOptionalJsonBody, parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { parseOptionalJsonBody, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
 
 const logger = createLogger('V1WorkflowDeployAPI')
@@ -46,7 +50,7 @@ export const POST = withRouteHandler(
       if (!rawBody.success) return rawBody.response
       const body = v1DeployWorkflowBodySchema.safeParse(rawBody.data ?? {})
       if (!body.success) {
-        return validationErrorResponse(body.error)
+        return v1ValidationErrorResponse(body.error)
       }
 
       const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
@@ -60,11 +64,9 @@ export const POST = withRouteHandler(
       const result = await performFullDeploy({
         workflowId: id,
         userId,
-        workflowName: workflow.name || undefined,
         versionName: body.data.name,
         versionDescription: body.data.description ?? undefined,
         requestId,
-        request,
       })
 
       if (!result.success) {
@@ -74,25 +76,19 @@ export const POST = withRouteHandler(
         )
       }
 
-      captureServerEvent(
-        userId,
-        'workflow_deployed',
-        { workflow_id: id, workspace_id: workspaceId },
-        {
-          groups: { workspace: workspaceId },
-          setOnce: { first_workflow_deployed_at: new Date().toISOString() },
-        }
-      )
+      const isDeployed = Boolean(result.activeDeployment)
 
       const limits = await getUserLimits(userId)
       const apiResponse = createApiResponse(
         {
           data: {
             id,
-            isDeployed: true,
+            isDeployed,
             deployedAt: result.deployedAt?.toISOString() ?? null,
             version: result.version,
             warnings: result.warnings ?? [],
+            activeDeployment: result.activeDeployment ?? null,
+            latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
           },
         },
         limits,

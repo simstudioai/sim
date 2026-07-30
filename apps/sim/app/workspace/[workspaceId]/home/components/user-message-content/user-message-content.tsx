@@ -52,7 +52,7 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
   for (const rawCtx of contexts) {
     if (!rawCtx.label) continue
     const ctx = withResolvedBlockType(rawCtx)
-    const prefix = ctx.kind === 'skill' ? '/' : '@'
+    const prefix = ctx.kind === 'skill' || ctx.kind === 'mcp' ? '/' : '@'
     const token = `${prefix}${ctx.label}`
     const pattern = new RegExp(`(^|\\s)(${escapeRegex(token)})(\\s|$)`, 'g')
     let match: RegExpExecArray | null

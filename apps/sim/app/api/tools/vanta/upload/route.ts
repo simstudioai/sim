@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { vantaUploadContract } from '@/lib/api/contracts/tools/vanta'
 import { parseRequest } from '@/lib/api/server'
@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   asVantaRecord,
@@ -70,9 +71,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return uploadSizeError(userFile.size)
       }
 
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
-      fileName = params.fileName || userFile.name
-      mimeType = userFile.type || params.mimeType || 'application/octet-stream'
+      try {
+        const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+        fileBuffer = resolved.buffer
+        fileName = params.fileName || userFile.name
+        mimeType =
+          resolved.contentType || userFile.type || params.mimeType || 'application/octet-stream'
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        logger.error(`[${requestId}] Failed to download Vanta upload file`, {
+          error: getErrorMessage(error),
+        })
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Failed to download file') },
+          { status: 500 }
+        )
+      }
     } else if (params.fileContent) {
       fileBuffer = Buffer.from(params.fileContent, 'base64')
       fileName = params.fileName || 'file'

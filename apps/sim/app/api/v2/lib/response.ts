@@ -38,6 +38,12 @@ const STATUS_BY_CODE: Record<V2ErrorCode, number> = {
   INTERNAL_ERROR: 500,
 }
 
+/**
+ * Every v2 response is authed, per-caller data (ids/filters appear in query
+ * strings) — keep it out of shared HTTP caches unconditionally.
+ */
+const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
+
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
 export function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
@@ -56,7 +62,7 @@ interface V2SuccessOptions {
 }
 
 function successHeaders(options: V2SuccessOptions): Record<string, string> {
-  return { ...rateLimitHeaders(options.rateLimit), ...options.headers }
+  return { ...PRIVATE_NO_STORE, ...rateLimitHeaders(options.rateLimit), ...options.headers }
 }
 
 /** `{ data }` (+ rate-limit headers). */
@@ -95,7 +101,10 @@ export function v2Error(
   if (options.details !== undefined) error.details = options.details
   return NextResponse.json(
     { error },
-    { status: options.status ?? STATUS_BY_CODE[code], headers: options.headers }
+    {
+      status: options.status ?? STATUS_BY_CODE[code],
+      headers: { ...PRIVATE_NO_STORE, ...options.headers },
+    }
   )
 }
 

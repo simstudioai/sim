@@ -11,7 +11,17 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { ensureUserStatsExists } from '@/lib/billing/core/usage'
+import {
+  applyStorageUsageDeltasInTx,
+  maybeNotifyStorageLimitForBillingContext,
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -32,7 +42,52 @@ export class KnowledgeBasePermissionError extends Error {
   readonly code = 'KNOWLEDGE_BASE_FORBIDDEN' as const
 }
 
+/** Raised when a caller files a knowledge base under a folder it may not use. */
+export class KnowledgeBaseFolderError extends Error {
+  readonly code = 'KNOWLEDGE_BASE_FOLDER_INVALID' as const
+  constructor() {
+    super('Folder not found in this workspace')
+  }
+}
+
+/**
+ * Verifies `folderId` is an active `knowledge_base` folder in `workspaceId`. A `null` target
+ * (the workspace root) needs no check.
+ */
+async function assertKnowledgeBaseFolder(
+  folderId: string | null | undefined,
+  workspaceId: string | null
+): Promise<void> {
+  if (!folderId) return
+  if (!workspaceId) throw new KnowledgeBaseFolderError()
+  if (!(await findActiveFolder(folderId, workspaceId, 'knowledge_base'))) {
+    throw new KnowledgeBaseFolderError()
+  }
+}
+
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
+
+type KnowledgeBaseStorageMove =
+  | {
+      kind: 'workspace-to-workspace'
+      sourceContext: StorageBillingContext
+      sourceWorkspaceId: string
+      destinationContext: StorageBillingContext
+    }
+  | {
+      kind: 'workspace-to-personal'
+      sourceContext: StorageBillingContext
+      sourceWorkspaceId: string
+      ownerSubscription: HighestPrioritySubscription | null
+      ownerUserId: string
+    }
+  | {
+      kind: 'personal-to-workspace'
+      sourceWorkspaceId: null
+      destinationContext: StorageBillingContext
+      ownerSubscription: HighestPrioritySubscription | null
+      ownerUserId: string
+    }
 
 /**
  * Get knowledge bases that a user can access
@@ -63,6 +118,7 @@ export async function getKnowledgeBases(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -164,11 +220,16 @@ export async function createKnowledgeBase(
     )
   }
 
+  await assertKnowledgeBaseFolder(data.folderId, data.workspaceId)
+
+  const folderId = data.folderId ?? null
+
   const newKnowledgeBase = {
     id: kbId,
     name: data.name,
     description: data.description ?? null,
     workspaceId: data.workspaceId,
+    folderId,
     userId: data.userId,
     tokenCount: 0,
     embeddingModel: data.embeddingModel,
@@ -219,6 +280,7 @@ export async function createKnowledgeBase(
     updatedAt: now,
     deletedAt: null,
     workspaceId: data.workspaceId,
+    folderId,
     docCount: 0,
     connectorTypes: [],
   }
@@ -233,6 +295,7 @@ export async function updateKnowledgeBase(
     name?: string
     description?: string
     workspaceId?: string | null
+    folderId?: string | null
     chunkingConfig?: {
       maxSize: number
       minSize: number
@@ -243,25 +306,14 @@ export async function updateKnowledgeBase(
   options?: { actorUserId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
   const now = new Date()
-  const updateData: {
-    updatedAt: Date
-    name?: string
-    description?: string | null
-    workspaceId?: string | null
-    chunkingConfig?: {
-      maxSize: number
-      minSize: number
-      overlap: number
-    }
-    embeddingModel?: string
-    embeddingDimension?: number
-  } = {
+  const updateData: Partial<typeof knowledgeBase.$inferInsert> = {
     updatedAt: now,
   }
 
   if (updates.name !== undefined) updateData.name = updates.name
   if (updates.description !== undefined) updateData.description = updates.description
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
+  if (updates.folderId !== undefined) updateData.folderId = updates.folderId
   if (updates.chunkingConfig !== undefined) {
     updateData.chunkingConfig = updates.chunkingConfig
   }
@@ -272,9 +324,113 @@ export async function updateKnowledgeBase(
     )
   }
 
-  // Resolved before the transaction: the target workspace comes from the
-  // request input, so checking it inside the FOR UPDATE tx would only issue a
-  // second pooled-connection checkout while the first is held.
+  /**
+   * Folder admission is resolved against the workspace the knowledge base will end up in,
+   * before the transaction opens — same posture as the permission and storage lookups below,
+   * which deliberately keep external reads off a pooled transaction connection.
+   *
+   * A workspace change without an explicit folder needs no lookup here: the storage block
+   * below already reads the current row, and re-roots from there.
+   */
+  if (updates.folderId !== undefined) {
+    let effectiveWorkspaceId = updates.workspaceId
+    if (effectiveWorkspaceId === undefined) {
+      const [snapshot] = await db
+        .select({ workspaceId: knowledgeBase.workspaceId })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .limit(1)
+      if (!snapshot) {
+        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      }
+      effectiveWorkspaceId = snapshot.workspaceId
+    }
+    await assertKnowledgeBaseFolder(updates.folderId, effectiveWorkspaceId)
+  }
+
+  /**
+   * Resolve transfer admission before opening the transaction. The locked KB
+   * row below revalidates this source snapshot; a concurrent move is an error
+   * instead of silently falling back to newly observed payer data.
+   */
+  let storageMove: KnowledgeBaseStorageMove | undefined
+  if (updates.workspaceId !== undefined) {
+    const [kbSnapshot] = await db
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+        folderId: knowledgeBase.folderId,
+      })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+    if (!kbSnapshot) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+    }
+    const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
+    const destinationWorkspaceId = updates.workspaceId ?? null
+
+    /**
+     * Folders never cross workspaces, so a workspace move would leave the row pointing at a
+     * folder the destination cannot render — an active knowledge base nobody can reach.
+     * Land it at the destination root unless the caller named a folder itself.
+     */
+    if (
+      updates.folderId === undefined &&
+      kbSnapshot.folderId &&
+      destinationWorkspaceId !== sourceWorkspaceId
+    ) {
+      updateData.folderId = null
+    }
+
+    if (
+      sourceWorkspaceId &&
+      destinationWorkspaceId &&
+      sourceWorkspaceId !== destinationWorkspaceId
+    ) {
+      const [sourceContext, destinationContext] = await Promise.all([
+        resolveStorageBillingContext(sourceWorkspaceId),
+        resolveStorageBillingContext(destinationWorkspaceId),
+      ])
+      storageMove = {
+        kind: 'workspace-to-workspace',
+        sourceWorkspaceId,
+        sourceContext,
+        destinationContext,
+      }
+    } else if (sourceWorkspaceId && !destinationWorkspaceId) {
+      const [sourceContext, ownerSubscription] = await Promise.all([
+        resolveStorageBillingContext(sourceWorkspaceId),
+        getHighestPrioritySubscription(kbSnapshot.userId),
+        ensureUserStatsExists(kbSnapshot.userId),
+      ])
+      storageMove = {
+        kind: 'workspace-to-personal',
+        sourceWorkspaceId,
+        sourceContext,
+        ownerUserId: kbSnapshot.userId,
+        ownerSubscription,
+      }
+    } else if (!sourceWorkspaceId && destinationWorkspaceId) {
+      const [destinationContext, ownerSubscription] = await Promise.all([
+        resolveStorageBillingContext(destinationWorkspaceId),
+        getHighestPrioritySubscription(kbSnapshot.userId),
+        ensureUserStatsExists(kbSnapshot.userId),
+      ])
+      storageMove = {
+        kind: 'personal-to-workspace',
+        sourceWorkspaceId: null,
+        destinationContext,
+        ownerUserId: kbSnapshot.userId,
+        ownerSubscription,
+      }
+    }
+  }
+
+  /**
+   * The target permission is also resolved before the transaction so no
+   * external permission lookup holds a pooled transaction connection.
+   */
   const targetWorkspacePermission = updates.workspaceId
     ? await getUserEntityPermissions(
         options?.actorUserId as string,
@@ -283,8 +439,9 @@ export async function updateKnowledgeBase(
       )
     : null
 
+  let destinationUpdatedUsage: number | undefined
   try {
-    await db.transaction(async (tx) => {
+    destinationUpdatedUsage = await db.transaction(async (tx) => {
       const [currentKb] = await tx
         .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
         .from(knowledgeBase)
@@ -294,6 +451,12 @@ export async function updateKnowledgeBase(
 
       if (!currentKb) {
         throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      }
+
+      if (storageMove && (currentKb.workspaceId ?? null) !== storageMove.sourceWorkspaceId) {
+        throw new Error(
+          `Knowledge base ${knowledgeBaseId} workspace changed; retry with fresh storage billing contexts`
+        )
       }
 
       if (updates.workspaceId !== undefined) {
@@ -343,6 +506,64 @@ export async function updateKnowledgeBase(
         }
       }
 
+      /**
+       * Storage lock order for a move is KB, sorted workspaces, sorted user
+       * payers, then sorted organization payers. The accounting helpers own the
+       * workspace/payer portion and keep same-payer moves aggregate-neutral.
+       * Document bytes are summed in SQL while the KB lock excludes concurrent
+       * normal document insertion.
+       */
+      let transferUpdatedUsage: number | undefined
+      if (storageMove) {
+        const [billableStorage] = await tx
+          .select({
+            bytes: sql<number>`COALESCE(SUM(${document.fileSize}), 0)`,
+          })
+          .from(document)
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              isNull(document.connectorId),
+              isNull(document.deletedAt)
+            )
+          )
+          .limit(1)
+        const billableBytes = Number(billableStorage?.bytes ?? 0)
+        if (storageMove.kind === 'workspace-to-workspace') {
+          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+            workspaceDeltas: [
+              { context: storageMove.sourceContext, deltaBytes: -billableBytes },
+              { context: storageMove.destinationContext, deltaBytes: billableBytes },
+            ],
+            legacyDeltas: [],
+          })
+        } else if (storageMove.kind === 'workspace-to-personal') {
+          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+            workspaceDeltas: [{ context: storageMove.sourceContext, deltaBytes: -billableBytes }],
+            legacyDeltas: [
+              {
+                userId: storageMove.ownerUserId,
+                subscription: storageMove.ownerSubscription,
+                deltaBytes: billableBytes,
+              },
+            ],
+          })
+        } else {
+          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+            workspaceDeltas: [
+              { context: storageMove.destinationContext, deltaBytes: billableBytes },
+            ],
+            legacyDeltas: [
+              {
+                userId: storageMove.ownerUserId,
+                subscription: storageMove.ownerSubscription,
+                deltaBytes: -billableBytes,
+              },
+            ],
+          })
+        }
+      }
+
       await tx
         .update(knowledgeBase)
         .set(updateData)
@@ -385,12 +606,32 @@ export async function updateKnowledgeBase(
             )
         }
       }
+
+      return transferUpdatedUsage
     })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505' && updates.name !== undefined) {
       throw new KnowledgeBaseConflictError(updates.name)
     }
     throw error
+  }
+
+  if (storageMove && destinationUpdatedUsage !== undefined) {
+    if (storageMove.kind === 'workspace-to-workspace') {
+      const sourcePayer = storageMove.sourceContext.billingEntity
+      const destinationPayer = storageMove.destinationContext.billingEntity
+      if (sourcePayer.type !== destinationPayer.type || sourcePayer.id !== destinationPayer.id) {
+        void maybeNotifyStorageLimitForBillingContext(
+          storageMove.destinationContext,
+          destinationUpdatedUsage
+        )
+      }
+    } else if (storageMove.kind === 'personal-to-workspace') {
+      void maybeNotifyStorageLimitForBillingContext(
+        storageMove.destinationContext,
+        destinationUpdatedUsage
+      )
+    }
   }
 
   const updatedKb = await db
@@ -407,6 +648,7 @@ export async function updateKnowledgeBase(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -457,6 +699,7 @@ export async function getKnowledgeBaseById(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -487,12 +730,18 @@ export async function getKnowledgeBaseById(
 
 /**
  * Delete a knowledge base (soft delete)
+ *
+ * `options.archivedAt` lets a bulk caller stamp every row it archives with one shared
+ * timestamp, which is how the folder cascade later identifies exactly what it archived and
+ * restores that set and nothing else. Mirrors `archiveWorkflow`'s option of the same name.
+ * Defaults to now, so single-KB callers are unaffected.
  */
 export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
-  requestId: string
+  requestId: string,
+  options?: { archivedAt?: Date }
 ): Promise<void> {
-  const now = new Date()
+  const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -544,7 +793,8 @@ export async function deleteKnowledgeBase(
  */
 export async function restoreKnowledgeBase(
   knowledgeBaseId: string,
-  requestId: string
+  requestId: string,
+  options?: { restoringFolderIds?: ReadonlySet<string> }
 ): Promise<void> {
   const [kb] = await db
     .select({
@@ -552,6 +802,7 @@ export async function restoreKnowledgeBase(
       name: knowledgeBase.name,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
     })
     .from(knowledgeBase)
     .where(eq(knowledgeBase.id, knowledgeBaseId))
@@ -572,6 +823,20 @@ export async function restoreKnowledgeBase(
       throw new Error('Cannot restore knowledge base into an archived workspace')
     }
   }
+
+  /**
+   * Restoring a knowledge base whose folder is still archived would file it under a folder
+   * the Knowledge page never renders, leaving an active row nobody can reach. Re-root it
+   * instead — the same treatment `restoreFolder` gives a folder with an archived parent.
+   * `restoringFolderIds` exempts the folder subtree this restore is part of, which is still
+   * archived at the moment the cascade calls in.
+   */
+  const restoredFolderId = await resolveRestoredFolderId(
+    kb.folderId,
+    kb.workspaceId,
+    'knowledge_base',
+    options?.restoringFolderIds
+  )
 
   /**
    * A concurrent create/rename can commit the same active name after `generateRestoreName`'s check
@@ -607,7 +872,12 @@ export async function restoreKnowledgeBase(
 
         await tx
           .update(knowledgeBase)
-          .set({ deletedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .set({
+            deletedAt: null,
+            updatedAt: now,
+            name: attemptedRestoreName,
+            folderId: restoredFolderId,
+          })
           .where(eq(knowledgeBase.id, knowledgeBaseId))
 
         await tx

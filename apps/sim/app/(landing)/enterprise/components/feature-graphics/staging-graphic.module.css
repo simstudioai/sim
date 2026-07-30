@@ -1,0 +1,30 @@
+/**
+ * The StagingGraphic's only motion: a soft ring pulse blooming from the
+ * Promote button — the same quiet 6s state-confirmation beat as the
+ * access tile's grant node and the lifecycle tile's live node, keeping
+ * the family's shared rhythm. Under prefers-reduced-motion the pulse is
+ * removed and the button sits static.
+ */
+
+.promotePulse {
+  animation: staging-promote-pulse 6s ease-out infinite;
+}
+
+@keyframes staging-promote-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .promotePulse {
+    animation: none;
+  }
+}

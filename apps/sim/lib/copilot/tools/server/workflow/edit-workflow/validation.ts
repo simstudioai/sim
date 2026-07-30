@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -14,10 +15,11 @@ import {
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
-import { EDGE, normalizeName } from '@/executor/constants'
+import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
   EditWorkflowOperation,
@@ -55,12 +57,27 @@ export function validateInputsForBlock(
   blockId: string
 ): ValidationResult {
   const errors: ValidationError[] = []
+
+  // Synthesized by sanitizeForCopilot in the read view; derived, never stored.
+  // Rejected before the unknown-block-type early return below so it can never be
+  // written regardless of block type.
+  if (TRIGGER_WEBHOOK_URL_FIELD in inputs) {
+    errors.push({
+      blockId,
+      blockType,
+      field: TRIGGER_WEBHOOK_URL_FIELD,
+      value: inputs[TRIGGER_WEBHOOK_URL_FIELD],
+      error: `"${TRIGGER_WEBHOOK_URL_FIELD}" is read-only. The webhook URL is auto-assigned by Sim and cannot be changed by the agent or the user.`,
+    })
+    inputs = omit(inputs, [TRIGGER_WEBHOOK_URL_FIELD])
+  }
+
   const blockConfig = getBlock(blockType)
 
   if (!blockConfig) {
     // Unknown block type - return inputs as-is (let it fail later if invalid)
     validationLogger.warn(`Unknown block type: ${blockType}, skipping validation`)
-    return { validInputs: inputs, errors: [] }
+    return { validInputs: inputs, errors }
   }
 
   const validatedInputs: Record<string, any> = {}
@@ -94,6 +111,19 @@ export function validateInputsForBlock(
           error: `Unknown input field "${key}" for block type "${blockType}"`,
         })
       }
+      continue
+    }
+
+    // Display-only fields (e.g. webhookUrlDisplay, samplePayload) are computed or
+    // static in the UI; a written value would be dead state the UI never shows.
+    if (subBlockConfig.readOnly === true) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Field "${key}" on block type "${blockType}" is a read-only display field and cannot be set`,
+      })
       continue
     }
 
@@ -367,7 +397,9 @@ export function validateValueForSubBlockType(
     }
 
     case 'condition-input':
-    case 'router-input': {
+    case 'router-input':
+    case 'knowledge-tag-filters':
+    case 'document-tag-entry': {
       const parsedValue =
         typeof value === 'string'
           ? (() => {
@@ -1217,7 +1249,8 @@ export async function collectUnresolvedAgentToolReferences(
  * - Filters out apiKey inputs when isHosted is true and the key is platform-managed: either a
  *   hosted LLM model (model in getHostedModels) or a block whose active tool declares
  *   `hosting` (e.g. Fal-backed video/image generators) - the canonical signal also used by
- *   injectHostedKeyIfNeeded at execution
+ *   injectHostedKeyIfNeeded at execution. The Pi Coding Agent block in Create PR mode is
+ *   exempt from the hosted-model rule because it always runs on the user's own key
  * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
  * Returns validation errors for any removed inputs.
  */
@@ -1285,17 +1318,24 @@ export async function preValidateCredentialInputs(
   }
 
   /**
-   * Check if apiKey should be filtered for a block with the given model
+   * Check if apiKey should be filtered for a block with the given model.
+   *
+   * The Pi Coding Agent in Create PR mode is exempt: it hands the model key to
+   * a sandbox, so Sim never covers it with a hosted key and the block needs the
+   * user's own key even for hosted models. Its other modes keep the model
+   * client in Sim and follow the normal rule.
    */
   function collectHostedApiKeyInput(
     inputs: Record<string, unknown>,
-    modelValue: string | undefined,
+    toolParams: Record<string, unknown>,
     opIndex: number,
     blockId: string,
     blockType: string,
     nestedBlockId?: string
   ) {
     if (!hostedModelsLower || !inputs.apiKey) return
+    if (blockType === BlockType.PI && isPiByokOnlyMode(toolParams.mode)) return
+    const modelValue = toolParams.model
     if (!modelValue || typeof modelValue !== 'string') return
 
     if (hostedModelsLower.has(modelValue.toLowerCase())) {
@@ -1494,10 +1534,9 @@ export async function preValidateCredentialInputs(
       // Hosted collectors no-op off hosted Sim, so only resolve the effective state when it matters.
       if (isHosted) {
         const toolParams = finalValues.get(stateKey) ?? inputs
-        const modelValue = toolParams.model as string | undefined
         collectHostedApiKeyInput(
           inputs,
-          modelValue,
+          toolParams,
           opIndex,
           reportBlockId,
           blockType,

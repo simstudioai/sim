@@ -170,13 +170,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   }
 
   const fieldTypeOptions: ComboboxOption[] = useMemo(() => {
-    return SUPPORTED_FIELD_TYPES.filter((type) => hasAvailableSlots(type)).map((type) => {
+    return SUPPORTED_FIELD_TYPES.reduce<ComboboxOption[]>((acc, type) => {
       const { used, max } = getSlotUsageByFieldType(type)
-      return {
-        value: type,
-        label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})`,
+      if (used < max) {
+        acc.push({ value: type, label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})` })
       }
-    })
+      return acc
+    }, [])
   }, [kbTagDefinitions])
 
   const saveTagDefinition = async () => {

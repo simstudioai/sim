@@ -1,17 +1,15 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import {
   logFilterParsers,
   logFilterUrlKeys,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import type { LogLevel, TimeRange, TriggerType } from '@/stores/logs/filters/types'
 
 const DEFAULT_TIME_RANGE: TimeRange = 'All time'
-
-/** Debounce window for `search` URL writes; keystrokes stay instant in the input. */
-const SEARCH_DEBOUNCE_MS = 300 as const
 
 /**
  * The logs filter state, sourced entirely from typed URL query params via nuqs.
@@ -118,18 +116,11 @@ export function useLogFilters(): UseLogFilters {
   /**
    * Debounces only the search param's URL write; the returned `filters.search`
    * value still updates instantly so the controlled input stays responsive.
-   * Clearing flushes immediately so the param drops out without lingering.
+   * Writes the raw value (query consumers trim on read); clearing flushes
+   * immediately so the param drops out without lingering.
    */
-  const setSearchQuery = useCallback(
-    (query: string) => {
-      const trimmed = query.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setFilters]
+  const setSearchQuery = useDebouncedSearchSetter((value, options) =>
+    setFilters({ search: value }, options)
   )
 
   const setTriggers = useCallback(

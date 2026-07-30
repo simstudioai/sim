@@ -64,12 +64,12 @@ export const deleteCommentTool: ToolConfig<
     return {
       success: true,
       output: {
-        deleted: data.deleted || true,
+        deleted: data.deleted ?? true,
         comment: {
-          id: data.id || data.previous?.id,
-          post: data.post || data.previous?.post,
-          parent: data.parent || data.previous?.parent,
-          author: data.author || data.previous?.author,
+          id: data.id ?? data.previous?.id,
+          post: data.post ?? data.previous?.post,
+          parent: data.parent ?? data.previous?.parent,
+          author: data.author ?? data.previous?.author,
           author_name: data.author_name || data.previous?.author_name,
           author_email: data.author_email || data.previous?.author_email,
           author_url: data.author_url || data.previous?.author_url,

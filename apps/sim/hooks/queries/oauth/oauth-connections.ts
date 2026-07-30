@@ -10,9 +10,13 @@ import {
   type OAuthConnection,
 } from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/auth-client'
+import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
 const logger = createLogger('OAuthConnectionsQuery')
+
+export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
+export const OAUTH_CONNECTED_ACCOUNTS_STALE_TIME = 60 * 1000
 
 /**
  * Query key factory for OAuth connection queries.
@@ -116,7 +120,7 @@ export function useOAuthConnections() {
   return useQuery({
     queryKey: oauthConnectionsKeys.connections(),
     queryFn: ({ signal }) => fetchOAuthConnections(signal),
-    staleTime: 30 * 1000,
+    staleTime: OAUTH_CONNECTIONS_STALE_TIME,
     retry: false,
   })
 }
@@ -140,9 +144,30 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      if (providerId === 'instagram') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        window.location.href = `/api/auth/instagram/authorize?returnUrl=${returnUrl}`
+        return { success: true }
+      }
+
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
+        return { success: true }
+      }
+
+      // Desktop app: OAuth cannot run in the embedded window (Google/Microsoft
+      // block embedded user agents, and better-auth binds the flow's state to
+      // the initiating browser's cookies), so the whole flow is handed to the
+      // system browser and returns via the app's loopback. Completion arrives
+      // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
+      // which refreshes caches and shows the connected toast.
+      const desktopBridge = getDesktopBridge()
+      if (desktopBridge?.beginOAuthConnect) {
+        const opened = await desktopBridge.beginOAuthConnect(providerId)
+        if (!opened) {
+          throw new Error('Could not open your browser to connect this account.')
+        }
         return { success: true }
       }
 
@@ -249,7 +274,7 @@ export function useConnectedAccounts(provider: string, options?: { enabled?: boo
     queryKey: oauthConnectionsKeys.account(provider),
     queryFn: ({ signal }) => fetchConnectedAccounts(provider, signal),
     enabled: options?.enabled ?? true,
-    staleTime: 60 * 1000,
+    staleTime: OAUTH_CONNECTED_ACCOUNTS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

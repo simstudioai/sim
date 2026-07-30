@@ -27,7 +27,7 @@ In Sim, the AWS SES integration is designed for workflows that need reliable, pr
 
 ## Usage Instructions
 
-Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.
+Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.
 
 
 
@@ -237,5 +237,233 @@ Delete an existing SES email template
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Confirmation message for the deleted template |
+
+### `ses_update_template`
+
+Update the subject, HTML, and text content of an existing SES email template
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `templateName` | string | Yes | The name of the template to update |
+| `subjectPart` | string | Yes | The subject line of the template |
+| `htmlPart` | string | No | The HTML body of the template |
+| `textPart` | string | No | The plain text body of the template |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `ses_put_suppressed_destination`
+
+Add an email address to the account-level SES suppression list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailAddress` | string | Yes | The email address to add to the suppression list |
+| `reason` | string | Yes | The reason the address is suppressed: BOUNCE or COMPLAINT |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `ses_delete_suppressed_destination`
+
+Remove an email address from the account-level SES suppression list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailAddress` | string | Yes | The email address to remove from the suppression list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `ses_get_suppressed_destination`
+
+Retrieve details for a specific email address on the SES suppression list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailAddress` | string | Yes | The suppressed email address to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `emailAddress` | string | The suppressed email address |
+| `reason` | string | The reason the address is suppressed |
+| `lastUpdateTime` | string | When the address was added to the suppression list |
+| `messageId` | string | The message ID associated with the bounce or complaint event |
+| `feedbackId` | string | The feedback ID associated with the bounce or complaint event |
+
+### `ses_list_suppressed_destinations`
+
+List email addresses on the account-level SES suppression list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `reasons` | string | No | Comma-separated suppression reasons to filter by: BOUNCE, COMPLAINT |
+| `startDate` | string | No | Only include addresses suppressed after this ISO 8601 date |
+| `endDate` | string | No | Only include addresses suppressed before this ISO 8601 date |
+| `pageSize` | number | No | Maximum number of results to return |
+| `nextToken` | string | No | Pagination token from a previous list response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `destinations` | array | List of suppressed destinations with email address, reason, and last update |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of suppressed destinations returned |
+
+### `ses_create_email_identity`
+
+Start verification of a new SES email address or domain identity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailIdentity` | string | Yes | The email address or domain to verify |
+| `dkimSigningAttributes` | json | No | Bring-your-own-DKIM signing attributes as JSON \(domainSigningSelector, domainSigningPrivateKey, nextSigningKeyLength\). Domain identities only. |
+| `tags` | json | No | JSON array of tags to associate with the identity: \[\{"key":"","value":""\}\] |
+| `configurationSetName` | string | No | Default configuration set to use when sending from this identity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `identityType` | string | The identity type: EMAIL_ADDRESS or DOMAIN |
+| `verifiedForSendingStatus` | boolean | Whether the identity is verified and can send email |
+| `dkimAttributes` | json | DKIM signing status and CNAME tokens for the identity |
+
+### `ses_delete_email_identity`
+
+Delete a verified SES email address or domain identity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailIdentity` | string | Yes | The email address or domain identity to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `ses_get_email_identity`
+
+Retrieve verification status, DKIM, Mail-From, and policy details for an SES identity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailIdentity` | string | Yes | The email address or domain identity to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `identityType` | string | The identity type: EMAIL_ADDRESS or DOMAIN |
+| `verifiedForSendingStatus` | boolean | Whether the identity is verified and can send email |
+| `verificationStatus` | string | Verification status: PENDING, SUCCESS, FAILED, TEMPORARY_FAILURE, NOT_STARTED |
+| `feedbackForwardingStatus` | boolean | Whether bounce/complaint notifications are forwarded by email |
+| `configurationSetName` | string | Default configuration set for this identity |
+| `dkimAttributes` | json | DKIM signing status and CNAME tokens for the identity |
+| `mailFromAttributes` | json | Custom MAIL FROM domain configuration for the identity |
+| `policies` | json | Sending authorization policies attached to the identity |
+| `tags` | array | Tags associated with the identity |
+| `verificationInfo` | json | Additional verification diagnostics \(error type, last checked/success time\) |
+
+### `ses_create_configuration_set`
+
+Create an SES configuration set to control tracking, delivery, reputation, sending, and suppression behavior for emails
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `configurationSetName` | string | Yes | Name of the configuration set \(letters, numbers, hyphens, underscores\) |
+| `customRedirectDomain` | string | No | Custom domain to use for open/click tracking links |
+| `httpsPolicy` | string | No | HTTPS policy for tracking links: REQUIRE, REQUIRE_OPEN_ONLY, or OPTIONAL |
+| `tlsPolicy` | string | No | Whether delivery requires TLS: REQUIRE or OPTIONAL |
+| `sendingPoolName` | string | No | Dedicated IP pool to associate with the configuration set |
+| `reputationMetricsEnabled` | boolean | No | Whether to collect reputation metrics for emails using this configuration set |
+| `sendingEnabled` | boolean | No | Whether sending is enabled for this configuration set |
+| `suppressedReasons` | string | No | Comma-separated reasons that trigger suppression: BOUNCE, COMPLAINT |
+| `tags` | json | No | JSON array of tags to associate with the configuration set: \[\{"key":"","value":""\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `ses_send_custom_verification_email`
+
+Send a branded custom verification email to an address using a custom verification email template
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `emailAddress` | string | Yes | The email address to verify |
+| `templateName` | string | Yes | The name of the custom verification email template to use |
+| `configurationSetName` | string | No | Configuration set to use when sending the verification email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | SES message ID for the sent verification email |
 
 

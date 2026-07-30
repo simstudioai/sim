@@ -9,6 +9,9 @@ export interface DubCreateLinkParams extends DubBaseParams {
   domain?: string
   key?: string
   externalId?: string
+  tenantId?: string
+  folderId?: string
+  trackConversion?: boolean
   tagIds?: string
   comments?: string
   expiresAt?: string
@@ -39,6 +42,9 @@ export interface DubUpdateLinkParams extends DubBaseParams {
   title?: string
   description?: string
   externalId?: string
+  tenantId?: string
+  folderId?: string
+  trackConversion?: boolean
   tagIds?: string
   comments?: string
   expiresAt?: string
@@ -57,6 +63,9 @@ export interface DubUpsertLinkParams extends DubBaseParams {
   domain?: string
   key?: string
   externalId?: string
+  tenantId?: string
+  folderId?: string
+  trackConversion?: boolean
   tagIds?: string
   comments?: string
   expiresAt?: string
@@ -80,9 +89,13 @@ export interface DubListLinksParams extends DubBaseParams {
   domain?: string
   search?: string
   tagIds?: string
+  tenantId?: string
+  folderId?: string
   showArchived?: boolean
   page?: number
   pageSize?: number
+  startingAfter?: string
+  endingBefore?: string
 }
 
 export interface DubGetAnalyticsParams extends DubBaseParams {
@@ -139,12 +152,39 @@ export interface DubBulkDeleteLinksParams extends DubBaseParams {
 
 export interface DubGetQrCodeParams extends DubBaseParams {
   url: string
+  logo?: string
   size?: number
   level?: string
   fgColor?: string
   bgColor?: string
   hideLogo?: boolean
   margin?: number
+}
+
+export interface DubListDomainsParams extends DubBaseParams {
+  archived?: boolean
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface DubListTagsParams extends DubBaseParams {
+  search?: string
+  sortBy?: string
+  sortOrder?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface DubCreateTagParams extends DubBaseParams {
+  name: string
+  color?: string
+}
+
+export interface DubListFoldersParams extends DubBaseParams {
+  search?: string
+  page?: number
+  pageSize?: number
 }
 
 interface DubLink {
@@ -159,8 +199,12 @@ interface DubLink {
   title: string | null
   description: string | null
   tags: Array<{ id: string; name: string; color: string }>
+  folderId: string | null
+  tenantId: string | null
+  trackConversion: boolean
   clicks: number
   leads: number
+  conversions: number
   sales: number
   saleAmount: number
   lastClicked: string | null
@@ -259,6 +303,35 @@ export interface DubGetQrCodeResponse extends ToolResponse {
   }
 }
 
+export interface DubListDomainsResponse extends ToolResponse {
+  output: {
+    domains: Record<string, unknown>[]
+    count: number
+  }
+}
+
+export interface DubListTagsResponse extends ToolResponse {
+  output: {
+    tags: Record<string, unknown>[]
+    count: number
+  }
+}
+
+export interface DubCreateTagResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    color: string
+  }
+}
+
+export interface DubListFoldersResponse extends ToolResponse {
+  output: {
+    folders: Record<string, unknown>[]
+    count: number
+  }
+}
+
 export type DubResponse =
   | DubCreateLinkResponse
   | DubGetLinkResponse
@@ -273,3 +346,7 @@ export type DubResponse =
   | DubBulkUpdateLinksResponse
   | DubBulkDeleteLinksResponse
   | DubGetQrCodeResponse
+  | DubListDomainsResponse
+  | DubListTagsResponse
+  | DubCreateTagResponse
+  | DubListFoldersResponse

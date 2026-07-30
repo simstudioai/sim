@@ -1,18 +1,37 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import {
+  folderIdSchema,
+  requiredFieldSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
   Filter,
+  Predicate,
+  PredicateNode,
   RowData,
   Sort,
+  SortSpec,
   TableDefinition,
+  TableLocks,
   TableMetadata,
+  TablePredicate,
   TableRow,
   TableRowsCursor,
+  TableViewConfig,
 } from '@/lib/table'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_TYPES,
+  FILTER_OPS,
+  MAX_SELECT_OPTIONS,
+  NAME_PATTERN,
+  SORT_DIRECTIONS,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
@@ -22,6 +41,61 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  * send arbitrary strings the server would reject downstream.
  */
 export const columnTypeSchema = z.enum(COLUMN_TYPES)
+
+/** One choice in a `select` column. `id` is the stable cell key. */
+export const selectOptionSchema = z.object({
+  id: requiredFieldSchema('Option id is required'),
+  name: z
+    .string()
+    .min(1, 'Option name is required')
+    .max(100, 'Option name must be 100 characters or less'),
+})
+
+export const selectOptionsSchema = z
+  .array(selectOptionSchema)
+  .max(MAX_SELECT_OPTIONS, `A select column cannot have more than ${MAX_SELECT_OPTIONS} options`)
+
+/**
+ * Cross-field rule: a `select` column must declare a non-empty option set;
+ * other types must not carry options or `multiple`. Skipped when `type` is
+ * absent (an options-only update on an existing select column).
+ */
+function refineColumnOptions(
+  data: {
+    type?: (typeof COLUMN_TYPES)[number]
+    options?: z.infer<typeof selectOptionsSchema>
+    multiple?: boolean
+  },
+  ctx: z.RefinementCtx
+): void {
+  if (data.type === 'select') {
+    if (!data.options || data.options.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: 'A select column must define at least one option',
+      })
+    }
+    return
+  }
+  if (data.type === undefined) return
+  if (data.options && data.options.length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['options'],
+      message: 'options are only allowed on select columns',
+    })
+  }
+  // `multiple` stored on a non-select column is inert until a later
+  // convert-to-select inherits it, silently producing a multiselect.
+  if (data.multiple) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['multiple'],
+      message: 'multiple is only allowed on select columns',
+    })
+  }
+}
 
 /**
  * Identifier for tables/columns: starts with letter or underscore, contains
@@ -69,24 +143,30 @@ export const tableRowParamsSchema = tableIdParamsSchema.extend({
 })
 
 export const listTablesQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   scope: tableScopeSchema.default('active'),
 })
 
 export const getTableQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
 })
 
-export const tableColumnSchema = z.object({
-  /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
-  id: z.string().optional(),
-  name: columnNameSchema,
-  type: columnTypeSchema,
-  required: z.boolean().optional().default(false),
-  unique: z.boolean().optional().default(false),
-  /** Set when the column is a workflow group's output. */
-  workflowGroupId: z.string().optional(),
-})
+export const tableColumnSchema = z
+  .object({
+    /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
+    id: z.string().optional(),
+    name: columnNameSchema,
+    type: columnTypeSchema,
+    required: z.boolean().optional().default(false),
+    unique: z.boolean().optional().default(false),
+    /** Set when the column is a workflow group's output. */
+    workflowGroupId: z.string().optional(),
+    /** Declared options for a `select` column. */
+    options: selectOptionsSchema.optional(),
+    /** A `select` column that accepts multiple options per cell. */
+    multiple: z.boolean().optional(),
+  })
+  .superRefine(refineColumnOptions)
 
 export const createTableBodySchema = z.object({
   name: tableNameSchema,
@@ -100,42 +180,89 @@ export const createTableBodySchema = z.object({
         `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
       ),
   }),
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
+  /**
+   * Folder to create the table in. Omitted or `null` creates it at the workspace
+   * root — both spellings are accepted so a client can pass the current folder
+   * through unconditionally.
+   */
+  folderId: folderIdSchema.nullable().optional(),
   initialRowCount: z.number().int().min(0).max(100).optional(),
 })
 
 export const renameTableBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   name: tableNameSchema,
 })
 
+/** Full per-table lock set (all four flags). */
+export const tableLocksSchema = z.object({
+  schemaLocked: z.boolean(),
+  insertLocked: z.boolean(),
+  updateLocked: z.boolean(),
+  deleteLocked: z.boolean(),
+}) satisfies z.ZodType<TableLocks>
+
+/**
+ * PATCH /api/table/[tableId] body. Every field is optional but at least one
+ * must be present. `name` is a `write`-level rename; `folderId` is a
+ * `write`-level move (explicit `null` moves the table to the workspace root, and
+ * omission leaves the placement untouched — the tri-state is deliberate here);
+ * `locks` is an admin-only governance change (a partial — only the toggled flags
+ * are sent).
+ */
+export const updateTableBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: tableNameSchema.optional(),
+    folderId: folderIdSchema.nullable().optional(),
+    locks: tableLocksSchema.partial().optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.locks === undefined && body.folderId === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide a new name, folder, or lock changes',
+        path: ['name'],
+      })
+    }
+  })
+
 export const createTableColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  column: z.object({
-    // Optional stable id — first-party undo of a delete re-creates the column
-    // with its original id so saved (id-keyed) cell data restores correctly.
-    id: z.string().optional(),
-    name: columnNameSchema,
-    type: columnTypeSchema,
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-    position: z.number().int().min(0).optional(),
-  }),
+  workspaceId: workspaceIdSchema,
+  column: z
+    .object({
+      // Optional stable id — first-party undo of a delete re-creates the column
+      // with its original id so saved (id-keyed) cell data restores correctly.
+      id: z.string().optional(),
+      name: columnNameSchema,
+      type: columnTypeSchema,
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      position: z.number().int().min(0).optional(),
+      options: selectOptionsSchema.optional(),
+      multiple: z.boolean().optional(),
+    })
+    .superRefine(refineColumnOptions),
 })
 
 export const updateTableColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   columnName: columnNameSchema,
-  updates: z.object({
-    name: columnNameSchema.optional(),
-    type: columnTypeSchema.optional(),
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-  }),
+  updates: z
+    .object({
+      name: columnNameSchema.optional(),
+      type: columnTypeSchema.optional(),
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      options: selectOptionsSchema.optional(),
+      multiple: z.boolean().optional(),
+    })
+    .superRefine(refineColumnOptions),
 })
 
 export const deleteTableColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   columnName: columnNameSchema,
 })
 
@@ -143,10 +270,11 @@ export const tableMetadataSchema = z.object({
   columnWidths: z.record(z.string(), z.number().positive()).optional(),
   columnOrder: z.array(z.string()).optional(),
   pinnedColumns: z.array(z.string()).optional(),
+  hiddenColumns: z.array(z.string()).optional(),
 }) satisfies z.ZodType<TableMetadata>
 
 export const updateTableMetadataBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   metadata: tableMetadataSchema,
 })
 
@@ -160,7 +288,7 @@ export const tableRowSchema = domainObjectSchema<TableRow>()
  * {@link rowAnchorMutexRefine} — Zod forbids `.omit()` on a refined schema.
  */
 export const insertTableRowBodyBaseSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   data: rowDataSchema,
   position: z.number().int().min(0).optional(),
   /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
@@ -183,14 +311,14 @@ export const insertTableRowBodySchema = insertTableRowBodyBaseSchema.refine(...r
  * unique column when omitted).
  */
 export const upsertTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   data: rowDataSchema,
   conflictTarget: z.string().min(1).optional(),
 })
 
 export const batchInsertTableRowsBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     rows: z
       .array(rowDataSchema)
       .min(1, 'At least one row is required')
@@ -198,15 +326,8 @@ export const batchInsertTableRowsBodySchema = z
         TABLE_LIMITS.MAX_BATCH_INSERT_SIZE,
         `Cannot insert more than ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows per batch`
       ),
-    positions: z.array(z.number().int().min(0)).max(TABLE_LIMITS.MAX_BATCH_INSERT_SIZE).optional(),
-    /** Fractional ordering: exact per-row order keys (undo restore). Takes precedence over `positions`. */
+    /** Fractional ordering: exact per-row order keys (undo restore). */
     orderKeys: z.array(z.string().min(1)).max(TABLE_LIMITS.MAX_BATCH_INSERT_SIZE).optional(),
-  })
-  .refine((data) => !data.positions || data.positions.length === data.rows.length, {
-    message: 'positions array length must match rows array length',
-  })
-  .refine((data) => !data.positions || new Set(data.positions).size === data.positions.length, {
-    message: 'positions must not contain duplicates',
   })
   .refine((data) => !data.orderKeys || data.orderKeys.length === data.rows.length, {
     message: 'orderKeys array length must match rows array length',
@@ -225,12 +346,12 @@ export const insertTableRowsBodySchema = z.union([
 ])
 
 export const updateTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   data: rowDataSchema,
 })
 
 export const batchUpdateTableRowsBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   updates: z
     .array(
       z.object({
@@ -260,6 +381,137 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
 
 const filterSchema = domainObjectSchema<Filter>()
 
+/* --------------------------- v2 predicate grammar --------------------------- */
+
+/**
+ * Body cap for the row-query routes. A query body is a predicate tree plus a
+ * cursor; the largest legitimate one — a 100-member predicate with 1000-element
+ * `in` lists — is comfortably under 1 MB. The 50 MB platform default would let a
+ * caller buffer two orders of magnitude more before any schema check runs.
+ */
+export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
+
+/** Max members in one `all`/`any` group — a generous bound against pathological trees. */
+const MAX_PREDICATE_GROUP_SIZE = 100
+/** Max sort keys — more than a few is already a smell. */
+const MAX_SORT_KEYS = 16
+/** Max nesting levels of `all`/`any` groups. Ten is already unreadable. */
+const MAX_PREDICATE_DEPTH = 10
+/** Max nodes in the whole tree, so a wide-but-shallow tree can't amplify either. */
+const MAX_PREDICATE_NODES = 500
+
+/**
+ * Iterative depth/size walk over an unvalidated predicate tree. Runs BEFORE the
+ * recursive Zod schema: a few thousand nested `{all:[...]}` levels overflow the
+ * stack inside `safeParse`, and a `RangeError` from a parser is a 500, not a 400.
+ * The walk itself must stay iterative for the same reason.
+ */
+function predicateTreeTooLarge(root: unknown): string | null {
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 1 }]
+  let nodes = 0
+
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!
+    if (++nodes > MAX_PREDICATE_NODES) {
+      return `Filter has too many conditions (max ${MAX_PREDICATE_NODES})`
+    }
+    if (depth > MAX_PREDICATE_DEPTH) {
+      return `Filter nesting is too deep (max ${MAX_PREDICATE_DEPTH} levels)`
+    }
+    if (typeof node !== 'object' || node === null) continue
+    const group = node as { all?: unknown; any?: unknown }
+    const members = Array.isArray(group.all)
+      ? group.all
+      : Array.isArray(group.any)
+        ? group.any
+        : null
+    if (!members) continue
+    for (const member of members) stack.push({ node: member, depth: depth + 1 })
+  }
+  return null
+}
+
+/**
+ * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
+ * shape the engine consumes). Structure is validated here; schema-awareness
+ * (unknown column, json-op rejection) is enforced server-side by
+ * `validatePredicate` once the table's columns are known.
+ */
+/**
+ * Both node shapes are `strictObject`, and that is load-bearing rather than
+ * fussiness. Zod strips unrecognized keys by default, so a hybrid node carrying
+ * BOTH a group key and a leaf's `field`/`op`/`value` parsed clean against the
+ * group branch with the leaf half silently deleted. On the bulk paths that turns
+ * "delete archived rows for tenant acme" into "delete every row for tenant acme".
+ * `validatePredicate`'s hybrid guard could never catch it — the keys were gone
+ * before it ran. Strict on BOTH branches is required: strict on the group alone
+ * would just fall through to the leaf branch, which is the more dangerous reading.
+ */
+// double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
+// is arbitrary JSON), but infers `unknown`, which is wider than
+// `Predicate['value']`. The narrowing is type-level only — nothing is coerced.
+const predicateLeafSchema = z.strictObject({
+  field: z.string().min(1, 'field is required').max(128),
+  op: z.enum(FILTER_OPS),
+  value: z.unknown().optional(),
+}) as unknown as z.ZodType<Predicate>
+
+const predicateNodeSchema: z.ZodType<PredicateNode> = z.lazy(() =>
+  z.union([predicateGroupSchema, predicateLeafSchema])
+)
+
+const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
+  z.union([
+    // `.min(1)`: an empty group compiles to no WHERE clause, which on the bulk
+    // delete/update paths reads as "match everything" rather than "match nothing".
+    z.strictObject({
+      all: z
+        .array(predicateNodeSchema)
+        .min(1, 'A filter group must contain at least one condition')
+        .max(MAX_PREDICATE_GROUP_SIZE),
+    }),
+    z.strictObject({
+      any: z
+        .array(predicateNodeSchema)
+        .min(1, 'A filter group must contain at least one condition')
+        .max(MAX_PREDICATE_GROUP_SIZE),
+    }),
+  ])
+)
+const predicateGroupSchema = predicateTreeSchema
+
+/**
+ * The boundary predicate schema: depth/size guard first, then the recursive
+ * structural parse. The guard is only applied at the top level — every nested
+ * group is strictly shallower, so re-checking inside the recursion would be
+ * redundant work on the hot path.
+ */
+export const predicateSchema = z
+  .unknown()
+  .superRefine((value, ctx) => {
+    const problem = predicateTreeTooLarge(value)
+    if (problem) ctx.addIssue({ code: 'custom', message: problem })
+  })
+  // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS
+  // widen the recursive lazy union through it makes typecheck OOM
+  .pipe(predicateTreeSchema) as unknown as z.ZodType<TablePredicate>
+
+/** v2 sort wire format: an ordered list of `{ field, direction }`. */
+export const sortSpecSchema: z.ZodType<SortSpec> = z
+  .array(
+    z.object({
+      field: z.string().min(1, 'field is required').max(128),
+      direction: z.enum(SORT_DIRECTIONS),
+    })
+  )
+  .max(MAX_SORT_KEYS)
+
+/**
+ * Bulk update/delete filter accepts either the v2 predicate tree (v2 block /
+ * agent) or the legacy `$`-operator object (v1 callers / stored workflows).
+ */
+const bulkFilterSchema = z.union([predicateSchema, nonEmptyFilterSchema])
+
 const optionalPositiveLimit = (max: number, label: string) =>
   z.preprocess(
     (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
@@ -272,13 +524,13 @@ const optionalPositiveLimit = (max: number, label: string) =>
   )
 
 export const deleteTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
 })
 
 export const deleteTableRowsBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
-    filter: nonEmptyFilterSchema.optional(),
+    workspaceId: workspaceIdSchema,
+    filter: bulkFilterSchema.optional(),
     limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
     rowIds: z
       .array(z.string().min(1))
@@ -293,17 +545,37 @@ export const deleteTableRowsBodySchema = z
     message: 'Provide either filter or rowIds, but not both',
   })
 
+/**
+ * Query-param transport for a structured value: `requestJson` serializes
+ * objects/arrays into a single JSON-string param, and this decodes it before
+ * the real schema runs. Non-JSON strings pass through untouched so the inner
+ * schema produces the real error; already-parsed values (POST bodies reusing a
+ * schema) are untouched too.
+ */
+const jsonQueryValue = <S extends z.ZodType>(schema: S) =>
+  z.preprocess((value) => {
+    if (typeof value !== 'string' || value === '') return value
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }, schema)
+
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  filter: domainObjectSchema<Filter>().optional(),
-  sort: domainObjectSchema<Sort>().optional(),
+  workspaceId: workspaceIdSchema,
+  // Dual-grammar during the v2 transition: the strict predicate tree wins the
+  // union; anything else falls through to the legacy `$`-object. Same for sort:
+  // an ordered spec array vs the legacy `{col: dir}` record.
+  filter: jsonQueryValue(z.union([predicateSchema, domainObjectSchema<Filter>()])).optional(),
+  sort: jsonQueryValue(z.union([sortSpecSchema, domainObjectSchema<Sort>()])).optional(),
   /**
    * Keyset cursor `(orderKey, id)` for the default row order — each page is an index seek
    * instead of OFFSET's scan-and-discard. Mutually exclusive with `sort` (cursors only make
    * sense on the default order); takes precedence over `offset`.
    */
-  after: domainObjectSchema<TableRowsCursor>().optional(),
+  after: jsonQueryValue(domainObjectSchema<TableRowsCursor>()).optional(),
   limit: z
     .preprocess(
       (value) =>
@@ -342,8 +614,8 @@ export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
 )
 
 export const updateRowsByFilterBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  filter: nonEmptyFilterSchema,
+  workspaceId: workspaceIdSchema,
+  filter: bulkFilterSchema,
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
 })
@@ -395,15 +667,23 @@ export const createTableContract = defineRouteContract({
  * `importing` table and runs the load in the background.
  */
 export const importTableAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  fileKey: z.string().min(1, 'fileKey is required'),
-  fileName: z.string().min(1, 'fileName is required'),
+  workspaceId: workspaceIdSchema,
+  fileKey: requiredFieldSchema('fileKey is required'),
+  fileName: requiredFieldSchema('fileName is required'),
+  /** Folder to create the imported table in; omitted or `null` imports to the workspace root. */
+  folderId: folderIdSchema.nullable().optional(),
   /**
    * Whether the source object is deleted once the import is terminal. Defaults to true (the upload
    * flow stores a single-use temp object); pass false when importing an existing workspace file
    * (e.g. the file viewer's "Import as a table") that must survive the import.
    */
   deleteSourceFile: z.boolean().optional(),
+  /**
+   * IANA zone used to interpret naive datetime strings in the file (Excel and
+   * Sheets exports carry no offset). Defaults to the importing user's saved
+   * timezone, else UTC.
+   */
+  timezone: ianaTimezoneSchema.optional(),
 })
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
@@ -445,6 +725,26 @@ export const renameTableContract = defineRouteContract({
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
+
+/**
+ * Superset of {@link renameTableContract} on the same PATCH endpoint: accepts a
+ * `name` rename and/or a `locks` change. The route applies its own permission
+ * split — `name` needs workspace `write`, `locks` needs `admin`.
+ */
+export const updateTableContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]',
+  params: tableIdParamsSchema,
+  body: updateTableBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
+  },
+})
+
+export type TableLocksInput = z.input<typeof tableLocksSchema>
+export type UpdateTableBody = z.input<typeof updateTableBodySchema>
+export type UpdateTableResponse = ContractJsonResponse<typeof updateTableContract>
 
 export const deleteTableContract = defineRouteContract({
   method: 'DELETE',
@@ -525,16 +825,65 @@ export const listTableRowsContract = defineRouteContract({
         totalCount: z.number().nullable(),
         limit: z.number(),
         offset: z.number(),
+        /** Non-null when more rows exist — a page may be cut by the byte budget
+         *  before reaching `limit`, so page fullness is not a termination signal. */
+        nextCursor: z.string().nullable(),
       })
     ),
   },
 })
 
-export const findTableRowsQuerySchema = z.object({
+/**
+ * v2 query surface: typed `predicate`/`sort` objects + opaque cursor pagination.
+ * No `offset` (the cursor encodes paging state) and no after/sort refine (the
+ * cursor carries the sort context). Structure is validated here; column-level
+ * validation (unknown field, json-op) runs server-side via `validatePredicate`.
+ */
+export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  q: z.string().min(1, 'Search query is required'),
-  filter: domainObjectSchema<Filter>().optional(),
-  sort: domainObjectSchema<Sort>().optional(),
+  predicate: predicateSchema.optional(),
+  sort: sortSpecSchema.optional(),
+  // Omitted limit returns the ENTIRE matching result, failing fast (400) when
+  // it exceeds the response byte budget. An explicit limit caps the page row
+  // count; the byte budget may still end a page early with nextCursor set.
+  limit: z.preprocess(
+    (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
+    z
+      .number({ error: 'Limit must be a number' })
+      .int('Limit must be an integer')
+      .min(1, 'Limit must be at least 1')
+      .optional()
+  ),
+  cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
+})
+
+export type RowQueryBody = z.input<typeof rowQueryBodySchema>
+
+export const rowQueryContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/query',
+  params: tableIdParamsSchema,
+  body: rowQueryBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        rows: z.array(tableRowSchema),
+        rowCount: z.number(),
+        totalCount: z.number().nullable(),
+        limit: z.number(),
+        nextCursor: z.string().nullable(),
+      })
+    ),
+  },
+})
+export type RowQueryResponse = ContractJsonResponse<typeof rowQueryContract>
+
+export const findTableRowsQuerySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  q: requiredFieldSchema('Search query is required'),
+  filter: jsonQueryValue(z.union([predicateSchema, domainObjectSchema<Filter>()])).optional(),
+  sort: jsonQueryValue(z.union([sortSpecSchema, domainObjectSchema<Sort>()])).optional(),
 })
 
 /** One matching cell: its 0-based ordinal in the filtered+sorted view, its row id, and the column name. */
@@ -666,6 +1015,8 @@ export const csvFileSchema = z
 export const csvImportFormSchema = z.object({
   file: csvFileSchema,
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  /** Folder to create the imported table in; omitted imports to the workspace root. */
+  folderId: folderIdSchema.optional(),
 })
 
 export const csvImportModeSchema = z.enum(['append', 'replace'])
@@ -680,12 +1031,18 @@ export const csvExtensionSchema = z.enum(['csv', 'tsv'], {
  * resolved column mapping (the dialog computes them from its preview).
  */
 export const importIntoTableAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  fileKey: z.string().min(1, 'fileKey is required'),
-  fileName: z.string().min(1, 'fileName is required'),
+  workspaceId: workspaceIdSchema,
+  fileKey: requiredFieldSchema('fileKey is required'),
+  fileName: requiredFieldSchema('fileName is required'),
   mode: csvImportModeSchema,
   mapping: z.record(z.string(), z.string().nullable()).optional(),
   createColumns: z.array(z.string()).optional(),
+  /**
+   * IANA zone used to interpret naive datetime strings in the file (Excel and
+   * Sheets exports carry no offset). Defaults to the importing user's saved
+   * timezone, else UTC.
+   */
+  timezone: ianaTimezoneSchema.optional(),
 })
 
 export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>
@@ -743,7 +1100,7 @@ export const tableExportFormatSchema = z
   .default('csv')
 
 export const exportTableAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   format: z.enum(['csv', 'json']).default('csv'),
 })
 
@@ -779,7 +1136,7 @@ export const tableJobSummarySchema = z.object({
 export type TableJobSummary = z.output<typeof tableJobSummarySchema>
 
 export const listTableJobsQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   type: z.literal('export'),
 })
 
@@ -799,8 +1156,8 @@ export const listTableJobsContract = defineRouteContract({
 })
 
 export const exportDownloadQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  jobId: z.string().min(1, 'Job ID is required'),
+  workspaceId: workspaceIdSchema,
+  jobId: requiredFieldSchema('Job ID is required'),
 })
 
 /** Resolves a completed export job to a short-lived presigned download URL. */
@@ -954,8 +1311,8 @@ export const deleteTableRowsContract = defineRouteContract({
  * worker deletes in paginated batches. Omitting `filter` deletes the whole table (at the cutoff).
  */
 export const deleteTableRowsAsyncBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  filter: nonEmptyFilterSchema.optional(),
+  workspaceId: workspaceIdSchema,
+  filter: bulkFilterSchema.optional(),
   excludeRowIds: z
     .array(z.string().min(1))
     .max(
@@ -1026,7 +1383,7 @@ export const groupIdParamsSchema = tableIdParamsSchema.extend({
 })
 
 export const addWorkflowGroupBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   group: z.object({
     id: z.string().min(1),
     /** Workflow id for manual groups; `''` (or omitted) for enrichment groups. */
@@ -1071,7 +1428,7 @@ const workflowGroupMappingUpdateSchema = z.object({
 })
 
 export const updateWorkflowGroupBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   groupId: z.string().min(1),
   workflowId: z.string().min(1).optional(),
   name: z.string().optional(),
@@ -1095,7 +1452,7 @@ export const updateWorkflowGroupBodySchema = z.object({
 })
 
 export const deleteWorkflowGroupBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   groupId: z.string().min(1),
 })
 
@@ -1147,10 +1504,10 @@ export const deleteWorkflowGroupContract = defineRouteContract({
  */
 export const cancelTableRunsBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
-    filter: domainObjectSchema<Filter>().optional(),
+    filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
     /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
     excludeRowIds: z
       .array(z.string().min(1))
@@ -1196,8 +1553,8 @@ export const cancelTableRunsContract = defineRouteContract({
 })
 
 export const cancelTableJobBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  jobId: z.string().min(1, 'Job ID is required'),
+  workspaceId: workspaceIdSchema,
+  jobId: requiredFieldSchema('Job ID is required'),
 })
 
 /**
@@ -1248,13 +1605,13 @@ export const runLimitSchema = z.object({
 
 export const runColumnBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    workspaceId: workspaceIdSchema,
     groupIds: z.array(z.string().min(1)).min(1),
     runMode: z.enum(['all', 'incomplete']).default('all'),
     rowIds: z.array(z.string().min(1)).min(1).optional(),
     /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
      *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
-    filter: nonEmptyFilterSchema.optional(),
+    filter: bulkFilterSchema.optional(),
     /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
     excludeRowIds: z
       .array(z.string().min(1))
@@ -1334,13 +1691,17 @@ export const listActiveDispatchesContract = defineRouteContract({
     schema: successResponseSchema(
       z.object({
         dispatches: z.array(activeDispatchSchema),
-        /** Total cells across the table whose `status === 'running'`. The
-         *  client maintains this incrementally via cell SSE events; this
-         *  field is the bootstrap snapshot on mount. */
-        runningCellCount: z.number().int().nonnegative(),
-        /** Map rowId → number of running cells on that row. Drives the
-         *  per-row badge next to the Stop button. */
+        /** Map rowId → number of in-flight (queued/running/pending) cells on
+         *  that row. Sums to the "X running" badge and drives the per-row
+         *  gutter Run/Stop button. Server-authoritative: refetched on a
+         *  throttle as cell SSE events arrive, plus optimistic stamps on
+         *  run-click. */
         runningByRowId: z.record(z.string(), z.number().int().positive()),
+        /** Whether any in-flight cell is actually claimed by a worker
+         *  (`status === 'running'`) — table-wide, unlike the client's
+         *  loaded-rows view. Drives the header's "Queueing" vs "N running"
+         *  label once the run's active window scrolls past the loaded rows. */
+        hasRunning: z.boolean(),
       })
     ),
   },
@@ -1349,11 +1710,15 @@ export const listActiveDispatchesContract = defineRouteContract({
 export type ActiveDispatch = z.output<typeof activeDispatchSchema>
 
 export const tableEventStreamQuerySchema = z.object({
+  /** Replay cursor: events with `eventId > from` are replayed on connect.
+   *  `0` replays the whole buffer (prune recovery). Absent → the server tails
+   *  from the latest event id — a fresh mount has just fetched current state
+   *  from the DB, so replaying history would only rewind it. */
   from: z.preprocess((value) => {
-    if (typeof value !== 'string') return 0
+    if (typeof value !== 'string') return undefined
     const parsed = Number.parseInt(value, 10)
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
-  }, z.number().int().min(0)),
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
+  }, z.number().int().min(0).optional()),
 })
 
 export const tableEventStreamContract = defineRouteContract({
@@ -1365,3 +1730,130 @@ export const tableEventStreamContract = defineRouteContract({
     mode: 'stream',
   },
 })
+
+/**
+ * A saved view's stored shape: `TableMetadata`'s column layout plus the row
+ * predicate and sort. Every column reference is a stable column id, so a rename
+ * never invalidates a view.
+ */
+export const tableViewConfigSchema = tableMetadataSchema.extend({
+  // The v2 predicate/sort grammar — same wire as the query routes, so a saved
+  // view gets the same strictness and depth bounds as a live filter, and its
+  // config can later feed the v2 surfaces without conversion.
+  filter: predicateSchema.nullable().optional(),
+  sort: sortSpecSchema.nullable().optional(),
+}) satisfies z.ZodType<TableViewConfig>
+
+export const tableViewSchema = z.object({
+  id: z.string(),
+  tableId: z.string(),
+  name: z.string(),
+  config: tableViewConfigSchema,
+  isDefault: z.boolean(),
+  createdBy: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+/** Free-form display label — no character set or length restriction, unlike the
+ *  identifier-shaped table/column names. Only emptiness is rejected, since a
+ *  blank name renders as an unselectable gap in the views dropdown. */
+const viewNameSchema = z.string().trim().min(1, 'View name is required')
+
+export const tableViewParamsSchema = tableIdParamsSchema.extend({
+  viewId: z.string().min(1),
+})
+
+export const listTableViewsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+})
+
+export const listTableViewsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/views',
+  params: tableIdParamsSchema,
+  query: listTableViewsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ views: z.array(tableViewSchema) })),
+  },
+})
+
+export const createTableViewBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  name: viewNameSchema,
+  config: tableViewConfigSchema,
+})
+
+export const createTableViewContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/views',
+  params: tableIdParamsSchema,
+  body: createTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ view: tableViewSchema })),
+  },
+})
+
+/**
+ * Every field is optional so the three call sites — overwrite a view's config,
+ * rename it, promote it to default — share one endpoint and send only what they
+ * change. `isDefault: true` demotes the table's existing default server-side.
+ */
+export const updateTableViewBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    name: viewNameSchema.optional(),
+    /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
+    config: tableViewConfigSchema.optional(),
+    /**
+     * Shallow-merged into the stored config server-side (jsonb `||`), so concurrent
+     * partial writes can't clobber each other from a stale client snapshot. Use for
+     * the grid's incremental layout saves.
+     */
+    configPatch: tableViewConfigSchema.optional(),
+    isDefault: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.config !== undefined ||
+      value.configPatch !== undefined ||
+      value.isDefault !== undefined,
+    { message: 'Provide at least one of name, config, configPatch, or isDefault' }
+  )
+  .refine((value) => !(value.config !== undefined && value.configPatch !== undefined), {
+    message: 'config and configPatch are mutually exclusive',
+  })
+
+export const updateTableViewContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: updateTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ view: tableViewSchema })),
+  },
+})
+
+export const deleteTableViewBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+})
+
+export const deleteTableViewContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/table/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: deleteTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ deleted: z.literal(true) })),
+  },
+})
+
+export type TableViewWire = z.output<typeof tableViewSchema>
+export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
+export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
+export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>

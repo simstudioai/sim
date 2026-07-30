@@ -13,7 +13,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
-import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
+import { isYamlComplexityError } from '@/lib/file-parsers/yaml-parser'
+import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
   ExternalUrlValidationError,
@@ -303,7 +304,6 @@ async function parseFileSingle(
     return handleCloudFile(
       filePath,
       fileType,
-      undefined,
       userId,
       executionContext,
       maxDownloadBytes,
@@ -329,7 +329,6 @@ async function parseFileSingle(
     return handleCloudFile(
       filePath,
       fileType,
-      undefined,
       userId,
       executionContext,
       maxDownloadBytes,
@@ -491,23 +490,25 @@ async function handleExternalUrl(
   try {
     logger.info('Fetching external URL:', url)
 
-    const {
-      S3_EXECUTION_FILES_CONFIG,
-      BLOB_EXECUTION_FILES_CONFIG,
-      USE_S3_STORAGE,
-      USE_BLOB_STORAGE,
-    } = await import('@/lib/uploads/config')
+    const { getStorageConfig, USE_S3_STORAGE, USE_BLOB_STORAGE, USE_GCS_STORAGE } = await import(
+      '@/lib/uploads/config'
+    )
+    const executionConfig = getStorageConfig('execution')
 
     let isExecutionFile = false
     try {
       const parsedUrl = new URL(url)
 
-      if (USE_S3_STORAGE && S3_EXECUTION_FILES_CONFIG.bucket) {
-        const bucketInHost = parsedUrl.hostname.startsWith(S3_EXECUTION_FILES_CONFIG.bucket)
-        const bucketInPath = parsedUrl.pathname.startsWith(`/${S3_EXECUTION_FILES_CONFIG.bucket}/`)
+      if (USE_S3_STORAGE && executionConfig.bucket) {
+        const bucketInHost = parsedUrl.hostname.startsWith(executionConfig.bucket)
+        const bucketInPath = parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
         isExecutionFile = bucketInHost || bucketInPath
-      } else if (USE_BLOB_STORAGE && BLOB_EXECUTION_FILES_CONFIG.containerName) {
-        isExecutionFile = url.includes(`/${BLOB_EXECUTION_FILES_CONFIG.containerName}/`)
+      } else if (USE_BLOB_STORAGE && executionConfig.containerName) {
+        isExecutionFile = url.includes(`/${executionConfig.containerName}/`)
+      } else if (USE_GCS_STORAGE && executionConfig.bucket) {
+        const bucketInHost = parsedUrl.hostname.startsWith(`${executionConfig.bucket}.`)
+        const bucketInPath = parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
+        isExecutionFile = bucketInHost || bucketInPath
       }
     } catch (error) {
       logger.warn('Failed to parse URL for execution file check:', error)
@@ -608,7 +609,6 @@ async function handleExternalUrl(
 async function handleCloudFile(
   filePath: string,
   fileType: string,
-  explicitContext: string | undefined,
   userId: string,
   executionContext?: ExecutionContext,
   maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
@@ -619,7 +619,7 @@ async function handleCloudFile(
 
     logger.info('Extracted cloud key:', cloudKey)
 
-    const context = (explicitContext as StorageContext) || inferContextFromKey(cloudKey)
+    const context = inferContextFromKey(cloudKey)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,
@@ -658,7 +658,7 @@ async function handleCloudFile(
       maxBytes: maxDownloadBytes,
     })
     logger.info(
-      `Downloaded file from ${context} storage (${explicitContext ? 'explicit' : 'inferred'}): ${cloudKey}, size: ${fileBuffer.length} bytes`
+      `Downloaded file from ${context} storage: ${cloudKey}, size: ${fileBuffer.length} bytes`
     )
 
     const filename = originalFilename || cloudKey.split('/').pop() || cloudKey
@@ -1044,6 +1044,9 @@ async function handleGenericTextBuffer(
       }
     } catch (parserError) {
       if (isPayloadSizeLimitError(parserError)) throw parserError
+      // Fail closed on a resource-exhaustion rejection instead of silently
+      // storing the crafted document as raw text.
+      if (isYamlComplexityError(parserError)) throw parserError
 
       logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }

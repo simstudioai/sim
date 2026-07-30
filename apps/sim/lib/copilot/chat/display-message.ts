@@ -30,6 +30,7 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   interrupted: ToolCallStatus.interrupted,
   pending: ToolCallStatus.executing,
   executing: ToolCallStatus.executing,
+  awaiting_approval: ToolCallStatus.awaiting_approval,
 }
 
 function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined {
@@ -68,9 +69,17 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
         if (block.channel === 'thinking') {
-          return { type: ContentBlockType.subagent_thinking, content: block.content }
+          return {
+            type: ContentBlockType.subagent_thinking,
+            content: block.content,
+            ...(block.agent ? { subagent: block.agent } : {}),
+          }
         }
-        return { type: ContentBlockType.subagent_text, content: block.content }
+        return {
+          type: ContentBlockType.subagent_text,
+          content: block.content,
+          ...(block.agent ? { subagent: block.agent } : {}),
+        }
       }
       if (block.channel === 'thinking') {
         return { type: ContentBlockType.thinking, content: block.content }
@@ -118,6 +127,9 @@ function toDisplayContexts(
     ...(c.fileId ? { fileId: c.fileId } : {}),
     ...(c.folderId ? { folderId: c.folderId } : {}),
     ...(c.chatId ? { chatId: c.chatId } : {}),
+    ...(c.blockType ? { blockType: c.blockType } : {}),
+    ...(c.skillId ? { skillId: c.skillId } : {}),
+    ...(c.serverId ? { serverId: c.serverId } : {}),
   }))
 }
 

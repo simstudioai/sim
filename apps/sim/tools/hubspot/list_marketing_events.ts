@@ -49,7 +49,7 @@ export const hubspotListMarketingEventsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/marketing/marketing-events/v3'
+      const baseUrl = 'https://api.hubapi.com/marketing/v3/marketing-events'
       const queryParams = new URLSearchParams()
       if (params.limit) queryParams.append('limit', params.limit)
       if (params.after) queryParams.append('after', params.after)

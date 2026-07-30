@@ -1,7 +1,6 @@
 import {
   CreateFile,
   CreateWorkflow,
-  DeleteWorkflow,
   DownloadToWorkspaceFile,
   EditWorkflow,
   Ffmpeg,
@@ -12,6 +11,7 @@ import {
   Knowledge,
   KnowledgeBase,
   ManageScheduledTask,
+  Rm,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -240,11 +240,24 @@ export function extractResourcesFromToolResult(
 }
 
 const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
-  [DeleteWorkflow.id]: 'workflow',
   [WorkspaceFile.id]: 'file',
   [UserTable.id]: 'table',
   [KnowledgeBase.id]: 'knowledgebase',
   [ManageScheduledTask.id]: 'scheduledtask',
+  // rm spans categories, so unlike every other entry its resource type comes
+  // from each outcome's kind rather than from this map. The entry exists so
+  // hasDeleteCapability(rm) holds; the rm case below ignores this value.
+  [Rm.id]: 'file',
+}
+
+/** rm reports what it deleted per path; map that kind to the type the UI tracks. */
+const RM_KIND_RESOURCE_TYPE: Record<string, ResourceType> = {
+  file: 'file',
+  file_folder: 'filefolder',
+  workflow: 'workflow',
+  workflow_folder: 'folder',
+  table: 'table',
+  knowledge_base: 'knowledgebase',
 }
 
 export function hasDeleteCapability(toolName: string): boolean {
@@ -270,16 +283,20 @@ export function extractDeletedResourcesFromToolResult(
   const operation = (args.operation ?? params?.operation) as string | undefined
 
   switch (toolName) {
-    case DeleteWorkflow.id: {
-      const workflowId = (result.workflowId as string) ?? (params?.workflowId as string)
-      if (workflowId && result.deleted) {
-        return [
-          { type: resourceType, id: workflowId, title: (result.name as string) || 'Workflow' },
-        ]
-      }
-      return []
+    case Rm.id: {
+      const outcomes = Array.isArray(result.results) ? result.results : []
+      return outcomes.flatMap((entry): ChatResource[] => {
+        const outcome = asRecord(entry)
+        if (outcome.error) return []
+        const { id, kind, from } = outcome
+        if (typeof id !== 'string' || !id || typeof kind !== 'string') return []
+        const type = RM_KIND_RESOURCE_TYPE[kind]
+        if (!type) return []
+        const path = typeof from === 'string' ? from : ''
+        const leaf = path.split('/').filter(Boolean).pop() ?? ''
+        return [{ type, id, title: leaf ? decodeURIComponent(leaf) : 'Deleted resource' }]
+      })
     }
-
     case WorkspaceFile.id: {
       if (operation !== 'delete') return []
       const target = getWorkspaceFileTarget(params)
@@ -292,6 +309,12 @@ export function extractDeletedResourcesFromToolResult(
 
     case UserTable.id: {
       if (operation !== 'delete') return []
+      const deleted = Array.isArray(data.deleted)
+        ? data.deleted.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : []
+      if (deleted.length > 0) {
+        return deleted.map((id) => ({ type: resourceType, id, title: 'Table' }))
+      }
       const tableId = (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
         return [{ type: resourceType, id: tableId, title: 'Table' }]
@@ -301,6 +324,23 @@ export function extractDeletedResourcesFromToolResult(
 
     case KnowledgeBase.id: {
       if (operation !== 'delete') return []
+      const deleted = Array.isArray(data.deleted) ? data.deleted : []
+      const resources = deleted.flatMap((entry): ChatResource[] => {
+        const deletedKnowledgeBase = asRecord(entry)
+        const knowledgeBaseId = deletedKnowledgeBase.id
+        if (typeof knowledgeBaseId !== 'string' || !knowledgeBaseId) return []
+        return [
+          {
+            type: resourceType,
+            id: knowledgeBaseId,
+            title:
+              typeof deletedKnowledgeBase.name === 'string'
+                ? deletedKnowledgeBase.name
+                : 'Knowledge Base',
+          },
+        ]
+      })
+      if (resources.length > 0) return resources
       const kbId = (data.id as string) ?? (args.knowledgeBaseId as string)
       if (kbId) {
         return [{ type: resourceType, id: kbId, title: (data.name as string) || 'Knowledge Base' }]

@@ -12,6 +12,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Tooltip,
+  useCopyToClipboard,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -45,15 +46,11 @@ export function InboxSettingsTab() {
   const [editAddressError, setEditAddressError] = useState<string | null>(null)
 
   const [removeSenderError, setRemoveSenderError] = useState<string | null>(null)
-  const [copiedAddress, setCopiedAddress] = useState(false)
+  const { copied: copiedAddress, copy } = useCopyToClipboard()
 
   const handleCopyAddress = useCallback(() => {
-    if (config?.address) {
-      navigator.clipboard.writeText(config.address)
-      setCopiedAddress(true)
-      setTimeout(() => setCopiedAddress(false), 2000)
-    }
-  }, [config?.address])
+    if (config?.address) void copy(config.address)
+  }, [config?.address, copy])
 
   const handleEditAddress = useCallback(async () => {
     if (!newUsername.trim()) return
@@ -65,7 +62,7 @@ export function InboxSettingsTab() {
     } catch (error) {
       setEditAddressError(getErrorMessage(error, 'Failed to update address'))
     }
-  }, [workspaceId, newUsername])
+  }, [workspaceId, newUsername, updateAddress.mutateAsync])
 
   const handleAddSender = useCallback(async () => {
     if (!newSenderEmail.trim()) return
@@ -82,7 +79,7 @@ export function InboxSettingsTab() {
     } catch (error) {
       setAddSenderError(getErrorMessage(error, 'Failed to add sender'))
     }
-  }, [workspaceId, newSenderEmail, newSenderLabel])
+  }, [workspaceId, newSenderEmail, newSenderLabel, addSender.mutateAsync])
 
   const handleRemoveSender = useCallback(
     async (senderId: string) => {
@@ -93,7 +90,7 @@ export function InboxSettingsTab() {
         setRemoveSenderError(getErrorMessage(error, 'Failed to remove sender'))
       }
     },
-    [workspaceId]
+    [workspaceId, removeSender.mutateAsync]
   )
 
   return (
@@ -103,7 +100,7 @@ export function InboxSettingsTab() {
           <SettingsSection label="Sim's email">
             <div className='flex flex-col gap-1.5'>
               <div className='flex items-center justify-between'>
-                <p className='text-[12px] text-[var(--text-muted)]'>
+                <p className='text-[var(--text-muted)] text-caption'>
                   Send emails here to create tasks.
                 </p>
                 <div className='flex items-center gap-1.5'>
@@ -158,7 +155,7 @@ export function InboxSettingsTab() {
 
         <SettingsSection label='Allowed senders'>
           <div className='flex flex-col gap-1.5'>
-            <p className='text-[12px] text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-caption'>
               Only emails from these addresses can create tasks.
             </p>
 
@@ -171,8 +168,8 @@ export function InboxSettingsTab() {
                       className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
                     >
                       <div className='flex items-center gap-2'>
-                        <span className='text-[14px] text-[var(--text-body)]'>{member.email}</span>
-                        <Badge variant='gray' className='text-xs'>
+                        <span className='text-[var(--text-body)] text-sm'>{member.email}</span>
+                        <Badge variant='gray' size='sm'>
                           member
                         </Badge>
                       </div>
@@ -185,9 +182,9 @@ export function InboxSettingsTab() {
                       className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
                     >
                       <div className='flex items-center gap-2'>
-                        <span className='text-[14px] text-[var(--text-body)]'>{sender.email}</span>
+                        <span className='text-[var(--text-body)] text-sm'>{sender.email}</span>
                         {sender.label && (
-                          <span className='text-[12px] text-[var(--text-muted)]'>
+                          <span className='text-[var(--text-muted)] text-caption'>
                             ({sender.label})
                           </span>
                         )}
@@ -203,7 +200,7 @@ export function InboxSettingsTab() {
 
                   {sendersData?.workspaceMembers.length === 0 &&
                     sendersData?.senders.length === 0 && (
-                      <div className='px-3 py-2.5 text-[12px] text-[var(--text-muted)]'>
+                      <div className='px-3 py-2.5 text-[var(--text-muted)] text-caption'>
                         No allowed senders configured.
                       </div>
                     )}
@@ -212,7 +209,7 @@ export function InboxSettingsTab() {
             </div>
 
             {removeSenderError && (
-              <p className='px-3 text-[12px] text-[var(--text-error)] leading-tight'>
+              <p className='px-3 text-[var(--text-error)] text-caption leading-tight'>
                 {removeSenderError}
               </p>
             )}

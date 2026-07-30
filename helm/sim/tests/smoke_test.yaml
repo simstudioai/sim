@@ -4,12 +4,14 @@ templates:
   - deployment-realtime.yaml
   - secrets-app.yaml
   - services.yaml
+  # referenced by the deployments' checksum/secret annotation
+  - external-secret-app.yaml
 release:
   name: t
   namespace: sim
 set:
   app.env.BETTER_AUTH_SECRET: test-better-auth-secret-32-bytes
-  app.env.ENCRYPTION_KEY: test-encryption-key-32-bytes
+  app.env.ENCRYPTION_KEY: test-encryption-key-32-bytes-long
   app.env.INTERNAL_API_SECRET: test-internal-api-secret-32-bytes
   app.env.CRON_SECRET: test-cron-secret-32-bytes
   postgresql.auth.password: testpassword
@@ -31,3 +33,13 @@ tests:
     asserts:
       - isKind: { of: Secret }
       - equal: { path: metadata.name, value: t-sim-app-secrets }
+
+  - it: accepts the standard Helm naming overrides under the strict schema
+    set:
+      nameOverride: acme
+      fullnameOverride: acme-sim
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^acme-sim"
+        template: deployment-app.yaml

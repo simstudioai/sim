@@ -1,6 +1,7 @@
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { normalizeEmail } from '@sim/utils/string'
 import type { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/env-flags'
@@ -114,8 +115,8 @@ export function setDeploymentAuthCookie(
  * sides, so callers don't need to normalize before calling.
  */
 export function isEmailAllowed(email: string, allowedEmails: string[]): boolean {
-  const normalizedEmail = email.trim().toLowerCase()
-  const normalizedAllowed = allowedEmails.map((allowed) => allowed.trim().toLowerCase())
+  const normalizedEmail = normalizeEmail(email)
+  const normalizedAllowed = allowedEmails.map(normalizeEmail)
 
   if (normalizedAllowed.includes(normalizedEmail)) {
     return true

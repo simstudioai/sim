@@ -68,7 +68,7 @@ export const createItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON array of field objects (e.g., [{"label":"username","value":"admin","type":"STRING","purpose":"USERNAME"}])',
+        'JSON array of field objects (e.g., [{"label":"username","value":"admin","type":"STRING","purpose":"USERNAME"}]). "purpose" is honored in Connect Server mode; in Service Account mode 1Password infers it from the field label/type instead.',
     },
   },
 

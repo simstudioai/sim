@@ -1,3 +1,4 @@
+export { mcpAuthGuarded } from './auth'
 export type {
   McpOauthCallbackMessage,
   McpOauthCallbackReason,
@@ -27,4 +28,5 @@ export {
   setOauthRowUser,
   withMcpOauthRefreshLock,
 } from './storage'
+export { makeTimedStep, OauthStepTimeoutError } from './timed-step'
 export { assertSafeOauthServerUrl, McpOauthInsecureUrlError } from './url-validation'

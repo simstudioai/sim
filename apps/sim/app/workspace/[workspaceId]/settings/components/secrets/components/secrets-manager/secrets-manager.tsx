@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Chip, ChipInput, cn, Tooltip, toast } from '@sim/emcn'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -17,7 +17,9 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -172,10 +174,14 @@ function parseEnvVarLine(line: string): UIEnvironmentVariable | null {
 
 /** Parses an array of raw text lines, returning only valid non-empty KEY=VALUE entries. */
 function parseValidEnvVars(lines: string[]): UIEnvironmentVariable[] {
-  return lines
-    .map(parseEnvVarLine)
-    .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
-    .filter(({ key, value }) => key && value)
+  const result: UIEnvironmentVariable[] = []
+  for (const line of lines) {
+    const parsed = parseEnvVarLine(line)
+    if (parsed?.key && parsed.value) {
+      result.push(parsed)
+    }
+  }
+  return result
 }
 
 interface WorkspaceVariableRowProps {
@@ -192,7 +198,7 @@ interface WorkspaceVariableRowProps {
   onRenameEnd: (key: string, value: string) => void
   onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
-  onViewDetails: (envKey: string) => void
+  onViewDetails?: (envKey: string) => void
 }
 
 function WorkspaceVariableRow({
@@ -210,6 +216,15 @@ function WorkspaceVariableRow({
   onDelete,
   onViewDetails,
 }: WorkspaceVariableRowProps) {
+  /**
+   * Salts the generated `name` attributes so password managers can't match them
+   * against a known field. `useId` is stable across SSR and hydration and across
+   * re-renders — a fresh `generateShortId()` per render would patch six DOM
+   * attributes on every keystroke, and a module-scope one would differ between
+   * the server and browser bundles.
+   */
+  const autofillSalt = useId()
+
   return (
     <div className='contents'>
       <ChipInput
@@ -220,7 +235,7 @@ function WorkspaceVariableRow({
           onPendingKeyChange(e.target.value)
         }}
         onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${generateShortId()}`}
+        name={`workspace_env_key_${envKey}_${autofillSalt}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -234,11 +249,11 @@ function WorkspaceVariableRow({
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
-        name={`workspace_env_value_${envKey}_${generateShortId()}`}
+        name={`workspace_env_value_${envKey}_${autofillSalt}`}
       />
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
-        onViewDetails={hasCredential ? () => onViewDetails(envKey) : undefined}
+        onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
       />
     </div>
@@ -258,6 +273,15 @@ function NewWorkspaceVariableRow({
   onUpdate,
   onPaste,
 }: NewWorkspaceVariableRowProps) {
+  /**
+   * Salts the generated `name` attributes so password managers can't match them
+   * against a known field. `useId` is stable across SSR and hydration and across
+   * re-renders — a fresh `generateShortId()` per render would patch six DOM
+   * attributes on every keystroke, and a module-scope one would differ between
+   * the server and browser bundles.
+   */
+  const autofillSalt = useId()
+
   const keyError = validateEnvVarKey(envVar.key)
   const hasContent = Boolean(envVar.key || envVar.value)
 
@@ -270,7 +294,7 @@ function NewWorkspaceVariableRow({
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
+        name={`new_workspace_key_${envVar.id || index}_${autofillSalt}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -284,7 +308,7 @@ function NewWorkspaceVariableRow({
         onChange={(next) => onUpdate(index, 'value', next)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
-        name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
+        name={`new_workspace_value_${envVar.id || index}_${autofillSalt}`}
         className='ml-0'
       />
       {hasContent ? (
@@ -313,6 +337,15 @@ function NewWorkspaceVariableRow({
 }
 
 export function SecretsManager() {
+  /**
+   * Salts the generated `name` attributes so password managers can't match them
+   * against a known field. `useId` is stable across SSR and hydration and across
+   * re-renders — a fresh `generateShortId()` per render would patch six DOM
+   * attributes on every keystroke, and a module-scope one would differ between
+   * the server and browser bundles.
+   */
+  const autofillSalt = useId()
+
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -345,8 +378,10 @@ export function SecretsManager() {
   const queryClient = useQueryClient()
 
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
-  const canCreateWorkspaceSecret =
-    isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write'
+  const canCreateWorkspaceSecret = canMutateWorkspaceSettingsSection('secrets', {
+    canEdit: isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write',
+    canAdmin: isWorkspaceAdmin,
+  })
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
 
@@ -354,7 +389,7 @@ export function SecretsManager() {
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
@@ -770,9 +805,10 @@ export function SecretsManager() {
     }
 
     const personalChanged = (() => {
-      const initialMap = new Map(
-        initialVarsRef.current.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
-      )
+      const initialMap = new Map<string, string>()
+      for (const v of initialVarsRef.current) {
+        if (v.key && v.value) initialMap.set(v.key, v.value)
+      }
       const currentKeys = Object.keys(validVariables)
       if (initialMap.size !== currentKeys.length) return true
       for (const [key, value] of Object.entries(validVariables)) {
@@ -855,7 +891,7 @@ export function SecretsManager() {
           onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
+          name={`env_variable_name_${envVar.id || originalIndex}_${autofillSalt}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -871,7 +907,7 @@ export function SecretsManager() {
           unmasked={isConflicted}
           readOnly={isConflicted}
           placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
-          name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
+          name={`env_variable_value_${envVar.id || originalIndex}_${autofillSalt}`}
           className={cn(isConflicted && 'cursor-not-allowed opacity-50')}
         />
         {hasContent ? (
@@ -911,13 +947,14 @@ export function SecretsManager() {
 
   return (
     <>
-      <div className='hidden'>
+      <div className='hidden' aria-hidden='true'>
         <input
           type='text'
           name='fakeusernameremembered'
           autoComplete='username'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='password'
@@ -925,6 +962,7 @@ export function SecretsManager() {
           autoComplete='current-password'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='email'
@@ -932,6 +970,7 @@ export function SecretsManager() {
           autoComplete='email'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
       </div>
 
@@ -942,33 +981,27 @@ export function SecretsManager() {
           onChange: setSearchTerm,
           placeholder: 'Search secrets...',
         }}
-        actions={
-          <>
-            {hasChanges && (
-              <Chip onClick={handleCancel} disabled={isListSaving}>
-                Discard
-              </Chip>
-            )}
-            {hasConflicts || hasInvalidKeys ? (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <div className='inline-flex'>
-                    <Chip disabled>Save</Chip>
-                  </div>
-                </Tooltip.Trigger>
-                {hasConflicts ? (
-                  <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
-                ) : (
-                  <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            ) : (
-              <Chip onClick={handleSave} disabled={isLoading || !hasChanges || isListSaving}>
-                {isListSaving ? 'Saving...' : 'Save'}
-              </Chip>
-            )}
-          </>
-        }
+        actions={[
+          ...(hasChanges
+            ? [
+                {
+                  text: 'Discard',
+                  onSelect: handleCancel,
+                  disabled: isListSaving,
+                } satisfies SettingsAction,
+              ]
+            : []),
+          {
+            text: isListSaving ? 'Saving...' : 'Save',
+            onSelect: handleSave,
+            disabled: hasConflicts || hasInvalidKeys || isLoading || !hasChanges || isListSaving,
+            tooltip: hasConflicts
+              ? 'Resolve all conflicts before saving'
+              : hasInvalidKeys
+                ? 'Fix invalid variable names before saving'
+                : undefined,
+          },
+        ]}
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>
@@ -984,7 +1017,7 @@ export function SecretsManager() {
                     : Object.entries(workspaceVars)
                   ).map(([key, value]) => {
                     const cred = workspaceEnvKeyToCredential.get(key)
-                    const canEditRow = cred?.role === 'admin'
+                    const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
                     return (
                       <WorkspaceVariableRow
                         key={key}
@@ -1000,7 +1033,9 @@ export function SecretsManager() {
                         onRenameEnd={handleWorkspaceKeyRename}
                         onValueChange={handleWorkspaceValueChange}
                         onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={handleViewDetails}
+                        onViewDetails={
+                          canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
+                        }
                       />
                     )
                   })}

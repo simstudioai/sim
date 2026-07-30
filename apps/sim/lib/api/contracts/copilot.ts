@@ -5,6 +5,14 @@ import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
+  BILLING_REQUEST_ID_HEADER,
+  COPILOT_BILLING_PROTOCOL_HEADER,
+  COPILOT_BILLING_PROTOCOL_VALUES,
+} from '@/lib/copilot/generated/billing-protocol-v1'
+import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),
@@ -51,6 +59,30 @@ export const copilotConfirmBodySchema = z.object({
 })
 export type CopilotConfirmBody = z.input<typeof copilotConfirmBodySchema>
 
+export const copilotToolPermissionDecisionSchema = z.enum([
+  'allow',
+  'allow_chat',
+  'always_allow',
+  'skip',
+])
+
+/**
+ * Decisions arrive as a batch so "Allow all" on a turn that gated several
+ * tools at once is a single round trip rather than one request per card.
+ */
+export const copilotToolPermissionBodySchema = z.object({
+  decisions: z
+    .array(
+      z.object({
+        toolCallId: z.string().min(1, 'Tool call ID is required'),
+        decision: copilotToolPermissionDecisionSchema,
+      })
+    )
+    .min(1, 'At least one decision is required')
+    .max(50, 'Too many decisions in one request'),
+})
+export type CopilotToolPermissionBody = z.input<typeof copilotToolPermissionBodySchema>
+
 export const createWorkflowCopilotChatBodySchema = z.object({
   workspaceId: z.string().min(1),
   workflowId: z.string().min(1),
@@ -86,15 +118,7 @@ export const renameCopilotChatBodySchema = z.object({
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
-const copilotResourceTypeSchema = z.enum([
-  'table',
-  'file',
-  'workflow',
-  'knowledgebase',
-  'folder',
-  'scheduledtask',
-  'log',
-])
+const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
 export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
@@ -251,7 +275,6 @@ const copilotPersistedMessageSchema = z
 export const updateCopilotMessagesBodySchema = z.object({
   chatId: z.string(),
   messages: z.array(copilotPersistedMessageSchema),
-  planArtifact: z.string().nullable().optional(),
   config: z
     .object({
       mode: z.string().optional(),
@@ -262,15 +285,31 @@ export const updateCopilotMessagesBodySchema = z.object({
 })
 export type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBodySchema>
 
+export const validateCopilotApiKeyHeadersSchema = z.object({
+  [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
+  [BILLING_REQUEST_ID_HEADER]: z.string().uuid().optional(),
+  [BILLING_ATTRIBUTION_HEADER]: z.string().max(BILLING_ATTRIBUTION_HEADER_MAX_BYTES).optional(),
+})
+
+export const validateCopilotApiKeyErrorSchema = z
+  .object({
+    error: z.string().min(1).max(500),
+    details: z.array(z.unknown()).optional(),
+  })
+  .strict()
+export type ValidateCopilotApiKeyError = z.output<typeof validateCopilotApiKeyErrorSchema>
+
 export const validateCopilotApiKeyBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   /**
-   * Originating workspace. Used to enforce per-member org-workspace credit limits
-   * at mothership/copilot request time. Required: the Go mothership always resolves
-   * a workspace for a chat request, so a missing value must fail closed (block the
-   * request) rather than silently skip the per-member gate.
+   * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
+   * immutable payer snapshot. Markerless legacy-v0 resolves a locally known
+   * workspace's current payer for aligned payer-pool and member admission.
+   * For direct-v1 Chat/Copilot API keys it may be a self-hosted local ID and is
+   * never used to select or authorize a hosted payer, so direct-v1 callers may
+   * omit it entirely.
    */
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(),
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 
@@ -388,7 +427,6 @@ const copilotChatGetChatSchema = z
     model: z.string().nullable(),
     messages: z.array(z.unknown()),
     messageCount: z.number(),
-    planArtifact: z.unknown().nullable(),
     config: z.unknown().nullable(),
     activeStreamId: z.string().nullable().optional(),
     resources: z.array(z.unknown()).optional(),
@@ -466,8 +504,10 @@ export const copilotCredentialsContract = defineRouteContract({
 export const validateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/api-keys/validate',
+  headers: validateCopilotApiKeyHeadersSchema,
   body: validateCopilotApiKeyBodySchema,
   response: { mode: 'empty' },
+  error: validateCopilotApiKeyErrorSchema,
 })
 
 export const validateCopilotByokBodySchema = z.object({
@@ -593,6 +633,27 @@ export const copilotConfirmContract = defineRouteContract({
       message: z.string(),
       toolCallId: z.string(),
       status: z.string(),
+    }),
+  },
+})
+
+export const copilotToolPermissionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/tool-permission',
+  body: copilotToolPermissionBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      // Echoes the decision that actually stuck per tool call, which can differ
+      // from what was sent when another tab answered the same prompt first.
+      results: z.array(
+        z.object({
+          toolCallId: z.string(),
+          decision: copilotToolPermissionDecisionSchema,
+          applied: z.boolean(),
+        })
+      ),
     }),
   },
 })

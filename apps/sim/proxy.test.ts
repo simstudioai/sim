@@ -80,13 +80,14 @@ describe('resolveApiCorsPolicy', () => {
     }
   })
 
-  it('serves workflow execute with wildcard origin and PUT method', () => {
+  it('serves workflow execute with wildcard origin and execution identity header', () => {
     const policy = resolveApiCorsPolicy(
       makeRequest('/api/workflows/workflow-123/execute', 'https://other.example')
     )
     expect(policy.origin).toBe('*')
     expect(policy.credentials).toBe(false)
     expect(policy.methods).toContain('PUT')
+    expect(policy.headers).toContain('X-Execution-Id')
   })
 
   it('does not match the workflow execute rule for nested paths', () => {

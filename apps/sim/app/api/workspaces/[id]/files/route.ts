@@ -9,9 +9,14 @@ import {
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getSharesForResources } from '@/lib/public-shares/share-manager'
+import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
   FileConflictError,
   listWorkspaceFiles,
@@ -69,10 +74,7 @@ export const GET = withRouteHandler(
 
       const files = await listWorkspaceFiles(workspaceId, { scope })
 
-      const shares = await getSharesForResources(
-        'file',
-        files.map((file) => file.id)
-      )
+      const shares = await getWorkspaceShares('file', workspaceId)
       const filesWithShares = files.map((file) => ({
         ...file,
         share: shares.get(file.id) ?? null,
@@ -132,7 +134,21 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const formData = await request.formData()
+      let formData: FormData
+      try {
+        formData = await readFormDataWithLimit(request, {
+          maxBytes: MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+          label: 'workspace file upload body',
+        })
+      } catch (error) {
+        if (isPayloadSizeLimitError(error)) {
+          return NextResponse.json({ error: error.message }, { status: 413 })
+        }
+        return NextResponse.json(
+          { error: 'Request body must be valid multipart form data' },
+          { status: 400 }
+        )
+      }
       const rawFile = formData.get('file')
       const rawFolderId = formData.get('folderId')
       const folderId =

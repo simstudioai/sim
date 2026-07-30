@@ -22,7 +22,12 @@ const GetLogEventsSchema = z.object({
   endTime: z.coerce.number().int().optional(),
   limit: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
-    z.coerce.number().int().positive().optional()
+    z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(10000, 'limit must be at most 10000 (CloudWatch Logs GetLogEvents limit)')
+      .optional()
   ),
 })
 

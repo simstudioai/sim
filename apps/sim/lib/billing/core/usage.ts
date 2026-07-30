@@ -3,7 +3,7 @@ import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderCreditsExhaustedEmail,
@@ -12,10 +12,7 @@ import {
 } from '@/components/emails'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
-import {
-  getHighestPrioritySubscription,
-  type HighestPrioritySubscription,
-} from '@/lib/billing/core/plan'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
@@ -45,6 +42,15 @@ const logger = createLogger('UsageManagement')
 export interface OrgUsageLimitResult {
   limit: number
   minimum: number
+}
+
+export interface UsageLimitSubscription {
+  referenceId: string
+  plan: string
+  status: string | null
+  seats: number | null
+  periodStart: Date | null
+  periodEnd: Date | null
 }
 
 /**
@@ -501,13 +507,14 @@ export async function updateUserUsageLimit(
  * Org-scoped members carry a null `currentUsageLimit` by design (see
  * `syncUsageLimitsFromSubscription`). A user whose subscription stops being
  * org-scoped without a resync would otherwise stay null and fail closed on
- * every execution, so a null limit self-heals to the plan default here. The
- * write-back is best-effort: a limit written concurrently wins, and a failed
- * write still resolves to the fallback instead of blocking execution.
+ * every execution, so a null limit self-heals to the plan/free base plus the
+ * exact prepaid balance here. The write-back is best-effort: a limit written
+ * concurrently wins, and a failed write still resolves to the fallback
+ * instead of blocking execution.
  */
 export async function getUserUsageLimit(
   userId: string,
-  preloadedSubscription?: HighestPrioritySubscription
+  preloadedSubscription?: UsageLimitSubscription | null
 ): Promise<number> {
   const subscription =
     preloadedSubscription !== undefined
@@ -534,7 +541,10 @@ export async function getUserUsageLimit(
   }
 
   const userStatsQuery = await db
-    .select({ currentUsageLimit: userStats.currentUsageLimit })
+    .select({
+      currentUsageLimit: userStats.currentUsageLimit,
+      creditBalance: userStats.creditBalance,
+    })
     .from(userStats)
     .where(eq(userStats.userId, userId))
     .limit(1)
@@ -546,10 +556,11 @@ export async function getUserUsageLimit(
   }
 
   if (!userStatsQuery[0].currentUsageLimit) {
-    const fallbackLimit =
+    const baseLimit =
       subscription && hasPaidSubscriptionStatus(subscription.status)
         ? getPerUserMinimumLimit(subscription)
         : getFreeTierLimit()
+    const fallbackLimit = toDecimal(baseLimit).plus(toDecimal(userStatsQuery[0].creditBalance))
 
     try {
       const healed = await db
@@ -576,13 +587,17 @@ export async function getUserUsageLimit(
       logger.warn('Healed null usage limit to plan default', {
         userId,
         plan: subscription?.plan || 'free',
-        fallbackLimit,
+        fallbackLimit: toNumber(fallbackLimit),
       })
     } catch (error) {
-      logger.error('Failed to heal null usage limit', { userId, fallbackLimit, error })
+      logger.error('Failed to heal null usage limit', {
+        userId,
+        fallbackLimit: toNumber(fallbackLimit),
+        error,
+      })
     }
 
-    return fallbackLimit
+    return toNumber(fallbackLimit)
   }
 
   return toNumber(toDecimal(userStatsQuery[0].currentUsageLimit))
@@ -647,37 +662,34 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
     }
     return
   }
-  const defaultLimit = getPerUserMinimumLimit(subscription)
-  const currentLimit = currentStats.currentUsageLimit
-    ? toNumber(toDecimal(currentStats.currentUsageLimit))
-    : 0
-
-  if (!subscription || !hasPaidSubscriptionStatus(subscription.status)) {
-    // Downgraded to free
-    await db
-      .update(userStats)
-      .set({
-        currentUsageLimit: getFreeTierLimit().toString(),
-        usageLimitUpdatedAt: new Date(),
-      })
-      .where(eq(userStats.userId, userId))
-
-    logger.info('Set limit to free tier', { userId })
-  } else if (currentLimit < defaultLimit) {
-    await db
-      .update(userStats)
-      .set({
-        currentUsageLimit: defaultLimit.toString(),
-        usageLimitUpdatedAt: new Date(),
-      })
-      .where(eq(userStats.userId, userId))
-
-    logger.info('Raised limit to plan minimum', {
-      userId,
-      newLimit: defaultLimit,
+  const baseLimit = toDecimal(getPerUserMinimumLimit(subscription)).toString()
+  const hasEntitledPersonalSubscription =
+    subscription !== null && hasPaidSubscriptionStatus(subscription.status)
+  const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`
+  await db
+    .update(userStats)
+    .set({
+      currentUsageLimit: hasEntitledPersonalSubscription
+        ? sql`greatest(coalesce(${userStats.currentUsageLimit}, 0), ${liveMinimum})`
+        : liveMinimum,
+      usageLimitUpdatedAt: new Date(),
     })
-  }
-  // Keep higher custom limits unchanged
+    .where(
+      and(
+        eq(userStats.userId, userId),
+        hasEntitledPersonalSubscription
+          ? sql`coalesce(${userStats.currentUsageLimit}, 0) < ${liveMinimum}`
+          : sql`${userStats.currentUsageLimit} is distinct from ${liveMinimum}`
+      )
+    )
+
+  logger.info(
+    hasEntitledPersonalSubscription
+      ? 'Synchronized plan-plus-prepaid minimum'
+      : 'Reset limit to free-plus-prepaid minimum',
+    { userId, baseLimit: Number(baseLimit) }
+  )
+  // Keep higher custom limits unchanged only while personal billing is entitled.
 }
 
 /**
@@ -844,9 +856,10 @@ export async function maybeSendUsageThresholdEmail(params: {
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
       : `${baseUrl}/workspace`
-    const billingSettingsLink = params.workspaceId
-      ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
-      : `${baseUrl}/workspace`
+    const billingSettingsLink =
+      params.scope === 'organization' && params.organizationId
+        ? `${baseUrl}/organization/${params.organizationId}/settings/billing`
+        : `${baseUrl}/account/settings/billing`
 
     // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)
     const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80

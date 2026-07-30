@@ -39,7 +39,8 @@ export const updateTextStyleTool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The 1-based start character index of the range to style (inclusive)',
+      description:
+        'The start character index (the document body starts at index 1) of the range to style (inclusive)',
     },
     endIndex: {
       type: 'number',

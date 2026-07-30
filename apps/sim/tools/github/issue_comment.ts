@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type { CreateIssueCommentParams, IssueCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
@@ -58,7 +59,7 @@ export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueComment
   transformResponse: async (response) => {
     const data = await response.json()
 
-    const content = `Comment created on issue #${data.issue_url.split('/').pop()}: "${data.body.substring(0, 100)}${data.body.length > 100 ? '...' : ''}"`
+    const content = `Comment created on issue #${data.issue_url.split('/').pop()}: "${truncate(data.body, 100)}"`
 
     return {
       success: true,

@@ -91,4 +91,81 @@ Forward multiple runs to LangSmith in a single batch.
 | `message` | string | Response message from LangSmith |
 | `messages` | array | Per-run response messages, when provided |
 
+### `langsmith_update_run`
+
+Patch an existing LangSmith run with outputs, status, or timing once it completes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `runId` | string | Yes | ID of the run to update |
+| `name` | string | No | Corrected run name |
+
+#### Output
+
+This tool does not produce any outputs.
+
+### `langsmith_get_run`
+
+Retrieve a single LangSmith run by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `runId` | string | Yes | ID of the run to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run ID |
+| `runId` | string | Run ID \(alias of id, for consistency with other operations\) |
+| `name` | string | Run name |
+| `runType` | string | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `status` | string | Run status |
+| `startTime` | string | Run start time \(ISO\) |
+| `endTime` | string | Run end time \(ISO\) |
+| `inputs` | json | Run inputs payload |
+| `outputs` | json | Run outputs payload |
+| `error` | string | Error details, if the run failed |
+| `tags` | array | Tags attached to the run |
+| `sessionId` | string | Project \(session\) ID the run belongs to |
+| `traceId` | string | Trace ID |
+| `parentRunId` | string | Parent run ID |
+| `totalTokens` | number | Total tokens consumed by the run |
+| `totalCost` | string | Total cost of the run |
+
+### `langsmith_create_feedback`
+
+Attach a score, correction, or comment to a LangSmith run.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `runId` | string | Yes | ID of the run to attach feedback to |
+| `key` | string | Yes | Feedback metric name \(e.g. "correctness", "user_score"\) |
+| `score` | number | No | Numeric score for the feedback metric |
+| `value` | string | No | Categorical value for the feedback metric |
+| `comment` | string | No | Free-text comment explaining the feedback |
+| `correction` | json | No | Corrected output for the run |
+| `feedbackSourceType` | string | No | Origin of the feedback \(api, app, or model\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Feedback ID |
+| `key` | string | Feedback metric name |
+| `runId` | string | ID of the run the feedback was attached to |
+| `score` | number | Score recorded for the feedback |
+| `value` | string | Categorical value recorded for the feedback |
+| `comment` | string | Comment recorded for the feedback |
+| `createdAt` | string | When the feedback was created \(ISO\) |
+
 

@@ -34,7 +34,7 @@ export const clerkRevokeSessionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId}/revoke`,
+    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId?.trim()}/revoke`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

@@ -63,6 +63,38 @@ Run a SQL query against Google BigQuery and return the results
 |   ↳ `location` | string | Geographic location of the job |
 | `pageToken` | string | Token for fetching additional result pages |
 
+### `google_bigquery_get_query_results`
+
+Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `jobId` | string | Yes | ID of the BigQuery job to fetch results for |
+| `pageToken` | string | No | Token for pagination |
+| `maxResults` | number | No | Maximum number of rows to return |
+| `timeoutMs` | number | No | How long to wait for the job to complete, in milliseconds |
+| `location` | string | No | Processing location of the job \(e.g., "US", "EU"\) |
+| `startIndex` | string | No | Zero-based index of the starting row |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Array of column names from the query result |
+| `rows` | array | Array of row objects keyed by column name |
+| `totalRows` | string | Total number of rows in the complete result set |
+| `jobComplete` | boolean | Whether the job has completed |
+| `totalBytesProcessed` | string | Total bytes processed by the query |
+| `cacheHit` | boolean | Whether the query result was served from cache |
+| `jobReference` | object | Job reference \(useful when jobComplete is false\) |
+|   ↳ `projectId` | string | Project ID containing the job |
+|   ↳ `jobId` | string | Unique job identifier |
+|   ↳ `location` | string | Geographic location of the job |
+| `pageToken` | string | Token for fetching additional result pages |
+
 ### `google_bigquery_list_datasets`
 
 List all datasets in a Google BigQuery project
@@ -85,6 +117,49 @@ List all datasets in a Google BigQuery project
 |   ↳ `friendlyName` | string | Descriptive name for the dataset |
 |   ↳ `location` | string | Geographic location where the data resides |
 | `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_bigquery_create_dataset`
+
+Create a new dataset in a Google BigQuery project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | ID for the new BigQuery dataset |
+| `location` | string | No | Geographic location for the dataset \(e.g., "US", "EU"\) |
+| `friendlyName` | string | No | Human-readable name for the dataset |
+| `description` | string | No | Description of the dataset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `datasetId` | string | Unique dataset identifier |
+| `projectId` | string | Project ID containing this dataset |
+| `friendlyName` | string | Descriptive name for the dataset |
+| `description` | string | Dataset description |
+| `location` | string | Geographic location where the data resides |
+| `creationTime` | string | Dataset creation time \(milliseconds since epoch\) |
+
+### `google_bigquery_delete_dataset`
+
+Delete a dataset from a Google BigQuery project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID to delete |
+| `deleteContents` | boolean | No | Whether to delete tables inside the dataset \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the dataset was deleted |
 
 ### `google_bigquery_list_tables`
 
@@ -144,6 +219,80 @@ Get metadata and schema for a Google BigQuery table
 | `creationTime` | string | Table creation time \(milliseconds since epoch\) |
 | `lastModifiedTime` | string | Last modification time \(milliseconds since epoch\) |
 | `location` | string | Geographic location where the table resides |
+
+### `google_bigquery_create_table`
+
+Create a new table in a Google BigQuery dataset
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | ID for the new BigQuery table |
+| `schema` | string | Yes | JSON array of column field definitions, e.g. \[\{"name":"id","type":"STRING","mode":"REQUIRED"\}\] |
+| `description` | string | No | Description of the table |
+| `friendlyName` | string | No | Human-readable name for the table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tableId` | string | Table ID |
+| `datasetId` | string | Dataset ID |
+| `projectId` | string | Project ID |
+| `type` | string | Table type \(usually TABLE\) |
+| `description` | string | Table description |
+| `schema` | array | Array of column definitions |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Data type |
+|   ↳ `mode` | string | Column mode \(NULLABLE, REQUIRED, or REPEATED\) |
+|   ↳ `description` | string | Column description |
+| `creationTime` | string | Table creation time \(milliseconds since epoch\) |
+| `location` | string | Geographic location where the table resides |
+
+### `google_bigquery_delete_table`
+
+Delete a table from a Google BigQuery dataset
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | BigQuery table ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the table was deleted |
+
+### `google_bigquery_list_table_data`
+
+Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | BigQuery table ID |
+| `maxResults` | number | No | Maximum number of rows to return |
+| `pageToken` | string | No | Token for pagination |
+| `startIndex` | string | No | Zero-based index of the starting row |
+| `selectedFields` | string | No | Comma-separated list of column names to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Array of rows, each a raw array of column values in schema order |
+| `totalRows` | string | Total number of rows in the table |
+| `pageToken` | string | Token for fetching the next page of results |
 
 ### `google_bigquery_insert_rows`
 

@@ -9,12 +9,16 @@ import {
   MothershipStreamV1SessionKind,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1TextChannel,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import {
+  CONTEXT_COMPACTION_DISPLAY_TITLE,
+  getToolDisplayTitle,
+} from '@/lib/copilot/tools/tool-display'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]
@@ -32,6 +36,16 @@ type RawPersistedBlock = Record<string, unknown>
 
 export function getLiveAssistantMessageId(streamId: string): string {
   return `live-assistant:${streamId}`
+}
+
+/**
+ * True for the synthetic id of a streaming/just-streamed assistant message.
+ * These ids exist only in the client's effective transcript — never in the
+ * persisted one — so message-scoped server actions (e.g. fork) must not be
+ * offered until the transcript refetch swaps in the persisted message id.
+ */
+export function isLiveAssistantMessageId(messageId: string): boolean {
+  return messageId.startsWith('live-assistant:')
 }
 
 function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
@@ -105,7 +119,7 @@ function buildLiveAssistantMessage(params: {
   const subagentBySpanId = new Map<string, string>()
   let activeSubagent: string | undefined
   let activeSubagentParentToolCallId: string | undefined
-  let activeCompactionId: string | undefined
+  const activeCompactionIdByLane = new Map<string, string>()
   let runningText = ''
   let lastContentSource: 'main' | 'subagent' | null = null
   let requestId: string | undefined
@@ -119,7 +133,6 @@ function buildLiveAssistantMessage(params: {
     parentToolCallId: string | undefined,
     spanId?: string
   ): string | undefined => {
-    if (agentId) return agentId
     if (spanId) {
       const scoped = subagentBySpanId.get(spanId)
       if (scoped) return scoped
@@ -128,7 +141,7 @@ function buildLiveAssistantMessage(params: {
       const scoped = subagentByParentToolCallId.get(parentToolCallId)
       if (scoped) return scoped
     }
-    return undefined
+    return agentId
   }
 
   const resolveParentForSubagentBlock = (
@@ -138,6 +151,17 @@ function buildLiveAssistantMessage(params: {
     if (!subagent) return undefined
     return scopedParent
   }
+
+  // Tool ownership (calledBy / parent / span identity) is CALL-FRAME
+  // authoritative: once a call frame for a tool id has been reduced, later
+  // scoped results or replayed duplicates must not re-parent the tool. Before
+  // a call frame arrives, ownership stays provisional (result-first replay
+  // arrival is legal) and the call frame settles it — including CLEARING
+  // stale subagent attribution when the call is main-lane (unscoped). Without
+  // the clear, one mis-scoped replayed event pinned main tools under a
+  // subagent (observed: Sim's reads rendered under Superagent) with no later
+  // event able to correct it.
+  const toolOwnershipSettled = new Set<string>()
 
   const ensureToolBlock = (input: {
     toolCallId: string
@@ -150,7 +174,11 @@ function buildLiveAssistantMessage(params: {
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     state?: string
+    isCallFrame?: boolean
   }): RawPersistedBlock => {
+    const ownershipWritable =
+      input.isCallFrame === true || !toolOwnershipSettled.has(input.toolCallId)
+    if (input.isCallFrame) toolOwnershipSettled.add(input.toolCallId)
     const existingIndex = toolIndexById.get(input.toolCallId)
     if (existingIndex !== undefined) {
       const existing = blocks[existingIndex]
@@ -162,7 +190,7 @@ function buildLiveAssistantMessage(params: {
         state:
           input.state ??
           (typeof existingToolCall?.state === 'string' ? existingToolCall.state : 'executing'),
-        ...(input.calledBy ? { calledBy: input.calledBy } : {}),
+        ...(ownershipWritable && input.calledBy ? { calledBy: input.calledBy } : {}),
         ...(input.params ? { params: input.params } : {}),
         ...(input.result ? { result: input.result } : {}),
         ...(input.displayTitle
@@ -175,9 +203,21 @@ function buildLiveAssistantMessage(params: {
             ? { display: existingToolCall.display }
             : {}),
       }
-      if (input.parentToolCallId) existing.parentToolCallId = input.parentToolCallId
-      if (input.spanId) existing.spanId = input.spanId
-      if (input.parentSpanId) existing.parentSpanId = input.parentSpanId
+      if (ownershipWritable) {
+        if (input.parentToolCallId) existing.parentToolCallId = input.parentToolCallId
+        if (input.spanId) existing.spanId = input.spanId
+        if (input.parentSpanId) existing.parentSpanId = input.parentSpanId
+        if (input.isCallFrame && !input.calledBy) {
+          // Authoritative main-lane call: clear any provisionally-seeded
+          // subagent attribution so the tool renders under Sim, not the
+          // forwarding caller.
+          const tc = asPayloadRecord(existing.toolCall)
+          if (tc) tc.calledBy = undefined
+          existing.parentToolCallId = undefined
+          existing.spanId = undefined
+          existing.parentSpanId = undefined
+        }
+      }
       return existing
     }
 
@@ -230,6 +270,11 @@ function buildLiveAssistantMessage(params: {
       ...(scopedSpanId ? { spanId: scopedSpanId } : {}),
       ...(scopedParentSpanId ? { parentSpanId: scopedParentSpanId } : {}),
     }
+    const compactionLaneKey = scopedSpanId
+      ? `span:${scopedSpanId}`
+      : scopedParentToolCallId
+        ? `parent:${scopedParentToolCallId}`
+        : 'main'
 
     switch (parsed.type) {
       case MothershipStreamV1EventType.session: {
@@ -247,6 +292,14 @@ function buildLiveAssistantMessage(params: {
       case MothershipStreamV1EventType.text: {
         const chunk = parsed.payload.text
         if (!chunk) {
+          continue
+        }
+        // Reasoning is never rendered or persisted (the stream reducer and the
+        // turn model both key on the channel; buildPersistedAssistantMessage
+        // strips it). This snapshot-derived converter must not resurrect it as
+        // visible prose — skip before block append AND runningText so thinking
+        // never leaks into the live-assistant message's content either.
+        if (parsed.payload.channel === MothershipStreamV1TextChannel.thinking) {
           continue
         }
         const contentSource: 'main' | 'subagent' = scopedSubagent ? 'subagent' : 'main'
@@ -309,6 +362,7 @@ function buildLiveAssistantMessage(params: {
           ),
           params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
+          isCallFrame: payload.phase === MothershipStreamV1ToolPhase.call,
         })
         continue
       }
@@ -375,23 +429,39 @@ function buildLiveAssistantMessage(params: {
       }
       case MothershipStreamV1EventType.run: {
         if (parsed.payload.kind === MothershipStreamV1RunKind.compaction_start) {
-          activeCompactionId = `compaction_${entry.eventId}`
+          const compactionId = `compaction_${entry.eventId}`
+          activeCompactionIdByLane.set(compactionLaneKey, compactionId)
+          const parentForBlock = resolveParentForSubagentBlock(
+            scopedSubagent,
+            scopedParentToolCallId
+          )
           ensureToolBlock({
-            toolCallId: activeCompactionId,
+            toolCallId: compactionId,
             toolName: 'context_compaction',
-            displayTitle: 'Compacting context...',
+            calledBy: scopedSubagent,
+            ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
+            ...spanIdentity,
+            displayTitle: CONTEXT_COMPACTION_DISPLAY_TITLE,
             state: 'executing',
           })
           continue
         }
 
         if (parsed.payload.kind === MothershipStreamV1RunKind.compaction_done) {
-          const compactionId = activeCompactionId ?? `compaction_${entry.eventId}`
-          activeCompactionId = undefined
+          const compactionId =
+            activeCompactionIdByLane.get(compactionLaneKey) ?? `compaction_${entry.eventId}`
+          activeCompactionIdByLane.delete(compactionLaneKey)
+          const parentForBlock = resolveParentForSubagentBlock(
+            scopedSubagent,
+            scopedParentToolCallId
+          )
           ensureToolBlock({
             toolCallId: compactionId,
             toolName: 'context_compaction',
-            displayTitle: 'Compacted context',
+            calledBy: scopedSubagent,
+            ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
+            ...spanIdentity,
+            displayTitle: CONTEXT_COMPACTION_DISPLAY_TITLE,
             state: MothershipStreamV1ToolOutcome.success,
           })
         }

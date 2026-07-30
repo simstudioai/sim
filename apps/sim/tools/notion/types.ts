@@ -191,15 +191,6 @@ export const FILE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete file output definition
- */
-export const FILE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'File object',
-  properties: FILE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Emoji object properties.
  * @see https://developers.notion.com/reference/emoji-object
  */
@@ -309,61 +300,6 @@ export const PAGE_OUTPUT: OutputProperty = {
 }
 
 /**
- * Simplified page output properties for read operations (flattened structure).
- * Used by notion_read and notion_read_v2 tools.
- */
-export const PAGE_READ_OUTPUT_PROPERTIES = {
-  content: {
-    type: 'string',
-    description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
-  },
-  title: { type: 'string', description: 'Page title' },
-  url: { type: 'string', description: 'Notion page URL' },
-  created_time: { type: 'string', description: 'ISO 8601 creation timestamp' },
-  last_edited_time: { type: 'string', description: 'ISO 8601 last edit timestamp' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Page metadata output properties for legacy tools.
- * Used by notion_read, notion_create_page, notion_update_page.
- */
-export const PAGE_METADATA_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Page title' },
-  lastEditedTime: { type: 'string', description: 'ISO 8601 last edit timestamp' },
-  createdTime: { type: 'string', description: 'ISO 8601 creation timestamp' },
-  url: { type: 'string', description: 'Notion page URL' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Page metadata output for create/update operations.
- */
-export const PAGE_MUTATION_METADATA_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Page title' },
-  pageId: { type: 'string', description: 'Page UUID' },
-  url: { type: 'string', description: 'Notion page URL' },
-  lastEditedTime: { type: 'string', description: 'ISO 8601 last edit timestamp' },
-  createdTime: { type: 'string', description: 'ISO 8601 creation timestamp' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete page metadata output definition
- */
-export const PAGE_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Page metadata including title, URL, and timestamps',
-  properties: PAGE_METADATA_OUTPUT_PROPERTIES,
-}
-
-/**
- * Page mutation metadata output definition (for create/update)
- */
-export const PAGE_MUTATION_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Page metadata including title, page ID, URL, and timestamps',
-  properties: PAGE_MUTATION_METADATA_OUTPUT_PROPERTIES,
-}
-
-/**
  * Common database object properties from Notion API.
  * @see https://developers.notion.com/reference/database
  */
@@ -398,28 +334,6 @@ export const DATABASE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Notion database object',
   properties: DATABASE_OUTPUT_PROPERTIES,
-}
-
-/**
- * Database metadata output properties for legacy tools.
- * Used by notion_read_database, notion_create_database.
- */
-export const DATABASE_METADATA_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Database UUID' },
-  title: { type: 'string', description: 'Database title' },
-  url: { type: 'string', description: 'Notion database URL' },
-  createdTime: { type: 'string', description: 'ISO 8601 creation timestamp' },
-  lastEditedTime: { type: 'string', description: 'ISO 8601 last edit timestamp' },
-  properties: { type: 'object', description: 'Database properties schema' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete database metadata output definition
- */
-export const DATABASE_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
-  properties: DATABASE_METADATA_OUTPUT_PROPERTIES,
 }
 
 /**
@@ -492,25 +406,6 @@ export const SEARCH_RESULTS_OUTPUT: OutputProperty = {
 }
 
 /**
- * Search metadata output properties for legacy tools.
- */
-export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
-  totalResults: { type: 'number', description: 'Number of results returned' },
-  hasMore: { type: 'boolean', description: 'Whether more results are available' },
-  nextCursor: { type: 'string', description: 'Cursor for next page of results', optional: true },
-  results: SEARCH_RESULTS_OUTPUT,
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete search metadata output definition
- */
-export const SEARCH_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Search metadata including total results count, pagination info, and raw results',
-  properties: SEARCH_METADATA_OUTPUT_PROPERTIES,
-}
-
-/**
  * Database query results array output with page items
  */
 export const DATABASE_QUERY_RESULTS_OUTPUT: OutputProperty = {
@@ -523,41 +418,55 @@ export const DATABASE_QUERY_RESULTS_OUTPUT: OutputProperty = {
 }
 
 /**
- * Query metadata output properties for legacy tools.
+ * Comment object properties from Notion API.
+ * @see https://developers.notion.com/reference/comment-object
  */
-export const QUERY_METADATA_OUTPUT_PROPERTIES = {
-  totalResults: { type: 'number', description: 'Number of results returned' },
-  hasMore: { type: 'boolean', description: 'Whether more results are available' },
-  nextCursor: { type: 'string', description: 'Cursor for next page of results', optional: true },
-  results: DATABASE_QUERY_RESULTS_OUTPUT,
+export const COMMENT_OUTPUT_PROPERTIES = {
+  object: { type: 'string', description: 'Always "comment"' },
+  id: { type: 'string', description: 'Comment UUID' },
+  parent: PARENT_OUTPUT,
+  discussion_id: { type: 'string', description: 'UUID of the discussion thread' },
+  created_time: { type: 'string', description: 'ISO 8601 creation timestamp' },
+  last_edited_time: { type: 'string', description: 'ISO 8601 last edit timestamp' },
+  created_by: PARTIAL_USER_OUTPUT,
+  rich_text: RICH_TEXT_ARRAY_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete query metadata output definition
+ * Array of block objects (used by append/retrieve block children).
  */
-export const QUERY_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Query metadata including total results, pagination info, and raw results array',
-  properties: QUERY_METADATA_OUTPUT_PROPERTIES,
+export const BLOCK_LIST_RESULTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Notion block objects',
+  items: {
+    type: 'object',
+    properties: BLOCK_OUTPUT_PROPERTIES,
+  },
 }
 
 /**
- * Row output properties for add_database_row operations.
+ * Array of comment objects (used by list comments).
  */
-export const ROW_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Row (page) UUID' },
-  url: { type: 'string', description: 'Notion page URL' },
-  title: { type: 'string', description: 'Row title' },
-  created_time: { type: 'string', description: 'ISO 8601 creation timestamp' },
-  last_edited_time: { type: 'string', description: 'ISO 8601 last edit timestamp' },
-} as const satisfies Record<string, OutputProperty>
+export const COMMENT_LIST_RESULTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Notion comment objects',
+  items: {
+    type: 'object',
+    properties: COMMENT_OUTPUT_PROPERTIES,
+  },
+}
 
 /**
- * Write operation output properties.
+ * Array of user objects (used by list users).
  */
-export const WRITE_OUTPUT_PROPERTIES = {
-  appended: { type: 'boolean', description: 'Whether content was successfully appended' },
-} as const satisfies Record<string, OutputProperty>
+export const USER_LIST_RESULTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Notion user objects',
+  items: {
+    type: 'object',
+    properties: USER_OUTPUT_PROPERTIES,
+  },
+}
 
 export interface NotionReadParams {
   pageId: string
@@ -608,6 +517,7 @@ export interface NotionQueryDatabaseParams {
   filter?: string
   sorts?: string
   pageSize?: number
+  startCursor?: string
   accessToken: string
 }
 
@@ -615,6 +525,7 @@ export interface NotionSearchParams {
   query?: string
   filterType?: string
   pageSize?: number
+  startCursor?: string
   accessToken: string
 }
 
@@ -625,13 +536,59 @@ export interface NotionCreateDatabaseParams {
   accessToken: string
 }
 
-interface NotionReadDatabaseParams {
-  databaseId: string
-  accessToken: string
-}
-
 export interface NotionAddDatabaseRowParams {
   databaseId: string
   properties: Record<string, any>
+  accessToken: string
+}
+
+export interface NotionAppendBlocksParams {
+  blockId: string
+  children: any[] | string
+  after?: string
+  accessToken: string
+}
+
+export interface NotionRetrieveBlockChildrenParams {
+  blockId: string
+  startCursor?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionUpdateBlockParams {
+  blockId: string
+  block: Record<string, any> | string
+  archived?: boolean
+  accessToken: string
+}
+
+export interface NotionDeleteBlockParams {
+  blockId: string
+  accessToken: string
+}
+
+export interface NotionCreateCommentParams {
+  pageId?: string
+  discussionId?: string
+  content: string
+  accessToken: string
+}
+
+export interface NotionListCommentsParams {
+  blockId: string
+  startCursor?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionListUsersParams {
+  startCursor?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionRetrieveUserParams {
+  userId: string
   accessToken: string
 }

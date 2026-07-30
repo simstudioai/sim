@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { Twilio } from 'twilio'
 import { env } from '@/lib/core/config/env'
 
@@ -66,7 +67,7 @@ export async function sendSMS(options: SMSOptions): Promise<SendSMSResult> {
     if (!twilioClient) {
       logger.error('SMS sending failed: Twilio not configured', {
         to,
-        body: `${body.substring(0, 50)}...`,
+        body: truncate(body, 50),
         from: fromNumber,
       })
       return {

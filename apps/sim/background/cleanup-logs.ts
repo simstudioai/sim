@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
@@ -29,6 +29,9 @@ import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 
 const logger = createLogger('CleanupLogs')
+
+/** All cleanup queries run on the dedicated cleanup pool. */
+const cleanupDb = dbFor('cleanup')
 
 interface FileDeleteStats {
   filesTotal: number
@@ -107,7 +110,7 @@ async function deleteLargeValueKeys(keys: string[]): Promise<{ deleted: number; 
 
   if (deletedKeys.length > 0) {
     try {
-      await markLargeValuesDeleted(deletedKeys)
+      await markLargeValuesDeleted(deletedKeys, cleanupDb)
     } catch (error) {
       logger.error('Failed to mark large execution values as deleted:', { error })
       return { deleted: 0, failed: result.failed.length + deletedKeys.length }
@@ -153,7 +156,7 @@ async function cleanupLargeExecutionValues(
         LARGE_VALUE_CLEANUP_BATCH_SIZE,
         LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
       )
-      const rows = await db
+      const rows = await cleanupDb
         .select({ key: executionLargeValues.key })
         .from(executionLargeValues)
         .where(
@@ -219,7 +222,7 @@ async function cleanupLegacyLargeExecutionValues(
         LARGE_VALUE_CLEANUP_BATCH_SIZE,
         LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
       )
-      const rows = await db
+      const rows = await cleanupDb
         .select({ key: workspaceFiles.key })
         .from(workspaceFiles)
         .where(
@@ -253,7 +256,7 @@ async function cleanupLegacyLargeExecutionValues(
                       SELECT 1
                       FROM ${pausedExecutions} AS ref_pe
                       WHERE ref_pe.execution_id = ref.execution_id
-                        AND ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                        AND ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                     )
                   )
                 )
@@ -276,7 +279,7 @@ async function cleanupLegacyLargeExecutionValues(
                     SELECT 1
                     FROM ${pausedExecutions} AS parent_owner_pe
                     WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
-                      AND parent_owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                      AND parent_owner_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                   )
                   OR EXISTS (
                     SELECT 1
@@ -297,7 +300,7 @@ async function cleanupLegacyLargeExecutionValues(
                             SELECT 1
                             FROM ${pausedExecutions} AS parent_ref_pe
                             WHERE parent_ref_pe.execution_id = parent_ref.execution_id
-                              AND parent_ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                              AND parent_ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                           )
                         )
                       )
@@ -313,7 +316,7 @@ async function cleanupLegacyLargeExecutionValues(
               SELECT 1
               FROM ${pausedExecutions} AS pe
               WHERE pe.execution_id = split_part(${workspaceFiles.key}, '/', 4)
-                AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
             )`
           )
         )
@@ -353,7 +356,11 @@ async function cleanupLargeValueMetadata(workspaceIds: string[], label: string):
     const tombstonesDeletedBefore = new Date(
       Date.now() - LARGE_VALUE_TOMBSTONE_RETENTION_HOURS * 60 * 60 * 1000
     )
-    const result = await pruneLargeValueMetadata({ workspaceIds, tombstonesDeletedBefore })
+    const result = await pruneLargeValueMetadata({
+      workspaceIds,
+      tombstonesDeletedBefore,
+      dbClient: cleanupDb,
+    })
     logger.info(
       `[${label}/execution_large_value_metadata] Pruned ${result.referencesDeleted} stale references, ${result.dependenciesDeleted} dependencies, ${result.tombstonesDeleted} tombstones`
     )
@@ -377,8 +384,9 @@ async function cleanupWorkflowExecutionLogs(
     tableDef: workflowExecutionLogs,
     workspaceIds,
     tableName: `${label}/workflow_execution_logs`,
+    dbClient: cleanupDb,
     selectChunk: (chunkIds, limit) =>
-      db
+      cleanupDb
         .select({
           id: workflowExecutionLogs.id,
           files: workflowExecutionLogs.files,
@@ -465,6 +473,7 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
     workspaceIds,
     retentionDate,
     tableName: `${label}/job_execution_logs`,
+    dbClient: cleanupDb,
   })
 
   if (runGlobalHousekeeping && plan === 'free') {

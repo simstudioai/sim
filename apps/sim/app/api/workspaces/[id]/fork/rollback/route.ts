@@ -10,9 +10,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { recordBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
-import { assertCanRollback } from '@/lib/workspaces/fork/lineage/authz'
-import { rollbackFork } from '@/lib/workspaces/fork/promote/rollback'
+import { recordBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
+import { assertCanRollback } from '@/ee/workspace-forking/lib/lineage/authz'
+import { rollbackFork } from '@/ee/workspace-forking/lib/promote/rollback'
 
 const logger = createLogger('WorkspaceForkRollbackAPI')
 
@@ -63,15 +63,23 @@ export const POST = withRouteHandler(
     await recordBackgroundWork(db, {
       workspaceId: id,
       kind: 'fork_rollback',
-      status: result.skipped > 0 ? 'completed_with_warnings' : 'completed',
-      message: `Undid the last sync from "${otherName}"`,
+      status:
+        result.skipped > 0 || result.pendingActivations.length > 0
+          ? 'completed_with_warnings'
+          : 'completed',
+      message:
+        result.pendingActivations.length > 0
+          ? `Undid the last sync from "${otherName}" — ${result.pendingActivations.length} deployment(s) still activating`
+          : `Undid the last sync from "${otherName}"`,
       metadata: {
         actorName: session.user.name ?? undefined,
+        otherWorkspaceId,
         otherWorkspaceName: otherName,
         restored: result.restored,
         removed: result.archived,
         unarchived: result.unarchived,
         skipped: result.skipped,
+        pendingActivations: result.pendingActivations.length,
       },
     }).catch((error) =>
       logger.error(`[${requestId}] Failed to record rollback activity`, {

@@ -38,10 +38,11 @@ export const readBucketTool: ToolConfig<
 
   request: {
     url: (params) => {
-      if (!params.bucketId) {
+      const bucketId = params.bucketId?.trim()
+      if (!bucketId) {
         throw new Error('Bucket ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/buckets/${params.bucketId}`
+      return `https://graph.microsoft.com/v1.0/planner/buckets/${bucketId}`
     },
     method: 'GET',
     headers: (params) => {

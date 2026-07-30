@@ -1,13 +1,15 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListPropertyDefinitionsParams {
   projectId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   limit?: number
   offset?: number
   search?: string
-  type?: 'event' | 'person' | 'group'
+  type?: 'event' | 'person' | 'group' | 'session'
 }
 
 interface PropertyDefinition {
@@ -18,9 +20,7 @@ interface PropertyDefinition {
   is_numerical: boolean
   is_seen_on_filtered_events: boolean | null
   property_type: string
-  type: 'event' | 'person' | 'group'
-  volume_30_day: number | null
-  query_usage_30_day: number | null
+  type: 'event' | 'person' | 'group' | 'session'
   created_at: string
   updated_at: string
   updated_by: {
@@ -48,6 +48,7 @@ export const listPropertyDefinitionsTool: ToolConfig<
   description:
     'List all property definitions in a PostHog project. Property definitions represent tracked properties with metadata like descriptions, tags, types, and usage statistics.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -61,6 +62,13 @@ export const listPropertyDefinitionsTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
     },
     apiKey: {
       type: 'string',
@@ -96,7 +104,7 @@ export const listPropertyDefinitionsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const queryParams = new URLSearchParams()
 
       if (params.limit) queryParams.append('limit', params.limit.toString())
@@ -130,8 +138,6 @@ export const listPropertyDefinitionsTool: ToolConfig<
         is_seen_on_filtered_events: property.is_seen_on_filtered_events ?? null,
         property_type: property.property_type,
         type: property.type,
-        volume_30_day: property.volume_30_day ?? null,
-        query_usage_30_day: property.query_usage_30_day ?? null,
         created_at: property.created_at,
         updated_at: property.updated_at,
         updated_by: property.updated_by ?? null,
@@ -171,17 +177,7 @@ export const listPropertyDefinitionsTool: ToolConfig<
             optional: true,
           },
           property_type: { type: 'string', description: 'The data type of the property' },
-          type: { type: 'string', description: 'Property type: event, person, or group' },
-          volume_30_day: {
-            type: 'number',
-            description: 'Number of times property was seen in the last 30 days',
-            optional: true,
-          },
-          query_usage_30_day: {
-            type: 'number',
-            description: 'Number of times this property was queried in the last 30 days',
-            optional: true,
-          },
+          type: { type: 'string', description: 'Property type: event, person, group, or session' },
           created_at: {
             type: 'string',
             description: 'ISO timestamp when the property was created',

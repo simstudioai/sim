@@ -10,11 +10,9 @@ import {
   createWorkspaceCredentialContract,
   credentialsListGetQuerySchema,
   normalizeCredentialEnvKey,
-  serviceAccountJsonSchema,
 } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -22,18 +20,17 @@ import {
   isSharedCredentialType,
   SHARED_CREDENTIAL_TYPES,
 } from '@/lib/credentials/access'
-import {
-  AtlassianValidationError,
-  normalizeAtlassianDomain,
-  validateAtlassianServiceAccount,
-} from '@/lib/credentials/atlassian-service-account'
+import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { getWorkspaceMembership } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
-  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
-  ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
-} from '@/lib/oauth/types'
+  ServiceAccountSecretError,
+  verifyAndBuildServiceAccountSecret,
+} from '@/lib/credentials/service-account-secret'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -314,6 +311,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       serviceAccountJson,
       apiToken,
       domain,
+      id: clientCredentialId,
+      signingSecret,
+      botToken,
+      clientId,
+      clientSecret,
+      orgId,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -364,68 +367,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           getServiceConfigByProviderId(accountRow.providerId)?.name || accountRow.providerId
       }
     } else if (type === 'service_account') {
-      if (providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-        if (!apiToken || !domain) {
-          return NextResponse.json(
-            { error: 'apiToken and domain are required for Atlassian service account credentials' },
-            { status: 400 }
-          )
-        }
-
-        const normalizedDomain = normalizeAtlassianDomain(domain)
-        const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain)
-
-        resolvedProviderId = ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
-        resolvedAccountId = null
-        resolvedEnvOwnerUserId = null
-
-        if (!resolvedDisplayName) {
-          resolvedDisplayName = validation.displayName
-        }
-
-        const blob = JSON.stringify({
-          type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+      try {
+        const secret = await verifyAndBuildServiceAccountSecret(providerId ?? '', {
+          signingSecret,
+          botToken,
           apiToken,
-          domain: normalizedDomain,
-          cloudId: validation.cloudId,
-          atlassianAccountId: validation.accountId,
+          domain,
+          serviceAccountJson,
+          clientId,
+          clientSecret,
+          orgId,
         })
-        const { encrypted } = await encryptSecret(blob)
-        resolvedEncryptedServiceAccountKey = encrypted
-        extraAuditMetadata.atlassianDomain = normalizedDomain
-        extraAuditMetadata.atlassianCloudId = validation.cloudId
-      } else {
-        if (!serviceAccountJson) {
-          return NextResponse.json(
-            { error: 'serviceAccountJson is required for service account credentials' },
-            { status: 400 }
-          )
-        }
-
-        const jsonParseResult = serviceAccountJsonSchema.safeParse(serviceAccountJson)
-        if (!jsonParseResult.success) {
-          return NextResponse.json(
-            {
-              error: getValidationErrorMessage(
-                jsonParseResult.error,
-                'Invalid service account JSON'
-              ),
-            },
-            { status: 400 }
-          )
-        }
-
-        const parsedKey = jsonParseResult.data
-        resolvedProviderId = 'google-service-account'
+        resolvedProviderId = secret.providerId
         resolvedAccountId = null
         resolvedEnvOwnerUserId = null
-
         if (!resolvedDisplayName) {
-          resolvedDisplayName = parsedKey.client_email
+          resolvedDisplayName = secret.displayName
         }
-
-        const { encrypted } = await encryptSecret(serviceAccountJson)
-        resolvedEncryptedServiceAccountKey = encrypted
+        resolvedEncryptedServiceAccountKey = secret.encryptedServiceAccountKey
+        Object.assign(extraAuditMetadata, secret.auditMetadata)
+      } catch (error) {
+        if (error instanceof ServiceAccountSecretError) {
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+        throw error
       }
     } else if (type === 'env_personal') {
       resolvedEnvOwnerUserId = envOwnerUserId ?? session.user.id
@@ -460,6 +425,38 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (existingCredential) {
+      // A retried custom-bot create with the SAME pre-generated id is an
+      // idempotent replay and falls through to the normal existing-credential
+      // path. Any other name collision must fail loudly: returning the existing
+      // row as success would orphan the new id already embedded in the user's
+      // Slack Request URL (Slack would post to a URL no credential resolves).
+      if (
+        resolvedProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID &&
+        clientCredentialId &&
+        existingCredential.id !== clientCredentialId
+      ) {
+        return NextResponse.json(
+          {
+            code: 'duplicate_display_name',
+            error: `A Slack bot named "${resolvedDisplayName}" already exists in this workspace. Give this bot a different name.`,
+          },
+          { status: 409 }
+        )
+      }
+
+      // Token service-account creates always carry a fresh token that must be
+      // stored — falling through to the existing-credential path would return
+      // the old credential as success and silently drop the submitted token.
+      if (resolvedProviderId && isTokenServiceAccountProviderId(resolvedProviderId)) {
+        return NextResponse.json(
+          {
+            code: 'duplicate_display_name',
+            error: `A credential named "${resolvedDisplayName}" already exists in this workspace. Give this one a different name.`,
+          },
+          { status: 409 }
+        )
+      }
+
       const access = await getCredentialActorContext(existingCredential.id, session.user.id, {
         workspaceAccess,
       })
@@ -506,7 +503,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const now = new Date()
-    const credentialId = generateId()
+    // Honor a client-supplied id only for custom Slack bots — the setup modal
+    // shows the ingest URL `/api/webhooks/slack/custom/{id}` before secrets exist.
+    const credentialId =
+      resolvedProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID && clientCredentialId
+        ? clientCredentialId
+        : generateId()
     const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds } =
       await getWorkspaceMembership(workspaceId)
 
@@ -615,6 +617,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ...error.logDetail,
       })
       return NextResponse.json({ code: error.code, error: error.code }, { status: 400 })
+    }
+    if (error instanceof TokenServiceAccountValidationError) {
+      logger.warn(`[${requestId}] Token service-account credential rejected: ${error.code}`, {
+        code: error.code,
+        upstreamStatus: error.status,
+        ...error.logDetail,
+      })
+      // A provider outage is an infra failure, not a bad request — mirror the
+      // runtime token route so monitoring sees a 502, not a 400.
+      const status = error.code === 'provider_unavailable' ? 502 : 400
+      return NextResponse.json({ code: error.code, error: error.code }, { status })
     }
     if (error instanceof DuplicateCredentialError) {
       return NextResponse.json(

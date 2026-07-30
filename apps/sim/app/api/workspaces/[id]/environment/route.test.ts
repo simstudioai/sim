@@ -1,37 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest, environmentUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockGetWorkspaceById,
-  mockGetUserEntityPermissions,
-  mockGetPersonalAndWorkspaceEnv,
-  mockGetWorkspaceEnvKeyAdminAccess,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetWorkspaceById: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetPersonalAndWorkspaceEnv: vi.fn(),
-  mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+const { mockGetWorkspaceById, mockGetUserEntityPermissions, mockGetWorkspaceEnvKeyAdminAccess } =
+  vi.hoisted(() => ({
+    mockGetWorkspaceById: vi.fn(),
+    mockGetUserEntityPermissions: vi.fn(),
+    mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
+  }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceById: mockGetWorkspaceById,
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
-  invalidateEffectiveDecryptedEnvCache: vi.fn(),
-}))
+const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
 vi.mock('@/lib/credentials/environment', () => ({
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
@@ -40,6 +25,8 @@ vi.mock('@/lib/credentials/environment', () => ({
 }))
 
 import { GET } from '@/app/api/workspaces/[id]/environment/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const WORKSPACE_ID = 'ws-1'
 

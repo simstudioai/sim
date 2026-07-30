@@ -17,8 +17,9 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { ExternalLink, RotateCcw } from 'lucide-react'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
+import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type {
@@ -26,7 +27,7 @@ import type {
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
@@ -36,7 +37,6 @@ import {
   useRestoreConnectorDocument,
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -79,10 +79,10 @@ function valuesEqual(a: unknown, b: unknown): boolean {
   const toArray = (v: unknown): string[] | null => {
     if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string')
     if (typeof v === 'string') {
-      return v
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+      return v.split(',').flatMap((s) => {
+        const t = s.trim()
+        return t ? [t] : []
+      })
     }
     return null
   }
@@ -159,10 +159,10 @@ export function EditConnectorModal({
         if (Array.isArray(rawValue)) {
           config[field.id] = rawValue.filter((v): v is string => typeof v === 'string')
         } else if (typeof rawValue === 'string') {
-          config[field.id] = rawValue
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
+          config[field.id] = rawValue.split(',').flatMap((s) => {
+            const t = s.trim()
+            return t ? [t] : []
+          })
         } else {
           config[field.id] = []
         }
@@ -191,11 +191,10 @@ export function EditConnectorModal({
     initialCanonicalModes,
   })
 
+  const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
 
-  const { data: subscriptionResponse } = useSubscriptionData({ enabled: isBillingEnabled })
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
-  const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),

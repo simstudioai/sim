@@ -11,7 +11,12 @@ vi.mock('@/lib/guardrails/mask-client', () => ({
   maskPIIBatchViaHttp: mockMaskPIIBatch,
 }))
 
-import { REDACTION_FAILED_MARKER, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
+import {
+  PiiRedactionError,
+  REDACTION_FAILED_MARKER,
+  redactObjectStrings,
+  redactPIIFromExecution,
+} from '@/lib/logs/execution/pii-redaction'
 
 describe('redactPIIFromExecution', () => {
   beforeEach(() => {
@@ -116,5 +121,74 @@ describe('redactPIIFromExecution', () => {
     const result = await redactPIIFromExecution(payload, { entityTypes: [] })
     expect(result).toBe(payload)
     expect(mockMaskPIIBatch).not.toHaveBeenCalled()
+  })
+})
+
+describe('redactObjectStrings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
+  })
+
+  it('masks every string leaf and preserves structure', async () => {
+    const value = { name: 'bob', nested: { email: 'a@b.com' }, list: ['x', 1, true] }
+    const result = await redactObjectStrings(value, { entityTypes: ['PERSON'] })
+    expect(result).toEqual({
+      name: 'MASKED(bob)',
+      nested: { email: 'MASKED(a@b.com)' },
+      list: ['MASKED(x)', 1, true],
+    })
+    expect(mockMaskPIIBatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves non-string and empty values untouched', async () => {
+    const value = { count: 5, flag: false, empty: '', nullish: null }
+    const result = await redactObjectStrings(value, { entityTypes: [] })
+    expect(result).toEqual(value)
+    expect(mockMaskPIIBatch).not.toHaveBeenCalled()
+  })
+
+  it('throws PiiRedactionError on masking failure when onFailure is throw', async () => {
+    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    await expect(
+      redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [], onFailure: 'throw' })
+    ).rejects.toBeInstanceOf(PiiRedactionError)
+  })
+
+  it('masks large payloads (no size ceiling) rather than scrubbing them', async () => {
+    const big = 'x'.repeat(17 * 1024 * 1024)
+    const result = (await redactObjectStrings({ big }, { entityTypes: [] })) as { big: string }
+    expect(result.big).toBe(`MASKED(${big})`)
+    expect(mockMaskPIIBatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('scrubs (does not throw) by default on failure', async () => {
+    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    const result = await redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [] })
+    expect(result).toEqual({ text: REDACTION_FAILED_MARKER })
+  })
+})
+
+describe('transformStrings (via redactObjectStrings) leaves large-value refs intact', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
+  })
+
+  it('does not recurse into / corrupt a large-value ref while masking siblings', async () => {
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_abcdef123456',
+      kind: 'object',
+      size: 9_000_000,
+    }
+    const result = (await redactObjectStrings(
+      { name: 'bob', big: ref },
+      { entityTypes: ['PERSON'] }
+    )) as any
+    expect(result.name).toBe('MASKED(bob)')
+    // The ref is left byte-for-byte intact (its key/id are not masked).
+    expect(result.big).toEqual(ref)
   })
 })

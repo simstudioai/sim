@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1KnowledgeSearchContract } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkAttributedUsageLimits,
+  resolveBillingAttribution,
+  resolveSystemBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
@@ -19,7 +23,11 @@ import {
 } from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  v1ValidationErrorResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -31,7 +39,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1KnowledgeSearchContract, request, {})
+    const parsed = await parseRequest(
+      v1KnowledgeSearchContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId, topK, query, tagFilters } = parsed.data.body
@@ -39,10 +54,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
 
-    // A query incurs hosted embedding (+ optional rerank) cost — gate the actor's
-    // usage and frozen status before spending. Tag-only search is free, so skip it.
-    if (query && query.trim().length > 0) {
-      const usage = await checkActorUsageLimits(userId, workspaceId)
+    const hasBillableQuery = Boolean(query?.trim())
+    const billingAttribution = hasBillableQuery
+      ? rateLimit.keyType === 'workspace'
+        ? await resolveSystemBillingAttribution(workspaceId)
+        : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      : undefined
+    const billingActorUserId = billingAttribution?.actorUserId ?? userId
+
+    /**
+     * Query embeddings incur hosted cost; tag-only searches do not. Workspace
+     * keys resolve their system actor and immutable payer from one workspace read.
+     */
+    if (billingAttribution) {
+      const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return NextResponse.json(
           { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
@@ -210,12 +235,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (queryEmbeddingIsBYOK !== null) {
       await recordSearchEmbeddingUsage({
-        userId,
+        userId: billingActorUserId,
         workspaceId,
         embeddingModel: queryEmbeddingModel,
         query: query!,
         isBYOK: queryEmbeddingIsBYOK,
         sourceReference: `v1-kb-search:${requestId}`,
+        billingAttribution,
       })
     }
 

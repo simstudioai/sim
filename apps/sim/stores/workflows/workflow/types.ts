@@ -73,6 +73,13 @@ export interface WorkflowActions {
   }
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
   setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
+  /**
+   * Wholesale-replaces `block.data.canonicalModes`, rather than merging one key like
+   * {@link setBlockCanonicalMode}. Needed when reindexing nested tool-input overrides on
+   * reorder/removal: a merge can't atomically drop a now-stale index key, and sequential
+   * per-key sets can clobber each other when two tools swap positions.
+   */
+  setBlockCanonicalModes: (id: string, canonicalModes: Record<string, 'basic' | 'advanced'>) => void
   syncDynamicHandleSubblockValue: (blockId: string, subblockId: string, value: unknown) => void
   setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void

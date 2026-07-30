@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncCompletionData,
@@ -15,7 +13,10 @@ import {
   RunFromBlock,
   RunWorkflowUntilBlock,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
+import {
+  CompletionReportError,
+  reportClientToolCompletion as reportCompletion,
+} from '@/lib/copilot/tools/client/completion'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { SSEEventHandlerError, SSEStreamInterruptedError } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -37,13 +38,6 @@ interface PendingCompletionReport {
   status: AsyncConfirmationStatus
   message?: string
   data?: AsyncCompletionData
-}
-
-class CompletionReportError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'CompletionReportError'
-  }
 }
 
 function resolveWorkflowInput(params: Record<string, unknown>): unknown {
@@ -565,74 +559,4 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
   }
 
   return undefined
-}
-
-/**
- * Report tool completion to the server via the existing /api/copilot/confirm endpoint.
- * This persists the durable async-tool row and wakes the server-side waiter so
- * it can continue the paused Copilot run and notify Go.
- */
-async function reportCompletion(
-  toolCallId: string,
-  status: AsyncConfirmationStatus,
-  message?: string,
-  data?: AsyncCompletionData
-): Promise<void> {
-  const basePayload = {
-    toolCallId,
-    status,
-    message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
-    ...(data !== undefined ? { data } : {}),
-  }
-  const send = async (body: string) =>
-    fetch(COPILOT_CONFIRM_API_PATH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
-      body,
-    })
-
-  const body = JSON.stringify(basePayload)
-  const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
-  const bodySize = new Blob([body]).size
-  let lastError: Error | null = null
-
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const res = await send(body)
-      if (res.ok) return
-
-      if (isRecordLike(data) && bodySize > LARGE_PAYLOAD_THRESHOLD) {
-        const { logs: _logs, ...dataWithoutLogs } = data
-        logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
-          toolCallId,
-          status: res.status,
-          bodySize,
-        })
-        const retryRes = await send(
-          JSON.stringify({
-            toolCallId,
-            status,
-            message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
-            data: dataWithoutLogs,
-          })
-        )
-        if (retryRes.ok) return
-        lastError = new Error(`reportCompletion retry failed with status ${retryRes.status}`)
-      } else {
-        lastError = new Error(`reportCompletion failed with status ${res.status}`)
-      }
-    } catch (err) {
-      lastError = toError(err)
-    }
-
-    if (attempt < 2) {
-      await sleep(250)
-    }
-  }
-
-  logger.error('[RunTool] reportCompletion failed after retries', {
-    toolCallId,
-    error: lastError?.message,
-  })
-  throw new CompletionReportError(lastError?.message ?? 'Failed to report tool completion')
 }

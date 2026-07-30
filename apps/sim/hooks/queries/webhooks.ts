@@ -8,6 +8,8 @@ import {
   type WebhookData,
 } from '@/lib/api/contracts/webhooks'
 
+export const WEBHOOK_DETAIL_STALE_TIME = 60 * 1000
+
 export const webhookKeys = {
   all: ['webhooks'] as const,
   details: () => [...webhookKeys.all, 'detail'] as const,
@@ -45,7 +47,7 @@ export function useWebhookQuery(workflowId: string, blockId: string, enabled = t
     queryKey: webhookKeys.byBlock(workflowId, blockId),
     queryFn: ({ signal }) => fetchWebhooks(workflowId, blockId, signal),
     enabled: enabled && Boolean(workflowId && blockId),
-    staleTime: 60 * 1000,
+    staleTime: WEBHOOK_DETAIL_STALE_TIME,
   })
 }
 

@@ -63,8 +63,12 @@ export const GET = withRouteHandler(
         workspaceKeys.map(async (key) => {
           const displayFormat = await getApiKeyDisplayFormat(key.key)
           return {
-            ...key,
-            key: key.key,
+            id: key.id,
+            name: key.name,
+            createdAt: key.createdAt,
+            lastUsed: key.lastUsed,
+            expiresAt: key.expiresAt,
+            createdBy: key.createdBy,
             displayKey: displayFormat,
           }
         })

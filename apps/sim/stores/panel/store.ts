@@ -29,10 +29,6 @@ export const usePanelStore = create<PanelState>()(
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
       },
-      isResizing: false,
-      setIsResizing: (isResizing) => {
-        set({ isResizing })
-      },
       _hasHydrated: false,
       setHasHydrated: (hasHydrated) => {
         set({ _hasHydrated: hasHydrated })
@@ -44,8 +40,8 @@ export const usePanelStore = create<PanelState>()(
        * Persist only the durable panel preferences. `activeTab` MUST be kept:
        * the blocking script in `app/layout.tsx` reads it from this persisted
        * `panel-state` entry to set `data-panel-active-tab` before hydration,
-       * preventing a tab flash. The transient `isResizing` drag flag and the
-       * `_hasHydrated` hydration marker are excluded.
+       * preventing a tab flash. The `_hasHydrated` hydration marker is
+       * excluded.
        */
       partialize: (state) => ({
         panelWidth: state.panelWidth,

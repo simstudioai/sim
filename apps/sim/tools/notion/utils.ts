@@ -1,3 +1,14 @@
+/**
+ * Clamp a Notion `page_size` value to the API's supported 1-100 range. Returns
+ * undefined when the input isn't a finite number so callers can omit the param.
+ */
+export function clampNotionPageSize(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return undefined
+  return Math.min(Math.max(Math.trunc(parsed), 1), 100)
+}
+
 export function formatPropertyValue(property: any): string {
   switch (property.type) {
     case 'title':

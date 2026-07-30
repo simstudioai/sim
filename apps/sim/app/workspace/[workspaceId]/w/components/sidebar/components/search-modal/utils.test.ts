@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { filterAndSort, fuzzyMatch } from './utils'
+import { filterAndCap, filterAndSort, fuzzyMatch, MAX_RESULTS_PER_GROUP } from './utils'
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented
@@ -239,5 +239,79 @@ describe('fuzzyMatch — positions for highlighting', () => {
   it('matches multi-word tokens order-independently', () => {
     const result = fuzzyMatch('Slack Send Message', 'message slack')
     expect(result.matched).toBe(true)
+  })
+})
+
+describe('filterAndSort — name ranked above secondary text', () => {
+  interface Item {
+    name: string
+    searchValue: string
+  }
+  const toName = (i: Item) => i.name
+  const toExtra = (i: Item) => i.searchValue
+
+  it('ranks an exact name match above a substring buried in another item’s option text', () => {
+    const items: Item[] = [
+      // Matches "agent" only inside a long secondary string (its model catalog).
+      { name: 'Pi Coding Agent', searchValue: `Pi Coding Agent pi ${'model-x '.repeat(60)}` },
+      // Exact name match, but an even longer secondary string.
+      { name: 'Agent', searchValue: `Agent agent ${'claude-sonnet gpt-4o '.repeat(60)}` },
+    ]
+    const sorted = filterAndSort(items, toName, 'agent', toExtra)
+    expect(sorted[0].name).toBe('Agent')
+  })
+
+  it('keeps every name match above every secondary-only match', () => {
+    const items: Item[] = [
+      { name: 'Zeta', searchValue: 'Zeta agent agent agent' }, // strong secondary hit, no name hit
+      { name: 'Agent', searchValue: 'Agent agent' }, // name hit
+    ]
+    const sorted = filterAndSort(items, toName, 'agent', toExtra)
+    expect(sorted[0].name).toBe('Agent')
+  })
+
+  it('still surfaces an item matched only by its secondary text', () => {
+    const items: Item[] = [{ name: 'Agent', searchValue: 'Agent agent claude-sonnet gpt-4o' }]
+    expect(filterAndSort(items, toName, 'gpt-4o', toExtra)).toHaveLength(1)
+  })
+
+  it('is byte-identical to single-field ranking when no secondary accessor is given', () => {
+    const items = ['Slack message', 'Send message to Slack']
+    expect(filterAndSort(items, (s) => s, 'slack')).toEqual(
+      filterAndSort(items, (s) => s, 'slack', undefined)
+    )
+  })
+})
+
+describe('filterAndCap', () => {
+  const id = (s: string) => s
+
+  it('caps an active search to MAX_RESULTS_PER_GROUP', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    expect(filterAndCap(items, id, 'item')).toHaveLength(MAX_RESULTS_PER_GROUP)
+  })
+
+  it('never caps the empty (browse) state, even above the cap', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    const result = filterAndCap(items, id, '')
+    expect(result).toHaveLength(items.length)
+    expect(result).toBe(items)
+  })
+
+  it('treats whitespace-only input as browse: unfiltered and uncapped', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    const result = filterAndCap(items, id, '   ')
+    expect(result).toBe(items)
+  })
+
+  it('returns every match untrimmed when under the cap', () => {
+    const items = ['Slack', 'Slate', 'Slalom']
+    expect(filterAndCap(items, id, 'sl')).toHaveLength(3)
+  })
+
+  it('caps to the top-ranked matches, preserving filterAndSort order', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 5 }, (_, i) => `item ${i}`)
+    const capped = filterAndCap(items, id, 'item')
+    expect(capped).toEqual(filterAndSort(items, id, 'item').slice(0, MAX_RESULTS_PER_GROUP))
   })
 })

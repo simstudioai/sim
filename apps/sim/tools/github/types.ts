@@ -1,3 +1,4 @@
+import type { ReviewComment } from '@/tools/github/review-schema'
 import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
@@ -318,6 +319,32 @@ export const BRANCH_REF_OUTPUT = {
   type: 'object',
   description: 'Branch reference info',
   properties: BRANCH_REF_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Branch reference for the PR reader, which additionally derives the branch's
+ * repository. Separate from {@link BRANCH_REF_OUTPUT_PROPERTIES} because
+ * `list_prs` reuses those through a pass-through transform that never derives
+ * the field, so declaring it there would document an output that tool never emits.
+ *
+ * The spread sits at the top level of its own const rather than inline under
+ * `properties`, which is what lets `scripts/generate-docs.ts` resolve it — that
+ * script only expands spreads at depth 0 of a const, and silently emits nothing
+ * for the surrounding object otherwise.
+ */
+export const PR_BRANCH_REF_OUTPUT_PROPERTIES = {
+  ...BRANCH_REF_OUTPUT_PROPERTIES,
+  repo_full_name: {
+    type: 'string',
+    description: "Full name (owner/repo) of the branch's repository",
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const PR_BRANCH_REF_OUTPUT = {
+  type: 'object',
+  description: 'Branch reference info',
+  properties: PR_BRANCH_REF_OUTPUT_PROPERTIES,
 } as const satisfies OutputProperty
 
 /**
@@ -893,6 +920,12 @@ export interface PROperationParams extends BaseGitHubParams {
   pullNumber: number
 }
 
+/** Parameters accepted only by the V2 PR reader. */
+export interface PRV2OperationParams extends PROperationParams {
+  /** Whether to fetch the separate PR files endpoint. Defaults to true. */
+  includeFiles?: boolean
+}
+
 // Comment operation parameters
 export interface CreateCommentParams extends PROperationParams {
   body: string
@@ -961,8 +994,21 @@ export interface ClosePRParams extends BaseGitHubParams {
 // Request reviewers parameters
 export interface RequestReviewersParams extends BaseGitHubParams {
   pullNumber: number
-  reviewers: string
+  reviewers?: string
   team_reviewers?: string
+}
+
+/** Inline review comment attached to a submitted PR review. */
+export type CreatePRReviewComment = ReviewComment
+
+// Create PR review parameters
+export interface CreatePRReviewParams extends BaseGitHubParams {
+  pullNumber: number
+  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
+  body?: string
+  commit_id?: string
+  /** Inline line comments submitted atomically with the review. */
+  comments?: CreatePRReviewComment[]
 }
 
 // Response metadata interfaces
@@ -1000,6 +1046,72 @@ interface PRCommentsMetadata {
     updated_at: string
     html_url: string
   }>
+}
+
+/** GitHub user fields returned by the V2 PR reader. */
+export interface GitHubPullRequestUser {
+  login: string
+  id: number
+  avatar_url: string
+  html_url: string
+  type: string
+}
+
+/** GitHub branch reference fields returned by the V2 PR reader. */
+export interface GitHubPullRequestBranch {
+  label: string
+  ref: string
+  sha: string
+  /**
+   * `owner/repo` of the branch's repository, or null when GitHub omits it (a
+   * deleted fork sends `repo: null`). Comparing the full name is stronger than
+   * inferring fork-ness from `label`'s owner prefix, which cannot distinguish a
+   * same-owner fork under a different repository name.
+   */
+  repo_full_name: string | null
+}
+
+/** Changed-file fields returned by the GitHub pull request files endpoint. */
+export interface GitHubPullRequestFile {
+  sha: string
+  filename: string
+  status: string
+  additions: number
+  deletions: number
+  changes: number
+  blob_url: string
+  raw_url: string
+  contents_url: string
+  patch?: string
+  previous_filename?: string
+}
+
+/** Parsed V2 pull request payload exposed as the tool output. */
+export interface GitHubPullRequestV2Output {
+  id: number
+  number: number
+  title: string
+  state: string
+  html_url: string
+  diff_url: string
+  body: string | null
+  user: GitHubPullRequestUser
+  head: GitHubPullRequestBranch
+  base: GitHubPullRequestBranch
+  merged: boolean
+  mergeable: boolean | null
+  merged_by: GitHubPullRequestUser | null
+  comments: number
+  review_comments: number
+  commits: number
+  additions: number
+  deletions: number
+  changed_files: number
+  created_at: string
+  updated_at: string
+  closed_at: string | null
+  merged_at: string | null
+  files?: GitHubPullRequestFile[]
 }
 
 interface CommentMetadata {
@@ -1120,6 +1232,11 @@ export interface PullRequestResponse extends ToolResponse {
     content: string
     metadata: BasePRMetadata & PRFilesMetadata & PRCommentsMetadata
   }
+}
+
+/** Structured response returned by the V2 PR reader. */
+export interface PullRequestV2Response extends ToolResponse {
+  output: GitHubPullRequestV2Output
 }
 
 export interface CreateCommentResponse extends ToolResponse {
@@ -1587,8 +1704,72 @@ export interface RerunWorkflowResponse extends ToolResponse {
   }
 }
 
+// Get latest release parameters
+export type GetLatestReleaseParams = BaseGitHubParams
+
+// List tags parameters
+export interface ListTagsParams extends BaseGitHubParams {
+  per_page?: number
+  page?: number
+}
+
+// Get README parameters
+export interface GetReadmeParams extends BaseGitHubParams {
+  ref?: string
+}
+
+// Create PR review response
+export interface PRReviewResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      id: number
+      state: string
+      body: string
+      html_url: string
+      commit_id: string | null
+    }
+  }
+}
+
+// List tags response
+export interface TagsListResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      total_count: number
+      tags: Array<{
+        name: string
+        commit_sha: string
+        zipball_url: string
+        tarball_url: string
+      }>
+    }
+  }
+}
+
+// Get README response
+export interface ReadmeResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      name: string
+      path: string
+      sha: string
+      size: number
+      html_url: string
+      download_url: string
+    }
+  }
+}
+
 export type GitHubResponse =
   | PullRequestResponse
+  | PullRequestV2Response
+  | PRReviewResponse
+  | TagsListResponse
+  | ReadmeResponse
+  | ReleaseResponse
   | CreateCommentResponse
   | LatestCommitResponse
   | RepoInfoResponse
@@ -1910,5 +2091,149 @@ export interface TreeResponse extends ToolResponse {
       items: TreeItemMetadata[]
       total_count: number
     }
+  }
+}
+
+/** One comment inside a pull request review thread. */
+export interface ReviewThreadComment {
+  body: string
+  /** `OWNER`, `MEMBER`, `COLLABORATOR`, `CONTRIBUTOR`, `NONE`, ... */
+  authorAssociation: string
+  authorLogin: string | null
+  /** GraphQL type of the author: `User`, `Bot`, or `Organization`. */
+  authorType: string | null
+}
+
+/** One pull request review thread with the comments fetched for it. */
+export interface ReviewThread {
+  id: string
+  isResolved: boolean
+  path: string
+  line: number | null
+  /** Total comments on the thread; exceeds `comments.length` when truncated. */
+  commentsTotalCount: number
+  comments: ReviewThreadComment[]
+}
+
+/** The newest submitted review on a pull request. */
+export interface SubmittedReviewSummary {
+  state: string
+  submittedAt: string
+  authorLogin: string | null
+  authorType: string | null
+}
+
+export interface ListReviewThreadsParams extends BaseGitHubParams {
+  pullNumber: number
+  threadsPerPage?: number
+  commentsPerThread?: number
+  cursor?: string
+}
+
+export interface ListReviewThreadsResponse extends ToolResponse {
+  output: {
+    threads: ReviewThread[]
+    totalCount: number
+    hasNextPage: boolean
+    endCursor: string | null
+    latestReview: SubmittedReviewSummary | null
+  }
+}
+
+export interface ReplyReviewThreadParams {
+  threadId: string
+  body: string
+  apiKey: string
+}
+
+export interface ReplyReviewThreadResponse extends ToolResponse {
+  output: {
+    id: string
+    url: string
+    createdAt: string
+  }
+}
+
+export interface ResolveReviewThreadParams {
+  threadId: string
+  apiKey: string
+}
+
+export interface ResolveReviewThreadResponse extends ToolResponse {
+  output: {
+    id: string
+    isResolved: boolean
+  }
+}
+
+/**
+ * One entry of a commit's merged check state. Check runs come from Actions and
+ * GitHub Apps; status contexts are the legacy commit-status API several
+ * providers still post to.
+ */
+export type StatusCheckRollupContext =
+  | {
+      __typename: 'CheckRun'
+      name: string
+      /** `QUEUED`, `IN_PROGRESS`, `COMPLETED`, `WAITING`, `REQUESTED`, `PENDING`. */
+      status: string
+      /** Null until the run completes. */
+      conclusion: string | null
+      detailsUrl: string | null
+      /** REST id of the check run; the Actions job id for an Actions check run. */
+      databaseId: number | null
+      /** Whether the check gates the merge for the pull request that was asked about. */
+      isRequired: boolean
+      /**
+       * The check run's reported output. GraphQL exposes these as flat fields on
+       * `CheckRun`, unlike REST's nested `output` object, and GitHub Actions
+       * leaves both null on every check run it creates — which is the common
+       * case, not the exceptional one.
+       */
+      title: string | null
+      summary: string | null
+    }
+  | {
+      __typename: 'StatusContext'
+      context: string
+      /** `EXPECTED`, `PENDING`, `SUCCESS`, `FAILURE`, `ERROR`. */
+      state: string
+      description: string | null
+      targetUrl: string | null
+      isRequired: boolean
+    }
+
+export interface StatusCheckRollupParams extends BaseGitHubParams {
+  sha: string
+  pullNumber: number
+  cursor?: string
+}
+
+export interface StatusCheckRollupResponse extends ToolResponse {
+  output: {
+    /** Null when the commit carries no checks at all. */
+    state: string | null
+    totalCount: number
+    hasNextPage: boolean
+    endCursor: string | null
+    contexts: StatusCheckRollupContext[]
+  }
+}
+
+export interface JobLogsParams extends BaseGitHubParams {
+  job_id: number
+  maxCharacters?: number
+}
+
+export interface JobLogsResponse extends ToolResponse {
+  output: {
+    logs: string
+    truncated: boolean
+    /**
+     * Full size of the log in bytes, or `null` when the server did not report it.
+     * Bytes rather than characters because the only authoritative source is the
+     * `Content-Range` total of a ranged read, which counts bytes.
+     */
+    totalBytes: number | null
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, PlayOutline, Skeleton, Tooltip } from '@sim/emcn'
+import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
   Calendar,
   Download,
@@ -17,6 +17,8 @@ import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { useSession } from '@/lib/auth/auth-client'
+import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {
   cancelRunToolExecution,
@@ -32,7 +34,9 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -44,6 +48,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
@@ -79,7 +84,17 @@ interface ResourceContentProps {
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
+  /** Resolved server-side by the home page — the embedded table can't read
+   *  AppConfig itself, so the flag is threaded down rather than looked up. */
+  tableViewsEnabled?: boolean
   onNotFound?: (resourceId: string) => void
+  /**
+   * Whether this resource is the one on screen. Only the persistent panels
+   * (browser, terminal) read it — to stand down document-wide observers while
+   * hidden — so it defaults to visible for every other resource, which is only
+   * ever rendered when active.
+   */
+  visible?: boolean
 }
 
 /**
@@ -141,7 +156,9 @@ export const ResourceContent = memo(function ResourceContent({
   isAgentResponding,
   genericResourceData,
   previewContextKey,
+  tableViewsEnabled,
   onNotFound,
+  visible = true,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -210,7 +227,15 @@ export const ResourceContent = memo(function ResourceContent({
 
   switch (resource.type) {
     case 'table':
-      return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
+      return (
+        <Table
+          key={resource.id}
+          workspaceId={workspaceId}
+          tableId={resource.id}
+          embedded
+          viewsEnabled={tableViewsEnabled}
+        />
+      )
 
     case 'file':
       return (
@@ -272,6 +297,12 @@ export const ResourceContent = memo(function ResourceContent({
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
       )
 
+    case 'browser':
+      return <BrowserSession key={resource.id} visible={visible} />
+
+    case 'terminal':
+      return <TerminalSession key={resource.id} visible={visible} />
+
     default:
       return null
   }
@@ -312,6 +343,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
+    case 'browser':
+    case 'terminal':
       return null
     default:
       return null
@@ -325,20 +358,28 @@ interface EmbeddedWorkflowActionsProps {
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
   const { navigateToSettings } = useSettingsNavigation()
+  const { data: session } = useSession()
+  const hostContext = useWorkspaceHostContext()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
     (state) => state.workflowExecutions.get(workflowId)?.isExecuting ?? false
   )
-  const { usageExceeded } = useUsageLimits()
+  const {
+    usageExceeded,
+    message: usageLimitMessage,
+    scope: usageLimitScope,
+    isLoading: isUsageGateLoading,
+  } = useUsageLimits({ workspaceId })
 
   useEffect(() => {
     void setActiveWorkflow(workflowId)
   }, [workflowId, setActiveWorkflow])
 
   const isRunButtonDisabled =
-    !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
+    !isExecuting &&
+    (isUsageGateLoading || (!effectivePermissions.canRead && !effectivePermissions.isLoading))
 
   const handleRun = async () => {
     setActiveWorkflow(workflowId)
@@ -351,8 +392,18 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
       return
     }
 
+    if (isUsageGateLoading) return
+
     if (usageExceeded) {
-      navigateToSettings({ section: 'billing' })
+      const action = getWorkspaceUsageLimitAction(hostContext, session?.user?.id, {
+        message: usageLimitMessage,
+        scope: usageLimitScope,
+      })
+      if (action.type === 'manage-billing') {
+        navigateToSettings({ section: 'billing' })
+      } else {
+        toast.error(action.message)
+      }
       return
     }
 

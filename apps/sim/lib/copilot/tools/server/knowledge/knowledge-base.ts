@@ -3,9 +3,17 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  assertBillingAttributionSnapshot,
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -50,6 +58,20 @@ import {
 } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
+
+function requireKnowledgeBillingAttribution(
+  context: ServerToolContext,
+  workspaceId: string
+): BillingAttributionSnapshot {
+  if (!context.billingAttribution) {
+    throw new Error('Billing attribution is required for knowledge operations')
+  }
+  const attribution = assertBillingAttributionSnapshot(context.billingAttribution)
+  if (attribution.actorUserId !== context.userId || attribution.workspaceId !== workspaceId) {
+    throw new Error('Knowledge billing attribution does not match its actor and workspace')
+  }
+  return attribution
+}
 
 type KnowledgeBaseArgs = {
   operation: string
@@ -224,8 +246,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const topK = args.topK || 5
 
-          // Gate the actor (usage + frozen) before incurring hosted embedding cost.
-          const usage = await checkActorUsageLimits(context.userId, kb.workspaceId)
+          const billingAttribution = kb.workspaceId
+            ? requireKnowledgeBillingAttribution(context, kb.workspaceId)
+            : undefined
+          const usage = billingAttribution
+            ? await checkAttributedUsageLimits(billingAttribution)
+            : await checkActorUsageLimits(context.userId)
           if (usage.isExceeded) {
             return {
               success: false,
@@ -254,6 +280,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             query: args.query,
             isBYOK: queryEmbeddingIsBYOK,
             sourceReference: `copilot-kb-search:${args.knowledgeBaseId}`,
+            billingAttribution,
           })
 
           logger.info('Knowledge base queried via copilot', {
@@ -265,7 +292,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           return {
             success: true,
-            message: `Found ${results.length} result(s) for query "${args.query.substring(0, 50)}${args.query.length > 50 ? '...' : ''}"`,
+            message: `Found ${results.length} result(s) for query "${truncate(args.query, 50)}"`,
             data: {
               knowledgeBaseId: args.knowledgeBaseId,
               knowledgeBaseName: kb.name,
@@ -322,6 +349,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const kbWorkspaceId: string = targetKb.workspaceId
+          const billingAttribution = requireKnowledgeBillingAttribution(context, kbWorkspaceId)
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 
@@ -361,7 +389,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 fileSize: fileRecord.size,
                 mimeType: fileRecord.type,
               },
-              {}
+              {},
+              billingAttribution
             ).catch((err) => {
               logger.error('Background document processing failed', {
                 documentId: doc.id,
@@ -856,6 +885,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
             }
           }
+          const connectorWorkspaceId = writeAccess.knowledgeBase.workspaceId
+          if (!connectorWorkspaceId) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" has no workspace billing context`,
+            }
+          }
+          const billingAttribution = requireKnowledgeBillingAttribution(
+            context,
+            connectorWorkspaceId
+          )
 
           const createBody: Record<string, unknown> = {
             connectorType: args.connectorType,
@@ -880,7 +920,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             context.userId,
             `/api/knowledge/${args.knowledgeBaseId}/connectors`,
             'POST',
-            createBody
+            createBody,
+            billingAttribution
           )
 
           if (!createRes.success) {
@@ -1012,12 +1053,25 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!writeAccess.hasAccess) {
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
+          const connectorWorkspaceId = writeAccess.knowledgeBase.workspaceId
+          if (!connectorWorkspaceId) {
+            return {
+              success: false,
+              message: `Connector "${args.connectorId}" has no workspace billing context`,
+            }
+          }
+          const billingAttribution = requireKnowledgeBillingAttribution(
+            context,
+            connectorWorkspaceId
+          )
 
           assertNotAborted()
           const syncRes = await connectorApiCall(
             context.userId,
             `/api/knowledge/${syncKbId}/connectors/${args.connectorId}/sync`,
-            'POST'
+            'POST',
+            undefined,
+            billingAttribution
           )
 
           if (!syncRes.success) {
@@ -1062,7 +1116,8 @@ async function connectorApiCall(
   userId: string,
   path: string,
   method: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  billingAttribution?: BillingAttributionSnapshot
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   const token = await generateInternalToken(userId)
   const baseUrl = getInternalApiBaseUrl()
@@ -1072,6 +1127,11 @@ async function connectorApiCall(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
+      ...(billingAttribution
+        ? {
+            [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),
+          }
+        : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   })

@@ -27,7 +27,7 @@ function emailSpans(text: string, entities: string[] | undefined): Span[] {
   return idx === -1 ? [] : [{ entity_type: 'EMAIL_ADDRESS', start: idx, end: idx + 7, score: 0.9 }]
 }
 
-describe('validate_pii (Presidio sidecar)', () => {
+describe('validate_pii (Presidio service)', () => {
   let analyzeBodies: Array<{ text: string; language: string; entities?: string[] }>
   let fetchMock: ReturnType<typeof vi.fn>
 
@@ -35,6 +35,28 @@ describe('validate_pii (Presidio sidecar)', () => {
     analyzeBodies = []
     fetchMock = vi.fn(async (url: string, init: { body: string }) => {
       const body = JSON.parse(init.body)
+      if (url.includes('/redact_batch')) {
+        for (const text of body.texts as string[]) {
+          analyzeBodies.push({ text, language: body.language, entities: body.entities })
+        }
+        const texts = (body.texts as string[]).map((t) =>
+          applyReplace(t, emailSpans(t, body.entities))
+        )
+        return new Response(JSON.stringify({ texts }), { status: 200 })
+      }
+      if (url.includes('/analyze_batch')) {
+        for (const text of body.texts as string[]) {
+          analyzeBodies.push({ text, language: body.language, entities: body.entities })
+        }
+        const spans = (body.texts as string[]).map((t) => emailSpans(t, body.entities))
+        return new Response(JSON.stringify(spans), { status: 200 })
+      }
+      if (url.includes('/anonymize_batch')) {
+        const texts = (body.items as Array<{ text: string; analyzer_results: Span[] }>).map((i) =>
+          applyReplace(i.text, i.analyzer_results)
+        )
+        return new Response(JSON.stringify({ texts }), { status: 200 })
+      }
       if (url.includes('/analyze')) {
         analyzeBodies.push({ text: body.text, language: body.language, entities: body.entities })
         return new Response(JSON.stringify(emailSpans(body.text, body.entities)), { status: 200 })
@@ -74,9 +96,31 @@ describe('validate_pii (Presidio sidecar)', () => {
       expect(await maskPIIBatch([''], [])).toEqual([''])
     })
 
-    it('throws on a sidecar failure so the caller can scrub', async () => {
+    it('throws on a service failure so the caller can scrub', async () => {
       fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      await expect(maskPIIBatch(['email a@b.com'], [])).rejects.toThrow(/Presidio analyze failed/)
+      await expect(maskPIIBatch(['email a@b.com'], [])).rejects.toThrow(
+        /Presidio redact_batch failed/
+      )
+    })
+
+    // Runs last: a 404 permanently flips the module's combined-endpoint flag off.
+    it('falls back to legacy analyze+anonymize when /redact_batch is absent (404)', async () => {
+      fetchMock.mockImplementation(async (url: string, init: { body: string }) => {
+        const body = JSON.parse(init.body)
+        if (url.includes('/redact_batch')) return new Response('Not Found', { status: 404 })
+        if (url.includes('/analyze_batch')) {
+          const spans = (body.texts as string[]).map((t) => emailSpans(t, body.entities))
+          return new Response(JSON.stringify(spans), { status: 200 })
+        }
+        // /anonymize_batch
+        const texts = (body.items as Array<{ text: string; analyzer_results: Span[] }>).map((i) =>
+          applyReplace(i.text, i.analyzer_results)
+        )
+        return new Response(JSON.stringify({ texts }), { status: 200 })
+      })
+
+      const out = await maskPIIBatch(['email a@b.com', 'clean'], [])
+      expect(out).toEqual(['email <EMAIL_ADDRESS>', 'clean'])
     })
   })
 

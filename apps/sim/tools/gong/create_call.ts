@@ -53,9 +53,10 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
     },
     downloadMediaUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'URL where Gong can download the call media file',
+      description:
+        'URL where Gong can download the call media file. If omitted, the call is created without media and Gong waits for a separate media upload.',
     },
     title: {
       type: 'string',
@@ -108,10 +109,10 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
         actualStart: params.actualStart.trim(),
         primaryUser: params.primaryUser.trim(),
         parties: parseGongJsonArray(params.parties, 'parties'),
-        direction: params.direction,
-        downloadMediaUrl: params.downloadMediaUrl.trim(),
+        direction: params.direction.trim(),
       }
 
+      if (params.downloadMediaUrl?.trim()) body.downloadMediaUrl = params.downloadMediaUrl.trim()
       if (params.title?.trim()) body.title = params.title.trim()
       if (params.workspaceId?.trim()) body.workspaceId = params.workspaceId.trim()
       if (params.disposition?.trim()) body.disposition = params.disposition.trim()
@@ -134,7 +135,6 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
       output: {
         callId: data.callId ?? '',
         requestId: data.requestId ?? '',
-        url: data.url ?? null,
       },
     }
   },
@@ -147,11 +147,6 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
     requestId: {
       type: 'string',
       description: 'Gong request reference ID for troubleshooting',
-    },
-    url: {
-      type: 'string',
-      description: 'URL to the created call in the Gong web app',
-      optional: true,
     },
   },
 }

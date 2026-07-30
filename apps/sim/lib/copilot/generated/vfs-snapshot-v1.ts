@@ -5,6 +5,7 @@
  * Structured workspace inventory snapshot Sim sends to Go; Go diffs successive snapshots into baseline+delta messages.
  */
 export interface VfsSnapshotV1 {
+  customBlocks?: VfsSnapshotV1CustomBlock[]
   customTools?: VfsSnapshotV1NamedResource[]
   envVars?: string[]
   files?: VfsSnapshotV1File[]
@@ -17,6 +18,15 @@ export interface VfsSnapshotV1 {
   tables?: VfsSnapshotV1Table[]
   workflows?: VfsSnapshotV1Workflow[]
   workspace?: VfsSnapshotV1Workspace
+}
+/**
+ * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
+ * via the `definition` "VfsSnapshotV1CustomBlock".
+ */
+export interface VfsSnapshotV1CustomBlock {
+  description?: string
+  name: string
+  type: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
@@ -113,7 +123,6 @@ export interface VfsSnapshotV1Table {
  * via the `definition` "VfsSnapshotV1Workflow".
  */
 export interface VfsSnapshotV1Workflow {
-  description?: string
   folderPath?: string
   id: string
   isDeployed?: boolean

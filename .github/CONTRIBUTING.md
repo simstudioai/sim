@@ -348,6 +348,8 @@ Sim is built in a modular fashion where blocks and tools extend the platform's f
 > | A knowledge-base connector (sync docs from an external source)                              | [`.agents/skills/add-connector/SKILL.md`](../.agents/skills/add-connector/SKILL.md)     |
 >
 > The shorter overview below is a high-level reference; the SKILL.md files are the authoritative source of truth and stay in sync with the codebase.
+>
+> **Skills have one source and two generated projections.** Edit only the canonical `.agents/skills/<name>/SKILL.md`. The `.claude/commands/<name>.md` and `.cursor/commands/<name>.md` files are generated from it by `scripts/sync-skills.ts` — never hand-edit them. After changing a canonical skill, run `bun run skills:sync` (the pre-commit hook does this automatically when a `SKILL.md` is staged). CI runs `bun run skills:check` and fails if any projection is stale. Canonical frontmatter is `name`, `description`, and optional `argument-hint`; the Claude projection keeps `description`/`argument-hint`, the Cursor projection drops the frontmatter.
 
 ### Where to Add Your Code
 

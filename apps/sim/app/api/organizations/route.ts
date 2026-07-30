@@ -23,6 +23,7 @@ import {
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   attachOwnedWorkspacesToOrganization,
   WorkspaceOrganizationMembershipConflictError,
@@ -185,9 +186,18 @@ export const POST = withRouteHandler(async (request: Request) => {
       organizationId = existingAdminMembership.organizationId
 
       if (activeOrgSubscription.referenceId === organizationId) {
+        /**
+         * Keeps the default `reject` policy: manual organization creation
+         * surfaces a different-org collaborator as an explicit conflict (409
+         * with actionable copy) rather than silently demoting them to an
+         * external member. Safe alongside `includeArchived` because the attach
+         * only enumerates collaborators of ACTIVE workspaces, so sweeping
+         * archived rows cannot manufacture a conflict.
+         */
         await attachOwnedWorkspacesToOrganization({
           ownerUserId: user.id,
           organizationId,
+          includeArchived: true,
         })
       } else {
         const resolvedSubscription =
@@ -256,6 +266,15 @@ export const POST = withRouteHandler(async (request: Request) => {
         metadata: { organizationSlug },
         request,
       })
+      captureServerEvent(
+        user.id,
+        'organization_created',
+        {
+          organization_id: organizationId,
+          ...(organizationName ? { name: organizationName } : {}),
+        },
+        { groups: { organization: organizationId } }
+      )
     }
 
     return NextResponse.json({

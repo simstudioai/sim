@@ -1,6 +1,6 @@
 export interface BlobConfig {
   containerName: string
-  accountName: string
+  accountName?: string
   accountKey?: string
   connectionString?: string
 }

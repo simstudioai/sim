@@ -49,6 +49,7 @@ import {
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -123,10 +124,12 @@ const BlockRow = memo(function BlockRow({
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <div
-          className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+          className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
           style={{ background: bgColor }}
         >
-          {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+          {BlockIcon && (
+            <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+          )}
         </div>
         <span
           className={clsx(
@@ -297,10 +300,12 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
           <span
             className={clsx(
@@ -422,10 +427,12 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
           <span
             className={clsx(
@@ -713,8 +720,8 @@ export const Terminal = memo(function Terminal() {
 
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
-  const { handleMouseDown } = useTerminalResize()
-  const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
+  const { handlePointerDown } = useTerminalResize()
+  const { handlePointerDown: handleOutputPanelResizePointerDown } = useOutputPanelResize()
 
   const {
     filters,
@@ -1248,6 +1255,15 @@ export const Terminal = memo(function Terminal() {
   /**
    * Adjust output panel width on resize.
    * Closes the output panel if there's not enough space for the minimum width.
+   *
+   * An active output-panel drag owns clamping — its own compute clamps every
+   * frame against the live terminal rect, and its scoped inline override on
+   * `.terminal-container` (present only while that drag runs) would mask a
+   * store-driven `:root` write here anyway — so this skips while it is active.
+   * Otherwise the width is read from the committed `--output-panel-width` on
+   * `:root`, which the store setter writes synchronously and is therefore
+   * fresher than the React store value (a render behind the commit), falling
+   * back to the store value before any commit exists.
    */
   useEffect(() => {
     const el = terminalRef.current
@@ -1255,6 +1271,8 @@ export const Terminal = memo(function Terminal() {
 
     const handleResize = () => {
       if (!selectedEntry) return
+
+      if (el.style.getPropertyValue('--output-panel-width')) return
 
       const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
@@ -1264,7 +1282,11 @@ export const Terminal = memo(function Terminal() {
         return
       }
 
-      if (outputPanelWidth > maxWidth) {
+      const committed = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--output-panel-width')
+      )
+      const currentWidth = Number.isNaN(committed) ? outputPanelWidth : committed
+      if (currentWidth > maxWidth) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
@@ -1294,7 +1316,7 @@ export const Terminal = memo(function Terminal() {
         {/* Resize Handle */}
         <div
           className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='horizontal'
           aria-label='Resize terminal'
@@ -1304,7 +1326,7 @@ export const Terminal = memo(function Terminal() {
           {/* Left Section - Logs */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: `calc(100% - ${outputPanelWidth}px)` } : undefined}
+            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
           >
             {/* Header */}
             <div
@@ -1490,7 +1512,7 @@ export const Terminal = memo(function Terminal() {
           {selectedEntry && (
             <OutputPanel
               selectedEntry={selectedEntry}
-              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+              handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
               handleHeaderClick={handleHeaderClick}
               isExpanded={isExpanded}
               expandToLastHeight={expandToLastHeight}

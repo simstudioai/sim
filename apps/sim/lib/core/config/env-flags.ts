@@ -1,7 +1,12 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, getEnv, isFalsy, isTruthy } from './env'
+import {
+  ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
+  type EnterpriseFeature,
+  resolveEnterpriseEntitlement,
+} from './enterprise-entitlements'
+import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -32,17 +37,44 @@ try {
 export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
- * Is billing enforcement enabled
+ * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
+ * consumer has rolled out. Disabled is the Sim-first compatibility stage.
  */
-export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
+export const isCopilotBillingAttributionV1Enabled = isTruthy(
+  env.COPILOT_BILLING_ATTRIBUTION_V1_ENABLED
+)
 
 /**
- * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, generic webhooks, cross-origin chat embeds).
- * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
- * dark and be enabled per-deployment once verified.
+ * Rejects markerless old-Go billing traffic after an operator explicitly
+ * confirms the compatibility window has closed. Off by default.
  */
-export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
+export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
+
+/**
+ * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
+ * runs, sandboxed code, deployments, integration calls — behind an explicit
+ * Allow / Skip prompt, blocking the mothership turn until the user answers.
+ *
+ * Off by default: turning it on makes the copilot prompt on its most frequently
+ * used tools, so it is an opt-in change in how the product feels, not just a
+ * safety toggle. With it off nothing is stamped, gated, or persisted, and an
+ * approval stamp arriving from Go is cleared on the way to the client.
+ */
+export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
+
+/**
+ * Is billing enforcement enabled.
+ *
+ * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_BILLING_ENABLED` twin
+ * (via `window.__ENV`, populated by `<PublicEnvScript>`) — reading
+ * `env.BILLING_ENABLED` in client code is always `undefined`. Deployments must
+ * set both vars together.
+ */
+export const isBillingEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.BILLING_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Is email verification enabled
@@ -66,6 +98,35 @@ if (isTruthy(env.DISABLE_AUTH)) {
       } else {
         logger.warn(
           'DISABLE_AUTH is enabled. Authentication is bypassed and all requests use an anonymous session. Only use this in trusted private networks.'
+        )
+      }
+    })
+    .catch(() => {
+      // Fallback during config compilation when logger is unavailable
+    })
+}
+
+/**
+ * Whether database/connector tools may connect to private, reserved, or loopback
+ * hosts (e.g. Docker/K8s service names, localhost). Off by default: the SSRF guard
+ * in {@link validateDatabaseHost} blocks these so an untrusted user cannot pivot
+ * into the deployment's internal network. Self-hosted operators can opt in when
+ * their database lives on the same private network. Blocked on the hosted platform
+ * regardless of the env var, mirroring {@link isAuthDisabled}.
+ */
+export const isPrivateDatabaseHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
+
+if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
+  import('@sim/logger')
+    .then(({ createLogger }) => {
+      const logger = createLogger('EnvFlags')
+      if (isHosted) {
+        logger.error(
+          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private/reserved database hosts remain blocked for security.'
+        )
+      } else {
+        logger.warn(
+          'ALLOW_PRIVATE_DATABASE_HOSTS is enabled. Database/connector tools may reach private, reserved, and loopback hosts. Only use this in trusted private networks.'
         )
       }
     })
@@ -101,89 +162,225 @@ export const isAppConfigEnabled =
   isHosted && Boolean(env.APPCONFIG_APPLICATION && env.APPCONFIG_ENVIRONMENT)
 
 /**
+ * Whether the deployment's Slack app is approved for `app_mentions:read`,
+ * `assistant:write`, and `im:history` — the scopes backing the native Sim app
+ * trigger's mention, assistant-thread, and DM events.
+ *
+ * Off by default because Slack rejects the ENTIRE authorization when it requests
+ * a scope the app is not approved for, breaking every Slack connect. Sim Cloud's
+ * app is directory-listed and pinned to its review-approved set, so this stays
+ * off there until review lands; a self-hosted deployment pointing at its own
+ * (unlisted) Slack app can opt in.
+ *
+ * Server code reads `SLACK_EXTENDED_SCOPES`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES`
+ * twin (see {@link isBillingEnabled}) — deployments must set both together. The
+ * server value decides the grant; the client value only decides what the credential
+ * pickers advertise and treat as missing.
+ */
+export const isSlackExtendedScopesEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.SLACK_EXTENDED_SCOPES)
+    : isTruthy(getEnv('NEXT_PUBLIC_SLACK_EXTENDED_SCOPES'))
+
+/**
  * Is Trigger.dev enabled for async job processing
  */
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 
 /**
+ * Turns on the whole enterprise suite for a deployment that does not run
+ * billing. Individual feature flags below still win where they are set, so an
+ * operator can enable everything and then switch one feature back off.
+ *
+ * Server code reads `ENTERPRISE_ENABLED`; the browser reads the
+ * `NEXT_PUBLIC_ENTERPRISE_ENABLED` twin (see {@link isBillingEnabled}).
+ * Deployments must set both together.
+ */
+export const isEnterpriseEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.ENTERPRISE_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_ENTERPRISE_ENABLED'))
+
+/**
+ * Reads a feature's own flag as a tri-state, picking the server var or its
+ * browser twin for the current runtime. `undefined` means the operator left it
+ * unset, which is what lets the master switch and legacy default apply.
+ */
+function explicitEnterpriseFlag(
+  serverValue: boolean | string | undefined,
+  clientKey: string
+): boolean | undefined {
+  return typeof window === 'undefined' ? envBoolean(serverValue) : envBoolean(getEnv(clientKey))
+}
+
+/**
+ * Resolves one enterprise feature for this deployment.
+ *
+ * When billing runs, subscription plans decide entitlement and these flags are
+ * only explicit overrides — so an unset flag stays `false` and never widens
+ * access on Sim Cloud. When billing is off there is no plan to consult, so
+ * resolution falls through the master switch to the feature's legacy default
+ * (see {@link ENTERPRISE_FEATURE_LEGACY_DEFAULTS}).
+ */
+function enterpriseFeatureEnabled(
+  feature: EnterpriseFeature,
+  serverValue: boolean | string | undefined,
+  clientKey: string
+): boolean {
+  const explicit = explicitEnterpriseFlag(serverValue, clientKey)
+  if (isBillingEnabled) return explicit ?? false
+  return resolveEnterpriseEntitlement({
+    explicit,
+    masterEnabled: isEnterpriseEnabled,
+    legacyDefault: ENTERPRISE_FEATURE_LEGACY_DEFAULTS[feature],
+  })
+}
+
+/**
  * Is SSO enabled for enterprise authentication
  */
-export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
+export const isSsoEnabled = enterpriseFeatureEnabled(
+  'sso',
+  env.SSO_ENABLED,
+  'NEXT_PUBLIC_SSO_ENABLED'
+)
 
 /**
- * Is credential sets (email polling) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
+ * Is access control (permission groups) enabled.
+ * Required for permission-group enforcement to run at all off-hosted.
  */
-export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
+export const isAccessControlEnabled = enterpriseFeatureEnabled(
+  'accessControl',
+  env.ACCESS_CONTROL_ENABLED,
+  'NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'
+)
 
 /**
- * Is access control (permission groups) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
- */
-export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
-
-/**
- * Is organizations enabled
- * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
- * OR if access control is enabled (access control requires organizations)
+ * Is organizations enabled.
+ * True if billing is enabled (orgs come with billing), OR resolved on for this
+ * deployment, OR if access control is enabled (access control requires
+ * organizations).
+ *
+ * Each term resolves through its `NEXT_PUBLIC_*` twin in the browser (see
+ * {@link isBillingEnabled}), so client code — e.g. the better-auth
+ * `organizationClient` plugin registration — sees the same value as the server.
  */
 export const isOrganizationsEnabled =
-  isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+  isBillingEnabled ||
+  enterpriseFeatureEnabled(
+    'organizations',
+    env.ORGANIZATIONS_ENABLED,
+    'NEXT_PUBLIC_ORGANIZATIONS_ENABLED'
+  ) ||
+  isAccessControlEnabled
 
 /**
- * Is inbox (Sim Mailer) enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is inbox (Sim Mailer) enabled
  */
-export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
+export const isInboxEnabled = enterpriseFeatureEnabled(
+  'inbox',
+  env.INBOX_ENABLED,
+  'NEXT_PUBLIC_INBOX_ENABLED'
+)
 
 /**
- * Is whitelabeling enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
+ * Is whitelabeling enabled
  */
-export const isWhitelabelingEnabled = isTruthy(env.WHITELABELING_ENABLED)
+export const isWhitelabelingEnabled = enterpriseFeatureEnabled(
+  'whitelabeling',
+  env.WHITELABELING_ENABLED,
+  'NEXT_PUBLIC_WHITELABELING_ENABLED'
+)
 
 /**
- * Is audit logs enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
-
-/**
- * Is data retention enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
-
-/**
- * Is data drains enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
-
-/**
- * Is workspace forking enabled via env var override
- * This bypasses hosted (Enterprise) requirements for self-hosted deployments
- */
-export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
-
-/**
- * Is E2B enabled for remote code execution
- */
-export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
-
-/**
- * Whether the E2B document-generation sandbox is enabled.
+ * Is audit log reading enabled.
  *
- * Requires E2B (with an API key) AND a dedicated doc-generation template id.
- * When true, ALL four formats compile in the E2B doc sandbox: pptx/docx via Node
+ * Off-hosted this replaces the enterprise-subscription check that audit access
+ * used to require, which no billing-free deployment could ever satisfy.
+ */
+export const isAuditLogsEnabled = enterpriseFeatureEnabled(
+  'auditLogs',
+  env.AUDIT_LOGS_ENABLED,
+  'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
+)
+
+/**
+ * Is retention *deletion* enabled.
+ *
+ * Configuring retention has always been possible with billing off; this flag
+ * governs whether the cleanup pass actually expires data. Opt-in on purpose —
+ * see the note on `dataRetention` in {@link ENTERPRISE_FEATURE_LEGACY_DEFAULTS}.
+ */
+export const isDataRetentionEnabled = enterpriseFeatureEnabled(
+  'dataRetention',
+  env.DATA_RETENTION_ENABLED,
+  'NEXT_PUBLIC_DATA_RETENTION_ENABLED'
+)
+
+/**
+ * Is data drains enabled
+ */
+export const isDataDrainsEnabled = enterpriseFeatureEnabled(
+  'dataDrains',
+  env.DATA_DRAINS_ENABLED,
+  'NEXT_PUBLIC_DATA_DRAINS_ENABLED'
+)
+
+/**
+ * Are organization session policies enabled
+ */
+export const isSessionPoliciesEnabled = enterpriseFeatureEnabled(
+  'sessionPolicies',
+  env.SESSION_POLICIES_ENABLED,
+  'NEXT_PUBLIC_SESSION_POLICIES_ENABLED'
+)
+
+/**
+ * Is workspace forking enabled
+ */
+export const isForkingEnabled = enterpriseFeatureEnabled(
+  'forking',
+  env.FORKING_ENABLED,
+  'NEXT_PUBLIC_FORKING_ENABLED'
+)
+
+/**
+ * The selected remote sandbox provider (`SANDBOX_PROVIDER`), defaulting to E2B.
+ * Availability below is derived from THIS provider's credentials, so a
+ * Daytona-only deployment (E2B unset) still enables remote execution.
+ */
+const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
+
+/**
+ * Whether remote code/shell execution is available with the selected provider.
+ *
+ * E2B keeps its explicit `E2B_ENABLED` switch; Daytona is available once its API
+ * key is set (the shell snapshot is verified at create time, failing closed).
+ * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
+ * unchanged.
+ */
+export const isRemoteSandboxEnabled =
+  sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)
+
+/**
+ * Whether the document-generation sandbox is available with the selected
+ * provider — its credential AND its dedicated doc image (E2B doc template, or
+ * Daytona doc snapshot).
+ *
+ * When true, ALL four formats compile in the doc sandbox: pptx/docx via Node
  * (pptxgenjs/docx + react-icons/sharp icons), pdf/xlsx via Python
  * (reportlab/openpyxl). When false, compilation stays on the JavaScript
  * (isolated-vm) path, byte-identical to its prior behavior (and xlsx is
  * unavailable). Drives both the Sim compile backend and the `docCompiler` flag
  * sent to the copilot file subagent so the agent's output and compiler agree.
  */
-export const isE2BDocEnabled =
-  isE2bEnabled && Boolean(env.E2B_API_KEY) && Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+export const isDocSandboxEnabled =
+  sandboxProvider === 'daytona'
+    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_DOC_SNAPSHOT_ID)
+    : isTruthy(env.E2B_ENABLED) &&
+      Boolean(env.E2B_API_KEY) &&
+      Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).
@@ -268,6 +465,19 @@ export function getAllowedIntegrationsFromEnv(): string[] | null {
     .map((i) => i.trim().toLowerCase())
     .filter(Boolean)
   return parsed.length > 0 ? parsed : null
+}
+
+/**
+ * Returns the preview block types revealed via the environment variable — the
+ * off-AppConfig reveal path for self-hosters and local dev. If not set or empty,
+ * returns an empty array (all `preview: true` blocks stay hidden). Block types
+ * are already lowercase snake_case, so entries are trimmed but not lowercased.
+ */
+export function getPreviewBlocksFromEnv(): string[] {
+  if (!env.PREVIEW_BLOCKS) return []
+  return env.PREVIEW_BLOCKS.split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
 }
 
 /**

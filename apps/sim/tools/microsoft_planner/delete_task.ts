@@ -44,10 +44,11 @@ export const deleteTaskTool: ToolConfig<
 
   request: {
     url: (params) => {
-      if (!params.taskId) {
+      const taskId = params.taskId?.trim()
+      if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}`
     },
     method: 'DELETE',
     headers: (params) => {

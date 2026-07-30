@@ -3,7 +3,11 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -155,12 +159,25 @@ export const PUT = withRouteHandler(
           fileSize: doc.fileSize,
           mimeType: doc.mimeType,
         }
+        const workspaceId = accessCheck.knowledgeBase?.workspaceId
+        const billingAttribution = workspaceId
+          ? auth.authType === AuthType.INTERNAL_JWT
+            ? requireBillingAttributionHeader(req.headers, {
+                actorUserId: userId,
+                workspaceId,
+              })
+            : await resolveBillingAttribution({
+                actorUserId: userId,
+                workspaceId,
+              })
+          : undefined
 
         const result = await retryDocumentProcessing(
           knowledgeBaseId,
           documentId,
           docData,
-          requestId
+          requestId,
+          billingAttribution
         )
 
         return NextResponse.json({

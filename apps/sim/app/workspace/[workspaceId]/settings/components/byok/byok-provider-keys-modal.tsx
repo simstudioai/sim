@@ -14,6 +14,7 @@ interface BYOKProviderKeysModalProps {
   keys: BYOKManagerKey[]
   /** Maximum keys allowed per provider; disables adding once reached. */
   maxKeys: number
+  readOnly?: boolean
   onAddKey: () => void
   onUpdateKey: (key: BYOKManagerKey) => void
   onDeleteKey: (key: BYOKManagerKey) => void
@@ -31,6 +32,7 @@ export function BYOKProviderKeysModal({
   provider,
   keys,
   maxKeys,
+  readOnly = false,
   onAddKey,
   onUpdateKey,
   onDeleteKey,
@@ -50,33 +52,40 @@ export function BYOKProviderKeysModal({
           {keys.map((key) => (
             <div key={key.id} className='flex items-center justify-between gap-2.5'>
               <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                <span className='truncate text-[14px] text-[var(--text-body)]'>
+                <span className='truncate text-[var(--text-body)] text-sm'>
                   {key.name ?? 'Unnamed key'}
                 </span>
-                <span className='truncate font-mono text-[12px] text-[var(--text-muted)]'>
+                <span className='truncate font-mono text-[var(--text-muted)] text-caption'>
                   {key.maskedKey}
                 </span>
               </div>
-              <div className='flex flex-shrink-0 items-center gap-2'>
-                <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
-                <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
-              </div>
+              {!readOnly && (
+                <div className='flex flex-shrink-0 items-center gap-2'>
+                  <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
+                  <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
+                </div>
+              )}
             </div>
           ))}
         </div>
         {atCapacity && (
-          <p className='px-2 text-[12px] text-[var(--text-muted)]'>
+          <p className='px-2 text-[var(--text-muted)] text-caption'>
             Key limit reached ({maxKeys} keys per provider).
           </p>
         )}
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
-        primaryAction={{
-          label: 'Add Key',
-          onClick: onAddKey,
-          disabled: atCapacity,
-        }}
+        hideCancel={readOnly}
+        primaryAction={
+          readOnly
+            ? { label: 'Close', onClick: close }
+            : {
+                label: 'Add Key',
+                onClick: onAddKey,
+                disabled: atCapacity,
+              }
+        }
       />
     </ChipModal>
   )

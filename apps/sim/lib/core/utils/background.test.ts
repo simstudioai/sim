@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { runDetached } from '@/lib/core/utils/background'
 
-const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
+const flushMicrotasks = () => sleep(0)
 
 describe('runDetached', () => {
   it('runs the work without the caller awaiting it', async () => {

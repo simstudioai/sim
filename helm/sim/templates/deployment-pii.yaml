@@ -1,6 +1,6 @@
 {{- if .Values.pii.enabled }}
 ---
-# Deployment for the Presidio PII redaction sidecar (analyzer + anonymizer combined)
+# Deployment for the Presidio PII redaction service (analyzer + anonymizer combined)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,16 +44,14 @@ spec:
             - name: http
               containerPort: {{ .Values.pii.service.targetPort }}
               protocol: TCP
-          {{- if or .Values.pii.env .Values.extraEnvVars }}
           env:
-            {{- range $key, $value := .Values.pii.env }}
+            {{- range $key, $value := .Values.pii.env | default dict }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- end }}
           {{- if .Values.pii.startupProbe }}
           startupProbe:
             {{- toYaml .Values.pii.startupProbe | nindent 12 }}

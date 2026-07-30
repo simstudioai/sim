@@ -1,5 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import { buildIssueOutputs, jiraSetupInstructions } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers'
+import {
+  buildIssueOutputs,
+  buildJiraExtraFields,
+  jiraSetupInstructions,
+  jiraTriggerOptions,
+} from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -14,61 +20,15 @@ export const jiraIssueDeletedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: JiraIcon,
 
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_deleted',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-      password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_deleted',
-      },
-    },
-    {
-      id: 'jqlFilter',
-      title: 'JQL Filter',
-      type: 'long-input',
-      placeholder: 'project = PROJ',
-      description: 'Filter which issue deletions trigger this workflow using JQL',
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_deleted',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('jira:issue_deleted'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_deleted',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'jira_issue_deleted',
+    triggerOptions: jiraTriggerOptions,
+    setupInstructions: jiraSetupInstructions('jira:issue_deleted'),
+    extraFields: buildJiraExtraFields(
+      'jira_issue_deleted',
+      'Filter which issue deletions trigger this workflow using JQL'
+    ),
+  }),
 
   outputs: buildIssueOutputs(),
 

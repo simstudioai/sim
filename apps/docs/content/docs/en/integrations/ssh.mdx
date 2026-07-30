@@ -10,6 +10,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+The SSH block connects to remote servers using the Secure Shell protocol, supporting both password and private key (OpenSSH format) authentication. It provides direct command execution and file system access on any server reachable over SSH.
+
+With SSH, you can:
+
+- **Run commands and scripts**: Execute shell commands or upload and run multi-line scripts with a configurable interpreter
+- **Manage the file system**: Upload, download, read, write, move, rename, and delete files and directories
+- **Inspect the remote environment**: Check whether a command or path exists, list directory contents, and retrieve system information such as OS, architecture, uptime, and disk/memory usage
+
+In Sim, the SSH block allows your agents to operate remote servers as part of a workflow—running commands and scripts, transferring and manipulating files, and gathering system diagnostics—all through authenticated SSH connections. This makes it possible to automate server administration, deployment steps, and remote data processing directly from an agent's workflow.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.

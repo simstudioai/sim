@@ -17,6 +17,15 @@ export const chipPrimaryFillTokens =
   'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
 /** Filled surface shared by the chip text fields ({@link ChipInput}, {@link ChipTextarea}) — aligned with `Chip` / `ChipDropdown`. */
 export const chipFieldSurfaceClass = `rounded-lg ${chipFilledSurfaceTokens} transition-colors`
+/**
+ * The raised "border + drop shadow" ring of the `border-shadow` chip variant: a
+ * 1px hairline ring plus a soft drop shadow, in both light and dark. Single
+ * source for the variant ({@link chipVariants}) and for any non-chip surface
+ * that must read as the same raised card (e.g. a landing media panel) — compose
+ * it with `rounded-lg` + a fill rather than re-deriving the shadow literal.
+ */
+export const chipBorderShadowRing =
+  'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]'
 /** Typography shared by the chip text fields — normal weight, `--text-body`, muted placeholder, no focus outline. */
 export const chipFieldTextClass =
   'text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'

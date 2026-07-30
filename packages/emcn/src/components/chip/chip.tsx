@@ -38,14 +38,20 @@ import {
  * `active` renders the default/filled chip in its selected state — `--surface-active` at rest, one surface darker
  * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`. `flush` removes the default
  * `mx-0.5` cluster margin — use when a single chip sits in its own layout slot (grid/table cell).
+ *
+ * The default/filled hover lives in `active`-keyed compound variants (not the base variant string) so the
+ * rest/hover classes are mutually exclusive — a chip renders exactly ONE `hover-hover:bg-*`. This keeps raw
+ * `chipVariants({...})` consumers identical to `cn(chipVariants({...}))` ones; folding the non-active hover back
+ * into the variant string would emit two conflicting hover classes that only `cn`'s tailwind-merge resolves,
+ * silently diverging raw consumers (e.g. an active row that darkens with `Chip` but not with raw `chipVariants`).
  */
 const chipVariants = cva(
   `group cursor-pointer ${chipGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
   {
     variants: {
       variant: {
-        default: 'hover-hover:bg-[var(--surface-active)]',
-        filled: `${chipFilledFillTokens} hover-hover:bg-[var(--surface-active)]`,
+        default: '',
+        filled: chipFilledFillTokens,
         primary: `${chipPrimaryFillTokens} hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]`,
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
@@ -61,8 +67,18 @@ const chipVariants = cva(
     compoundVariants: [
       {
         variant: 'default',
+        active: false,
+        className: 'hover-hover:bg-[var(--surface-active)]',
+      },
+      {
+        variant: 'default',
         active: true,
         className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
+      },
+      {
+        variant: 'filled',
+        active: false,
+        className: 'hover-hover:bg-[var(--surface-active)]',
       },
       {
         variant: 'filled',

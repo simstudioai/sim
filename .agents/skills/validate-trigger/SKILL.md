@@ -1,6 +1,7 @@
 ---
 name: validate-trigger
-description: Audit an existing Sim webhook trigger against the service's webhook API docs and repository conventions, then report and fix issues across trigger definitions, provider handler, output alignment, registration, and security. Use when validating or repairing a trigger under `apps/sim/triggers/{service}/` or `apps/sim/lib/webhooks/providers/{service}.ts`.
+description: Validate an existing Sim webhook trigger against provider API docs and repository conventions
+argument-hint: <service-name> [api-docs-url]
 ---
 
 # Validate Trigger

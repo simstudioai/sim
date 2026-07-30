@@ -115,6 +115,11 @@ export const brexListTransfersTool: ToolConfig<BrexPaginationParams, BrexListTra
           created_at: { type: 'string', description: 'Creation timestamp', optional: true },
           display_name: { type: 'string', description: 'Transfer display name', optional: true },
           external_memo: { type: 'string', description: 'External memo', optional: true },
+          is_ppro_enabled: {
+            type: 'boolean',
+            description: 'Whether Principal Protection (PPRO) is enabled',
+            optional: true,
+          },
         },
       },
     },

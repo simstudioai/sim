@@ -31,11 +31,11 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
 
     request: {
       url: (params: DiscordGetChannelParams) => {
-        return `https://discord.com/api/v10/channels/${params.channelId}`
+        return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
       },
       method: 'GET',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

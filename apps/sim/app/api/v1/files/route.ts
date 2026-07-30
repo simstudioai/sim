@@ -7,6 +7,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -21,6 +22,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
@@ -30,7 +32,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /** GET /api/v1/files — List all files in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -43,7 +44,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1ListFilesContract, request, {})
+    const parsed = await parseRequest(
+      v1ListFilesContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.query

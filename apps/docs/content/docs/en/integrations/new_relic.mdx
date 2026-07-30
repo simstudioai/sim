@@ -76,6 +76,12 @@ Search New Relic entities by name, GUID, domain type, tags, or reporting state.
 |   ↳ `guid` | string | Entity GUID |
 |   ↳ `name` | string | Entity name |
 |   ↳ `entityType` | string | Entity type |
+|   ↳ `domain` | string | Entity domain, e.g. APM, INFRA |
+|   ↳ `reporting` | boolean | Whether the entity is currently reporting data |
+|   ↳ `alertSeverity` | string | Current alert severity for the entity |
+|   ↳ `tags` | array | Entity tags |
+|     ↳ `key` | string | Tag key |
+|     ↳ `values` | array | Tag values |
 | `nextCursor` | string | Cursor for the next page of results |
 
 ### `new_relic_get_entity`
@@ -98,6 +104,12 @@ Fetch a New Relic entity by GUID.
 |   ↳ `guid` | string | Entity GUID |
 |   ↳ `name` | string | Entity name |
 |   ↳ `entityType` | string | Entity type |
+|   ↳ `domain` | string | Entity domain, e.g. APM, INFRA |
+|   ↳ `reporting` | boolean | Whether the entity is currently reporting data |
+|   ↳ `alertSeverity` | string | Current alert severity for the entity |
+|   ↳ `tags` | array | Entity tags |
+|     ↳ `key` | string | Tag key |
+|     ↳ `values` | array | Tag values |
 
 ### `new_relic_create_deployment_event`
 

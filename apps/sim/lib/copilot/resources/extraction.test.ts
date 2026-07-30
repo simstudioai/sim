@@ -181,6 +181,56 @@ describe('extractResourcesFromToolResult', () => {
 })
 
 describe('extractDeletedResourcesFromToolResult', () => {
+  it('extracts every kind rm deleted and skips the ones that failed', () => {
+    expect(
+      extractDeletedResourcesFromToolResult(
+        'rm',
+        { paths: ['files/Reports/Old%20Report.pdf'] },
+        {
+          results: [
+            { from: 'files/Reports/Old%20Report.pdf', kind: 'file', id: 'file-1' },
+            { from: 'files/Archive', kind: 'file_folder', id: 'folder-1' },
+            { from: 'workflows/Lead%20Router', kind: 'workflow', id: 'wf-1' },
+            { from: 'workflows/Old%20Projects', kind: 'workflow_folder', id: 'wfolder-1' },
+            { from: 'tables/Leads', kind: 'table', id: 'tbl-1' },
+            { from: 'knowledgebases/support-docs', kind: 'knowledge_base', id: 'kb-1' },
+            { from: 'files/missing.md', kind: 'file', error: 'Not found: files/missing.md' },
+          ],
+        }
+      )
+    ).toEqual([
+      { type: 'file', id: 'file-1', title: 'Old Report.pdf' },
+      { type: 'filefolder', id: 'folder-1', title: 'Archive' },
+      { type: 'workflow', id: 'wf-1', title: 'Lead Router' },
+      { type: 'folder', id: 'wfolder-1', title: 'Old Projects' },
+      { type: 'table', id: 'tbl-1', title: 'Leads' },
+      { type: 'knowledgebase', id: 'kb-1', title: 'support-docs' },
+    ])
+  })
+
+  it('extracts only successfully deleted tables from user_table result data', () => {
+    expect(
+      extractDeletedResourcesFromToolResult(
+        'user_table',
+        { operation: 'delete', args: { tableIds: ['table-1', 'table-failed'] } },
+        { success: true, data: { deleted: ['table-1'], failed: ['table-failed'] } }
+      )
+    ).toEqual([{ type: 'table', id: 'table-1', title: 'Table' }])
+  })
+
+  it('extracts deleted knowledge bases from knowledge_base result data', () => {
+    expect(
+      extractDeletedResourcesFromToolResult(
+        'knowledge_base',
+        { operation: 'delete', args: { knowledgeBaseIds: ['kb-1'] } },
+        {
+          success: true,
+          data: { deleted: [{ id: 'kb-1', name: 'Docs' }], notFound: [] },
+        }
+      )
+    ).toEqual([{ type: 'knowledgebase', id: 'kb-1', title: 'Docs' }])
+  })
+
   it('removes scheduledtask resources on manage_scheduled_task delete', () => {
     const resources = extractDeletedResourcesFromToolResult(
       'manage_scheduled_task',

@@ -39,6 +39,12 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
         visibility: 'user-only',
         description: 'Include AI summary',
       },
+      includeAiActionItems: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-only',
+        description: 'Include AI-detected action items',
+      },
       includeCalendarEvent: {
         type: 'boolean',
         required: false,
@@ -54,7 +60,8 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
     },
 
     request: {
-      url: (params) => `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId}`,
+      url: (params) =>
+        `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId.trim()}`,
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/json',
@@ -62,7 +69,7 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
         'Public-Api-Version': '2025-10-31',
       }),
       body: (params) => {
-        const include: Record<string, any> = {}
+        const include: Record<string, unknown> = {}
 
         if (params.includeHighlights) {
           include.highlights = true
@@ -72,6 +79,9 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
         }
         if (params.includeAiSummary) {
           include.ai_summary = true
+        }
+        if (params.includeAiActionItems) {
+          include.ai_action_items = true
         }
         if (params.includeCalendarEvent) {
           include.calendar_event = true
@@ -164,6 +174,11 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
       ai_summary: {
         type: 'object',
         description: 'AI summary text (if included)',
+        optional: true,
+      },
+      ai_action_items: {
+        type: 'array',
+        description: 'AI-detected action items with status, text, and assignee (if included)',
         optional: true,
       },
       calendar_event: {

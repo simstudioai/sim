@@ -8,9 +8,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { recordBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
-import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
-import { promoteFork } from '@/lib/workspaces/fork/promote/promote'
+import { recordBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
 
 const logger = createLogger('WorkspaceForkPromoteAPI')
 
@@ -25,7 +25,7 @@ export const POST = withRouteHandler(
     const parsed = await parseRequest(promoteForkContract, req, context)
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
-    const { otherWorkspaceId, direction, dependentValues } = parsed.data.body
+    const { otherWorkspaceId, direction, dependentValues, copyResources } = parsed.data.body
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
@@ -35,7 +35,9 @@ export const POST = withRouteHandler(
       targetWorkspaceId: auth.targetWorkspaceId,
       direction,
       userId: session.user.id,
+      actorName: session.user.name ?? undefined,
       dependentValues,
+      copyResources,
       requestId,
     })
 
@@ -47,6 +49,7 @@ export const POST = withRouteHandler(
       redeployed: result.redeployed,
       deployFailed: result.deployFailed,
       unmappedRequired: result.unmappedRequired,
+      blockers: result.blockers,
       needsConfiguration: result.needsConfiguration,
       clearedOptional: result.clearedOptional,
     }
@@ -94,6 +97,7 @@ export const POST = withRouteHandler(
       message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
       metadata: {
         actorName: session.user.name ?? undefined,
+        otherWorkspaceId,
         otherWorkspaceName: otherName,
         direction,
         updated: result.updated,

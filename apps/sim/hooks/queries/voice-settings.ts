@@ -6,6 +6,8 @@ import { getVoiceSettingsContract } from '@/lib/api/contracts'
 /**
  * Query key factory for voice settings queries
  */
+export const VOICE_SETTINGS_STALE_TIME = 5 * 60 * 1000
+
 export const voiceSettingsKeys = {
   all: ['voiceSettings'] as const,
   availability: () => [...voiceSettingsKeys.all, 'availability'] as const,
@@ -30,6 +32,6 @@ export function useVoiceSettings() {
   return useQuery({
     queryKey: voiceSettingsKeys.availability(),
     queryFn: ({ signal }) => fetchVoiceSettings(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: VOICE_SETTINGS_STALE_TIME,
   })
 }

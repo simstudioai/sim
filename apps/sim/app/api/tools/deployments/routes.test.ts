@@ -90,6 +90,11 @@ describe('POST /api/tools/deployments/deploy', () => {
       success: true,
       deployedAt: new Date('2026-06-12T00:00:00Z'),
       version: 4,
+      activeDeployment: {
+        deploymentVersionId: 'dv-4',
+        version: 4,
+        deployedAt: '2026-06-12T00:00:00.000Z',
+      },
     })
   })
 
@@ -157,6 +162,11 @@ describe('POST /api/tools/deployments/deploy', () => {
         isDeployed: true,
         deployedAt: '2026-06-12T00:00:00.000Z',
         version: 4,
+        activeDeployment: {
+          deploymentVersionId: 'dv-4',
+          version: 4,
+          deployedAt: '2026-06-12T00:00:00.000Z',
+        },
         warnings: [],
       },
     })
@@ -236,6 +246,11 @@ describe('POST /api/tools/deployments/promote', () => {
     mockPerformActivateVersion.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-06-12T00:00:00Z'),
+      activeDeployment: {
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        deployedAt: '2026-06-12T00:00:00.000Z',
+      },
     })
   })
 
@@ -255,6 +270,11 @@ describe('POST /api/tools/deployments/promote', () => {
       isDeployed: true,
       deployedAt: '2026-06-12T00:00:00.000Z',
       version: 3,
+      activeDeployment: {
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        deployedAt: '2026-06-12T00:00:00.000Z',
+      },
       warnings: [],
     })
   })

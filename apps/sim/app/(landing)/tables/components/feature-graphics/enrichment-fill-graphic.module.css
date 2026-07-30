@@ -1,0 +1,49 @@
+/**
+ * The EnrichmentFillGraphic's motion: each found value fades up into its
+ * empty cell one after another - the audit tile's one-shot settle, never
+ * re-played - so the ledger reads as an enrichment pass completing the
+ * row. Under prefers-reduced-motion the values render fully settled.
+ */
+
+.value0,
+.value1,
+.value2,
+.value3 {
+  animation: enrichment-value-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.value0 {
+  animation-delay: 0.45s;
+}
+
+.value1 {
+  animation-delay: 0.95s;
+}
+
+.value2 {
+  animation-delay: 1.45s;
+}
+
+.value3 {
+  animation-delay: 1.95s;
+}
+
+@keyframes enrichment-value-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .value0,
+  .value1,
+  .value2,
+  .value3 {
+    animation: none;
+  }
+}

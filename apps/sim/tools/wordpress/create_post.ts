@@ -90,7 +90,7 @@ export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCrea
       if (params.status) body.status = params.status
       if (params.excerpt) body.excerpt = params.excerpt
       if (params.slug) body.slug = params.slug
-      if (params.featuredMedia) body.featured_media = params.featuredMedia
+      if (params.featuredMedia !== undefined) body.featured_media = params.featuredMedia
 
       if (params.categories) {
         body.categories = params.categories

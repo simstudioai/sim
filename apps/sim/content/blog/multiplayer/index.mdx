@@ -8,9 +8,22 @@ authors:
   - vik
 readingTime: 12
 tags: [Multiplayer, Realtime, Collaboration, WebSockets, Architecture]
-ogImage: /blog/multiplayer/cover.png
+ogImage: /blog/multiplayer/cover.jpg
 canonical: https://www.sim.ai/blog/multiplayer
 draft: false
+faq:
+  - q: "Does Sim use CRDTs or operational transforms for multiplayer editing?"
+    a: "No. Sim uses a simpler last-writer-wins strategy with client-generated timestamps rather than Figma-style operational transforms. Workflow building has lower conflict density than text editing, since users typically work on different blocks or parts of the canvas, so the simpler approach is sufficient."
+  - q: "What happens if two users edit the same block at the same time in Sim?"
+    a: "Both clients render their local changes optimistically, then the server persists both updates based on client timestamps and broadcasts each in sequence. Clients receive the conflicting positions or values and converge to whichever carries the latest timestamp, with value conflicts on the same text field resolved by last-to-arrive within a 25ms server-side coalescing window."
+  - q: "What happens if a collaborator deletes a block I'm currently editing?"
+    a: "When the server broadcasts the deletion, your client immediately cancels all pending operations targeting that block, including subblock updates, and removes it from local state without sending those stale operations to the server or showing an error. This client-side cancellation avoids wasting network requests on operations that would fail anyway."
+  - q: "How does undo/redo work when multiple people are editing the same Sim workflow?"
+    a: "Undo/redo is a local, per-user stack: undoing an action generates an inverse operation (e.g., undo an add becomes a remove) that flows through the same operation queue as a normal edit, so collaborators see the change in real time. Undo stacks are per-user and only cover your own actions, and entries referencing entities another collaborator deleted are automatically pruned as invalid."
+  - q: "What happens if a client loses connection while editing a Sim workflow?"
+    a: "Failed operations retry with exponential backoff — structural changes get 3 attempts and text edits get 5. If all retries fail, the queue is cleared and the UI becomes read-only until the user manually refreshes."
+  - q: "Why does Sim separate blocks, edges, and subflows into different database tables?"
+    a: "Blocks, edges, and subflows have different update patterns and conflict characteristics, so storing them in separate normalized tables (workflow_blocks, workflow_edges, workflow_subflows) lets Sim make targeted updates, such as moving a block only touching its position fields, without loading or locking the entire workflow."
 ---
 
 When we started building Sim, we noticed that AI workflow development looked a lot like the design process [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) had already solved for. Product managers need to sketch out user-facing flows, engineers need to configure integrations and APIs, and domain experts need to validate business logic—often all at the same time. Traditional workflow builders force serial collaboration: one person edits, saves, exports, and notifies the next person. This creates unnecessary friction.

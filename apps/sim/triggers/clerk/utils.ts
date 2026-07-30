@@ -12,8 +12,15 @@ export const CLERK_TRIGGER_TO_EVENT_TYPE: Record<string, string> = {
   clerk_user_updated: 'user.updated',
   clerk_user_deleted: 'user.deleted',
   clerk_session_created: 'session.created',
+  clerk_session_ended: 'session.ended',
+  clerk_session_removed: 'session.removed',
+  clerk_session_revoked: 'session.revoked',
   clerk_organization_created: 'organization.created',
+  clerk_organization_updated: 'organization.updated',
+  clerk_organization_deleted: 'organization.deleted',
   clerk_organization_membership_created: 'organizationMembership.created',
+  clerk_organization_membership_updated: 'organizationMembership.updated',
+  clerk_organization_membership_deleted: 'organizationMembership.deleted',
 }
 
 /**
@@ -24,8 +31,15 @@ export const clerkTriggerOptions = [
   { label: 'User Updated', id: 'clerk_user_updated' },
   { label: 'User Deleted', id: 'clerk_user_deleted' },
   { label: 'Session Created', id: 'clerk_session_created' },
+  { label: 'Session Ended', id: 'clerk_session_ended' },
+  { label: 'Session Removed', id: 'clerk_session_removed' },
+  { label: 'Session Revoked', id: 'clerk_session_revoked' },
   { label: 'Organization Created', id: 'clerk_organization_created' },
+  { label: 'Organization Updated', id: 'clerk_organization_updated' },
+  { label: 'Organization Deleted', id: 'clerk_organization_deleted' },
   { label: 'Organization Membership Created', id: 'clerk_organization_membership_created' },
+  { label: 'Organization Membership Updated', id: 'clerk_organization_membership_updated' },
+  { label: 'Organization Membership Deleted', id: 'clerk_organization_membership_deleted' },
   { label: 'Generic Webhook (All Events)', id: 'clerk_webhook' },
 ]
 
@@ -159,7 +173,7 @@ export function buildOrganizationOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
- * Build outputs for `organizationMembership.created` events.
+ * Build outputs for `organizationMembership.created` and `.updated` events.
  * The `data` object is the Clerk OrganizationMembership object.
  */
 export function buildOrganizationMembershipOutputs(): Record<string, TriggerOutput> {
@@ -176,6 +190,33 @@ export function buildOrganizationMembershipOutputs(): Record<string, TriggerOutp
       description: 'User ID of the member (data.public_user_data.user_id)',
     },
     createdAt: { type: 'number', description: 'Membership creation timestamp (data.created_at)' },
+  }
+}
+
+/**
+ * Build outputs for `organization.deleted` events.
+ * The `data` object is a deleted-object marker: `{ id, deleted, object }`.
+ */
+export function buildOrganizationDeletedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...commonEventOutputs,
+    organizationId: { type: 'string', description: 'Deleted Clerk organization ID (data.id)' },
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the organization was deleted (data.deleted)',
+    },
+  }
+}
+
+/**
+ * Build outputs for `organizationMembership.deleted` events.
+ * The `data` object is a deleted-object marker: `{ id, deleted, object }`.
+ */
+export function buildOrganizationMembershipDeletedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...commonEventOutputs,
+    membershipId: { type: 'string', description: 'Deleted membership ID (data.id)' },
+    deleted: { type: 'boolean', description: 'Whether the membership was deleted (data.deleted)' },
   }
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useCallback, useMemo } from 'react'
+import { type ComponentType, useCallback, useMemo, useRef } from 'react'
 import {
   ArrowRight,
   ChevronDown,
@@ -14,7 +14,7 @@ import {
 } from '@sim/emcn'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -26,6 +26,7 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import {
   ALL_CATEGORY,
   CONNECTED_LABEL,
@@ -34,9 +35,7 @@ import {
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
@@ -135,6 +134,7 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -143,25 +143,20 @@ export function Integrations() {
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
-   * write is debounced. Filtering below is cheap in-memory over a static list,
-   * so it reads the instant value too.
+   * write is debounced. The raw value is written (trimming happens on read in
+   * the filters below) so trailing spaces stay typable mid-word. Filtering is
+   * cheap in-memory over a static list, so it reads the instant value too.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setIntegrationFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setIntegrationFilters]
+  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
+    setIntegrationFilters({ search: value }, options)
   )
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
     enabled: Boolean(workspaceId),
   })
+
+  useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   const oauthCredentials = useMemo(
     () => credentials.filter((c) => c.type === 'oauth' || c.type === 'service_account'),
@@ -289,7 +284,10 @@ export function Integrations() {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <IntegrationTabsHeader active='integrations' workspaceId={workspaceId} />
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+      <div
+        ref={scrollContainerRef}
+        className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
+      >
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <ShowcaseWithExplore prompt='Explain the integrations in Sim and what I should connect.' />
           <div className='flex items-center gap-2'>

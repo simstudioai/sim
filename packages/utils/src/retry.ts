@@ -32,28 +32,31 @@ export function backoffWithJitter(
   return exponential * (0.8 + jitter * 0.4)
 }
 
-/** Maximum `Retry-After` value honored: 30 s. Prevents a misconfigured upstream from stalling callers. */
+/** Default maximum `Retry-After` value honored: 30 s. Prevents a misconfigured upstream from stalling callers. */
 const RETRY_AFTER_MAX_MS = 30_000
 
 /**
  * Parses an HTTP `Retry-After` header (either delta-seconds or an HTTP-date)
- * into a millisecond delay, capped at 30 s.
+ * into a millisecond delay, capped at `maxMs` (default 30 s).
  * Returns `null` when the header is absent or unparseable so callers can fall
- * back to their own backoff.
+ * back to their own backoff. Pass the caller's own `maxDelayMs` as `maxMs` when
+ * that value needs to be compared against the parsed delay (e.g. to decide
+ * whether to skip a retry) — otherwise the default cap silently truncates the
+ * comparison.
  */
-export function parseRetryAfter(header: string | null): number | null {
+export function parseRetryAfter(header: string | null, maxMs = RETRY_AFTER_MAX_MS): number | null {
   if (!header) return null
   const trimmed = header.trim()
   if (trimmed.length === 0) return null
   const seconds = Number(trimmed)
   if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(Math.floor(seconds * 1000), RETRY_AFTER_MAX_MS)
+    return Math.min(Math.floor(seconds * 1000), maxMs)
   }
   const dateMs = Date.parse(trimmed)
   if (!Number.isNaN(dateMs)) {
     const delta = dateMs - Date.now()
     if (delta <= 0) return 0
-    return Math.min(delta, RETRY_AFTER_MAX_MS)
+    return Math.min(delta, maxMs)
   }
   return null
 }

@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -26,4 +27,22 @@ export function getWorkflowById(
   scope: WorkflowQueryScope = 'active'
 ): WorkflowMetadata | undefined {
   return getWorkflows(workspaceId, scope).find((workflow) => workflow.id === workflowId)
+}
+
+/**
+ * Removes a workflow from the active-list cache immediately and returns the
+ * previous value for callers that need rollback. Shared by user-initiated
+ * deletion and streamed Mothership resource removals.
+ */
+export function removeWorkflowFromActiveCache(
+  queryClient: QueryClient,
+  workspaceId: string,
+  workflowId: string
+): WorkflowMetadata[] | undefined {
+  const key = workflowKeys.list(workspaceId, 'active')
+  const snapshot = queryClient.getQueryData<WorkflowMetadata[]>(key)
+  queryClient.setQueryData<WorkflowMetadata[]>(key, (current) =>
+    (current ?? []).filter((workflow) => workflow.id !== workflowId)
+  )
+  return snapshot
 }

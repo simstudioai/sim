@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -7,7 +7,8 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   assertSafeExternalUrl,
@@ -208,9 +209,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const userFile = userFiles[0]
     const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
     if (denied) return denied
-    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+    let fileBuffer: Buffer
+    let resolvedContentType: string
+    try {
+      const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+      fileBuffer = resolved.buffer
+      resolvedContentType = resolved.contentType
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download Concur receipt file:`, error)
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Unknown error') },
+        { status: 500 }
+      )
+    }
     const fileName = userFile.name
-    const mimeType = inferMimeType(fileName, userFile.type)
+    const mimeType = inferMimeType(fileName, resolvedContentType || userFile.type)
 
     const allowedForOperation =
       uploadReq.operation === 'create_quick_expense_with_image'

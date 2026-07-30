@@ -1,6 +1,6 @@
 'use client'
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   listSsoProvidersContract,
@@ -8,6 +8,8 @@ import {
   ssoRegistrationContract,
 } from '@/lib/api/contracts/auth'
 import { organizationKeys } from '@/hooks/queries/organization'
+
+export const SSO_PROVIDERS_STALE_TIME = 5 * 60 * 1000
 
 /**
  * Query key factories for SSO-related queries
@@ -41,8 +43,7 @@ export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvid
   return useQuery({
     queryKey: ssoKeys.providerList(organizationId),
     queryFn: ({ signal }) => fetchSSOProviders(signal, organizationId),
-    staleTime: 5 * 60 * 1000,
-    placeholderData: keepPreviousData,
+    staleTime: SSO_PROVIDERS_STALE_TIME,
     enabled,
   })
 }

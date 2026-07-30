@@ -21,6 +21,7 @@
  * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -165,6 +166,18 @@ export const POST = withRouteHandler(
         slug,
         ownerId,
         memberId,
+      })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: 'admin-api',
+        action: AuditAction.ORGANIZATION_CREATED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        resourceName: name,
+        description: `Admin API created organization "${name}"`,
+        metadata: { slug, ownerId, memberId },
+        request,
       })
 
       return singleResponse({

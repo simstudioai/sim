@@ -12,6 +12,10 @@ export type SelectorKey =
   | 'bigquery.tables'
   | 'calcom.eventTypes'
   | 'calcom.schedules'
+  | 'clickup.workspaces'
+  | 'clickup.spaces'
+  | 'clickup.folders'
+  | 'clickup.lists'
   | 'confluence.spaces'
   | 'google.tasks.lists'
   | 'jsm.requestTypes'
@@ -27,6 +31,7 @@ export type SelectorKey =
   | 'slack.users'
   | 'gmail.labels'
   | 'outlook.folders'
+  | 'outlook.calendars'
   | 'google.calendar'
   | 'jira.issues'
   | 'jira.projects'
@@ -87,6 +92,9 @@ export interface SelectorContext {
   serviceDeskId?: string
   impersonateUserEmail?: string
   boardId?: string
+  spaceId?: string
+  listSpaceId?: string
+  folderId?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
   awsRegion?: string
@@ -129,6 +137,13 @@ export interface SelectorDefinition {
    */
   fetchPage?: (args: SelectorPageArgs) => Promise<SelectorPage>
   fetchById?: (args: SelectorQueryArgs) => Promise<SelectorOption | null>
+  /**
+   * Set when `fetchById` tolerates an id that may not exist, returning `null` rather
+   * than erroring. Only then is it safe to speculatively resolve whatever a user has
+   * typed — most implementations resolve a record by id and would turn every partial
+   * keystroke into a failed upstream request.
+   */
+  resolvesUnknownIds?: boolean
   enabled?: (args: SelectorQueryArgs) => boolean
   staleTime?: number
 }

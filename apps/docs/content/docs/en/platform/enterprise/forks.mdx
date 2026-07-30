@@ -1,0 +1,375 @@
+---
+title: Workspace Forks
+description: Clone a workspace, keep it linked to its parent, and push or pull deployed workflow changes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+Workspace Forks let you clone a workspace into a child, keep the two linked, and move **deployed** workflow changes between them later. Think of **Deploy** as a git commit: only what you have deployed is what Forks can copy or sync. **Sync** is always a force push or force pull — the target side is overwritten for the workflows in the sync. There is no merge UI.
+
+One workspace has at most one parent. A parent can have many children. You can only sync along a **direct** parent↔child edge — not with a grandparent or sibling.
+
+---
+
+## Who can use Forks
+
+| Requirement | Detail |
+|-------------|--------|
+| **Plan** | Enterprise on Sim Cloud |
+| **Role** | Workspace **admin** — non-admins never see the Forks tab |
+| **Self-hosted** | Set `FORKING_ENABLED` / `NEXT_PUBLIC_FORKING_ENABLED` (see [Self-hosted setup](#self-hosted-setup)) |
+
+On Sim Cloud, your organization may also need the feature turned on for your account before the tab appears.
+
+---
+
+## Setup
+
+### 1. Open Forks
+
+Go to **Settings → Enterprise → Workspace Forks** in the workspace you want to fork from (or manage).
+
+<Image src="/static/enterprise/forks-list.png" alt="Workspace Forks settings page showing Parent and Forks sections with Docs, See activity, and Create fork actions" width={900} height={369} />
+
+You will see:
+
+- **Parent** — if this workspace was forked from another
+- **Forks** — children of this workspace
+- **See activity** — history of forks, syncs, and rollbacks
+- **Create fork** — start a new child
+
+### 2. Create a fork
+
+Click **Create fork**. Name the child (defaults to `{workspace} (fork)`), then review **Copy resources**.
+
+<Image src="/static/enterprise/forks-create-modal.png" alt="Fork workspace modal with name field and Copy resources list fully selected" width={900} height={884} />
+
+Everything under **Copy resources** starts **selected**. That is usually what you want: tables, knowledge bases, files, custom tools, skills, and MCP servers the child will need.
+
+<Callout type="info">
+  If you deselect a resource, references to it in the forked workflows are **cleared** in the child. You will see a warning before you confirm.
+</Callout>
+
+<Image src="/static/enterprise/forks-create-warning.png" alt="Fork workspace modal showing a warning that deselected resources will clear references in the fork" width={900} height={953} />
+
+Click **Fork**. The child workspace is created immediately. Deployed workflows land as **drafts** in the child. Large content (table rows, knowledge base files, file blobs) may finish copying in the background — watch **Activity** on the source workspace.
+
+<Callout type="info">
+  Only **deployed** workflows are forked. Drafts and undeployed work stay in the parent. If the parent has nothing deployed, the child starts with a blank starter workflow.
+</Callout>
+
+### 3. Open the parent edge (from the child)
+
+Open the **child** workspace → **Settings → Enterprise → Workspace Forks**. On the **Parent** row, open the menu and choose **Edit mappings**.
+
+Child rows (when you are on the parent) only offer **Open workspace** and **Disconnect** — mapping and sync are owned by the child configuring how it relates to its parent.
+
+**Open workspace** is disabled with a tooltip if you do not have access to the other workspace. **Disconnect** stays available so you can still sever the link.
+
+### 4. Understand mappings
+
+A **mapping** means: “this resource in the source is the same logical thing as that resource in the target.” When you sync, workflow fields that pointed at the source resource are rewritten to the target resource so blocks keep working.
+
+| Approach | When to use it |
+|----------|----------------|
+| **Map** | Both sides already have (or should keep) their own resource — e.g. each workspace’s Slack credential, Gmail account, or secret value |
+| **Copy** | The target should receive a **new** clone of the source resource — a new table, knowledge base, file, or MCP server config |
+
+**Credentials** and **Secrets** are **map-only**. They are never copied. Secret *values* never leave their workspace; only names like `{{API_KEY}}` appear in workflow text.
+
+Mappings are saved on the fork relationship. You can click **Save** without syncing. Sync always uses the saved mappings.
+
+After you map or copy a parent resource (credential, knowledge base, table, …), **dependent fields** — Gmail labels, Slack channels, knowledge base documents, and similar — often need a fresh pick in the target. Required dependents block **Sync** until they are filled.
+
+### 5. Map, reconfigure, then Sync
+
+On the sync page you will see direction (**Push** / **Pull**), deployed workflow changes, **Mappings**, optional **Copy resources**, and any **Blocking sync** items.
+
+<Image src="/static/enterprise/forks-sync-overview.png" alt="Sync detail page with Push and Pull direction, deployed workflows, and mapping status badges" width={900} height={497} />
+
+- **Push** — overwrite the **other** workspace with this workspace’s deployed workflows
+- **Pull** — overwrite **this** workspace with the other’s deployed workflows
+
+Both are force operations. Confirm carefully.
+
+<Image src="/static/enterprise/forks-copy-resources.png" alt="Copy resources section showing resources used by workflows and a Not used by any workflow group" width={900} height={334} />
+
+Resources referenced by the workflows in the sync default to selected for copy. Unused ones sit under **Not used by any workflow** (off by default). If you **map** a resource, it leaves the copy list — maps win.
+
+<Image src="/static/enterprise/forks-reconfigure.png" alt="Dependent field reconfigure card under a mapped resource with a required field marked" width={900} height={242} />
+
+**Sync** stays disabled until:
+
+- Every blocking reference is mapped, copied, or fixed in the source
+- Required credentials and secrets are mapped
+- Required dependent fields are filled
+- Sync details have finished loading
+
+### 6. Confirm and run
+
+Click **Sync**. You will get an overwrite confirmation.
+
+<Image src="/static/enterprise/forks-sync-confirm.png" alt="Overwrite target workspace confirmation dialog warning that syncing overwrites changes on the target" width={900} height={438} />
+
+On success you will see a toast such as **Pushed to "…"** or **Pulled from "…"**. If some workflows fail to redeploy, you get a warning to open and redeploy them manually.
+
+---
+
+## Excluded workflows
+
+The **Excluded workflows** section on the Forks page lists this workspace's deployed workflows in their sidebar folder structure. Check a workflow — or a whole folder at once — to keep it out of forking entirely. Think of it as a `.gitignore` for syncs:
+
+- **Never sent** — pushes from this workspace do not carry it, the other side pulling from this workspace does not receive it, and creating a new fork does not copy it
+- **Never touched** — a sync into this workspace will not overwrite or archive it, even if its counterpart was deleted on the other side
+
+The setting belongs to **this workspace's copy** only. Excluding a workflow here does not exclude its counterpart in the parent or a fork — each workspace manages its own list. If the pair has synced before, the link between them is kept, so un-excluding later resumes updating the same counterpart instead of creating a duplicate.
+
+**Example:** a staging fork excludes `Scratch experiment` so it can never reach production, and production excludes `Billing hotfix` so no push from staging can ever overwrite it.
+
+---
+
+## Activity
+
+**See activity** (or the Activity view from the Forks header) lists forks, pushes, pulls, and rollbacks that involve this workspace — including events recorded on the other side of the edge.
+
+<Image src="/static/enterprise/forks-activity.png" alt="Activity view showing Fork and Push events with expandable detail rows" width={900} height={615} />
+
+Expand a row for names of workflows and resources that were created, updated, or archived, and any warnings (for example failed background copies or deploy failures).
+
+---
+
+## Rollback vs Disconnect
+
+| Action | What it does | Keep in mind |
+|--------|--------------|--------------|
+| **Rollback** | Undoes the **last sync into this workspace** — restores each affected workflow to its prior deployed version and removes workflows that sync created | Copied resources from past syncs **may remain**. Rollback does not delete tables, KBs, or files that were copied in. |
+| **Disconnect** | Permanently removes the fork relationship | Both workspaces stay. Saved mappings and sync history for the pair are deleted. Forking again creates a **new** child, not a reconnect. |
+
+---
+
+## Permissions
+
+| Action | Who |
+|--------|-----|
+| See Forks / create a fork | Admin on this workspace (+ feature available) |
+| Sync / edit mappings | Admin on **both** sides of the edge |
+| Rollback | Admin on the workspace the sync landed in |
+| Disconnect | Admin on **this** side only (you can disconnect even without access to the other workspace) |
+| Open the other workspace | You must be a member of that workspace |
+
+---
+
+## Resource reference
+
+How each resource behaves at **fork** time vs **sync** time. Use this when you are deciding what to select under **Copy resources**, or why Sync is asking you to map something.
+
+### At a glance
+
+| Resource | Fork | Sync |
+|----------|------|------|
+| Deployed workflows | Copied as drafts (unless excluded) | Updated / created / archived (force overwrite) |
+| Undeployed workflows | Not copied | Not synced |
+| [Excluded workflows](#excluded-workflows) | Never | Never — not sent, not overwritten, not archived |
+| Files | Optional copy (default on) | Map or copy |
+| Tables | Optional copy (default on) | Map or copy |
+| Knowledge bases (+ documents) | Optional copy; referenced docs come with the KB | Map or copy; documents follow the KB |
+| Custom tools | Optional copy (default on) | Map or copy |
+| Skills | Optional copy (default on) | Map or copy |
+| External MCP servers | Optional copy (config only; sign-in cleared) | Map or copy (config only; sign-in cleared) |
+| Workflow MCP servers | Optional copy (server shells + attachments when workflows copy) | Kept in sync automatically with the workflows |
+| Deployed chats | Carried with a **new** chat URL | Created on the target if it has no chat yet |
+| Credentials | Never — fields cleared | Map only |
+| Secrets | Values never; `{{KEY}}` names kept | Map key names only |
+| Public API | Child starts private | Flag follows the workflow |
+| Schedules / webhooks / triggers | Not live until you deploy in the child | Follow whatever you deploy on the target |
+| History, API keys, memory, scheduled jobs | Never | Never |
+
+---
+
+### Workflows
+
+Only **deployed** workflows move. Deploy is the commit; sync is the force push/pull of those commits. Workflows marked [excluded](#excluded-workflows) never move in either direction.
+
+| | Behavior |
+|---|----------|
+| **Fork** | Each deployed workflow becomes a **draft** in the child. Run history is not copied. Only folders that contain a copied workflow are kept. |
+| **Sync** | The change list shows what will be updated, created, or archived. The target is overwritten for those workflows. |
+
+**Example:** Parent has `Support triage` deployed and `WIP experiment` as a draft. The fork gets only `Support triage` as a draft. A later push updates the child from the parent’s latest deploy of `Support triage`.
+
+---
+
+### Files
+
+| | Behavior |
+|---|----------|
+| **Fork** | Listed under **Copy resources** (default on). Copies land at the child’s **file root** (original file folders are not rebuilt). Deselect → file fields in workflows clear. |
+| **Sync** | Map to a file that already exists on the target, or copy. Files used by the sync’s workflows default to selected. |
+
+**Example:** A workflow attaches `brand-guide.pdf`. Fork with Files selected → the child has its own copy and the block still points at it.
+
+---
+
+### Tables
+
+| | Behavior |
+|---|----------|
+| **Fork** | Optional copy (default on). Rows may finish copying in the background after the fork is created. Deselect → table fields clear. |
+| **Sync** | Map if both sides should keep pointing at “the same” logical table through the mapping, or copy for an independent dataset on the target. |
+
+**Example:** An enrichment workflow uses a “Leads” table. Copy on fork so the child can experiment without touching production data. On sync, map if you intentionally want both sides aligned to paired tables, or copy a new table when the target should get a fresh clone.
+
+---
+
+### Knowledge bases and documents
+
+| | Behavior |
+|---|----------|
+| **Fork** | Optional copy (default on). Tag definitions come with the knowledge base. Documents that the forked workflows actually reference are included. Deselect → knowledge base / document fields clear. |
+| **Sync** | Map or copy the knowledge base. Documents are not mapped by themselves — they follow the knowledge base (copied with it, or re-picked when you map to an existing one). |
+
+**Example:** An agent searches knowledge base “Product docs.” Fork with that knowledge base selected → the child gets the base, tags, and the documents the agent used. On sync, mapping to the child’s existing “Product docs” means re-picking which document the tool should use.
+
+---
+
+### Custom tools
+
+| | Behavior |
+|---|----------|
+| **Fork** | Optional copy (default on). The tool definition comes along so agent / tool picks keep working. |
+| **Sync** | Map when both sides already maintain the same tool; copy when the target should receive the source’s definition as a new tool. |
+
+**Example:** A `lookup_customer` custom tool used by an agent. Fork with Custom tools selected → the child’s agent still has the tool. On push, a brand-new tool on the child can be copied into the parent if you leave it selected under **Copy resources**.
+
+---
+
+### Skills
+
+| | Behavior |
+|---|----------|
+| **Fork** | Optional copy (default on). Skill content comes along. Links inside the skill to files or other Sim resources are updated when those resources were also copied. Deselect → skill fields on agents clear. |
+| **Sync** | Map or copy, same idea as custom tools. |
+
+**Example:** A “Support tone” skill on an agent. Deselecting it on fork clears the skill on the child’s agent until you attach one again.
+
+---
+
+### External MCP servers
+
+Servers you connect to an external MCP endpoint (not “publish this workflow as MCP”).
+
+| | Behavior |
+|---|----------|
+| **Fork** | Optional copy (default on). **Connection settings** (URL, headers, transport) copy. **Sign-in / OAuth is not copied** — OAuth servers show up disconnected until someone signs in again in the child. Tool picks on MCP and agent blocks follow the new server. |
+| **Sync** | Map or copy under the same rules. Mapping is typical when each workspace has its own server aimed at the same upstream system. |
+
+**Example:** An MCP server for an internal API. After fork, open MCP settings in the child and complete OAuth (or confirm API headers) before those tools will run. On sync, map child ↔ parent servers so tool selections survive push and pull.
+
+---
+
+### Workflow MCP servers
+
+Servers that **publish workflows as MCP tools**.
+
+| | Behavior |
+|---|----------|
+| **Fork** | Optional under **Copy resources**. You get matching server shells in the child. When the workflow was also forked, its tool attachment on that server is carried over. |
+| **Sync** | These are not shown in the mapping list. Attachments stay aligned as you sync — tools are added, updated, or removed to match the source. |
+
+**Example:** Parent exposes `Support triage` on a workflow MCP server. Fork with Workflow MCP servers selected → the child gets a matching server and the attachment to the child’s copy of the workflow.
+
+---
+
+### Deployed chats
+
+| | Behavior |
+|---|----------|
+| **Fork** | Live chat deployments on copied workflows come along with a **new chat URL**. Conversation history is not copied — only the chat setup (including which blocks feed the chat). |
+| **Sync** | If the target workflow has **no** chat yet, the source’s live chat is created there (again with a new URL). Existing chats on the target are left alone. Workflows that are not ready to deploy do not get a chat. |
+
+**Example:** Parent has a public chat on `Support triage`. The fork gets its own chat URL right away. A later push onto a parent workflow that never had a chat can create one there.
+
+---
+
+### Credentials
+
+| | Behavior |
+|---|----------|
+| **Fork** | **Never copied.** Credential fields in workflows are cleared. Connect or pick credentials in the child. |
+| **Sync** | **Map only.** Every credential used by the synced workflows must be mapped to a credential on the target (same kind of integration). Sync stays blocked until that is done. Then re-pick dependents (labels, calendars, channels, …). |
+
+**Example:** A Gmail block using “Support inbox.” Fork clears it. Before the first sync, map it to the child’s “Support inbox” credential and re-pick the label.
+
+---
+
+### Secrets (environment variables)
+
+| | Behavior |
+|---|----------|
+| **Fork** | **Values never leave the source.** Workflow text still contains `{{KEY}}` names. Create matching secrets (or the names you will map to) under the child’s **Secrets**. |
+| **Sync** | Map source key names to target key names. Values stay in each workspace. Unmapped required secrets block Sync. |
+
+**Example:** Workflows use `{{OPENAI_API_KEY}}`. After fork, add that secret in the child (or map `OPENAI_API_KEY` to whatever name the child uses) before runs and syncs succeed.
+
+---
+
+### Public API
+
+| | Behavior |
+|---|----------|
+| **Fork** | Child workflows start **private** — not exposed as public API endpoints, even if the parent was. |
+| **Sync** | The source workflow’s public API setting is carried. Push a public endpoint and the target becomes public too. |
+
+---
+
+### Not carried
+
+These do not move at fork or sync time:
+
+- Undeployed workflows and local drafts
+- Execution / run history
+- Sim API keys
+- Memory stores and scheduled jobs
+- BYOK provider keys
+- Permission groups (the child inherits the organization, but groups are not specially applied by forking)
+
+Schedules, webhooks, and triggers are not live in the child until you **deploy** there — same “deploy = commit” rule.
+
+---
+
+## Edge cases to keep in mind
+
+- **Force overwrite** — Sync does not merge canvas changes. Anything only on the target that conflicts with the source’s deployed workflows can be lost. Use the confirm dialog’s archive list carefully.
+- **Deselect on fork** — Cleared references are intentional. Prefer copying the resource, or plan to reconnect it in the child.
+- **Background copy** — Right after fork, large tables / knowledge bases / files may still be copying. Check **Activity** if something looks empty.
+- **OAuth MCP** — Expect a reconnect in the child (and after a copied server on sync).
+- **Rollback ≠ undo copies** — Workflow versions roll back; copied resources can remain as orphans.
+- **Disconnect is permanent** — You cannot “reconnect” the same edge; you would fork again into a new workspace.
+- **No grandparent sync** — Only the direct parent↔child pair.
+
+---
+
+<FAQ items={[
+  { question: "Why is Sync greyed out?", answer: "Usually a blocking reference, an unmapped credential or secret, or a required dependent field (label, channel, document, …) still empty. Open Blocking sync and the mapping sections — each row explains what to fix. Sync also stays disabled while details are loading or if loading failed (reload the page)." },
+  { question: "Why weren’t my credentials copied into the fork?", answer: "Credentials are never copied, for security. Fields are cleared on fork. On sync you map each source credential to a credential that already exists in the target, then re-pick dependent fields." },
+  { question: "Do secret values get copied?", answer: "No. Only names like {{API_KEY}} appear in workflow text. Create the values under Secrets in each workspace, and map key names on sync if they differ." },
+  { question: "Can I sync with a grandparent or another fork?", answer: "No. Sync only works along a direct parent↔child edge." },
+  { question: "What if I deselect resources when creating a fork?", answer: "References to those resources in the forked workflows are cleared in the child. You will see a warning in the modal before you confirm." },
+  { question: "Is sync a merge?", answer: "No. Deploy is like a commit; sync is a force push or force pull of deployed workflows onto the target. Use Rollback only for the last sync into a workspace, and remember copied resources may remain." },
+  { question: "What happens to chat URLs?", answer: "Deployed chats are carried with a new URL on fork. On sync, a chat is created on the target only if that workflow does not already have one. Existing target chats are not replaced." },
+  { question: "Who can disconnect a fork I cannot open?", answer: "Any admin on your side of the edge. Disconnect does not require access to the other workspace — so you are not stuck if the other side lost membership." },
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments turn Forks on with an environment variable instead of the Enterprise plan.
+
+| Variable | Description |
+|----------|-------------|
+| `FORKING_ENABLED`, `NEXT_PUBLIC_FORKING_ENABLED` | Enables workspace forking when billing is not used as the entitlement gate |
+
+Once enabled, use the same **Settings → Enterprise → Workspace Forks** UI as Sim Cloud. Only workspace admins can manage forks.

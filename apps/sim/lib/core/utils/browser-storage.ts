@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('BrowserStorage')
 
@@ -103,6 +104,7 @@ export const STORAGE_KEYS = {
   LANDING_PAGE_PROMPT: 'sim_landing_page_prompt',
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
   WORKSPACE_RECENCY: 'sim_workspace_recency',
+  MOTHERSHIP_HANDOFF: 'sim_mothership_handoff',
 } as const
 
 export class WorkspaceRecencyStorage {
@@ -294,5 +296,87 @@ export class LandingWorkflowSeedStorage {
 
   static clear(): boolean {
     return BrowserStorage.removeItem(LandingWorkflowSeedStorage.KEY)
+  }
+}
+
+export interface MothershipHandoff {
+  /** The message to auto-send to Chat once the home surface mounts. */
+  message: string
+  /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */
+  contexts?: ChatContext[]
+}
+
+/**
+ * One-shot handoff that seeds an auto-sent Chat (mothership) message when the
+ * user is routed to the workspace home from elsewhere in the app — e.g. the
+ * "Troubleshoot in Chat" action on an errored log, which tags the failed run
+ * and asks Sim to fix it.
+ *
+ * The home surface consumes this exactly once on mount. A short max-age guards
+ * against a stale handoff firing on a later, unrelated visit, and `consume`
+ * always clears the entry so it can never be replayed.
+ */
+export class MothershipHandoffStorage {
+  private static readonly KEY = STORAGE_KEYS.MOTHERSHIP_HANDOFF
+
+  /**
+   * Store a handoff to be auto-sent on the next home-surface mount, scoped to
+   * the workspace it targets so a different workspace never claims it.
+   * @returns True if stored, false when the message or workspace is empty.
+   */
+  static store(handoff: MothershipHandoff, workspaceId: string): boolean {
+    const message = handoff.message.trim()
+    if (!message || !workspaceId) {
+      return false
+    }
+
+    return BrowserStorage.setItem(MothershipHandoffStorage.KEY, {
+      message,
+      contexts: handoff.contexts,
+      workspaceId,
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Retrieve and consume the stored handoff for `workspaceId`. A handoff owned
+   * by a different workspace is left untouched for its owner — its tagged run
+   * only resolves in its own workspace, so misfiring it elsewhere would drop the
+   * context. The owner (and any legacy/corrupt entry) is tombstoned via `clear`
+   * before the validity/expiry checks so it fires at most once and never lingers.
+   * @param maxAge - Maximum age in milliseconds (default: 60 seconds)
+   */
+  static consume(workspaceId: string, maxAge: number = 60 * 1000): MothershipHandoff | null {
+    const data = BrowserStorage.getItem<{
+      message?: string
+      contexts?: ChatContext[]
+      workspaceId?: string
+      timestamp?: number
+    } | null>(MothershipHandoffStorage.KEY, null)
+
+    if (!data) {
+      return null
+    }
+
+    if (data.workspaceId && data.workspaceId !== workspaceId) {
+      return null
+    }
+
+    MothershipHandoffStorage.clear()
+
+    if (
+      !data.workspaceId ||
+      !data.message ||
+      !data.timestamp ||
+      Date.now() - data.timestamp > maxAge
+    ) {
+      return null
+    }
+
+    return { message: data.message, contexts: data.contexts }
+  }
+
+  static clear(): boolean {
+    return BrowserStorage.removeItem(MothershipHandoffStorage.KEY)
   }
 }

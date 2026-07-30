@@ -112,6 +112,7 @@ export interface CodePipelineListPipelineExecutionsResponse extends ToolResponse
       stopTriggerReason: string | undefined
       triggerType: string | undefined
       triggerDetail: string | undefined
+      rollbackTargetPipelineExecutionId: string | undefined
       sourceRevisions: {
         actionName: string
         revisionId: string | undefined
@@ -178,5 +179,110 @@ export interface CodePipelinePutApprovalResultResponse extends ToolResponse {
   output: {
     approvedAt: number | undefined
     status: string
+  }
+}
+
+export interface CodePipelineGetPipelineParams extends CodePipelineConnectionConfig {
+  pipelineName: string
+  version?: number
+}
+
+export interface CodePipelineActionDeclaration {
+  name: string
+  category: string
+  owner: string
+  provider: string
+  version: string
+  runOrder: number | undefined
+  configuration: Record<string, string>
+  inputArtifacts: string[]
+  outputArtifacts: string[]
+}
+
+export interface CodePipelineStageDeclaration {
+  stageName: string
+  actions: CodePipelineActionDeclaration[]
+}
+
+export interface CodePipelineGetPipelineResponse extends ToolResponse {
+  output: {
+    pipelineName: string
+    pipelineArn: string | undefined
+    roleArn: string
+    version: number | undefined
+    pipelineType: string | undefined
+    executionMode: string | undefined
+    artifactStoreType: string | undefined
+    artifactStoreLocation: string | undefined
+    stages: CodePipelineStageDeclaration[]
+    variables: {
+      name: string
+      defaultValue: string | undefined
+      description: string | undefined
+    }[]
+    created: number | undefined
+    updated: number | undefined
+  }
+}
+
+export interface CodePipelineListActionExecutionsParams extends CodePipelineConnectionConfig {
+  pipelineName: string
+  pipelineExecutionId?: string
+  maxResults?: number
+  nextToken?: string
+}
+
+export interface CodePipelineActionExecutionDetail {
+  pipelineExecutionId: string | undefined
+  actionExecutionId: string | undefined
+  pipelineVersion: number | undefined
+  stageName: string | undefined
+  actionName: string | undefined
+  startTime: number | undefined
+  lastUpdateTime: number | undefined
+  updatedBy: string | undefined
+  status: string | undefined
+  externalExecutionId: string | undefined
+  externalExecutionSummary: string | undefined
+  externalExecutionUrl: string | undefined
+  errorCode: string | undefined
+  errorMessage: string | undefined
+}
+
+export interface CodePipelineListActionExecutionsResponse extends ToolResponse {
+  output: {
+    actionExecutionDetails: CodePipelineActionExecutionDetail[]
+    nextToken?: string
+  }
+}
+
+export type CodePipelineTransitionType = 'Inbound' | 'Outbound'
+
+export interface CodePipelineDisableStageTransitionParams extends CodePipelineConnectionConfig {
+  pipelineName: string
+  stageName: string
+  transitionType: CodePipelineTransitionType
+  reason: string
+}
+
+export interface CodePipelineDisableStageTransitionResponse extends ToolResponse {
+  output: {
+    pipelineName: string
+    stageName: string
+    transitionType: CodePipelineTransitionType
+  }
+}
+
+export interface CodePipelineEnableStageTransitionParams extends CodePipelineConnectionConfig {
+  pipelineName: string
+  stageName: string
+  transitionType: CodePipelineTransitionType
+}
+
+export interface CodePipelineEnableStageTransitionResponse extends ToolResponse {
+  output: {
+    pipelineName: string
+    stageName: string
+    transitionType: CodePipelineTransitionType
   }
 }

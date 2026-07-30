@@ -117,7 +117,7 @@ export const outlookPollingHandler: PollingProviderHandler = {
     try {
       logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
 
-      const accessToken = await resolveOAuthCredential(webhookData, 'outlook', requestId, logger)
+      const accessToken = await resolveOAuthCredential(webhookData, 'outlook', requestId)
       const config = getProviderConfig<OutlookWebhookConfig>(webhookData.providerConfig)
       const now = new Date()
 

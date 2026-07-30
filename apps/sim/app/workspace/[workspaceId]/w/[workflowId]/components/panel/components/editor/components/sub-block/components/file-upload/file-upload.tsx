@@ -19,6 +19,7 @@ import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import {
+  useCloudStorageConfigured,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
   workspaceFilesKeys,
@@ -36,12 +37,25 @@ interface FileUploadProps {
   maxSize?: number // in MB
   acceptedTypes?: string // comma separated MIME types
   multiple?: boolean // whether to allow multiple file uploads
+  /**
+   * When true, disable new uploads and show a notice if S3/Blob is not configured
+   * (providers that need a public HTTPS URL Meta can fetch, e.g. Instagram).
+   */
+  requiresCloudStorage?: boolean
   isPreview?: boolean
   previewValue?: any | null
   disabled?: boolean
+  /**
+   * Controlled value. When `onValueChange` is provided the component reads from
+   * this prop and writes through `onValueChange` instead of the subblock store,
+   * letting it be embedded where the value lives outside a subblock (e.g. a
+   * single field inside the input-format editor).
+   */
+  value?: UploadedFile | UploadedFile[] | null
+  onValueChange?: (value: UploadedFile | UploadedFile[] | null) => void
 }
 
-interface UploadedFile {
+export interface UploadedFile {
   name: string
   path: string
   key?: string
@@ -162,12 +176,29 @@ export function FileUpload({
   maxSize = 10, // Default 10MB
   acceptedTypes = '*',
   multiple = false, // Default to single file for backward compatibility
+  requiresCloudStorage = false,
   isPreview = false,
   previewValue,
   disabled = false,
+  value: controlledValue,
+  onValueChange,
 }: FileUploadProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const isControlled = onValueChange !== undefined
+
+  /**
+   * Persists a new value. In controlled mode the caller owns persistence; in
+   * store mode we write through the subblock store and notify collaborators.
+   */
+  const commitValue = (next: UploadedFile | UploadedFile[] | null) => {
+    if (isControlled) {
+      onValueChange(next)
+      return
+    }
+    setStoreValue(next)
+    useWorkflowStore.getState().triggerUpdate()
+  }
   const [modelValue] = useSubBlockValue(blockId, 'model')
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -188,10 +219,19 @@ export function FileUpload({
     refetch: refetchWorkspaceFiles,
   } = useWorkspaceFiles(isPreview ? '' : workspaceId)
 
+  const { data: cloudConfigured, isLoading: loadingCloudStatus } = useCloudStorageConfigured(
+    requiresCloudStorage && !isPreview
+  )
+  // Fail closed: block until the status check succeeds with true. Loading, errors, and
+  // explicit false all leave cloudConfigured !== true (avoid Meta-unfetchable files).
+  const cloudUploadBlocked = requiresCloudStorage && cloudConfigured !== true
+  const showCloudStorageWarning =
+    requiresCloudStorage && !loadingCloudStatus && cloudConfigured !== true
+
   const uploadFileMutation = useUploadWorkspaceFile()
   const queryClient = useQueryClient()
 
-  const value = isPreview ? previewValue : storeValue
+  const value = isControlled ? controlledValue : isPreview ? previewValue : storeValue
 
   const maxSizeInBytes = useMemo(() => {
     const fallback = maxSize * 1024 * 1024
@@ -254,7 +294,7 @@ export function FileUpload({
     e.preventDefault()
     e.stopPropagation()
 
-    if (disabled) return
+    if (disabled || cloudUploadBlocked) return
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -284,7 +324,7 @@ export function FileUpload({
    * Handles file upload when new file(s) are selected
    */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isPreview || disabled) return
+    if (isPreview || disabled || cloudUploadBlocked) return
 
     e.stopPropagation()
 
@@ -413,11 +453,9 @@ export function FileUpload({
 
         const newFiles = Array.from(uniqueFiles.values())
 
-        setStoreValue(newFiles)
-        useWorkflowStore.getState().triggerUpdate()
+        commitValue(newFiles)
       } else {
-        setStoreValue(uploadedFiles[0] || null)
-        useWorkflowStore.getState().triggerUpdate()
+        commitValue(uploadedFiles[0] || null)
       }
     } catch (error) {
       logger.error(getErrorMessage(error, 'Failed to upload file(s)'), activeWorkflowId)
@@ -437,6 +475,8 @@ export function FileUpload({
    * Handle selecting an existing workspace file
    */
   const handleSelectWorkspaceFile = (fileId: string) => {
+    if (cloudUploadBlocked) return
+
     const selectedFile = workspaceFiles.find((f) => f.id === fileId)
     if (!selectedFile) return
 
@@ -459,12 +499,11 @@ export function FileUpload({
       uniqueFiles.set(uploadedFile.path, uploadedFile)
       const newFiles = Array.from(uniqueFiles.values())
 
-      setStoreValue(newFiles)
+      commitValue(newFiles)
     } else {
-      setStoreValue(uploadedFile)
+      commitValue(uploadedFile)
     }
 
-    useWorkflowStore.getState().triggerUpdate()
     logger.info(`Selected workspace file: ${selectedFile.name}`, activeWorkflowId)
   }
 
@@ -501,12 +540,10 @@ export function FileUpload({
       if (multiple) {
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
         const updatedFiles = filesArray.filter((f) => f.path !== file.path)
-        setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
+        commitValue(updatedFiles.length > 0 ? updatedFiles : null)
       } else {
-        setStoreValue(null)
+        commitValue(null)
       }
-
-      useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       logger.error(getErrorMessage(error, 'Failed to remove file'), activeWorkflowId)
     } finally {
@@ -582,35 +619,36 @@ export function FileUpload({
   // Options for multiple file mode (filters out already selected files)
   const comboboxOptions = useMemo(
     () => [
-      { label: 'Upload New File', value: '__upload_new__' },
+      { label: 'Upload New File', value: '__upload_new__', disabled: cloudUploadBlocked },
       ...availableWorkspaceFiles.map((file) => {
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
         return {
           label: file.name,
           value: file.id,
-          disabled: !isAccepted,
+          // When cloud is required, local workspace files are also unpublishable.
+          disabled: !isAccepted || cloudUploadBlocked,
         }
       }),
     ],
-    [availableWorkspaceFiles, acceptedTypes]
+    [availableWorkspaceFiles, acceptedTypes, cloudUploadBlocked]
   )
 
   // Options for single file mode (includes all files, selected one will be highlighted)
   const singleFileOptions = useMemo(
     () => [
-      { label: 'Upload New File', value: '__upload_new__' },
+      { label: 'Upload New File', value: '__upload_new__', disabled: cloudUploadBlocked },
       ...workspaceFiles.map((file) => {
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
         return {
           label: file.name,
           value: file.id,
-          disabled: !isAccepted,
+          disabled: !isAccepted || cloudUploadBlocked,
         }
       }),
     ],
-    [workspaceFiles, acceptedTypes]
+    [workspaceFiles, acceptedTypes, cloudUploadBlocked]
   )
 
   // Find the selected file's workspace ID for highlighting in single file mode
@@ -648,6 +686,7 @@ export function FileUpload({
     setInputValue('')
 
     if (value === '__upload_new__') {
+      if (cloudUploadBlocked) return
       handleOpenFileDialog({
         preventDefault: () => {},
         stopPropagation: () => {},
@@ -668,6 +707,13 @@ export function FileUpload({
         multiple={multiple}
         data-testid='file-input-element'
       />
+
+      {showCloudStorageWarning && (
+        <div className='mb-2 text-muted-foreground text-xs'>
+          Cloud storage (S3 or Blob) is required for file uploads. Configure S3_BUCKET_NAME and
+          AWS_REGION, or Azure Blob env vars.
+        </div>
+      )}
 
       {/* Error message */}
       {uploadError && <div className='mb-2 text-red-600 text-sm'>{uploadError}</div>}

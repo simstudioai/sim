@@ -1379,7 +1379,7 @@ export const ApolloBlockMeta = {
   templates: [
     {
       icon: Users,
-      title: 'Lead enrichment pipeline',
+      title: 'Apollo lead enrichment',
       prompt:
         'Build a workflow that watches my leads table for new entries, enriches each lead with company size, funding, tech stack, and decision-maker contacts using Apollo and web search, then updates the table with the enriched information.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1388,7 +1388,7 @@ export const ApolloBlockMeta = {
     },
     {
       icon: ApolloIcon,
-      title: 'Prospect researcher',
+      title: 'Apollo prospect researcher',
       prompt:
         'Create an agent that takes a company name, deep-researches them across the web and Apollo, finds key decision-makers, recent news, funding rounds, and pain points, then compiles a prospect brief I can review before outreach.',
       modules: ['agent', 'files', 'workflows'],
@@ -1397,7 +1397,7 @@ export const ApolloBlockMeta = {
     },
     {
       icon: ApolloIcon,
-      title: 'ICP account builder',
+      title: 'Apollo ICP account builder',
       prompt:
         'Build a workflow that runs an Apollo organization search for accounts matching my ideal customer profile — industry, headcount, and tech stack — creates each as an Apollo account, and writes the new target list to a table for the SDR team.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1406,7 +1406,7 @@ export const ApolloBlockMeta = {
     },
     {
       icon: Users,
-      title: 'Buying committee mapper',
+      title: 'Apollo buying committee mapper',
       prompt:
         'Create a workflow that takes a target account, runs an Apollo people search across the relevant titles, enriches each contact with verified email and role, and writes a mapped buying committee to a table so reps know exactly who to engage.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1415,7 +1415,7 @@ export const ApolloBlockMeta = {
     },
     {
       icon: ApolloIcon,
-      title: 'Inbound lead enricher to HubSpot',
+      title: 'Apollo enrichment to HubSpot',
       prompt:
         'Build a workflow that on a new inbound signup enriches the person and their company with Apollo, scores fit against my ICP, and creates or updates the matching contact and company in HubSpot with the enriched fields.',
       modules: ['agent', 'workflows'],
@@ -1425,7 +1425,7 @@ export const ApolloBlockMeta = {
     },
     {
       icon: ApolloIcon,
-      title: 'Pipeline opportunity tracker',
+      title: 'Apollo pipeline tracker',
       prompt:
         'Create a scheduled workflow that searches Apollo opportunities by stage, summarizes new and at-risk deals with an agent, logs the snapshot to a pipeline table, and posts a daily deal-movement digest to the sales Slack channel.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1435,7 +1435,7 @@ export const ApolloBlockMeta = {
     },
     {
       icon: Users,
-      title: 'CRM contact freshness sweep',
+      title: 'Apollo contact freshness sweep',
       prompt:
         'Build a scheduled workflow that pulls contacts from my CRM, bulk-enriches them through Apollo to refresh titles, emails, and company data, and bulk-updates the records so the database stays accurate for outbound.',
       modules: ['scheduled', 'agent', 'workflows'],

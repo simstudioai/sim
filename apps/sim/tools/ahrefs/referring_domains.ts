@@ -4,6 +4,8 @@ import type {
 } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
+const SELECT_FIELDS = 'domain,domain_rating,links_to_target,dofollow_links,first_seen,last_seen'
+
 export const referringDomainsTool: ToolConfig<
   AhrefsReferringDomainsParams,
   AhrefsReferringDomainsResponse
@@ -27,25 +29,20 @@ export const referringDomainsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match). Example: "domain"',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains, default), exact (exact URL match). Example: "domain"',
     },
-    date: {
+    history: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+      visibility: 'user-or-llm',
+      description:
+        'Historical scope: "live" (currently live), "all_time" (default, includes lost domains), or "since:YYYY-MM-DD" (domains found since a date).',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return. Example: 50 (default: 100)',
-    },
-    offset: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results to skip for pagination. Example: 100',
+      description: 'Maximum number of results to return. Example: 50 (default: 1000)',
     },
     apiKey: {
       type: 'string',
@@ -59,12 +56,10 @@ export const referringDomainsTool: ToolConfig<
     url: (params) => {
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/refdomains')
       url.searchParams.set('target', params.target)
-      // Date is required - default to today if not provided
-      const date = params.date || new Date().toISOString().split('T')[0]
-      url.searchParams.set('date', date)
+      url.searchParams.set('select', SELECT_FIELDS)
       if (params.mode) url.searchParams.set('mode', params.mode)
+      url.searchParams.set('history', params.history || 'all_time')
       if (params.limit) url.searchParams.set('limit', String(params.limit))
-      if (params.offset) url.searchParams.set('offset', String(params.offset))
       return url.toString()
     },
     method: 'GET',
@@ -81,16 +76,14 @@ export const referringDomainsTool: ToolConfig<
       throw new Error(data.error?.message || data.error || 'Failed to get referring domains')
     }
 
-    const referringDomains = (data.refdomains || data.referring_domains || []).map(
-      (domain: any) => ({
-        domain: domain.domain || domain.refdomain || '',
-        domainRating: domain.domain_rating ?? 0,
-        backlinks: domain.backlinks ?? 0,
-        dofollowBacklinks: domain.dofollow_backlinks ?? domain.dofollow ?? 0,
-        firstSeen: domain.first_seen || '',
-        lastVisited: domain.last_visited || '',
-      })
-    )
+    const referringDomains = (data.refdomains || []).map((domain: any) => ({
+      domain: domain.domain || '',
+      domainRating: domain.domain_rating ?? 0,
+      backlinks: domain.links_to_target ?? 0,
+      dofollowBacklinks: domain.dofollow_links ?? 0,
+      firstSeen: domain.first_seen || '',
+      lastVisited: domain.last_seen ?? null,
+    }))
 
     return {
       success: true,
@@ -111,14 +104,18 @@ export const referringDomainsTool: ToolConfig<
           domainRating: { type: 'number', description: 'Domain Rating of the referring domain' },
           backlinks: {
             type: 'number',
-            description: 'Total number of backlinks from this domain',
+            description: 'Total number of backlinks from this domain to the target',
           },
           dofollowBacklinks: {
             type: 'number',
             description: 'Number of dofollow backlinks from this domain',
           },
           firstSeen: { type: 'string', description: 'When the domain was first seen linking' },
-          lastVisited: { type: 'string', description: 'When the domain was last checked' },
+          lastVisited: {
+            type: 'string',
+            description: 'When the domain was last seen linking (null if never re-crawled)',
+            optional: true,
+          },
         },
       },
     },

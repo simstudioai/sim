@@ -48,6 +48,7 @@ List users in Azure AD (Microsoft Entra ID)
 | `top` | number | No | Maximum number of users to return \(default 100, max 999\) |
 | `filter` | string | No | OData filter expression \(e.g., "department eq \'Sales\'"\) |
 | `search` | string | No | Search string to filter users by displayName or mail |
+| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
 
 #### Output
 
@@ -55,6 +56,7 @@ List users in Azure AD (Microsoft Entra ID)
 | --------- | ---- | ----------- |
 | `users` | array | List of users |
 | `userCount` | number | Number of users returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
 ### `microsoft_ad_get_user`
 
@@ -173,6 +175,7 @@ List groups in Azure AD (Microsoft Entra ID)
 | `top` | number | No | Maximum number of groups to return \(default 100, max 999\) |
 | `filter` | string | No | OData filter expression \(e.g., "securityEnabled eq true"\) |
 | `search` | string | No | Search string to filter groups by displayName or description |
+| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
 
 #### Output
 
@@ -180,6 +183,7 @@ List groups in Azure AD (Microsoft Entra ID)
 | --------- | ---- | ----------- |
 | `groups` | array | List of groups |
 | `groupCount` | number | Number of groups returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
 ### `microsoft_ad_get_group`
 
@@ -221,7 +225,7 @@ Create a new group in Azure AD (Microsoft Entra ID)
 | `mailEnabled` | boolean | Yes | Whether mail is enabled \(true for Microsoft 365 groups\) |
 | `securityEnabled` | boolean | Yes | Whether security is enabled \(true for security groups\) |
 | `groupTypes` | string | No | Group type: "Unified" for Microsoft 365 group, leave empty for security group |
-| `visibility` | string | No | Group visibility: "Private" or "Public" |
+| `visibility` | string | No | Group visibility: "Private" or "Public" \(can be changed later\), or "HiddenMembership" \(Microsoft 365 groups only; can only be set at creation and never changed afterward\) |
 
 #### Output
 
@@ -285,8 +289,9 @@ List members of a group in Azure AD (Microsoft Entra ID)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | string | Yes | Group ID |
+| `groupId` | string | No | Group ID. Not needed when Next Page is provided to fetch a later page. |
 | `top` | number | No | Maximum number of members to return \(default 100, max 999\) |
+| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
 
 #### Output
 
@@ -294,6 +299,7 @@ List members of a group in Azure AD (Microsoft Entra ID)
 | --------- | ---- | ----------- |
 | `members` | array | List of group members |
 | `memberCount` | number | Number of members returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
 ### `microsoft_ad_add_group_member`
 

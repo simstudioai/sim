@@ -403,10 +403,12 @@ async function downloadFileForBase64(fileUrl: string, userId?: string): Promise<
     }
     return Buffer.from(base64Data, 'base64')
   }
-  if (/^https?:\/\//i.test(fileUrl)) {
+  if (/^https?:\/\//i.test(fileUrl) || isInternalFileUrl(fileUrl)) {
     return downloadFileWithTimeout(fileUrl, userId)
   }
-  throw new Error('Unsupported fileUrl scheme: only data: URIs and http(s):// URLs are allowed')
+  throw new Error(
+    'Unsupported fileUrl scheme: only data: URIs, http(s):// URLs, and internal /api/files/serve/ paths are allowed'
+  )
 }
 
 function processOCRContent(result: OCRResult, filename: string): string {
@@ -801,12 +803,17 @@ async function parseWithFileParser(
 
     if (/^data:/i.test(fileUrl)) {
       content = await parseDataURI(fileUrl, filename, mimeType)
-    } else if (/^https?:\/\//i.test(fileUrl)) {
+    } else if (/^https?:\/\//i.test(fileUrl) || isInternalFileUrl(fileUrl)) {
+      // Internal URLs may arrive as an app-relative `/api/files/serve/...` path
+      // (some ingestion callers store the relative path); downloadFileFromUrl
+      // resolves it directly against storage without an absolute origin.
       const result = await parseHttpFile(fileUrl, filename, mimeType, userId)
       content = result.content
       metadata = result.metadata || {}
     } else {
-      throw new Error('Unsupported fileUrl scheme: only data: URIs and http(s):// URLs are allowed')
+      throw new Error(
+        'Unsupported fileUrl scheme: only data: URIs, http(s):// URLs, and internal /api/files/serve/ paths are allowed'
+      )
     }
 
     if (!content.trim()) {

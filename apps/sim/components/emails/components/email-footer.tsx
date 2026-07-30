@@ -37,6 +37,16 @@ export function EmailFooter({
     fontFamily: typography.fontFamily,
   }
 
+  /**
+   * Social icons are linked images. `display: block` removes the 2–3px gap
+   * Outlook adds under inline images, and `border: 0` prevents the blue link
+   * border older Outlook versions draw around linked images.
+   */
+  const socialIconStyle = {
+    display: 'block' as const,
+    border: 0,
+  }
+
   return (
     <Section
       style={{
@@ -77,16 +87,18 @@ export function EmailFooter({
                                 width='20'
                                 height='20'
                                 alt='X'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>
                           <td align='left' style={{ padding: '0 8px' }}>
-                            <Link href={`${baseUrl}/discord`} rel='noopener noreferrer'>
+                            <Link href={`${baseUrl}/linkedin`} rel='noopener noreferrer'>
                               <Img
-                                src={`${baseUrl}/static/discord-icon.png`}
+                                src={`${baseUrl}/static/linkedin-icon.png`}
                                 width='20'
                                 height='20'
-                                alt='Discord'
+                                alt='LinkedIn'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>
@@ -97,6 +109,18 @@ export function EmailFooter({
                                 width='20'
                                 height='20'
                                 alt='GitHub'
+                                style={socialIconStyle}
+                              />
+                            </Link>
+                          </td>
+                          <td align='left' style={{ padding: '0 8px' }}>
+                            <Link href={`${baseUrl}/slack`} rel='noopener noreferrer'>
+                              <Img
+                                src={`${baseUrl}/static/slack-icon.png`}
+                                width='20'
+                                height='20'
+                                alt='Slack'
+                                style={socialIconStyle}
                               />
                             </Link>
                           </td>

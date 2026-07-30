@@ -1,6 +1,14 @@
 import type { NextResponse } from 'next/server'
-import type { RowData, TableDefinition, TableSchema } from '@/lib/table'
-import { rowDataIdToName } from '@/lib/table'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import {
+  validatePredicateShape,
+  validateStoragePredicate,
+} from '@/lib/table/query-builder/validate'
+import { predicateToStorage } from '@/lib/table/select-values'
+import type { Filter } from '@/lib/table/types'
+import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 import { normalizeColumn, rootErrorMessage, rowWriteErrorResponse } from '@/app/api/table/utils'
 import { v2Error } from '@/app/api/v2/lib/response'
 
@@ -15,6 +23,38 @@ import { v2Error } from '@/app/api/v2/lib/response'
 /** ISO-serializes a `Date | string` timestamp from the table service layer. */
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value)
+}
+
+/**
+ * Rollout gate for the whole v2 tables surface (`tables-v2-api` flag).
+ *
+ * **Call this AFTER the authz check, never before.** Ahead of authz it does a
+ * primary-DB read keyed on a caller-supplied `workspaceId`, and the 404-vs-403
+ * split tells an unauthorized caller whether that workspace's org is in the
+ * rollout cohort.
+ */
+export async function v2TablesGateError(
+  userId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const orgId = await getWorkspaceOrganizationId(workspaceId)
+  if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
+  return v2Error('NOT_FOUND', 'Not found')
+}
+
+/**
+ * Resolves a public v2 bulk-op predicate to the storage-id-keyed legacy `Filter`
+ * the row runners consume. The public wire is column-NAME-keyed: shape-check
+ * first (keying-agnostic), translate names → storage ids (including select
+ * operand names → option ids), then validate the RESULT against storage keys —
+ * on a destructive path an unresolved field must 400, not silently match
+ * nothing.
+ */
+export function v2BulkPredicateToFilter(predicate: TablePredicate, schema: TableSchema): Filter {
+  validatePredicateShape(predicate)
+  const translated = predicateToStorage(predicate, schema)
+  validateStoragePredicate(translated, schema.columns)
+  return predicateToFilter(translated)
 }
 
 /**
@@ -44,21 +84,20 @@ export function toApiTable(table: TableDefinition) {
 interface ApiRowInput {
   id: string
   data: RowData
-  position: number
   createdAt: Date | string
   updatedAt: Date | string
 }
 
 /**
- * Normalized public row shape. Callers pass the table's id→name map so `data` is
- * keyed by column name (the public contract). `position` is always included —
- * every v2 row endpoint, including upsert, exposes it.
+ * Normalized public row shape: `{ id, data, createdAt, updatedAt }`, no storage
+ * internals (`position`/`orderKey`/`executions`). Callers pass a
+ * `namedRowMapper(schema.columns)` so `data` is keyed by column NAME and select
+ * cells surface their option NAME rather than the stored option id.
  */
-export function toApiRow(row: ApiRowInput, nameById: Map<string, string>) {
+export function toApiRow(row: ApiRowInput, toNamedRow: (data: RowData) => RowData) {
   return {
     id: row.id,
-    data: rowDataIdToName(row.data, nameById),
-    position: row.position,
+    data: toNamedRow(row.data),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   }

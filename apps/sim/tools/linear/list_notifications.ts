@@ -2,6 +2,7 @@ import type {
   LinearListNotificationsParams,
   LinearListNotificationsResponse,
 } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListNotificationsTool: ToolConfig<
@@ -42,7 +43,7 @@ export const linearListNotificationsTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

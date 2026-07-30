@@ -21,6 +21,7 @@ import {
   checkAccess,
   rootErrorMessage,
   rowWriteErrorResponse,
+  tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
@@ -211,7 +212,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteRow(tableId, rowId, validated.workspaceId, requestId)
+    await deleteRow(table, rowId, requestId)
 
     return NextResponse.json({
       success: true,
@@ -221,6 +222,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
+
     const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {

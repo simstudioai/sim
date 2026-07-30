@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
+import { cn } from '@sim/emcn'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 
 /**
  * URL-encoded SVG used as a mask to carve the bottom-right notch out of the
@@ -72,7 +74,7 @@ export function IntegrationTile({ blockType, icon: Icon, framed = false }: Integ
           className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'
           style={brandBg ? { background: brandBg } : undefined}
         >
-          <Icon className='size-5 text-white' />
+          <Icon className={cn('size-5', getTileIconColorClass(brandBg))} />
         </div>
       </div>
     )
@@ -84,7 +86,7 @@ export function IntegrationTile({ blockType, icon: Icon, framed = false }: Integ
         className='flex size-full items-center justify-center rounded-[9px] border border-[var(--border-1)] bg-[var(--bg)]'
         style={brandBg ? { background: brandBg } : undefined}
       >
-        <Icon className='size-6 text-white' />
+        <Icon className={cn('size-6', getTileIconColorClass(brandBg))} />
       </div>
     </div>
   )

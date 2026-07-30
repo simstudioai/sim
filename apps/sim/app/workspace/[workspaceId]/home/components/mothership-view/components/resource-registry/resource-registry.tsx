@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
+  Cursor,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -21,12 +22,12 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { scheduleKeys } from '@/hooks/queries/schedules'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
@@ -212,6 +213,24 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
+  browser: {
+    type: 'browser',
+    label: 'Browser',
+    icon: Cursor,
+    renderTabIcon: (_resource, className) => (
+      <Cursor className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
+  },
+  terminal: {
+    type: 'terminal',
+    label: 'Terminal',
+    icon: TerminalWindow,
+    renderTabIcon: (_resource, className) => (
+      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -248,6 +267,8 @@ const RESOURCE_INVALIDATORS: Record<
   },
   filefolder: (qc, wId) => {
     qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(wId) })
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })
@@ -265,6 +286,17 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate when one is added.
    */
   integration: () => {},
+  /**
+   * The browser panel hosts the desktop app's natively embedded browser view
+   * (in-memory page state, no server-backed query), so there is nothing to
+   * invalidate.
+   */
+  browser: () => {},
+  /**
+   * The terminal panel is backed by a live PTY in the desktop app, not a
+   * server-backed query, so there is nothing to invalidate.
+   */
+  terminal: () => {},
 }
 
 /**

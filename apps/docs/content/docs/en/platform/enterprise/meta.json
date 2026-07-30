@@ -2,12 +2,17 @@
   "title": "Enterprise",
   "pages": [
     "index",
+    "self-hosted",
     "sso",
+    "verified-domains",
+    "session-policies",
     "access-control",
+    "custom-blocks",
     "whitelabeling",
     "audit-logs",
     "data-retention",
-    "data-drains"
+    "data-drains",
+    "forks"
   ],
   "defaultOpen": false
 }

@@ -36,7 +36,11 @@ export const imapHandler: WebhookProviderHandler = {
     return { input: b }
   },
 
-  async configurePolling({ webhook: webhookData, requestId }: PollingConfigContext) {
+  async configurePolling({
+    webhook: webhookData,
+    requestId,
+    persistProviderConfig,
+  }: PollingConfigContext) {
     logger.info(`[${requestId}] Setting up IMAP polling for webhook ${webhookData.id}`)
 
     try {
@@ -50,23 +54,25 @@ export const imapHandler: WebhookProviderHandler = {
         return false
       }
 
-      await db
-        .update(webhook)
-        .set({
-          providerConfig: {
-            ...providerConfig,
-            port: providerConfig.port || '993',
-            secure: providerConfig.secure !== false,
-            mailbox: providerConfig.mailbox || 'INBOX',
-            searchCriteria: providerConfig.searchCriteria || 'UNSEEN',
-            markAsRead: providerConfig.markAsRead || false,
-            includeAttachments: providerConfig.includeAttachments !== false,
-            lastCheckedTimestamp: now.toISOString(),
-            setupCompleted: true,
-          },
-          updatedAt: now,
-        })
-        .where(eq(webhook.id, webhookData.id as string))
+      const configuredProviderConfig = {
+        ...providerConfig,
+        port: providerConfig.port || '993',
+        secure: providerConfig.secure !== false,
+        mailbox: providerConfig.mailbox || 'INBOX',
+        searchCriteria: providerConfig.searchCriteria || 'UNSEEN',
+        markAsRead: providerConfig.markAsRead || false,
+        includeAttachments: providerConfig.includeAttachments !== false,
+        lastCheckedTimestamp: now.toISOString(),
+        setupCompleted: true,
+      }
+      if (persistProviderConfig) {
+        await persistProviderConfig(configuredProviderConfig)
+      } else {
+        await db
+          .update(webhook)
+          .set({ providerConfig: configuredProviderConfig, updatedAt: now })
+          .where(eq(webhook.id, webhookData.id as string))
+      }
 
       logger.info(
         `[${requestId}] Successfully configured IMAP polling for webhook ${webhookData.id}`

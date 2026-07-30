@@ -56,9 +56,13 @@ import { useWebhookManagement } from '@/hooks/use-webhook-management'
 
 const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
+    // v1 gates on authMethod (raw bot token vs OAuth); v2 has one merged
+    // credential field for actions and customBotCredential for triggers.
     const authMethod = deps.authMethod as string
     const oauthCredential =
-      authMethod === 'bot_token' ? String(deps.botToken ?? '') : String(deps.credential ?? '')
+      authMethod === 'bot_token'
+        ? String(deps.botToken ?? '')
+        : String(deps.credential ?? deps.customBotCredential ?? '')
     return { ...context, oauthCredential }
   },
 }
@@ -904,6 +908,7 @@ function SubBlockComponent({
             acceptedTypes={config.acceptedTypes || '*'}
             multiple={config.multiple === true}
             maxSize={config.maxSize}
+            requiresCloudStorage={config.requiresCloudStorage === true}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}

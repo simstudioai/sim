@@ -3,11 +3,9 @@
  */
 
 import { copilotChats } from '@sim/db/schema'
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 const { mockAppendCopilotChatMessages } = vi.hoisted(() => ({
   mockAppendCopilotChatMessages: vi.fn(),

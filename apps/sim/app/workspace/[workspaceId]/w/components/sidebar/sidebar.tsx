@@ -39,6 +39,7 @@ import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { SlackIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isMacPlatform } from '@/lib/core/utils/platform'
@@ -86,6 +87,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -109,27 +111,33 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+const SLACK_COMMUNITY_URL =
+  'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
 
 export function SidebarTooltip({
   children,
   label,
   enabled,
   side = 'right',
+  shortcut,
 }: {
   children: React.ReactElement
   label: string
   enabled: boolean
   side?: 'right' | 'bottom'
+  shortcut?: string
 }) {
   if (!enabled) return children
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
       <Tooltip.Content side={side}>
-        <p>{label}</p>
+        {shortcut ? <Tooltip.Shortcut keys={shortcut}>{label}</Tooltip.Shortcut> : <p>{label}</p>}
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -354,9 +362,22 @@ interface SidebarProps {
    * so the rail's structure, labels, and width all read a single source.
    */
   isCollapsed: boolean
+  /**
+   * True while the sidebar is rendered as the desktop hover-peek card. The card shows
+   * the expanded layout even though the rail is collapsed, so this overrides
+   * {@link SidebarProps.isCollapsed} below — and separately suppresses the chrome the
+   * card already provides: it sits below the traffic-light lane, and drag-resize would
+   * fight the card's width.
+   */
+  isPeeking?: boolean
 }
 
-export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({
+  isCollapsed: isCollapsedProp,
+  isPeeking = false,
+}: SidebarProps) {
+  /** The peek card always renders the expanded layout, whatever the rail's state. */
+  const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -373,6 +394,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const providers = useProvidersStore((state) => state.providers)
   const providerModelSignature = useMemo(
     () =>
@@ -384,7 +406,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
 
   useEffect(() => {
     initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks, providerModelSignature])
+  }, [initializeSearchData, filterBlocks, providerModelSignature, customBlockOverlayVersion])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
@@ -1070,16 +1092,21 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     fileInputRef.current?.click()
   }
 
+  const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
+
   const handleWorkspaceSwitch = useCallback(
-    async (workspace: Workspace) => {
+    (workspace: Workspace) => {
       if (workspace.id === workspaceId) {
         setIsWorkspaceMenuOpen(false)
         return
       }
-      await switchWorkspace(workspace)
+      // Close the switcher first so the settings discard dialog (if any) is visible.
       setIsWorkspaceMenuOpen(false)
+      requestLeave(() => {
+        void switchWorkspace(workspace)
+      })
     },
-    [workspaceId, switchWorkspace]
+    [workspaceId, switchWorkspace, requestLeave]
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
@@ -1160,6 +1187,11 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
   }, [posthog])
 
+  const handleOpenSlackCommunity = useCallback(() => {
+    window.open(SLACK_COMMUNITY_URL, '_blank', 'noopener,noreferrer')
+    captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
+  }, [posthog])
+
   const handleChatRenameBlur = useCallback(
     () => void chatFlyoutRename.saveRename(),
     [chatFlyoutRename.saveRename]
@@ -1226,6 +1258,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           handleCreateWorkflow()
         },
       },
+      {
+        id: 'toggle-sidebar',
+        handler: () => {
+          toggleCollapsed()
+        },
+      },
     ])
   )
 
@@ -1254,7 +1292,20 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           onClick={handleSidebarClick}
         >
           <div className='flex h-full flex-col'>
-            <div className='flex flex-shrink-0 items-center px-2 pt-3'>
+            {/* The peek card already sits below the lane; reserving it again doubles the offset. */}
+            {!isPeeking && (
+              <div
+                aria-hidden
+                className='desktop-window-drag-region desktop-workspace-window-drag-region h-[var(--desktop-title-bar-height)]'
+              />
+            )}
+            <div
+              className={cn(
+                'relative flex flex-shrink-0 items-center px-2 pt-3',
+                !isPeeking &&
+                  '[[data-sim-desktop-title-bar=inset]_&]:pt-[var(--desktop-title-bar-height)]'
+              )}
+            >
               <WorkspaceHeader
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
@@ -1276,18 +1327,23 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                 isCollapsed={isCollapsed}
                 onExpandSidebar={toggleCollapsed}
               />
-              <SidebarTooltip label='Collapse sidebar' enabled={!isCollapsed} side='bottom'>
+              <SidebarTooltip
+                label='Collapse sidebar'
+                enabled={!isCollapsed}
+                side='bottom'
+                shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+              >
                 <button
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
+                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:hidden',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'
                   tabIndex={isCollapsed ? -1 : undefined}
                 >
-                  <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <PanelLeft className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                 </button>
               </SidebarTooltip>
             </div>
@@ -1649,6 +1705,10 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                         <BookOpen className='h-[14px] w-[14px]' />
                         Docs
                       </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleOpenSlackCommunity}>
+                        <SlackIcon className='size-[14px]' />
+                        Slack Community
+                      </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
                         <HelpCircle className='h-[14px] w-[14px]' />
                         Report an issue
@@ -1715,19 +1775,23 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           </div>
         </aside>
 
-        <div
-          className={cn(
-            'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
-            isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
-          )}
-          onPointerDown={isCollapsed ? undefined : handlePointerDown}
-          onClick={isCollapsed ? toggleCollapsed : undefined}
-          onKeyDown={handleEdgeKeyDown}
-          role={isCollapsed ? 'button' : 'separator'}
-          tabIndex={0}
-          aria-orientation={isCollapsed ? undefined : 'vertical'}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
-        />
+        {/* Not on the peek card: the resize hook writes an inline `--sidebar-width` that
+            out-specifies the `[data-peek]` rule, stranding the card at a stale width. */}
+        {!isPeeking && (
+          <div
+            className={cn(
+              'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
+              isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
+            )}
+            onPointerDown={isCollapsed ? undefined : handlePointerDown}
+            onClick={isCollapsed ? toggleCollapsed : undefined}
+            onKeyDown={handleEdgeKeyDown}
+            role={isCollapsed ? 'button' : 'separator'}
+            tabIndex={0}
+            aria-orientation={isCollapsed ? undefined : 'vertical'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
+          />
+        )}
       </div>
 
       <SearchModal

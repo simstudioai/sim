@@ -11,16 +11,18 @@
  *   - JSON: WorkspaceExportPayload
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder, workspace } from '@sim/db/schema'
+import { folder as folderTable, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1ExportWorkspaceContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { exportWorkspaceToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -28,11 +30,10 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  type FolderExportPayload,
-  parseWorkflowVariables,
-  type WorkflowExportState,
-  type WorkspaceExportPayload,
+import type {
+  FolderExportPayload,
+  WorkflowExportState,
+  WorkspaceExportPayload,
 } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkspaceExportAPI')
@@ -67,8 +68,10 @@ export const GET = withRouteHandler(
 
       const folders = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.workspaceId, workspaceId))
+        .from(folderTable)
+        .where(
+          and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, 'workflow'))
+        )
 
       const workflowExports: Array<{
         workflow: WorkspaceExportPayload['workflows'][number]['workflow']
@@ -124,7 +127,25 @@ export const GET = withRouteHandler(
         `Admin API: Exporting workspace ${workspaceId} with ${workflowExports.length} workflows and ${folderExports.length} folders`
       )
 
+      const auditExport = () =>
+        recordAudit({
+          workspaceId,
+          actorId: 'admin-api',
+          action: AuditAction.WORKSPACE_EXPORTED,
+          resourceType: AuditResourceType.WORKSPACE,
+          resourceId: workspaceId,
+          resourceName: workspaceData.name,
+          description: `Admin API exported workspace "${workspaceData.name}"`,
+          metadata: {
+            format,
+            workflowCount: workflowExports.length,
+            folderCount: folderExports.length,
+          },
+          request,
+        })
+
       if (format === 'json') {
+        auditExport()
         const exportPayload: WorkspaceExportPayload = {
           version: '1.0',
           exportedAt: new Date().toISOString(),
@@ -156,6 +177,7 @@ export const GET = withRouteHandler(
       const sanitizedName = sanitizePathSegment(workspaceData.name)
       const filename = `${sanitizedName}-${new Date().toISOString().split('T')[0]}.zip`
 
+      auditExport()
       return new NextResponse(arrayBuffer, {
         status: 200,
         headers: {

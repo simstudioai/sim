@@ -1,15 +1,17 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateExperimentParams {
   projectId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   name: string
   description?: string
   featureFlagKey: string
   parameters?: string
   filters?: string
-  variants?: string
   startDate?: string
   endDate?: string
 }
@@ -22,7 +24,6 @@ interface Experiment {
   feature_flag: Record<string, any>
   parameters: Record<string, any>
   filters: Record<string, any>
-  variants: Record<string, any>
   start_date: string | null
   end_date: string | null
   created_at: string
@@ -39,6 +40,7 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
   name: 'PostHog Create Experiment',
   description: 'Create a new experiment in PostHog',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -53,6 +55,13 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -61,9 +70,9 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
     },
     name: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Experiment name (optional)',
+      description: 'Experiment name',
     },
     description: {
       type: 'string',
@@ -89,12 +98,6 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
       visibility: 'user-or-llm',
       description: 'Experiment filters as JSON string',
     },
-    variants: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Experiment variants as JSON string',
-    },
     startDate: {
       type: 'string',
       required: false,
@@ -111,7 +114,7 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/experiments/`
     },
     method: 'POST',
@@ -132,24 +135,16 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
       if (params.parameters) {
         try {
           body.parameters = JSON.parse(params.parameters)
-        } catch {
-          body.parameters = {}
+        } catch (error) {
+          throw new Error(`Invalid parameters JSON: ${getErrorMessage(error)}`)
         }
       }
 
       if (params.filters) {
         try {
           body.filters = JSON.parse(params.filters)
-        } catch {
-          body.filters = {}
-        }
-      }
-
-      if (params.variants) {
-        try {
-          body.variants = JSON.parse(params.variants)
-        } catch {
-          body.variants = {}
+        } catch (error) {
+          throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
         }
       }
 
@@ -185,7 +180,6 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
         feature_flag: { type: 'object', description: 'Feature flag details' },
         parameters: { type: 'object', description: 'Experiment parameters' },
         filters: { type: 'object', description: 'Experiment filters' },
-        variants: { type: 'object', description: 'Experiment variants' },
         start_date: { type: 'string', description: 'Start date' },
         end_date: { type: 'string', description: 'End date' },
         created_at: { type: 'string', description: 'Creation timestamp' },

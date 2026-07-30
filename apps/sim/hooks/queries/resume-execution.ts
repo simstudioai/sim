@@ -7,6 +7,8 @@ import {
 } from '@/lib/api/contracts/workflows'
 import type { ResumeStatus } from '@/executor/types'
 
+export const RESUME_EXECUTION_DETAIL_STALE_TIME = 30 * 1000
+
 export const resumeKeys = {
   all: ['resume-execution'] as const,
   executions: () => [...resumeKeys.all, 'execution'] as const,
@@ -44,6 +46,7 @@ export interface PausePointWithQueue {
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
+  automaticResumeWaitingReason?: string
   snapshotReady: boolean
   resumeLinks?: ResumeLinks
   queuePosition?: number | null
@@ -120,7 +123,7 @@ export function useResumeExecutionDetail(
       return raw as unknown as PausedExecutionDetail
     },
     enabled: Boolean(workflowId && executionId),
-    staleTime: 30 * 1000,
+    staleTime: RESUME_EXECUTION_DETAIL_STALE_TIME,
     initialData,
   })
 }

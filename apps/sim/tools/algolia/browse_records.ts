@@ -62,11 +62,36 @@ export const browseRecordsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Cursor from a previous browse response for pagination',
     },
+    aroundLatLng: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Coordinates for geo-search (e.g., "40.71,-74.01")',
+    },
+    aroundRadius: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum radius in meters for geo-search, or "all" for unlimited',
+    },
+    insideBoundingBox: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Bounding box coordinates as [[lat1, lng1, lat2, lng2]] for geo-search',
+    },
+    insidePolygon: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Polygon coordinates as [[lat1, lng1, lat2, lng2, lat3, lng3, ...]] for geo-search',
+    },
   },
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/browse`,
+      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/browse`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
@@ -86,6 +111,22 @@ export const browseRecordsTool: ToolConfig<
           .map((a: string) => a.trim())
       }
       if (params.hitsPerPage !== undefined) body.hitsPerPage = Number(params.hitsPerPage)
+      if (params.aroundLatLng) body.aroundLatLng = params.aroundLatLng
+      if (params.aroundRadius !== undefined) {
+        body.aroundRadius = params.aroundRadius === 'all' ? 'all' : Number(params.aroundRadius)
+      }
+      if (params.insideBoundingBox) {
+        body.insideBoundingBox =
+          typeof params.insideBoundingBox === 'string'
+            ? JSON.parse(params.insideBoundingBox)
+            : params.insideBoundingBox
+      }
+      if (params.insidePolygon) {
+        body.insidePolygon =
+          typeof params.insidePolygon === 'string'
+            ? JSON.parse(params.insidePolygon)
+            : params.insidePolygon
+      }
       return body
     },
   },

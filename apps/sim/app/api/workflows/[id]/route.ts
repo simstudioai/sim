@@ -300,8 +300,22 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const hasNonLockUpdate = Object.keys(updates).some((key) => key !== 'locked')
-      if (hasNonLockUpdate) {
+      if (updates.forkSyncExcluded !== undefined && authorization.workspacePermission !== 'admin') {
+        logger.warn(
+          `[${requestId}] User ${userId} denied permission to change sync exclusion for workflow ${workflowId}`
+        )
+        return NextResponse.json(
+          { error: 'Admin access required to exclude workflows from sync' },
+          { status: 403 }
+        )
+      }
+
+      // Policy flags (lock, sync exclusion) don't modify content, so a locked workflow
+      // may still have them toggled; everything else requires mutability.
+      const hasNonPolicyUpdate = Object.keys(updates).some(
+        (key) => key !== 'locked' && key !== 'forkSyncExcluded'
+      )
+      if (hasNonPolicyUpdate) {
         await assertWorkflowMutable(workflowId)
       }
       if (updates.folderId !== undefined) {
@@ -319,6 +333,8 @@ export const PUT = withRouteHandler(
         workspaceId: workflowData.workspaceId,
         currentName: workflowData.name,
         currentFolderId: workflowData.folderId,
+        currentLocked: workflowData.locked,
+        currentForkSyncExcluded: workflowData.forkSyncExcluded,
         ...updates,
         requestId,
       })

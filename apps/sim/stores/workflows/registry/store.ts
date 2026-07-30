@@ -114,6 +114,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               apiKey: prev?.apiKey ?? null,
               needsRedeployment: prev?.needsRedeployment ?? false,
               isPublicApi: workflowData.isPublicApi,
+              /**
+               * Envelope hydration has no lifecycle data; keep the cached
+               * attempt so in-flight status polling is not interrupted.
+               */
+              warnings: prev?.warnings,
+              activeDeployment: prev?.activeDeployment ?? null,
+              latestDeploymentAttempt: prev?.latestDeploymentAttempt ?? null,
             })
           )
 

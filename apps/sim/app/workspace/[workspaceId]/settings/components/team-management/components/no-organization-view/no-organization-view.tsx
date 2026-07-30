@@ -15,7 +15,6 @@ interface NoOrganizationViewProps {
   hasTeamPlan: boolean
   hasEnterprisePlan: boolean
   orgName: string
-  setOrgName: (name: string) => void
   orgSlug: string
   setOrgSlug: (slug: string) => void
   onOrgNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -30,7 +29,6 @@ export function NoOrganizationView({
   hasTeamPlan,
   hasEnterprisePlan,
   orgName,
-  setOrgName,
   orgSlug,
   setOrgSlug,
   onOrgNameChange,
@@ -46,7 +44,6 @@ export function NoOrganizationView({
     return (
       <div>
         <div className='flex flex-col gap-5'>
-          {/* Header - matching settings page style */}
           <div>
             <h4 className='font-medium text-[var(--text-primary)] text-base'>
               Create Your Team Workspace
@@ -57,21 +54,20 @@ export function NoOrganizationView({
             </p>
           </div>
 
-          {/* Form fields - clean layout without card */}
           <div className='flex flex-col gap-4.5'>
-            {/* Hidden decoy field to prevent browser autofill */}
+            {/* Decoy field: absorbs browser autofill so it can't target the real inputs. */}
             <input
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
-              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              className='-left-[9999px] pointer-events-none absolute opacity-0'
               tabIndex={-1}
               readOnly
+              aria-hidden='true'
+              aria-label='Ignore this field'
             />
             <div>
-              <Label htmlFor='team-name-field' className='font-medium text-small'>
-                Team Name
-              </Label>
+              <Label htmlFor='team-name-field'>Team Name</Label>
               <ChipInput
                 id='team-name-field'
                 value={orgName}
@@ -88,9 +84,7 @@ export function NoOrganizationView({
             </div>
 
             <div>
-              <Label htmlFor='orgSlug' className='font-medium text-small'>
-                Team URL
-              </Label>
+              <Label htmlFor='orgSlug'>Team URL</Label>
               <div className='mt-1 flex items-center'>
                 <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-3 py-1.5 text-[var(--text-muted)] text-small'>
                   sim.ai/team/
@@ -131,14 +125,16 @@ export function NoOrganizationView({
             Create Team Organization
           </ChipModalHeader>
           <ChipModalBody>
-            {/* Hidden decoy field to prevent browser autofill */}
+            {/* Decoy field: absorbs browser autofill so it can't target the real inputs. */}
             <input
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
-              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              className='-left-[9999px] pointer-events-none absolute opacity-0'
               tabIndex={-1}
               readOnly
+              aria-hidden='true'
+              aria-label='Ignore this field'
             />
             <ChipModalField
               type='input'

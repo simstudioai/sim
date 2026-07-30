@@ -46,11 +46,17 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
       visibility: 'user-or-llm',
       description: 'Number of results to return (default: 100, max: 100)',
     },
+    startCursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor returned by a previous request',
+    },
   },
 
   request: {
     url: (params: NotionQueryDatabaseParams) => {
-      return `https://api.notion.com/v1/databases/${params.databaseId}/query`
+      return `https://api.notion.com/v1/databases/${params.databaseId.trim()}/query`
     },
     method: 'POST',
     headers: (params: NotionQueryDatabaseParams) => {
@@ -88,6 +94,11 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
       // Add page size if provided
       if (params.pageSize) {
         body.page_size = Math.min(Number(params.pageSize), 100)
+      }
+
+      // Add pagination cursor if provided
+      if (params.startCursor) {
+        body.start_cursor = params.startCursor.trim()
       }
 
       return body

@@ -4,6 +4,35 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { BrexResponse } from '@/tools/brex/types'
 
+/** Coerces a required money-amount field to a finite number, throwing on blank/non-numeric input rather than silently sending 0 or NaN to Brex. */
+function toRequiredAmount(value: unknown, fieldLabel: string): number {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) {
+    throw new Error(`${fieldLabel} must be a valid number`)
+  }
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldLabel} must be a valid number`)
+  }
+  return parsed
+}
+
+/** Coerces an optional numeric field to a finite number, throwing on non-numeric input instead of silently forwarding NaN. Preserves explicit 0. */
+function toOptionalFiniteNumber(value: unknown, fieldLabel: string): number | undefined {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldLabel} must be a valid number`)
+  }
+  return parsed
+}
+
+/** Normalizes a boolean field that may arrive as a string (e.g. from a dynamic <Block.output> reference) instead of an actual boolean. */
+function toOptionalBoolean(value: unknown): boolean | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'boolean') return value
+  return String(value).toLowerCase() === 'true'
+}
+
 const PAGINATED_OPERATIONS = new Set([
   'list_expenses',
   'list_card_transactions',
@@ -66,13 +95,19 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
         // Budgets
         { label: 'List Budgets', id: 'list_budgets' },
         { label: 'Get Budget', id: 'get_budget' },
+        { label: 'Create Budget', id: 'create_budget' },
+        { label: 'Archive Budget', id: 'archive_budget' },
         { label: 'List Spend Limits', id: 'list_spend_limits' },
         { label: 'Get Spend Limit', id: 'get_spend_limit' },
+        { label: 'Create Spend Limit', id: 'create_spend_limit' },
         // Payments
         { label: 'List Vendors', id: 'list_vendors' },
         { label: 'Get Vendor', id: 'get_vendor' },
+        { label: 'Create Vendor', id: 'create_vendor' },
+        { label: 'Update Vendor', id: 'update_vendor' },
         { label: 'List Transfers', id: 'list_transfers' },
         { label: 'Get Transfer', id: 'get_transfer' },
+        { label: 'Create Transfer', id: 'create_transfer' },
       ],
       value: () => 'list_expenses',
     },
@@ -142,11 +177,16 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'ID of the cash account (Get Cash Account defaults to primary)',
       condition: {
         field: 'operation',
-        value: ['list_cash_transactions', 'list_cash_statements', 'get_cash_account'],
+        value: [
+          'list_cash_transactions',
+          'list_cash_statements',
+          'get_cash_account',
+          'create_transfer',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['list_cash_transactions', 'list_cash_statements'],
+        value: ['list_cash_transactions', 'list_cash_statements', 'create_transfer'],
       },
     },
     {
@@ -162,8 +202,8 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       title: 'Budget ID',
       type: 'short-input',
       placeholder: 'ID of the budget',
-      condition: { field: 'operation', value: 'get_budget' },
-      required: { field: 'operation', value: 'get_budget' },
+      condition: { field: 'operation', value: ['get_budget', 'archive_budget'] },
+      required: { field: 'operation', value: ['get_budget', 'archive_budget'] },
     },
     {
       id: 'spendLimitId',
@@ -178,8 +218,8 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       title: 'Vendor ID',
       type: 'short-input',
       placeholder: 'ID of the vendor',
-      condition: { field: 'operation', value: 'get_vendor' },
-      required: { field: 'operation', value: 'get_vendor' },
+      condition: { field: 'operation', value: ['get_vendor', 'update_vendor'] },
+      required: { field: 'operation', value: ['get_vendor', 'update_vendor'] },
     },
     {
       id: 'transferId',
@@ -188,6 +228,305 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'ID of the transfer',
       condition: { field: 'operation', value: 'get_transfer' },
       required: { field: 'operation', value: 'get_transfer' },
+    },
+    {
+      id: 'companyName',
+      title: 'Company Name',
+      type: 'short-input',
+      placeholder: 'Name for the vendor (must be unique)',
+      condition: { field: 'operation', value: ['create_vendor', 'update_vendor'] },
+      required: { field: 'operation', value: 'create_vendor' },
+    },
+    {
+      id: 'vendorEmail',
+      title: 'Email',
+      type: 'short-input',
+      placeholder: 'Email address for the vendor',
+      condition: { field: 'operation', value: ['create_vendor', 'update_vendor'] },
+    },
+    {
+      id: 'vendorPhone',
+      title: 'Phone',
+      type: 'short-input',
+      placeholder: 'Phone number for the vendor',
+      condition: { field: 'operation', value: ['create_vendor', 'update_vendor'] },
+    },
+    {
+      id: 'vendorPaymentInstrumentId',
+      title: 'Vendor Payment Instrument ID',
+      type: 'short-input',
+      placeholder:
+        "ID of the vendor's payment instrument to pay (from the vendor's payment accounts)",
+      condition: { field: 'operation', value: 'create_transfer' },
+      required: { field: 'operation', value: 'create_transfer' },
+    },
+    {
+      id: 'amount',
+      title: 'Amount',
+      type: 'short-input',
+      placeholder: 'Amount in the smallest unit of the currency (e.g., cents for USD)',
+      condition: { field: 'operation', value: ['create_transfer', 'create_budget'] },
+      required: { field: 'operation', value: ['create_transfer', 'create_budget'] },
+    },
+    {
+      id: 'currency',
+      title: 'Currency',
+      type: 'short-input',
+      placeholder: 'ISO 4217 currency code (defaults to USD)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['create_transfer', 'create_budget', 'create_spend_limit'],
+      },
+    },
+    {
+      id: 'description',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Description of the transfer, budget, or spend limit',
+      condition: {
+        field: 'operation',
+        value: ['create_transfer', 'create_budget', 'create_spend_limit'],
+      },
+      required: { field: 'operation', value: ['create_transfer', 'create_budget'] },
+    },
+    {
+      id: 'externalMemo',
+      title: 'External Memo',
+      type: 'short-input',
+      placeholder: 'Memo shown to the recipient (max 90 chars for ACH/Wire, 40 for Cheque)',
+      condition: { field: 'operation', value: 'create_transfer' },
+      required: { field: 'operation', value: 'create_transfer' },
+    },
+    {
+      id: 'approvalType',
+      title: 'Approval Type',
+      type: 'dropdown',
+      options: [{ label: 'Manual approval required', id: 'MANUAL' }],
+      placeholder: 'Default policy applies if left blank',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_transfer' },
+    },
+    {
+      id: 'isPproEnabled',
+      title: 'Enable Principal Protection (PPRO)',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_transfer' },
+    },
+    {
+      id: 'resourceName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Name for the budget or spend limit',
+      condition: { field: 'operation', value: ['create_budget', 'create_spend_limit'] },
+      required: { field: 'operation', value: ['create_budget', 'create_spend_limit'] },
+    },
+    {
+      id: 'parentBudgetId',
+      title: 'Parent Budget ID',
+      type: 'short-input',
+      placeholder: 'ID of the parent budget',
+      condition: { field: 'operation', value: ['create_budget', 'create_spend_limit'] },
+      required: { field: 'operation', value: 'create_budget' },
+    },
+    {
+      id: 'periodRecurrenceType',
+      title: 'Period Recurrence',
+      type: 'dropdown',
+      options: [
+        { label: 'Weekly', id: 'WEEKLY' },
+        { label: 'Monthly', id: 'MONTHLY' },
+        { label: 'Quarterly', id: 'QUARTERLY' },
+        { label: 'Yearly', id: 'YEARLY' },
+        { label: 'One-time', id: 'ONE_TIME' },
+      ],
+      condition: { field: 'operation', value: 'create_budget' },
+      required: { field: 'operation', value: 'create_budget' },
+    },
+    {
+      id: 'startDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'Date the budget/spend limit should start counting (YYYY-MM-DD)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_budget', 'create_spend_limit'] },
+    },
+    {
+      id: 'endDate',
+      title: 'End Date',
+      type: 'short-input',
+      placeholder: 'Date the budget/spend limit should stop counting (YYYY-MM-DD)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_budget', 'create_spend_limit'] },
+    },
+    {
+      id: 'ownerUserIds',
+      title: 'Owner User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs of the budget/spend limit owners',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_budget', 'create_spend_limit'] },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex user IDs to set as owners based on the description.\n\nReturn ONLY the comma-separated user IDs - no explanations, no extra text.',
+        placeholder: 'Describe which users should own this budget/spend limit...',
+      },
+    },
+    {
+      id: 'spendLimitPeriodRecurrenceType',
+      title: 'Period Recurrence',
+      type: 'dropdown',
+      options: [
+        { label: 'Per week', id: 'PER_WEEK' },
+        { label: 'Per month', id: 'PER_MONTH' },
+        { label: 'Per quarter', id: 'PER_QUARTER' },
+        { label: 'Per year', id: 'PER_YEAR' },
+        { label: 'One-time', id: 'ONE_TIME' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'spendType',
+      title: 'Spend Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Budget-provisioned cards only', id: 'BUDGET_PROVISIONED_CARDS_ONLY' },
+        {
+          label: 'Non-budget-provisioned cards allowed',
+          id: 'NON_BUDGET_PROVISIONED_CARDS_ALLOWED',
+        },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'expenseVisibility',
+      title: 'Expense Visibility',
+      type: 'dropdown',
+      options: [
+        { label: 'Shared with all members', id: 'SHARED' },
+        { label: 'Private', id: 'PRIVATE' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'authorizationVisibility',
+      title: 'Authorization Visibility',
+      type: 'dropdown',
+      options: [
+        { label: 'Public to all members', id: 'PUBLIC' },
+        { label: 'Private to controllers/owners', id: 'PRIVATE' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'limitIncreaseSetting',
+      title: 'Limit Increase Requests',
+      type: 'dropdown',
+      options: [
+        { label: 'Enabled', id: 'ENABLED' },
+        { label: 'Disabled', id: 'DISABLED' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'autoTransferCardsSetting',
+      title: 'Auto Transfer Cards',
+      type: 'dropdown',
+      options: [
+        { label: 'Disabled', id: 'DISABLED' },
+        { label: 'Enabled', id: 'ENABLED' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'autoCreateLimitCardsSetting',
+      title: 'Auto Create Limit Cards',
+      type: 'dropdown',
+      options: [
+        { label: 'Disabled', id: 'DISABLED' },
+        { label: 'All members', id: 'ALL_MEMBERS' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'expensePolicyId',
+      title: 'Expense Policy ID',
+      type: 'short-input',
+      placeholder: 'ID of the expense policy for this spend limit',
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'baseLimitAmount',
+      title: 'Base Limit Amount',
+      type: 'short-input',
+      placeholder: 'Base limit amount in the smallest unit of the currency (e.g., cents for USD)',
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'authorizationType',
+      title: 'Authorization Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Hard (declines over available balance)', id: 'HARD' },
+        { label: 'Soft', id: 'SOFT' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'rolloverRefreshRate',
+      title: 'Rollover Refresh Rate',
+      type: 'dropdown',
+      options: [
+        { label: 'Off', id: 'OFF' },
+        { label: 'Never', id: 'NEVER' },
+        { label: 'Per month', id: 'PER_MONTH' },
+        { label: 'Per quarter', id: 'PER_QUARTER' },
+        { label: 'Per year', id: 'PER_YEAR' },
+      ],
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      required: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'limitBufferPercentage',
+      title: 'Limit Buffer Percentage',
+      type: 'short-input',
+      placeholder: 'Flexible buffer on the limit as a 0-100 percentage',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'transactionLimitAmount',
+      title: 'Transaction Limit Amount',
+      type: 'short-input',
+      placeholder: 'Per-transaction limit in the smallest unit of the currency',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_spend_limit' },
+    },
+    {
+      id: 'spendLimitMemberUserIds',
+      title: 'Member User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs of the spend limit members',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_spend_limit' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex user IDs to set as spend limit members based on the description.\n\nReturn ONLY the comma-separated user IDs - no explanations, no extra text.',
+        placeholder: 'Describe which users should be members of this spend limit...',
+      },
     },
     {
       id: 'email',
@@ -215,6 +554,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'Comma-separated user IDs to filter by',
       mode: 'advanced',
       condition: { field: 'operation', value: ['list_expenses', 'list_card_transactions'] },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex user IDs to filter by based on the description.\n\nReturn ONLY the comma-separated user IDs - no explanations, no extra text.',
+        placeholder: 'Describe which users to include...',
+      },
     },
     {
       id: 'statuses',
@@ -223,6 +568,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'e.g., APPROVED, SETTLED (comma-separated)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_expenses' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex expense statuses to filter by.\n\nValid statuses: DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\n\nExamples:\n- "only settled expenses" -> SETTLED\n- "approved or settled" -> APPROVED,SETTLED\n- "expenses awaiting review" -> DRAFT,SUBMITTED\n\nReturn ONLY the comma-separated status values - no explanations, no extra text.',
+        placeholder: 'Describe which expense statuses to include...',
+      },
     },
     {
       id: 'paymentStatuses',
@@ -231,6 +582,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'e.g., CLEARED, REFUNDED (comma-separated)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_expenses' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex expense payment statuses to filter by.\n\nValid statuses: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\n\nExamples:\n- "only cleared payments" -> CLEARED\n- "refunded or refunding" -> REFUNDED,REFUNDING\n\nReturn ONLY the comma-separated status values - no explanations, no extra text.',
+        placeholder: 'Describe which payment statuses to include...',
+      },
     },
     {
       id: 'purchasedAtStart',
@@ -284,6 +641,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'Comma-separated user IDs to filter spend limits by member',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_spend_limits' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex user IDs to filter spend limits by member based on the description.\n\nReturn ONLY the comma-separated user IDs - no explanations, no extra text.',
+        placeholder: 'Describe which spend limit members to include...',
+      },
     },
     {
       id: 'cursor',
@@ -364,12 +727,18 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       'brex_get_company',
       'brex_list_budgets',
       'brex_get_budget',
+      'brex_create_budget',
+      'brex_archive_budget',
       'brex_list_spend_limits',
       'brex_get_spend_limit',
+      'brex_create_spend_limit',
       'brex_list_vendors',
       'brex_get_vendor',
+      'brex_create_vendor',
+      'brex_update_vendor',
       'brex_list_transfers',
       'brex_get_transfer',
+      'brex_create_transfer',
     ],
     config: {
       tool: (params) => `brex_${params.operation}`,
@@ -435,15 +804,88 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
           case 'get_budget':
             result.budgetId = params.budgetId
             break
+          case 'create_budget': {
+            result.name = params.resourceName
+            result.description = params.description
+            result.parentBudgetId = params.parentBudgetId
+            result.periodRecurrenceType = params.periodRecurrenceType
+            result.amount = toRequiredAmount(params.amount, 'Amount')
+            if (params.currency) result.currency = params.currency
+            if (params.ownerUserIds) result.ownerUserIds = params.ownerUserIds
+            if (params.startDate) result.startDate = params.startDate
+            if (params.endDate) result.endDate = params.endDate
+            break
+          }
+          case 'archive_budget':
+            result.budgetId = params.budgetId
+            break
           case 'get_spend_limit':
             result.spendLimitId = params.spendLimitId
             break
+          case 'create_spend_limit': {
+            result.name = params.resourceName
+            result.periodRecurrenceType = params.spendLimitPeriodRecurrenceType
+            result.spendType = params.spendType
+            result.expenseVisibility = params.expenseVisibility
+            result.authorizationVisibility = params.authorizationVisibility
+            result.limitIncreaseSetting = params.limitIncreaseSetting
+            result.autoTransferCardsSetting = params.autoTransferCardsSetting
+            result.autoCreateLimitCardsSetting = params.autoCreateLimitCardsSetting
+            result.expensePolicyId = params.expensePolicyId
+            result.baseLimitAmount = toRequiredAmount(params.baseLimitAmount, 'Base limit amount')
+            if (params.currency) result.currency = params.currency
+            result.authorizationType = params.authorizationType
+            result.rolloverRefreshRate = params.rolloverRefreshRate
+            const limitBufferPercentage = toOptionalFiniteNumber(
+              params.limitBufferPercentage,
+              'Limit buffer percentage'
+            )
+            if (limitBufferPercentage !== undefined)
+              result.limitBufferPercentage = limitBufferPercentage
+            if (params.description) result.description = params.description
+            if (params.parentBudgetId) result.parentBudgetId = params.parentBudgetId
+            if (params.startDate) result.startDate = params.startDate
+            if (params.endDate) result.endDate = params.endDate
+            const transactionLimitAmount = toOptionalFiniteNumber(
+              params.transactionLimitAmount,
+              'Transaction limit amount'
+            )
+            if (transactionLimitAmount !== undefined)
+              result.transactionLimitAmount = transactionLimitAmount
+            if (params.ownerUserIds) result.ownerUserIds = params.ownerUserIds
+            if (params.spendLimitMemberUserIds)
+              result.memberUserIds = params.spendLimitMemberUserIds
+            break
+          }
           case 'get_vendor':
             result.vendorId = params.vendorId
+            break
+          case 'create_vendor':
+            result.companyName = params.companyName
+            if (params.vendorEmail) result.email = params.vendorEmail
+            if (params.vendorPhone) result.phone = params.vendorPhone
+            break
+          case 'update_vendor':
+            result.vendorId = params.vendorId
+            if (params.companyName) result.companyName = params.companyName
+            if (params.vendorEmail) result.email = params.vendorEmail
+            if (params.vendorPhone) result.phone = params.vendorPhone
             break
           case 'get_transfer':
             result.transferId = params.transferId
             break
+          case 'create_transfer': {
+            result.cashAccountId = params.accountId
+            result.vendorPaymentInstrumentId = params.vendorPaymentInstrumentId
+            result.amount = toRequiredAmount(params.amount, 'Amount')
+            if (params.currency) result.currency = params.currency
+            result.description = params.description
+            result.externalMemo = params.externalMemo
+            if (params.approvalType) result.approvalType = params.approvalType
+            const pproEnabled = toOptionalBoolean(params.isPproEnabled)
+            if (pproEnabled !== undefined) result.isPproEnabled = pproEnabled
+            break
+          }
           default:
             break
         }
@@ -484,6 +926,76 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     },
     cursor: { type: 'string', description: 'Pagination cursor' },
     limit: { type: 'string', description: 'Number of results to return' },
+    companyName: { type: 'string', description: 'Vendor company name' },
+    vendorEmail: { type: 'string', description: 'Vendor email address' },
+    vendorPhone: { type: 'string', description: 'Vendor phone number' },
+    vendorPaymentInstrumentId: {
+      type: 'string',
+      description: "Vendor's payment instrument ID for the transfer counterparty",
+    },
+    amount: { type: 'string', description: 'Amount in the smallest unit of the currency' },
+    currency: { type: 'string', description: 'ISO 4217 currency code' },
+    description: {
+      type: 'string',
+      description: 'Description of the transfer, budget, or spend limit',
+    },
+    externalMemo: { type: 'string', description: 'External memo shown to the transfer recipient' },
+    approvalType: { type: 'string', description: 'Transfer approval type (MANUAL)' },
+    isPproEnabled: {
+      type: 'boolean',
+      description: 'Whether to enable Principal Protection (PPRO) on the transfer',
+    },
+    resourceName: { type: 'string', description: 'Name for the budget or spend limit' },
+    parentBudgetId: { type: 'string', description: 'Parent budget ID' },
+    periodRecurrenceType: {
+      type: 'string',
+      description: 'Budget period recurrence (WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME)',
+    },
+    startDate: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
+    endDate: { type: 'string', description: 'End date (YYYY-MM-DD)' },
+    ownerUserIds: { type: 'string', description: 'Comma-separated owner user IDs' },
+    spendLimitPeriodRecurrenceType: {
+      type: 'string',
+      description:
+        'Spend limit period recurrence (PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME)',
+    },
+    spendType: { type: 'string', description: 'Spend limit spend type' },
+    expenseVisibility: {
+      type: 'string',
+      description: 'Spend limit expense visibility (SHARED, PRIVATE)',
+    },
+    authorizationVisibility: {
+      type: 'string',
+      description: 'Spend limit authorization visibility (PUBLIC, PRIVATE)',
+    },
+    limitIncreaseSetting: {
+      type: 'string',
+      description: 'Whether members can request limit increases',
+    },
+    autoTransferCardsSetting: {
+      type: 'string',
+      description: 'Auto transfer setting for virtual cards',
+    },
+    autoCreateLimitCardsSetting: {
+      type: 'string',
+      description: 'Auto limit card creation setting',
+    },
+    expensePolicyId: { type: 'string', description: 'Expense policy ID for the spend limit' },
+    baseLimitAmount: {
+      type: 'string',
+      description: 'Base spend limit amount before increases/rollovers',
+    },
+    authorizationType: {
+      type: 'string',
+      description: 'Spend limit authorization type (HARD, SOFT)',
+    },
+    rolloverRefreshRate: { type: 'string', description: 'Spend limit rollover refresh rate' },
+    limitBufferPercentage: { type: 'string', description: 'Flexible buffer percentage (0-100)' },
+    transactionLimitAmount: { type: 'string', description: 'Per-transaction limit amount' },
+    spendLimitMemberUserIds: {
+      type: 'string',
+      description: 'Comma-separated member user IDs for a new spend limit',
+    },
   },
   outputs: {
     items: { type: 'json', description: 'Items returned by list operations' },
@@ -519,7 +1031,7 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     expenseId: { type: 'string', description: 'ID of the expense the receipt was attached to' },
     firstName: { type: 'string', description: 'First name of the user' },
     lastName: { type: 'string', description: 'Last name of the user' },
-    email: { type: 'string', description: 'Email address of the user' },
+    email: { type: 'string', description: 'Email address of the user or vendor' },
     managerId: { type: 'string', description: 'Manager ID of the user' },
     titleId: { type: 'string', description: 'Title ID of the user' },
     legalName: { type: 'string', description: 'Legal name of the company' },
@@ -532,7 +1044,10 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     routingNumber: { type: 'string', description: 'Bank routing number of the cash account' },
     primary: { type: 'boolean', description: 'Whether the cash account is primary' },
     accountId: { type: 'string', description: 'Account ID of the budget or spend limit' },
-    description: { type: 'string', description: 'Description of the budget or spend limit' },
+    description: {
+      type: 'string',
+      description: 'Description of the budget, spend limit, or transfer',
+    },
     parentBudgetId: { type: 'string', description: 'Parent budget ID' },
     ownerUserIds: { type: 'json', description: 'Owner user IDs of the budget or spend limit' },
     memberUserIds: { type: 'json', description: 'Member user IDs of the spend limit' },
@@ -540,7 +1055,7 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     spendType: { type: 'string', description: 'Spend type of the spend limit' },
     startDate: { type: 'string', description: 'Start date of the budget or spend limit' },
     endDate: { type: 'string', description: 'End date of the budget or spend limit' },
-    amount: { type: 'json', description: 'Amount of the budget' },
+    amount: { type: 'json', description: 'Amount of the budget or transfer' },
     spendBudgetStatus: { type: 'string', description: 'Status of the budget' },
     limitType: { type: 'string', description: 'Limit type of the budget' },
     currentPeriodBalance: {
@@ -567,6 +1082,10 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     createdAt: { type: 'string', description: 'Creation timestamp of the transfer' },
     displayName: { type: 'string', description: 'Display name of the transfer' },
     externalMemo: { type: 'string', description: 'External memo of the transfer' },
+    isPproEnabled: {
+      type: 'boolean',
+      description: 'Whether Principal Protection (PPRO) is enabled for the transfer',
+    },
   },
 }
 
@@ -634,6 +1153,15 @@ export const BrexBlockMeta = {
     },
     {
       icon: BrexIcon,
+      title: 'Brex approved-invoice payment automation',
+      prompt:
+        'Build a workflow that takes an approved invoice (vendor name, amount, and memo), creates the vendor in Brex if it does not already exist, and creates a transfer from the company cash account to pay it.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['automation'],
+    },
+    {
+      icon: BrexIcon,
       title: 'Brex team directory assistant',
       prompt:
         'Build an agent that answers questions about company spend and team structure by looking up Brex users, departments, locations, and their expenses on demand.',
@@ -688,6 +1216,12 @@ export const BrexBlockMeta = {
       description: 'Reconcile a Brex card statement period against its settled transactions.',
       content:
         '# Statement Reconciliation\n\nTie a card statement back to its underlying transactions.\n\n## Steps\n1. List card statements and pick the period to reconcile.\n2. List card transactions posted within that period using the posted-at filter.\n3. Compare transaction totals to the statement start and end balances and flag gaps.\n\n## Output\nReturn the statement period, its balances, the transaction total for the period, and any discrepancy that needs review.',
+    },
+    {
+      name: 'pay-vendor',
+      description: 'Pay a vendor from a Brex cash account, creating the vendor first if needed.',
+      content:
+        "# Pay a Vendor\n\nSend a payment to a vendor through Brex.\n\n## Steps\n1. List vendors and check if the target vendor already exists by name.\n2. If not, use Create Vendor with the company name (and email/phone if known).\n3. Use the vendor's payment_accounts entry to get the payment_instrument_id, then use Create Transfer with that ID, the cash account to pay from, the amount (in cents), a description, and an external memo.\n4. Confirm the transfer was created and note its status.\n\n## Output\nReturn the vendor used, the transfer ID and status, and the amount sent. Flag anything that requires manual approval (PENDING_APPROVAL status).",
     },
   ],
 } as const satisfies BlockMeta

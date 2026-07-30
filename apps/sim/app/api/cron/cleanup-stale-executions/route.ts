@@ -1,8 +1,9 @@
 import { asyncJobs, db } from '@sim/db'
-import { tableJobs, workflowExecutionLogs } from '@sim/db/schema'
+import { tableJobs, workflowDeploymentOperation, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, exists, gt, inArray, lt, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
@@ -17,6 +18,14 @@ const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const MAX_INT32 = 2_147_483_647
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
+/**
+ * Terminal deployment operations older than this are pruned. Every reader of
+ * this table is latest-generation-only, and idempotency keys only need to
+ * survive a client retry window, so 30 days is generous.
+ */
+const DEPLOYMENT_OPERATION_RETENTION_DAYS = 30
+const DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE = 2000
+const DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES = 10
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -221,6 +230,64 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * Prune terminal deployment operations past retention. HARD INVARIANT:
+     * the newest-generation row per workflow must always survive — the next
+     * deploy computes `generation = MAX(generation) + 1`, and the webhook
+     * registration store fences rows with lt/gt comparisons against stored
+     * generations, so generation reuse after a full wipe would permanently
+     * wedge that workflow's deployments. The `exists(newer)` predicate
+     * guarantees the max-generation row is never eligible; the status filter
+     * keeps in-flight rows (an outbox worker may still hold their fence).
+     */
+    let deploymentOperationsPruned = 0
+    try {
+      const deploymentOpRetention = new Date(
+        Date.now() - DEPLOYMENT_OPERATION_RETENTION_DAYS * 24 * 60 * 60 * 1000
+      )
+      const newerOperation = alias(workflowDeploymentOperation, 'newer_operation')
+      for (let batch = 0; batch < DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES; batch++) {
+        const prunable = db
+          .select({ id: workflowDeploymentOperation.id })
+          .from(workflowDeploymentOperation)
+          .where(
+            and(
+              inArray(workflowDeploymentOperation.status, ['active', 'failed', 'superseded']),
+              lt(workflowDeploymentOperation.completedAt, deploymentOpRetention),
+              exists(
+                db
+                  .select({ id: newerOperation.id })
+                  .from(newerOperation)
+                  .where(
+                    and(
+                      eq(newerOperation.workflowId, workflowDeploymentOperation.workflowId),
+                      gt(newerOperation.generation, workflowDeploymentOperation.generation)
+                    )
+                  )
+              )
+            )
+          )
+          .limit(DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE)
+
+        const deleted = await db
+          .delete(workflowDeploymentOperation)
+          .where(inArray(workflowDeploymentOperation.id, prunable))
+          .returning({ id: workflowDeploymentOperation.id })
+
+        deploymentOperationsPruned += deleted.length
+        if (deleted.length < DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE) break
+      }
+      if (deploymentOperationsPruned > 0) {
+        logger.info(
+          `Pruned ${deploymentOperationsPruned} old deployment operations (retention: ${DEPLOYMENT_OPERATION_RETENTION_DAYS}d)`
+        )
+      }
+    } catch (error) {
+      logger.error('Failed to prune old deployment operations:', {
+        error: toError(error).message,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       executions: {
@@ -238,6 +305,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
       tableJobs: {
         staleMarkedFailed: staleTableJobsMarkedFailed,
+      },
+      deploymentOperations: {
+        pruned: deploymentOperationsPruned,
+        retentionDays: DEPLOYMENT_OPERATION_RETENTION_DAYS,
       },
     })
   } catch (error) {

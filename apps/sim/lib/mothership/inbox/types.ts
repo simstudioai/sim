@@ -2,7 +2,11 @@ import type { mothershipInboxTask } from '@sim/db'
 
 export type InboxTask = typeof mothershipInboxTask.$inferSelect
 export type InboxTaskStatus = 'received' | 'processing' | 'completed' | 'failed' | 'rejected'
-export type RejectionReason = 'sender_not_allowed' | 'automated_sender' | 'rate_limit_exceeded'
+export type RejectionReason =
+  | 'sender_not_allowed'
+  | 'automated_sender'
+  | 'rate_limit_exceeded'
+  | 'not_entitled'
 
 export interface InboxConfig {
   enabled: boolean
@@ -53,16 +57,16 @@ export interface AgentMailMessage {
   thread_id: string
   inbox_id: string
   organization_id?: string
-  from_: string
+  from: string
   to: string[]
-  cc: string[]
+  cc?: string[]
   bcc?: string[]
   reply_to?: string[]
-  subject: string
+  subject?: string
   preview?: string
-  text: string | null
-  html: string | null
-  attachments: AgentMailAttachment[]
+  text?: string | null
+  html?: string | null
+  attachments?: AgentMailAttachment[]
   in_reply_to?: string
   references?: string[]
   labels?: string[]

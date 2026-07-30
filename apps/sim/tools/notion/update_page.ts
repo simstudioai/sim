@@ -36,7 +36,7 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
 
   request: {
     url: (params: NotionUpdatePageParams) => {
-      return `https://api.notion.com/v1/pages/${params.pageId}`
+      return `https://api.notion.com/v1/pages/${params.pageId.trim()}`
     },
     method: 'PATCH',
     headers: (params: NotionUpdatePageParams) => {

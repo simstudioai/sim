@@ -2,7 +2,7 @@ import type {
   SupabaseStorageCreateSignedUrlParams,
   SupabaseStorageCreateSignedUrlResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageCreateSignedUrlTool: ToolConfig<
@@ -12,7 +12,7 @@ export const storageCreateSignedUrlTool: ToolConfig<
   id: 'supabase_storage_create_signed_url',
   name: 'Supabase Storage Create Signed URL',
   description: 'Create a temporary signed URL for a file in a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -55,7 +55,9 @@ export const storageCreateSignedUrlTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/sign/${params.bucket}/${params.path}`
+      const bucket = encodeStorageSegment(params.bucket)
+      const path = encodeStoragePath(params.path)
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/sign/${bucket}/${path}`
     },
     method: 'POST',
     headers: (params) => ({
@@ -63,17 +65,9 @@ export const storageCreateSignedUrlTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const payload: any = {
-        expiresIn: Number(params.expiresIn),
-      }
-
-      if (params.download !== undefined) {
-        payload.download = params.download
-      }
-
-      return payload
-    },
+    body: (params) => ({
+      expiresIn: Number(params.expiresIn),
+    }),
   },
 
   transformResponse: async (response: Response, params?: SupabaseStorageCreateSignedUrlParams) => {
@@ -84,11 +78,28 @@ export const storageCreateSignedUrlTool: ToolConfig<
       throw new Error(`Failed to parse Supabase storage create signed URL response: ${parseError}`)
     }
 
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create signed URL: ${data.message || data.error || response.statusText}`
+      )
+    }
+
     const relativePath = data.signedURL || data.signedUrl
+    if (!relativePath) {
+      throw new Error('Supabase did not return a signed URL path in its response')
+    }
     if (!params?.projectId) {
       throw new Error('projectId is required to construct the signed URL')
     }
-    const fullUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1${relativePath}`
+    let fullUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1${relativePath}`
+
+    // The Storage API ignores a `download` field in the sign request body —
+    // forcing download is a client-side query param on the resulting URL.
+    // An empty value preserves the original filename; a non-empty value
+    // would override it, so a boolean "true" must never be sent literally.
+    if (params.download) {
+      fullUrl += fullUrl.includes('?') ? '&download=' : '?download='
+    }
 
     return {
       success: true,

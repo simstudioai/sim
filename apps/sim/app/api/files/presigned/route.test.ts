@@ -26,6 +26,10 @@ const {
   mockGenerateWorkspaceFileKey,
   mockGenerateExecutionFileKey,
   mockInsertFileMetadata,
+  mockCheckStorageQuotaForBillingContext,
+  mockDecrementStorageUsageForBillingContext,
+  mockIncrementStorageUsageForBillingContext,
+  mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
   mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
   mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
@@ -52,6 +56,10 @@ const {
       `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/${fileName}`
   ),
   mockInsertFileMetadata: vi.fn().mockResolvedValue({ id: 'wf_test' }),
+  mockCheckStorageQuotaForBillingContext: vi.fn(),
+  mockDecrementStorageUsageForBillingContext: vi.fn(),
+  mockIncrementStorageUsageForBillingContext: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -67,12 +75,20 @@ vi.mock('@/lib/uploads/config', () => ({
     return mockUseS3Storage.value
   },
   UPLOAD_DIR: '/uploads',
+  getServeStoragePrefix: () => (mockUseBlobStorage.value ? 'blob' : 's3'),
   getStorageConfig: mockGetStorageConfig,
   isUsingCloudStorage: mockIsUsingCloudStorage,
   getStorageProvider: mockGetStorageProvider,
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+
+vi.mock('@/lib/billing/storage', () => ({
+  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
+  decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContext: mockIncrementStorageUsageForBillingContext,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
+}))
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
@@ -572,7 +588,9 @@ describe('/api/files/presigned', () => {
 
       const response = await POST(request)
       expect(response.status).toBe(200)
-      expect(mockValidateAttachmentFileType).toHaveBeenCalledWith('screenshot.png')
+      expect(mockValidateAttachmentFileType).toHaveBeenCalledWith('screenshot.png', {
+        allowArchives: true,
+      })
       expect(mockValidateFileType).not.toHaveBeenCalled()
     })
 
@@ -623,7 +641,7 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(403)
     })
 
-    it('inserts a workspaceFiles row with context=mothership so previews authorize', async () => {
+    it('issues an unbilled pending mothership upload binding', async () => {
       setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
 
       const request = new NextRequest(
@@ -652,6 +670,10 @@ describe('/api/files/presigned', () => {
         contentType: 'image/png',
         size: 4096,
       })
+      expect(mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
+      expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+      expect(mockIncrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+      expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
     })
 
     it('returns 500 when insertFileMetadata fails so callers do not get an unauthorizable URL', async () => {

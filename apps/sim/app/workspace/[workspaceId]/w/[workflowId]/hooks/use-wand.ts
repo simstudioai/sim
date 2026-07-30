@@ -136,17 +136,6 @@ export function useWand({
     setError(null)
   }, [])
 
-  const openPrompt = useCallback(() => {
-    setIsPromptVisible(true)
-    setPromptInputValue('')
-  }, [])
-
-  const closePrompt = useCallback(() => {
-    if (isLoading) return
-    setIsPromptVisible(false)
-    setPromptInputValue('')
-  }, [isLoading])
-
   const generateStream = useCallback(
     async ({ prompt }: { prompt: string }) => {
       if (!prompt) {
@@ -294,8 +283,6 @@ export function useWand({
     generateStream,
     showPromptInline,
     hidePromptInline,
-    openPrompt,
-    closePrompt,
     updatePromptValue,
     cancelGeneration,
   }

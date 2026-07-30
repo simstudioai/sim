@@ -51,7 +51,8 @@ export const attioListTasksTool: ToolConfig<AttioListTasksParams, AttioListTasks
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort order: created_at:asc or created_at:desc',
+      description:
+        'Sort order: created_at:asc, created_at:desc, completed_at:asc, or completed_at:desc',
     },
     limit: {
       type: 'number',
@@ -118,6 +119,7 @@ export const attioListTasksTool: ToolConfig<AttioListTasksParams, AttioListTasks
         content: (task.content_plaintext as string) ?? null,
         deadlineAt: (task.deadline_at as string) ?? null,
         isCompleted: (task.is_completed as boolean) ?? false,
+        completedAt: (task.completed_at as string) ?? null,
         linkedRecords,
         assignees,
         createdByActor: task.created_by_actor ?? null,

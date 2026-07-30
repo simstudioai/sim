@@ -242,6 +242,132 @@ export function getCanonicalValues(
 }
 
 /**
+ * Resolve the ACTIVE canonical member's value for a group: the basic value in basic mode, the
+ * advanced value in advanced mode (per {@link resolveCanonicalMode} - honoring an explicit
+ * override, then the value heuristic). Strict: returns ONLY the active member's value with no
+ * cross-mode fallback, so a dormant mode's stale value can never leak. The single source of truth
+ * for "what value is live for this canonical pair" - use it instead of basic-first `||` /
+ * `?? 'basic'` reads or last-write-wins scans.
+ */
+export function resolveActiveCanonicalValue(
+  group: CanonicalGroup,
+  values: Record<string, unknown>,
+  overrides?: CanonicalModeOverrides
+): unknown {
+  const mode = resolveCanonicalMode(group, values, overrides)
+  const { basicValue, advancedValue } = getCanonicalValues(group, values)
+  return mode === 'advanced' ? advancedValue : basicValue
+}
+
+/** Extract override entries matching a `${prefix}` key into a bare-`canonicalId`-keyed object. */
+function extractPrefixedModes(
+  overrides: CanonicalModeOverrides,
+  prefix: string
+): CanonicalModeOverrides | undefined {
+  let scoped: CanonicalModeOverrides | undefined
+  for (const [key, value] of Object.entries(overrides)) {
+    if (key.startsWith(prefix) && value) {
+      scoped = scoped ?? {}
+      scoped[key.slice(prefix.length)] = value
+    }
+  }
+  return scoped
+}
+
+/**
+ * Strip the `${toolIndex}:` prefix from canonical-mode override keys, returning the overrides for a
+ * nested tool keyed by bare `canonicalId`. An agent block stores its nested tools' modes scoped as
+ * `${toolIndex}:${canonicalId}` — keyed by the tool's position in the `tool-input` array, not its
+ * `type` — so that two tool entries of the SAME type (e.g. two Table tools on one Agent block) get
+ * independent canonical modes instead of colliding on a shared `${toolType}:${canonicalId}` key.
+ *
+ * Falls back to the legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) when no
+ * index-scoped key matches, so an override saved before this scoping change isn't silently dropped -
+ * it keeps applying (type-shared, the old behavior) until the user re-toggles it explicitly, at which
+ * point it's rewritten under the new index-scoped key.
+ *
+ * Returns `undefined` when there are no overrides, no `toolIndex`, and no legacy match.
+ */
+export function scopeCanonicalModesForTool(
+  overrides: CanonicalModeOverrides | undefined,
+  toolIndex: number | undefined,
+  legacyToolType?: string
+): CanonicalModeOverrides | undefined {
+  if (!overrides) return undefined
+  const scoped =
+    toolIndex !== undefined ? extractPrefixedModes(overrides, `${toolIndex}:`) : undefined
+  if (scoped) return scoped
+  return legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
+}
+
+const INDEX_SCOPED_KEY = /^(\d+):(.+)$/
+
+/**
+ * Canonical-mode overrides are keyed by a tool's position in its `tool-input` array
+ * (`${toolIndex}:${canonicalId}`), so anything that reorders or removes tools - the editor
+ * (drag-reorder, remove, delete), fork/promote copy (dropping an unresolved custom-tool/MCP
+ * entry) - must carry each surviving tool's overrides to its new position and DROP the
+ * vacated index. Otherwise a saved basic/advanced choice can attach to whichever DIFFERENT
+ * tool later lands on that old index (e.g. a newly-added tool, always appended at the end,
+ * can refill a slot a removal just freed).
+ *
+ * Returns the full replacement `canonicalModes` object (for an atomic whole-map write - a
+ * per-key merge can't drop a key, and sequential per-key writes can clobber each other when
+ * two tools swap positions), or `undefined` when nothing needs to change. A legacy,
+ * non-index-scoped key (the `${toolType}:` fallback format) isn't tied to any array position,
+ * so it's carried over unchanged.
+ */
+export function reindexCanonicalModesByPosition(
+  newIndexByOldIndex: ReadonlyMap<number, number>,
+  overrides: CanonicalModeOverrides | undefined
+): Record<string, 'basic' | 'advanced'> | undefined {
+  if (!overrides) return undefined
+
+  let changed = false
+  const result: Record<string, 'basic' | 'advanced'> = {}
+  for (const [key, mode] of Object.entries(overrides)) {
+    if (!mode) continue
+    const match = INDEX_SCOPED_KEY.exec(key)
+    if (!match) {
+      result[key] = mode
+      continue
+    }
+    const newIndex = newIndexByOldIndex.get(Number(match[1]))
+    if (newIndex === undefined) {
+      changed = true // Tool removed (or an already-stale index) - drop the key.
+      continue
+    }
+    if (newIndex !== Number(match[1])) changed = true
+    result[`${newIndex}:${match[2]}`] = mode
+  }
+  return changed ? result : undefined
+}
+
+/**
+ * {@link reindexCanonicalModesByPosition}, diffing `oldTools` against `newTools` by OBJECT
+ * IDENTITY to derive the old-index -> new-index map. Callers must not clone the tool objects
+ * they keep (only filter/splice/reorder the array itself) - a kept-but-cloned tool (e.g. a
+ * `{ ...tool, someField: x }` spread) won't match its old reference and will be treated as
+ * removed. Use {@link reindexCanonicalModesByPosition} directly when a caller's remap can
+ * clone kept entries (fork/promote does, to rewrite a remapped id) and already knows each
+ * surviving old index's new position by other means (e.g. tracking it during the same pass
+ * that builds the new array, rather than post-hoc identity comparison).
+ */
+export function reindexToolCanonicalModes<T>(
+  oldTools: readonly T[],
+  newTools: readonly T[],
+  overrides: CanonicalModeOverrides | undefined
+): Record<string, 'basic' | 'advanced'> | undefined {
+  const newIndexByRef = new Map(newTools.map((tool, index) => [tool, index]))
+  const newIndexByOldIndex = new Map<number, number>()
+  oldTools.forEach((tool, oldIndex) => {
+    const newIndex = newIndexByRef.get(tool)
+    if (newIndex !== undefined) newIndexByOldIndex.set(oldIndex, newIndex)
+  })
+  return reindexCanonicalModesByPosition(newIndexByOldIndex, overrides)
+}
+
+/**
  * Check if a block has any standalone advanced-only fields (not part of canonical pairs).
  * These require the block-level advanced mode toggle to be visible.
  */
@@ -250,10 +376,20 @@ export function hasStandaloneAdvancedFields(
   canonicalIndex: CanonicalIndex
 ): boolean {
   for (const subBlock of subBlocks) {
-    if (subBlock.mode !== 'advanced') continue
+    if (!isStandaloneAdvancedMode(subBlock.mode)) continue
     if (!canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) return true
   }
   return false
+}
+
+/**
+ * True for the modes that make a field advanced-only when it is not part of a
+ * canonical basic/advanced pair: a standalone `advanced` field, or a standalone
+ * `trigger-advanced` field (an advanced option on a trigger block). Both are
+ * hidden until the block-level advanced toggle is on.
+ */
+export function isStandaloneAdvancedMode(mode: SubBlockConfig['mode']): boolean {
+  return mode === 'advanced' || mode === 'trigger-advanced'
 }
 
 /**
@@ -278,7 +414,7 @@ export function hasAdvancedValues(
       continue
     }
 
-    if (subBlock.mode === 'advanced' && isNonEmptyValue(values[subBlock.id])) {
+    if (isStandaloneAdvancedMode(subBlock.mode) && isNonEmptyValue(values[subBlock.id])) {
       return true
     }
   }
@@ -306,7 +442,9 @@ export function isSubBlockVisibleForMode(
   }
 
   if (subBlock.mode === 'basic' && displayAdvancedOptions) return false
-  if (subBlock.mode === 'advanced' && !displayAdvancedOptions) return false
+  // Standalone advanced-only fields (`advanced` or a trigger's `trigger-advanced`)
+  // hide until the block-level advanced toggle is on.
+  if (isStandaloneAdvancedMode(subBlock.mode) && !displayAdvancedOptions) return false
   return true
 }
 
@@ -395,8 +533,12 @@ export function isSubBlockFeatureEnabled(subBlock: SubBlockConfig): boolean {
  * - `hideWhenEnvSet`: hidden when a specific NEXT_PUBLIC_ env var is truthy
  *   (credential fields hidden when the deployment provides them server-side)
  */
-export function isSubBlockHidden(subBlock: SubBlockConfig): boolean {
-  if (subBlock.hideWhenHosted && isHosted) return true
+export function isSubBlockHidden(
+  subBlock: SubBlockConfig,
+  options?: { hosted?: boolean }
+): boolean {
+  const hosted = options?.hosted ?? isHosted
+  if (subBlock.hideWhenHosted && hosted) return true
   if (subBlock.hideWhenEnvSet && isTruthy(getEnv(subBlock.hideWhenEnvSet))) return true
   return false
 }

@@ -5,6 +5,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('WorkspaceUtils')
@@ -45,6 +46,21 @@ export async function getWorkspaceBillingSettings(
 export async function getWorkspaceBilledAccountUserId(workspaceId: string): Promise<string | null> {
   const settings = await getWorkspaceBillingSettings(workspaceId)
   return settings?.billedAccountUserId ?? null
+}
+
+/**
+ * The organization that owns a workspace (null for personal workspaces). Used to
+ * gate features by org cohort — the flag model allowlists org ids, and API routes
+ * only carry a `workspaceId`, so this resolves the one from the other.
+ */
+export async function getWorkspaceOrganizationId(workspaceId: string): Promise<string | null> {
+  if (!workspaceId) return null
+  const rows = await db
+    .select({ organizationId: workspaceTable.organizationId })
+    .from(workspaceTable)
+    .where(eq(workspaceTable.id, workspaceId))
+    .limit(1)
+  return rows[0]?.organizationId ?? null
 }
 
 /**
@@ -352,6 +368,7 @@ export async function reassignBilledAccountForUser(
     .select({
       id: workspaceTable.id,
       ownerId: workspaceTable.ownerId,
+      organizationId: workspaceTable.organizationId,
     })
     .from(workspaceTable)
     .where(eq(workspaceTable.billedAccountUserId, departingUserId))
@@ -388,10 +405,21 @@ export async function reassignBilledAccountForUser(
       continue
     }
 
-    await db
-      .update(workspaceTable)
-      .set({ billedAccountUserId: replacement, updatedAt: new Date() })
-      .where(eq(workspaceTable.id, ws.id))
+    await db.transaction(async (tx) => {
+      await changeWorkspaceStoragePayerInTx(tx, {
+        workspaceId: ws.id,
+        organizationId: ws.organizationId,
+        billedAccountUserId: replacement,
+        expectedCurrentPayer: {
+          organizationId: ws.organizationId,
+          billedAccountUserId: departingUserId,
+        },
+      })
+      await tx
+        .update(workspaceTable)
+        .set({ updatedAt: new Date() })
+        .where(eq(workspaceTable.id, ws.id))
+    })
 
     reassigned.push({ workspaceId: ws.id, newBilledAccountUserId: replacement })
   }

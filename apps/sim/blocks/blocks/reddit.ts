@@ -1394,7 +1394,7 @@ export const RedditBlockMeta = {
   templates: [
     {
       icon: RedditIcon,
-      title: 'Social mention tracker',
+      title: 'Reddit mention tracker',
       prompt:
         'Create a scheduled workflow that monitors Reddit and X for mentions of my brand and competitors, scores each mention by sentiment and reach, logs them to a table, and sends a daily Slack digest of notable mentions.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],

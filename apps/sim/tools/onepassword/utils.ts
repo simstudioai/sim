@@ -37,6 +37,12 @@ export function transformFullItem(data: any) {
       id: section.id ?? null,
       label: section.label ?? null,
     })),
+    files: (data.files ?? []).map((file: any) => ({
+      id: file.id ?? null,
+      name: file.name ?? null,
+      size: file.size ?? 0,
+      section: file.section ?? null,
+    })),
     createdAt: data.createdAt ?? null,
     updatedAt: data.updatedAt ?? null,
     lastEditedBy: data.lastEditedBy ?? null,
@@ -83,7 +89,11 @@ export const FULL_ITEM_OUTPUTS: Record<
   favorite: { type: 'boolean', description: 'Whether the item is favorited' },
   tags: { type: 'array', description: 'Item tags' },
   version: { type: 'number', description: 'Item version number' },
-  state: { type: 'string', description: 'Item state (ARCHIVED or DELETED)', optional: true },
+  state: {
+    type: 'string',
+    description: 'Item state (ARCHIVED, or absent/null when active)',
+    optional: true,
+  },
   fields: {
     type: 'array',
     description: 'Item fields including secrets',
@@ -139,6 +149,26 @@ export const FULL_ITEM_OUTPUTS: Record<
       properties: {
         id: { type: 'string', description: 'Section ID' },
         label: { type: 'string', description: 'Section label', optional: true },
+      },
+    },
+  },
+  files: {
+    type: 'array',
+    description: 'Files attached to the item (fetch content with Get Item File)',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'File ID' },
+        name: { type: 'string', description: 'File name' },
+        size: { type: 'number', description: 'File size in bytes' },
+        section: {
+          type: 'object',
+          description: 'Section reference this file belongs to',
+          optional: true,
+          properties: {
+            id: { type: 'string', description: 'Section ID' },
+          },
+        },
       },
     },
   },

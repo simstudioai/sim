@@ -1,8 +1,10 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogDeletePersonParams {
   apiKey: string
   region?: 'us' | 'eu'
+  host?: string
   projectId: string
   personId: string
 }
@@ -21,6 +23,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     description:
       'Delete a person from PostHog. This will remove all associated events and data. Use with caution.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -35,6 +38,13 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
         visibility: 'user-only',
         description: 'PostHog region: us (default) or eu',
         default: 'us',
+      },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
       },
       projectId: {
         type: 'string',
@@ -51,34 +61,28 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     },
 
     request: {
+      // PostHog has no single-person DELETE endpoint; deletion is only available
+      // via the bulk_delete endpoint, called here with a single ID.
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
-        return `${baseUrl}/api/projects/${params.projectId}/persons/${params.personId}/`
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+        return `${baseUrl}/api/projects/${params.projectId}/persons/bulk_delete/`
       },
-      method: 'DELETE',
+      method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
+      body: (params) => ({ ids: [params.personId] }),
     },
 
     transformResponse: async (response: Response) => {
-      if (response.ok || response.status === 204) {
-        return {
-          success: true,
-          output: {
-            status: 'Person deleted successfully',
-          },
-        }
-      }
-
-      const error = await response.text()
+      const data = await response.json()
+      const success = data.persons_deleted > 0
       return {
-        success: false,
+        success,
         output: {
-          status: 'Failed to delete person',
+          status: success ? 'Person deleted successfully' : 'No matching person found to delete',
         },
-        error: error || 'Unknown error occurred',
       }
     },
 

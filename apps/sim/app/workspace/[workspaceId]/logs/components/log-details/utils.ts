@@ -1,6 +1,7 @@
 import type React from 'react'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
+import { perceivedBrightness } from '@/lib/colors'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -60,8 +61,7 @@ export function getBlockIconAndColor(
       if (mcpBlock) return { icon: mcpBlock.icon, bgColor: mcpBlock.bgColor }
     }
     const normalized = normalizeToolId(toolName)
-    if (normalized === 'load_skill' || normalized === 'load_user_skill')
-      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
     const toolBlock = getBlockByToolName(normalized)
     if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
   }
@@ -81,29 +81,27 @@ export function getBlockIconAndColor(
   return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
 }
 
+/**
+ * Max YIQ weighted sum (255 × (0.299 + 0.587 + 0.114) × 1000). `perceivedBrightness`
+ * is that sum normalized to 0–1, so the original integer cutoffs map exactly to
+ * `cutoff / MAX_YIQ_SUM` here.
+ */
+const MAX_YIQ_SUM = 255_000
+
 /** Returns 'text-white' for dark backgrounds, dark text for light ones. */
 export function iconColorClass(bgColor: string): string {
-  const hex = bgColor.replace('#', '')
-  if (hex.length !== 6) return 'text-white'
-  const r = Number.parseInt(hex.slice(0, 2), 16)
-  const g = Number.parseInt(hex.slice(2, 4), 16)
-  const b = Number.parseInt(hex.slice(4, 6), 16)
-  return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
+  const brightness = perceivedBrightness(bgColor)
+  return brightness !== null && brightness > 160_000 / MAX_YIQ_SUM ? 'text-[#111111]' : 'text-white'
 }
 
 /**
  * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
- * Below the luminance threshold we fall back to the neutral block color used
+ * Below the brightness threshold we fall back to the neutral block color used
  * for blocks with no distinct identity; everything brighter passes through.
  */
 export function adjustBgForContrast(bgColor: string): string {
-  const hex = bgColor.replace('#', '')
-  if (hex.length !== 6) return bgColor
-  const r = Number.parseInt(hex.slice(0, 2), 16)
-  const g = Number.parseInt(hex.slice(2, 4), 16)
-  const b = Number.parseInt(hex.slice(4, 6), 16)
-  if (r * 299 + g * 587 + b * 114 < 30_000) return DEFAULT_BLOCK_COLOR
-  return bgColor
+  const brightness = perceivedBrightness(bgColor)
+  return brightness !== null && brightness < 30_000 / MAX_YIQ_SUM ? DEFAULT_BLOCK_COLOR : bgColor
 }
 
 export function parseTime(value?: string | number | null): number {

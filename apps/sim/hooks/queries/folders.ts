@@ -6,104 +6,100 @@ import {
   createFolderContract,
   deleteFolderContract,
   duplicateFolderContract,
-  type FolderApi,
   listFoldersContract,
   reorderFoldersContract,
   restoreFolderContract,
+  type ServedFolderResourceType,
   updateFolderContract,
 } from '@/lib/api/contracts'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
-import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
+import {
+  FOLDER_LIST_STALE_TIME,
+  type FolderQueryScope,
+  folderKeys,
+  mapFolder,
+} from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 const logger = createLogger('FolderQueries')
 
-export const FOLDER_LIST_STALE_TIME = 60 * 1000
-
-/**
- * Maps a wire folder row to the client `WorkflowFolder` shape (string dates →
- * `Date`, color default). Exported so the server-side home prefetch produces
- * the exact cached value `useFolders` stores, keeping the hydrated entry in
- * sync with a client fetch.
- */
-export function mapFolder(folder: FolderApi): WorkflowFolder {
-  return {
-    id: folder.id,
-    name: folder.name,
-    userId: folder.userId,
-    workspaceId: folder.workspaceId,
-    parentId: folder.parentId,
-    color: folder.color ?? '#6B7280',
-    isExpanded: folder.isExpanded,
-    locked: folder.locked,
-    sortOrder: folder.sortOrder,
-    createdAt: new Date(folder.createdAt),
-    updatedAt: new Date(folder.updatedAt),
-    archivedAt: folder.archivedAt ? new Date(folder.archivedAt) : null,
-  }
-}
-
 async function fetchFolders(
   workspaceId: string,
   scope: FolderQueryScope = 'active',
+  resourceType: ServedFolderResourceType = 'workflow',
   signal?: AbortSignal
 ): Promise<WorkflowFolder[]> {
   const { folders } = await requestJson(listFoldersContract, {
-    query: { workspaceId, scope },
+    query: { workspaceId, scope, resourceType },
     signal,
   })
   return folders.map(mapFolder)
 }
 
-export function useFolders(workspaceId?: string, options?: { scope?: FolderQueryScope }) {
+export function useFolders(
+  workspaceId?: string,
+  options?: {
+    scope?: FolderQueryScope
+    enabled?: boolean
+    resourceType?: ServedFolderResourceType
+  }
+) {
   const scope = options?.scope ?? 'active'
+  const resourceType = options?.resourceType ?? 'workflow'
   return useQuery({
-    queryKey: folderKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchFolders(workspaceId as string, scope, signal),
-    enabled: Boolean(workspaceId),
+    queryKey: folderKeys.list(workspaceId, scope, resourceType),
+    queryFn: ({ signal }) => fetchFolders(workspaceId as string, scope, resourceType, signal),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    staleTime: FOLDER_LIST_STALE_TIME,
   })
 }
 
 const selectFolderMap = (folders: WorkflowFolder[]): Record<string, WorkflowFolder> =>
   Object.fromEntries(folders.map((folder) => [folder.id, folder]))
 
-export function useFolderMap(workspaceId?: string) {
+export function useFolderMap(
+  workspaceId?: string,
+  resourceType: ServedFolderResourceType = 'workflow'
+) {
   return useQuery({
-    queryKey: folderKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchFolders(workspaceId as string, 'active', signal),
+    queryKey: folderKeys.list(workspaceId, 'active', resourceType),
+    queryFn: ({ signal }) => fetchFolders(workspaceId as string, 'active', resourceType, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    staleTime: FOLDER_LIST_STALE_TIME,
     select: selectFolderMap,
   })
 }
 
 interface CreateFolderVariables {
   workspaceId: string
+  resourceType?: ServedFolderResourceType
   name: string
   parentId?: string
-  color?: string
   sortOrder?: number
   id?: string
 }
 
 interface UpdateFolderVariables {
   workspaceId: string
+  resourceType?: ServedFolderResourceType
   id: string
-  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder' | 'locked'>>
+  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'sortOrder' | 'locked'>>
 }
 
 interface DeleteFolderVariables {
   workspaceId: string
+  resourceType?: ServedFolderResourceType
   id: string
 }
 
@@ -112,14 +108,45 @@ interface DuplicateFolderVariables {
   id: string
   name: string
   parentId?: string | null
-  color?: string
   newId?: string
+}
+
+/**
+ * Refreshes the lists that a folder delete/restore cascade rewrote.
+ *
+ * The cascade archives or restores the resources inside the folder subtree, so
+ * the folder tree alone going stale is not enough — the resource list that
+ * renders those rows has to refetch too. Each resource type owns a different
+ * cache, hence the switch; a type with no list surface yet is a no-op.
+ */
+function invalidateCascadedResourceLists(
+  queryClient: ReturnType<typeof useQueryClient>,
+  resourceType: ServedFolderResourceType,
+  workspaceId: string
+): Promise<void> | void {
+  switch (resourceType) {
+    case 'workflow':
+      return invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived'])
+    case 'table':
+      return queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    case 'knowledge_base':
+      return queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+    /**
+     * `file` has no case, and cannot reach here: `servedFolderResourceTypeSchema` does not
+     * serve it. Files reads and writes its folders through
+     * `/api/workspaces/[id]/files/folders/**`, which owns its own invalidation.
+     */
+    default:
+      return
+  }
 }
 
 /**
  * Creates optimistic mutation handlers for folder operations
  */
-function createFolderMutationHandlers<TVariables extends { workspaceId: string }>(
+function createFolderMutationHandlers<
+  TVariables extends { workspaceId: string; resourceType?: ServedFolderResourceType },
+>(
   queryClient: ReturnType<typeof useQueryClient>,
   name: string,
   createOptimisticFolder: (
@@ -131,26 +158,36 @@ function createFolderMutationHandlers<TVariables extends { workspaceId: string }
 ) {
   return createOptimisticMutationHandlers<WorkflowFolder, TVariables, WorkflowFolder>(queryClient, {
     name,
-    getQueryKey: (variables) => folderKeys.list(variables.workspaceId),
-    getSnapshot: (variables) => ({ ...getFolderMap(variables.workspaceId) }),
+    getQueryKey: (variables) =>
+      folderKeys.list(variables.workspaceId, 'active', variables.resourceType ?? 'workflow'),
+    getSnapshot: (variables) => ({
+      ...getFolderMap(variables.workspaceId, variables.resourceType ?? 'workflow'),
+    }),
     generateTempId: customGenerateTempId ?? (() => generateTempId('temp-folder')),
     createOptimisticItem: (variables, tempId) => {
-      const previousFolders = getFolderMap(variables.workspaceId)
+      const previousFolders = getFolderMap(
+        variables.workspaceId,
+        variables.resourceType ?? 'workflow'
+      )
       return createOptimisticFolder(variables, tempId, previousFolders)
     },
     applyOptimisticUpdate: (tempId, item) => {
-      queryClient.setQueryData<WorkflowFolder[]>(folderKeys.list(item.workspaceId), (old) => [
-        ...(old ?? []),
-        item,
-      ])
+      queryClient.setQueryData<WorkflowFolder[]>(
+        folderKeys.list(item.workspaceId, 'active', item.resourceType),
+        (old) => [...(old ?? []), item]
+      )
     },
     replaceOptimisticEntry: (tempId, data) => {
-      queryClient.setQueryData<WorkflowFolder[]>(folderKeys.list(data.workspaceId), (old) =>
-        (old ?? []).map((folder) => (folder.id === tempId ? data : folder))
+      queryClient.setQueryData<WorkflowFolder[]>(
+        folderKeys.list(data.workspaceId, 'active', data.resourceType),
+        (old) => (old ?? []).map((folder) => (folder.id === tempId ? data : folder))
       )
     },
     rollback: (snapshot, variables) => {
-      queryClient.setQueryData(folderKeys.list(variables.workspaceId), Object.values(snapshot))
+      queryClient.setQueryData(
+        folderKeys.list(variables.workspaceId, 'active', variables.resourceType ?? 'workflow'),
+        Object.values(snapshot)
+      )
     },
   })
 }
@@ -162,9 +199,19 @@ export function useCreateFolder() {
     queryClient,
     'CreateFolder',
     (variables, tempId, previousFolders) => {
-      const currentWorkflows = Object.fromEntries(
-        getWorkflows(variables.workspaceId).map((w) => [w.id, w])
-      )
+      const resourceType = variables.resourceType ?? 'workflow'
+      /**
+       * Only the workflow tree interleaves folders and resources in one user-ordered list, so
+       * only it derives the optimistic placement from the workflows too. The other trees are
+       * ordered by the folder rows alone — mirroring `nextFolderSortOrder`, which consults a
+       * resource's sort column only when the config declares one. Feeding workflow sort orders
+       * into a knowledge-base or table folder would place it against an unrelated ordering
+       * space and flicker until the server response replaced it.
+       */
+      const currentWorkflows =
+        resourceType === 'workflow'
+          ? Object.fromEntries(getWorkflows(variables.workspaceId).map((w) => [w.id, w]))
+          : {}
 
       return {
         id: tempId,
@@ -172,8 +219,7 @@ export function useCreateFolder() {
         userId: '',
         workspaceId: variables.workspaceId,
         parentId: variables.parentId || null,
-        color: variables.color || '#808080',
-        isExpanded: false,
+        resourceType,
         locked: false,
         sortOrder:
           variables.sortOrder ??
@@ -185,16 +231,21 @@ export function useCreateFolder() {
           ),
         createdAt: new Date(),
         updatedAt: new Date(),
-        archivedAt: null,
+        deletedAt: null,
       }
     },
     (variables) => variables.id ?? generateId()
   )
 
   return useMutation({
-    mutationFn: async ({ workspaceId, sortOrder, ...payload }: CreateFolderVariables) => {
+    mutationFn: async ({
+      workspaceId,
+      sortOrder,
+      resourceType = 'workflow',
+      ...payload
+    }: CreateFolderVariables) => {
       const { folder } = await requestJson(createFolderContract, {
-        body: { ...payload, workspaceId, sortOrder },
+        body: { ...payload, workspaceId, sortOrder, resourceType },
       })
       return mapFolder(folder)
     },
@@ -206,15 +257,23 @@ export function useUpdateFolder() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, id, updates }: UpdateFolderVariables) => {
+    mutationFn: async ({
+      workspaceId: _workspaceId,
+      resourceType = 'workflow',
+      id,
+      updates,
+    }: UpdateFolderVariables) => {
       const { folder } = await requestJson(updateFolderContract, {
         params: { id },
+        query: { resourceType },
         body: updates,
       })
       return mapFolder(folder)
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: folderKeys.resource(variables.resourceType ?? 'workflow'),
+      })
     },
   })
 }
@@ -223,18 +282,24 @@ export function useDeleteFolderMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId: _workspaceId, id }: DeleteFolderVariables) => {
-      return requestJson(deleteFolderContract, { params: { id } })
+    mutationFn: async ({
+      workspaceId: _workspaceId,
+      resourceType = 'workflow',
+      id,
+    }: DeleteFolderVariables) => {
+      return requestJson(deleteFolderContract, { params: { id }, query: { resourceType } })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      const resourceType = variables.resourceType ?? 'workflow'
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource(resourceType) })
+      return invalidateCascadedResourceLists(queryClient, resourceType, variables.workspaceId)
     },
   })
 }
 
 interface RestoreFolderVariables {
   workspaceId: string
+  resourceType?: ServedFolderResourceType
   folderId: string
 }
 
@@ -242,19 +307,30 @@ export function useRestoreFolder() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, folderId }: RestoreFolderVariables) => {
+    mutationFn: async ({
+      workspaceId,
+      resourceType = 'workflow',
+      folderId,
+    }: RestoreFolderVariables) => {
       return requestJson(restoreFolderContract, {
         params: { id: folderId },
-        body: { workspaceId },
+        body: { workspaceId, resourceType },
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      const resourceType = variables.resourceType ?? 'workflow'
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource(resourceType) })
+      return invalidateCascadedResourceLists(queryClient, resourceType, variables.workspaceId)
     },
   })
 }
 
+/**
+ * Workflow-only by design, unlike the other folder mutations in this file: duplication copies
+ * the workflows inside the folder, and `POST /api/folders/[id]/duplicate` has no equivalent
+ * for knowledge bases or tables. The `resourceType: 'workflow'` below is that constraint, not
+ * an oversight — generalizing it would optimistically insert a folder the route then refuses.
+ */
 export function useDuplicateFolderMutation() {
   const queryClient = useQueryClient()
 
@@ -274,8 +350,7 @@ export function useDuplicateFolderMutation() {
         userId: sourceFolder?.userId || '',
         workspaceId: variables.workspaceId,
         parentId: targetParentId,
-        color: variables.color || sourceFolder?.color || '#808080',
-        isExpanded: false,
+        resourceType: 'workflow' as const,
         locked: false,
         sortOrder: getTopInsertionSortOrder(
           currentWorkflows,
@@ -285,7 +360,7 @@ export function useDuplicateFolderMutation() {
         ),
         createdAt: new Date(),
         updatedAt: new Date(),
-        archivedAt: null,
+        deletedAt: null,
       }
     },
     (variables) => variables.newId ?? generateId()
@@ -297,7 +372,6 @@ export function useDuplicateFolderMutation() {
       workspaceId,
       name,
       parentId,
-      color,
       newId,
     }: DuplicateFolderVariables): Promise<WorkflowFolder> => {
       const { folder } = await requestJson(duplicateFolderContract, {
@@ -306,7 +380,6 @@ export function useDuplicateFolderMutation() {
           workspaceId,
           name,
           parentId: parentId ?? null,
-          color,
           newId,
         },
       })
@@ -322,6 +395,7 @@ export function useDuplicateFolderMutation() {
 
 interface ReorderFoldersVariables {
   workspaceId: string
+  resourceType?: ServedFolderResourceType
   updates: Array<{
     id: string
     sortOrder: number
@@ -333,18 +407,24 @@ export function useReorderFolders() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (variables: ReorderFoldersVariables): Promise<void> => {
-      await requestJson(reorderFoldersContract, { body: variables })
+    mutationFn: async ({
+      resourceType = 'workflow',
+      ...variables
+    }: ReorderFoldersVariables): Promise<void> => {
+      await requestJson(reorderFoldersContract, { body: { ...variables, resourceType } })
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-
-      const snapshot = queryClient.getQueryData<WorkflowFolder[]>(
-        folderKeys.list(variables.workspaceId)
+      const listKey = folderKeys.list(
+        variables.workspaceId,
+        'active',
+        variables.resourceType ?? 'workflow'
       )
+      await queryClient.cancelQueries({ queryKey: listKey })
+
+      const snapshot = queryClient.getQueryData<WorkflowFolder[]>(listKey)
 
       const updatesById = new Map(variables.updates.map((update) => [update.id, update]))
-      queryClient.setQueryData<WorkflowFolder[]>(folderKeys.list(variables.workspaceId), (old) => {
+      queryClient.setQueryData<WorkflowFolder[]>(listKey, (old) => {
         if (!old?.length) return old
         return old.map((folder) => {
           const update = updatesById.get(folder.id)
@@ -361,11 +441,20 @@ export function useReorderFolders() {
     },
     onError: (_error, variables, context) => {
       if (context?.snapshot) {
-        queryClient.setQueryData(folderKeys.list(variables.workspaceId), context.snapshot)
+        queryClient.setQueryData(
+          folderKeys.list(variables.workspaceId, 'active', variables.resourceType ?? 'workflow'),
+          context.snapshot
+        )
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: folderKeys.list(
+          variables.workspaceId,
+          'active',
+          variables.resourceType ?? 'workflow'
+        ),
+      })
     },
   })
 }

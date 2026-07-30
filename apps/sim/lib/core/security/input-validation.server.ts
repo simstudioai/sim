@@ -1,13 +1,26 @@
-import dns from 'dns/promises'
+import dns from 'node:dns/promises'
+import { Readable } from 'node:stream'
+import zlib from 'node:zlib'
 import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
+import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
-import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
-import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  Agent,
+  type Dispatcher,
+  type RequestInit as UndiciRequestInit,
+  request as undiciRequest,
+} from 'undici'
+import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
@@ -18,49 +31,6 @@ const logger = createLogger('InputValidation')
 export interface AsyncValidationResult extends ValidationResult {
   resolvedIP?: string
   originalHostname?: string
-}
-
-/**
- * Checks if an IP address is private or reserved (not routable on the public internet)
- * Uses ipaddr.js for robust handling of all IP formats including:
- * - Octal notation (0177.0.0.1)
- * - Hex notation (0x7f000001)
- * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
- * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
- * - Various edge cases that regex patterns miss
- */
-export function isPrivateOrReservedIP(ip: string): boolean {
-  try {
-    if (!ipaddr.isValid(ip)) {
-      return true
-    }
-
-    const addr = ipaddr.process(ip)
-    const range = addr.range()
-
-    if (range !== 'unicast') {
-      return true
-    }
-
-    if (addr.kind() === 'ipv6') {
-      const v6 = addr as ipaddr.IPv6
-      const parts = v6.parts
-      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
-      if (firstSixZero) {
-        const embedded = ipaddr.fromByteArray([
-          (parts[6] >> 8) & 0xff,
-          parts[6] & 0xff,
-          (parts[7] >> 8) & 0xff,
-          parts[7] & 0xff,
-        ])
-        return embedded.range() !== 'unicast'
-      }
-    }
-
-    return false
-  } catch {
-    return true
-  }
 }
 
 /**
@@ -90,34 +60,27 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   const hostnameLower = hostname.toLowerCase()
-  const cleanHostname =
-    hostnameLower.startsWith('[') && hostnameLower.endsWith(']')
-      ? hostnameLower.slice(1, -1)
-      : hostnameLower
+  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
 
-  let isLocalhost = cleanHostname === 'localhost'
-  if (ipaddr.isValid(cleanHostname)) {
-    const processedIP = ipaddr.process(cleanHostname).toString()
-    if (processedIP === '127.0.0.1' || processedIP === '::1') {
-      isLocalhost = true
-    }
-  }
+  // Whole loopback range — see the matching note in input-validation.ts.
+  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+    // Refused records are filtered rather than failing the whole host, matching
+    // createSsrfGuardedLookup below. Pinning to a surviving public address is
+    // just as safe as refusing outright, and rejecting the host would break a
+    // split-horizon resolver that answers with a private record alongside the
+    // public one — with no operator opt-out on this path.
+    const { addresses } = await resolveHostAddresses(cleanHostname)
+    const usable = addresses.filter(
+      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
+    )
 
-    const resolvedIsLoopback =
-      ipaddr.isValid(address) &&
-      (() => {
-        const ip = ipaddr.process(address).toString()
-        return ip === '127.0.0.1' || ip === '::1'
-      })()
-
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (usable.length === 0) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: address,
+        resolvedIP: addresses.find((address) => isPrivateIp(address)),
       })
       return {
         isValid: false,
@@ -127,7 +90,9 @@ export async function validateUrlWithDNS(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      // Re-preferred over the surviving set so the pin is never an address the
+      // filter above just refused.
+      resolvedIP: preferIpv4(usable as [string, ...string[]]),
       originalHostname: hostname,
     }
   } catch (error) {
@@ -144,6 +109,71 @@ export async function validateUrlWithDNS(
 }
 
 /**
+ * Result of validating a user-supplied HTTP proxy URL.
+ */
+export interface ProxyValidationResult {
+  isValid: boolean
+  /** Proxy URL with hostname rewritten to the resolved IP (creds/port preserved) to pin the proxy connection. */
+  pinnedProxyUrl?: string
+  error?: string
+}
+
+/**
+ * Validates a user-supplied HTTP proxy URL and returns an IP-pinned form.
+ *
+ * When a request routes through a proxy, the TCP connection targets the proxy
+ * host (the proxy resolves the destination), so target-IP pinning no longer
+ * governs egress and the proxy URL becomes the SSRF surface. This function:
+ * 1. Enforces the `http:` scheme (raw TCP to the proxy, no TLS-to-proxy SNI to
+ *    reconcile, so the host can be safely rewritten to an IP).
+ * 2. Resolves the proxy host's DNS and blocks private/reserved/loopback IPs via
+ *    {@link validateUrlWithDNS}.
+ * 3. Pins the connection by rewriting the hostname to the resolved IP while
+ *    preserving credentials/port, closing the DNS-rebinding (TOCTOU) window.
+ *
+ * @param proxyUrl - The proxy URL (e.g. `http://user:pass@host:port`)
+ */
+export async function validateAndPinProxyUrl(
+  proxyUrl: string | null | undefined
+): Promise<ProxyValidationResult> {
+  if (!proxyUrl || typeof proxyUrl !== 'string') {
+    return { isValid: false, error: 'proxyUrl must be a string' }
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(proxyUrl)
+  } catch {
+    return { isValid: false, error: 'proxyUrl must be a valid URL' }
+  }
+
+  if (parsed.protocol !== 'http:') {
+    return {
+      isValid: false,
+      error: 'proxyUrl must use http:// (https/socks proxies are not supported)',
+    }
+  }
+
+  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', { allowHttp: true })
+  if (!validation.isValid) {
+    return { isValid: false, error: validation.error }
+  }
+
+  const resolvedIP = validation.resolvedIP!
+
+  // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
+  // egress, so loopback/private proxy hosts stay blocked unconditionally.
+  if (isPrivateIp(resolvedIP)) {
+    return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
+  }
+
+  // Bracket IPv6 literals: assigning an unbracketed IPv6 address to URL.hostname
+  // is a no-op, which would leave the DNS hostname in place and reopen rebinding.
+  parsed.hostname = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
+  return { isValid: true, pinnedProxyUrl: parsed.toString() }
+}
+
+/**
  * Validates a database hostname by resolving DNS and checking the resolved IP
  * against private/reserved ranges to prevent SSRF via database connections.
  *
@@ -151,6 +181,12 @@ export async function validateUrlWithDNS(
  * function is permissive about hostname format to avoid breaking legitimate
  * database hostnames (e.g. underscores in Docker/K8s service names). It only
  * blocks localhost and private/reserved IPs.
+ *
+ * Self-hosted operators can set `ALLOW_PRIVATE_DATABASE_HOSTS` to reach databases
+ * on their private network (e.g. a Docker/Swarm service name that resolves to an
+ * internal IP). The opt-in only bypasses the private/reserved/loopback block; DNS
+ * is still resolved so the caller can pin the connection to the resolved IP. The
+ * bypass is never honored on the hosted platform (see {@link isPrivateDatabaseHostsAllowed}).
  *
  * @param host - The database hostname to validate
  * @param paramName - Name of the parameter for error messages
@@ -164,24 +200,27 @@ export async function validateDatabaseHost(
     return { isValid: false, error: `${paramName} is required` }
   }
 
-  const lowerHost = host.toLowerCase()
+  const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
-  if (lowerHost === 'localhost') {
+  if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (ipaddr.isValid(lowerHost) && isPrivateOrReservedIP(lowerHost)) {
+  if (isPrivateIpHost(cleanHost) && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
-    const { address } = await dns.lookup(host, { verbatim: true })
+    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
+    const blockedAddress = isPrivateDatabaseHostsAllowed
+      ? undefined
+      : addresses.find((candidate) => isPrivateIp(candidate))
 
-    if (isPrivateOrReservedIP(address)) {
+    if (blockedAddress !== undefined) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
-        resolvedIP: address,
+        resolvedIP: blockedAddress,
       })
       return {
         isValid: false,
@@ -191,7 +230,7 @@ export async function validateDatabaseHost(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      resolvedIP: preferred,
       originalHostname: host,
     }
   } catch (error) {
@@ -321,6 +360,14 @@ export interface SecureFetchOptions {
   maxRedirects?: number
   maxResponseBytes?: number
   signal?: AbortSignal
+  /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
+  stripAuthOnRedirect?: boolean
+  /**
+   * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
+   * When set, the connection routes through this proxy and target-IP pinning is
+   * bypassed (the proxy resolves the target).
+   */
+  proxyUrl?: string
 }
 
 export class SecureFetchHeaders {
@@ -402,6 +449,398 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
 }
 
 /**
+ * DNS lookup that resolves normally and validates EVERY resolved address against
+ * the SSRF policy at socket-connect time (the LibreChat `getSSRFConnect` pattern).
+ * Private/reserved/loopback records are filtered out; if nothing publicly routable
+ * remains the connect fails. Because the check runs on each dial — including
+ * redirects and reconnects — there is no validated-then-trusted window for a DNS
+ * rebind to slip through, and unlike single-IP pinning the connector keeps the
+ * full public address set, so the OS/undici can fall back across addresses.
+ * IPv4 is ordered first (`verbatim: false`) — our egress is IPv4-only.
+ */
+export function createSsrfGuardedLookup(): LookupFunction {
+  return (hostname, options, callback) => {
+    dns
+      .lookup(hostname, { all: true, verbatim: false })
+      .then((addresses) => {
+        const usable = addresses.filter((entry) => !isPrivateIp(entry.address))
+        if (usable.length === 0) {
+          callback(
+            new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
+            '',
+            4
+          )
+          return
+        }
+        if (options.all) callback(null, usable)
+        else callback(null, usable[0].address, usable[0].family)
+      })
+      .catch((error) => callback(toError(error), '', 4))
+  }
+}
+
+const MAX_GUARDED_REDIRECTS = 5
+
+/**
+ * Rejects a redirect hop whose target is a private/reserved IP LITERAL. Node's
+ * `net.connect` bypasses the custom `lookup` for numeric hosts (`isIP(host)`
+ * short-circuits), so the connect-time guard never sees IP-literal dials —
+ * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
+ * targets are covered by {@link createSsrfGuardedLookup} at connect time.
+ */
+function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
+  }
+  const host = unwrapIpv6Brackets(url.hostname)
+  if (ipaddr.isValid(host) && isPrivateIp(host)) {
+    // The pinned-private carve-out permits exactly its own validated IP as a target (a
+    // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
+    // else private (a redirect to e.g. the cloud metadata IP is still blocked).
+    if (
+      allowedPinnedIp &&
+      ipaddr.isValid(allowedPinnedIp) &&
+      ipaddr.process(host).toString() === ipaddr.process(allowedPinnedIp).toString()
+    ) {
+      return
+    }
+    throw new Error('Blocked by SSRF policy: redirect to a private or reserved address')
+  }
+}
+
+/**
+ * Manual, revalidating redirect follower used by the guarded fetch. Auto-follow
+ * is unsafe here on two counts the connect-time lookup cannot cover: IP-literal
+ * redirect targets bypass the lookup entirely (validated per hop instead), and
+ * undici retains CUSTOM request headers across cross-origin redirects (it strips
+ * only Authorization/Cookie) — so caller headers are dropped on any cross-origin
+ * hop. Exported for tests.
+ */
+export async function followRedirectsGuarded(
+  rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
+  input: string,
+  init: UndiciRequestInit,
+  options?: { allowRedirectToIp?: string }
+): Promise<Response> {
+  let currentUrl = new URL(input)
+  // The initial URL gets the same IP-literal check as redirect hops, so the exported guard is
+  // self-contained even when a caller skips its own up-front validation. `allowRedirectToIp`
+  // (the pinned-private MCP carve-out's validated IP) permits that one private target — both the
+  // initial URL and any hop that stays on it — while everything else private stays blocked.
+  assertGuardedRedirectTarget(currentUrl, options?.allowRedirectToIp)
+  let method = (init.method ?? 'GET').toUpperCase()
+  let body = init.body
+  let headers = init.headers
+  for (let hop = 0; ; hop++) {
+    const response = await rawFetch(currentUrl.href, {
+      ...init,
+      method,
+      body,
+      headers,
+      redirect: 'manual',
+    })
+    const status = response.status
+    const location = response.headers.get('location')
+    if (![301, 302, 303, 307, 308].includes(status) || !location) {
+      // `response.url` is already the final hop's URL (set per-request by the raw fetch); flag
+      // `redirected` too when at least one hop was followed, matching fetch semantics.
+      if (hop > 0)
+        Object.defineProperty(response, 'redirected', { value: true, configurable: true })
+      return response
+    }
+    // Cancel the redirect body up front so the throw paths below (hop cap, blocked
+    // target) can't leave a socket checked out on the long-lived Agent.
+    await response.body?.cancel().catch(() => {})
+    if (hop >= MAX_GUARDED_REDIRECTS) {
+      throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
+    }
+    const nextUrl = new URL(location, currentUrl)
+    assertGuardedRedirectTarget(nextUrl, options?.allowRedirectToIp)
+    // Per the fetch spec: 303 (and 301/302 on POST) switch to a bodyless GET, dropping
+    // the entity headers that described the removed body (a retained Content-Length /
+    // Content-Type on a bodyless GET is malformed and undici rejects it).
+    if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
+      method = 'GET'
+      body = undefined
+      if (headers !== undefined) {
+        const sanitized = new Headers(headers as HeadersInit)
+        sanitized.delete('content-length')
+        sanitized.delete('content-type')
+        sanitized.delete('content-encoding')
+        sanitized.delete('transfer-encoding')
+        // double-cast-allowed: Headers is a valid undici HeadersInit at runtime but the DOM/undici types differ
+        headers = sanitized as unknown as UndiciRequestInit['headers']
+      }
+    }
+    if (nextUrl.origin !== currentUrl.origin) {
+      headers = undefined
+      // 307/308 preserve method+body; forwarding a body cross-origin can hand OAuth
+      // client secrets / tokens to an open-redirect target now that redirects really
+      // dial the new origin. No legitimate MCP/OAuth flow does this — refuse it.
+      if (body !== undefined && body !== null) {
+        throw new Error(
+          'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+        )
+      }
+    }
+    currentUrl = nextUrl
+  }
+}
+
+/** Coerce a DOM/undici `HeadersInit` into the record shape undici `request` accepts. */
+function toUndiciRequestHeaders(
+  headers: UndiciRequestInit['headers']
+): Record<string, string> | undefined {
+  if (!headers) return undefined
+  const record: Record<string, string> = {}
+  if (Array.isArray(headers)) {
+    for (const [key, value] of headers as [string, string][]) {
+      if (value != null) record[key] = String(value)
+    }
+    return record
+  }
+  // Single cast (no `as unknown`): the optional `forEach` is satisfiable by both a plain
+  // record (absent) and a `Headers` instance (present), so it detects the iterable form.
+  const iterableHeaders = headers as {
+    forEach?: (cb: (value: string, key: string) => void) => void
+  }
+  if (typeof iterableHeaders.forEach === 'function') {
+    iterableHeaders.forEach((value, key) => {
+      record[key] = value
+    })
+    return record
+  }
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (value != null) record[key] = Array.isArray(value) ? value.join(', ') : String(value)
+  }
+  return record
+}
+
+/** Coerce a DOM/undici body init into a value undici `request` accepts. */
+function toUndiciRequestBody(
+  body: UndiciRequestInit['body']
+): string | Buffer | Uint8Array | Readable | undefined {
+  if (body == null) return undefined
+  // fetch accepts URLSearchParams (form-encoded) and undici.request does not — the MCP SDK's
+  // OAuth token/refresh exchange sends one. Serialize it to its wire form.
+  if (body instanceof URLSearchParams) return body.toString()
+  if (body instanceof ArrayBuffer) return Buffer.from(body)
+  if (ArrayBuffer.isView(body) && !(body instanceof Uint8Array)) {
+    return Buffer.from(body.buffer, body.byteOffset, body.byteLength)
+  }
+  if (typeof (body as ReadableStream).getReader === 'function') {
+    // double-cast-allowed: DOM ReadableStream and the node:stream Web type differ but are structurally compatible at runtime
+    return Readable.fromWeb(body as unknown as Parameters<typeof Readable.fromWeb>[0])
+  }
+  // string, Uint8Array/Buffer, or Readable — passed through unchanged.
+  // double-cast-allowed: undici BodyInit is wider than what request() accepts; our guarded/pinned callers only send these
+  return body as unknown as string | Buffer | Uint8Array | Readable
+}
+
+/**
+ * Decompression transform for a `Content-Encoding`, or `null` to pass the body through.
+ * `undici.fetch` decodes the body automatically; `undici.request` does not, so this restores
+ * fetch parity for gzip/deflate/br responses (common behind CDNs). Unknown/absent encodings
+ * pass through untouched.
+ */
+function contentEncodingDecoder(
+  encoding: string
+): zlib.Gunzip | zlib.Inflate | zlib.BrotliDecompress | null {
+  switch (encoding) {
+    case 'gzip':
+    case 'x-gzip':
+      return zlib.createGunzip()
+    case 'deflate':
+      return zlib.createInflate()
+    case 'br':
+      return zlib.createBrotliDecompress()
+    default:
+      return null
+  }
+}
+
+/**
+ * Streaming-safe replacement for `undiciFetch(url, { ...init, dispatcher })`.
+ *
+ * undici's `fetch` exposes the response body as a WHATWG `ReadableStream` whose
+ * bridge is broken under the Bun runtime (which the standalone server runs on):
+ * response headers arrive but `response.body` never yields data, hanging every
+ * incremental read — MCP SSE `tools/list`, provider streaming — to its timeout.
+ * undici's lower-level `request()` returns a Node `Readable` instead, which Bun
+ * implements natively and streams correctly; `Readable.toWeb` bridges it back to
+ * a spec `Response`. Buffered reads (`.json()`/`.text()`/`.arrayBuffer()`) behave
+ * identically on both runtimes, so this is a drop-in substitute.
+ *
+ * SSRF is unchanged: the same `dispatcher` (Agent carrying the guarded/pinned
+ * `connect.lookup`) governs every connection, and `maxResponseSize` still caps the
+ * body. Redirects are NOT followed here (`maxRedirections: 0`); the caller drives
+ * them via {@link followRedirectsGuarded}, exactly as it did over `fetch`'s
+ * `redirect: 'manual'`.
+ */
+async function undiciRequestAsResponse(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  dispatcher: Dispatcher
+): Promise<Response> {
+  let url: string
+  let effectiveInit = init as UndiciRequestInit
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    // A Request input carries its own method/headers/body/signal; lift them (explicit
+    // init fields win, per fetch semantics) so a guarded POST isn't downgraded to GET.
+    const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
+    effectiveInit = {
+      method: input.method,
+      headers: input.headers,
+      body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
+      signal: input.signal,
+      ...(init as UndiciRequestInit),
+      // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
+    } as unknown as UndiciRequestInit
+    url = input.url
+  } else {
+    url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  }
+
+  const method = (effectiveInit.method ?? 'GET').toUpperCase()
+  const canHaveBody = method !== 'GET' && method !== 'HEAD'
+  const requestHeaders = toUndiciRequestHeaders(effectiveInit.headers) ?? {}
+  const requestBody = canHaveBody ? toUndiciRequestBody(effectiveInit.body) : undefined
+  // fetch auto-adds a form content-type for a URLSearchParams body; preserve that parity
+  // when the caller didn't set one (the MCP SDK does set it explicitly, but not every caller).
+  if (
+    canHaveBody &&
+    effectiveInit.body instanceof URLSearchParams &&
+    !Object.keys(requestHeaders).some((key) => key.toLowerCase() === 'content-type')
+  ) {
+    requestHeaders['content-type'] = 'application/x-www-form-urlencoded;charset=UTF-8'
+  }
+  const { statusCode, headers, body } = await undiciRequest(url, {
+    method: method as Dispatcher.HttpMethod,
+    headers: requestHeaders,
+    body: requestBody,
+    signal: effectiveInit.signal ?? undefined,
+    dispatcher,
+    // No `maxRedirections`: request() does not auto-follow by default, so the caller's
+    // `followRedirectsGuarded` drives every hop with per-hop SSRF validation.
+  })
+
+  const responseHeaders = new Headers()
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) for (const v of value) responseHeaders.append(key, v)
+    else if (value != null) responseHeaders.append(key, value)
+  }
+
+  // Null-body statuses (204/205/304) can't carry a body; drain undici's (empty) stream so its
+  // socket returns to the pool. Attach an error listener first so a socket reset mid-drain
+  // surfaces as a handled event, not an unhandled 'error' that crashes the process.
+  const isNullBody = statusCode === 204 || statusCode === 205 || statusCode === 304
+  if (isNullBody) {
+    body.on('error', () => {})
+    body.resume()
+    const response = new Response(null, { status: statusCode, headers: responseHeaders })
+    Object.defineProperty(response, 'url', { value: url, configurable: true })
+    return response
+  }
+
+  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes). `maxResponseSize`
+  // still caps the compressed wire bytes on `body`.
+  const contentEncoding = String(headers['content-encoding'] ?? '')
+    .toLowerCase()
+    .trim()
+  const decoder = contentEncodingDecoder(contentEncoding)
+  if (decoder) {
+    // The bridged body is now decoded; drop framing headers that would misdescribe it.
+    responseHeaders.delete('content-encoding')
+    responseHeaders.delete('content-length')
+  }
+  // Build the bridge over the stream the consumer reads (the decoder when decoding).
+  // `nodeReadableToWebStream` attaches its `error` listener synchronously, so wiring the pipe
+  // AFTER it means a synchronous zlib error (e.g. a server mislabeling a non-gzip body as gzip)
+  // is caught and rejects the reader instead of taking down the process.
+  const webBody = nodeReadableToWebStream(decoder ?? body)
+  if (decoder) {
+    body.once('error', (err) => decoder.destroy(err)) // forward maxResponseSize / socket reset
+    decoder.once('close', () => body.destroy()) // tear the source down so the socket can't leak
+    body.pipe(decoder)
+  }
+
+  try {
+    const response = new Response(webBody, { status: statusCode, headers: responseHeaders })
+    // undici.request never sets `url`; `fetch` did, and consumers rely on it (the MCP
+    // transport's response-cap wrapper copies it; the SDK resolves relative
+    // auth-metadata URLs against it). Preserve parity.
+    Object.defineProperty(response, 'url', { value: url, configurable: true })
+    return response
+  } catch (err) {
+    // `new Response` rejects an out-of-range status (a 1xx undici shouldn't surface, but
+    // defensively): destroy the source so its socket can't leak, then rethrow.
+    body.destroy()
+    throw err
+  }
+}
+
+/**
+ * Normalizes a `fetch(input, init)` call into a URL string + init. A `Request` input carries
+ * its own method/headers/body/signal; lift them into the init (explicit init fields win, per
+ * fetch semantics) so a manual redirect follower can't silently downgrade a POST Request to a
+ * bare GET or lose its headers.
+ */
+async function liftFetchArgs(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<{ target: string; effectiveInit: RequestInit }> {
+  const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    const bodyAllowed = input.method !== 'GET' && input.method !== 'HEAD'
+    return {
+      target,
+      effectiveInit: {
+        method: input.method,
+        headers: input.headers,
+        body: bodyAllowed ? await input.clone().arrayBuffer() : undefined,
+        signal: input.signal,
+        // Carry the Request's redirect mode so the pinned fetch honors `manual`/`error`
+        // instead of defaulting a `Request({ redirect: 'manual' })` to `follow`.
+        redirect: input.redirect,
+        ...init,
+      },
+    }
+  }
+  return { target, effectiveInit: init ?? {} }
+}
+
+/**
+ * SSRF-guarded `fetch` + its `Agent` for outbound requests to user-controlled
+ * hosts: DNS resolves normally, and every socket connect validates the chosen
+ * addresses via {@link createSsrfGuardedLookup}; redirects are followed manually
+ * with per-hop validation (see {@link followRedirectsGuarded}) so IP-literal
+ * targets can't bypass the lookup and custom headers never cross origins. See
+ * {@link createPinnedFetchWithDispatcher} for the `maxResponseSize` semantics.
+ */
+export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize?: number }): {
+  fetch: typeof fetch
+  dispatcher: Agent
+} {
+  const dispatcher = new Agent({
+    allowH2: false,
+    connect: { lookup: createSsrfGuardedLookup() },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+  })
+
+  const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
+    // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
+    undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
+
+  const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const { target, effectiveInit } = await liftFetchArgs(input, init)
+    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+    return followRedirectsGuarded(rawFetch, target, effectiveInit as unknown as UndiciRequestInit)
+  }
+
+  return { fetch: guarded, dispatcher }
+}
+
+/**
  * Builds a standard `fetch`-compatible function that pins every outbound
  * connection to `resolvedIP`, preventing DNS-rebinding (TOCTOU) between URL
  * validation and connection. The original hostname is preserved for TLS SNI and
@@ -418,21 +857,80 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  *
  * The `Agent` is captured for the lifetime of the returned function, so repeated
  * calls (e.g. a provider tool loop) reuse its keep-alive connections.
+ *
+ * `allowH2` opts the pinned Agent into HTTP/2 (ALPN-negotiated, h1.1 fallback).
+ * It defaults to `false` to leave existing consumers unchanged. Enabling it does
+ * not weaken pinning: the pinned `connect.lookup` forces every connection on the
+ * Agent to `resolvedIP` regardless of authority, so h2 connection coalescing can
+ * never reach an address other than the validated one.
  */
-export function createPinnedFetch(resolvedIP: string): typeof fetch {
-  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
+export function createPinnedFetch(
+  resolvedIP: string,
+  options?: { allowH2?: boolean }
+): typeof fetch {
+  return createPinnedFetchWithDispatcher(resolvedIP, options).fetch
+}
 
+/**
+ * Same as {@link createPinnedFetch} but also returns the underlying `Agent` so a
+ * caller with a defined connection lifetime (e.g. a long-lived MCP transport) can
+ * tear the Agent down on close instead of waiting for its idle timeout. Closing
+ * the Agent is what releases any pooled keep-alive / HTTP/2 sockets it holds.
+ *
+ * `maxResponseSize` caps the (decoded) response body in bytes and makes undici reject
+ * with `UND_ERR_RES_EXCEEDED_MAX_SIZE` once exceeded — a DoS backstop for one-shot
+ * callers reading from a URL taken from untrusted metadata. Omit it (the default) to
+ * leave the response unbounded, which streaming consumers like the MCP transport need.
+ */
+export function createPinnedFetchWithDispatcher(
+  resolvedIP: string,
+  options?: { allowH2?: boolean; maxResponseSize?: number }
+): { fetch: typeof fetch; dispatcher: Agent } {
+  const dispatcher = new Agent({
+    allowH2: options?.allowH2 ?? false,
+    connect: { lookup: createPinnedLookup(resolvedIP) },
+    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+  })
+
+  const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
+    // double-cast-allowed: DOM RequestInit and undici RequestInit differ in TS but match at runtime
+    undiciRequestAsResponse(url, init as unknown as RequestInit, dispatcher)
+
+  // Requests go through `undici.request` (not `undici.fetch`) because fetch's streaming
+  // `response.body` never delivers under the Bun runtime the server runs on — the same bug
+  // {@link createSsrfGuardedFetchWithDispatcher} works around. Redirects are handled here (not
+  // by a caller's wrapper — the pinned fetch is passed straight to provider/A2A SDKs), honoring
+  // the request's `redirect` mode: `manual`/`error` must NOT transparently follow (e.g.
+  // `detectMcpAuthType` inspects the 3xx to classify auth). The default `follow` uses
+  // {@link followRedirectsGuarded}, which drops headers on cross-origin hops (so a redirect
+  // can't disclose a provider `api-key` to another origin) and stamps the final `response.url`.
+  // Every hop still dispatches through the pinned `Agent` (its `connect.lookup` forces
+  // `resolvedIP`), so a redirect can't escape to another address.
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
-    const undiciInput = input as unknown as Parameters<typeof undiciFetch>[0]
+    const { target, effectiveInit } = await liftFetchArgs(input, init)
+    const mode = effectiveInit.redirect ?? 'follow'
     // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    const undiciInit: UndiciRequestInit = { ...(init as unknown as UndiciRequestInit), dispatcher }
-    const response = await undiciFetch(undiciInput, undiciInit)
-    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
-    return response as unknown as Response
+    const undiciInit = effectiveInit as unknown as UndiciRequestInit
+    if (mode === 'manual') {
+      return rawFetch(target, undiciInit)
+    }
+    if (mode === 'error') {
+      const response = await rawFetch(target, undiciInit)
+      const location = response.headers.get('location')
+      if (response.status >= 300 && response.status < 400 && location) {
+        await response.body?.cancel().catch(() => {})
+        throw new TypeError('Pinned fetch received an unexpected redirect (redirect: "error")')
+      }
+      return response
+    }
+    // Permit this pinned IP as a redirect/initial target even when it's private (the
+    // self-hosted MCP carve-out on a private/loopback IP, and same-host redirects that stay on
+    // it) — otherwise the guarded policy would block a self-hosted server reaching itself. Any
+    // OTHER private target (e.g. a redirect to the cloud metadata IP) is still blocked.
+    return followRedirectsGuarded(rawFetch, target, undiciInit, { allowRedirectToIp: resolvedIP })
   }
 
-  return pinned
+  return { fetch: pinned, dispatcher }
 }
 
 /**
@@ -455,11 +953,17 @@ export async function secureFetchWithPinnedIP(
     const defaultPort = isHttps ? 443 : 80
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
 
-    const lookup = createPinnedLookup(resolvedIP)
-
-    const agentOptions: http.AgentOptions = { lookup }
-
-    const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+    let agent: http.Agent
+    if (options.proxyUrl) {
+      // Proxy connection is already IP-pinned by validateAndPinProxyUrl; target-IP
+      // pinning is intentionally bypassed (the proxy resolves the target). https
+      // targets tunnel via CONNECT, http targets use absolute-URI forwarding.
+      agent = isHttps ? new HttpsProxyAgent(options.proxyUrl) : new HttpProxyAgent(options.proxyUrl)
+    } else {
+      const lookup = createPinnedLookup(resolvedIP)
+      const agentOptions: http.AgentOptions = { lookup }
+      agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+    }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
 
@@ -488,10 +992,16 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
+            const redirectOptions = options.stripAuthOnRedirect
+              ? {
+                  ...options,
+                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
+                }
+              : options
             return secureFetchWithPinnedIP(
               redirectUrl,
               validation.resolvedIP!,
-              options,
+              redirectOptions,
               redirectCount + 1
             )
           })

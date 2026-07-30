@@ -2,6 +2,7 @@ import type {
   AmplitudeUserSearchParams,
   AmplitudeUserSearchResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const userSearchTool: ToolConfig<AmplitudeUserSearchParams, AmplitudeUserSearchResponse> = {
@@ -30,11 +31,17 @@ export const userSearchTool: ToolConfig<AmplitudeUserSearchParams, AmplitudeUser
       visibility: 'user-or-llm',
       description: 'User ID, Device ID, or Amplitude ID to search for',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://amplitude.com/api/2/usersearch')
+      const url = new URL(`${getDashboardHost(params.dataResidency)}/api/2/usersearch`)
       url.searchParams.set('user', params.user.trim())
       return url.toString()
     },

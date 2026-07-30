@@ -18,6 +18,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('OrganizationMemberAPI')
 
@@ -253,6 +254,13 @@ export const PUT = withRouteHandler(
         request,
       })
 
+      captureServerEvent(
+        session.user.id,
+        'org_member_role_changed',
+        { organization_id: organizationId, new_role: role },
+        { groups: { organization: organizationId } }
+      )
+
       return NextResponse.json({
         success: true,
         message: 'Member role updated successfully',
@@ -382,6 +390,13 @@ export const DELETE = withRouteHandler(
           request,
         })
 
+        captureServerEvent(
+          session.user.id,
+          'org_member_removed',
+          { organization_id: organizationId, is_self_removal: session.user.id === targetUserId },
+          { groups: { organization: organizationId } }
+        )
+
         return NextResponse.json({
           success: true,
           message: 'External member removed successfully',
@@ -422,6 +437,7 @@ export const DELETE = withRouteHandler(
         seatReduction = await reconcileOrganizationSeats({
           organizationId,
           reason: 'member-removed',
+          actorId: session.user.id,
         })
       } catch (seatError) {
         logger.error('Failed to reduce seats after member removal', {
@@ -478,6 +494,13 @@ export const DELETE = withRouteHandler(
         },
         request,
       })
+
+      captureServerEvent(
+        session.user.id,
+        'org_member_removed',
+        { organization_id: organizationId, is_self_removal: session.user.id === targetUserId },
+        { groups: { organization: organizationId } }
+      )
 
       return NextResponse.json({
         success: true,

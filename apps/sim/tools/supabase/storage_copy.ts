@@ -10,7 +10,7 @@ export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStor
   id: 'supabase_storage_copy',
   name: 'Supabase Storage Copy',
   description: 'Copy a file within a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

@@ -7,6 +7,8 @@ import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { eq } from 'drizzle-orm'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import { prepareWorkflowExecutionAdmission } from '@/lib/copilot/request/tools/workflow-context'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   buildVfsFolderPathMap,
@@ -16,20 +18,17 @@ import {
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
-import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
+import {
+  type ExecuteWorkflowOptions,
+  executeWorkflow,
+  type WorkflowInfo,
+} from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionInputForWorkflow,
   getExecutionStateForWorkflow,
   getLatestExecutionStateWithExecutionId,
 } from '@/lib/workflows/executor/execution-state'
-import {
-  performCreateFolder,
-  performCreateWorkflow,
-  performDeleteFolder,
-  performDeleteWorkflow,
-  performUpdateFolder,
-  performUpdateWorkflow,
-} from '@/lib/workflows/orchestration'
+import { performCreateWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -78,6 +77,42 @@ function buildExecutionOutput(
       logs: stripBinaryFields(result.logs),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
+  }
+}
+
+async function executeCopilotWorkflowTarget(params: {
+  workflow: WorkflowInfo
+  input: unknown
+  context: ExecutionContext
+  options: Omit<ExecuteWorkflowOptions, 'billingAttribution'>
+}) {
+  const childExecutionId = generateId()
+  if (!params.workflow.workspaceId) {
+    throw new Error(`Workflow ${params.workflow.id} has no workspaceId`)
+  }
+  const admission = await prepareWorkflowExecutionAdmission(
+    params.context,
+    params.workflow.workspaceId,
+    childExecutionId
+  )
+
+  try {
+    return await executeWorkflow(
+      params.workflow,
+      generateRequestId(),
+      params.input,
+      params.context.userId,
+      {
+        ...params.options,
+        billingAttribution: admission.billingAttribution,
+      },
+      childExecutionId
+    )
+  } catch (error) {
+    if (admission.targetReservation) {
+      await releaseExecutionSlot(childExecutionId)
+    }
+    throw error
   }
 }
 
@@ -307,15 +342,9 @@ function notifyWorkflowUpdated(workflowId: string): void {
 }
 
 import type {
-  CreateFolderParams,
   CreateWorkflowParams,
-  DeleteFolderParams,
-  DeleteWorkflowParams,
   GenerateApiKeyParams,
-  ManageFolderParams,
-  MoveFolderParams,
   MoveWorkflowParams,
-  RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
   RunFromBlockParams,
@@ -323,7 +352,6 @@ import type {
   RunWorkflowUntilBlockParams,
   SetBlockEnabledParams,
   SetGlobalWorkflowVariablesParams,
-  UpdateWorkflowParams,
   VariableOperation,
 } from '../param-types'
 
@@ -350,16 +378,25 @@ export async function executeCreateWorkflow(
     if (name.length > 200) {
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
-    const description = typeof params?.description === 'string' ? params.description : null
-    if (description && description.length > 2000) {
-      return { success: false, error: 'Description must be 2000 characters or less' }
-    }
-
     const workspaceId =
       params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
+    let folderId =
+      typeof params?.folderId === 'string' && params.folderId.trim() ? params.folderId.trim() : null
+    if (folderPath) {
+      const relativePath = workflowFolderRelativePath(folderPath)
+      if (!relativePath) {
+        folderId = null
+      } else {
+        const target = resolveFolderIdByPath(folderPath, await loadFolderPathIndex(workspaceId))
+        if ('error' in target) return { success: false, error: target.error }
+        folderId = target.folderId
+      }
+    }
+
     await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
 
@@ -367,7 +404,6 @@ export async function executeCreateWorkflow(
       userId: context.userId,
       workspaceId,
       name,
-      description,
       folderId,
     })
     if (!result.success || !result.workflow) {
@@ -412,51 +448,6 @@ export async function executeCreateWorkflow(
   }
 }
 
-export async function executeCreateFolder(
-  params: CreateFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const name = typeof params?.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-    if (name.length > 200) {
-      return { success: false, error: 'Folder name must be 200 characters or less' }
-    }
-
-    const workspaceId =
-      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    const parentId = params?.parentId || null
-
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-    await assertFolderMutable(parentId)
-    assertWorkflowMutationNotAborted(context)
-
-    const result = await performCreateFolder({
-      userId: context.userId,
-      workspaceId,
-      name,
-      parentId,
-    })
-    if (!result.success || !result.folder) {
-      return { success: false, error: result.error || 'Failed to create folder' }
-    }
-
-    return {
-      success: true,
-      output: {
-        folderId: result.folder.id,
-        name: result.folder.name,
-        workspaceId: result.folder.workspaceId,
-        parentId: result.folder.parentId,
-      },
-    }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
-  }
-}
-
 export async function executeRunWorkflow(
   params: RunWorkflowParams,
   context: ExecutionContext
@@ -479,24 +470,22 @@ export async function executeRunWorkflow(
     if ('error' in prepared) {
       return { success: false, error: prepared.error }
     }
-
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      prepared.input,
-      context.userId,
-      {
+      input: prepared.input,
+      context,
+      options: {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
         triggerBlockId: prepared.triggerBlockId,
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result)
   } catch (error) {
@@ -726,47 +715,6 @@ export async function executeMoveWorkflow(
   }
 }
 
-export async function executeMoveFolder(
-  params: MoveFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const folderId = params.folderId
-    if (!folderId) {
-      return { success: false, error: 'folderId is required' }
-    }
-
-    const parentId = params.parentId || null
-
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
-    if (!(await verifyFolderWorkspace(folderId, workspaceId))) {
-      return { success: false, error: 'Folder not found' }
-    }
-    if (parentId && !(await verifyFolderWorkspace(parentId, workspaceId))) {
-      return { success: false, error: 'Parent folder not found' }
-    }
-
-    await assertFolderMutable(folderId)
-    await assertFolderMutable(parentId)
-    assertWorkflowMutationNotAborted(context)
-    const result = await performUpdateFolder({
-      folderId,
-      workspaceId,
-      userId: context.userId,
-      parentId,
-    })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to move folder' }
-    }
-
-    return { success: true, output: { folderId, parentId } }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
-  }
-}
-
 export async function executeRunWorkflowUntilBlock(
   params: RunWorkflowUntilBlockParams,
   context: ExecutionContext
@@ -792,25 +740,23 @@ export async function executeRunWorkflowUntilBlock(
     if ('error' in prepared) {
       return { success: false, error: prepared.error }
     }
-
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      prepared.input,
-      context.userId,
-      {
+      input: prepared.input,
+      context,
+      options: {
         enabled: true,
         useDraftState,
         stopAfterBlockId: params.stopAfterBlockId,
         workflowTriggerType: 'copilot',
         triggerBlockId: prepared.triggerBlockId,
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result, { stoppedAfterBlockId: params.stopAfterBlockId })
   } catch (error) {
@@ -853,8 +799,7 @@ export async function executeGenerateApiKey(
         name: result.key.name,
         key: result.key.key,
         workspaceId,
-        message:
-          'API key created successfully. Copy this key now — it will not be shown again. Use this key in the x-api-key header when calling workflow API endpoints.',
+        message: `API key "${result.key.name}" created. You did NOT receive the key value — Sim reveals it to the user ONLY through the secure, copyable chip it renders where you place a <credential>{"type":"sim_key"}</credential> tag, so you MUST emit that tag now or the user can never see the key (it cannot be shown again). Never print, guess, or fabricate a value. The key authenticates calls to deployed workflow endpoints via the x-api-key header.`,
       },
     }
   } catch (error) {
@@ -893,17 +838,16 @@ export async function executeRunFromBlock(
     )
     const useDraftState = !params.useDeployedState
 
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      resolveRunWorkflowInput(params),
-      context.userId,
-      {
+      input: resolveRunWorkflowInput(params),
+      context,
+      options: {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
@@ -912,70 +856,12 @@ export async function executeRunFromBlock(
           sourceSnapshot: sourceSnapshot.snapshot,
           sourceExecutionId: sourceSnapshot.executionId,
         },
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result, { startBlockId: params.startBlockId })
   } catch (error) {
     return buildExecutionError(error)
-  }
-}
-
-async function executeUpdateWorkflow(
-  params: UpdateWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-
-    const updates: { name?: string; description?: string } = {}
-
-    if (typeof params.name === 'string') {
-      const name = params.name.trim()
-      if (!name) return { success: false, error: 'name cannot be empty' }
-      if (name.length > 200)
-        return { success: false, error: 'Workflow name must be 200 characters or less' }
-      updates.name = name
-    }
-
-    if (typeof params.description === 'string') {
-      if (params.description.length > 2000) {
-        return { success: false, error: 'Description must be 2000 characters or less' }
-      }
-      updates.description = params.description
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return { success: false, error: 'At least one of name or description is required' }
-    }
-
-    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
-    if (!current.workspaceId) {
-      return { success: false, error: 'Workflow workspace is required' }
-    }
-    await assertWorkflowMutable(workflowId)
-    assertWorkflowMutationNotAborted(context)
-    const result = await performUpdateWorkflow({
-      workflowId,
-      userId: context.userId,
-      workspaceId: current.workspaceId,
-      currentName: current.workflow.name,
-      currentFolderId: current.workflow.folderId,
-      ...updates,
-    })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to update workflow' }
-    }
-
-    return {
-      success: true,
-      output: { workflowId, ...updates },
-    }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
   }
 }
 
@@ -1111,143 +997,6 @@ export async function executeSetBlockEnabled(
   }
 }
 
-export async function executeDeleteWorkflow(
-  params: DeleteWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowIds = params.workflowIds
-    if (!workflowIds || workflowIds.length === 0) {
-      return { success: false, error: 'workflowIds is required' }
-    }
-
-    const deleted: Array<{ workflowId: string; name: string }> = []
-    const failed: string[] = []
-
-    for (const workflowId of workflowIds) {
-      try {
-        const { workflow: workflowRecord } = await ensureWorkflowAccess(
-          workflowId,
-          context.userId,
-          'write'
-        )
-        await assertWorkflowMutable(workflowId)
-        assertWorkflowMutationNotAborted(context)
-
-        const result = await performDeleteWorkflow({ workflowId, userId: context.userId })
-        if (result.success) {
-          deleted.push({ workflowId, name: workflowRecord.name })
-        } else {
-          failed.push(workflowId)
-        }
-      } catch {
-        failed.push(workflowId)
-      }
-    }
-
-    return {
-      success: deleted.length > 0,
-      output: { deleted, failed },
-    }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
-  }
-}
-
-export async function executeDeleteFolder(
-  params: DeleteFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const folderIds = params.folderIds
-    if (!folderIds || folderIds.length === 0) {
-      return { success: false, error: 'folderIds is required' }
-    }
-
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
-    const folders = await listFolders(workspaceId)
-    const deleted: string[] = []
-    const failed: string[] = []
-
-    for (const folderId of folderIds) {
-      const folder = folders.find((f) => f.folderId === folderId)
-      if (!folder) {
-        failed.push(folderId)
-        continue
-      }
-
-      assertWorkflowMutationNotAborted(context)
-
-      try {
-        await assertFolderMutable(folderId)
-
-        const result = await performDeleteFolder({
-          folderId,
-          workspaceId,
-          userId: context.userId,
-          folderName: folder.folderName,
-        })
-
-        if (result.success) {
-          deleted.push(folderId)
-        } else {
-          failed.push(folderId)
-        }
-      } catch {
-        failed.push(folderId)
-      }
-    }
-
-    return { success: deleted.length > 0, output: { deleted, failed } }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
-  }
-}
-
-async function executeRenameFolder(
-  params: RenameFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const folderId = params.folderId
-    if (!folderId) {
-      return { success: false, error: 'folderId is required' }
-    }
-    const name = typeof params.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-    if (name.length > 200) {
-      return { success: false, error: 'Folder name must be 200 characters or less' }
-    }
-
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
-    if (!(await verifyFolderWorkspace(folderId, workspaceId))) {
-      return { success: false, error: 'Folder not found' }
-    }
-
-    await assertFolderMutable(folderId)
-    assertWorkflowMutationNotAborted(context)
-    const result = await performUpdateFolder({
-      folderId,
-      workspaceId,
-      userId: context.userId,
-      name,
-    })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to rename folder' }
-    }
-
-    return { success: true, output: { folderId, name } }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
-  }
-}
-
 /**
  * Strip the `workflows/` VFS prefix from a folder path, returning the
  * folder-relative remainder. `workflows` (or an empty path) maps to the
@@ -1259,139 +1008,45 @@ function workflowFolderRelativePath(rawPath: string): string {
   return trimmed.startsWith('workflows/') ? trimmed.slice('workflows/'.length) : trimmed
 }
 
+type FolderPathIndex = Map<string, string | null>
+
 /**
- * Load a lookup from each folder's canonical encoded VFS path to its id by
- * inverting the same {@link buildVfsFolderPathMap} the VFS uses to serve folder
- * paths, so a path the agent sees via glob round-trips to the right id. Fetched
- * once per manage_folder call and reused across target + parent resolution.
+ * Load an index from each canonical encoded VFS path to its folder id. A null
+ * value records that multiple folder ids collapse to the same canonical path,
+ * so callers can reject the ambiguous path instead of silently choosing one.
  */
-async function loadFolderPathToIdMap(workspaceId: string): Promise<Map<string, string>> {
-  const byPath = new Map<string, string>()
+async function loadFolderPathIndex(workspaceId: string): Promise<FolderPathIndex> {
+  const byPath: FolderPathIndex = new Map()
   for (const [folderId, encodedPath] of buildVfsFolderPathMap(
     await listFolders(workspaceId)
   ).entries()) {
-    byPath.set(encodedPath, folderId)
+    if (!byPath.has(encodedPath)) {
+      byPath.set(encodedPath, folderId)
+    } else if (byPath.get(encodedPath) !== folderId) {
+      byPath.set(encodedPath, null)
+    }
   }
   return byPath
 }
 
-function lookupFolderIdByPath(rawPath: string, byPath: Map<string, string>): string | null {
+function resolveFolderIdByPath(
+  rawPath: string,
+  byPath: FolderPathIndex,
+  label = 'Folder'
+): { folderId: string } | { error: string } {
   const relative = workflowFolderRelativePath(rawPath)
-  if (!relative) return null
-  return byPath.get(encodeVfsPathSegments(decodeVfsPathSegments(relative))) ?? null
-}
+  if (!relative) return { error: `${label} not found at ${rawPath}` }
 
-/** Resolve the folder a manage_folder op targets, preferring folderId over path. */
-async function resolveManageFolderTarget(
-  params: ManageFolderParams,
-  getFolderPaths: () => Promise<Map<string, string>>
-): Promise<{ folderId: string } | { error: string }> {
-  const directId = typeof params.folderId === 'string' ? params.folderId.trim() : ''
-  if (directId) return { folderId: directId }
-  const path = typeof params.path === 'string' ? params.path.trim() : ''
-  if (!path) return { error: 'Provide the folder path (e.g. "workflows/Marketing") or folderId.' }
-  const folderId = lookupFolderIdByPath(path, await getFolderPaths())
-  if (!folderId) return { error: `Folder not found at ${path}` }
-  return { folderId }
-}
+  const canonicalPath = encodeVfsPathSegments(decodeVfsPathSegments(relative))
+  if (!byPath.has(canonicalPath)) return { error: `${label} not found at ${rawPath}` }
 
-/**
- * Resolve the destination parent for move/create. parentId/destinationPath are
- * optional; their absence (or an explicit root) targets the workspace root
- * (parentId null).
- */
-async function resolveManageFolderParent(
-  params: ManageFolderParams,
-  getFolderPaths: () => Promise<Map<string, string>>
-): Promise<{ parentId: string | null } | { error: string }> {
-  const directId = typeof params.parentId === 'string' ? params.parentId.trim() : ''
-  if (directId) return { parentId: directId }
-  if (params.parentId === null) return { parentId: null }
-  const dest = typeof params.destinationPath === 'string' ? params.destinationPath.trim() : ''
-  if (!dest || !workflowFolderRelativePath(dest)) return { parentId: null }
-  const parentId = lookupFolderIdByPath(dest, await getFolderPaths())
-  if (!parentId) return { error: `Destination folder not found at ${dest}` }
-  return { parentId }
-}
-
-/**
- * Single entry point for folder CRUD (create/rename/move/delete). Resolves the
- * VFS-path/folderId handles, then delegates to the existing folder handlers so
- * all DB orchestration (performCreateFolder / performUpdateFolder /
- * performDeleteFolder) stays in one place.
- */
-export async function executeManageFolder(
-  params: ManageFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const operation = typeof params?.operation === 'string' ? params.operation.trim() : ''
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-
-    // Fetch the workspace folder list at most once, lazily — only when a path
-    // (vs an explicit id) actually needs resolving, and shared across the
-    // target + parent lookups a single move/create performs.
-    let folderPathsPromise: Promise<Map<string, string>> | undefined
-    const getFolderPaths = () => (folderPathsPromise ??= loadFolderPathToIdMap(workspaceId))
-
-    switch (operation) {
-      case 'create': {
-        let name = typeof params.name === 'string' ? params.name.trim() : ''
-        let parentId: string | null = null
-        const path = typeof params.path === 'string' ? params.path.trim() : ''
-        if (!name && path) {
-          const segments = decodeVfsPathSegments(workflowFolderRelativePath(path))
-          if (segments.length === 0) {
-            return { success: false, error: 'create requires a folder name or path' }
-          }
-          name = segments[segments.length - 1]
-          const parentSegments = segments.slice(0, -1)
-          if (parentSegments.length > 0) {
-            const resolved = lookupFolderIdByPath(
-              encodeVfsPathSegments(parentSegments),
-              await getFolderPaths()
-            )
-            if (!resolved) {
-              return { success: false, error: `Parent folder not found for ${path}` }
-            }
-            parentId = resolved
-          }
-        } else {
-          const parent = await resolveManageFolderParent(params, getFolderPaths)
-          if ('error' in parent) return { success: false, error: parent.error }
-          parentId = parent.parentId
-        }
-        if (!name) return { success: false, error: 'create requires a folder name or path' }
-        return executeCreateFolder({ name, parentId: parentId ?? undefined, workspaceId }, context)
-      }
-      case 'rename': {
-        const name = typeof params.name === 'string' ? params.name.trim() : ''
-        if (!name) return { success: false, error: 'rename requires a new name' }
-        const target = await resolveManageFolderTarget(params, getFolderPaths)
-        if ('error' in target) return { success: false, error: target.error }
-        return executeRenameFolder({ folderId: target.folderId, name }, context)
-      }
-      case 'move': {
-        const target = await resolveManageFolderTarget(params, getFolderPaths)
-        if ('error' in target) return { success: false, error: target.error }
-        const parent = await resolveManageFolderParent(params, getFolderPaths)
-        if ('error' in parent) return { success: false, error: parent.error }
-        return executeMoveFolder({ folderId: target.folderId, parentId: parent.parentId }, context)
-      }
-      case 'delete': {
-        const target = await resolveManageFolderTarget(params, getFolderPaths)
-        if ('error' in target) return { success: false, error: target.error }
-        return executeDeleteFolder({ folderIds: [target.folderId] }, context)
-      }
-      default:
-        return {
-          success: false,
-          error: `Unknown operation "${operation}". Use create, rename, move, or delete.`,
-        }
+  const folderId = byPath.get(canonicalPath)
+  if (!folderId) {
+    return {
+      error: `${label} path is ambiguous after canonicalization: ${rawPath}. Rename one of the conflicting folders and retry.`,
     }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
   }
+  return { folderId }
 }
 
 export async function executeRunBlock(
@@ -1425,17 +1080,16 @@ export async function executeRunBlock(
     )
     const useDraftState = !params.useDeployedState
 
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      resolveRunWorkflowInput(params),
-      context.userId,
-      {
+      input: resolveRunWorkflowInput(params),
+      context,
+      options: {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
@@ -1445,8 +1099,8 @@ export async function executeRunBlock(
           sourceExecutionId: sourceSnapshot.executionId,
         },
         stopAfterBlockId: params.blockId,
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result, { blockId: params.blockId })
   } catch (error) {

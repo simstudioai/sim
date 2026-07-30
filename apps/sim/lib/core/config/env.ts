@@ -22,11 +22,20 @@ export const env = createEnv({
     DATABASE_REPLICA_URL:                  z.string().url().optional(),            // Read-replica connection string; opt-in reads fall back to the primary when unset
     DB_APP_NAME:                           z.string().optional(),                  // Postgres application_name for query attribution (sim-app/sim-trigger/sim-realtime)
     SIM_DB_ROLE:                           z.enum(['web', 'trigger', 'realtime']).optional(), // Per-process pool profile selector (read directly by @sim/db)
+    DATABASE_URL_WEB:                      z.string().url().optional(),            // Per-role primary URL override; @sim/db falls back to DATABASE_URL
+    DATABASE_URL_TRIGGER:                  z.string().url().optional(),            // Per-role primary URL override (trigger)
+    DATABASE_URL_REALTIME:                 z.string().url().optional(),            // Per-role primary URL override (realtime)
+    DATABASE_URL_CLEANUP:                  z.string().url().optional(),            // Sub-process pool URL override (cleanup jobs, via dbFor)
+    DATABASE_URL_EXEC:                     z.string().url().optional(),            // Sub-process pool URL override (inline execution writes, via dbFor)
+    DATABASE_REPLICA_URL_WEB:              z.string().url().optional(),            // Per-role replica URL override; falls back to DATABASE_REPLICA_URL
+    DATABASE_REPLICA_URL_TRIGGER:          z.string().url().optional(),            // Per-role replica URL override (trigger)
+    DATABASE_REPLICA_URL_REALTIME:         z.string().url().optional(),            // Per-role replica URL override (realtime)
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
+    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Opt-in (self-hosted only): let database/connector tools reach private/reserved/loopback hosts (e.g. Docker/K8s service names). Loosens the SSRF boundary; ignored on the hosted platform.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
@@ -42,6 +51,12 @@ export const env = createEnv({
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
+    /** Enables attributed-v1 only after compatible Copilot instances are deployed. */
+    COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
+    /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
+    COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
+    /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
+    COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
     COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
@@ -61,7 +76,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret
     STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier
     FREE_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for free tier users
-    FREE_STORAGE_LIMIT_GB:                 z.number().optional().default(5),       // Storage limit in GB for free tier users
+    FREE_STORAGE_LIMIT_GB:                 z.number().optional(),                  // Free-tier storage limit in GB (default 5). With billing disabled, setting it explicitly opts into storage enforcement
     STRIPE_PRO_PRICE_ID:                   z.string().min(1).optional(),           // Stripe price ID for pro tier
     PRO_TIER_COST_LIMIT:                   z.number().optional(),                  // Cost limit for pro tier users
     PRO_STORAGE_LIMIT_GB:                  z.number().optional().default(50),      // Storage limit in GB for pro tier users
@@ -71,13 +86,15 @@ export const env = createEnv({
     STRIPE_ENTERPRISE_PRICE_ID:            z.string().min(1).optional(),           // Stripe price ID for enterprise tier
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
+    BILLING_CONCURRENCY_LIMIT_FREE:         z.string().optional(),                  // In-flight executions per free billing account
+    BILLING_CONCURRENCY_LIMIT_PRO:          z.string().optional(),                  // In-flight executions per Pro-tier billing account (Pro and Pro for Teams)
+    BILLING_CONCURRENCY_LIMIT_TEAM:         z.string().optional(),                  // In-flight executions per Max-tier billing account (Max and Max for Teams)
+    BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
-    FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
-    TABLES_FRACTIONAL_ORDERING:            z.boolean().optional(),                 // Order table rows by fractional order_key (O(1) insert/delete) instead of integer position
     TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
     PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
+    PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION
     TRIGGER_EU_REGION:                     z.boolean().optional(),                 // Route Trigger.dev runs to eu-central-1 instead of the default us-east-1 (fallback for the trigger-eu-region flag when AppConfig is not the source of truth)
-    REDIS_PROGRESS_MARKERS:                z.boolean().optional(),                 // Write per-block live progress markers to Redis instead of jsonb_set UPDATEs on workflow_execution_logs (fallback for the redis-progress-markers flag when AppConfig is not the source of truth)
 
     // Table feature limits (per plan). Apply when billing is disabled (free tier defaults) or for billed plans.
     FREE_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on free tier (default: 5)
@@ -88,6 +105,10 @@ export const env = createEnv({
     TEAM_TABLE_ROWS_LIMIT:                 z.number().optional(),                  // Max rows per table on team tier (default: 500000)
     ENTERPRISE_TABLES_LIMIT:               z.number().optional(),                  // Max user tables per workspace on enterprise tier (default: 10000)
     ENTERPRISE_TABLE_ROWS_LIMIT:           z.number().optional(),                  // Max rows per table on enterprise tier (default: 1000000)
+    TABLE_MAX_ROW_SIZE_BYTES:              z.number().optional(),                  // Max serialized size in bytes of a single user-table row (default: 409600)
+    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Byte budget per row-page read; pages cut early past it (unset = disabled)
+    TABLE_DISPATCH_CONCURRENCY_FREE:       z.number().optional(),                  // Rows one table run executes in parallel on free tier (default: 20)
+    TABLE_DISPATCH_CONCURRENCY_PAID:       z.number().optional(),                  // Rows one table run executes in parallel on paid tiers (default: 50)
 
     // Credit-tier Stripe prices (monthly)
     STRIPE_PRICE_TIER_25_MO:               z.string().min(1).optional(),           // Pro: $25/mo (6,000 credits)
@@ -117,6 +138,8 @@ export const env = createEnv({
     SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
     SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
     SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
+    GMAIL_CREDENTIALS_JSON:                z.string().optional(),                  // Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
+    GMAIL_SENDER:                          z.string().min(1).optional(),           // Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
     // SMS & Messaging
     TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
@@ -136,6 +159,15 @@ export const env = createEnv({
     GEMINI_API_KEY_1:                      z.string().min(1).optional(),           // Primary Gemini API key
     GEMINI_API_KEY_2:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
     GEMINI_API_KEY_3:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
+    ZAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary Z.ai API key for load balancing
+    ZAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
+    ZAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
+    KIMI_API_KEY_1:                        z.string().min(1).optional(),           // Primary Kimi (Moonshot AI) API key for load balancing
+    KIMI_API_KEY_2:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
+    KIMI_API_KEY_3:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
+    XAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary xAI API key for load balancing
+    XAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
+    XAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
     VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
@@ -155,6 +187,7 @@ export const env = createEnv({
     BLACKLISTED_MODELS:                    z.string().optional(),                  // Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
     ALLOWED_MCP_DOMAINS:                   z.string().optional(),                  // Comma-separated domains for MCP servers (e.g., "internal.company.com,mcp.example.org"). Empty = all allowed.
     ALLOWED_INTEGRATIONS:                  z.string().optional(),                  // Comma-separated block types to allow (e.g., "slack,github,agent"). Empty = all allowed.
+    PREVIEW_BLOCKS:                        z.string().optional(),                  // Comma-separated preview block types to reveal off-AppConfig (e.g., "gmail_v2,notion_v3"). Empty = all preview blocks hidden.
 
     // Azure Configuration - Shared credentials with feature-specific models
     AZURE_OPENAI_ENDPOINT:                 z.string().url().optional(),            // Shared Azure OpenAI service endpoint
@@ -251,6 +284,18 @@ export const env = createEnv({
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: z.string().optional(),                 // Azure container for OpenGraph images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: z.string().optional(),            // Azure container for workspace logos
 
+    // Cloud Storage - Google Cloud Storage
+    GCS_PROJECT_ID:                        z.string().optional(),                  // GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON:                  z.string().optional(),                  // Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, GOOGLE_APPLICATION_CREDENTIALS)
+    GCS_BUCKET_NAME:                       z.string().optional(),                  // GCS bucket for general file storage (enables GCS)
+    GCS_KB_BUCKET_NAME:                    z.string().optional(),                  // GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME:       z.string().optional(),                  // GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME:                  z.string().optional(),                  // GCS bucket for chat logos
+    GCS_COPILOT_BUCKET_NAME:               z.string().optional(),                  // GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME:      z.string().optional(),                  // GCS bucket for profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME:             z.string().optional(),                  // GCS bucket for OpenGraph images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME:       z.string().optional(),                  // GCS bucket for workspace logos
+
 
     // Admission & Burst Protection
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
@@ -261,8 +306,9 @@ export const env = createEnv({
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
     MANUAL_EXECUTION_LIMIT:                z.string().optional().default('999999'),// Manual execution bypass value (effectively unlimited)
-    RATE_LIMIT_FREE_SYNC:                  z.string().optional().default('50'),    // Free tier sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC:                 z.string().optional().default('200'),   // Free tier async API executions per minute
+    RATE_LIMIT_FREE_SYNC:                  z.string().optional(),                  // Free tier sync API executions per minute (default 50). With billing disabled, setting it explicitly opts into rate limiting
+    RATE_LIMIT_FREE_ASYNC:                 z.string().optional(),                  // Free tier async API executions per minute (default 200). With billing disabled, setting it explicitly opts into rate limiting
+    RATE_LIMIT_FREE_API_ENDPOINT:          z.string().optional(),                  // Free tier v1 API endpoint requests per minute (default 30). With billing disabled, setting it explicitly opts into rate limiting
     RATE_LIMIT_PRO_SYNC:                   z.string().optional().default('150'),   // Pro tier sync API executions per minute
     RATE_LIMIT_PRO_ASYNC:                  z.string().optional().default('1000'),  // Pro tier async API executions per minute
     RATE_LIMIT_TEAM_SYNC:                  z.string().optional().default('300'),   // Team tier sync API executions per minute
@@ -270,11 +316,11 @@ export const env = createEnv({
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('600'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('5000'),  // Enterprise tier async API executions per minute
     // Timeout Configuration
-    EXECUTION_TIMEOUT_FREE:                z.string().optional().default('300'),   // 5 minutes
+    EXECUTION_TIMEOUT_FREE:                z.string().optional(),                  // Free tier sync timeout in seconds (default 300). With billing disabled, setting it explicitly opts into sync timeouts
     EXECUTION_TIMEOUT_PRO:                 z.string().optional().default('3000'),  // 50 minutes
     EXECUTION_TIMEOUT_TEAM:                z.string().optional().default('3000'),  // 50 minutes
     EXECUTION_TIMEOUT_ENTERPRISE:          z.string().optional().default('3000'),  // 50 minutes
-    EXECUTION_TIMEOUT_ASYNC_FREE:          z.string().optional().default('5400'),  // 90 minutes
+    EXECUTION_TIMEOUT_ASYNC_FREE:          z.string().optional(),                  // Free tier async timeout in seconds (default 5400). With billing disabled, setting it explicitly opts into async timeouts
     EXECUTION_TIMEOUT_ASYNC_PRO:           z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_TEAM:          z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE:    z.string().optional().default('5400'),  // 90 minutes
@@ -318,7 +364,10 @@ export const env = createEnv({
     PORT:                                  z.number().optional(),                  // Main application port
     INTERNAL_API_BASE_URL:                 z.string().optional(),                  // Optional internal base URL for server-side self-calls; must include protocol if set (e.g., http://sim-app.namespace.svc.cluster.local:3000)
     ALLOWED_ORIGINS:                       z.string().optional(),                  // CORS allowed origins
-    PII_URL:                               z.string().optional(),                  // Presidio PII sidecar base URL serving /analyze + /anonymize (default http://localhost:5001)
+    PII_URL:                               z.string().optional(),                  // Presidio PII service base URL serving /analyze + /anonymize (standalone ECS service; default http://localhost:5001 for local dev)
+    PII_MASK_CHUNK_CONCURRENCY:            z.coerce.number().int().positive().optional(), // Max in-flight mask-batch requests per redaction (default 64); tune to the Presidio fleet size behind the internal ALB, lower to 1 for a single instance
+    PII_REF_CONCURRENCY:                   z.coerce.number().int().positive().optional(), // Max large-value refs hydrated+masked+re-stored in parallel per payload (default 4); multiplies with PII_MASK_CHUNK_CONCURRENCY for total in-flight Presidio load
+    PII_SERVICE_CHUNK_CONCURRENCY:         z.coerce.number().int().positive().optional(), // Max Presidio requests in flight from a single mask-batch call (route -> Presidio fan-out, default 4); inner to PII_MASK_CHUNK_CONCURRENCY
 
     // OAuth Integration Credentials - All optional, enables third-party integrations
     GOOGLE_CLIENT_ID:                      z.string().optional(),                  // Google OAuth client ID for Google services
@@ -332,6 +381,8 @@ export const env = createEnv({
 
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
     X_CLIENT_SECRET:                       z.string().optional(),                  // X (Twitter) OAuth client secret
+    TIKTOK_CLIENT_ID:                      z.string().optional(),                  // TikTok OAuth client key (TikTok calls this "client_key")
+    TIKTOK_CLIENT_SECRET:                  z.string().optional(),                  // TikTok OAuth client secret
     CONFLUENCE_CLIENT_ID:                  z.string().optional(),                  // Atlassian Confluence OAuth client ID
     CONFLUENCE_CLIENT_SECRET:              z.string().optional(),                  // Atlassian Confluence OAuth client secret
     JIRA_CLIENT_ID:                        z.string().optional(),                  // Atlassian Jira OAuth client ID
@@ -363,12 +414,16 @@ export const env = createEnv({
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
+    CLICKUP_CLIENT_ID:                     z.string().optional(),                  // ClickUp OAuth client ID
+    CLICKUP_CLIENT_SECRET:                 z.string().optional(),                  // ClickUp OAuth client secret
     BOX_CLIENT_ID:                         z.string().optional(),                  // Box OAuth client ID
     BOX_CLIENT_SECRET:                     z.string().optional(),                  // Box OAuth client secret
     DROPBOX_CLIENT_ID:                     z.string().optional(),                  // Dropbox OAuth client ID
     DROPBOX_CLIENT_SECRET:                 z.string().optional(),                  // Dropbox OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
+    SLACK_SIGNING_SECRET:                  z.string().optional(),                  // Official Sim Slack app signing secret (verifies inbound events for the native OAuth trigger)
+    SLACK_EXTENDED_SCOPES:                 z.boolean().optional(),                 // Request app_mentions:read, assistant:write, im:history — only where the Slack app is approved for them
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
@@ -376,6 +431,8 @@ export const env = createEnv({
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
     LINKEDIN_CLIENT_ID:                    z.string().optional(),                  // LinkedIn OAuth client ID
     LINKEDIN_CLIENT_SECRET:                z.string().optional(),                  // LinkedIn OAuth client secret
+    INSTAGRAM_CLIENT_ID:                   z.string().optional(),                  // Instagram App ID (Business Login)
+    INSTAGRAM_CLIENT_SECRET:               z.string().optional(),                  // Instagram App Secret (Business Login)
     SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
@@ -398,32 +455,54 @@ export const env = createEnv({
     E2B_API_KEY:                           z.string().optional(),                  // E2B API key for sandbox creation
     MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Custom E2B template with pre-installed CLI tools for shell execution
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
-    E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Pi Coding Agent cloud mode)
+    E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR, its Babysit continuation, and Review Code)
+    PI_SANDBOX_LIFETIME_MS:                 z.string().optional(),                  // Lower the Pi sandbox lifetime (ms) below the default; E2B caps a sandbox at 1h on Hobby accounts and 24h on Pro
 
-    // Credential Sets (Email Polling) - for self-hosted deployments
-    CREDENTIAL_SETS_ENABLED:               z.boolean().optional(),                 // Enable credential sets on self-hosted (bypasses plan requirements)
+    // Remote Code Execution provider selection
+    SANDBOX_PROVIDER:                      z.string().optional(),                  // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
+
+    // Daytona Remote Code Execution (used when SANDBOX_PROVIDER=daytona)
+    DAYTONA_API_KEY:                       z.string().optional(),                  // Daytona API key; needs write:snapshots to build images, write:sandboxes to run them
+    DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Daytona snapshot mirroring mothership-shell (must carry an explicit tag; latest is rejected)
+    DAYTONA_DOC_SNAPSHOT_ID:               z.string().optional(),                  // Daytona snapshot mirroring mothership-docs
+    DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR, its Babysit continuation, and Review Code)
 
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)
 
+    // Enterprise master switch - for self-hosted deployments
+    ENTERPRISE_ENABLED:                    z.boolean().optional(),                 // Enable the whole enterprise suite on self-hosted; individual flags below override it per feature
+
     // Enterprise Feature Overrides - for self-hosted deployments
     WHITELABELING_ENABLED:                 z.boolean().optional(),                 // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     AUDIT_LOGS_ENABLED:                    z.boolean().optional(),                 // Enable audit logs on self-hosted (bypasses hosted requirements)
-    DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings on self-hosted (bypasses hosted requirements)
+    DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings and retention deletion on self-hosted (bypasses hosted requirements)
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
+    SESSION_POLICIES_ENABLED:             z.boolean().optional(),                 // Enable org session policies on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
+    DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
+    TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
+    TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
+    TABLE_VIEWS:                          z.boolean().optional(),                 // Enable saved table views (named filter/sort/column-visibility presets) and the column show/hide menu
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
 
+    // Instance-tier organization - every user auto-joins this one org
+    INSTANCE_ORG_NAME:                     z.string().min(1).optional(),           // Display name of the instance organization; setting it turns instance-org mode on
+    INSTANCE_ORG_SLUG:                     z.string().min(1).optional(),           // Slug for the instance organization (derived from the name when omitted)
+    INSTANCE_ORG_OWNER_EMAIL:              z.string().min(1).optional(),           // Email of the user who owns the instance organization (defaults to the first user who triggers provisioning)
+
     // Invitations - for self-hosted deployments
     DISABLE_INVITATIONS:                   z.boolean().optional(),                 // Disable workspace invitations globally (for self-hosted deployments)
     DISABLE_PUBLIC_API:                    z.boolean().optional(),                 // Disable public API access globally (for self-hosted deployments)
-    MOTHERSHIP_BETA_FEATURES:              z.boolean().optional(),                 // Enable beta Mothership planning/changelog artifact surfaces
 
     // Development Tools
     REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
     REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
+
+    // Network / proxy trust
+    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. When set, Better Auth walks the forwarded-IP chain right to left, skips these trusted hops, and uses the first untrusted address as the client IP. Leave unset to trust only single-value IP headers.
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
@@ -504,13 +583,16 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Brand background color (hex format)
 
     // Feature Flags
+    NEXT_PUBLIC_ENTERPRISE_ENABLED:        z.boolean().optional(),                   // Client twin of ENTERPRISE_ENABLED — set both together
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
-    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED:   z.boolean().optional(),                   // Enable credential sets (email polling) on self-hosted
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
+    NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
+    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks (deploy-as-block) settings on self-hosted
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_SESSION_POLICIES_ENABLED: z.boolean().optional(),                   // Enable org session policies on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_FORKING_ENABLED:          z.boolean().optional(),                   // Enable workspace forking on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: z.boolean().optional(),                   // Show the "Workflow" column type in user tables (defaults to false)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
@@ -545,14 +627,17 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR,
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
-    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED: process.env.NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
+    NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
+    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
+    NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,
     NEXT_PUBLIC_FORKING_ENABLED: process.env.NEXT_PUBLIC_FORKING_ENABLED,
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: process.env.NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED,
+    NEXT_PUBLIC_ENTERPRISE_ENABLED: process.env.NEXT_PUBLIC_ENTERPRISE_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,

@@ -3,6 +3,8 @@ import type {
   OneDriveListResponse,
   OneDriveToolParams,
 } from '@/tools/onedrive/types'
+import { escapeODataStringLiteral } from '@/tools/onedrive/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
@@ -23,17 +25,11 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       visibility: 'hidden',
       description: 'The access token for the OneDrive API',
     },
-    folderSelector: {
+    folderId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Folder ID to list files from (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
-    },
-    manualFolderId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'The manually entered folder ID (advanced mode)',
     },
     query: {
       type: 'string',
@@ -47,12 +43,24 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       visibility: 'user-or-llm',
       description: 'Maximum number of files to return (e.g., 10, 50, 100)',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Continuation URL from a previous response's nextPageToken, used to fetch the next page",
+    },
   },
 
   request: {
     url: (params) => {
+      const pageToken = params.pageToken?.trim()
+      if (pageToken) {
+        return assertGraphNextPageUrl(pageToken)
+      }
+
       // Use specific folder if provided, otherwise use root
-      const folderId = params.manualFolderId || params.folderSelector
+      const folderId = params.folderId?.trim()
       const encodedFolderId = folderId ? encodeURIComponent(folderId) : ''
       const baseUrl = encodedFolderId
         ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodedFolderId}/children`
@@ -63,12 +71,15 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       // Use Microsoft Graph $select parameter
       url.searchParams.append(
         '$select',
-        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference'
+        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference,@microsoft.graph.downloadUrl'
       )
 
       // Add name filter if query provided
       if (params.query) {
-        url.searchParams.append('$filter', `startswith(name,'${params.query}')`)
+        url.searchParams.append(
+          '$filter',
+          `startswith(name,'${escapeODataStringLiteral(params.query)}')`
+        )
       }
 
       // Add pagination
@@ -102,7 +113,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
           parents: item.parentReference ? [item.parentReference.id] : [],
         })),
         // Use the actual @odata.nextLink URL as the continuation token
-        nextPageToken: data['@odata.nextLink'] || undefined,
+        nextPageToken: getGraphNextPageUrl(data),
       },
     }
   },

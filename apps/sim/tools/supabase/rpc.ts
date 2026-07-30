@@ -7,7 +7,7 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
   id: 'supabase_rpc',
   name: 'Supabase RPC',
   description: 'Call a PostgreSQL function in Supabase',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

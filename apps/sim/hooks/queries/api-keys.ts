@@ -3,6 +3,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   type ApiKey,
+  type CreatedApiKey,
   createPersonalApiKeyContract,
   createWorkspaceApiKeyContract,
   deletePersonalApiKeyContract,
@@ -13,7 +14,7 @@ import {
 } from '@/lib/api/contracts'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-export type { ApiKey }
+export type { ApiKey, CreatedApiKey }
 
 /**
  * Query key factories for API keys-related queries
@@ -27,19 +28,36 @@ export const apiKeysKeys = {
   combined: (workspaceId: string) => [...apiKeysKeys.combineds(), workspaceId] as const,
 }
 
+export const API_KEYS_COMBINED_STALE_TIME = 60 * 1000
+
 type CombinedApiKeysData = {
   workspaceKeys: ApiKey[]
   personalKeys: ApiKey[]
   conflicts: string[]
 }
 
+export type ApiKeyScope = 'combined' | 'personal' | 'workspace'
+
 /**
- * Fetch both workspace and personal API keys
+ * Fetch API keys for one settings plane, or both for compatibility callers.
  */
-async function fetchApiKeys(
+export async function fetchApiKeys(
   workspaceId: string,
+  scope: ApiKeyScope,
   signal?: AbortSignal
 ): Promise<CombinedApiKeysData> {
+  if (scope === 'personal') {
+    const data = await requestJson(listPersonalApiKeysContract, { signal })
+    return { workspaceKeys: [], personalKeys: data.keys, conflicts: [] }
+  }
+  if (scope === 'workspace') {
+    const data = await requestJson(listWorkspaceApiKeysContract, {
+      params: { id: workspaceId },
+      signal,
+    })
+    return { workspaceKeys: data.keys, personalKeys: [], conflicts: [] }
+  }
+
   const [workspaceData, personalData] = await Promise.all([
     requestJson(listWorkspaceApiKeysContract, { params: { id: workspaceId }, signal }),
     requestJson(listPersonalApiKeysContract, { signal }),
@@ -60,15 +78,20 @@ async function fetchApiKeys(
 }
 
 /**
- * Hook to fetch API keys (both workspace and personal)
+ * Hook to fetch API keys for the requested settings plane.
  */
-export function useApiKeys(workspaceId: string) {
+export function useApiKeys(workspaceId: string, scope: ApiKeyScope = 'combined') {
   return useQuery({
-    queryKey: apiKeysKeys.combined(workspaceId),
-    queryFn: ({ signal }) => fetchApiKeys(workspaceId, signal),
-    enabled: !!workspaceId,
-    staleTime: 60 * 1000,
-    placeholderData: keepPreviousData,
+    queryKey:
+      scope === 'personal'
+        ? apiKeysKeys.personal()
+        : scope === 'workspace'
+          ? apiKeysKeys.workspace(workspaceId)
+          : apiKeysKeys.combined(workspaceId),
+    queryFn: ({ signal }) => fetchApiKeys(workspaceId, scope, signal),
+    enabled: scope === 'personal' || !!workspaceId,
+    staleTime: API_KEYS_COMBINED_STALE_TIME,
+    placeholderData: scope === 'personal' ? undefined : keepPreviousData,
   })
 }
 
@@ -98,6 +121,11 @@ export function useCreateApiKey() {
       return requestJson(createPersonalApiKeyContract, { body: { name } })
     },
     onSettled: (_data, _error, variables) => {
+      if (variables.keyType === 'personal') {
+        void queryClient.invalidateQueries({ queryKey: apiKeysKeys.personal() })
+        return queryClient.invalidateQueries({ queryKey: apiKeysKeys.combineds() })
+      }
+      void queryClient.invalidateQueries({ queryKey: apiKeysKeys.workspace(variables.workspaceId) })
       return queryClient.invalidateQueries({
         queryKey: apiKeysKeys.combined(variables.workspaceId),
       })
@@ -131,6 +159,11 @@ export function useDeleteApiKey() {
       return requestJson(deletePersonalApiKeyContract, { params: { id: keyId } })
     },
     onSettled: (_data, _error, variables) => {
+      if (variables.keyType === 'personal') {
+        void queryClient.invalidateQueries({ queryKey: apiKeysKeys.personal() })
+        return queryClient.invalidateQueries({ queryKey: apiKeysKeys.combineds() })
+      }
+      void queryClient.invalidateQueries({ queryKey: apiKeysKeys.workspace(variables.workspaceId) })
       return queryClient.invalidateQueries({
         queryKey: apiKeysKeys.combined(variables.workspaceId),
       })

@@ -10,6 +10,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#B2C147"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Granola](https://www.granola.ai/) is an AI notepad for meetings that automatically records and transcribes calls, then generates structured notes and summaries alongside your own typed notes.
+
+With Granola, you can:
+
+- **List meeting notes**: Browse notes with date filters, folder scoping, and pagination
+- **Retrieve full note details**: Get summaries, attendees, calendar event details, and transcripts for a specific note
+- **Organize by folders**: List and filter notes using Granola's folder structure
+
+In Sim, the Granola integration allows your agents to pull meeting notes, summaries, and transcripts directly into a workflow. Agents can list recent notes with date or folder filters, fetch a specific note's summary text, attendees, and calendar details, retrieve the full transcript with speaker labels when needed, and browse folders to organize retrieval. This makes it possible to build workflows that surface meeting outcomes, route action items, or feed meeting context into downstream agent reasoning.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.
@@ -88,6 +101,7 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `transcript` | json | Meeting transcript entries \(only if requested\) |
 |   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
 |   ↳ `speakerLabel` | string | Diarization label for the speaker \(e.g., Speaker A\) |
+|   ↳ `speakerName` | string | Resolved name of the identified speaker, when available |
 |   ↳ `text` | string | Transcript text |
 |   ↳ `startTime` | string | Segment start time |
 |   ↳ `endTime` | string | Segment end time |

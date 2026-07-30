@@ -8,7 +8,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
   name: 'AWS SES',
   description: 'Send emails and manage templates with AWS Simple Email Service',
   longDescription:
-    'Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.',
+    'Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.',
   docsLink: 'https://docs.sim.ai/integrations/ses',
   category: 'tools',
   integrationType: IntegrationType.Email,
@@ -30,6 +30,16 @@ export const SESBlock: BlockConfig<ToolResponse> = {
         { label: 'Get Template', id: 'get_template' },
         { label: 'List Templates', id: 'list_templates' },
         { label: 'Delete Template', id: 'delete_template' },
+        { label: 'Update Template', id: 'update_template' },
+        { label: 'Send Custom Verification Email', id: 'send_custom_verification_email' },
+        { label: 'Create Email Identity', id: 'create_email_identity' },
+        { label: 'Get Email Identity', id: 'get_email_identity' },
+        { label: 'Delete Email Identity', id: 'delete_email_identity' },
+        { label: 'Put Suppressed Destination', id: 'put_suppressed_destination' },
+        { label: 'Get Suppressed Destination', id: 'get_suppressed_destination' },
+        { label: 'List Suppressed Destinations', id: 'list_suppressed_destinations' },
+        { label: 'Delete Suppressed Destination', id: 'delete_suppressed_destination' },
+        { label: 'Create Configuration Set', id: 'create_configuration_set' },
       ],
       value: () => 'send_email',
     },
@@ -128,6 +138,8 @@ export const SESBlock: BlockConfig<ToolResponse> = {
           'get_template',
           'create_template',
           'delete_template',
+          'update_template',
+          'send_custom_verification_email',
         ],
       },
       required: {
@@ -138,6 +150,8 @@ export const SESBlock: BlockConfig<ToolResponse> = {
           'get_template',
           'create_template',
           'delete_template',
+          'update_template',
+          'send_custom_verification_email',
         ],
       },
     },
@@ -165,15 +179,15 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       title: 'Subject',
       type: 'short-input',
       placeholder: 'Hello, {{name}}!',
-      condition: { field: 'operation', value: 'create_template' },
-      required: { field: 'operation', value: 'create_template' },
+      condition: { field: 'operation', value: ['create_template', 'update_template'] },
+      required: { field: 'operation', value: ['create_template', 'update_template'] },
     },
     {
       id: 'htmlPart',
       title: 'HTML Body',
       type: 'long-input',
       placeholder: '<h1>Hello, {{name}}!</h1>',
-      condition: { field: 'operation', value: 'create_template' },
+      condition: { field: 'operation', value: ['create_template', 'update_template'] },
       required: false,
     },
     {
@@ -181,7 +195,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       title: 'Plain Text Body',
       type: 'long-input',
       placeholder: 'Hello, {{name}}!',
-      condition: { field: 'operation', value: 'create_template' },
+      condition: { field: 'operation', value: ['create_template', 'update_template'] },
       required: false,
       mode: 'advanced',
     },
@@ -235,7 +249,13 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       placeholder: 'my-configuration-set',
       condition: {
         field: 'operation',
-        value: ['send_email', 'send_templated_email', 'send_bulk_email'],
+        value: [
+          'send_email',
+          'send_templated_email',
+          'send_bulk_email',
+          'send_custom_verification_email',
+          'create_email_identity',
+        ],
       },
       required: false,
       mode: 'advanced',
@@ -247,7 +267,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       placeholder: '100',
       condition: {
         field: 'operation',
-        value: ['list_identities', 'list_templates'],
+        value: ['list_identities', 'list_templates', 'list_suppressed_destinations'],
       },
       required: false,
       mode: 'advanced',
@@ -259,8 +279,195 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       placeholder: 'Pagination token from previous response',
       condition: {
         field: 'operation',
-        value: ['list_identities', 'list_templates'],
+        value: ['list_identities', 'list_templates', 'list_suppressed_destinations'],
       },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'emailAddress',
+      title: 'Email Address',
+      type: 'short-input',
+      placeholder: 'recipient@example.com',
+      condition: {
+        field: 'operation',
+        value: [
+          'put_suppressed_destination',
+          'get_suppressed_destination',
+          'delete_suppressed_destination',
+          'send_custom_verification_email',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'put_suppressed_destination',
+          'get_suppressed_destination',
+          'delete_suppressed_destination',
+          'send_custom_verification_email',
+        ],
+      },
+    },
+    {
+      id: 'reason',
+      title: 'Suppression Reason',
+      type: 'dropdown',
+      options: [
+        { label: 'Bounce', id: 'BOUNCE' },
+        { label: 'Complaint', id: 'COMPLAINT' },
+      ],
+      condition: { field: 'operation', value: 'put_suppressed_destination' },
+      required: { field: 'operation', value: 'put_suppressed_destination' },
+      value: () => 'BOUNCE',
+    },
+    {
+      id: 'reasons',
+      title: 'Reasons Filter',
+      type: 'short-input',
+      placeholder: 'BOUNCE, COMPLAINT',
+      condition: { field: 'operation', value: 'list_suppressed_destinations' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'startDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp',
+      condition: { field: 'operation', value: 'list_suppressed_destinations' },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp based on the user description. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'endDate',
+      title: 'End Date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp',
+      condition: { field: 'operation', value: 'list_suppressed_destinations' },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp based on the user description. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'emailIdentity',
+      title: 'Email Identity',
+      type: 'short-input',
+      placeholder: 'example.com or sender@example.com',
+      condition: {
+        field: 'operation',
+        value: ['create_email_identity', 'get_email_identity', 'delete_email_identity'],
+      },
+      required: {
+        field: 'operation',
+        value: ['create_email_identity', 'get_email_identity', 'delete_email_identity'],
+      },
+    },
+    {
+      id: 'dkimSigningAttributes',
+      title: 'DKIM Signing Attributes (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{"domainSigningSelector": "selector1", "domainSigningPrivateKey": "base64-key"}',
+      condition: { field: 'operation', value: 'create_email_identity' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'tags',
+      title: 'Tags (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"key": "team", "value": "growth"}]',
+      condition: {
+        field: 'operation',
+        value: ['create_email_identity', 'create_configuration_set'],
+      },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'newConfigurationSetName',
+      title: 'Configuration Set Name',
+      type: 'short-input',
+      placeholder: 'my-configuration-set',
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      required: { field: 'operation', value: 'create_configuration_set' },
+    },
+    {
+      id: 'customRedirectDomain',
+      title: 'Custom Redirect Domain',
+      type: 'short-input',
+      placeholder: 'links.example.com',
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'httpsPolicy',
+      title: 'HTTPS Policy',
+      type: 'dropdown',
+      options: [
+        { label: 'Require', id: 'REQUIRE' },
+        { label: 'Require Open Only', id: 'REQUIRE_OPEN_ONLY' },
+        { label: 'Optional', id: 'OPTIONAL' },
+      ],
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'tlsPolicy',
+      title: 'TLS Policy',
+      type: 'dropdown',
+      options: [
+        { label: 'Require', id: 'REQUIRE' },
+        { label: 'Optional', id: 'OPTIONAL' },
+      ],
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'sendingPoolName',
+      title: 'Dedicated IP Pool',
+      type: 'short-input',
+      placeholder: 'my-ip-pool',
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'reputationMetricsEnabled',
+      title: 'Enable Reputation Metrics',
+      type: 'switch',
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sendingEnabled',
+      title: 'Enable Sending',
+      type: 'switch',
+      condition: { field: 'operation', value: 'create_configuration_set' },
+      mode: 'advanced',
+    },
+    {
+      id: 'suppressedReasons',
+      title: 'Auto-Suppress Reasons',
+      type: 'short-input',
+      placeholder: 'BOUNCE, COMPLAINT',
+      condition: { field: 'operation', value: 'create_configuration_set' },
       required: false,
       mode: 'advanced',
     },
@@ -276,6 +483,16 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       'ses_get_template',
       'ses_list_templates',
       'ses_delete_template',
+      'ses_update_template',
+      'ses_put_suppressed_destination',
+      'ses_delete_suppressed_destination',
+      'ses_get_suppressed_destination',
+      'ses_list_suppressed_destinations',
+      'ses_create_email_identity',
+      'ses_delete_email_identity',
+      'ses_get_email_identity',
+      'ses_create_configuration_set',
+      'ses_send_custom_verification_email',
     ],
     config: {
       tool: (params) => {
@@ -298,6 +515,26 @@ export const SESBlock: BlockConfig<ToolResponse> = {
             return 'ses_list_templates'
           case 'delete_template':
             return 'ses_delete_template'
+          case 'update_template':
+            return 'ses_update_template'
+          case 'put_suppressed_destination':
+            return 'ses_put_suppressed_destination'
+          case 'delete_suppressed_destination':
+            return 'ses_delete_suppressed_destination'
+          case 'get_suppressed_destination':
+            return 'ses_get_suppressed_destination'
+          case 'list_suppressed_destinations':
+            return 'ses_list_suppressed_destinations'
+          case 'create_email_identity':
+            return 'ses_create_email_identity'
+          case 'delete_email_identity':
+            return 'ses_delete_email_identity'
+          case 'get_email_identity':
+            return 'ses_get_email_identity'
+          case 'create_configuration_set':
+            return 'ses_create_configuration_set'
+          case 'send_custom_verification_email':
+            return 'ses_send_custom_verification_email'
           default:
             throw new Error(`Invalid SES operation: ${params.operation}`)
         }
@@ -314,6 +551,60 @@ export const SESBlock: BlockConfig<ToolResponse> = {
         const result: Record<string, unknown> = { ...connectionConfig }
 
         switch (operation) {
+          case 'update_template':
+            result.templateName = rest.templateName
+            result.subjectPart = rest.subjectPart
+            if (rest.htmlPart) result.htmlPart = rest.htmlPart
+            if (rest.textPart) result.textPart = rest.textPart
+            break
+          case 'put_suppressed_destination':
+            result.emailAddress = rest.emailAddress
+            result.reason = rest.reason
+            break
+          case 'delete_suppressed_destination':
+          case 'get_suppressed_destination':
+            result.emailAddress = rest.emailAddress
+            break
+          case 'list_suppressed_destinations':
+            if (rest.reasons) result.reasons = rest.reasons
+            if (rest.startDate) result.startDate = rest.startDate
+            if (rest.endDate) result.endDate = rest.endDate
+            if (pageSize != null) {
+              const parsed = Number.parseInt(String(pageSize), 10)
+              if (!Number.isNaN(parsed)) result.pageSize = parsed
+            }
+            if (rest.nextToken) result.nextToken = rest.nextToken
+            break
+          case 'create_email_identity':
+            result.emailIdentity = rest.emailIdentity
+            if (rest.dkimSigningAttributes)
+              result.dkimSigningAttributes = rest.dkimSigningAttributes
+            if (rest.tags) result.tags = rest.tags
+            if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
+            break
+          case 'delete_email_identity':
+          case 'get_email_identity':
+            result.emailIdentity = rest.emailIdentity
+            break
+          case 'create_configuration_set':
+            result.configurationSetName = rest.newConfigurationSetName
+            if (rest.customRedirectDomain) result.customRedirectDomain = rest.customRedirectDomain
+            if (rest.httpsPolicy) result.httpsPolicy = rest.httpsPolicy
+            if (rest.tlsPolicy) result.tlsPolicy = rest.tlsPolicy
+            if (rest.sendingPoolName) result.sendingPoolName = rest.sendingPoolName
+            if (rest.reputationMetricsEnabled != null)
+              result.reputationMetricsEnabled =
+                rest.reputationMetricsEnabled === true || rest.reputationMetricsEnabled === 'true'
+            if (rest.sendingEnabled != null)
+              result.sendingEnabled = rest.sendingEnabled === true || rest.sendingEnabled === 'true'
+            if (rest.suppressedReasons) result.suppressedReasons = rest.suppressedReasons
+            if (rest.tags) result.tags = rest.tags
+            break
+          case 'send_custom_verification_email':
+            result.emailAddress = rest.emailAddress
+            result.templateName = rest.templateName
+            if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
+            break
           case 'send_email':
             result.fromAddress = rest.fromAddress
             result.toAddresses = rest.toAddresses
@@ -407,12 +698,38 @@ export const SESBlock: BlockConfig<ToolResponse> = {
     configurationSetName: { type: 'string', description: 'SES configuration set name' },
     pageSize: { type: 'number', description: 'Maximum number of results to return' },
     nextToken: { type: 'string', description: 'Pagination token from previous response' },
+    emailAddress: {
+      type: 'string',
+      description: 'Email address for suppression or verification operations',
+    },
+    reason: { type: 'string', description: 'Suppression reason: BOUNCE or COMPLAINT' },
+    reasons: { type: 'string', description: 'Comma-separated suppression reasons filter' },
+    startDate: { type: 'string', description: 'Suppression list filter start date (ISO 8601)' },
+    endDate: { type: 'string', description: 'Suppression list filter end date (ISO 8601)' },
+    emailIdentity: { type: 'string', description: 'Email address or domain identity' },
+    dkimSigningAttributes: { type: 'json', description: 'JSON BYODKIM signing attributes' },
+    tags: { type: 'json', description: 'JSON array of key/value tags' },
+    newConfigurationSetName: { type: 'string', description: 'Name for a new configuration set' },
+    customRedirectDomain: { type: 'string', description: 'Custom domain for open/click tracking' },
+    httpsPolicy: { type: 'string', description: 'HTTPS policy for tracking links' },
+    tlsPolicy: { type: 'string', description: 'TLS policy for delivery' },
+    sendingPoolName: { type: 'string', description: 'Dedicated IP pool name' },
+    reputationMetricsEnabled: {
+      type: 'boolean',
+      description: 'Whether to collect reputation metrics',
+    },
+    sendingEnabled: { type: 'boolean', description: 'Whether sending is enabled' },
+    suppressedReasons: { type: 'string', description: 'Comma-separated auto-suppression reasons' },
   },
   outputs: {
     messageId: {
       type: 'string',
-      description: 'SES message ID (send_email, send_templated_email)',
-      condition: { field: 'operation', value: ['send_email', 'send_templated_email'] },
+      description:
+        'SES message ID (send_email, send_templated_email, send_custom_verification_email)',
+      condition: {
+        field: 'operation',
+        value: ['send_email', 'send_templated_email', 'send_custom_verification_email'],
+      },
     },
     results: {
       type: 'array',
@@ -436,13 +753,89 @@ export const SESBlock: BlockConfig<ToolResponse> = {
     },
     nextToken: {
       type: 'string',
-      description: 'Pagination token for the next page (list_identities, list_templates)',
-      condition: { field: 'operation', value: ['list_identities', 'list_templates'] },
+      description:
+        'Pagination token for the next page (list_identities, list_templates, list_suppressed_destinations)',
+      condition: {
+        field: 'operation',
+        value: ['list_identities', 'list_templates', 'list_suppressed_destinations'],
+      },
     },
     count: {
       type: 'number',
-      description: 'Number of items returned (list_identities, list_templates)',
-      condition: { field: 'operation', value: ['list_identities', 'list_templates'] },
+      description:
+        'Number of items returned (list_identities, list_templates, list_suppressed_destinations)',
+      condition: {
+        field: 'operation',
+        value: ['list_identities', 'list_templates', 'list_suppressed_destinations'],
+      },
+    },
+    destinations: {
+      type: 'array',
+      description: 'List of suppressed destinations (list_suppressed_destinations)',
+      condition: { field: 'operation', value: 'list_suppressed_destinations' },
+    },
+    emailAddress: {
+      type: 'string',
+      description: 'The suppressed email address (get_suppressed_destination)',
+      condition: { field: 'operation', value: 'get_suppressed_destination' },
+    },
+    reason: {
+      type: 'string',
+      description: 'The suppression reason (get_suppressed_destination)',
+      condition: { field: 'operation', value: 'get_suppressed_destination' },
+    },
+    lastUpdateTime: {
+      type: 'string',
+      description:
+        'When the address was added to the suppression list (get_suppressed_destination)',
+      condition: { field: 'operation', value: 'get_suppressed_destination' },
+    },
+    feedbackId: {
+      type: 'string',
+      description: 'Feedback ID for the bounce/complaint event (get_suppressed_destination)',
+      condition: { field: 'operation', value: 'get_suppressed_destination' },
+    },
+    identityType: {
+      type: 'string',
+      description:
+        'Identity type: EMAIL_ADDRESS or DOMAIN (create_email_identity, get_email_identity)',
+      condition: { field: 'operation', value: ['create_email_identity', 'get_email_identity'] },
+    },
+    verifiedForSendingStatus: {
+      type: 'boolean',
+      description:
+        'Whether the identity is verified for sending (create_email_identity, get_email_identity)',
+      condition: { field: 'operation', value: ['create_email_identity', 'get_email_identity'] },
+    },
+    dkimAttributes: {
+      type: 'json',
+      description: 'DKIM signing status and tokens (create_email_identity, get_email_identity)',
+      condition: { field: 'operation', value: ['create_email_identity', 'get_email_identity'] },
+    },
+    verificationStatus: {
+      type: 'string',
+      description: 'Identity verification status (get_email_identity)',
+      condition: { field: 'operation', value: 'get_email_identity' },
+    },
+    feedbackForwardingStatus: {
+      type: 'boolean',
+      description: 'Whether bounce/complaint feedback is forwarded by email (get_email_identity)',
+      condition: { field: 'operation', value: 'get_email_identity' },
+    },
+    mailFromAttributes: {
+      type: 'json',
+      description: 'Custom MAIL FROM domain configuration (get_email_identity)',
+      condition: { field: 'operation', value: 'get_email_identity' },
+    },
+    policies: {
+      type: 'json',
+      description: 'Sending authorization policies (get_email_identity)',
+      condition: { field: 'operation', value: 'get_email_identity' },
+    },
+    verificationInfo: {
+      type: 'json',
+      description: 'Additional verification diagnostics (get_email_identity)',
+      condition: { field: 'operation', value: 'get_email_identity' },
     },
     sendingEnabled: {
       type: 'boolean',
@@ -489,10 +882,27 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       description: 'List of email templates (list_templates)',
       condition: { field: 'operation', value: 'list_templates' },
     },
+    tags: {
+      type: 'array',
+      description: 'Tags associated with the identity (get_email_identity)',
+      condition: { field: 'operation', value: 'get_email_identity' },
+    },
     message: {
       type: 'string',
-      description: 'Confirmation message (create_template, delete_template)',
-      condition: { field: 'operation', value: ['create_template', 'delete_template'] },
+      description:
+        'Confirmation message (create_template, delete_template, update_template, put_suppressed_destination, delete_suppressed_destination, delete_email_identity, create_configuration_set)',
+      condition: {
+        field: 'operation',
+        value: [
+          'create_template',
+          'delete_template',
+          'update_template',
+          'put_suppressed_destination',
+          'delete_suppressed_destination',
+          'delete_email_identity',
+          'create_configuration_set',
+        ],
+      },
     },
   },
 }
@@ -551,6 +961,25 @@ export const SESBlockMeta = {
     },
     {
       icon: SESIcon,
+      title: 'SES suppression list sync',
+      prompt:
+        'Build a workflow that reads bounce and complaint webhook events, adds the affected addresses to the SES account suppression list with the matching reason, and periodically lists suppressed destinations to reconcile a marketing contacts table so unreachable addresses are excluded from future sends.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'analysis'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES new-domain onboarding',
+      prompt:
+        'Create a workflow that takes a new sending domain from a table, creates the SES email identity, polls get email identity until DKIM verification succeeds, creates a dedicated configuration set with open and click tracking enabled, and posts the DNS tokens to Slack for the infrastructure team to add.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'infrastructure', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SESIcon,
       title: 'SES domain reputation monitor',
       prompt:
         'Build a scheduled daily workflow that pulls SES account sending statistics and per-identity reputation indicators, logs them to a tracking table for trend lines, and flags any identity whose complaint or bounce rate is trending up.',
@@ -586,9 +1015,23 @@ export const SESBlockMeta = {
     {
       name: 'manage-email-templates',
       description:
-        'Create, fetch, list, and delete reusable email templates in AWS SES. Use to maintain a consistent, version-controlled template library.',
+        'Create, fetch, list, update, and delete reusable email templates in AWS SES. Use to maintain a consistent, version-controlled template library.',
       content:
-        '# Manage Email Templates\n\nMaintain the SES template library.\n\n## Steps\n1. To add a template, create it with a name, subject, and HTML and text parts using placeholder variables.\n2. To review, get a template by name or list templates.\n3. To retire one, delete the template by name.\n4. Keep template names descriptive so they are easy to reference when sending.\n\n## Output\nReport the template name affected and the action taken, or the template contents for a fetch.',
+        '# Manage Email Templates\n\nMaintain the SES template library.\n\n## Steps\n1. To add a template, create it with a name, subject, and HTML and text parts using placeholder variables.\n2. To review, get a template by name or list templates.\n3. To revise copy without changing the name, update the template with new subject, HTML, or text content.\n4. To retire one, delete the template by name.\n5. Keep template names descriptive so they are easy to reference when sending.\n\n## Output\nReport the template name affected and the action taken, or the template contents for a fetch.',
+    },
+    {
+      name: 'manage-suppression-list',
+      description:
+        'Add, remove, look up, and list addresses on the AWS SES account-level suppression list. Use to keep bounced or complained addresses out of future sends.',
+      content:
+        '# Manage Suppression List\n\nKeep the SES suppression list accurate so future sends skip unreachable or unwilling recipients.\n\n## Steps\n1. To suppress an address after a bounce or complaint, put a suppressed destination with the matching reason (BOUNCE or COMPLAINT).\n2. To check whether an address is already suppressed, get the suppressed destination by email address.\n3. To audit the list, list suppressed destinations, optionally filtered by reason or a date range.\n4. To re-enable sending to an address (for example, after a customer confirms a new inbox), delete the suppressed destination.\n\n## Output\nReport the email address affected and the action taken. For a list, report the count of suppressed addresses and their reasons.',
+    },
+    {
+      name: 'onboard-sending-domain',
+      description:
+        'Verify a new sending domain or address in AWS SES and check DKIM and verification status. Use before sending from a new identity.',
+      content:
+        '# Onboard Sending Domain\n\nVerify a new SES identity before sending from it.\n\n## Steps\n1. Create the email identity for the domain or address you want to send from.\n2. If DKIM tokens are returned, hand them to whoever manages DNS to add as CNAME records.\n3. Get the email identity periodically to check verification status and DKIM signing status until it reports success.\n4. Once verified, optionally create a configuration set to control tracking, delivery, and reputation options for emails sent from the identity.\n5. If the identity is no longer needed, delete the email identity.\n\n## Output\nReport the identity, its verification status, and DKIM status. If verification is pending, report the DNS records that still need to be added.',
     },
     {
       name: 'check-sending-health',

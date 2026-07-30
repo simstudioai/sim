@@ -1,4 +1,3 @@
-import { safeAssign } from '@/tools/safe-assign'
 import type {
   AddContactParams,
   ContactResult,
@@ -73,7 +72,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
           typeof params.customFields === 'string'
             ? JSON.parse(params.customFields)
             : params.customFields
-        safeAssign(contact, customFields as Record<string, unknown>)
+        contact.custom_fields = customFields as Record<string, unknown>
       }
 
       const body: SendGridContactRequest = {
@@ -99,7 +98,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
     return {
       success: true,
       output: {
-        jobId: data.job_id,
+        jobId: data.job_id ?? null,
         email: params?.email || '',
         firstName: params?.firstName,
         lastName: params?.lastName,
@@ -110,10 +109,14 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
   },
 
   outputs: {
-    jobId: { type: 'string', description: 'Job ID for tracking the async contact creation' },
+    jobId: {
+      type: 'string',
+      description: 'Job ID for tracking the async contact creation',
+      optional: true,
+    },
     email: { type: 'string', description: 'Contact email address' },
-    firstName: { type: 'string', description: 'Contact first name' },
-    lastName: { type: 'string', description: 'Contact last name' },
+    firstName: { type: 'string', description: 'Contact first name', optional: true },
+    lastName: { type: 'string', description: 'Contact last name', optional: true },
     message: { type: 'string', description: 'Status message' },
   },
 }

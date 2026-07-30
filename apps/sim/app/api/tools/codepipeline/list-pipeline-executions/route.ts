@@ -57,6 +57,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         stopTriggerReason: e.stopTrigger?.reason,
         triggerType: e.trigger?.triggerType,
         triggerDetail: e.trigger?.triggerDetail,
+        rollbackTargetPipelineExecutionId: e.rollbackMetadata?.rollbackTargetPipelineExecutionId,
         sourceRevisions: (e.sourceRevisions ?? []).map((r) => ({
           actionName: r.actionName ?? '',
           revisionId: r.revisionId,

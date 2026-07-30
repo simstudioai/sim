@@ -21,6 +21,7 @@
 import { useCopyToClipboard } from '../../hooks/use-copy-to-clipboard'
 import { Button, Check, Duplicate } from '../../index'
 import { cn } from '../../lib/cn'
+import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
 
 const REDACTED_DOTS = '••••••••••••••••••••••••••••••••'
 
@@ -42,26 +43,26 @@ export function SecretReveal({ value, className, redacted = false }: SecretRevea
   }
 
   return (
-    <div className={cn('relative', className)}>
-      <div
+    <div
+      className={cn(
+        'flex h-[30px] w-full items-center gap-1.5 px-2',
+        chipFieldSurfaceClass,
+        className
+      )}
+    >
+      <code
         className={cn(
-          'flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5',
-          !isHidden && 'pr-10'
+          chipFieldTextClass,
+          'flex-1 truncate font-mono',
+          isHidden && 'text-[var(--text-muted)]'
         )}
       >
-        <code
-          className={cn(
-            'flex-1 truncate font-mono text-sm',
-            isHidden ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'
-          )}
-        >
-          {isHidden ? REDACTED_DOTS : value}
-        </code>
-      </div>
+        {isHidden ? REDACTED_DOTS : value}
+      </code>
       {!isHidden && (
         <Button
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[4px] size-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
+          className='size-[18px] flex-shrink-0 rounded-sm p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
           onClick={handleCopy}
         >
           {copied ? <Check className='size-[14px]' /> : <Duplicate className='size-[14px]' />}

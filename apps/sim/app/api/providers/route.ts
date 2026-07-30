@@ -8,6 +8,11 @@ import { executeProviderContract } from '@/lib/api/contracts/providers'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  requireBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -24,6 +29,7 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
+import { projectStreamingExecutionToByteStream } from '@/providers/stream-pump'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -177,11 +183,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    /**
+     * Nested tool calls made by the LLM (e.g. knowledge search) hit internal
+     * routes that require the upstream billing decision. This route is
+     * internal-JWT-only, so the caller's attribution arrives as a header;
+     * validate it against the authenticated scope and thread it through. A
+     * header the route cannot validate is a caller protocol error (400), never
+     * silently dropped.
+     */
+    let billingAttribution: BillingAttributionSnapshot | undefined
+    if (request.headers.get(BILLING_ATTRIBUTION_HEADER)) {
+      if (!workspaceId) {
+        return NextResponse.json(
+          { error: 'workspaceId is required when billing attribution is supplied' },
+          { status: 400 }
+        )
+      }
+      try {
+        billingAttribution = requireBillingAttributionHeader(request.headers, {
+          actorUserId: auth.userId,
+          workspaceId,
+        })
+      } catch (error) {
+        return NextResponse.json(
+          { error: getErrorMessage(error, 'Invalid billing attribution header') },
+          { status: 400 }
+        )
+      }
+    }
+
     logger.info(`[${requestId}] Executing provider request`, {
       provider,
       model,
       workflowId,
       hasApiKey: !!finalApiKey,
+      hasBillingAttribution: !!billingAttribution,
     })
 
     const response = await executeProviderRequest(provider, {
@@ -209,6 +245,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowVariables,
       blockData,
       blockNameMapping,
+      billingAttribution,
       reasoningEffort,
       verbosity,
     })
@@ -237,43 +274,45 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const streamingExec = response as StreamingExecution
       logger.info(`[${requestId}] Received StreamingExecution from provider`)
 
-      // Extract the stream and execution data
-      const stream = streamingExec.stream
       const executionData = streamingExec.execution
+      const byteStream = projectStreamingExecutionToByteStream(streamingExec)
 
-      // Attach the execution data as a custom header
-      // We need to safely serialize the execution data to avoid circular references
       let executionDataHeader
       try {
-        // Create a safe version of execution data with the most important fields
+        const outputContent = executionData.output?.content
+        const outputTokens = executionData.output?.tokens
+        const hasSettledOutput =
+          Boolean(outputContent) ||
+          Boolean(outputTokens?.total) ||
+          Boolean(executionData.output?.toolCalls)
         const safeExecutionData = {
           success: executionData.success,
           output: {
-            // Sanitize content to remove non-ASCII characters that would cause ByteString errors
-            content: executionData.output?.content
-              ? String(executionData.output.content).replace(/[\u0080-\uFFFF]/g, '')
-              : '',
             model: executionData.output?.model,
-            tokens: executionData.output?.tokens || {
-              input: 0,
-              output: 0,
-              total: 0,
-            },
-            // Sanitize any potential Unicode characters in tool calls
-            toolCalls: executionData.output?.toolCalls
-              ? sanitizeToolCalls(executionData.output.toolCalls)
-              : undefined,
-            providerTiming: executionData.output?.providerTiming,
-            cost: executionData.output?.cost,
+            ...(hasSettledOutput
+              ? {
+                  content: String(outputContent ?? '').replace(/[\u0080-\uFFFF]/g, ''),
+                  tokens: outputTokens,
+                  toolCalls: executionData.output?.toolCalls
+                    ? sanitizeToolCalls(executionData.output.toolCalls)
+                    : undefined,
+                  providerTiming: executionData.output?.providerTiming,
+                  cost: executionData.output?.cost,
+                }
+              : {}),
           },
           error: executionData.error,
-          logs: [], // Strip logs from header to avoid encoding issues
+          logs: [],
           metadata: {
             startTime: executionData.metadata?.startTime,
-            endTime: executionData.metadata?.endTime,
-            duration: executionData.metadata?.duration,
+            ...(hasSettledOutput
+              ? {
+                  endTime: executionData.metadata?.endTime,
+                  duration: executionData.metadata?.duration,
+                }
+              : {}),
           },
-          isStreaming: true, // Always mark streaming execution data as streaming
+          isStreaming: true,
           blockId: executionData.logs?.[0]?.blockId,
           blockName: executionData.logs?.[0]?.blockName,
           blockType: executionData.logs?.[0]?.blockType,
@@ -287,8 +326,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
-      // Return the stream with execution data in a header
-      return new Response(stream, {
+      return new Response(byteStream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',

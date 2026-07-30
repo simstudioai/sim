@@ -1,0 +1,32 @@
+/**
+ * The ItPlatformTeamsGraphic's only motion: a soft ring pulse blooming
+ * from the Active policy tag — the family's shared quiet 6s
+ * state-confirmation beat (the staging tile's Promote button, the
+ * technical tile's Approved tag). The tag itself is borderless
+ * (`shadow-none` strips the gray variant's inset ring, matching the
+ * Approved tag), so the keyframes bloom from a bare pill. Under
+ * prefers-reduced-motion the pulse is removed and the tag sits static.
+ */
+
+.activePulse {
+  animation: it-platform-active-pulse 6s ease-out infinite;
+}
+
+@keyframes it-platform-active-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activePulse {
+    animation: none;
+  }
+}

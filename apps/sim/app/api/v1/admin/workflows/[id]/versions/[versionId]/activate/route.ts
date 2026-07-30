@@ -40,9 +40,7 @@ export const POST = withRouteHandler(
         workflowId,
         version: versionNum,
         userId: workflowRecord.userId,
-        workflow: workflowRecord as Record<string, unknown>,
         requestId,
-        request,
         actorId: 'admin-api',
       })
 
@@ -53,14 +51,16 @@ export const POST = withRouteHandler(
       }
 
       logger.info(
-        `[${requestId}] Admin API: Activated version ${versionNum} for workflow ${workflowId}`
+        `[${requestId}] Admin API: ${result.latestDeploymentAttempt?.status === 'active' ? 'Activated' : 'Accepted activation for'} version ${versionNum} on workflow ${workflowId}`
       )
 
       return singleResponse({
         success: true,
         version: versionNum,
-        deployedAt: result.deployedAt!.toISOString(),
+        deployedAt: result.deployedAt?.toISOString() ?? null,
         warnings: result.warnings,
+        activeDeployment: result.activeDeployment,
+        latestDeploymentAttempt: result.latestDeploymentAttempt,
       })
     } catch (error) {
       logger.error(

@@ -5,15 +5,25 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  TableLocks,
+  TableMetadata,
+  TablePredicate,
+  TableRow as TableRowType,
+  WorkflowGroup,
+} from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -41,6 +51,7 @@ import {
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
+import { resolveSelectOptions } from '../select-field'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -89,6 +100,11 @@ export interface SelectionSnapshot {
   /** Total running/queued workflow runs across ALL rows. Drives the page-header
    *  RunStatusControl ("N running, Stop all"). */
   totalRunning: number
+  /** Whether any LOADED cell has actually been claimed by a worker
+   *  (`status === 'running'`). False while the in-flight set is all
+   *  queued/pending stamps — the header control then reads "Queueing"
+   *  instead of labeling queued work as running. */
+  hasRunningCell: boolean
   /** Whether any dispatch is active (pending/dispatching). Keeps the RunStatusControl
    *  + Stop-all visible during a run even when the per-row count momentarily reads 0
    *  (e.g. the first window of an auto-fired/capped dispatch before cells stamp). */
@@ -105,7 +121,7 @@ export interface SelectionSnapshot {
     allRows: boolean
     rowCount: number
     /** Active filter when `allRows` is set — lets a filtered "select all" run only matching rows. */
-    filter?: Filter
+    filter?: TablePredicate
     /** Deselected rows when `allRows` is set — runs/stops skip them. */
     excludeRowIds?: string[]
   } | null
@@ -137,6 +153,13 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /** The table's mutation locks; gates row/schema affordances alongside `canEdit`. */
+  locks?: TableLocks
+  /**
+   * A mutation the user attempted that a lock forbids. The wrapper explains it
+   * in a modal — locked controls stay visible and say why, rather than vanishing.
+   */
+  onBlockedAction: (action: BlockedTableAction) => void
   /**
    * Pixel width to reserve on the right of the table's scroll content for the
    * currently-open slideout panel (column config, workflow config, or log
@@ -176,7 +199,7 @@ interface TableGridProps {
     runMode: RunMode,
     rowIds?: string[],
     limit?: RunLimit,
-    filter?: Filter,
+    filter?: TablePredicate,
     excludeRowIds?: string[]
   ) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
@@ -186,14 +209,14 @@ interface TableGridProps {
   onRunRows: (
     rowIds: string[] | undefined,
     runMode: RunMode,
-    filter?: Filter,
+    filter?: TablePredicate,
     excludeRowIds?: string[]
   ) => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
   onStopRows: (rowIds: string[]) => void
   /** Select-all Stop: table-wide, or scoped to the active filter when one is set.
    *  `excludeRowIds` (deselected rows) keep running. */
-  onStopAllRows: (filter?: Filter, excludeRowIds?: string[]) => void
+  onStopAllRows: (filter?: TablePredicate, excludeRowIds?: string[]) => void
   /** Single-row stop for the per-row gutter button. */
   onStopRow: (rowId: string) => void
   /**
@@ -204,11 +227,38 @@ interface TableGridProps {
   /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
   queryOptions: QueryOptions
   /**
+   * **Column ids** to hide from the grid. Owned by the wrapper because the filter
+   * panel's Columns section edits the same list and the active view persists it.
+   */
+  hiddenColumns?: string[]
+  /** Active view's stored layout. When set it owns column order/width/pinning
+   *  instead of the table's shared `metadata`. */
+  viewLayout?: TableMetadata | null
+  /** Identity of `viewLayout`'s source (the view id, or `null` for "All"). Changing
+   *  it re-seeds the grid — comparing the config object itself would re-seed on
+   *  every refetch. */
+  viewLayoutKey?: string | null
+  /** Routes layout writes to the active view. Falls back to the table-metadata
+   *  mutation when absent. */
+  /**
+   * Layout persistence sink. The grid stamps every call with the OWNER of the
+   * write — the `viewLayoutKey` it was displaying when the change happened
+   * (`null` for All) — so the parent routes by what the user was looking at,
+   * not by resolve-effect state that may lag the grid's own effects.
+   */
+  onPersistLayout?: (patch: TableMetadata, owner: string | null) => void
+  /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
    * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
    */
   columnRenameSinkRef: React.MutableRefObject<((oldName: string, newName: string) => void) | null>
+  /**
+   * Ref the grid populates with a reader for its CURRENT column layout. The grid
+   * owns this state, so the wrapper asks for it when creating a view rather than
+   * mirroring every patch — a mirror goes stale the moment a write bypasses it.
+   */
+  layoutSnapshotSinkRef?: React.MutableRefObject<(() => TableMetadata) | null>
   /**
    * Ref the grid populates with its post-row-delete cleanup (push undo,
    * clear selection). The wrapper invokes after the row-delete modal's
@@ -237,10 +287,47 @@ interface TableGridProps {
   >
 }
 
-/** Serialize a cell value to its tab-separated clipboard representation. */
-function cellToText(value: unknown): string {
+/**
+ * Serialize a cell value to its tab-separated clipboard representation. A
+ * `select` cell stores option ids, so resolve them to the option name(s)
+ * (comma-joined for multi) — the clipboard shows the label, not the id.
+ */
+function cellToText(value: unknown, column?: DisplayColumn): string {
   if (value === null || value === undefined) return ''
+  if (column?.type === 'select') {
+    return resolveSelectOptions(column, value)
+      .map((o) => o.name)
+      .join(', ')
+  }
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+/**
+ * Value-equality for a cell's stored value vs a pending edit. Primitives compare
+ * with `===`; arrays/objects (multiselect id arrays, json) compare structurally
+ * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
+ * treated as a change and doesn't write a row update or push an undo entry.
+ */
+function cellValuesEqual(a: unknown, b: unknown, column?: DisplayColumn): boolean {
+  if (a === b) return true
+  // An untouched multiselect cell is stored as null, but the editor commits `[]`
+  // for an empty selection — without this, opening and dismissing one unchanged
+  // would write a row update and push an undo entry. Multiselect only: on a json
+  // cell `[]` and null are genuinely different values, and treating them as equal
+  // would silently drop the edit that clears a stored `[]` (or writes one).
+  if (column?.type === 'select' && column.multiple) {
+    if (isEmptySelection(a) && isEmptySelection(b)) return true
+  }
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return false
+}
+
+/** An empty multiselect, however it was stored: absent, null, or `[]`. */
+function isEmptySelection(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  return value === null || value === undefined
 }
 
 /**
@@ -282,6 +369,8 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  locks,
+  onBlockedAction,
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
@@ -301,7 +390,12 @@ export function TableGrid({
   onStopRow,
   onSelectionChange,
   queryOptions,
+  hiddenColumns,
+  viewLayout,
+  viewLayoutKey = null,
+  onPersistLayout,
   columnRenameSinkRef,
+  layoutSnapshotSinkRef,
   afterDeleteRowsSinkRef,
   afterDeleteAllSinkRef,
   confirmDeleteColumnsSinkRef,
@@ -357,7 +451,15 @@ export function TableGrid({
   const [pinnedColumns, setPinnedColumns] = useState<string[]>([])
   const pinnedColumnsRef = useRef(pinnedColumns)
   pinnedColumnsRef.current = pinnedColumns
+  /** Current layout owner (view id, or null for All) for capture-at-dispatch
+   *  guards: a mutation callback persisting layout must compare the owner it was
+   *  dispatched under against this, or a mid-flight view switch writes the
+   *  origin's layout into the destination — same rule as undo's entryOwnsLayout. */
+  const viewLayoutKeyRef = useRef(viewLayoutKey)
+  viewLayoutKeyRef.current = viewLayoutKey
   const metadataSeededRef = useRef(false)
+  /** Which layout source the grid last seeded from, so a view switch re-seeds. */
+  const seededLayoutKeyRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
@@ -392,18 +494,37 @@ export function TableGrid({
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,
     refetchRows,
+    // Server-bound scopes use this, not `queryOptions.filter` — a condition the
+    // current schema invalidated is pruned from the rows query, so a bulk action
+    // carrying the raw filter would target a predicate the grid isn't showing
+    // (and one the server rejects outright).
+    filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
   const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
-  // Actual in-flight cell count = sum of the live per-row map (kept current by
-  // applyCell's SSE deltas, and the same source the per-row gutter uses). The
-  // dispatch-scope `runningCellCount` over-counts already-completed groups on
-  // rows still inside a dispatch's scope — e.g. a cascade where 3 of 4 columns
-  // finished would read "4 running" instead of "1".
+  // In-flight cell count = sum of the server-derived per-row map (refetched on
+  // a throttle as cell SSE events arrive, stamped optimistically on run-click
+  // — the same source the per-row gutter uses).
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
+  // Claimed-cell signal for the "Queueing" vs "N running" label. Two sources
+  // OR'd: the loaded-rows scan flips instantly via SSE claim events, and the
+  // server's table-wide flag covers runs whose active window has scrolled
+  // past the loaded pages (where the scan alone would read "Queueing" for the
+  // rest of a long run).
+  const hasRunningLoaded = useMemo(() => {
+    for (const row of rows) {
+      const executions = row.executions
+      if (!executions) continue
+      for (const exec of Object.values(executions)) {
+        if (exec?.status === 'running') return true
+      }
+    }
+    return false
+  }, [rows])
+  const hasRunningCell = hasRunningLoaded || (tableRunState?.hasRunning ?? false)
 
   // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
   // table. Drives the delete-confirm count and the action-bar cell count.
@@ -470,6 +591,36 @@ export function TableGrid({
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
   canEditRef.current = userPermissions.canEdit
+
+  const canEditCell = userPermissions.canEdit && !locks?.updateLocked
+  const canDeleteRow = userPermissions.canEdit && !locks?.deleteLocked
+  const canMutateSchema = userPermissions.canEdit && !locks?.schemaLocked
+  // Dropping or retyping a column rewrites every row's data, so `assertColumnDestructive`
+  // requires the delete lock clear too — mirror that here or the affordance
+  // stays live on an append-only table and only fails on click.
+  const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
+  // Duplicate inserts a full copied row in one shot, so unlike the blank-row
+  // paths it needs the insert lock only — it is valid on an append-only table.
+  const canInsertFullRow = userPermissions.canEdit && !locks?.insertLocked
+  // Manual grid entry is "add an empty row, then type into its cells" — the
+  // typing is an update. So a *useful* manual add needs BOTH insert and update
+  // unlocked; on an append-only table (update locked) it would leave a blank
+  // row the user can't fill. The control stays visible and explains itself via
+  // `onBlockedAction`. Full-row inserts still flow through CSV import / API /
+  // blocks / Mothership, which the insert lock alone governs server-side.
+  const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
+  const canEditCellRef = useRef(canEditCell)
+  canEditCellRef.current = canEditCell
+  const canManualAddRowRef = useRef(canManualAddRow)
+  canManualAddRowRef.current = canManualAddRow
+  const canInsertFullRowRef = useRef(canInsertFullRow)
+  canInsertFullRowRef.current = canInsertFullRow
+  // Read by the closure-free double-click handler to tell "locked" apart from
+  // "no write permission" — only the former gets the explanation modal.
+  const updateLockedRef = useRef(locks?.updateLocked)
+  updateLockedRef.current = locks?.updateLocked
+  const onBlockedActionRef = useRef(onBlockedAction)
+  onBlockedActionRef.current = onBlockedAction
   const { dismiss: dismissToast } = useToast()
   const dismissToastRef = useRef(dismissToast)
   dismissToastRef.current = dismissToast
@@ -485,6 +636,10 @@ export function TableGrid({
 
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
+
+  const timeZone = useTimezone()
+  const timeZoneRef = useRef(timeZone)
+  timeZoneRef.current = timeZone
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -503,7 +658,10 @@ export function TableGrid({
     rowIds?: string[],
     limit?: RunLimit
   ) {
-    onRunColumn(groupId, runMode, rowIds, limit)
+    // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
+    // filter; an explicit rowIds scope (Run selected) already names its rows.
+    const filter = rowIds ? undefined : (effectiveFilter ?? undefined)
+    onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
   const handleViewWorkflow = useCallback(
@@ -526,6 +684,14 @@ export function TableGrid({
   // Populate the wrapper's sink so its sidebars can fire renames back into
   // the grid. Reads through refs, so identity stability isn't required.
   columnRenameSinkRef.current = handleColumnRename
+
+  if (layoutSnapshotSinkRef) {
+    layoutSnapshotSinkRef.current = () => ({
+      columnWidths: columnWidthsRef.current,
+      ...(columnOrderRef.current ? { columnOrder: columnOrderRef.current } : {}),
+      pinnedColumns: pinnedColumnsRef.current,
+    })
+  }
 
   function getColumnWidths() {
     return columnWidthsRef.current
@@ -573,22 +739,29 @@ export function TableGrid({
       setColumnOrder(newOrder)
       columnOrderRef.current = newOrder
     }
+    // Only the keys this action changes. Both sinks merge, and a patch carrying
+    // an unchanged `columnWidths` snapshot would clobber a concurrent resize
+    // whose write happened to land first.
     updateMetadataRef.current({
       pinnedColumns: newPinned,
       ...(orderChanged ? { columnOrder: newOrder } : {}),
-      columnWidths: columnWidthsRef.current,
     })
   }, [])
 
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
     tableId,
+    getLocks: () => locks,
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
     onColumnWidthsChange: handleColumnWidthsChange,
     onPinnedColumnsChange: handlePinnedColumnsChange,
     getPinnedColumns,
     getColumnWidths,
+    onPersistLayout: onPersistLayout
+      ? (patch) => onPersistLayout(patch, viewLayoutKeyRef.current)
+      : undefined,
+    activeViewId: viewLayoutKey,
   })
   const undoRef = useRef(undo)
   undoRef.current = undo
@@ -615,8 +788,18 @@ export function TableGrid({
         ordered.push(col)
       }
     }
+    // Hidden columns are dropped BEFORE expansion so a workflow group's
+    // `groupSize` / `isGroupStart` are computed over the surviving children —
+    // expanding first would leave the spanning header claiming columns that no
+    // longer render. Hiding every child of a group therefore removes its header
+    // entirely, and hiding a plain column between two children of the same group
+    // merges what were two header spans back into one.
+    if (hiddenColumns && hiddenColumns.length > 0) {
+      const hidden = new Set(hiddenColumns)
+      ordered = ordered.filter((col) => !hidden.has(getColumnId(col)))
+    }
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
-  }, [columns, columnOrder, tableWorkflowGroups])
+  }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups])
 
   const workflowGroupById = useMemo(
     () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
@@ -796,7 +979,7 @@ export function TableGrid({
     workspaceId,
     tableId,
     q: submittedQuery,
-    filter: queryOptions.filter,
+    filter: effectiveFilter,
     sort: queryOptions.sort,
   })
 
@@ -990,14 +1173,13 @@ export function TableGrid({
     const anchorId = contextMenu.row.id
     // Fractional ordering: express intent by neighbor id, not integer position.
     const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
-    const position = contextMenu.row.position + offset
     createRef.current(
       { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+            pushUndoRef.current({ type: 'create-row', rowId: newRowId })
           }
         },
       }
@@ -1069,7 +1251,6 @@ export function TableGrid({
     const contextRow = contextMenu.row
     if (!contextRow) return
     const rowData = { ...contextRow.data }
-    const position = contextRow.position + 1
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
@@ -1081,7 +1262,6 @@ export function TableGrid({
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position,
               data: rowData,
             })
           }
@@ -1116,11 +1296,9 @@ export function TableGrid({
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            const maxPosition = rowsRef.current.reduce((max, r) => Math.max(max, r.position), -1)
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position: maxPosition + 1,
             })
           }
         },
@@ -1129,6 +1307,26 @@ export function TableGrid({
         },
       }
     )
+  }, [])
+
+  // Stable identity so <AddRowButton>'s React.memo still bails out; lock state
+  // is read from refs instead of being closed over.
+  const handleAddRowClick = useCallback(() => {
+    if (!canManualAddRowRef.current) {
+      onBlockedActionRef.current('add-row')
+      return
+    }
+    void handleAppendRow()
+  }, [handleAppendRow])
+
+  /** Stable stand-in for `handleDeleteColumn` when a lock forbids the drop. */
+  const handleBlockedDeleteColumn = useCallback(() => {
+    onBlockedActionRef.current('delete-column')
+  }, [])
+
+  /** Stable stand-in for the insert-column handlers when the schema is locked. */
+  const handleBlockedAddColumn = useCallback(() => {
+    onBlockedActionRef.current('add-column')
   }, [])
 
   const handleRowContextMenu = useCallback(
@@ -1409,7 +1607,13 @@ export function TableGrid({
             }
           }
         } else if (column.type === 'date') {
-          text = storageToDisplay(String(val))
+          text = storageToDisplay(String(val), { seconds: true })
+        } else if (column.type === 'select') {
+          // Cells store option ids; measure the rendered pill labels instead so
+          // auto-fit doesn't size the column to opaque ids.
+          text = resolveSelectOptions(column, val)
+            .map((o) => o.name)
+            .join(', ')
         } else {
           text = String(val)
         }
@@ -1603,10 +1807,7 @@ export function TableGrid({
           newOrder: finalOrder,
         })
         setColumnOrder(finalOrder)
-        updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
-          columnOrder: finalOrder,
-        })
+        updateMetadataRef.current({ columnOrder: finalOrder })
       }
     }
     setDragColumnName(null)
@@ -1697,43 +1898,66 @@ export function TableGrid({
   }, [tableData?.id])
 
   useEffect(() => {
-    if (!tableData?.metadata) return
-    if (
-      !tableData.metadata.columnWidths &&
-      !tableData.metadata.columnOrder &&
-      !tableData.metadata.pinnedColumns
-    )
-      return
-    // First load: seed all from the server and remember we've seeded.
-    if (!metadataSeededRef.current) {
+    // With a view active its config owns the layout; otherwise the table's own
+    // metadata does. Switching views re-seeds unconditionally so the incoming
+    // view's layout replaces the outgoing one.
+    const source = viewLayout ?? tableData?.metadata ?? null
+    const switchedView = viewLayoutKey !== seededLayoutKeyRef.current
+
+    if (!metadataSeededRef.current || switchedView) {
+      // A switch resets even when there is nothing to seed from — a table created
+      // with `metadata: null` would otherwise keep showing the outgoing view's
+      // layout, since layout written under a view never populates table metadata.
+      if (!source && !switchedView) return
       metadataSeededRef.current = true
-      if (tableData.metadata.columnWidths) {
-        setColumnWidths(tableData.metadata.columnWidths)
+      seededLayoutKeyRef.current = viewLayoutKey
+      setColumnWidths(source?.columnWidths ?? {})
+      // Reconcile the incoming order against the schema before seeding it. The
+      // append effect only fires when `columns` changes, so a column that arrived
+      // while another source owned the layout (or none did, during load) would
+      // otherwise render via the `displayColumns` fallback but never be written
+      // into this owner's stored order until the next drag happened to heal it.
+      const seededOrder = source?.columnOrder ?? null
+      if (seededOrder) {
+        const known = new Set(seededOrder)
+        const missing = schemaColumnsRef.current.map(getColumnId).filter((id) => !known.has(id))
+        const reconciled = missing.length > 0 ? [...seededOrder, ...missing] : seededOrder
+        setColumnOrder(reconciled)
+        if (missing.length > 0 && canEditRef.current) {
+          updateMetadataRef.current({ columnOrder: reconciled })
+        }
+      } else {
+        setColumnOrder(null)
       }
-      if (tableData.metadata.columnOrder) {
-        setColumnOrder(tableData.metadata.columnOrder)
-      }
-      if (tableData.metadata.pinnedColumns) {
-        setPinnedColumns(tableData.metadata.pinnedColumns)
-      }
+      setPinnedColumns(source?.pinnedColumns ?? [])
       return
     }
+    if (!source) return
     // After first load: only re-seed `columnOrder` when the *set of columns*
     // changes (e.g. a workflow group adds/removes outputs server-side). Pure
     // reorders are left alone so an in-flight optimistic drag isn't clobbered
     // by a refetch returning the pre-drag order.
-    const serverOrder = tableData.metadata.columnOrder
+    const serverOrder = source.columnOrder
     if (serverOrder) {
       const localOrder = columnOrderRef.current
-      const serverSet = new Set(serverOrder)
-      const localSet = new Set(localOrder ?? [])
-      const setChanged =
-        !localOrder || serverSet.size !== localSet.size || serverOrder.some((n) => !localSet.has(n))
-      if (setChanged) {
+      if (!localOrder) {
         setColumnOrder(serverOrder)
+      } else {
+        // Re-seed only when the server knows an id the local order lacks — a real
+        // schema change (a workflow group gained outputs). Ids present locally but
+        // NOT on the server are our own just-appended columns whose patch is still
+        // in flight: `viewLayout` gets a new identity on every save, so a refetch
+        // carrying the pre-append order would otherwise roll them back, and the
+        // append effect can't re-fire because `columns` is unchanged. Ids the
+        // server drops stay in the local order harmlessly — `displayColumns`
+        // skips any id with no matching column.
+        const localSet = new Set(localOrder)
+        if (serverOrder.some((id) => !localSet.has(id))) {
+          setColumnOrder(serverOrder)
+        }
       }
     }
-  }, [tableData?.metadata])
+  }, [tableData?.metadata, viewLayout, viewLayoutKey])
 
   useEffect(() => {
     if (!isColumnSelection || !selectionAnchor) return
@@ -1955,7 +2179,7 @@ export function TableGrid({
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
       if (column?.type === 'boolean') {
-        if (!options?.toggleBoolean || !canEditRef.current) return
+        if (!options?.toggleBoolean || !canEditCellRef.current) return
         const row = rowsRef.current.find((r) => r.id === rowId)
         if (row) {
           toggleBooleanCell(rowId, columnName, row.data[columnName])
@@ -1976,13 +2200,33 @@ export function TableGrid({
       const column = columnsRef.current.find((c) => c.key === columnKey)
       if (column?.type === 'boolean') return
 
+      // Double-click means "edit this cell". On an update-locked table, say so
+      // rather than opening the expanded viewer — which looks like an editor
+      // that silently refuses to save. Only for users who could otherwise edit:
+      // without write access the lock isn't why they can't, and they still get
+      // the read-only expanded viewer below.
+      if (canEditRef.current && updateLockedRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        return
+      }
+
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
       // Date/number: use inline editor (calendar picker / numeric input).
-      if ((column?.type === 'date' || column?.type === 'number') && canEditRef.current) {
+      if ((column?.type === 'date' || column?.type === 'number') && canEditCellRef.current) {
         setEditingCell({ rowId, columnName })
         setInitialCharacter(null)
+        return
+      }
+
+      // Select: open the inline option dropdown when editable; never the big
+      // text popover. Read-only cells do nothing (like booleans).
+      if (column?.type === 'select') {
+        if (canEditRef.current) {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter(null)
+        }
         return
       }
 
@@ -2019,7 +2263,35 @@ export function TableGrid({
   batchUpdateAsyncRef.current = batchUpdateRowsMutation.mutateAsync
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
-  updateMetadataRef.current = updateMetadataMutation.mutate
+  updateMetadataRef.current = onPersistLayout
+    ? (patch: TableMetadata) => onPersistLayout(patch, viewLayoutKeyRef.current)
+    : updateMetadataMutation.mutate
+
+  /**
+   * Records columns created since the layout was last saved. A new column already
+   * *renders* — `displayColumns` appends anything missing from `columnOrder` — but
+   * without this only the insert-left/right path wrote it back, so creating one via
+   * "+ New column", a workflow group, or an enrichment left it out of the stored
+   * order. With a view active this writes into that view, which is what makes a
+   * column added while a view is open belong to it.
+   *
+   * No-ops when the table has no explicit order (schema order governs, nothing to
+   * record) and when nothing is missing, so it self-heals once and stays quiet.
+   */
+  useEffect(() => {
+    const order = columnOrderRef.current
+    if (!order || columns.length === 0) return
+    const known = new Set(order)
+    const appended = columns.map(getColumnId).filter((id) => !known.has(id))
+    if (appended.length === 0) return
+    const nextOrder = [...order, ...appended]
+    setColumnOrder(nextOrder)
+    // Render locally regardless, but only WRITE when the viewer may. Both sinks
+    // are write-gated, so a read-only member opening a view whose stored order
+    // lags the schema would otherwise fire a doomed PATCH and an error toast
+    // just by looking at it.
+    if (canEditRef.current) updateMetadataRef.current({ columnOrder: nextOrder })
+  }, [columns])
 
   const deleteWorkflowGroupRef = useRef(deleteWorkflowGroupMutation.mutate)
   deleteWorkflowGroupRef.current = deleteWorkflowGroupMutation.mutate
@@ -2110,7 +2382,12 @@ export function TableGrid({
         !rowSelectionIsEmpty(rowSelectionRef.current)
       ) {
         if (editingCellRef.current) return
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         e.preventDefault()
         const rowSel = rowSelectionRef.current
         void (async () => {
@@ -2149,6 +2426,13 @@ export function TableGrid({
 
       if (e.shiftKey && e.key === 'Enter') {
         if (!canEditRef.current) return
+        // Same manual-add path as the Add row button, so it owes the same
+        // explanation rather than silently doing nothing on a locked table.
+        if (!canManualAddRowRef.current) {
+          e.preventDefault()
+          onBlockedActionRef.current('add-row')
+          return
+        }
         const row = currentRows[anchor.rowIndex]
         if (!row) return
         e.preventDefault()
@@ -2160,7 +2444,7 @@ export function TableGrid({
             onSuccess: (response: Record<string, unknown>) => {
               const newRowId = extractCreatedRowId(response)
               if (newRowId) {
-                pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+                pushUndoRef.current({ type: 'create-row', rowId: newRowId })
               }
               setSelectionAnchor({ rowIndex: anchor.rowIndex + 1, colIndex })
               setSelectionFocus(null)
@@ -2173,6 +2457,13 @@ export function TableGrid({
       if (e.key === 'Enter' || e.key === 'F2') {
         if (!canEditRef.current) return
         e.preventDefault()
+        // The primary keyboard edit path — same lock notice as double-click and
+        // Space, rather than a keypress that silently does nothing.
+        if (updateLockedRef.current) {
+          onBlockedActionRef.current('edit-cell')
+          return
+        }
+        if (!canEditCellRef.current) return
         const col = cols[anchor.colIndex]
         if (!col) return
 
@@ -2191,6 +2482,12 @@ export function TableGrid({
       if (e.key === ' ' && !e.shiftKey) {
         if (!canEditRef.current) return
         e.preventDefault()
+        // Space opens the same row editor as double-click, so it follows the
+        // update lock too — otherwise the form fills in and only 423s on save.
+        if (updateLockedRef.current) {
+          onBlockedActionRef.current('edit-cell')
+          return
+        }
         const row = currentRows[anchor.rowIndex]
         if (row) {
           onOpenRowModalRef.current(row)
@@ -2300,7 +2597,12 @@ export function TableGrid({
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault()
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel || sel.startRow === sel.endRow) return
         const sourceRow = currentRows[sel.startRow]
@@ -2334,7 +2636,12 @@ export function TableGrid({
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         e.preventDefault()
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
@@ -2395,7 +2702,12 @@ export function TableGrid({
       }
 
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (!canEditRef.current) return
+        if (!canEditCellRef.current) {
+          // Explain the lock rather than no-op, but only for users who
+          // could otherwise edit — for the rest it is a permission limit.
+          if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+          return
+        }
         const col = cols[anchor.colIndex]
         // Workflow-output cells are editable: the user can override the
         // workflow's value if they want. Booleans toggle on space/click —
@@ -2472,8 +2784,9 @@ export function TableGrid({
         } catch (error) {
           // Rejects if the row load failed or the payload is too large for the
           // clipboard — either way nothing landed, so report a plain failure
-          // rather than implying a size cap was hit.
-          logger.error(`Failed to ${verbLower} rows`, { error })
+          // rather than implying a size cap was hit. Log the message explicitly:
+          // a DOMException (e.g. lost transient activation) serializes to `{}`.
+          logger.error(`Failed to ${verbLower} rows`, { error: getErrorMessage(error) })
           dismissToastRef.current(loadingToastId)
           toast.error(`Failed to ${verbLower} — please try again`)
           return
@@ -2547,7 +2860,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Copied',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
         })
@@ -2568,10 +2881,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Copied',
           estimatedCount: selectAllTotalRef.current,
         })
@@ -2584,7 +2899,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c >= cols.length) break
           const row = currentRows[r]
-          cells.push(row ? cellToText(row.data[cols[c].key]) : '')
+          cells.push(row ? cellToText(row.data[cols[c].key], cols[c]) : '')
         }
         lines.push(cells.join('\t'))
       }
@@ -2595,7 +2910,12 @@ export function TableGrid({
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (editingCellRef.current) return
-      if (!canEditRef.current) return
+      if (!canEditCellRef.current) {
+        // Explain the lock rather than no-op, but only for users who
+        // could otherwise edit — for the rest it is a permission limit.
+        if (canEditRef.current) onBlockedActionRef.current('edit-cell')
+        return
+      }
 
       const rowSel = rowSelectionRef.current
       const cols = columnsRef.current
@@ -2609,7 +2929,7 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
           verb: 'Cut',
           estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
           afterCopy: (copied) =>
@@ -2635,10 +2955,12 @@ export function TableGrid({
           const name = cols[c]?.key
           if (name) colNames.push(name)
         }
+        const colByKey = new Map(cols.map((c) => [c.key, c]))
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           verb: 'Cut',
           estimatedCount: selectAllTotalRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
@@ -2658,7 +2980,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c < cols.length) {
             const colName = cols[c].key
-            cells.push(cellToText(row.data[colName]))
+            cells.push(cellToText(row.data[colName], cols[c]))
             previousData[colName] = row.data[colName] ?? null
             updates[colName] = null
           }
@@ -2698,14 +3020,10 @@ export function TableGrid({
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
-      // Captured once before the loop so each new row in the batch gets a unique,
-      // sequential position via `+ (newRowIndex - currentRows.length)` below.
-      const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const createBatchRows: Array<Record<string, unknown>> = []
-      const createBatchPositions: number[] = []
 
       for (let r = 0; r < pasteRows.length; r++) {
         const targetArrayIndex = currentAnchor.rowIndex + r
@@ -2717,7 +3035,8 @@ export function TableGrid({
           try {
             rowData[currentCols[targetCol].key] = cleanCellValue(
               pasteRows[r][c],
-              currentCols[targetCol]
+              currentCols[targetCol],
+              timeZoneRef.current
             )
           } catch {
             /* skip invalid values */
@@ -2736,8 +3055,21 @@ export function TableGrid({
           updateBatch.push({ rowId: existingRow.id, data: rowData })
         } else {
           createBatchRows.push(rowData)
-          createBatchPositions.push(lastRowPosition + 1 + (targetArrayIndex - currentRows.length))
         }
+      }
+
+      // A paste can do two different things at once: overwrite existing rows
+      // (an update) and extend past the last row (a full-row insert). Gate each
+      // against its own lock, and refuse the whole paste rather than applying
+      // half of it — so a full-row paste-append still works on an append-only
+      // table, while an overwrite on that same table explains itself.
+      if (updateBatch.length > 0 && !canEditCellRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        return
+      }
+      if (createBatchRows.length > 0 && !canInsertFullRowRef.current) {
+        onBlockedActionRef.current('add-row')
+        return
       }
 
       if (updateBatch.length > 0) {
@@ -2754,20 +3086,18 @@ export function TableGrid({
 
       if (createBatchRows.length > 0) {
         batchCreateRef.current(
-          { rows: createBatchRows, positions: createBatchPositions },
+          { rows: createBatchRows },
           {
             onSuccess: (response) => {
               const createdRows = response?.data?.rows ?? []
               const undoRows: Array<{
                 rowId: string
-                position: number
                 data: Record<string, unknown>
               }> = []
               for (let i = 0; i < createdRows.length; i++) {
                 if (createdRows[i]?.id) {
                   undoRows.push({
                     rowId: createdRows[i].id,
-                    position: createBatchPositions[i],
                     data: createBatchRows[i],
                   })
                 }
@@ -2871,7 +3201,8 @@ export function TableGrid({
 
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
-      const changed = oldValue !== normalizedValue
+      const column = columnsRef.current.find((c) => c.key === columnName)
+      const changed = !cellValuesEqual(oldValue, normalizedValue, column)
 
       if (changed) {
         pushUndoRef.current({
@@ -2914,10 +3245,7 @@ export function TableGrid({
       const insertIdx = anchorIdx + (side === 'right' ? 1 : 0)
       newOrder.splice(insertIdx, 0, newColumn)
       setColumnOrder(newOrder)
-      updateMetadataRef.current({
-        columnWidths: columnWidthsRef.current,
-        columnOrder: newOrder,
-      })
+      updateMetadataRef.current({ columnOrder: newOrder })
     },
     []
   )
@@ -2927,18 +3255,20 @@ export function TableGrid({
       const index = schemaColumnsRef.current.findIndex((c) => getColumnId(c) === columnId)
       if (index === -1) return
       const name = generateColumnName()
+      const owner = viewLayoutKeyRef.current
       addColumnMutation.mutate(
         { name, type: 'string', position: index },
         {
           onSuccess: (result) => {
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current({
-              type: 'create-column',
-              columnName: name,
-              columnId: newId,
-              position: index,
-            })
-            insertColumnInOrder(columnId, newId, 'left')
+            pushUndoRef.current(
+              { type: 'create-column', columnName: name, columnId: newId, position: index },
+              owner
+            )
+            // Skipped after a mid-flight view switch: the destination re-seeded
+            // its own order, and the append effect places the new column there
+            // when the schema refetch lands.
+            if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'left')
           },
         }
       )
@@ -2952,18 +3282,17 @@ export function TableGrid({
       if (index === -1) return
       const name = generateColumnName()
       const position = index + 1
+      const owner = viewLayoutKeyRef.current
       addColumnMutation.mutate(
         { name, type: 'string', position },
         {
           onSuccess: (result) => {
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
-            pushUndoRef.current({
-              type: 'create-column',
-              columnName: name,
-              columnId: newId,
-              position,
-            })
-            insertColumnInOrder(columnId, newId, 'right')
+            pushUndoRef.current(
+              { type: 'create-column', columnName: name, columnId: newId, position },
+              owner
+            )
+            if (owner === viewLayoutKeyRef.current) insertColumnInOrder(columnId, newId, 'right')
           },
         }
       )
@@ -3109,6 +3438,9 @@ export function TableGrid({
       originalPositions.set(name, { position: def ? cols.indexOf(def) : cols.length, def })
     }
     const deletedOriginalPositions: number[] = []
+    // Layout owner when the chain was dispatched — every onDeleted below fires
+    // from a mutation callback, so it must not trust the sink current by then.
+    const owner = viewLayoutKeyRef.current
 
     const deleteNext = (index: number) => {
       if (index >= columnsToDelete.length) return
@@ -3126,20 +3458,36 @@ export function TableGrid({
 
       const onDeleted = () => {
         deletedOriginalPositions.push(entry.position)
-        pushUndoRef.current({
-          type: 'delete-column',
-          // `columnToDelete` is the stable id; record the display name for re-create.
-          columnName: entry.def?.name ?? columnToDelete,
-          columnId: columnToDelete,
-          columnType: entry.def?.type ?? 'string',
-          columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
-          columnUnique: entry.def?.unique ?? false,
-          columnRequired: entry.def?.required ?? false,
-          cellData,
-          previousOrder: orderSnapshot,
-          previousWidth,
-          previousPinnedColumns: pinnedSnapshot,
-        })
+        pushUndoRef.current(
+          {
+            type: 'delete-column',
+            // `columnToDelete` is the stable id; record the display name for re-create.
+            columnName: entry.def?.name ?? columnToDelete,
+            columnId: columnToDelete,
+            columnType: entry.def?.type ?? 'string',
+            columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
+            columnUnique: entry.def?.unique ?? false,
+            columnRequired: entry.def?.required ?? false,
+            // Without these a deleted select column can't be re-created — it is
+            // invalid with no options, and the saved cell data is option ids.
+            ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+            ...(entry.def?.multiple ? { columnMultiple: true } : {}),
+            cellData,
+            previousOrder: orderSnapshot,
+            previousWidth,
+            previousPinnedColumns: pinnedSnapshot,
+          },
+          owner
+        )
+
+        // The cleanup below edits the ORIGIN view's layout. After a mid-flight
+        // switch the grid has re-seeded to the destination; dangling keys for
+        // the deleted column there are pruned on read, so skip rather than push
+        // origin snapshots into the destination's state or its stored config.
+        if (owner !== viewLayoutKeyRef.current) {
+          deleteNext(index + 1)
+          return
+        }
 
         const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
         setColumnWidths(cleanedWidths)
@@ -3279,10 +3627,9 @@ export function TableGrid({
   }, [rowSelection, rows])
 
   // `runningByRowId` + `totalRunning` come from `useTableRunState` above —
-  // backend-bootstrapped via `countRunningCells` and kept live by
-  // `applyCell`'s SSE-driven delta. Counts only cells whose worker has
-  // actually claimed the cell (`status === 'running'`), ignoring optimistic
-  // queued/pending stamps.
+  // server-derived via `countRunningCells` (queued/running/pending), refetched
+  // on a throttle as cell SSE events arrive, plus optimistic stamps on
+  // run-click.
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
@@ -3294,7 +3641,7 @@ export function TableGrid({
    *  mirroring the action bar's Play/Refresh; deselected rows are excluded. */
   const runSelection = (runMode: RunMode) => {
     if (contextMenuIsSelectAll) {
-      const filter = queryOptions.filter ?? undefined
+      const filter = effectiveFilter ?? undefined
       const excluded =
         rowSelection.kind === 'all' && rowSelection.excluded
           ? [...rowSelection.excluded]
@@ -3317,7 +3664,7 @@ export function TableGrid({
         rowSelection.kind === 'all' && rowSelection.excluded
           ? [...rowSelection.excluded]
           : undefined
-      onStopAllRows(queryOptions.filter ?? undefined, excluded)
+      onStopAllRows(effectiveFilter ?? undefined, excluded)
     } else {
       onStopRows(contextMenuRowIds)
     }
@@ -3445,7 +3792,7 @@ export function TableGrid({
           rowIds: rows.map((r) => r.id),
           allRows: true,
           rowCount: Math.max(0, selectAllTotalRef.current - excluded),
-          filter: queryOptions.filter ?? undefined,
+          filter: effectiveFilter ?? undefined,
           excludeRowIds: rowSelection.excluded ? [...rowSelection.excluded] : undefined,
         }
       }
@@ -3470,7 +3817,14 @@ export function TableGrid({
     }
     if (rowIds.length === 0) return null
     return { groupIds: [...groupIdsInRect], rowIds, allRows: false, rowCount: rowIds.length }
-  }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
+  }, [
+    rowSelection,
+    normalizedSelection,
+    rows,
+    displayColumns,
+    tableWorkflowGroupIds,
+    effectiveFilter,
+  ])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
     if (!selectedRunScope) {
@@ -3520,6 +3874,7 @@ export function TableGrid({
       sameStats &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
+      prev.hasRunningCell === hasRunningCell &&
       prev.hasActiveDispatch === hasActiveDispatch &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
       prev.actionBarRowIds.length === actionBarRowIds.length &&
@@ -3531,6 +3886,7 @@ export function TableGrid({
       actionBarRowIds,
       runningInActionBarSelection,
       totalRunning,
+      hasRunningCell,
       hasActiveDispatch,
       hasWorkflowColumns,
       selectedRunScope,
@@ -3543,6 +3899,7 @@ export function TableGrid({
     actionBarRowIds,
     runningInActionBarSelection,
     totalRunning,
+    hasRunningCell,
     hasActiveDispatch,
     hasWorkflowColumns,
     selectedRunScope,
@@ -3643,18 +4000,40 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
+                                // Every locked action passes its blocked handler rather
+                                // than `undefined`: `ColumnOptionsMenu` only mounts when
+                                // all three handlers exist, so withholding one would hide
+                                // the whole menu — and each item should explain the lock
+                                // rather than silently vanish or fail with a 423 toast.
                                 onInsertLeft={
-                                  userPermissions.canEdit ? handleInsertColumnLeft : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canMutateSchema
+                                      ? handleInsertColumnLeft
+                                      : handleBlockedAddColumn
                                 }
                                 onInsertRight={
-                                  userPermissions.canEdit ? handleInsertColumnRight : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canMutateSchema
+                                      ? handleInsertColumnRight
+                                      : handleBlockedAddColumn
                                 }
                                 onDeleteColumn={
-                                  userPermissions.canEdit ? handleDeleteColumn : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canDestroyColumn
+                                      ? handleDeleteColumn
+                                      : handleBlockedDeleteColumn
                                 }
                                 onDeleteGroup={
-                                  userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                                  !userPermissions.canEdit
+                                    ? undefined
+                                    : canDestroyColumn
+                                      ? handleDeleteWorkflowGroup
+                                      : handleBlockedDeleteColumn
                                 }
                                 onViewWorkflow={
                                   workflowGroupById.get(g.groupId)?.type === 'enrichment'
@@ -3717,6 +4096,11 @@ export function TableGrid({
                             key={column.key}
                             column={column}
                             colIndex={idx}
+                            // Permission-only: `readOnly` swaps the whole header for a
+                            // static label, which would also kill pin, column-select and
+                            // open-config — all metadata, not schema. The schema lock is
+                            // enforced per-action instead (insert/delete below), and a
+                            // rename attempt surfaces the server's 423 as a toast.
                             readOnly={!userPermissions.canEdit}
                             isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
@@ -3732,9 +4116,17 @@ export function TableGrid({
                             onRenameSubmit={columnRename.submitRename}
                             onRenameCancel={columnRename.cancelRename}
                             onColumnSelect={handleColumnSelect}
-                            onInsertLeft={handleInsertColumnLeft}
-                            onInsertRight={handleInsertColumnRight}
-                            onDeleteColumn={handleDeleteColumn}
+                            // Required props here, and the menu is already
+                            // suppressed for non-editors by `readOnly`.
+                            onInsertLeft={
+                              canMutateSchema ? handleInsertColumnLeft : handleBlockedAddColumn
+                            }
+                            onInsertRight={
+                              canMutateSchema ? handleInsertColumnRight : handleBlockedAddColumn
+                            }
+                            onDeleteColumn={
+                              canDestroyColumn ? handleDeleteColumn : handleBlockedDeleteColumn
+                            }
                             onResizeStart={handleColumnResizeStart}
                             onResize={handleColumnResize}
                             onResizeEnd={handleColumnResizeEnd}
@@ -3759,6 +4151,8 @@ export function TableGrid({
                         <NewColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
+                          blocked={!canMutateSchema}
+                          onBlocked={() => onBlockedAction('add-column')}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
                           onPickEnrichment={onOpenEnrichments}
@@ -3889,7 +4283,7 @@ export function TableGrid({
             )}
           </div>
           {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-            <AddRowButton onClick={handleAppendRow} />
+            <AddRowButton onClick={handleAddRowClick} />
           )}
         </div>
       </div>
@@ -3925,9 +4319,10 @@ export function TableGrid({
         runningInSelectionCount={runningInContextSelection}
         hasWorkflowColumns={hasWorkflowColumns}
         workflowCellScoped={Boolean(contextMenuGroupId)}
-        disableEdit={!userPermissions.canEdit}
-        disableInsert={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit}
+        disableEdit={!canEditCell}
+        disableInsert={!canManualAddRow}
+        disableDuplicate={!canInsertFullRow}
+        disableDelete={!canDeleteRow}
       />
 
       <ExpandedCellPopover
@@ -3936,7 +4331,7 @@ export function TableGrid({
         rows={rows}
         columns={displayColumns}
         onSave={handleInlineSave}
-        canEdit={userPermissions.canEdit}
+        canEdit={canEditCell}
         scrollContainer={scrollRef.current}
       />
     </div>

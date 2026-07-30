@@ -1,5 +1,5 @@
-import { envFlagsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { envFlagsMock, resetEnvFlagsMock } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   validateAirtableId,
   validateAlphanumericId,
@@ -27,12 +27,13 @@ import {
   validateWorkdayTenantUrl,
 } from '@/lib/core/security/input-validation'
 import {
-  isPrivateOrReservedIP,
+  validateAndPinProxyUrl,
+  validateDatabaseHost,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+afterAll(resetEnvFlagsMock)
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {
@@ -565,147 +566,6 @@ describe('sanitizeForLogging', () => {
   })
 })
 
-describe('isPrivateOrReservedIP', () => {
-  describe('IPv4 private/reserved ranges', () => {
-    it.concurrent.each([
-      ['192.168.1.1'],
-      ['192.168.0.0'],
-      ['10.0.0.1'],
-      ['10.255.255.255'],
-      ['172.16.0.1'],
-      ['172.31.255.255'],
-      ['127.0.0.1'],
-      ['127.255.255.255'],
-      ['169.254.169.254'],
-      ['0.0.0.0'],
-      ['224.0.0.1'],
-    ])('blocks IPv4 %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-  })
-
-  describe('IPv6 reserved ranges', () => {
-    it.concurrent.each([
-      ['::1'],
-      ['::'],
-      ['fe80::1'],
-      ['fc00::1'],
-      ['fd00::1'],
-      ['ff02::1'],
-      ['2001:db8::1'],
-    ])('blocks IPv6 %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-  })
-
-  describe('IPv4-mapped IPv6 (::ffff:0:0/96)', () => {
-    it.concurrent.each([
-      ['::ffff:192.168.1.1'],
-      ['::ffff:127.0.0.1'],
-      ['::ffff:169.254.169.254'],
-      ['::ffff:c0a8:101'],
-      ['::ffff:0:0'],
-    ])('blocks mapped private/reserved %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-
-    it.concurrent('allows mapped public IPv4 ::ffff:8.8.8.8', () => {
-      expect(isPrivateOrReservedIP('::ffff:8.8.8.8')).toBe(false)
-    })
-  })
-
-  describe('NAT64 (RFC 6052, 64:ff9b::/96)', () => {
-    it.concurrent('blocks NAT64-encoded private IPv4', () => {
-      expect(isPrivateOrReservedIP('64:ff9b::192.168.1.1')).toBe(true)
-    })
-  })
-
-  describe('IPv4-compatible IPv6 (::a.b.c.d, RFC 4291 §2.5.5.1, deprecated)', () => {
-    it.concurrent.each([
-      ['::c0a8:101', '192.168.1.1 (URL-normalized hex form)'],
-      ['::c0a8:0101', '192.168.1.1 (zero-padded hex form)'],
-      ['::a9fe:a9fe', '169.254.169.254 (cloud metadata)'],
-      ['::7f00:1', '127.0.0.1 (loopback)'],
-      ['::7f00:0001', '127.0.0.1 (zero-padded)'],
-      ['::a00:1', '10.0.0.1 (RFC1918)'],
-      ['::ac10:1', '172.16.0.1 (RFC1918)'],
-      ['::e000:1', '224.0.0.1 (multicast)'],
-      ['::192.168.1.1', 'dotted form ::192.168.1.1'],
-      ['::169.254.169.254', 'dotted form ::169.254.169.254'],
-      ['::127.0.0.1', 'dotted form ::127.0.0.1'],
-      ['::10.0.0.1', 'dotted form ::10.0.0.1'],
-    ])('blocks %s — %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-
-    it.concurrent.each([
-      ['::8.8.8.8', 'dotted form embedding public IPv4'],
-      ['::808:808', 'hex form embedding 8.8.8.8'],
-      ['::0808:0808', 'zero-padded hex form embedding 8.8.8.8'],
-    ])('allows IPv4-compatible IPv6 with embedded public IPv4 %s — %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(false)
-    })
-
-    it.concurrent.each([
-      ['::ffff:1', 'embedded 255.255.0.1 (Class E reserved) via parts[6]=0xffff'],
-      ['::ffff:0', 'embedded 255.255.0.0 (Class E reserved)'],
-      ['::ffff:abcd', 'embedded 255.255.171.205 (Class E reserved)'],
-      ['::f000:1', 'embedded 240.0.0.1 (Class E reserved)'],
-    ])('blocks IPv4-compatible IPv6 with Class E embedded IPv4 %s — %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-  })
-
-  describe('non-IPv4-compat unicast IPv6 (must not over-block)', () => {
-    it.concurrent.each([
-      ['2606:4700:4700::1111'],
-      ['2001:4860:4860::8888'],
-      ['::1:c0a8:101'],
-      ['1::c0a8:101'],
-      ['1:2:3:4:5:6:c0a8:101'],
-    ])('allows %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(false)
-    })
-  })
-
-  describe('IPv4 public addresses', () => {
-    it.concurrent.each([['8.8.8.8'], ['1.1.1.1'], ['1.0.0.1']])('allows %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(false)
-    })
-  })
-
-  describe('IPv4 alternate notations', () => {
-    it.concurrent.each([['0177.0.0.1'], ['0x7f000001']])('blocks loopback notation %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-  })
-
-  describe('invalid input', () => {
-    it.concurrent.each([['not-an-ip'], [''], ['256.256.256.256'], ['::g']])('rejects %s', (ip) => {
-      expect(isPrivateOrReservedIP(ip)).toBe(true)
-    })
-  })
-})
-
-describe('URL hostname normalization (Node URL parser + isPrivateOrReservedIP integration)', () => {
-  it.concurrent('Node normalizes [::192.168.1.1] to [::c0a8:101] and validator blocks it', () => {
-    const url = new URL('http://[::192.168.1.1]/')
-    const cleanHostname =
-      url.hostname.startsWith('[') && url.hostname.endsWith(']')
-        ? url.hostname.slice(1, -1)
-        : url.hostname
-    expect(cleanHostname).toBe('::c0a8:101')
-    expect(isPrivateOrReservedIP(cleanHostname)).toBe(true)
-  })
-
-  it.concurrent('Node normalizes [::169.254.169.254] and validator blocks the metadata IP', () => {
-    const url = new URL('http://[::169.254.169.254]/')
-    const cleanHostname = url.hostname.slice(1, -1)
-    expect(cleanHostname).toBe('::a9fe:a9fe')
-    expect(isPrivateOrReservedIP(cleanHostname)).toBe(true)
-  })
-})
-
 describe('validateUrlWithDNS', () => {
   describe('basic validation', () => {
     it('should reject invalid URLs', async () => {
@@ -759,6 +619,153 @@ describe('validateUrlWithDNS', () => {
       const result = await validateUrlWithDNS('')
       expect(result.isValid).toBe(false)
     })
+  })
+})
+
+describe('validateDatabaseHost', () => {
+  afterEach(() => {
+    envFlagsMock.isPrivateDatabaseHostsAllowed = false
+  })
+
+  describe('default (SSRF guard on)', () => {
+    it('rejects a missing host', async () => {
+      const result = await validateDatabaseHost(undefined)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it('rejects localhost', async () => {
+      const result = await validateDatabaseHost('localhost')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('localhost')
+    })
+
+    it('rejects a literal private IP', async () => {
+      const result = await validateDatabaseHost('10.0.0.5')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('rejects a literal loopback IP', async () => {
+      const result = await validateDatabaseHost('127.0.0.1')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('rejects a bracketed IPv6 loopback as a private IP (not unresolvable)', async () => {
+      const result = await validateDatabaseHost('[::1]')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('accepts a public IP and pins the resolved address', async () => {
+      const result = await validateDatabaseHost('1.1.1.1')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('1.1.1.1')
+    })
+  })
+
+  describe('self-host opt-in (ALLOW_PRIVATE_DATABASE_HOSTS)', () => {
+    beforeEach(() => {
+      envFlagsMock.isPrivateDatabaseHostsAllowed = true
+    })
+
+    it('allows localhost and still resolves an IP to pin', async () => {
+      const result = await validateDatabaseHost('localhost')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
+    })
+
+    it('allows a literal private IP and pins it', async () => {
+      const result = await validateDatabaseHost('10.0.0.5')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('10.0.0.5')
+    })
+
+    it('allows a literal loopback IP and pins it', async () => {
+      const result = await validateDatabaseHost('127.0.0.1')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('127.0.0.1')
+    })
+
+    it('allows a bracketed IPv6 loopback and pins the unbracketed address', async () => {
+      const result = await validateDatabaseHost('[::1]')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('::1')
+    })
+
+    it('still surfaces unresolvable hostnames', async () => {
+      const result = await validateDatabaseHost('this-host-does-not-exist.invalid')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('could not be resolved')
+    })
+  })
+})
+
+describe('validateAndPinProxyUrl', () => {
+  it('should reject a null/empty proxy URL', async () => {
+    expect((await validateAndPinProxyUrl(null)).isValid).toBe(false)
+    expect((await validateAndPinProxyUrl('')).isValid).toBe(false)
+  })
+
+  it('should reject a malformed URL', async () => {
+    const result = await validateAndPinProxyUrl('not a url')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('valid URL')
+  })
+
+  it('should reject an https:// proxy scheme', async () => {
+    const result = await validateAndPinProxyUrl('https://proxy.example.com:8080')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('http://')
+  })
+
+  it('should reject a socks5:// proxy scheme', async () => {
+    const result = await validateAndPinProxyUrl('socks5://proxy.example.com:1080')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('http://')
+  })
+
+  it('should reject a proxy host that is a private IP', async () => {
+    const result = await validateAndPinProxyUrl('http://user:pass@192.168.1.1:8080')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toMatch(/private IP|blocked IP/)
+  })
+
+  it('should reject a loopback proxy host even off the hosted platform', async () => {
+    const localhost = await validateAndPinProxyUrl('http://localhost:3128')
+    expect(localhost.isValid).toBe(false)
+    expect(localhost.error).toContain('blocked IP')
+    const loopback = await validateAndPinProxyUrl('http://127.0.0.1:3128')
+    expect(loopback.isValid).toBe(false)
+    expect(loopback.error).toContain('blocked IP')
+  })
+
+  it('should reject a proxy host that is the metadata IP', async () => {
+    const result = await validateAndPinProxyUrl('http://169.254.169.254:80')
+    expect(result.isValid).toBe(false)
+    expect(result.error).toMatch(/private IP|blocked IP/)
+  })
+
+  it('should accept a public proxy host and pin the hostname to the resolved IP, preserving creds/port', async () => {
+    const result = await validateAndPinProxyUrl('http://user:pass@8.8.8.8:8080')
+    expect(result.isValid).toBe(true)
+    const pinned = new URL(result.pinnedProxyUrl!)
+    expect(pinned.protocol).toBe('http:')
+    expect(pinned.hostname).toBe('8.8.8.8')
+    expect(pinned.username).toBe('user')
+    expect(pinned.password).toBe('pass')
+    expect(pinned.port).toBe('8080')
+  })
+
+  it('should bracket an IPv6 resolved address so the pinned host is the IP, not the original name', async () => {
+    const result = await validateAndPinProxyUrl('http://user:pass@[2606:4700:4700::1111]:8080')
+    expect(result.isValid).toBe(true)
+    const pinned = new URL(result.pinnedProxyUrl!)
+    expect(pinned.hostname).toBe('[2606:4700:4700::1111]')
+    expect(pinned.username).toBe('user')
+    expect(pinned.password).toBe('pass')
+    expect(pinned.port).toBe('8080')
   })
 })
 
@@ -1088,6 +1095,20 @@ describe('validateExternalUrl', () => {
     it.concurrent('should accept http 127.0.0.1', () => {
       const result = validateExternalUrl('http://127.0.0.1/api')
       expect(result.isValid).toBe(true)
+    })
+
+    /**
+     * The whole 127.0.0.0/8 range is the same machine. Matching only the
+     * 127.0.0.1 literal made this validator disagree with MCP's domain-check,
+     * which has always used the shared range helper — so the same self-hosted
+     * address was localhost to one caller and a plain http URL to the other.
+     */
+    it.concurrent('should treat the rest of the loopback range as localhost too', () => {
+      expect(validateExternalUrl('http://127.0.0.2/api').isValid).toBe(true)
+      expect(validateExternalUrl('http://127.1.2.3/api').isValid).toBe(true)
+      // Still only loopback — neighbouring private ranges stay rejected.
+      expect(validateExternalUrl('http://10.0.0.1/api').isValid).toBe(false)
+      expect(validateExternalUrl('http://192.168.1.1/api').isValid).toBe(false)
     })
 
     it.concurrent('should accept https IPv6 loopback', () => {
@@ -2028,7 +2049,7 @@ describe('validateCallbackUrl', () => {
       ['/invite/abc-123'],
       ['/invite/abc?foo=bar&baz=qux'],
       ['/workspace#section'],
-      ['/credential-account/456'],
+      ['/workspace/456'],
       ['?reset=true'],
       ['/'],
       ['https://sim.app/workspace'],

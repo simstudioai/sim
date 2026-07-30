@@ -121,7 +121,7 @@ These are non-negotiable. Violating any of these has burned users in the past.
 2. **Never set `image.tag: latest`.** The chart defaults to `Chart.AppVersion` for a reason — reproducible rollouts. If the user pinned `latest`, push back.
 3. **Never edit chart templates to work around a `fail` statement.** The validation exists because a misconfiguration would otherwise surface as a runtime CrashLoopBackOff with cryptic env errors.
 4. **Never drop `automountServiceAccountToken: false`** unless the workload genuinely needs in-cluster API access (Sim's app/realtime/postgres pods do not).
-5. **Never `kubectl delete sts` without `--cascade=orphan`** on a live Postgres. It deletes the pods and PVCs.
+5. **Never `kubectl delete sts` without `--cascade=orphan`** on a live Postgres. It deletes the pods (PVCs survive, but the database goes down immediately).
 6. **Never tell a user "the chart works on your cluster" without `helm lint` + `helm template` against their values.** Static reading is not validation.
 7. **Always confirm before `helm uninstall` in a shared namespace.** PVCs survive but other namespace resources may not.
 
@@ -136,7 +136,7 @@ kubectl --namespace <ns> get pods,events --sort-by='.lastTimestamp'
 kubectl --namespace <ns> logs deploy/sim-app --tail=200
 kubectl --namespace <ns> logs deploy/sim-realtime --tail=200
 kubectl --namespace <ns> logs sts/sim-postgresql --tail=200
-kubectl --namespace <ns> logs job/sim-migrations --tail=200 2>/dev/null
+kubectl --namespace <ns> logs deploy/sim-app -c migrations --tail=200 2>/dev/null
 kubectl --namespace <ns> describe pod -l app.kubernetes.io/name=sim
 ```
 

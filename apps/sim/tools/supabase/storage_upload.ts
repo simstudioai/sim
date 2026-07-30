@@ -12,7 +12,7 @@ export const storageUploadTool: ToolConfig<
   id: 'supabase_storage_upload',
   name: 'Supabase Storage Upload',
   description: 'Upload a file to a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

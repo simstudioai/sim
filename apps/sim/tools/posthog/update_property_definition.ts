@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogUpdatePropertyDefinitionParams {
   projectId: string
   propertyDefinitionId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   description?: string
   tags?: string
@@ -19,9 +21,7 @@ interface PropertyDefinition {
   is_numerical: boolean
   is_seen_on_filtered_events: boolean | null
   property_type: string
-  type: 'event' | 'person' | 'group'
-  volume_30_day: number | null
-  query_usage_30_day: number | null
+  type: 'event' | 'person' | 'group' | 'session'
   created_at: string
   updated_at: string
   updated_by: {
@@ -34,7 +34,6 @@ interface PropertyDefinition {
   verified: boolean
   verified_at: string | null
   verified_by: string | null
-  example: string | null
 }
 
 export const updatePropertyDefinitionTool: ToolConfig<
@@ -46,6 +45,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
   description:
     'Update a property definition in PostHog. Can modify description, tags, property type, and verification status to maintain clean property schemas.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -65,6 +65,13 @@ export const updatePropertyDefinitionTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
     },
     apiKey: {
       type: 'string',
@@ -100,7 +107,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/property_definitions/${params.propertyDefinitionId}`
     },
     method: 'PATCH',
@@ -146,15 +153,12 @@ export const updatePropertyDefinitionTool: ToolConfig<
       is_seen_on_filtered_events: data.is_seen_on_filtered_events ?? null,
       property_type: data.property_type,
       type: data.type,
-      volume_30_day: data.volume_30_day ?? null,
-      query_usage_30_day: data.query_usage_30_day ?? null,
       created_at: data.created_at,
       updated_at: data.updated_at,
       updated_by: data.updated_by ?? null,
       verified: data.verified || false,
       verified_at: data.verified_at ?? null,
       verified_by: data.verified_by ?? null,
-      example: data.example ?? null,
     }
   },
 
@@ -190,17 +194,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
     },
     type: {
       type: 'string',
-      description: 'Property type: event, person, or group',
-    },
-    volume_30_day: {
-      type: 'number',
-      description: 'Number of times property was seen in the last 30 days',
-      optional: true,
-    },
-    query_usage_30_day: {
-      type: 'number',
-      description: 'Number of times this property was queried in the last 30 days',
-      optional: true,
+      description: 'Property type: event, person, group, or session',
     },
     created_at: {
       type: 'string',
@@ -227,11 +221,6 @@ export const updatePropertyDefinitionTool: ToolConfig<
     verified_by: {
       type: 'string',
       description: 'User who verified the property',
-      optional: true,
-    },
-    example: {
-      type: 'string',
-      description: 'Example value for the property',
       optional: true,
     },
   },

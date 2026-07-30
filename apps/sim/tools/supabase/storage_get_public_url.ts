@@ -2,7 +2,7 @@ import type {
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageGetPublicUrlTool: ToolConfig<
@@ -12,7 +12,7 @@ export const storageGetPublicUrlTool: ToolConfig<
   id: 'supabase_storage_get_public_url',
   name: 'Supabase Storage Get Public URL',
   description: 'Get the public URL for a file in a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -48,10 +48,16 @@ export const storageGetPublicUrlTool: ToolConfig<
    * its response.
    */
   directExecution: async (params: SupabaseStorageGetPublicUrlParams) => {
-    let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`
+    const bucket = encodeStorageSegment(params.bucket)
+    const path = encodeStoragePath(params.path)
+    let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
 
     if (params.download) {
-      publicUrl += '?download=true'
+      // Supabase's `download` query param is a filename override, not a
+      // boolean flag — an empty value forces a download while preserving
+      // the original filename. Sending the literal string "true" would
+      // instead rename the downloaded file to "true".
+      publicUrl += '?download='
     }
 
     return {
@@ -65,8 +71,11 @@ export const storageGetPublicUrlTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`,
+    url: (params) => {
+      const bucket = encodeStorageSegment(params.bucket)
+      const path = encodeStoragePath(params.path)
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
+    },
     method: 'GET',
     headers: () => ({}),
   },

@@ -27,7 +27,7 @@ export const grainGetTranscriptTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId}/transcript`,
+      `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId.trim()}/transcript`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

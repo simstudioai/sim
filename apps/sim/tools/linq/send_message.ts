@@ -123,7 +123,8 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
         messageId: message.id ?? '',
         deliveryStatus: message.delivery_status ?? null,
         sentAt: message.sent_at ?? null,
-        service: message.service ?? null,
+        service:
+          message.service ?? message.from_handle?.service ?? message.preferred_service ?? null,
         message,
       },
     }
@@ -134,7 +135,7 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
     messageId: { type: 'string', description: 'ID of the sent message' },
     deliveryStatus: {
       type: 'string',
-      description: 'Delivery status (pending, queued, sent, delivered, failed)',
+      description: 'Delivery status (pending, queued, sent, delivered, received, read, failed)',
       optional: true,
     },
     sentAt: {

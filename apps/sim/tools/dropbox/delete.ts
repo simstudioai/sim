@@ -34,7 +34,7 @@ export const dropboxDeleteTool: ToolConfig<DropboxDeleteParams, DropboxDeleteRes
       }
     },
     body: (params) => ({
-      path: params.path,
+      path: params.path.trim(),
     }),
   },
 
@@ -65,7 +65,7 @@ export const dropboxDeleteTool: ToolConfig<DropboxDeleteParams, DropboxDeleteRes
       properties: {
         '.tag': { type: 'string', description: 'Type: file, folder, or deleted' },
         name: { type: 'string', description: 'Name of the deleted item' },
-        path_display: { type: 'string', description: 'Display path' },
+        path_display: { type: 'string', description: 'Display path', optional: true },
       },
     },
     deleted: {

@@ -2,6 +2,8 @@
   "pages": [
     "listWorkflows",
     "getWorkflow",
+    "exportWorkflow",
+    "importWorkflow",
     "deployWorkflow",
     "undeployWorkflow",
     "rollbackWorkflow"

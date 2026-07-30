@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  Label,
   Switch,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -27,16 +28,13 @@ export function InboxEnableToggle() {
   const [isDisableOpen, setIsDisableOpen] = useState(false)
   const [enableUsername, setEnableUsername] = useState('')
 
-  const handleToggle = useCallback(
-    async (checked: boolean) => {
-      if (checked) {
-        setIsEnableOpen(true)
-        return
-      }
-      setIsDisableOpen(true)
-    },
-    [workspaceId]
-  )
+  const handleToggle = useCallback(async (checked: boolean) => {
+    if (checked) {
+      setIsEnableOpen(true)
+      return
+    }
+    setIsDisableOpen(true)
+  }, [])
 
   const handleDisable = useCallback(async () => {
     try {
@@ -45,7 +43,7 @@ export function InboxEnableToggle() {
     } catch (error) {
       logger.error('Failed to disable inbox', { error })
     }
-  }, [workspaceId])
+  }, [workspaceId, toggleInbox.mutateAsync])
 
   const handleEnable = useCallback(async () => {
     try {
@@ -59,18 +57,19 @@ export function InboxEnableToggle() {
     } catch (error) {
       logger.error('Failed to enable inbox', { error })
     }
-  }, [workspaceId, enableUsername])
+  }, [workspaceId, enableUsername, toggleInbox.mutateAsync])
 
   return (
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-1'>
-          <span className='text-[13px] text-[var(--text-primary)]'>Enable email inbox</span>
-          <span className='text-[12px] text-[var(--text-muted)]'>
+          <Label htmlFor='inbox-enabled'>Enable email inbox</Label>
+          <p className='text-[var(--text-muted)] text-caption'>
             Allow this workspace to receive tasks via email
-          </span>
+          </p>
         </div>
         <Switch
+          id='inbox-enabled'
           checked={config?.enabled ?? false}
           onCheckedChange={handleToggle}
           disabled={toggleInbox.isPending}

@@ -36,7 +36,6 @@ export const attioGetTaskTool: ToolConfig<AttioGetTaskParams, AttioGetTaskRespon
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
     }),
   },
 
@@ -66,6 +65,7 @@ export const attioGetTaskTool: ToolConfig<AttioGetTaskParams, AttioGetTaskRespon
         content: task.content_plaintext ?? null,
         deadlineAt: task.deadline_at ?? null,
         isCompleted: task.is_completed ?? false,
+        completedAt: task.completed_at ?? null,
         linkedRecords,
         assignees,
         createdByActor: task.created_by_actor ?? null,

@@ -12,6 +12,7 @@ import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -144,6 +145,7 @@ export const DELETE = withRouteHandler(
             )
 
           await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
+          await removeWorkspaceSkillMembershipsTx(tx, workspaceId, userId)
 
           return { ownershipTransferred: didTransferOwnership, workflowOwnershipReassignment }
         }
@@ -188,6 +190,7 @@ export const DELETE = withRouteHandler(
               seatReduction = await reconcileOrganizationSeats({
                 organizationId,
                 reason: 'member-removed',
+                actorId: session.user.id,
               })
             } catch (seatError) {
               logger.error('Failed to reduce seats after workspace member removal', {

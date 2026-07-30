@@ -11,9 +11,17 @@
  */
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
+  --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
+  --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
+  --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
+  --desktop-title-bar-control-offset: 0px; /* centres a lane control; desktop overrides */
+  --desktop-title-bar-control-size: 0px; /* control seated in the lane; desktop overrides */
+  --desktop-title-bar-control-icon-size: 0px; /* its glyph; desktop overrides */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
   --auth-primary-btn-bg: #ffffff;
   --auth-primary-btn-border: #ffffff;
   --auth-primary-btn-text: #000000;
@@ -21,13 +29,16 @@
   --auth-primary-btn-hover-border: #e0e0e0;
   --auth-primary-btn-hover-text: #000000;
 
-  /* z-index scale. Transient poppers (menus, selects, popovers, tooltips, toasts)
-     sit above --z-modal so they stay clickable over the semi-transparent overlay. */
+  /* z-index scale. The toast/notification stack is ambient: it sits above page
+     content but BELOW the modal and the transient poppers (menus, selects,
+     popovers, tooltips), so an open modal or dropdown menu is never occluded by
+     a background notification. Poppers sit above --z-modal so they stay
+     clickable over the modal's semi-transparent overlay. */
   --z-dropdown: 100;
+  --z-toast: 150;
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
-  --z-toast: 500;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
@@ -38,8 +49,85 @@
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+/**
+ * Electron's `titleBarOverlay` publishes the window controls' geometry as these
+ * `titlebar-area-*` env vars, and Chromium rescales them under page zoom so the
+ * lane holds its physical size. Fallbacks are the platform's measured values, for
+ * a shell predating the overlay; the `:root` zeros cover the different case of the
+ * attribute being absent entirely, where this block never matches.
+ */
+html[data-sim-desktop-title-bar="inset"] {
+  --sidebar-collapsed-width: 0px;
+  --desktop-title-bar-height: env(titlebar-area-height, 38px);
+  --desktop-title-bar-inset-x: env(titlebar-area-x, 81px);
+  /* 0.79 = 30px of the 38px lane, and 0.53 of that = 16px. Proportions rather
+     than px because px would scale with page zoom while the OS-drawn lights
+     would not — and calc cannot divide a length by a length to get a scale.
+     `navigator.windowControlsOverlay` could, but reading it in JS would race
+     first paint for a value the blocking script needs. */
+  --desktop-title-bar-control-size: calc(var(--desktop-title-bar-height) * 0.79);
+  --desktop-title-bar-control-icon-size: calc(var(--desktop-title-bar-control-size) * 0.53);
+  --desktop-title-bar-control-offset: calc(
+    (var(--desktop-title-bar-height) - var(--desktop-title-bar-control-size)) /
+    2
+  );
+}
+
+/** The macOS desktop login shell reserves the native traffic-light lane. */
+.desktop-title-bar-page {
+  margin-top: var(--desktop-title-bar-height);
+  min-height: calc(100vh - var(--desktop-title-bar-height));
+}
+
+.desktop-window-drag-region {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.desktop-login-window-drag-region {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--desktop-title-bar-height);
+  background: inherit;
+}
+
+.desktop-workspace-window-drag-region {
+  position: absolute;
+  inset: 0 0 auto;
+  display: none;
+}
+
+html[data-sim-desktop-title-bar="inset"] .desktop-workspace-window-drag-region {
+  display: block;
+}
+
+html[data-sim-desktop-title-bar="inset"]
+  .desktop-workspace-window-frame
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    [contenteditable="true"],
+    [role="button"],
+    [role="link"],
+    [role="menuitem"],
+    [role="tab"]
+  ) {
+  -webkit-app-region: no-drag;
+}
+
 .workspace-root {
   letter-spacing: 0.02em;
+}
+
+.workspace-content-shell {
+  --workspace-content-title-bar-inset: 0px;
+}
+
+.workspace-content-shell[data-sidebar-collapsed] {
+  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 
 .workspace-root code,
@@ -60,10 +148,29 @@
  * the same cookie source as the collapsed structure — so the rail can never paint
  * at the expanded width and then snap narrow. Overrides `--sidebar-width` for the
  * shell subtree (outer, inner, and the aside cascade from it). Must equal
- * SIDEBAR_WIDTH.COLLAPSED in stores/constants.ts.
+ * `--sidebar-collapsed-width` is set once per host: the web app uses the
+ * SIDEBAR_WIDTH.COLLAPSED icon rail, while macOS desktop uses a full collapse.
  */
 .sidebar-shell-outer[data-collapsed] {
-  --sidebar-width: 51px;
+  --sidebar-width: var(--sidebar-collapsed-width);
+}
+
+/**
+ * Hover-peek: the shell floats out of flow as a card, so its subtree reads the restore
+ * width instead of the collapsed one. Re-declaring the same variable the rule above
+ * sets carries the inner shell and the aside along with no per-element overrides.
+ *
+ * Lives here rather than on the component because a Tailwind arbitrary property is one
+ * class (0,1,0) and would lose to that rule's (0,2,0) selector.
+ */
+.sidebar-shell-outer[data-collapsed][data-peek] {
+  --sidebar-width: var(--sidebar-expanded-width);
+}
+
+/* The card appears at full width, so the aside's own width transition would animate
+   0 -> expanded inside it. */
+.sidebar-shell-outer[data-peek] .sidebar-container {
+  transition: none;
 }
 
 .sidebar-container span,
@@ -107,6 +214,18 @@
    sidebar content, which is already at the correct width instantly. */
 html.sidebar-resizing .sidebar-shell-outer,
 html.sidebar-resizing .sidebar-shell-inner {
+  transition: none !important;
+}
+
+/* Suppress sidebar transitions during the initial hydration window. The
+   pre-paint script sets the correct --sidebar-width, but store rehydration
+   re-applies it a tick later; without this guard that re-apply animates the
+   rail, reading as a collapse -> expand flash on a fresh page load. Removed
+   after the first paint (see workspace-chrome.tsx) so user-driven toggles and
+   the fullscreen slide still animate. */
+html.sidebar-booting .sidebar-container,
+html.sidebar-booting .sidebar-shell-outer,
+html.sidebar-booting .sidebar-shell-inner {
   transition: none !important;
 }
 
@@ -213,6 +332,7 @@ html.sidebar-resizing .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #1a5cf6;
+    --selection-muted: #1a5cf647;
     --warning: #ea580c;
 
     /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
@@ -370,6 +490,7 @@ html.sidebar-resizing .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #4b83f7;
+    --selection-muted: #4b83f759;
     --warning: #ff6600;
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
@@ -477,6 +598,17 @@ html.sidebar-resizing .sidebar-shell-inner {
 
   *:focus {
     outline: none;
+  }
+
+  /* Consistent branded text-selection color everywhere, independent of the
+     browser/OS default (which dims when the window loses focus). Translucent,
+     with no color override, so selected text keeps its own paint on every
+     surface — solid-brand + forced white broke wherever glyphs aren't the
+     selected element's own (Chromium ignores ::selection color in form
+     controls, and the chat/workflow inputs render transparent textareas over
+     styled mirrors, which left black text on solid brand blue). */
+  ::selection {
+    background-color: var(--selection-muted);
   }
 
   body {

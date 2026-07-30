@@ -38,10 +38,11 @@ export const getTaskDetailsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      if (!params.taskId) {
+      const taskId = params.taskId?.trim()
+      if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}/details`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}/details`
     },
     method: 'GET',
     headers: (params) => {

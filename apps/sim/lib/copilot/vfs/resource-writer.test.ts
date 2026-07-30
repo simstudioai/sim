@@ -7,9 +7,6 @@ const mocks = vi.hoisted(() => {
 
   return {
     FileConflictError,
-    ensureWorkflowAliasBacking: vi.fn(),
-    ensureWorkspacePlanBacking: vi.fn(),
-    resolveWorkflowAliasForWorkspace: vi.fn(),
     ensureWorkspaceFileFolderPath: vi.fn(),
     findWorkspaceFileFolderIdByPath: vi.fn(),
     normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
@@ -19,15 +16,6 @@ const mocks = vi.hoisted(() => {
     uploadWorkspaceFile: vi.fn(),
   }
 })
-
-vi.mock('@/lib/copilot/vfs/workflow-alias-backing', () => ({
-  ensureWorkflowAliasBacking: mocks.ensureWorkflowAliasBacking,
-  ensureWorkspacePlanBacking: mocks.ensureWorkspacePlanBacking,
-}))
-
-vi.mock('@/lib/copilot/vfs/workflow-alias-resolver', () => ({
-  resolveWorkflowAliasForWorkspace: mocks.resolveWorkflowAliasForWorkspace,
-}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   ensureWorkspaceFileFolderPath: mocks.ensureWorkspaceFileFolderPath,
@@ -45,32 +33,20 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 import { validateWorkspaceFileWriteTarget, writeWorkspaceFileByPath } from './resource-writer'
 
-describe('resource writer workflow aliases', () => {
+describe('resource writer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.ensureWorkflowAliasBacking.mockResolvedValue({})
-    mocks.ensureWorkspacePlanBacking.mockResolvedValue({})
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-id')
   })
 
-  it('creates workflow plan aliases through backing workspace files', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
-      kind: 'plan_file',
-      scope: 'workflow',
-      workflowId: 'wf_1',
-      workflowName: 'My Workflow',
-      workflowPath: 'workflows/My%20Workflow',
-      aliasPath: 'workflows/My%20Workflow/.plans/launch.md',
-      backingPath: 'files/.plans/wf_1/launch.md',
-      backingFolderPath: 'files/.plans/wf_1',
-      planRelativePath: 'launch.md',
-    })
+  it('auto-creates missing parent folders for plain workspace file creates', async () => {
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-nested')
     mocks.getWorkspaceFileByName.mockResolvedValue(null)
     mocks.uploadWorkspaceFile.mockResolvedValue({
-      id: 'file-plan',
-      name: 'launch.md',
+      id: 'file-report',
+      name: 'summary.csv',
       size: 7,
-      type: 'text/markdown',
+      type: 'text/csv',
       url: '/download',
     })
 
@@ -78,237 +54,75 @@ describe('resource writer workflow aliases', () => {
       workspaceId: 'workspace-1',
       userId: 'user-1',
       target: {
-        path: 'workflows/My%20Workflow/.plans/launch.md',
+        path: 'files/Reports/2026/summary.csv',
         mode: 'create',
       },
       buffer: Buffer.from('content'),
-      inferredMimeType: 'text/markdown',
+      inferredMimeType: 'text/csv',
     })
 
-    expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
-      'workspace-1',
-      'user-1',
-      Buffer.from('content'),
-      'launch.md',
-      'text/markdown',
-      { folderId: 'folder-id', exactName: true }
-    )
-    expect(result).toMatchObject({
-      id: 'file-plan',
-      vfsPath: 'workflows/My%20Workflow/.plans/launch.md',
-      backingVfsPath: 'files/.plans/wf_1/launch.md',
-      mode: 'create',
-    })
-  })
-
-  it('overwrites workflow changelog aliases through backing workspace files', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
-      kind: 'changelog',
-      scope: 'workflow',
-      workflowId: 'wf_1',
-      workflowName: 'My Workflow',
-      workflowPath: 'workflows/My%20Workflow',
-      aliasPath: 'workflows/My%20Workflow/changelog.md',
-      backingPath: 'files/.changelogs/wf_1.md',
-      backingFolderPath: 'files/.changelogs',
-    })
-    mocks.getWorkspaceFileByName.mockResolvedValue({
-      id: 'file-changelog',
-      name: 'wf_1.md',
-      type: 'text/markdown',
-      folderPath: '.changelogs',
-    })
-    mocks.updateWorkspaceFileContent.mockResolvedValue({
-      id: 'file-changelog',
-      name: 'wf_1.md',
-      size: 7,
-      type: 'text/markdown',
-      url: '/download',
-      folderPath: '.changelogs',
-    })
-
-    const result = await writeWorkspaceFileByPath({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      target: {
-        path: 'workflows/My%20Workflow/changelog.md',
-        mode: 'overwrite',
-      },
-      buffer: Buffer.from('updated'),
-      inferredMimeType: 'text/markdown',
-    })
-
-    expect(mocks.updateWorkspaceFileContent).toHaveBeenCalledWith(
-      'workspace-1',
-      'file-changelog',
-      'user-1',
-      Buffer.from('updated'),
-      'text/markdown'
-    )
-    expect(result).toMatchObject({
-      id: 'file-changelog',
-      vfsPath: 'workflows/My%20Workflow/changelog.md',
-      backingVfsPath: 'files/.changelogs/wf_1.md',
-      mode: 'overwrite',
-    })
-  })
-
-  it('creates root workspace plan aliases through workspace backing files', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
-      kind: 'plan_file',
-      scope: 'workspace',
-      aliasPath: '.plans/root.md',
-      backingPath: 'files/.plans/workspace/root.md',
-      backingFolderPath: 'files/.plans/workspace',
-      planRelativePath: 'root.md',
-    })
-    mocks.getWorkspaceFileByName.mockResolvedValue(null)
-    mocks.uploadWorkspaceFile.mockResolvedValue({
-      id: 'file-root-plan',
-      name: 'root.md',
-      size: 7,
-      type: 'text/markdown',
-      url: '/download',
-    })
-
-    const result = await writeWorkspaceFileByPath({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      target: {
-        path: '.plans/root.md',
-        mode: 'create',
-      },
-      buffer: Buffer.from('content'),
-      inferredMimeType: 'text/markdown',
-    })
-
-    expect(mocks.ensureWorkspacePlanBacking).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-    })
     expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
       workspaceId: 'workspace-1',
       userId: 'user-1',
-      pathSegments: ['.plans', 'workspace'],
+      pathSegments: ['Reports', '2026'],
     })
-    expect(result).toMatchObject({
-      id: 'file-root-plan',
-      vfsPath: '.plans/root.md',
-      backingVfsPath: 'files/.plans/workspace/root.md',
-      mode: 'create',
-    })
-  })
-
-  it('rejects direct writes to reserved workflow alias backing paths', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
-
-    await expect(
-      writeWorkspaceFileByPath({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        target: {
-          path: 'files/.plans/wf_1/launch.md',
-          mode: 'create',
-        },
-        buffer: Buffer.from('content'),
-        inferredMimeType: 'text/markdown',
-      })
-    ).rejects.toThrow(
-      'Reserved workflow alias backing paths must be accessed through their alias path'
-    )
-
-    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('rejects validation of reserved workflow alias backing paths', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
-
-    await expect(
-      validateWorkspaceFileWriteTarget({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        target: {
-          path: 'files/.changelogs/wf_1.md',
-          mode: 'overwrite',
-        },
-      })
-    ).rejects.toThrow(
-      'Reserved workflow alias backing paths must be accessed through their alias path'
-    )
-
-    expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
-  })
-
-  it('uses exact-name creates for alias backing files', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
-      kind: 'plan_file',
-      scope: 'workflow',
-      workflowId: 'wf_1',
-      workflowName: 'My Workflow',
-      workflowPath: 'workflows/My%20Workflow',
-      aliasPath: 'workflows/My%20Workflow/.plans/launch.md',
-      backingPath: 'files/.plans/wf_1/launch.md',
-      backingFolderPath: 'files/.plans/wf_1',
-      planRelativePath: 'launch.md',
-    })
-    mocks.getWorkspaceFileByName.mockResolvedValue(null)
-    mocks.uploadWorkspaceFile.mockResolvedValue({
-      id: 'file-plan',
-      name: 'launch.md',
-      size: 7,
-      type: 'text/markdown',
-      url: '/download',
-    })
-
-    await writeWorkspaceFileByPath({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      target: {
-        path: 'workflows/My%20Workflow/.plans/launch.md',
-        mode: 'create',
-      },
-      buffer: Buffer.from('content'),
-      inferredMimeType: 'text/markdown',
-    })
-
+    expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
     expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
       'workspace-1',
       'user-1',
       Buffer.from('content'),
-      'launch.md',
-      'text/markdown',
-      { folderId: 'folder-id', exactName: true }
+      'summary.csv',
+      'text/csv',
+      { folderId: 'folder-nested' }
     )
+    expect(result).toMatchObject({
+      id: 'file-report',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      mode: 'create',
+    })
   })
 
-  it('reports alias path when exact-name alias backing creation conflicts', async () => {
-    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
-      kind: 'plan_file',
-      scope: 'workflow',
-      workflowId: 'wf_1',
-      workflowName: 'My Workflow',
-      workflowPath: 'workflows/My%20Workflow',
-      aliasPath: 'workflows/My%20Workflow/.plans/launch.md',
-      backingPath: 'files/.plans/wf_1/launch.md',
-      backingFolderPath: 'files/.plans/wf_1',
-      planRelativePath: 'launch.md',
-    })
+  it('validates create targets read-only, resolving existing parent folders without creating', async () => {
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue('folder-nested')
     mocks.getWorkspaceFileByName.mockResolvedValue(null)
-    mocks.uploadWorkspaceFile.mockRejectedValue(new mocks.FileConflictError('launch.md'))
 
-    await expect(
-      writeWorkspaceFileByPath({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        target: {
-          path: 'workflows/My%20Workflow/.plans/launch.md',
-          mode: 'create',
-        },
-        buffer: Buffer.from('content'),
-        inferredMimeType: 'text/markdown',
-      })
-    ).rejects.toThrow(
-      'File already exists at workflows/My%20Workflow/.plans/launch.md. Use mode "overwrite" to update it.'
-    )
+    const validation = await validateWorkspaceFileWriteTarget({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      target: {
+        path: 'files/Reports/2026/summary.csv',
+        mode: 'create',
+      },
+    })
+
+    expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+    expect(validation).toMatchObject({
+      mode: 'create',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      fileName: 'summary.csv',
+      folderId: 'folder-nested',
+    })
+  })
+
+  it('accepts create targets with missing parent folders during validation without creating them', async () => {
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+
+    const validation = await validateWorkspaceFileWriteTarget({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      target: {
+        path: 'files/Reports/2026/summary.csv',
+        mode: 'create',
+      },
+    })
+
+    expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+    expect(mocks.getWorkspaceFileByName).not.toHaveBeenCalled()
+    expect(validation).toMatchObject({
+      mode: 'create',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      fileName: 'summary.csv',
+      folderId: null,
+    })
   })
 })

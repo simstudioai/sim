@@ -94,6 +94,23 @@ Retrieve details of a previously sent email by its ID
 |   ↳ `name` | string | Tag name |
 |   ↳ `value` | string | Tag value |
 
+### `resend_cancel_email`
+
+Cancel a scheduled email before it is sent
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cancelEmailId` | string | Yes | The ID of the scheduled email to cancel |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Canceled email ID |
+
 ### `resend_create_contact`
 
 Create a new contact in Resend
@@ -196,6 +213,151 @@ Delete a contact from Resend by ID or email
 | --------- | ---- | ----------- |
 | `id` | string | Deleted contact ID |
 | `deleted` | boolean | Whether the contact was successfully deleted |
+
+### `resend_create_audience`
+
+Create a new audience in Resend
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceName` | string | Yes | The name of the audience to create |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created audience ID |
+| `name` | string | Audience name |
+
+### `resend_get_audience`
+
+Retrieve details of an audience by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | The ID of the audience to retrieve |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Audience ID |
+| `name` | string | Audience name |
+| `createdAt` | string | Audience creation timestamp |
+
+### `resend_list_audiences`
+
+List all audiences in Resend
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audiences` | array | Array of audiences |
+|   ↳ `id` | string | Audience ID |
+|   ↳ `name` | string | Audience name |
+|   ↳ `created_at` | string | Audience creation timestamp |
+| `hasMore` | boolean | Whether there are more audiences to retrieve |
+
+### `resend_delete_audience`
+
+Delete an audience from Resend by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | The ID of the audience to delete |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted audience ID |
+| `deleted` | boolean | Whether the audience was successfully deleted |
+
+### `resend_create_broadcast`
+
+Create a broadcast email for an audience in Resend
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | The ID of the audience to send the broadcast to |
+| `broadcastFrom` | string | Yes | Sender email address \(e.g., "sender@example.com" or "Sender Name &lt;sender@example.com&gt;"\) |
+| `broadcastSubject` | string | Yes | Broadcast email subject line |
+| `broadcastHtml` | string | No | HTML content of the broadcast |
+| `broadcastText` | string | No | Plain text content of the broadcast |
+| `broadcastReplyTo` | string | No | Reply-to email address |
+| `broadcastName` | string | No | Friendly internal name for the broadcast |
+| `broadcastPreviewText` | string | No | Preview text shown in the inbox before the email is opened |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created broadcast ID |
+
+### `resend_send_broadcast`
+
+Send a broadcast immediately or schedule it for later
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `broadcastId` | string | Yes | The ID of the broadcast to send |
+| `broadcastScheduledAt` | string | No | Schedule delivery in natural language \(e.g., "in 1 min"\) or ISO 8601 format. Sends immediately if omitted |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Broadcast ID |
+
+### `resend_get_broadcast`
+
+Retrieve details of a broadcast by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `broadcastId` | string | Yes | The ID of the broadcast to retrieve |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Broadcast ID |
+| `name` | string | Broadcast name |
+| `audienceId` | string | Audience ID \(legacy\) |
+| `segmentId` | string | Segment ID \(the current recipient field\) |
+| `from` | string | Sender email address |
+| `subject` | string | Broadcast subject |
+| `replyTo` | string | Reply-to email address |
+| `previewText` | string | Inbox preview text |
+| `status` | string | Broadcast status \(e.g., draft, sent\) |
+| `createdAt` | string | Broadcast creation timestamp |
+| `scheduledAt` | string | Scheduled send timestamp |
+| `sentAt` | string | Timestamp the broadcast was sent |
 
 ### `resend_list_domains`
 

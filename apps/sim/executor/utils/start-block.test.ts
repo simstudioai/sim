@@ -541,4 +541,99 @@ describe('start-block utilities', () => {
       expect(output.extra).toBe('untouched')
     })
   })
+
+  describe('run metadata injection', () => {
+    const runMetadata = {
+      userEmail: 'real@sim.ai',
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+      executionId: 'exec-1',
+      executionType: 'api',
+      executionMode: 'sync' as const,
+      startTime: '2026-07-15T00:00:00.000Z',
+    }
+
+    function createUnifiedResolution(subBlocks?: Record<string, unknown>) {
+      const block = createBlock('start_trigger', 'start', subBlocks ? { subBlocks } : undefined)
+      return {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+    }
+
+    it.concurrent('server metadata overrides caller-supplied metadata key', () => {
+      const resolution = createUnifiedResolution({ runMetadata: { value: true } })
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: {
+          metadata: { userEmail: 'attacker@x.com' },
+          simUserEmail: 'attacker@x.com',
+          payload: 'value',
+        },
+        runMetadata,
+      })
+
+      expect(output.metadata).toEqual(runMetadata)
+      expect(output.payload).toBe('value')
+      expect(output.simUserEmail).toBe('attacker@x.com')
+    })
+
+    it.concurrent('strips caller-supplied metadata key when no trusted metadata exists', () => {
+      const resolution = createUnifiedResolution({ runMetadata: { value: true } })
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { metadata: { userEmail: 'attacker@x.com' } },
+      })
+
+      expect(output).not.toHaveProperty('metadata')
+    })
+
+    it.concurrent('throws when an input format field is named metadata', () => {
+      const resolution = createUnifiedResolution({
+        runMetadata: { value: true },
+        inputFormat: { value: [{ name: 'metadata', type: 'string' }] },
+      })
+
+      expect(() =>
+        buildStartBlockOutput({
+          resolution,
+          workflowInput: {},
+          runMetadata,
+        })
+      ).toThrow('reserves the "metadata" output')
+    })
+
+    it.concurrent('toggle off leaves caller-supplied metadata untouched', () => {
+      const resolution = createUnifiedResolution()
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { metadata: { custom: 'value' } },
+        runMetadata,
+      })
+
+      expect(output.metadata).toEqual({ custom: 'value' })
+    })
+
+    it.concurrent('reads the toggle from config params when metadata subBlocks are absent', () => {
+      const block = createBlock('start_trigger', 'start')
+      block.config.params.runMetadata = true
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: { metadata: 'spoof' },
+        runMetadata,
+      })
+
+      expect(output.metadata).toEqual(runMetadata)
+    })
+  })
 })

@@ -1,30 +1,23 @@
-import { useMemo } from 'react'
-import { PillsRing } from '@sim/emcn'
-import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { useEffect, useMemo, useState } from 'react'
+import { ShimmerText } from '@/components/ui'
+import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import {
+  BrowserRequestTakeover,
+  CallIntegrationTool,
+  Read as ReadTool,
+  Terminal as TerminalTool,
+  Wait as WaitTool,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
+import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
+import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
+import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
+import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
-import { getToolIcon, resolveToolDisplayState } from '../../utils'
-
-function CircleCheck({ className }: { className?: string }) {
-  return (
-    <svg
-      width='16'
-      height='16'
-      viewBox='0 0 16 16'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-      className={className}
-    >
-      <circle cx='8' cy='8' r='6.5' stroke='currentColor' strokeWidth='1.25' />
-      <path
-        d='M5.5 8.5L7 10L10.5 6.5'
-        stroke='currentColor'
-        strokeWidth='1.25'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-    </svg>
-  )
-}
+import { resolveToolDisplayState } from '../../utils'
+import { CredentialDisplay } from '../special-tags'
+import { ToolPermissionCard } from './tool-permission-card'
 
 export function CircleStop({ className }: { className?: string }) {
   return (
@@ -42,47 +35,102 @@ export function CircleStop({ className }: { className?: string }) {
   )
 }
 
-function Hyphen({ className }: { className?: string }) {
-  return (
-    <svg
-      width='16'
-      height='16'
-      viewBox='0 0 16 16'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-      className={className}
-    >
-      <path d='M4 8H12' stroke='currentColor' strokeWidth='1.25' strokeLinecap='round' />
-    </svg>
-  )
-}
-
-function StatusIcon({ status, toolName }: { status: ToolCallStatus; toolName: string }) {
-  const display = resolveToolDisplayState(status)
-  if (display === 'spinner') {
-    return <PillsRing className='size-[15px] text-[var(--text-tertiary)]' animate />
-  }
-  if (display === 'cancelled') {
-    return <CircleStop className='size-[15px] text-[var(--text-tertiary)]' />
-  }
-  if (display === 'interrupted') {
-    return <Hyphen className='size-[15px] text-[var(--text-tertiary)]' />
-  }
-  const Icon = getToolIcon(toolName)
-  if (Icon) {
-    return <Icon className='size-[15px] text-[var(--text-tertiary)]' />
-  }
-  return <CircleCheck className='size-[15px] text-[var(--text-tertiary)]' />
-}
-
 interface ToolCallItemProps {
   toolName: string
   displayTitle: string
   status: ToolCallStatus
+  params?: Record<string, unknown>
   streamingArgs?: string
+  /** Required for a gated row: the permission decision is posted against it. */
+  toolCallId?: string
+  /** When the call started, used to count down a running `wait`. */
+  startedAt?: number
 }
 
-export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: ToolCallItemProps) {
+function stringParam(params: Record<string, unknown> | undefined, key: string): string {
+  const value = params?.[key]
+  return typeof value === 'string' ? value : ''
+}
+
+/** Reads a field out of the terminal tool's nested `args` object. */
+function nestedStringParam(params: Record<string, unknown> | undefined, key: string): string {
+  const args = params?.args
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
+  const value = (args as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : ''
+}
+
+/**
+ * How often the countdown re-reads the clock. Comfortably under a second so
+ * the displayed number turns over close to when it actually should, rather
+ * than drifting by most of a second against an interval that started late.
+ */
+const COUNTDOWN_TICK_MS = 250
+
+/**
+ * Milliseconds elapsed since the call started, while `active`.
+ *
+ * Anchors to `startedAt` so a row that mounts partway through a pause resumes
+ * mid-countdown instead of restarting; falls back to activation time when the
+ * caller has no start to give.
+ */
+function useElapsedMs(active: boolean, startedAt: number | undefined): number {
+  const [elapsedMs, setElapsedMs] = useState(0)
+
+  useEffect(() => {
+    if (!active) {
+      setElapsedMs(0)
+      return
+    }
+    const anchor = startedAt ?? Date.now()
+    const tick = () => setElapsedMs(Date.now() - anchor)
+    tick()
+    const interval = setInterval(tick, COUNTDOWN_TICK_MS)
+    return () => clearInterval(interval)
+  }, [active, startedAt])
+
+  return elapsedMs
+}
+
+/**
+ * A single tool-call row inside an agent group: shimmer while executing, a
+ * static label once terminal. For `workspace_file` the title is derived live
+ * from the streaming args; because that path bypasses the completed-title
+ * rewrite in `toToolData`, the past-tense flip is applied here on success.
+ * A `read` of a block or integration schema shows the block's brand icon
+ * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
+ * The status-aware rewrite is repeated at this final rendering boundary so
+ * live, replayed, and directly-constructed rows cannot bypass completed verbs.
+ * An executing `browser_request_takeover` renders through the credential
+ * chip component itself (`CredentialDisplay`, type `browser_takeover`) so it
+ * is pixel-identical to the Connect/folder-grant chips; clicking it hands
+ * control back to Sim — the takeover tool only resolves when it is clicked
+ * (desktop only; a replayed row in the web app renders as plain text).
+ */
+export function ToolCallItem({
+  toolName,
+  displayTitle,
+  status,
+  params,
+  streamingArgs,
+  toolCallId,
+  startedAt,
+}: ToolCallItemProps) {
+  const readBlock = useMemo(() => {
+    if (toolName !== ReadTool.id) return undefined
+    const path = params?.path
+    return typeof path === 'string' ? getReadTargetBlock(path) : undefined
+  }, [toolName, params])
+
+  // Like read's VFS-target resolution above, the gateway uses its exact
+  // discovered toolId only as a deterministic registry lookup. This renders
+  // the real integration brand while Go validates/resolves the operation.
+  const gatewayBlock = useMemo(() => {
+    if (toolName !== CallIntegrationTool.id) return undefined
+    const toolId = params?.toolId ?? extractStreamingStringArgument(streamingArgs, 'toolId')
+    return typeof toolId === 'string' ? getBlockByToolName(toolId) : undefined
+  }, [toolName, params, streamingArgs])
+
   const liveWorkspaceFileTitle = useMemo(() => {
     if (toolName !== WorkspaceFile.id || !streamingArgs) return null
     const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
@@ -112,14 +160,83 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
     return `${verb} ${unescaped}`
   }, [toolName, streamingArgs])
 
-  return (
-    <div className='flex items-center gap-[8px] pl-[24px]'>
-      <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-        <StatusIcon status={status} toolName={toolName} />
+  const displayState = resolveToolDisplayState(status)
+  const isExecuting = displayState === 'spinner'
+
+  const isCountingDown = toolName === WaitTool.id && isExecuting
+  const elapsedMs = useElapsedMs(isCountingDown, startedAt)
+
+  const liveTitle = isCountingDown
+    ? getWaitCountdownTitle(params, elapsedMs)
+    : liveWorkspaceFileTitle || displayTitle
+  const title = getToolStatusDisplayTitle(liveTitle, status)
+
+  const showTakeoverAction =
+    toolName === BrowserRequestTakeover.id && isExecuting && isBrowserAgentAvailable()
+
+  // A waiting terminal handoff swaps its row for the hand-back chip, the same
+  // way a browser takeover does: the row would otherwise spin with nothing
+  // saying the shell is blocked on the user.
+  const terminalHandoff =
+    toolName === TerminalTool.id && isExecuting && stringParam(params, 'operation') === 'handoff'
+      ? {
+          terminalId: nestedStringParam(params, 'terminalId'),
+          reason: nestedStringParam(params, 'reason'),
+        }
+      : null
+
+  const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
+
+  // A gated row is replaced outright by its permission card, the same way an
+  // executing browser takeover swaps itself for the takeover chip.
+  if (displayState === 'awaiting_approval' && toolCallId) {
+    return (
+      <div className='pl-6'>
+        <ToolPermissionCard
+          toolCallId={toolCallId}
+          toolName={toolName}
+          displayTitle={liveTitle}
+          params={params}
+        />
       </div>
-      <span className='text-[13px] text-[var(--text-secondary)]'>
-        {liveWorkspaceFileTitle || displayTitle}
-      </span>
+    )
+  }
+
+  if (terminalHandoff) {
+    return (
+      <div className='pl-6'>
+        <CredentialDisplay
+          data={{
+            type: 'terminal_handoff',
+            value: terminalHandoff.terminalId,
+            name: terminalHandoff.reason,
+          }}
+        />
+      </div>
+    )
+  }
+
+  if (showTakeoverAction) {
+    const reason = typeof params?.reason === 'string' ? params.reason.trim() : ''
+    return (
+      <div className='pl-6'>
+        <CredentialDisplay data={{ type: 'browser_takeover', name: reason }} />
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex items-center gap-[6px] pl-6'>
+      {BlockIcon && (
+        <BlockIcon className='size-[14px] flex-shrink-0' style={getBareIconStyle(BlockIcon)} />
+      )}
+      {isExecuting ? (
+        <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
+          {title}
+        </ShimmerText>
+      ) : (
+        <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
+      )}
     </div>
   )
 }

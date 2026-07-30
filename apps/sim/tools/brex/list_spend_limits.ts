@@ -88,6 +88,8 @@ export const brexListSpendLimitsTool: ToolConfig<
             description: 'Period recurrence (PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME)',
           },
           spend_type: { type: 'string', description: 'Spend type of the limit' },
+          start_date: { type: 'string', description: 'Spend limit start date', optional: true },
+          end_date: { type: 'string', description: 'Spend limit end date', optional: true },
           owner_user_ids: { type: 'array', description: 'User IDs of the spend limit owners' },
           member_user_ids: { type: 'array', description: 'User IDs of the spend limit members' },
           current_period_balance: {
@@ -95,6 +97,12 @@ export const brexListSpendLimitsTool: ToolConfig<
             description: 'Spend and rollover amounts for the current period',
             optional: true,
             properties: BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES,
+          },
+          authorization_settings: {
+            type: 'json',
+            description:
+              'Authorization settings (base limit, authorization type, rollover refresh)',
+            optional: true,
           },
         },
       },

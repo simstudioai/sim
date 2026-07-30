@@ -1,24 +1,55 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
+import {
+  assertDocumentProcessingPayload,
+  type DocumentProcessingBillingContext,
+  type DocumentProcessingPayload,
+} from '@/lib/knowledge/documents/processing-payload'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('TriggerKnowledgeProcessing')
 
-export type DocumentProcessingPayload = {
-  knowledgeBaseId: string
-  documentId: string
-  docData: {
-    filename: string
-    fileUrl: string
-    fileSize: number
-    mimeType: string
+export async function runDocumentProcessing(rawPayload: DocumentProcessingPayload) {
+  const payload = assertDocumentProcessingPayload(rawPayload)
+  const { knowledgeBaseId, documentId, docData, processingOptions, requestId } = payload
+  const billingContext: DocumentProcessingBillingContext =
+    payload.billingScope === 'workspace'
+      ? {
+          billingScope: 'workspace',
+          actorUserId: payload.actorUserId,
+          workspaceId: payload.workspaceId,
+          billingAttribution: payload.billingAttribution,
+        }
+      : {
+          billingScope: 'non-workspace',
+          actorUserId: payload.actorUserId,
+          workspaceId: null,
+        }
+
+  logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
+
+  try {
+    await processDocumentAsync(
+      knowledgeBaseId,
+      documentId,
+      docData,
+      processingOptions,
+      billingContext
+    )
+
+    logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)
+
+    return {
+      success: true,
+      documentId,
+      filename: docData.filename,
+      processingTime: Date.now(),
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to process document: ${docData.filename}`, error)
+    throw error
   }
-  processingOptions: {
-    recipe?: string
-    lang?: string
-  }
-  requestId: string
 }
 
 export const processDocument = task({
@@ -35,25 +66,5 @@ export const processDocument = task({
     concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
     name: 'document-processing-queue',
   },
-  run: async (payload: DocumentProcessingPayload) => {
-    const { knowledgeBaseId, documentId, docData, processingOptions, requestId } = payload
-
-    logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
-
-    try {
-      await processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions)
-
-      logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)
-
-      return {
-        success: true,
-        documentId,
-        filename: docData.filename,
-        processingTime: Date.now(),
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to process document: ${docData.filename}`, error)
-      throw error
-    }
-  },
+  run: runDocumentProcessing,
 })

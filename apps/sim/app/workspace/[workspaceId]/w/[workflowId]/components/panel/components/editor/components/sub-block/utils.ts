@@ -16,3 +16,30 @@ export function resolvePreviewContextValue(raw: unknown): unknown {
   }
   return raw
 }
+
+/**
+ * Parses a sub-block value that may be stored as a JSON string or as an already-parsed array.
+ *
+ * @remarks
+ * These sub-blocks contract on a JSON string, which is what their components write. Copilot's
+ * `edit_workflow` persisted them as raw arrays until it was fixed to re-serialize, so rows
+ * written by older builds still hold an array. Both shapes are accepted on read.
+ *
+ * The element type is asserted, not validated -- callers are responsible for defaulting any
+ * fields a malformed entry may be missing.
+ *
+ * @param value - The stored sub-block value, of unknown shape
+ * @returns The parsed array, or `[]` when the value is absent, unparseable, or not an array
+ */
+export function parseJsonArrayValue<T>(value: unknown): T[] {
+  if (!value) return []
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return []
+    }
+  }
+  return Array.isArray(parsed) ? (parsed as T[]) : []
+}

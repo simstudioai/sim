@@ -1,4 +1,3 @@
-import type { Item } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -8,12 +7,11 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  connectItemToSdkItem,
   connectRequest,
   createOnePasswordClient,
   normalizeSdkItem,
   resolveCredentials,
-  toSdkCategory,
-  toSdkFieldType,
 } from '../utils'
 
 const logger = createLogger('OnePasswordReplaceItemAPI')
@@ -49,40 +47,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const client = await createOnePasswordClient(creds.serviceAccountToken!)
 
       const existing = await client.items.get(params.vaultId, params.itemId)
-
-      const sdkItem = {
-        ...existing,
-        id: params.itemId,
-        title: itemData.title || existing.title,
-        category: itemData.category ? toSdkCategory(itemData.category) : existing.category,
-        vaultId: params.vaultId,
-        fields: itemData.fields
-          ? (itemData.fields as Array<Record<string, any>>).map((f) => ({
-              id: f.id || generateId().slice(0, 8),
-              title: f.label || f.title || '',
-              fieldType: toSdkFieldType(f.type || 'STRING'),
-              value: f.value || '',
-              sectionId: f.section?.id ?? f.sectionId,
-            }))
-          : existing.fields,
-        sections: itemData.sections
-          ? (itemData.sections as Array<Record<string, any>>).map((s) => ({
-              id: s.id || '',
-              title: s.label || s.title || '',
-            }))
-          : existing.sections,
-        notes: itemData.notes ?? existing.notes,
-        tags: itemData.tags ?? existing.tags,
-        websites:
-          itemData.urls || itemData.websites
-            ? (itemData.urls ?? itemData.websites ?? []).map((u: Record<string, any>) => ({
-                url: u.href || u.url || '',
-                label: u.label || '',
-                autofillBehavior: 'AnywhereOnWebsite' as const,
-              }))
-            : existing.websites,
-      } as Item
-
+      const sdkItem = connectItemToSdkItem(itemData, existing)
       const result = await client.items.put(sdkItem)
       return NextResponse.json(normalizeSdkItem(result))
     }

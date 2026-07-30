@@ -32,6 +32,12 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
       visibility: 'user-or-llm',
       description: 'Trello board ID (24-character hex string)',
     },
+    filter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Which lists to return: open, closed, or all (defaults to open)',
+    },
   },
 
   request: {
@@ -52,6 +58,10 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
       const url = new URL(`${TRELLO_API_BASE_URL}/boards/${params.boardId.trim()}/lists`)
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
+
+      if (params.filter) {
+        url.searchParams.set('filter', params.filter)
+      }
 
       return url.toString()
     },

@@ -60,6 +60,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   description: 'Read, write, and update data',
   authMode: AuthMode.OAuth,
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'microsoft_excel_v2' },
   longDescription:
     'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
@@ -233,41 +234,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
       ],
       condition: { field: 'operation', value: 'write' },
-    },
-    {
-      id: 'values',
-      title: 'Values',
-      type: 'long-input',
-      placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
-      condition: { field: 'operation', value: 'update' },
-      required: true,
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
-
-Format options:
-1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
-2. Array of objects: [{"column1": "value1", "column2": "value2"}]
-
-Examples:
-- "update with new prices" -> [["Product", "Price"], ["Widget A", 29.99], ["Widget B", 49.99]]
-- "quarterly targets" -> [{"Q1": 10000, "Q2": 12000, "Q3": 15000, "Q4": 18000}]
-
-Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
-        placeholder: 'Describe the data you want to update...',
-        generationType: 'json-object',
-      },
-    },
-    {
-      id: 'valueInputOption',
-      title: 'Value Input Option',
-      type: 'dropdown',
-      options: [
-        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
-        { label: "Raw (Don't parse formulas)", id: 'RAW' },
-      ],
-      condition: { field: 'operation', value: 'update' },
     },
     {
       id: 'values',

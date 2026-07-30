@@ -1,11 +1,13 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileDownloadContract } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { StorageContext } from '@/lib/uploads/config'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
@@ -40,7 +42,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { key, name, isExecutionFile, context, url } = parsed.data.body
+    const { key, name, url } = parsed.data.body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)
@@ -58,12 +60,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    let storageContext: StorageContext | 'general' | undefined = context
-
-    if (isExecutionFile && !context) {
-      storageContext = 'execution'
-      logger.info(`Using execution context for file: ${key}`)
-    }
+    // Derive context from the trusted key prefix, mirroring the serve route this URL
+    // delegates to, which re-derives context from the key and ignores any client-supplied value.
+    const storageContext = inferContextFromKey(key)
 
     const hasAccess = await verifyFileAccess(
       key,
@@ -79,15 +78,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { getBaseUrl } = await import('@/lib/core/utils/urls')
-    const contextQuery = storageContext ? `?context=${storageContext}` : ''
-    const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}${contextQuery}`
+    const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
 
-    logger.info(`Generated download URL for ${storageContext ?? 'inferred'} file: ${key}`)
+    logger.info(`Generated download URL for ${storageContext} file: ${key}`)
+
+    const downloadName = name || key.split('/').pop() || 'download'
+    recordAudit({
+      workspaceId: null,
+      actorId: userId,
+      action: AuditAction.FILE_DOWNLOADED,
+      resourceType: AuditResourceType.FILE,
+      resourceName: downloadName,
+      description: `Downloaded file "${downloadName}"`,
+      metadata: { key, fileName: downloadName, context: storageContext },
+      request,
+    })
+    captureServerEvent(userId, 'file_downloaded', {
+      is_bulk: false,
+      file_count: 1,
+    })
 
     return NextResponse.json({
       downloadUrl,
       expiresIn: null,
-      fileName: name || key.split('/').pop() || 'download',
+      fileName: downloadName,
     })
   } catch (error) {
     logger.error('Error in file download endpoint:', error)

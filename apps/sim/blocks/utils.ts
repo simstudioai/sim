@@ -11,11 +11,12 @@ import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/block
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
   orderModelIdsByReleaseDate,
 } from '@/providers/models'
-import { isPiSupportedProvider } from '@/providers/pi-providers'
+import { isPiSupportedModel } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -74,23 +75,23 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels.map((model) => {
-    const icon = getProviderIcon(model)
-    return { label: model, id: model, ...(icon && { icon }) }
-  })
+  return allModels
+    .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
+    .map((model) => {
+      const icon = getProviderIcon(model)
+      return { label: model, id: model, ...(icon && { icon }) }
+    })
 }
 
 /**
- * Model options filtered to providers the Pi Coding Agent can run (see
- * {@link isPiSupportedProvider}), so the Pi block never offers a model that would
- * error at execution. Uses the same `getProviderFromModel` resolution as the Pi
- * handler, so the dropdown matches runtime behavior; unresolved/blacklisted
- * models (which `getProviderFromModel` can throw on) are excluded.
+ * Model options filtered to exact provider/model pairs in Pi's pinned catalog.
+ * Unresolved or blacklisted models (which `getProviderFromModel` can throw on)
+ * are excluded.
  */
 export function getPiModelOptions() {
   return getModelOptions().filter((option) => {
     try {
-      return isPiSupportedProvider(getProviderFromModel(option.id))
+      return isPiSupportedModel(getProviderFromModel(option.id), option.id)
     } catch {
       return false
     }
@@ -159,6 +160,17 @@ function getProviderFromStore(model: string): string | null {
   return null
 }
 
+/**
+ * Whether an Ollama instance is available. `isOllamaConfigured` reads the
+ * server-only `OLLAMA_URL` env var, which is always undefined in the browser —
+ * there the providers store (populated from the server's model list, which is
+ * non-empty only when Ollama is configured) is the signal.
+ */
+function isOllamaAvailable(): boolean {
+  if (isOllamaConfigured) return true
+  return useProvidersStore.getState().providers.ollama.models.length > 0
+}
+
 function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
   if (!model) {
     return { field: 'model', value: '__no_model_selected__' }
@@ -197,7 +209,7 @@ function shouldRequireApiKeyForModel(model: string): boolean {
     return false
   if (storeProvider) return true
 
-  if (isOllamaConfigured) {
+  if (isOllamaAvailable()) {
     if (normalizedModel.includes('/')) return true
     if (normalizedModel in getBaseModelProviders()) return true
     return false

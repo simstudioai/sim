@@ -46,6 +46,13 @@ export const brightDataScrapeUrlTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Two-letter country code for geo-targeting (e.g., "us", "gb")',
     },
+    dataFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Convert the response to "markdown" instead of raw HTML, useful for feeding page content to an LLM. Omit for the default HTML/JSON response',
+    },
   },
 
   request: {
@@ -62,6 +69,7 @@ export const brightDataScrapeUrlTool: ToolConfig<
         format: params.format || 'raw',
       }
       if (params.country) body.country = params.country
+      if (params.dataFormat) body.data_format = params.dataFormat
       return body
     },
   },

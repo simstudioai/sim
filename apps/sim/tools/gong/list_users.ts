@@ -39,7 +39,9 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/users')
       if (params.cursor?.trim()) url.searchParams.set('cursor', params.cursor.trim())
-      if (params.includeAvatars) url.searchParams.set('includeAvatars', params.includeAvatars)
+      if (params.includeAvatars?.trim().toLowerCase() === 'true') {
+        url.searchParams.set('includeAvatars', 'true')
+      }
       return url.toString()
     },
     method: 'GET',

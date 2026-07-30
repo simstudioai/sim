@@ -51,12 +51,12 @@ export const discordCreateInviteTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateInviteParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}/invites`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/invites`
     },
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordCreateInviteParams) => {
       const body: any = {}

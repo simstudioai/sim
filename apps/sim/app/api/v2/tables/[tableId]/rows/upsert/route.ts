@@ -6,7 +6,8 @@ import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { buildIdByName, buildNameById, rowDataNameToId, upsertRow } from '@/lib/table'
+import { buildIdByName, rowDataNameToId, upsertRow } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
@@ -16,7 +17,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
+import { toApiRow, v2TableAccessError, v2TablesGateError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableUpsertAPI')
 
@@ -55,8 +56,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
+    const gateError = await v2TablesGateError(userId, validated.workspaceId)
+    if (gateError) return gateError
+
     const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
     const upsertResult = await upsertRow(
       {
         tableId,
@@ -69,9 +73,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       requestId
     )
 
-    // v2 includes `position` in the row object (via toApiRow) — v1 dropped it here.
     return v2Data(
-      { row: toApiRow(upsertResult.row, nameById), operation: upsertResult.operation },
+      { row: toApiRow(upsertResult.row, toNamedRow), operation: upsertResult.operation },
       { rateLimit }
     )
   } catch (error) {

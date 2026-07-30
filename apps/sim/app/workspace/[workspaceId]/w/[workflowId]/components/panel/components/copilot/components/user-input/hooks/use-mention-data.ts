@@ -7,6 +7,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { listCopilotChatsContract } from '@/lib/api/contracts/copilot'
 import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge/base'
 import { listLogsContract } from '@/lib/api/contracts/logs'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { type IntegrationDescriptor, listIntegrations } from '@/blocks/integration-matcher'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -130,9 +131,12 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   const [blocksList, setBlocksList] = useState<BlockItem[]>([])
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false)
 
+  // Reset on permission changes and on block-overlay bumps (custom-block or
+  // block-visibility hydrate) so late preview reveals refresh the folder.
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
   useEffect(() => {
     setBlocksList([])
-  }, [config.allowedIntegrations])
+  }, [config.allowedIntegrations, blockOverlayVersion])
 
   const [logsList, setLogsList] = useState<LogItem[]>([])
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
@@ -188,7 +192,8 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
         // Fetch current blocks from store
         const workflowStoreBlocks = useWorkflowStore.getState().blocks
 
-        const { registry: blockRegistry } = await import('@/blocks/registry')
+        const { getBlockRegistry } = await import('@/blocks/registry')
+        const blockRegistry = getBlockRegistry()
         const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
           const reg = (blockRegistry as any)[b.type]
           return {

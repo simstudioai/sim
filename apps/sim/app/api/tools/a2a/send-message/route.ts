@@ -17,7 +17,8 @@ import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -90,13 +91,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (denied) return denied
       }
       files = await Promise.all(
-        userFiles.map(async (userFile) => ({
-          bytes: await downloadFileFromStorage(userFile, requestId, logger, {
-            maxBytes: A2A_MAX_FILE_BYTES,
-          }),
-          name: userFile.name,
-          mediaType: userFile.type || 'application/octet-stream',
-        }))
+        userFiles.map(async (userFile) => {
+          const { buffer, contentType } = await downloadServableFileFromStorage(
+            userFile,
+            requestId,
+            logger,
+            { maxBytes: A2A_MAX_FILE_BYTES }
+          )
+          return {
+            bytes: buffer,
+            name: userFile.name,
+            mediaType: contentType || userFile.type || 'application/octet-stream',
+          }
+        })
       )
     }
 
@@ -130,6 +137,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output,
     })
   } catch (error) {
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
     logger.error(`[${requestId}] A2A send failed`, { error: getErrorMessage(error) })
     return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 502 })
   }

@@ -55,12 +55,12 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
 
     request: {
       url: (params: DiscordUpdateRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId}/roles/${params.roleId}`
+        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles/${params.roleId.trim()}`
       },
       method: 'PATCH',
       headers: (params) => ({
         'Content-Type': 'application/json',
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
       body: (params: DiscordUpdateRoleParams) => {
         const body: any = {}

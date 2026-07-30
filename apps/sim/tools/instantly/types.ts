@@ -109,6 +109,21 @@ export interface InstantlyGetLeadParams extends InstantlyBaseParams {
   leadId: string
 }
 
+export interface InstantlyPatchLeadParams extends InstantlyBaseParams {
+  leadId: string
+  personalization?: string | null
+  website?: string | null
+  last_name?: string | null
+  first_name?: string | null
+  company_name?: string | null
+  job_title?: string | null
+  phone?: string | null
+  lt_interest_status?: number
+  pl_value_lead?: string | null
+  assigned_to?: string | null
+  custom_variables?: Record<string, InstantlyScalar>
+}
+
 export interface InstantlyCreateLeadParams extends InstantlyBaseParams {
   campaign?: string | null
   email?: string | null
@@ -142,7 +157,7 @@ export interface InstantlyDeleteLeadsParams extends InstantlyBaseParams {
 
 export interface InstantlyUpdateLeadInterestStatusParams extends InstantlyBaseParams {
   lead_email: string
-  interest_value: number | null
+  interest_value?: number | null
   campaign_id?: string
   ai_interest_value?: number
   disable_auto_interest?: boolean
@@ -179,6 +194,14 @@ export interface InstantlyPatchCampaignParams extends Partial<InstantlyCreateCam
 }
 
 export interface InstantlyActivateCampaignParams extends InstantlyBaseParams {
+  campaignId: string
+}
+
+export interface InstantlyPauseCampaignParams extends InstantlyBaseParams {
+  campaignId: string
+}
+
+export interface InstantlyDeleteCampaignParams extends InstantlyBaseParams {
   campaignId: string
 }
 
@@ -268,6 +291,16 @@ export interface InstantlyCampaignResponse extends ToolResponse {
   }
 }
 
+export interface InstantlyCampaignActionResponse extends ToolResponse {
+  output: {
+    campaign: InstantlyCampaign
+    id: string | null
+    name: string | null
+    status: number | null
+    message: string | null
+  }
+}
+
 export interface InstantlyListEmailsResponse extends ToolResponse {
   output: {
     emails: InstantlyEmail[]
@@ -308,6 +341,7 @@ export type InstantlyResponse =
   | InstantlyUpdateLeadInterestStatusResponse
   | InstantlyListCampaignsResponse
   | InstantlyCampaignResponse
+  | InstantlyCampaignActionResponse
   | InstantlyListEmailsResponse
   | InstantlyEmailResponse
   | InstantlyListLeadListsResponse

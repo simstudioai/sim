@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { StrategyOptions } from '@/lib/chunkers/types'
+import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 
 export const knowledgeScopeSchema = z.enum(['active', 'archived', 'all'])
 export type KnowledgeScope = z.output<typeof knowledgeScopeSchema>
@@ -51,8 +52,19 @@ export const chunkingConfigSchema = z
 
 export const createKnowledgeBaseBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
+  description: z
+    .string()
+    .max(
+      KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+      `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+    )
+    .optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  /**
+   * Folder the knowledge base is created in, from the `knowledge_base` folder tree.
+   * `null` (or omitted) creates it at the workspace root.
+   */
+  folderId: z.string().min(1, 'Folder ID cannot be empty').nullable().optional(),
   embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
   embeddingDimension: z.literal(1536).default(1536),
   chunkingConfig: chunkingConfigSchema.default({
@@ -70,6 +82,11 @@ export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
   .partial()
   .extend({
     chunkingConfig: chunkingConfigSchema.optional(),
+    /**
+     * Moves the knowledge base between folders. Omitted leaves the folder untouched;
+     * explicit `null` moves it back to the workspace root.
+     */
+    folderId: z.string().min(1, 'Folder ID cannot be empty').nullable().optional(),
     workspaceId: z.string().nullable().optional(),
     embeddingModel: z.literal('text-embedding-3-small').optional(),
     embeddingDimension: z.literal(1536).optional(),
@@ -99,6 +116,7 @@ export const knowledgeBaseDataSchema = z
     updatedAt: wireDateSchema,
     deletedAt: nullableWireDateSchema,
     workspaceId: z.string().nullable(),
+    folderId: z.string().nullable(),
     docCount: z.number().optional(),
     connectorTypes: z.array(z.string()).optional(),
   })

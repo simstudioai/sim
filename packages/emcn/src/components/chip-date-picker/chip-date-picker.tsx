@@ -41,6 +41,11 @@ interface ChipDatePickerSingleProps extends ChipDatePickerBaseProps {
   value?: string
   /** Called with the picked date in `YYYY-MM-DD` format. */
   onChange?: (value: string) => void
+  /**
+   * Today's calendar day (`YYYY-MM-DD`) in the caller's effective timezone;
+   * defaults to the runtime's local day (mirrors `Calendar`'s `today`).
+   */
+  today?: string
 }
 
 interface ChipDatePickerRangeProps extends ChipDatePickerBaseProps {
@@ -132,6 +137,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
             align={align}
             sideOffset={6}
             collisionPadding={8}
+            data-native-surface-overlay=''
             className={cn(
               POPOVER_ANIMATION_CLASSES,
               'z-[var(--z-popover)] origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'
@@ -152,6 +158,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
             ) : (
               <Calendar
                 value={props.value}
+                today={props.today}
                 onChange={(next) => {
                   props.onChange?.(next)
                   setOpen(false)

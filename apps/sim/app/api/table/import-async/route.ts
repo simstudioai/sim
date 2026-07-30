@@ -8,6 +8,7 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { findActiveFolder } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
@@ -20,6 +21,7 @@ import {
   TableConflictError,
 } from '@/lib/table'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
+import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableImportAsync')
@@ -38,7 +40,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(importTableAsyncContract, request, {})
   if (!parsed.success) return parsed.response
-  const { workspaceId, fileKey, fileName, deleteSourceFile } = parsed.data.body
+  const { workspaceId, fileKey, fileName, folderId, deleteSourceFile, timezone } = parsed.data.body
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (permission !== 'write' && permission !== 'admin') {
@@ -48,6 +50,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   // caller can't import another workspace's uploaded object.
   if (!fileKey.startsWith(`workspace/${workspaceId}/`)) {
     return NextResponse.json({ error: 'Invalid file key for workspace' }, { status: 400 })
+  }
+
+  // Scoped to `resourceType: 'table'` so a folder from another resource's tree
+  // can't file the imported table where Tables never lists it.
+  if (folderId && !(await findActiveFolder(folderId, workspaceId, 'table'))) {
+    return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
   }
 
   const ext = fileName.split('.').pop()?.toLowerCase()
@@ -83,6 +91,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         description: `Imported from ${fileName}`,
         schema: { columns: [{ name: 'column_1', type: 'string' }] },
         workspaceId,
+        folderId,
         userId,
         maxTables: planLimits.maxTables,
         jobStatus: 'running',
@@ -111,6 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     delimiter,
     mode: 'create',
     deleteSourceFile,
+    timezone: timezone ?? (await getUserSettings(userId)).timezone ?? 'UTC',
   }
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the import outside the web container, so it survives app deploys.

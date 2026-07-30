@@ -55,6 +55,7 @@ Send an iMessage or SMS to a single recipient via Sendblue.
 | `content` | string | No | Message text content. Either content or media_url must be provided. |
 | `media_url` | string | No | URL of a media file to send. Either content or media_url must be provided. |
 | `send_style` | string | No | iMessage expressive style \(e.g., celebration, fireworks, lasers, confetti, balloons, invisible, slam\). |
+| `seat_id` | string | No | Seat \(user\) the message is attributed to. Accepts the seat UUID or Firebase Auth subject. |
 | `status_callback` | string | No | Webhook URL that Sendblue will POST message status updates to. |
 
 #### Output
@@ -85,11 +86,12 @@ Send an iMessage or SMS to a group of recipients via Sendblue.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `numbers` | array | Yes | Recipient phone numbers in E.164 format \(e.g., \["+19998887777", "+13334445555"\]\) |
+| `numbers` | array | No | Recipient phone numbers in E.164 format \(e.g., \["+19998887777", "+13334445555"\]\). Optional when sending to an existing group via group_id. |
 | `from_number` | string | Yes | One of your registered Sendblue phone numbers to send from, in E.164 format \(e.g., +18887776666\) |
 | `content` | string | No | Message text content. Either content or media_url must be provided. |
 | `media_url` | string | No | URL of a media file to send. Either content or media_url must be provided. |
 | `send_style` | string | No | iMessage expressive style \(e.g., celebration, fireworks, lasers, confetti, balloons, invisible, slam\). |
+| `seat_id` | string | No | Seat \(user\) the message is attributed to. Accepts the seat UUID or Firebase Auth subject. |
 | `group_id` | string | No | Unique identifier of an existing group to send to. Omit to start a new group. |
 | `status_callback` | string | No | Webhook URL that Sendblue will POST message status updates to. |
 
@@ -142,6 +144,8 @@ Display a typing indicator to a recipient (not supported in group chats).
 | --------- | ---- | -------- | ----------- |
 | `number` | string | Yes | Recipient's phone number in E.164 format \(e.g., +19998887777\) |
 | `from_number` | string | No | Your Sendblue line number to send from, in E.164 format. |
+| `state` | string | No | "start" \(default\) shows the indicator; "stop" ends an active indicator before max_duration_ms expires. |
+| `max_duration_ms` | number | No | How long \(ms\) the indicator stays visible before auto-stopping. Defaults to 60000. Must be between 1 and 300000. |
 
 #### Output
 
@@ -226,7 +230,7 @@ Trigger when an inbound iMessage or SMS is received in Sendblue
 | `was_downgraded` | boolean | True if the recipient lacks iMessage support |
 | `plan` | string | Account plan type |
 | `message_type` | string | Message category \(e.g., message, group\) |
-| `group_id` | string | Group identifier, empty for non-group messages |
+| `group_id` | string | Group identifier, null for non-group messages |
 | `participants` | array | Participant phone numbers for group messages |
 | `send_style` | string | Expressive style if applied |
 | `opted_out` | boolean | True if the recipient has opted out |
@@ -266,7 +270,7 @@ Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Send
 | `was_downgraded` | boolean | True if the recipient lacks iMessage support |
 | `plan` | string | Account plan type |
 | `message_type` | string | Message category \(e.g., message, group\) |
-| `group_id` | string | Group identifier, empty for non-group messages |
+| `group_id` | string | Group identifier, null for non-group messages |
 | `participants` | array | Participant phone numbers for group messages |
 | `send_style` | string | Expressive style if applied |
 | `opted_out` | boolean | True if the recipient has opted out |

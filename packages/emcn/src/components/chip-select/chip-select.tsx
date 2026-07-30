@@ -77,6 +77,14 @@ export interface ChipSelectProps {
   contentClassName?: string
   /** Accessible label for the trigger. */
   'aria-label'?: string
+  /**
+   * Forwarded to the underlying `DropdownMenu`'s Radix `modal` prop
+   * (default `true`, matching Radix). Set `false` when an `onChange` handler
+   * opens a second overlay (e.g. a `Popover`) in the same tick a selection is
+   * made — a modal menu's focus-lock teardown can trap that overlay
+   * non-interactive.
+   */
+  modal?: boolean
 }
 
 /**
@@ -121,6 +129,7 @@ export function ChipSelect({
   className,
   contentClassName,
   'aria-label': ariaLabel,
+  modal,
 }: ChipSelectProps) {
   const [query, setQuery] = React.useState('')
 
@@ -207,6 +216,7 @@ export function ChipSelect({
 
   return (
     <DropdownMenu
+      modal={modal}
       onOpenChange={(open) => {
         if (!open) setQuery('')
       }}

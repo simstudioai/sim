@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   addWorkflowGroupContract,
@@ -14,12 +15,33 @@ import {
   deleteWorkflowGroup,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
-import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  normalizeColumn,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableWorkflowGroupsAPI')
 
 interface RouteParams {
   params: Promise<{ tableId: string }>
+}
+
+/**
+ * Confirms `workflowId` resolves to an active workflow in `workspaceId` before it is
+ * persisted onto a table's workflow group. Returns a 400 response when the workflow
+ * doesn't exist or belongs to a different workspace, otherwise `null`.
+ */
+async function validateWorkflowInWorkspace(
+  workflowId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const context = await getActiveWorkflowContext(workflowId)
+  if (!context || context.workspaceId !== workspaceId) {
+    return NextResponse.json({ error: 'Invalid workflow ID' }, { status: 400 })
+  }
+  return null
 }
 
 /**
@@ -30,6 +52,8 @@ interface RouteParams {
  * share this mapper instead of repeating the if-chain three times.
  */
 function mapWorkflowGroupError(error: unknown, fallbackMessage: string): NextResponse {
+  const lockError = tableLockErrorResponse(error)
+  if (lockError) return lockError
   if (error instanceof Error) {
     const msg = error.message
     if (msg === 'Table not found' || msg.includes('not found')) {
@@ -64,6 +88,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (!result.ok) return accessError(result, requestId, tableId)
     if (result.table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+    }
+    if (validated.group.workflowId) {
+      const workflowError = await validateWorkflowInWorkspace(
+        validated.group.workflowId,
+        result.table.workspaceId
+      )
+      if (workflowError) return workflowError
     }
     const updatedTable = await addWorkflowGroup(
       {
@@ -103,6 +134,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
     if (!result.ok) return accessError(result, requestId, tableId)
     if (result.table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+    }
+    if (validated.workflowId !== undefined) {
+      const workflowError = await validateWorkflowInWorkspace(
+        validated.workflowId,
+        result.table.workspaceId
+      )
+      if (workflowError) return workflowError
     }
     const updatedTable = await updateWorkflowGroup(
       {

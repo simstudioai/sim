@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import {
+  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -62,13 +63,9 @@ export function RequestIntegrationModal() {
 
   return (
     <>
-      <button
-        type='button'
-        onClick={() => setOpen(true)}
-        className='inline-flex h-[32px] shrink-0 items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-      >
+      <Chip className='border border-[var(--border-1)]' onClick={() => setOpen(true)}>
         Request an integration
-      </button>
+      </Chip>
 
       <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='Request an Integration'>
         <ChipModalHeader onClose={() => handleOpenChange(false)}>
@@ -78,7 +75,7 @@ export function RequestIntegrationModal() {
         <ChipModalBody>
           {status === 'success' ? (
             <div className='flex flex-col items-center gap-3 py-6 text-center'>
-              <div className='flex size-10 items-center justify-center rounded-full bg-[#33C482]/10'>
+              <div className='flex size-10 items-center justify-center rounded-full bg-[var(--brand-accent)]/10'>
                 <svg
                   className='size-5 text-[var(--brand-accent)]'
                   viewBox='0 0 24 24'
@@ -91,9 +88,8 @@ export function RequestIntegrationModal() {
                   <polyline points='20 6 9 17 4 12' />
                 </svg>
               </div>
-              <p className='text-[14px] text-[var(--landing-text)]'>
-                Request submitted. We&apos;ll follow up at{' '}
-                <span className='font-medium'>{email}</span>.
+              <p className='text-[14px] text-[var(--text-primary)]'>
+                Request submitted. We&apos;ll follow up at <span>{email}</span>.
               </p>
             </div>
           ) : (
@@ -121,7 +117,7 @@ export function RequestIntegrationModal() {
                 type='textarea'
                 title={
                   <>
-                    Use case <span className='text-[var(--text-tertiary)]'>(optional)</span>
+                    Use case <span className='text-[var(--text-subtle)]'>(optional)</span>
                   </>
                 }
                 value={useCase}

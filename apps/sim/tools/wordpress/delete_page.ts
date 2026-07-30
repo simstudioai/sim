@@ -61,9 +61,9 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
     return {
       success: true,
       output: {
-        deleted: data.deleted || true,
+        deleted: data.deleted ?? true,
         page: {
-          id: data.id || data.previous?.id,
+          id: data.id ?? data.previous?.id,
           date: data.date || data.previous?.date,
           modified: data.modified || data.previous?.modified,
           slug: data.slug || data.previous?.slug,
@@ -73,10 +73,10 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
           title: data.title || data.previous?.title,
           content: data.content || data.previous?.content,
           excerpt: data.excerpt || data.previous?.excerpt,
-          author: data.author || data.previous?.author,
-          featured_media: data.featured_media || data.previous?.featured_media,
-          parent: data.parent || data.previous?.parent,
-          menu_order: data.menu_order || data.previous?.menu_order,
+          author: data.author ?? data.previous?.author,
+          featured_media: data.featured_media ?? data.previous?.featured_media,
+          parent: data.parent ?? data.previous?.parent,
+          menu_order: data.menu_order ?? data.previous?.menu_order,
         },
       },
     }

@@ -5,7 +5,11 @@ import type {
   MicrosoftExcelV2WriteResponse,
   MicrosoftExcelWriteResponse,
 } from '@/tools/microsoft_excel/types'
-import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
+import {
+  escapeODataString,
+  getItemBasePath,
+  getSpreadsheetWebUrl,
+} from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -82,6 +86,11 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
   request: {
     url: (params) => {
+      const spreadsheetId = params.spreadsheetId?.trim()
+      if (!spreadsheetId) {
+        throw new Error('Spreadsheet ID is required')
+      }
+
       const rangeInput = params.range?.trim()
       const match = rangeInput?.match(/^([^!]+)!(.+)$/)
 
@@ -89,10 +98,10 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
         throw new Error(`Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`)
       }
 
-      const sheetName = encodeURIComponent(match[1])
+      const sheetName = encodeURIComponent(escapeODataString(match[1]))
       const address = encodeURIComponent(match[2])
 
-      const basePath = getItemBasePath(params.spreadsheetId!, params.driveId)
+      const basePath = getItemBasePath(spreadsheetId, params.driveId)
       const url = new URL(
         `${basePath}/workbook/worksheets('${sheetName}')/range(address='${address}')`
       )
@@ -145,7 +154,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       }
 
       const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
+        majorDimension: 'ROWS',
         values: processedValues,
       }
 
@@ -173,10 +182,10 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     return {
       success: true,
       output: {
-        updatedRange: data.updatedRange,
-        updatedRows: data.updatedRows,
-        updatedColumns: data.updatedColumns,
-        updatedCells: data.updatedCells,
+        updatedRange: data.address ?? '',
+        updatedRows: data.rowCount ?? 0,
+        updatedColumns: data.columnCount ?? 0,
+        updatedCells: (data.rowCount ?? 0) * (data.columnCount ?? 0),
         metadata: {
           spreadsheetId,
           spreadsheetUrl: webUrl,
@@ -280,7 +289,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
       }
 
       const cellRange = params.cellRange?.trim() || 'A1'
-      const encodedSheetName = encodeURIComponent(sheetName)
+      const encodedSheetName = encodeURIComponent(escapeODataString(sheetName))
       const encodedAddress = encodeURIComponent(cellRange)
 
       const basePath = getItemBasePath(spreadsheetId, params.driveId)
@@ -337,7 +346,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
       }
 
       const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
+        majorDimension: 'ROWS',
         values: processedValues,
       }
 

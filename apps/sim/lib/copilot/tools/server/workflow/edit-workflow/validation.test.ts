@@ -1,24 +1,24 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
 const {
   mockValidateSelectorIds,
   mockGetModelOptions,
-  mockEnvFlags,
   mockGetTool,
   mockGetCustomToolById,
   mockGetSkillById,
+  mockGetHostedModels,
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
-  mockEnvFlags: { isHosted: false },
   mockGetTool: vi.fn(),
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
+  mockGetHostedModels: vi.fn(() => [] as string[]),
 }))
 
 const conditionBlockConfig = {
@@ -57,6 +57,18 @@ const agentBlockConfig = {
   ],
 }
 
+const piBlockConfig = {
+  type: 'pi',
+  name: 'Pi Coding Agent',
+  outputs: {},
+  subBlocks: [
+    { id: 'mode', type: 'dropdown' },
+    { id: 'model', type: 'combobox', options: mockGetModelOptions },
+    { id: 'apiKey', type: 'short-input' },
+  ],
+  tools: { access: [] },
+}
+
 const huggingfaceBlockConfig = {
   type: 'huggingface',
   name: 'HuggingFace',
@@ -68,7 +80,11 @@ const knowledgeBlockConfig = {
   type: 'knowledge',
   name: 'Knowledge',
   outputs: {},
-  subBlocks: [{ id: 'knowledgeBaseId', type: 'knowledge-base-selector' }],
+  subBlocks: [
+    { id: 'knowledgeBaseId', type: 'knowledge-base-selector' },
+    { id: 'tagFilters', type: 'knowledge-tag-filters' },
+    { id: 'documentTags', type: 'document-tag-entry' },
+  ],
 }
 
 const canonicalCredBlockConfig = {
@@ -123,6 +139,17 @@ const throwGateBlockConfig = {
   tools: { access: ['throw_gate_tool'], config: { tool: () => 'throw_gate_tool' } },
 }
 
+const genericWebhookBlockConfig = {
+  type: 'generic_webhook',
+  name: 'Webhook',
+  category: 'triggers',
+  outputs: {},
+  subBlocks: [
+    { id: 'webhookUrlDisplay', type: 'short-input', readOnly: true, useWebhookUrl: true },
+    { id: 'requireAuth', type: 'switch' },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -162,33 +189,25 @@ const toolsByIdMock: Record<string, unknown> = {
   },
 }
 
+const blockConfigsByType: Record<string, unknown> = {
+  condition: conditionBlockConfig,
+  slack: oauthBlockConfig,
+  router_v2: routerBlockConfig,
+  agent: agentBlockConfig,
+  pi: piBlockConfig,
+  huggingface: huggingfaceBlockConfig,
+  knowledge: knowledgeBlockConfig,
+  canonicalcred: canonicalCredBlockConfig,
+  video_generator_v3: videoBlockConfig,
+  custom_key_block: customKeyBlockConfig,
+  image_generator_v2: imageBlockConfig,
+  throw_gate_block: throwGateBlockConfig,
+  throw_selector_block: throwSelectorBlockConfig,
+  generic_webhook: genericWebhookBlockConfig,
+}
+
 vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'condition'
-      ? conditionBlockConfig
-      : type === 'slack'
-        ? oauthBlockConfig
-        : type === 'router_v2'
-          ? routerBlockConfig
-          : type === 'agent'
-            ? agentBlockConfig
-            : type === 'huggingface'
-              ? huggingfaceBlockConfig
-              : type === 'knowledge'
-                ? knowledgeBlockConfig
-                : type === 'canonicalcred'
-                  ? canonicalCredBlockConfig
-                  : type === 'video_generator_v3'
-                    ? videoBlockConfig
-                    : type === 'custom_key_block'
-                      ? customKeyBlockConfig
-                      : type === 'image_generator_v2'
-                        ? imageBlockConfig
-                        : type === 'throw_gate_block'
-                          ? throwGateBlockConfig
-                          : type === 'throw_selector_block'
-                            ? throwSelectorBlockConfig
-                            : undefined,
+  getBlock: (type: string) => blockConfigsByType[type],
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -211,15 +230,8 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  ...envFlagsMock,
-  get isHosted() {
-    return mockEnvFlags.isHosted
-  },
-}))
-
 vi.mock('@/providers/utils', () => ({
-  getHostedModels: () => [],
+  getHostedModels: mockGetHostedModels,
 }))
 
 import {
@@ -229,6 +241,10 @@ import {
   validateInputsForBlock,
   validateWorkflowSelectorIds,
 } from './validation'
+
+const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+afterAll(resetEnvFlagsMock)
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
@@ -260,6 +276,88 @@ describe('validateInputsForBlock', () => {
     expect(result.errors[0]?.error).toContain('expected a JSON array')
   })
 
+  // Without this guard, normalizeArrayWithIds coerces any unparseable value to [], which the
+  // write path then persists as "[]" -- silently destroying a tag filter the user configured.
+  it.each([
+    ['a double-encoded JSON string', JSON.stringify(JSON.stringify([{ tagName: 'Department' }]))],
+    ['an unparseable string', 'not-json'],
+    ['an object', { tagName: 'Department' }],
+    ['a number', 5],
+  ])('rejects knowledge-tag-filters values that are %s', (_label, value) => {
+    const result = validateInputsForBlock('knowledge', { tagFilters: value }, 'kb-1')
+
+    expect(result.validInputs.tagFilters).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a JSON array')
+  })
+
+  it('rejects non-array document-tag-entry values', () => {
+    const result = validateInputsForBlock('knowledge', { documentTags: 'not-json' }, 'kb-1')
+
+    expect(result.validInputs.documentTags).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a JSON array')
+  })
+
+  it.each([
+    ['a JSON string array', JSON.stringify([{ tagName: 'Department', tagValue: 'IT' }])],
+    ['a raw array', [{ tagName: 'Department', tagValue: 'IT' }]],
+    ['an empty array, clearing the filter', []],
+  ])('accepts knowledge-tag-filters values that are %s', (_label, value) => {
+    const result = validateInputsForBlock('knowledge', { tagFilters: value }, 'kb-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tagFilters).toBeDefined()
+  })
+
+  it('accepts a null knowledge-tag-filters value so the field can still be cleared', () => {
+    const result = validateInputsForBlock('knowledge', { tagFilters: null }, 'kb-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tagFilters).toBeNull()
+  })
+
+  // The webhook URL is shown to the agent as a synthesized read-only field
+  // (sanitizeForCopilot); writes to it or to display-only subblocks must bounce
+  // with a clear error instead of persisting dead state.
+  it('rejects the synthesized triggerWebhookUrl field as read-only', () => {
+    const result = validateInputsForBlock(
+      'generic_webhook',
+      { triggerWebhookUrl: 'https://evil.test/api/webhooks/trigger/x', requireAuth: true },
+      'hook-1'
+    )
+
+    expect(result.validInputs.triggerWebhookUrl).toBeUndefined()
+    expect(result.validInputs.requireAuth).toBe(true)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects triggerWebhookUrl even for unknown block types that skip validation', () => {
+    const result = validateInputsForBlock(
+      'not_a_real_block',
+      { triggerWebhookUrl: 'https://evil.test/hook', other: 'kept' },
+      'blk-1'
+    )
+
+    expect(result.validInputs.triggerWebhookUrl).toBeUndefined()
+    expect(result.validInputs.other).toBe('kept')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects read-only display subblocks like webhookUrlDisplay', () => {
+    const result = validateInputsForBlock(
+      'generic_webhook',
+      { webhookUrlDisplay: 'https://evil.test/hook' },
+      'hook-1'
+    )
+
+    expect(result.validInputs.webhookUrlDisplay).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
   it('accepts known agent model ids', () => {
     const result = validateInputsForBlock('agent', { model: 'claude-sonnet-4-6' }, 'agent-1')
 
@@ -274,7 +372,7 @@ describe('validateInputsForBlock', () => {
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.field).toBe('model')
     expect(result.errors[0]?.error).toContain('Unknown model id')
-    expect(result.errors[0]?.error).toContain('claude-sonnet-4-6')
+    expect(result.errors[0]?.error).toContain('claude-sonnet-5')
   })
 
   it('rejects legacy claude-4.5-haiku style ids', () => {
@@ -434,11 +532,11 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     mockGetTool.mockImplementation((id: string) => toolsByIdMock[id])
-    mockEnvFlags.isHosted = true
+    setEnvFlags({ isHosted: true })
   })
 
   afterEach(() => {
-    mockEnvFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
   })
 
   const ctx = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -772,7 +870,7 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   })
 
   it('preserves apiKey on self-hosted deployments (isHosted false)', async () => {
-    mockEnvFlags.isHosted = false
+    setEnvFlags({ isHosted: false })
     const operations = [
       {
         operation_type: 'add' as const,
@@ -827,7 +925,69 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   })
 })
 
-const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+describe('preValidateCredentialInputs (hosted models)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetHostedModels.mockReturnValue(['claude-sonnet-4-6'])
+    setEnvFlags({ isHosted: true })
+  })
+
+  afterEach(() => {
+    mockGetHostedModels.mockReset()
+    setEnvFlags({ isHosted: false })
+  })
+
+  const piAddOperation = (mode: string) => [
+    {
+      operation_type: 'add' as const,
+      block_id: 'pi-1',
+      params: {
+        type: 'pi',
+        inputs: { mode, model: 'claude-sonnet-4-6', apiKey: 'user-anthropic-key' },
+      },
+    },
+  ]
+
+  it('strips apiKey for a hosted model on a normal LLM block', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'agent-1',
+        params: {
+          type: 'agent',
+          inputs: { model: 'claude-sonnet-4-6', apiKey: 'user-anthropic-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, CTX)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('hosted model')
+  })
+
+  // Create PR hands the key to the sandbox, so Sim never covers it with a hosted
+  // key -- stripping it would leave the copilot authoring a block that cannot run.
+  it('preserves apiKey on a Create PR Pi block when the model is hosted', async () => {
+    const result = await preValidateCredentialInputs(piAddOperation('cloud'), CTX)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  // Local Dev and Review Code keep the model client in Sim, so the hosted key applies.
+  it.each([['local'], ['cloud_review']])(
+    'strips apiKey on a Pi block in %s mode when the model is hosted',
+    async (mode) => {
+      const result = await preValidateCredentialInputs(piAddOperation(mode), CTX)
+
+      expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+      expect(result.errors).toHaveLength(1)
+    }
+  )
+})
 
 describe('validateWorkflowSelectorIds (credential inclusion)', () => {
   beforeEach(() => {

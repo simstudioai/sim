@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -11,12 +10,14 @@ import {
   type WorkflowStateContractInput,
   workflowVariablesContract,
 } from '@/lib/api/contracts/workflows'
+import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
 } from '@/lib/workflows/sanitization/json-sanitizer'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { regenerateWorkflowIds } from '@/stores/workflows/utils'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -677,7 +678,10 @@ export async function persistImportedWorkflow({
 
   const createdWorkflow = await createWorkflow({
     name: workflowName,
-    description: descriptionOverride || workflowData.metadata?.description || 'Imported from JSON',
+    description:
+      getMeaningfulWorkflowDescription(descriptionOverride, workflowName) ??
+      getMeaningfulWorkflowDescription(workflowData.metadata?.description, workflowName) ??
+      '',
     workspaceId,
     folderId,
     sortOrder,
@@ -720,37 +724,15 @@ export async function persistImportedWorkflow({
     throw new Error(`Failed to save workflow state for ${newWorkflowId}`)
   }
 
-  if (workflowData.variables) {
-    const variablesArray = Array.isArray(workflowData.variables)
-      ? workflowData.variables
-      : Object.values(workflowData.variables)
-
-    if (variablesArray.length > 0) {
-      type WorkflowVariablesBodyInput = NonNullable<
-        Parameters<typeof requestJson<typeof workflowVariablesContract>>[1]['body']
-      >
-      const variablesRecord: WorkflowVariablesBodyInput['variables'] = {}
-
-      for (const variable of variablesArray) {
-        const id =
-          typeof variable.id === 'string' && variable.id.trim() ? variable.id : generateId()
-
-        variablesRecord[id] = {
-          id,
-          name: variable.name,
-          type: variable.type,
-          value: variable.value,
-        }
-      }
-
-      try {
-        await requestJson(workflowVariablesContract, {
-          params: { id: newWorkflowId },
-          body: { variables: variablesRecord },
-        })
-      } catch {
-        throw new Error(`Failed to save variables for ${newWorkflowId}`)
-      }
+  const variablesRecord = normalizeImportedVariables(workflowData.variables)
+  if (Object.keys(variablesRecord).length > 0) {
+    try {
+      await requestJson(workflowVariablesContract, {
+        params: { id: newWorkflowId },
+        body: { variables: variablesRecord },
+      })
+    } catch {
+      throw new Error(`Failed to save variables for ${newWorkflowId}`)
     }
   }
 

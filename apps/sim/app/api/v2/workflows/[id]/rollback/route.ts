@@ -77,9 +77,7 @@ export const POST = withRouteHandler(
         workflowId: id,
         version: targetVersion,
         userId,
-        workflow: workflow as Record<string, unknown>,
         requestId,
-        request,
       })
 
       if (!result.success) {

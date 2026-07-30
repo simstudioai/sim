@@ -537,6 +537,147 @@
           }
         }
       }
+    },
+    "/api/v2/workflows/{id}/export": {
+      "get": {
+        "operationId": "exportWorkflow",
+        "summary": "Export a workflow",
+        "description": "Exports a workflow as a portable JSON envelope that `POST /api/v2/workflows/import` accepts verbatim. See the payload schema for what sanitization clears.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export payload.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowExportPayload"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/import": {
+      "post": {
+        "operationId": "importWorkflow",
+        "summary": "Import a workflow",
+        "description": "Creates a new workflow in the target workspace from an export payload produced by `GET /api/v2/workflows/{id}/export`. Block, edge, loop and parallel ids are regenerated on import, so the same payload can be imported repeatedly and alongside its source workflow without collisions. Bodies over 10 MB are rejected with 413.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportWorkflowBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ImportedWorkflow"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "A workflow with the same name already exists and deduplication failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -861,6 +1002,123 @@
             }
           }
         ]
+      },
+      "WorkflowExportPayload": {
+        "type": "object",
+        "required": ["version", "exportedAt", "workflow", "state"],
+        "description": "Portable workflow export envelope. Secret-sanitized: password fields are cleared unless the value is a whole `{{ENV_VAR}}` reference (preserved so the import resolves it in the target workspace), OAuth credentials are cleared, and workspace-scoped bindings (knowledge-base/file/channel/project selectors and id-keyed fields) are cleared rather than carried across as dangling ids — so a re-import is not a byte-for-byte clone: those bindings must be re-selected. Workflow variables are emitted as stored.",
+        "properties": {
+          "version": {
+            "const": "1.0"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflow": {
+            "type": "object",
+            "required": ["id", "name", "description", "workspaceId", "folderId"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": ["string", "null"]
+              },
+              "workspaceId": {
+                "type": ["string", "null"]
+              },
+              "folderId": {
+                "type": ["string", "null"]
+              }
+            }
+          },
+          "state": {
+            "type": "object",
+            "description": "Sanitized workflow graph: `blocks`, `edges`, `loops`, `parallels`, optional `metadata` and `variables`.",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ImportWorkflowBody": {
+        "type": "object",
+        "required": ["workspaceId", "workflow"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "folderId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target folder; must belong to the workspace and be unlocked."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Overrides the payload's own metadata name."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Overrides the payload's own metadata description."
+          },
+          "workflow": {
+            "description": "The export envelope emitted by `GET /api/v2/workflows/{id}/export` (its `data` value or the whole response body), a bare workflow state (`{ blocks, edges, ... }`), or a JSON string of either.",
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "object",
+                "minProperties": 1
+              }
+            ]
+          }
+        }
+      },
+      "ImportedWorkflow": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "workspaceId",
+          "folderId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "The created workflow — the subset of the workflow resource knowable at import time.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "folderId": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "responses": {

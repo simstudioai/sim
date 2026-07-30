@@ -1,0 +1,84 @@
+---
+title: Tool Calling
+description: Give an agent tools and it works in a loop, deciding, calling, reading results, and converging on an answer you can audit call-by-call in the logs.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_TOOLS_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
+
+<VideoPlaceholder eyebrow="Agents" title="Tool Calling" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/agents-tool-calling.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+A plain Agent block is text in, one model pass, text out, it can't look anything up. Give it tools, and it starts working in a **loop**: deciding which tool it needs, calling it (several at once when it can), reading what comes back, and calling again with better arguments until it has enough to answer.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'The tool loop',
+      body: 'Each turn the model decides whether it needs a tool and which one. Every result is added to its context, so each step builds on the last until it converges.',
+    },
+    {
+      title: 'Any block can be a tool',
+      body: "Tools are added in the block's Tools section. Fix the parameters you want pinned; whatever you leave empty, the model fills intelligently from the task.",
+    },
+    {
+      title: 'Auto vs Force',
+      body: 'By default the model chooses when to use a tool. Force guarantees it does: the usage control on each tool entry.',
+    },
+    {
+      title: 'Audit it in the logs',
+      body: "The run record keeps every call in order: the tool's name, the arguments the model filled in, and the result that came back. You can trace exactly why it answered the way it did.",
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'No tools: input → output', time: '0:27' },
+    { title: 'The loop', time: '0:42' },
+    { title: 'Adding a tool', time: '1:16' },
+    { title: 'Custom tools & MCP', time: '1:43' },
+    { title: 'Reading the logs', time: '1:57' },
+  ]}
+/>
+
+</div>
+
+Here is the agent from the video with its tools attached:
+
+<WorkflowPreview workflow={AV_TOOLS_WORKFLOW} />
+
+## What tools change
+
+Without tools, an agent has only its prompt and its training, asked to qualify a lead, it can only say it has no way to look anything up. With tools attached, the same block plans: research the company, check the funding, read the careers page. It calls tools in parallel when the calls don't depend on each other, revises its plan as results land, and answers only when its context holds enough.
+
+## Tools are blocks
+
+Anything you'd use as a workflow step can be handed to an agent as a tool. In the Tools section you pin the parameters that should never change and leave the rest empty: the model fills those per task. And when no block does what you need, you write a custom tool: a schema and a description, where the description is how the model knows when to reach for it. Whole external toolsets connect the same way over MCP.
+
+## The audit trail
+
+Every agent run records its tool calls in order. Open the log and walk them: the name of each tool, the exact arguments the model chose, the result that returned into context. Debugging an agent is reading that sequence, not guessing at what the model was thinking.
+
+<FAQ items={[
+  { question: "What can an agent use as a tool?", answer: "Any Sim integration or block: web search, GitHub, HubSpot, Slack, database queries, other workflows. You can also define custom tools with a schema and description, or connect whole external toolsets over MCP." },
+  { question: "How does the model decide which tool to call?", answer: "From each tool's name and description, judged against the task in its context. That is why a clear description matters: it is the only signal the model has for when to reach for the tool." },
+  { question: "Can the agent call several tools at once?", answer: "Yes. When calls do not depend on each other, the model issues them in parallel and reads all the results together on the next turn of the loop." },
+  { question: "Can I force a tool to run?", answer: "Yes. Each tool entry has a usage control: Auto lets the model decide, and Force guarantees the tool runs during the loop." },
+  { question: "How do I debug an agent's tool use?", answer: "Open the run's log. Every tool call is recorded in order with the tool name, the arguments the model filled in, and the result that came back into context." },
+]} />
+
+## Related documentation
+
+- [Custom tools](/agents/custom-tools)
+- [MCP](/agents/mcp)
+- [Logs & debugging](/logs-debugging)

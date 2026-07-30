@@ -76,7 +76,11 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
         enabled: true,
         prompt: `Generate a regular expression pattern based on the user's description.
 The regex should be:
-- Valid JavaScript regex syntax
+- Valid RE2 syntax: no lookahead ((?=...), (?!...)), no lookbehind ((?<=...), (?<!...)),
+  no backreferences (\\1), and no \\uXXXX escapes (use \\x41 or the literal character).
+  Patterns are matched by a linear-time engine that does not implement these, and one
+  that uses them fails every check. To express "must NOT contain X", match X and invert
+  the result downstream with a Condition block instead of using negative lookahead.
 - Properly escaped for special characters
 - Optimized for the use case
 
@@ -214,6 +218,17 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
       },
       dependsOn: ['validationType'],
     },
+    {
+      id: 'piiCustomPatterns',
+      title: 'Custom Patterns',
+      type: 'table',
+      columns: ['Name', 'Pattern', 'Replacement'],
+      condition: {
+        field: 'validationType',
+        value: ['pii'],
+      },
+      dependsOn: ['validationType'],
+    },
   ],
   tools: {
     access: ['guardrails_validate'],
@@ -259,6 +274,10 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
     piiLanguage: {
       type: 'string',
       description: 'Language for PII detection (default: en)',
+    },
+    piiCustomPatterns: {
+      type: 'json',
+      description: 'Custom regex patterns to detect and replace (name, pattern, replacement rows)',
     },
   },
   outputs: {

@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   publish-npm:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -24,7 +25,7 @@ jobs:
       - name: Setup Node.js for npm publishing
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org/'
 
       - name: Cache Bun dependencies
@@ -40,7 +41,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: packages/cli
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build package
         working-directory: packages/cli

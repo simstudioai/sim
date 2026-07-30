@@ -42,6 +42,7 @@
     }
   },
   "scripts": {
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
@@ -53,7 +54,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.0"
   },
   "dependencies": {

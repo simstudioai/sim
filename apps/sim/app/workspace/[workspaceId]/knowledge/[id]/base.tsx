@@ -29,15 +29,15 @@ import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryState, useQueryStates } from 'nuqs'
+import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { SearchHighlight } from '@/components/ui/search-highlight'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import { captureEvent } from '@/lib/posthog/client'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   BreadcrumbItem,
   FilterTag,
@@ -49,6 +49,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
   AddConnectorModal,
@@ -57,14 +58,13 @@ import {
   ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
+  SearchHighlight,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   addConnectorParam,
-  DEFAULT_KB_SORT_COLUMN,
-  DEFAULT_KB_SORT_DIRECTION,
   documentFiltersParsers,
   documentFiltersUrlKeys,
-  type KbSortColumn,
+  kbDocumentSortParams,
   pageParam,
   pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
@@ -91,8 +91,10 @@ import {
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -180,12 +182,13 @@ interface TagValue {
  */
 function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagValue[] {
   const result: TagValue[] = []
+  const defsBySlot = new Map(definitions.map((d) => [d.tagSlot, d]))
 
   for (const slot of ALL_TAG_SLOTS) {
     const raw = doc[slot]
     if (raw == null) continue
 
-    const def = definitions.find((d) => d.tagSlot === slot)
+    const def = defsBySlot.get(slot)
     const fieldType = def?.fieldType || getFieldTypeForSlot(slot) || 'text'
 
     let value: string
@@ -263,22 +266,21 @@ export function KnowledgeBase({
 
   const activeTagFilters: DocumentTagFilter[] = useMemo(
     () =>
-      tagFilterEntries
-        .filter((f) => {
-          if (!f.tagSlot || !f.value.trim()) return false
-          // A `between` filter only applies once both bounds are set. Sending it
-          // with just the lower bound would be rejected at the API boundary and
-          // break the whole list while the user is still entering the range.
-          if (f.operator === 'between' && !f.valueTo.trim()) return false
-          return true
-        })
-        .map((f) => ({
+      tagFilterEntries.reduce<DocumentTagFilter[]>((acc, f) => {
+        if (!f.tagSlot || !f.value.trim()) return acc
+        // A `between` filter only applies once both bounds are set. Sending it
+        // with just the lower bound would be rejected at the API boundary and
+        // break the whole list while the user is still entering the range.
+        if (f.operator === 'between' && !f.valueTo.trim()) return acc
+        acc.push({
           tagSlot: f.tagSlot,
           fieldType: f.fieldType,
           operator: f.operator,
           value: f.value,
           ...(f.operator === 'between' ? { valueTo: f.valueTo } : {}),
-        })),
+        })
+        return acc
+      }, []),
     [tagFilterEntries]
   )
 
@@ -295,41 +297,31 @@ export function KnowledgeBase({
     ...pageUrlKeys,
   })
 
-  const [
-    { q: searchQuery, enabled: enabledFilter, sort: sortColumn, dir: sortDirection },
-    setDocumentFilters,
-  ] = useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
+  const [{ q: searchQuery, enabled: enabledFilter }, setDocumentFilters] = useQueryStates(
+    documentFiltersParsers,
+    documentFiltersUrlKeys
+  )
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
    * write is debounced. The document query below reads a debounced value so it
    * doesn't refetch on every keystroke. Changing the search resets pagination.
    */
-  const handleSearchChange = useCallback(
-    (newQuery: string) => {
-      const trimmed = newQuery.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setDocumentFilters(
-        { q: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(300) }
-      )
-      setCurrentPage(1)
-    },
-    [setDocumentFilters, setCurrentPage]
-  )
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const handleSearchChange = useDebouncedSearchSetter((value, options) => {
+    setDocumentFilters({ q: value }, options)
+    setCurrentPage(1)
+  })
+  const debouncedSearchQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
+  /** Raw URL value drives the input; matching/highlighting always sees it trimmed. */
+  const highlightQuery = searchQuery.trim()
 
-  /**
-   * The resolved sort is exposed to the sort menu only when it differs from the
-   * default, mirroring the prior `null`-means-default semantics.
-   */
-  const activeSort = useMemo(
-    () =>
-      sortColumn === DEFAULT_KB_SORT_COLUMN && sortDirection === DEFAULT_KB_SORT_DIRECTION
-        ? null
-        : { column: sortColumn, direction: sortDirection },
-    [sortColumn, sortDirection]
-  )
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort: onSortColumn,
+    onClear: onClearSort,
+  } = useUrlSort(kbDocumentSortParams, documentFiltersUrlKeys)
 
   const setEnabledFilter = useCallback(
     (value: 'all' | 'enabled' | 'disabled') => {
@@ -342,6 +334,8 @@ export function KnowledgeBase({
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
+  const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
+  const [documentForTagsId, setDocumentForTagsId] = useState<string | null>(null)
   const showAddConnectorModal = addConnectorType != null
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
@@ -382,7 +376,7 @@ export function KnowledgeBase({
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
-    search: debouncedSearchQuery || undefined,
+    search: debouncedSearchQuery.trim() || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
     sortBy: sortColumn as DocumentSortField,
@@ -529,6 +523,14 @@ export function KnowledgeBase({
   const handleRenameDocument = (doc: DocumentData) => {
     setDocumentToRename(doc)
     setShowRenameModal(true)
+  }
+
+  /**
+   * Opens the document tags modal
+   */
+  const handleViewDocumentTags = (doc: DocumentData) => {
+    setDocumentForTagsId(doc.id)
+    setShowDocumentTagsModal(true)
   }
 
   /**
@@ -903,20 +905,17 @@ export function KnowledgeBase({
         { id: 'enabled', label: 'Status' },
       ],
       active: activeSort,
+      /** Sorting (or clearing the sort) resets pagination to the first page. */
       onSort: (column, direction) => {
-        setDocumentFilters({ sort: column as KbSortColumn, dir: direction })
+        onSortColumn(column, direction)
         setCurrentPage(1)
       },
-      /**
-       * Clearing writes the defaults back (stripped by clearOnDefault), so the
-       * sort menu reads "no active sort" again and the URL stays clean.
-       */
       onClear: () => {
-        setDocumentFilters({ sort: DEFAULT_KB_SORT_COLUMN, dir: DEFAULT_KB_SORT_DIRECTION })
+        onClearSort()
         setCurrentPage(1)
       },
     }),
-    [activeSort, setDocumentFilters, setCurrentPage]
+    [activeSort, onSortColumn, onClearSort, setCurrentPage]
   )
 
   const filterContent = useMemo(
@@ -1023,9 +1022,9 @@ export function KnowledgeBase({
             },
           ]
         : []),
-      ...tagFilterEntries
-        .filter((f) => f.tagSlot && f.value.trim())
-        .map((f) => ({
+      ...tagFilterEntries.reduce<{ label: string; onRemove: () => void }[]>((acc, f) => {
+        if (!f.tagSlot || !f.value.trim()) return acc
+        acc.push({
           label: `${f.tagName}: ${f.value}`,
           onRemove: () => {
             const updated = tagFilterEntries.filter((e) => e.id !== f.id)
@@ -1034,7 +1033,9 @@ export function KnowledgeBase({
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
           },
-        })),
+        })
+        return acc
+      }, []),
     ],
     [enabledFilter, tagFilterEntries]
   )
@@ -1117,7 +1118,7 @@ export function KnowledgeBase({
                     label={doc.filename}
                     className={cn('block', chipContentLabelClass)}
                   >
-                    <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
+                    <SearchHighlight text={doc.filename} searchQuery={highlightQuery} />
                   </FloatingOverflowText>
                 </span>
               ),
@@ -1153,7 +1154,7 @@ export function KnowledgeBase({
           },
         }
       }),
-    [documents, tagDefinitions, searchQuery]
+    [documents, tagDefinitions, highlightQuery]
   )
 
   if (error && !knowledgeBase) {
@@ -1343,6 +1344,17 @@ export function KnowledgeBase({
         />
       )}
 
+      {documentForTagsId && (
+        <DocumentTagsModal
+          open={showDocumentTagsModal}
+          onOpenChange={setShowDocumentTagsModal}
+          knowledgeBaseId={id}
+          documentId={documentForTagsId}
+          documentData={documents.find((doc) => doc.id === documentForTagsId) ?? null}
+          onDocumentUpdate={(updates) => updateDocument(documentForTagsId, updates)}
+        />
+      )}
+
       <ChipModal
         open={showConnectorsModal}
         onOpenChange={setShowConnectorsModal}
@@ -1369,11 +1381,6 @@ export function KnowledgeBase({
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}
-        hasTags={
-          contextMenuDocument
-            ? getDocumentTags(contextMenuDocument, tagDefinitions).length > 0
-            : false
-        }
         selectedCount={selectedDocuments.size}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
@@ -1411,16 +1418,8 @@ export function KnowledgeBase({
             : undefined
         }
         onViewTags={
-          contextMenuDocument && selectedDocuments.size === 1
-            ? () => {
-                const urlParams = new URLSearchParams({
-                  kbName: knowledgeBaseName,
-                  docName: contextMenuDocument.filename || 'Document',
-                })
-                router.push(
-                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`
-                )
-              }
+          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
+            ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
         onDelete={

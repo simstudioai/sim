@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetEventDefinitionParams {
   projectId: string
   eventDefinitionId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
 }
 
@@ -12,8 +14,6 @@ interface EventDefinition {
   name: string
   description: string
   tags: string[]
-  volume_30_day: number | null
-  query_usage_30_day: number | null
   created_at: string
   last_seen_at: string | null
   updated_at: string
@@ -36,6 +36,7 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
     description:
       'Get details of a specific event definition in PostHog. Returns comprehensive information about the event including metadata, usage statistics, and verification status.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -56,6 +57,13 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
         visibility: 'user-only',
         description: 'PostHog cloud region: us or eu',
       },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
       apiKey: {
         type: 'string',
         required: true,
@@ -66,7 +74,7 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
         return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${params.eventDefinitionId}`
       },
       method: 'GET',
@@ -84,8 +92,6 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
         name: data.name,
         description: data.description || '',
         tags: data.tags || [],
-        volume_30_day: data.volume_30_day ?? null,
-        query_usage_30_day: data.query_usage_30_day ?? null,
         created_at: data.created_at,
         last_seen_at: data.last_seen_at ?? null,
         updated_at: data.updated_at,
@@ -112,16 +118,6 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
       tags: {
         type: 'array',
         description: 'Tags associated with the event',
-      },
-      volume_30_day: {
-        type: 'number',
-        description: 'Number of events received in the last 30 days',
-        optional: true,
-      },
-      query_usage_30_day: {
-        type: 'number',
-        description: 'Number of times this event was queried in the last 30 days',
-        optional: true,
       },
       created_at: {
         type: 'string',

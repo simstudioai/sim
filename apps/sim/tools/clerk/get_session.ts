@@ -31,7 +31,7 @@ export const clerkGetSessionTool: ToolConfig<ClerkGetSessionParams, ClerkGetSess
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId}`,
+    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId?.trim()}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

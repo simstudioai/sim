@@ -1,0 +1,62 @@
+/**
+ * The KnowledgeAnswerGraphic's motion: the exchange stamps in top to
+ * bottom — question, answer, then source card — the audit tile's
+ * one-shot settle from above, never re-played, and the source card's
+ * icon box then carries the family's shared quiet 6s ring-pulse beat.
+ * Under prefers-reduced-motion everything renders settled and static.
+ */
+
+.stepQuestion,
+.stepAnswer,
+.stepSource {
+  animation: knowledge-answer-stamp-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.stepQuestion {
+  animation-delay: 0.35s;
+}
+
+.stepAnswer {
+  animation-delay: 0.85s;
+}
+
+.stepSource {
+  animation-delay: 1.35s;
+}
+
+@keyframes knowledge-answer-stamp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sourcePulse {
+  animation: knowledge-answer-source-pulse 6s ease-out 1.8s infinite;
+}
+
+@keyframes knowledge-answer-source-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepQuestion,
+  .stepAnswer,
+  .stepSource,
+  .sourcePulse {
+    animation: none;
+  }
+}

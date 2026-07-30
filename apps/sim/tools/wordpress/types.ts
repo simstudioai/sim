@@ -325,7 +325,6 @@ export interface WordPressListMediaResponse extends ToolResponse {
 // Delete Media
 export interface WordPressDeleteMediaParams extends WordPressBaseParams {
   mediaId: number
-  force?: boolean
 }
 
 export interface WordPressDeleteMediaResponse extends ToolResponse {
@@ -472,6 +471,44 @@ export interface WordPressListCategoriesResponse extends ToolResponse {
   }
 }
 
+// Get Category
+export interface WordPressGetCategoryParams extends WordPressBaseParams {
+  categoryId: number
+}
+
+export interface WordPressGetCategoryResponse extends ToolResponse {
+  output: {
+    category: WordPressCategory
+  }
+}
+
+// Update Category
+export interface WordPressUpdateCategoryParams extends WordPressBaseParams {
+  categoryId: number
+  name?: string
+  description?: string
+  parent?: number
+  slug?: string
+}
+
+export interface WordPressUpdateCategoryResponse extends ToolResponse {
+  output: {
+    category: WordPressCategory
+  }
+}
+
+// Delete Category
+export interface WordPressDeleteCategoryParams extends WordPressBaseParams {
+  categoryId: number
+}
+
+export interface WordPressDeleteCategoryResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    category: WordPressCategory
+  }
+}
+
 // Create Tag
 export interface WordPressCreateTagParams extends WordPressBaseParams {
   name: string
@@ -508,6 +545,43 @@ export interface WordPressListTagsResponse extends ToolResponse {
     tags: WordPressTag[]
     total: number
     totalPages: number
+  }
+}
+
+// Get Tag
+export interface WordPressGetTagParams extends WordPressBaseParams {
+  tagId: number
+}
+
+export interface WordPressGetTagResponse extends ToolResponse {
+  output: {
+    tag: WordPressTag
+  }
+}
+
+// Update Tag
+export interface WordPressUpdateTagParams extends WordPressBaseParams {
+  tagId: number
+  name?: string
+  description?: string
+  slug?: string
+}
+
+export interface WordPressUpdateTagResponse extends ToolResponse {
+  output: {
+    tag: WordPressTag
+  }
+}
+
+// Delete Tag
+export interface WordPressDeleteTagParams extends WordPressBaseParams {
+  tagId: number
+}
+
+export interface WordPressDeleteTagResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    tag: WordPressTag
   }
 }
 
@@ -576,7 +650,7 @@ export interface WordPressSearchContentParams extends WordPressBaseParams {
   query: string
   perPage?: number
   page?: number
-  type?: 'post' | 'page' | 'attachment'
+  type?: 'post' | 'term' | 'post-format'
   subtype?: string
 }
 
@@ -620,8 +694,14 @@ export type WordPressResponse =
   | WordPressDeleteCommentResponse
   | WordPressCreateCategoryResponse
   | WordPressListCategoriesResponse
+  | WordPressGetCategoryResponse
+  | WordPressUpdateCategoryResponse
+  | WordPressDeleteCategoryResponse
   | WordPressCreateTagResponse
   | WordPressListTagsResponse
+  | WordPressGetTagResponse
+  | WordPressUpdateTagResponse
+  | WordPressDeleteTagResponse
   | WordPressGetCurrentUserResponse
   | WordPressListUsersResponse
   | WordPressGetUserResponse

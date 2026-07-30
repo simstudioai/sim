@@ -1,11 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Combobox } from '@sim/emcn'
-import { ExternalLink, KeyRound, Users } from 'lucide-react'
+import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
+import { ExternalLink, KeyRound } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -14,9 +12,13 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { getMissingRequiredScopes, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import {
+  ConnectServiceAccountModal,
+  type ServiceAccountProviderId,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -24,12 +26,8 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import type { SubBlockConfig } from '@/blocks/types'
-import { CREDENTIAL_SET } from '@/executor/constants'
-import { useCredentialSets } from '@/hooks/queries/credential-sets'
 import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
-import { useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -55,6 +53,7 @@ export function CredentialSelector({
   const workspaceId = (params?.workspaceId as string) || ''
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
+  const [showSetupModal, setShowSetupModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -64,19 +63,6 @@ export function CredentialSelector({
   const label = subBlock.placeholder || 'Select credential'
   const serviceId = subBlock.serviceId || ''
   const isAllCredentials = !serviceId
-  const supportsCredentialSets = subBlock.supportsCredentialSets || false
-
-  const { data: organizationsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
-  const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
-  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
-  const canUseCredentialSets = supportsCredentialSets && hasTeamPlan && !!activeOrganization?.id
-
-  const { data: credentialSets = [] } = useCredentialSets(
-    activeOrganization?.id,
-    canUseCredentialSets
-  )
 
   const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, {
     disabled,
@@ -88,12 +74,7 @@ export function CredentialSelector({
   const effectiveDisabled = disabled || (hasDependencies && !depsSatisfied)
 
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
-  const rawSelectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
-  const isCredentialSetSelected = rawSelectedId.startsWith(CREDENTIAL_SET.PREFIX)
-  const selectedId = isCredentialSetSelected ? '' : rawSelectedId
-  const selectedCredentialSetId = isCredentialSetSelected
-    ? rawSelectedId.slice(CREDENTIAL_SET.PREFIX.length)
-    : ''
+  const selectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
 
   const effectiveProviderId = useMemo(
     () => getProviderIdFromServiceId(serviceId) as OAuthProvider,
@@ -121,13 +102,48 @@ export function CredentialSelector({
 
   const credentialsLoading = isAllCredentials ? allCredentialsLoading : oauthCredentialsLoading
 
-  const credentials = useMemo(
+  const credentialKind = subBlock.credentialKind
+  const isMergedKinds = credentialKind === 'any'
+
+  const credentials = useMemo(() => {
+    // A service-account picker lists only the reusable service-account
+    // credentials, including in trigger mode. A merged ('any') picker lists
+    // OAuth accounts and service accounts together.
+    if (credentialKind === 'service-account') {
+      return rawCredentials.filter((cred) => cred.type === 'service_account')
+    }
+    if (isMergedKinds) {
+      return rawCredentials
+    }
+    return isTriggerMode && !subBlock.allowServiceAccounts
+      ? rawCredentials.filter((cred) => cred.type !== 'service_account')
+      : rawCredentials
+  }, [rawCredentials, isTriggerMode, credentialKind, isMergedKinds, subBlock.allowServiceAccounts])
+
+  // Resolved service-account provider metadata for the setup modal. Gated on
+  // `credentialKind` and using the non-throwing lookup so it never runs (or
+  // throws) for plain OAuth pickers.
+  const serviceAccountService = useMemo(
     () =>
-      isTriggerMode
-        ? rawCredentials.filter((cred) => cred.type !== 'service_account')
-        : rawCredentials,
-    [rawCredentials, isTriggerMode]
+      credentialKind === 'service-account' || isMergedKinds
+        ? getServiceConfigByServiceId(serviceId)
+        : null,
+    [credentialKind, isMergedKinds, serviceId]
   )
+
+  // Canonical resolver for the service-account connect control: the vendor-
+  // accurate label and — critically — the per-viewer preview gate (a custom
+  // Slack bot rides `slack_v2`). Shared with the integrations page and chat so
+  // the gate can't be bypassed here. When `hidden`, the setup action is
+  // suppressed; existing service-account credentials stay selectable.
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId: serviceAccountService?.serviceAccountProviderId as
+      | ServiceAccountProviderId
+      | undefined,
+    serviceName: serviceAccountService?.name,
+    serviceIcon: serviceAccountService?.icon,
+  })
+  const serviceAccountConnectHidden = Boolean(serviceAccountTarget?.hidden)
 
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),
@@ -147,11 +163,6 @@ export function CredentialSelector({
     [selectedCredential, selectedAllCredential]
   )
 
-  const selectedCredentialSet = useMemo(
-    () => credentialSets.find((cs) => cs.id === selectedCredentialSetId),
-    [credentialSets, selectedCredentialSetId]
-  )
-
   const { data: inaccessibleCredential } = useWorkspaceCredential(
     selectedId || undefined,
     Boolean(selectedId) &&
@@ -163,12 +174,11 @@ export function CredentialSelector({
   const inaccessibleCredentialName = inaccessibleCredential?.displayName ?? null
 
   const resolvedLabel = useMemo(() => {
-    if (selectedCredentialSet) return selectedCredentialSet.name
     if (selectedAllCredential) return selectedAllCredential.displayName
     if (selectedCredential) return selectedCredential.name
     if (inaccessibleCredentialName) return inaccessibleCredentialName
     return ''
-  }, [selectedCredentialSet, selectedAllCredential, selectedCredential, inaccessibleCredentialName])
+  }, [selectedAllCredential, selectedCredential, inaccessibleCredentialName])
 
   const displayValue = isEditing ? editingValue : resolvedLabel
 
@@ -208,18 +218,13 @@ export function CredentialSelector({
     [isPreview, setStoreValue]
   )
 
-  const handleCredentialSetSelect = useCallback(
-    (credentialSetId: string) => {
-      if (isPreview) return
-      setStoreValue(`${CREDENTIAL_SET.PREFIX}${credentialSetId}`)
-      setIsEditing(false)
-    },
-    [isPreview, setStoreValue]
-  )
-
   const handleAddCredential = useCallback(() => {
+    if (credentialKind === 'service-account') {
+      setShowSetupModal(true)
+      return
+    }
     setShowConnectModal(true)
-  }, [])
+  }, [credentialKind])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)
@@ -229,7 +234,7 @@ export function CredentialSelector({
       return <ExternalLink className='size-3' />
     }
     const Icon: StyleableIcon = baseProviderConfig.icon
-    return <Icon className='size-3' style={getBareIconStyle(Icon)} />
+    return <Icon className='size-3 text-[var(--text-icon)]' style={getBareIconStyle(Icon)} />
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
@@ -246,58 +251,12 @@ export function CredentialSelector({
       .join(' ')
   }, [])
 
-  const { comboboxOptions, comboboxGroups } = useMemo(() => {
+  const comboboxOptions = useMemo(() => {
     if (isAllCredentials) {
       const oauthCredentials = allWorkspaceCredentials.filter((c) => c.type === 'oauth')
-      const options = oauthCredentials.map((cred) => ({ label: cred.displayName, value: cred.id }))
-      return { comboboxOptions: options, comboboxGroups: undefined }
+      return oauthCredentials.map((cred) => ({ label: cred.displayName, value: cred.id }))
     }
-
-    const pollingProviderId = getPollingProviderFromOAuth(effectiveProviderId)
-    // Handle both old ('gmail') and new ('google-email') provider IDs for backwards compatibility
-    const matchesProvider = (csProviderId: string | null) => {
-      if (!csProviderId || !pollingProviderId) return false
-      if (csProviderId === pollingProviderId) return true
-      // Handle legacy 'gmail' mapping to 'google-email'
-      if (pollingProviderId === 'google-email' && csProviderId === 'gmail') return true
-      return false
-    }
-    const filteredCredentialSets = pollingProviderId
-      ? credentialSets.filter((cs) => matchesProvider(cs.providerId))
-      : []
-
-    if (canUseCredentialSets && filteredCredentialSets.length > 0) {
-      const groups = []
-
-      groups.push({
-        section: 'Polling Groups',
-        items: filteredCredentialSets.map((cs) => ({
-          label: cs.name,
-          value: `${CREDENTIAL_SET.PREFIX}${cs.id}`,
-        })),
-      })
-
-      const credentialItems = credentials.map((cred) => ({
-        label: cred.name,
-        value: cred.id,
-        iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
-      }))
-      credentialItems.push({
-        label:
-          credentials.length > 0
-            ? `Connect another ${getProviderName(provider)} account`
-            : `Connect ${getProviderName(provider)} account`,
-        value: '__connect_account__',
-        iconElement: <ExternalLink className='size-3' />,
-      })
-
-      groups.push({
-        section: 'Personal Credential',
-        items: credentialItems,
-      })
-
-      return { comboboxOptions: [], comboboxGroups: groups }
-    }
+    if (isMergedKinds) return []
 
     const options = credentials.map((cred) => ({
       label: cred.name,
@@ -305,26 +264,90 @@ export function CredentialSelector({
       iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
     }))
 
-    options.push({
-      label:
-        credentials.length > 0
-          ? `Connect another ${getProviderName(provider)} account`
-          : `Connect ${getProviderName(provider)} account`,
-      value: '__connect_account__',
-      iconElement: <ExternalLink className='size-3' />,
-    })
+    // Suppress the setup action when the service-account flow is preview-gated
+    // for this viewer (a custom Slack bot needs slack_v2) — existing accounts
+    // above stay selectable.
+    if (credentialKind !== 'service-account' || !serviceAccountConnectHidden) {
+      options.push({
+        label:
+          credentialKind === 'service-account'
+            ? (subBlock.credentialLabels?.serviceAccountConnect ??
+              serviceAccountTarget?.label ??
+              `Add ${getProviderName(provider)} key`)
+            : credentials.length > 0
+              ? `Connect another ${getProviderName(provider)} account`
+              : `Connect ${getProviderName(provider)} account`,
+        value: '__connect_account__',
+        iconElement: <ExternalLink className='size-3' />,
+      })
+    }
 
-    return { comboboxOptions: options, comboboxGroups: undefined }
+    return options
   }, [
     isAllCredentials,
+    isMergedKinds,
     allWorkspaceCredentials,
     credentials,
+    credentialKind,
+    subBlock.credentialLabels,
+    serviceAccountConnectHidden,
+    serviceAccountTarget,
     provider,
-    effectiveProviderId,
     getProviderIcon,
     getProviderName,
-    canUseCredentialSets,
-    credentialSets,
+  ])
+
+  const comboboxGroups = useMemo<ComboboxOptionGroup[] | undefined>(() => {
+    if (!isMergedKinds) return undefined
+
+    const labels = subBlock.credentialLabels
+    const toOption = (cred: (typeof credentials)[number]) => ({
+      label: cred.name,
+      value: cred.id,
+      iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
+    })
+
+    return [
+      {
+        section: labels?.oauthGroup ?? `${getProviderName(provider)} accounts`,
+        items: [
+          ...credentials.filter((c) => c.type !== 'service_account').map(toOption),
+          {
+            label: labels?.oauthConnect ?? `Connect ${getProviderName(provider)} account`,
+            value: '__connect_account__',
+            iconElement: <ExternalLink className='size-3' />,
+          },
+        ],
+      },
+      {
+        section: labels?.serviceAccountGroup ?? 'Service accounts',
+        items: [
+          ...credentials.filter((c) => c.type === 'service_account').map(toOption),
+          // Drop the setup action when the flow is preview-gated for this viewer.
+          ...(serviceAccountConnectHidden
+            ? []
+            : [
+                {
+                  label:
+                    labels?.serviceAccountConnect ??
+                    serviceAccountTarget?.label ??
+                    `Add ${getProviderName(provider)} key`,
+                  value: '__connect_service_account__',
+                  iconElement: <ExternalLink className='size-3' />,
+                },
+              ]),
+        ],
+      },
+    ]
+  }, [
+    isMergedKinds,
+    subBlock.credentialLabels,
+    credentials,
+    serviceAccountConnectHidden,
+    serviceAccountTarget,
+    provider,
+    getProviderIcon,
+    getProviderName,
   ])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
@@ -337,19 +360,6 @@ export function CredentialSelector({
 
   const overlayContent = useMemo(() => {
     if (!displayValue) return null
-
-    if (isCredentialSetSelected && selectedCredentialSet) {
-      return (
-        <div className='flex w-full items-center truncate'>
-          <div className='mr-2 flex-shrink-0 opacity-90'>
-            <Users className='size-3' />
-          </div>
-          <span className='truncate'>
-            {formatDisplayText(displayValue, { workflowSearchHighlight })}
-          </span>
-        </div>
-      )
-    }
 
     if (isAllCredentials && selectedAllCredential) {
       return (
@@ -378,8 +388,6 @@ export function CredentialSelector({
     getProviderIcon,
     displayValue,
     selectedCredentialProvider,
-    isCredentialSetSelected,
-    selectedCredentialSet,
     isAllCredentials,
     selectedAllCredential,
     workflowSearchHighlight,
@@ -388,17 +396,16 @@ export function CredentialSelector({
   const handleComboboxChange = useCallback(
     (value: string) => {
       if (value === '__connect_account__') {
+        if (isMergedKinds) {
+          setShowConnectModal(true)
+          return
+        }
         handleAddCredential()
         return
       }
-
-      if (value.startsWith(CREDENTIAL_SET.PREFIX)) {
-        const credentialSetId = value.slice(CREDENTIAL_SET.PREFIX.length)
-        const matchedSet = credentialSets.find((cs) => cs.id === credentialSetId)
-        if (matchedSet) {
-          handleCredentialSetSelect(credentialSetId)
-          return
-        }
+      if (value === '__connect_service_account__') {
+        setShowSetupModal(true)
+        return
       }
 
       const matchedCred = (
@@ -414,12 +421,11 @@ export function CredentialSelector({
     },
     [
       isAllCredentials,
+      isMergedKinds,
       allWorkspaceCredentials,
       credentials,
-      credentialSets,
       handleAddCredential,
       handleSelect,
-      handleCredentialSetSelect,
     ]
   )
 
@@ -429,15 +435,17 @@ export function CredentialSelector({
         options={comboboxOptions}
         groups={comboboxGroups}
         value={displayValue}
-        selectedValue={rawSelectedId}
+        selectedValue={selectedId}
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}
         placeholder={
           hasDependencies && !depsSatisfied ? 'Fill in required fields above first' : label
         }
         disabled={effectiveDisabled}
-        editable={true}
-        filterOptions={true}
+        editable={!isMergedKinds}
+        filterOptions={!isMergedKinds}
+        searchable={isMergedKinds}
+        searchPlaceholder='Search credentials...'
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
         className={overlayContent ? 'pl-7' : ''}
@@ -457,7 +465,7 @@ export function CredentialSelector({
                 workflowId: activeWorkflowId || '',
                 displayName: selectedCredential?.name ?? getProviderName(provider),
                 providerId: effectiveProviderId,
-                preCount: credentials.length,
+                preCount: credentials.filter((c) => c.type !== 'service_account').length,
                 workspaceId,
                 requestedAt: Date.now(),
               })
@@ -500,6 +508,23 @@ export function CredentialSelector({
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
           serviceId={serviceId}
+        />
+      )}
+
+      {showSetupModal && serviceAccountService?.serviceAccountProviderId && (
+        <ConnectServiceAccountModal
+          open={showSetupModal}
+          onOpenChange={setShowSetupModal}
+          workspaceId={workspaceId}
+          serviceAccountProviderId={
+            serviceAccountService.serviceAccountProviderId as ServiceAccountProviderId
+          }
+          serviceName={serviceAccountService.name}
+          serviceIcon={serviceAccountService.icon}
+          onCreated={(newCredentialId) => {
+            setStoreValue(newCredentialId)
+            refetchCredentials()
+          }}
         />
       )}
     </div>

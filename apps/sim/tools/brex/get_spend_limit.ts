@@ -63,7 +63,7 @@ export const brexGetSpendLimitTool: ToolConfig<BrexGetSpendLimitParams, BrexGetS
       parentBudgetId: { type: 'string', description: 'Parent budget ID', optional: true },
       status: {
         type: 'string',
-        description: 'Spend limit status (ACTIVE, EXPIRED, ARCHIVED, DELETED)',
+        description: 'Spend limit status (ACTIVE, EXPIRED, ARCHIVED)',
       },
       periodRecurrenceType: {
         type: 'string',

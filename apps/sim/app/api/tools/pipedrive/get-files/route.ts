@@ -11,6 +11,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,20 @@ interface PipedriveFile {
   id?: number
   name?: string
   url?: string
+}
+
+/**
+ * Whether a download URL belongs to Pipedrive. The workspace credential is
+ * only attached to Pipedrive-owned hosts — if the API ever returns an
+ * external/CDN download URL, it is fetched without credentials.
+ */
+function isPipedriveHost(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return hostname === 'pipedrive.com' || hostname.endsWith('.pipedrive.com')
+  } catch {
+    return false
+  }
 }
 
 interface PipedriveApiResponse {
@@ -54,7 +69,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(pipedriveGetFilesContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { accessToken, sort, limit, start, downloadFiles } = parsed.data.body
+    const { accessToken, authStyle, sort, limit, start, downloadFiles } = parsed.data.body
+    const authHeaders = getPipedriveAuthHeaders({ accessToken, authStyle })
 
     const baseUrl = 'https://api.pipedrive.com/v1/files'
     const queryParams = new URLSearchParams()
@@ -75,10 +91,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const response = await secureFetchWithPinnedIP(apiUrl, urlValidation.resolvedIP!, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
+      headers: authHeaders,
     })
 
     const data = (await response.json()) as PipedriveApiResponse
@@ -102,6 +115,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }> = []
 
     if (downloadFiles) {
+      // Bare auth headers for byte downloads — no Accept: application/json.
+      const downloadAuthHeaders: Record<string, string> =
+        authStyle === 'x-api-token'
+          ? { 'x-api-token': accessToken }
+          : { Authorization: `Bearer ${accessToken}` }
+
       for (const file of files) {
         if (!file?.url) continue
 
@@ -114,7 +133,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             fileUrlValidation.resolvedIP!,
             {
               method: 'GET',
-              headers: { Authorization: `Bearer ${accessToken}` },
+              headers: isPipedriveHost(file.url) ? downloadAuthHeaders : {},
             }
           )
 

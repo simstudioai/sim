@@ -119,17 +119,7 @@ describe('HTTP Request Tool', () => {
       expect(headers2['content-type']).toBe('text/plain')
     })
 
-    it('should set dynamic Referer header correctly', async () => {
-      const originalWindow = global.window
-      Object.defineProperty(global, 'window', {
-        value: {
-          location: {
-            origin: 'https://sim.ai',
-          },
-        },
-        writable: true,
-      })
-
+    it('should not set a default Referer header', async () => {
       tester.setup(mockHttpResponses.simple)
 
       await tester.execute({
@@ -138,9 +128,20 @@ describe('HTTP Request Tool', () => {
       })
 
       const fetchCall = (global.fetch as any).mock.calls[0]
-      expect(fetchCall[1].headers.Referer).toBe('https://sim.ai')
+      expect(fetchCall[1].headers.Referer).toBeUndefined()
+    })
 
-      global.window = originalWindow
+    it('should respect a user-provided Referer header', async () => {
+      tester.setup(mockHttpResponses.simple)
+
+      await tester.execute({
+        url: 'https://api.example.com',
+        method: 'GET',
+        headers: [{ cells: { Key: 'Referer', Value: 'https://custom.example.com' } }],
+      })
+
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      expect(fetchCall[1].headers.Referer).toBe('https://custom.example.com')
     })
 
     it('should set dynamic Host header correctly', async () => {
@@ -193,16 +194,6 @@ describe('HTTP Request Tool', () => {
     it('should apply default and dynamic headers to requests', async () => {
       tester.setup(mockHttpResponses.simple)
 
-      const originalWindow = global.window
-      Object.defineProperty(global, 'window', {
-        value: {
-          location: {
-            origin: 'https://sim.ai',
-          },
-        },
-        writable: true,
-      })
-
       await tester.execute({
         url: 'https://api.example.com/data',
         method: 'GET',
@@ -212,15 +203,13 @@ describe('HTTP Request Tool', () => {
       const headers = fetchCall[1].headers
 
       expect(headers.Host).toBe('api.example.com')
-      expect(headers.Referer).toBe('https://sim.ai')
-      expect(headers['User-Agent']).toContain('Mozilla')
+      expect(headers.Referer).toBeUndefined()
+      expect(headers['User-Agent']).toBe('Sim/1.0 (+https://sim.ai)')
       expect(headers.Accept).toBe('*/*')
       expect(headers['Accept-Encoding']).toContain('gzip')
       expect(headers['Cache-Control']).toBe('no-cache')
       expect(headers.Connection).toBe('keep-alive')
-      expect(headers['Sec-Ch-Ua']).toContain('Chromium')
-
-      global.window = originalWindow
+      expect(headers['Sec-Ch-Ua']).toBeUndefined()
     })
 
     it('should handle successful GET requests', async () => {
@@ -434,16 +423,6 @@ describe('HTTP Request Tool', () => {
     it('should apply all default headers correctly', async () => {
       tester.setup(mockHttpResponses.simple)
 
-      const originalWindow = global.window
-      Object.defineProperty(global, 'window', {
-        value: {
-          location: {
-            origin: 'https://sim.ai',
-          },
-        },
-        writable: true,
-      })
-
       await tester.execute({
         url: 'https://api.example.com/data',
         method: 'GET',
@@ -452,18 +431,16 @@ describe('HTTP Request Tool', () => {
       const fetchCall = (global.fetch as any).mock.calls[0]
       const headers = fetchCall[1].headers
 
-      expect(headers['User-Agent']).toMatch(/Mozilla\/5\.0.*Chrome.*Safari/)
+      expect(headers['User-Agent']).toBe('Sim/1.0 (+https://sim.ai)')
       expect(headers.Accept).toBe('*/*')
       expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
       expect(headers['Cache-Control']).toBe('no-cache')
       expect(headers.Connection).toBe('keep-alive')
-      expect(headers['Sec-Ch-Ua']).toMatch(/Chromium.*Not-A\.Brand/)
-      expect(headers['Sec-Ch-Ua-Mobile']).toBe('?0')
-      expect(headers['Sec-Ch-Ua-Platform']).toBe('"macOS"')
-      expect(headers.Referer).toBe('https://sim.ai')
+      expect(headers['Sec-Ch-Ua']).toBeUndefined()
+      expect(headers['Sec-Ch-Ua-Mobile']).toBeUndefined()
+      expect(headers['Sec-Ch-Ua-Platform']).toBeUndefined()
+      expect(headers.Referer).toBeUndefined()
       expect(headers.Host).toBe('api.example.com')
-
-      global.window = originalWindow
     })
 
     it('should allow overriding default headers', async () => {

@@ -16,7 +16,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiTable, v2TableAccessError } from '@/app/api/v2/tables/utils'
+import { toApiTable, v2TableAccessError, v2TablesGateError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableDetailAPI')
 
@@ -55,6 +55,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
+    const gateError = await v2TablesGateError(userId, workspaceId)
+    if (gateError) return gateError
+
     return v2Data({ table: toApiTable(result.table) }, { rateLimit })
   } catch (error) {
     logger.error(`[${requestId}] Error getting table`, {
@@ -90,6 +93,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     if (result.table.workspaceId !== workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
+
+    const gateError = await v2TablesGateError(userId, workspaceId)
+    if (gateError) return gateError
 
     await deleteTable(tableId, requestId)
 

@@ -57,7 +57,7 @@ export interface GranolaGetNoteResponse extends ToolResponse {
     ownerEmail: string
     createdAt: string
     updatedAt: string
-    webUrl: string | null
+    webUrl: string
     summaryText: string
     summaryMarkdown: string | null
     attendees: { name: string | null; email: string }[]
@@ -72,6 +72,7 @@ export interface GranolaGetNoteResponse extends ToolResponse {
       | {
           speaker: string
           speakerLabel: string | null
+          speakerName: string | null
           text: string
           startTime: string
           endTime: string

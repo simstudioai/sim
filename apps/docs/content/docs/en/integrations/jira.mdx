@@ -1046,6 +1046,155 @@ Search for Jira users by email address or display name. Returns matching users w
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 
+### `jira_list_projects`
+
+List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `query` | string | No | Filter projects by partial name or key match |
+| `startAt` | number | No | The index of the first project to return \(for pagination, default: 0\) |
+| `maxResults` | number | No | Maximum number of projects to return \(default: 50, max: 100\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `projects` | array | Array of Jira projects |
+|   ↳ `id` | string | Project ID |
+|   ↳ `key` | string | Project key \(e.g., PROJ\) |
+|   ↳ `name` | string | Project name |
+|   ↳ `projectTypeKey` | string | Project type key \(e.g., software, service_desk, business\) |
+|   ↳ `simplified` | boolean | Whether the project is a simplified \(team-managed\) project |
+|   ↳ `style` | string | Project style \(e.g., classic, next-gen\) |
+|   ↳ `isPrivate` | boolean | Whether the project is private |
+|   ↳ `url` | string | REST API URL for this project |
+|   ↳ `leadDisplayName` | string | Display name of the project lead |
+|   ↳ `leadAccountId` | string | Account ID of the project lead |
+| `total` | number | Total number of matching projects |
+| `startAt` | number | Pagination start index |
+| `maxResults` | number | Maximum results per page |
+| `isLast` | boolean | Whether this is the last page of results |
+
+### `jira_get_project`
+
+Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `projectId` | string | Yes | The project ID or key \(e.g., "PROJ" or "10000"\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Project ID |
+| `key` | string | Project key \(e.g., PROJ\) |
+| `name` | string | Project name |
+| `description` | string | Project description |
+| `projectTypeKey` | string | Project type key \(e.g., software, service_desk, business\) |
+| `simplified` | boolean | Whether the project is a simplified \(team-managed\) project |
+| `style` | string | Project style \(e.g., classic, next-gen\) |
+| `isPrivate` | boolean | Whether the project is private |
+| `url` | string | REST API URL for this project |
+| `leadDisplayName` | string | Display name of the project lead |
+| `leadAccountId` | string | Account ID of the project lead |
+| `issueTypes` | array | Issue types available in this project |
+|   ↳ `id` | string | Issue type ID |
+|   ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story\) |
+|   ↳ `subtask` | boolean | Whether this issue type is a subtask |
+
+### `jira_get_transitions`
+
+Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `issueKey` | string | Yes | The issue key or ID \(e.g., PROJ-123\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `issueKey` | string | Issue key the transitions belong to |
+| `transitions` | array | Available workflow transitions for the issue |
+|   ↳ `id` | string | Transition ID \(use with Transition Issue\) |
+|   ↳ `name` | string | Transition name \(e.g., "Start Progress"\) |
+|   ↳ `toStatusId` | string | ID of the status the issue moves to |
+|   ↳ `toStatusName` | string | Name of the status the issue moves to |
+|   ↳ `toStatusCategory` | string | Status category key of the target status \(new, indeterminate, done\) |
+|   ↳ `isAvailable` | boolean | Whether the transition can currently be performed |
+|   ↳ `hasScreen` | boolean | Whether the transition requires a screen with fields |
+| `total` | number | Number of available transitions |
+
+### `jira_list_issue_types`
+
+List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `issueTypes` | array | Array of issue types |
+|   ↳ `id` | string | Issue type ID |
+|   ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story\) |
+|   ↳ `description` | string | Issue type description |
+|   ↳ `subtask` | boolean | Whether this issue type is a subtask |
+|   ↳ `hierarchyLevel` | number | Hierarchy level \(0 = standard, 1 = epic, -1 = subtask\) |
+|   ↳ `iconUrl` | string | URL of the issue type icon |
+|   ↳ `scope` | string | Project ID if this issue type is scoped to a team-managed project |
+| `total` | number | Number of issue types returned |
+
+### `jira_get_fields`
+
+Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `fields` | array | Array of Jira fields \(system and custom\) |
+|   ↳ `id` | string | Field ID \(e.g., summary, customfield_10001\) |
+|   ↳ `key` | string | Field key |
+|   ↳ `name` | string | Human-readable field name |
+|   ↳ `custom` | boolean | Whether this is a custom field |
+|   ↳ `navigable` | boolean | Whether the field is navigable in issue views |
+|   ↳ `searchable` | boolean | Whether the field can be used in JQL searches |
+|   ↳ `schemaType` | string | Field value type \(e.g., string, number, array, user\) |
+|   ↳ `customType` | string | Custom field type identifier \(only for custom fields\) |
+| `total` | number | Number of fields returned |
+
 
 
 ## Triggers

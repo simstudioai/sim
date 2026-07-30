@@ -37,7 +37,7 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import { sleep } from '@sim/utils/helpers'
-import { AuditAction, AuditResourceType, recordAudit } from './index'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from './index'
 
 const flush = () => sleep(10)
 
@@ -318,12 +318,12 @@ describe('recordAudit', () => {
       )
     })
 
-    it('inserts without actor info when lookup fails', async () => {
+    it('nulls the actor FK when the lookup throws so the insert cannot FK-violate', async () => {
       dbChainMockFns.limit.mockRejectedValue(new Error('DB down'))
 
       recordAudit({
         workspaceId: 'ws-1',
-        actorId: 'user-1',
+        actorId: 'admin-api',
         action: AuditAction.KNOWLEDGE_BASE_CREATED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,
       })
@@ -333,14 +333,14 @@ describe('recordAudit', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
-          actorId: 'user-1',
-          actorName: undefined,
+          actorId: null,
+          actorName: 'Admin API',
           actorEmail: undefined,
         })
       )
     })
 
-    it('sets actor info to null when user is not found', async () => {
+    it('nulls the actor FK and labels it System when the user is not found', async () => {
       dbChainMockFns.limit.mockResolvedValue([])
 
       recordAudit({
@@ -355,12 +355,95 @@ describe('recordAudit', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
-          actorId: 'deleted-user',
-          actorName: undefined,
+          actorId: null,
+          actorName: 'System',
           actorEmail: undefined,
         })
       )
     })
+
+    it('labels the admin-api system actor while nulling its FK', async () => {
+      dbChainMockFns.limit.mockResolvedValue([])
+
+      recordAudit({
+        workspaceId: 'ws-1',
+        actorId: 'admin-api',
+        action: AuditAction.WORKFLOW_DELETED,
+        resourceType: AuditResourceType.WORKFLOW,
+      })
+
+      await flush()
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: null,
+          actorName: 'Admin API',
+          actorEmail: undefined,
+        })
+      )
+    })
+  })
+})
+
+describe('recordAuditBatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('writes all entries in a single insert', async () => {
+    recordAuditBatch([
+      {
+        workspaceId: 'ws-1',
+        actorId: null,
+        actorName: 'Billing System',
+        action: AuditAction.WORKSPACE_UPDATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: 'ws-1',
+      },
+      {
+        workspaceId: 'ws-2',
+        actorId: null,
+        actorName: 'Billing System',
+        action: AuditAction.WORKSPACE_UPDATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: 'ws-2',
+      },
+    ])
+
+    await flush()
+
+    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({ workspaceId: 'ws-1', actorId: null, actorName: 'Billing System' }),
+      expect.objectContaining({ workspaceId: 'ws-2', actorId: null, actorName: 'Billing System' }),
+    ])
+  })
+
+  it('does nothing for an empty batch', async () => {
+    recordAuditBatch([])
+
+    await flush()
+
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when the batch insert fails', async () => {
+    dbChainMockFns.values.mockImplementation(() => Promise.reject(new Error('DB connection lost')))
+
+    expect(() => {
+      recordAuditBatch([
+        {
+          workspaceId: 'ws-1',
+          actorId: null,
+          actorName: 'Billing System',
+          action: AuditAction.WORKSPACE_UPDATED,
+          resourceType: AuditResourceType.WORKSPACE,
+        },
+      ])
+    }).not.toThrow()
+
+    await flush()
   })
 })
 

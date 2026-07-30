@@ -4,7 +4,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/blocks', () => ({
-  getBlock: (type: string) => (type === 'slack' ? { name: 'Slack' } : undefined),
+  getBlock: (type: string) => {
+    if (type === 'slack') return { name: 'Slack' }
+    if (type === 'workflow' || type === 'workflow_input') return { name: 'Workflow' }
+    return undefined
+  },
 }))
 
 import {
@@ -112,6 +116,54 @@ describe('resolveToolsLabel', () => {
     expect(resolveToolsLabel(toolInput, [{ type: 'custom-tool', customToolId: 'gone' }], [])).toBe(
       null
     )
+  })
+
+  it('ignores the stored title on registry-backed tools so state edits cannot rename them', () => {
+    const slackName = resolveToolsLabel(toolInput, [{ type: 'slack' }], [])
+    expect(slackName).not.toBe(null)
+    expect(resolveToolsLabel(toolInput, [{ type: 'slack', title: 'Renamed By Copilot' }], [])).toBe(
+      slackName
+    )
+  })
+
+  it('falls back to the stored title, then the raw type id, for unresolvable block types', () => {
+    expect(
+      resolveToolsLabel(toolInput, [{ type: 'custom_block_gone', title: 'Invoice Parser' }], [])
+    ).toBe('Invoice Parser')
+    expect(resolveToolsLabel(toolInput, [{ type: 'custom_block_gone' }], [])).toBe(
+      'custom_block_gone'
+    )
+  })
+
+  it('renders the static label for workflow-as-tool entries regardless of stored title', () => {
+    expect(
+      resolveToolsLabel(toolInput, [{ type: 'workflow', title: 'Renamed By Copilot' }], [])
+    ).toBe('Workflow')
+    expect(resolveToolsLabel(toolInput, [{ type: 'workflow_input' }], [])).toBe('Workflow')
+  })
+
+  it('prefers the live MCP tool name over the stored title', () => {
+    expect(
+      resolveToolsLabel(
+        toolInput,
+        [{ type: 'mcp', toolId: 'mcp-1', title: 'Renamed By Copilot' }],
+        [],
+        new Map([['mcp-1', 'Live MCP Name']])
+      )
+    ).toBe('Live MCP Name')
+    expect(
+      resolveToolsLabel(toolInput, [{ type: 'mcp', toolId: 'mcp-1', title: 'Snapshot' }], [])
+    ).toBe('Snapshot')
+  })
+
+  it('prefers the custom tool record over the stored title', () => {
+    expect(
+      resolveToolsLabel(
+        toolInput,
+        [{ type: 'custom-tool', customToolId: 'ct-1', title: 'Renamed By Copilot' }],
+        [{ id: 'ct-1', title: 'My Tool' }]
+      )
+    ).toBe('My Tool')
   })
 })
 

@@ -1,0 +1,61 @@
+import { ListDatabasesCommand } from '@aws-sdk/client-athena'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { type NextRequest, NextResponse } from 'next/server'
+import { awsAthenaListDatabasesContract } from '@/lib/api/contracts/tools/aws/athena-list-databases'
+import { parseToolRequest } from '@/lib/api/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createAthenaClient } from '@/app/api/tools/athena/utils'
+
+const logger = createLogger('AthenaListDatabases')
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
+    const parsed = await parseToolRequest(awsAthenaListDatabasesContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
+
+    const client = createAthenaClient({
+      region: data.region,
+      accessKeyId: data.accessKeyId,
+      secretAccessKey: data.secretAccessKey,
+    })
+
+    try {
+      const command = new ListDatabasesCommand({
+        CatalogName: data.catalogName,
+        ...(data.workGroup && { WorkGroup: data.workGroup }),
+        ...(data.maxResults !== undefined && { MaxResults: data.maxResults }),
+        ...(data.nextToken && { NextToken: data.nextToken }),
+      })
+
+      const response = await client.send(command)
+
+      return NextResponse.json({
+        success: true,
+        output: {
+          databases: (response.DatabaseList ?? []).map((db) => ({
+            name: db.Name ?? '',
+            description: db.Description ?? null,
+          })),
+          nextToken: response.NextToken ?? null,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
+  } catch (error) {
+    const errorMessage = getErrorMessage(error, 'Failed to list Athena databases')
+    logger.error('ListDatabases failed', { error: errorMessage })
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+})

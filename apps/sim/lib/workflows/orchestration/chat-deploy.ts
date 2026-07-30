@@ -6,7 +6,11 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
+import {
+  getWorkflowDeploymentSummary,
+  performFullDeploy,
+} from '@/lib/workflows/orchestration/deploy'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatDeployOrchestration')
 
@@ -25,6 +29,10 @@ export interface ChatDeployPayload {
   password?: string | null
   allowedEmails?: string[]
   outputConfigs?: Array<{ blockId: string; path: string }>
+  /** When true, public SSE may expose thinking if the client also opts into agent-events-v1. */
+  includeThinking?: boolean
+  /** When true, public SSE may expose tool lifecycle if the client opts into agent-events-v1. */
+  includeToolCalls?: boolean
   workspaceId?: string | null
 }
 
@@ -56,6 +64,8 @@ export async function performChatDeploy(
     password,
     allowedEmails = [],
     outputConfigs = [],
+    includeThinking = false,
+    includeToolCalls = false,
   } = params
 
   const customizations = {
@@ -64,14 +74,43 @@ export async function performChatDeploy(
     ...(params.customizations?.imageUrl ? { imageUrl: params.customizations.imageUrl } : {}),
   }
 
-  const deployResult = await performFullDeploy({
-    workflowId,
-    userId,
-    versionDescription: params.versionDescription,
-    versionName: params.versionName,
-  })
-  if (!deployResult.success) {
-    return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
+  /**
+   * Only deploy when the draft drifted from the active version, and never
+   * while another attempt is in flight — a blocked retry must not admit a
+   * fresh deployment version on top of the pending one.
+   */
+  const deploymentSummary = await getWorkflowDeploymentSummary(workflowId)
+  const attemptStatus = deploymentSummary.latestDeploymentAttempt?.status
+  if (attemptStatus === 'preparing' || attemptStatus === 'activating') {
+    return {
+      success: false,
+      error:
+        'A workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+    }
+  }
+
+  const needsRedeploy =
+    !deploymentSummary.activeDeployment || (await checkNeedsRedeployment(workflowId))
+
+  let deployResult: Awaited<ReturnType<typeof performFullDeploy>> | null = null
+  if (needsRedeploy) {
+    deployResult = await performFullDeploy({
+      workflowId,
+      userId,
+      versionDescription: params.versionDescription,
+      versionName: params.versionName,
+    })
+    if (!deployResult.success) {
+      return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
+    }
+    if (deployResult.latestDeploymentAttempt?.status !== 'active') {
+      return {
+        success: false,
+        error:
+          deployResult.warnings?.[0] ??
+          'Workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+      }
+    }
   }
 
   let encryptedPassword: string | null = null
@@ -108,6 +147,8 @@ export async function performChatDeploy(
         password: passwordToStore,
         allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
+        includeThinking,
+        includeToolCalls,
         updatedAt: new Date(),
       })
       .where(eq(chat.id, chatId))
@@ -126,6 +167,8 @@ export async function performChatDeploy(
       password: encryptedPassword,
       allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
       outputConfigs,
+      includeThinking,
+      includeToolCalls,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -185,9 +228,15 @@ export async function performChatDeploy(
     success: true,
     chatId,
     chatUrl,
-    deployedAt: deployResult.deployedAt,
-    version: deployResult.version,
+    deployedAt: deployResult?.deployedAt ?? toDeployedAtDate(deploymentSummary),
+    version: deployResult?.version ?? deploymentSummary.activeDeployment?.version,
   }
+}
+
+function toDeployedAtDate(summary: {
+  activeDeployment: { deployedAt: string } | null
+}): Date | null {
+  return summary.activeDeployment ? new Date(summary.activeDeployment.deployedAt) : null
 }
 
 export interface PerformChatUndeployParams {

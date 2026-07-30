@@ -4,6 +4,9 @@ import type {
 } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
+const SELECT_FIELDS =
+  'keyword,volume,best_position,best_position_url,sum_traffic,keyword_difficulty'
+
 export const organicKeywordsTool: ToolConfig<
   AhrefsOrganicKeywordsParams,
   AhrefsOrganicKeywordsResponse
@@ -33,25 +36,19 @@ export const organicKeywordsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match). Example: "domain"',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains, default), exact (exact URL match). Example: "domain"',
     },
     date: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+      description: 'Date to report metrics on, in YYYY-MM-DD format (defaults to today)',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return. Example: 50 (default: 100)',
-    },
-    offset: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results to skip for pagination. Example: 100',
+      description: 'Maximum number of results to return. Example: 50 (default: 1000)',
     },
     apiKey: {
       type: 'string',
@@ -66,12 +63,12 @@ export const organicKeywordsTool: ToolConfig<
       const url = new URL('https://api.ahrefs.com/v3/site-explorer/organic-keywords')
       url.searchParams.set('target', params.target)
       url.searchParams.set('country', params.country || 'us')
+      url.searchParams.set('select', SELECT_FIELDS)
       // Date is required - default to today if not provided
       const date = params.date || new Date().toISOString().split('T')[0]
       url.searchParams.set('date', date)
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
-      if (params.offset) url.searchParams.set('offset', String(params.offset))
       return url.toString()
     },
     method: 'GET',
@@ -88,13 +85,13 @@ export const organicKeywordsTool: ToolConfig<
       throw new Error(data.error?.message || data.error || 'Failed to get organic keywords')
     }
 
-    const keywords = (data.keywords || data.organic_keywords || []).map((kw: any) => ({
+    const keywords = (data.keywords || []).map((kw: any) => ({
       keyword: kw.keyword || '',
       volume: kw.volume ?? 0,
-      position: kw.position ?? 0,
-      url: kw.url || '',
-      traffic: kw.traffic ?? 0,
-      keywordDifficulty: kw.keyword_difficulty ?? kw.difficulty ?? 0,
+      position: kw.best_position ?? null,
+      url: kw.best_position_url ?? null,
+      traffic: kw.sum_traffic ?? 0,
+      keywordDifficulty: kw.keyword_difficulty ?? null,
     }))
 
     return {
@@ -114,12 +111,21 @@ export const organicKeywordsTool: ToolConfig<
         properties: {
           keyword: { type: 'string', description: 'The keyword' },
           volume: { type: 'number', description: 'Monthly search volume' },
-          position: { type: 'number', description: 'Current ranking position' },
-          url: { type: 'string', description: 'The URL that ranks for this keyword' },
+          position: {
+            type: 'number',
+            description: 'Best ranking position for this keyword',
+            optional: true,
+          },
+          url: {
+            type: 'string',
+            description: 'The URL that ranks at the best position for this keyword',
+            optional: true,
+          },
           traffic: { type: 'number', description: 'Estimated monthly organic traffic' },
           keywordDifficulty: {
             type: 'number',
             description: 'Keyword difficulty score (0-100)',
+            optional: true,
           },
         },
       },

@@ -2,6 +2,7 @@ import type {
   AmplitudeRealtimeActiveUsersParams,
   AmplitudeRealtimeActiveUsersResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const realtimeActiveUsersTool: ToolConfig<
@@ -26,10 +27,16 @@ export const realtimeActiveUsersTool: ToolConfig<
       visibility: 'user-only',
       description: 'Amplitude Secret Key',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
-    url: 'https://amplitude.com/api/2/realtime',
+    url: (params) => `${getDashboardHost(params.dataResidency)}/api/2/realtime`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:${params.secretKey}`)}`,

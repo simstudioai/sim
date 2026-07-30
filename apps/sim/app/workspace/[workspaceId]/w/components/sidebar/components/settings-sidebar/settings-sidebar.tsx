@@ -4,11 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import type { DesktopSettingsSurface } from '@/components/settings/navigation'
+import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { getUserRole } from '@/lib/workspaces/organization'
+import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
@@ -21,10 +25,10 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
+import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
-import { useOrganizations } from '@/hooks/queries/organization'
-import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
+import { useInboxConfig } from '@/hooks/queries/inbox'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -48,39 +52,39 @@ export function SettingsSidebar({
 
   const queryClient = useQueryClient()
 
-  const requestNavigation = useSettingsDirtyStore((s) => s.requestNavigation)
-  const confirmNavigation = useSettingsDirtyStore((s) => s.confirmNavigation)
-  const cancelNavigation = useSettingsDirtyStore((s) => s.cancelNavigation)
-  const isDirty = useSettingsDirtyStore((s) => s.isDirty)
+  const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
+  const confirmLeave = useSettingsDirtyStore((s) => s.confirmLeave)
+  const cancelLeave = useSettingsDirtyStore((s) => s.cancelLeave)
+  const pendingLeave = useSettingsDirtyStore((s) => s.pendingLeave)
+  const showDiscardDialog = pendingLeave !== null
 
-  const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const [desktopSurfaces, setDesktopSurfaces] = useState<Record<DesktopSettingsSurface, boolean>>({
+    settings: false,
+    browser: false,
+    terminal: false,
+  })
 
   const { data: session } = useSession()
-  const { data: organizationsData } = useOrganizations()
+  const hostContext = useWorkspaceHostContext()
   const { data: generalSettings } = useGeneralSettings()
-  const { data: subscriptionData } = useSubscriptionData({
-    enabled: isBillingEnabled,
-    staleTime: 5 * 60 * 1000,
-  })
+  const { data: inboxConfig } = useInboxConfig(workspaceId)
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
     enabled: !isHosted,
   })
 
-  const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
+  const forkingAvailable = useForkingAvailable(workspaceId)
+  const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
 
-  const userEmail = session?.user?.email
   const userId = session?.user?.id
 
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const isOwner = userRole === 'owner'
-  const isAdmin = userRole === 'admin'
-  const isOrgAdminOrOwner = isOwner || isAdmin
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const isOrgAdminOrOwner = hostContext.viewer.isHostOrganizationAdmin
+  const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
+  const inboxEntitled = inboxConfig?.entitled ?? false
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
-  const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
+  const isEnterprisePlan = subscriptionAccess.isEnterprise
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -92,7 +96,15 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (item.requiresDesktopSurface && !desktopSurfaces[item.requiresDesktopSurface]) {
+        return false
+      }
+
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
+      }
+
+      if (item.id === 'billing' && !canManageWorkspaceBilling(hostContext, userId)) {
         return false
       }
 
@@ -115,8 +127,20 @@ export function SettingsSidebar({
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
         return false
       }
+      if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
+        return false
+      }
 
       if (item.selfHostedOverride && !isHosted) {
+        /**
+         * Org-plane sections route through the organization gate in
+         * `settings/[section]/page.tsx` (host organization + org-admin viewer),
+         * which 404s other viewers — mirror it here so the item never links to
+         * a dead page.
+         */
+        if (ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) && !isOrgAdminOrOwner) {
+          return false
+        }
         if (item.id === 'sso') {
           const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
           return !hasProviders || isSSOProviderOwner === true
@@ -124,13 +148,15 @@ export function SettingsSidebar({
         return true
       }
 
-      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
+      const orgAdminSatisfied = isOrgAdminOrOwner || item.allowNonOrgAdmin
+
+      if (item.requiresTeam && (!hasTeamPlan || !orgAdminSatisfied)) {
         return false
       }
 
       if (
         item.requiresEnterprise &&
-        (!hasEnterprisePlan || !isOrgAdminOrOwner) &&
+        (!hasEnterprisePlan || !orgAdminSatisfied) &&
         !item.showWhenLocked
       ) {
         return false
@@ -161,12 +187,17 @@ export function SettingsSidebar({
     hasEnterprisePlan,
     isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,
+    hostContext,
+    userId,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
     permissionConfig,
     isSuperUser,
     generalSettings?.superUserModeEnabled,
+    forkingAvailable,
+    canAdminWorkspace,
+    desktopSurfaces,
   ])
 
   const activeSection = useMemo(() => {
@@ -190,8 +221,16 @@ export function SettingsSidebar({
           void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
           break
         case 'billing':
-          prefetchSubscriptionData(queryClient)
           void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
+          break
+        case 'desktop':
+          void import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop')
+          break
+        case 'browser':
+          void import('@/app/workspace/[workspaceId]/settings/components/browser/browser')
+          break
+        case 'terminal':
+          void import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal')
           break
       }
     },
@@ -201,27 +240,26 @@ export function SettingsSidebar({
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
   const handleBack = useCallback(() => {
-    if (isDirty) {
-      setShowDiscardDialog(true)
-      return
-    }
-    router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
-  }, [router, popSettingsReturnUrl, workspaceId, isDirty])
+    requestLeave(() => {
+      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+    })
+  }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
 
   const handleConfirmDiscard = useCallback(() => {
-    const section = confirmNavigation()
-    setShowDiscardDialog(false)
-    if (section) {
-      router.replace(getSettingsHref({ section }), { scroll: false })
-    } else {
-      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
-    }
-  }, [confirmNavigation, router, getSettingsHref, popSettingsReturnUrl, workspaceId])
+    confirmLeave()
+  }, [confirmLeave])
 
   const handleCancelDiscard = useCallback(() => {
-    cancelNavigation()
-    setShowDiscardDialog(false)
-  }, [cancelNavigation])
+    cancelLeave()
+  }, [cancelLeave])
+
+  useEffect(() => {
+    setDesktopSurfaces({
+      settings: hasDesktopSettings(),
+      browser: hasBrowserAgent(),
+      terminal: hasTerminal(),
+    })
+  }, [])
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -296,7 +334,11 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
-                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
+                    const isLocked =
+                      item.requiresMax &&
+                      (item.id === 'inbox'
+                        ? !inboxEntitled
+                        : !subscriptionAccess.hasUsableMaxAccess)
                     const itemClassName = chipVariants({ active, fullWidth: true })
                     const content = (
                       <>
@@ -330,11 +372,9 @@ export function SettingsSidebar({
                         onClick={() => {
                           const section = item.id as SettingsSection
                           if (section === activeSection) return
-                          if (!requestNavigation(section)) {
-                            setShowDiscardDialog(true)
-                            return
-                          }
-                          router.replace(getSettingsHref({ section }), { scroll: false })
+                          requestLeave(() => {
+                            router.replace(getSettingsHref({ section }), { scroll: false })
+                          })
                         }}
                       >
                         {content}

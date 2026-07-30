@@ -1,47 +1,146 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Chip } from '@sim/emcn'
+import { CircleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
+import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
-import { useWorkspacesWithMetadata, type WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
 
+/** Bounds the one-shot reload after a creation-vs-membership 409. */
+const WORKSPACE_RACE_RETRY_KEY = 'workspaceRaceRetry'
+
+/**
+ * A 401 while the session claims we're authenticated means the auth cookies
+ * are stale or inconsistent (e.g. after an impersonation session expired or
+ * was switched). The only reliable recovery is a full sign-out, which clears
+ * every auth cookie server-side — matching what "clear browser cache" did
+ * manually — followed by a clean login.
+ */
+function isStaleSessionError(error: unknown): boolean {
+  return isApiClientError(error) && error.status === 401
+}
+
+interface WorkspaceStatusCardProps {
+  title: string
+  description: string
+  primaryLabel: string
+  onPrimary: () => void
+}
+
+function WorkspaceStatusCard({
+  title,
+  description,
+  primaryLabel,
+  onPrimary,
+}: WorkspaceStatusCardProps) {
+  return (
+    <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+      <div className='flex max-w-md flex-col items-center gap-3 text-center'>
+        <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
+          <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
+        </div>
+        <div className='space-y-1'>
+          <h1 className='font-medium text-[var(--text-primary)] text-lg'>{title}</h1>
+          <p className='text-[var(--text-muted)] text-sm'>{description}</p>
+        </div>
+        <div className='flex items-center gap-2'>
+          <Chip variant='primary' onClick={onPrimary}>
+            {primaryLabel}
+          </Chip>
+          <Chip onClick={() => void recoverFromStaleSession()}>Sign out</Chip>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 export default function WorkspacePage() {
   const router = useRouter()
-  const { data: session, isPending: isSessionPending } = useSession()
+  const { data: session, isPending: isSessionPending, error: sessionError } = useSession()
   const isAuthenticated = !isSessionPending && !!session?.user
   const hasRedirectedRef = useRef(false)
+  const isRecoveringRef = useRef(false)
+  const blockedLoggedRef = useRef(false)
+  const [recoveryFailed, setRecoveryFailed] = useState(false)
 
-  const { data, isLoading: isWorkspacesLoading } = useWorkspacesWithMetadata(isAuthenticated)
+  const {
+    data,
+    isLoading: isWorkspacesLoading,
+    error: workspacesError,
+  } = useWorkspacesWithMetadata(isAuthenticated)
+
+  useEffect(() => {
+    if (!isAuthenticated || !isStaleSessionError(workspacesError) || isRecoveringRef.current) return
+    isRecoveringRef.current = true
+    logger.warn('Session cookies are stale (authenticated session but 401 API); signing out')
+    void recoverFromStaleSession().then((recovered) => {
+      if (recovered) return
+      isRecoveringRef.current = false
+      setRecoveryFailed(true)
+    })
+  }, [isAuthenticated, workspacesError])
 
   useEffect(() => {
     if (isSessionPending || hasRedirectedRef.current) return
 
     if (!session?.user) {
-      logger.info('User not authenticated, redirecting to login')
-      router.replace('/login')
+      // Indeterminate auth (errored session query, no cached identity): show
+      // the error card — /login would bounce back while a session cookie exists.
+      if (sessionError) return
+      // A clean null session can still have stale auth cookies behind it (an
+      // expired impersonation session's cookies are never cleared server-side),
+      // and the middleware bounces /login back here while any session cookie
+      // exists — a bare replace('/login') loops forever on the spinner. Recover
+      // the same way as the 401 path: sign out (clears the cookies without
+      // needing a live session), then navigate.
+      hasRedirectedRef.current = true
+      logger.info('User not authenticated, signing out stale cookies and redirecting to login')
+      void recoverFromStaleSession().then((recovered) => {
+        if (!recovered) setRecoveryFailed(true)
+      })
       return
     }
 
-    if (isWorkspacesLoading || !data) return
+    if (isWorkspacesLoading || workspacesError || !data) return
+
+    const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
+
+    if (workspaces.length === 0) {
+      /**
+       * Blocked state is derived in render and deliberately does NOT set
+       * hasRedirectedRef: a later refetch that shows granted access resumes
+       * the normal redirect path, so the screen self-heals.
+       */
+      if (creationPolicy && !creationPolicy.canCreate) {
+        if (!blockedLoggedRef.current) {
+          blockedLoggedRef.current = true
+          logger.warn('No workspaces found and workspace creation is blocked', {
+            reason: creationPolicy.reason,
+            workspaceMode: creationPolicy.workspaceMode,
+            organizationId: creationPolicy.organizationId,
+          })
+        }
+        return
+      }
+      hasRedirectedRef.current = true
+      handleNoWorkspaces(router, () => setRecoveryFailed(true))
+      return
+    }
 
     hasRedirectedRef.current = true
 
     const urlParams = new URLSearchParams(window.location.search)
     const redirectWorkflowId = urlParams.get('redirect_workflow')
-
-    const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
-
-    if (workspaces.length === 0) {
-      handleNoWorkspaces(router, creationPolicy)
-      return
-    }
 
     const localRecentId = WorkspaceRecencyStorage.getMostRecent()
     const findWorkspace = (id: string | null) =>
@@ -57,26 +156,64 @@ export default function WorkspacePage() {
 
     logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
     router.replace(`/workspace/${targetWorkspace.id}/home`)
-  }, [session, isSessionPending, isWorkspacesLoading, data, router])
+  }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
-  if (isSessionPending || isWorkspacesLoading) {
+  const blockedPolicy =
+    isAuthenticated &&
+    data &&
+    data.workspaces.length === 0 &&
+    data.creationPolicy &&
+    !data.creationPolicy.canCreate
+      ? data.creationPolicy
+      : null
+
+  if (blockedPolicy) {
     return (
-      <div className='flex h-screen w-full items-center justify-center'>
-        <div
-          className='size-[18px] animate-spin rounded-full'
-          style={{
-            background:
-              'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-            mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-            WebkitMask:
-              'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-          }}
-        />
-      </div>
+      <WorkspaceStatusCard
+        title='No workspace access yet'
+        description={
+          blockedPolicy.blockedReasonCode === 'organization-subscription-inactive'
+            ? "Your organization's subscription is inactive, so new workspaces can't be created. Ask an organization owner to reactivate it."
+            : blockedPolicy.workspaceMode === 'organization'
+              ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
+              : 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
+        }
+        primaryLabel='Check again'
+        onPrimary={() => window.location.reload()}
+      />
     )
   }
 
-  return null
+  const failedToLoad =
+    recoveryFailed ||
+    (Boolean(sessionError) && !session?.user) ||
+    (isAuthenticated && Boolean(workspacesError) && !isStaleSessionError(workspacesError))
+
+  if (failedToLoad) {
+    return (
+      <WorkspaceStatusCard
+        title='Could not load your workspaces'
+        description='Something went wrong while loading your account. Try again, or sign out and log back in.'
+        primaryLabel='Try again'
+        onPrimary={() => window.location.reload()}
+      />
+    )
+  }
+
+  return (
+    <div className='flex h-screen w-full items-center justify-center'>
+      <div
+        className='size-[18px] animate-spin rounded-full'
+        style={{
+          background:
+            'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+          mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+          WebkitMask:
+            'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+        }}
+      />
+    </div>
+  )
 }
 
 async function handleWorkflowRedirect(
@@ -102,18 +239,8 @@ async function handleWorkflowRedirect(
 
 async function handleNoWorkspaces(
   router: ReturnType<typeof useRouter>,
-  creationPolicy: WorkspaceCreationPolicy | null
+  onUnrecoverable: () => void
 ): Promise<void> {
-  if (creationPolicy && !creationPolicy.canCreate) {
-    logger.warn('No workspaces found and workspace creation is blocked', {
-      reason: creationPolicy.reason,
-      workspaceMode: creationPolicy.workspaceMode,
-      organizationId: creationPolicy.organizationId,
-    })
-    router.replace('/')
-    return
-  }
-
   logger.warn('No workspaces found, creating default workspace')
   try {
     const data = await requestJson(createWorkspaceContract, {
@@ -121,11 +248,31 @@ async function handleNoWorkspaces(
     })
     if (data.workspace?.id) {
       logger.info(`Created default workspace: ${data.workspace.id}`)
+      sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
       router.replace(`/workspace/${data.workspace.id}/home`)
       return
     }
     logger.error('Failed to create default workspace')
   } catch (error) {
+    /**
+     * 409 means the caller's organization membership changed while the
+     * default workspace was being created — they are still authenticated and
+     * their workspaces likely exist now, so re-resolve ONCE. A second 409
+     * means something other than a race, so surface the error card instead of
+     * reloading forever.
+     */
+    if (isApiClientError(error) && error.status === 409) {
+      if (sessionStorage.getItem(WORKSPACE_RACE_RETRY_KEY)) {
+        logger.error('Default workspace creation kept conflicting after a retry')
+        sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
+        onUnrecoverable()
+        return
+      }
+      sessionStorage.setItem(WORKSPACE_RACE_RETRY_KEY, '1')
+      logger.info('Default workspace creation raced an organization change; re-resolving')
+      window.location.reload()
+      return
+    }
     logger.error('Error creating default workspace:', error)
   }
   router.replace('/login')

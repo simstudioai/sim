@@ -21,7 +21,11 @@ export const gmailHandler: WebhookProviderHandler = {
     return { input: b }
   },
 
-  async configurePolling({ webhook: webhookData, requestId }: PollingConfigContext) {
+  async configurePolling({
+    webhook: webhookData,
+    requestId,
+    persistProviderConfig,
+  }: PollingConfigContext) {
     logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
 
     try {
@@ -79,26 +83,27 @@ export const gmailHandler: WebhookProviderHandler = {
 
       const now = new Date()
 
-      await db
-        .update(webhook)
-        .set({
-          providerConfig: {
-            ...providerConfig,
-            userId: effectiveUserId,
-            credentialId,
-            maxEmailsPerPoll,
-            pollingInterval,
-            markAsRead: providerConfig.markAsRead || false,
-            includeRawEmail: providerConfig.includeRawEmail || false,
-            labelIds: providerConfig.labelIds || ['INBOX'],
-            labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
-            lastCheckedTimestamp:
-              (providerConfig.lastCheckedTimestamp as string) || now.toISOString(),
-            setupCompleted: true,
-          },
-          updatedAt: now,
-        })
-        .where(eq(webhook.id, webhookData.id as string))
+      const configuredProviderConfig = {
+        ...providerConfig,
+        userId: effectiveUserId,
+        credentialId,
+        maxEmailsPerPoll,
+        pollingInterval,
+        markAsRead: providerConfig.markAsRead || false,
+        includeRawEmail: providerConfig.includeRawEmail || false,
+        labelIds: providerConfig.labelIds || ['INBOX'],
+        labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
+        lastCheckedTimestamp: (providerConfig.lastCheckedTimestamp as string) || now.toISOString(),
+        setupCompleted: true,
+      }
+      if (persistProviderConfig) {
+        await persistProviderConfig(configuredProviderConfig)
+      } else {
+        await db
+          .update(webhook)
+          .set({ providerConfig: configuredProviderConfig, updatedAt: now })
+          .where(eq(webhook.id, webhookData.id as string))
+      }
 
       logger.info(
         `[${requestId}] Successfully configured Gmail polling for webhook ${webhookData.id}`

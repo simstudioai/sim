@@ -1,6 +1,7 @@
 ---
 name: validate-connector
-description: Audit an existing Sim knowledge base connector against the service API docs and repository conventions, then report and fix issues in auth, config fields, pagination, document mapping, tags, and registry entries. Use when validating or repairing code in `apps/sim/connectors/{service}/`.
+description: Validate an existing knowledge base connector against its service's API docs
+argument-hint: <service-name> [api-docs-url]
 ---
 
 # Validate Connector Skill
@@ -152,6 +153,13 @@ For each API endpoint the connector calls:
 - [ ] No off-by-one errors in pagination tracking
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
+### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
+The sync engine hard-deletes any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
+- [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
+- [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
+- [ ] `listingCapped` is NOT set when the source is genuinely exhausted (deleted documents must reconcile) or for intentional scope filters (date cutoffs)
+This is the most common connector bug class — verify it explicitly against `sync-engine.ts`'s reconciliation gate.
+
 ### Pagination State Across Pages
 - [ ] `syncContext` is used to cache state across pages (user names, field maps, instance URLs, portal IDs, etc.)
 - [ ] Cached state in `syncContext` is correctly initialized on first page and reused on subsequent pages
@@ -289,6 +297,7 @@ Group findings by severity:
 - Incorrect response field mapping (accessing wrong path)
 - SOQL/query fields that don't exist on the target object
 - Pagination that silently hits undocumented API limits
+- Missing `syncContext.listingCapped = true` when a cap or transient error truncates the listing — the sync engine hard-deletes the documents absent from the partial listing
 - Missing error handling that would crash the sync
 - `requiredScopes` not a subset of OAuth provider scopes
 - Query/filter injection: user-controlled values interpolated into OData `$filter`, SOQL, or query strings without escaping
@@ -344,6 +353,7 @@ After fixing, confirm:
 - [ ] Validated scopes are sufficient for all API endpoints the connector calls
 - [ ] Validated token refresh config (`useBasicAuth`, `supportsRefreshTokenRotation`)
 - [ ] Validated pagination: cursor names, page sizes, hasMore logic, no silent caps
+- [ ] Validated deletion-reconciliation safety: `syncContext.listingCapped` set on capped/error-truncated listings, not on genuine exhaustion or intentional scope filters
 - [ ] Validated content deferral: `contentDeferred: true` used when per-doc content fetch required, metadata-based `contentHash` consistent between stub and `getDocument`
 - [ ] Validated data transformation: plain text extraction, HTML stripping, content hashing
 - [ ] Validated tag definitions match mapTags output, correct fieldTypes

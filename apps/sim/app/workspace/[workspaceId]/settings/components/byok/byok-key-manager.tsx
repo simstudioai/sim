@@ -23,6 +23,7 @@ import {
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
@@ -58,12 +59,20 @@ interface BYOKKeyManagerBaseProps {
   isLoading: boolean
   isSaving?: boolean
   isDeleting?: boolean
+  readOnly?: boolean
   /** Labeled provider groups. When omitted, renders a single flat list. */
   sections?: BYOKProviderSection[]
   /** Optional subtitle shown above the provider list. */
   description?: string
   /** Show the provider search box (hidden when there are only a couple). */
   showSearch?: boolean
+  /**
+   * Controlled search value + setter. The BYOK settings page passes the shared
+   * `?search=` binding (`useSettingsSearch`) so the search is deep-linkable;
+   * modal/embedded consumers omit both and keep local state.
+   */
+  searchTerm?: string
+  onSearchTermChange?: (value: string) => void
 }
 
 /** One key per provider; saving replaces the stored key. */
@@ -130,12 +139,15 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     isLoading,
     isSaving = false,
     isDeleting = false,
+    readOnly = false,
     sections,
     description,
     showSearch = true,
   } = props
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [localSearchTerm, setLocalSearchTerm] = useState('')
+  const searchTerm = props.searchTerm ?? localSearchTerm
+  const setSearchTerm = props.onSearchTermChange ?? setLocalSearchTerm
   const [editing, setEditing] = useState<EditingState | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [nameInput, setNameInput] = useState('')
@@ -247,6 +259,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
   const renderActions = (provider: BYOKManagerProvider) => {
     if (!hasStoredKey(provider.id)) {
+      if (readOnly) return null
       return (
         <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
           Add Key
@@ -257,17 +270,20 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     if (props.multiKey) {
       const keyCount = getProviderKeys(provider.id).length
       return (
-        <div className='flex flex-shrink-0 items-center gap-2'>
-          <span className='text-[12px] text-[var(--text-muted)]'>
+        <div className='flex items-center gap-2'>
+          <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
-          <Chip onClick={() => setManagingProviderId(provider.id)}>Manage</Chip>
+          <Chip onClick={() => setManagingProviderId(provider.id)}>
+            {readOnly ? 'View' : 'Manage'}
+          </Chip>
         </div>
       )
     }
 
+    if (readOnly) return null
     return (
-      <div className='flex flex-shrink-0 items-center gap-2'>
+      <div className='flex items-center gap-2'>
         <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
         <Chip onClick={() => openDeleteConfirm(provider.id)}>Delete</Chip>
       </div>
@@ -278,21 +294,13 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     const Icon = provider.icon
 
     return (
-      <div key={provider.id} className='flex items-center justify-between gap-2.5'>
-        <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-            <Icon className='size-5' />
-          </div>
-          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{provider.name}</span>
-            <span className='truncate text-[12px] text-[var(--text-muted)]'>
-              {provider.description}
-            </span>
-          </div>
-        </div>
-
-        {renderActions(provider)}
-      </div>
+      <SettingsResourceRow
+        key={provider.id}
+        icon={<Icon />}
+        title={provider.name}
+        description={provider.description}
+        trailing={renderActions(provider)}
+      />
     )
   }
 
@@ -306,6 +314,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               strokeWidth={2}
             />
             <input
+              aria-label='Search providers'
               placeholder='Search providers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -356,6 +365,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           provider={managingMeta}
           keys={managingProviderId ? getProviderKeys(managingProviderId) : NO_KEYS}
           maxKeys={props.maxKeysPerProvider}
+          readOnly={readOnly}
           onAddKey={() => managingProviderId && openEditModal(managingProviderId)}
           onUpdateKey={(key) => managingProviderId && openEditModal(managingProviderId, key)}
           onDeleteKey={(key) => managingProviderId && openDeleteConfirm(managingProviderId, key.id)}
@@ -387,6 +397,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
+              aria-hidden='true'
               style={{
                 position: 'absolute',
                 left: '-9999px',
@@ -398,6 +409,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
             />
             <div className={CHIP_FIELD_SHELL}>
               <input
+                aria-label='API Key'
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {

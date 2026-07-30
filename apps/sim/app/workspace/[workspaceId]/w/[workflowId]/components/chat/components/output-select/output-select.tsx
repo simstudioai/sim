@@ -10,6 +10,7 @@ import {
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -27,15 +28,15 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='!text-white font-bold text-micro'>{icon}</span>
+      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
-        return <IconComponent className='!text-white size-[9px]' />
+        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
       })()
     )}
   </div>

@@ -34,7 +34,14 @@ export function executeManageCredential(
           if (!result.success) {
             return { success: false, error: result.error || 'Failed to rename credential' }
           }
-          return { success: true, output: { credentialId, displayName } }
+          return {
+            success: true,
+            output: {
+              credentialId,
+              previousDisplayName: result.previousDisplayName,
+              displayName,
+            },
+          }
         }
         case 'delete': {
           const ids: string[] =

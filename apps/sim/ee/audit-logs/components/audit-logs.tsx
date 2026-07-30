@@ -1,47 +1,59 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
   Calendar,
+  ChipCombobox,
   ChipInput,
   ChipSelect,
   type ComboboxOption,
-  cn,
+  Download,
   Popover,
   PopoverAnchor,
   PopoverContent,
   RefreshCw,
   Search,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
-import { ChevronDown } from 'lucide-react'
+import { useQueryStates } from 'nuqs'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  ActivityLog,
+  type ActivityLogEntry,
+} from '@/app/workspace/[workspaceId]/settings/components/activity-log'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
+import {
+  auditLogFilterParsers,
+  auditLogFilterUrlKeys,
+  DEFAULT_AUDIT_TIME_RANGE,
+} from '@/ee/audit-logs/search-params'
+import { useDebounce } from '@/hooks/use-debounce'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 const logger = createLogger('AuditLogs')
 
 const REFRESH_SPINNER_DURATION_MS = 1000
 
+/** Trimmed to the most commonly used granularities so the menu fits without scrolling. */
 const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'All time', label: 'All time' },
-  { value: 'Past 30 minutes', label: 'Past 30 minutes' },
   { value: 'Past hour', label: 'Past hour' },
   { value: 'Past 6 hours', label: 'Past 6 hours' },
-  { value: 'Past 12 hours', label: 'Past 12 hours' },
   { value: 'Past 24 hours', label: 'Past 24 hours' },
   { value: 'Past 3 days', label: 'Past 3 days' },
   { value: 'Past 7 days', label: 'Past 7 days' },
-  { value: 'Past 14 days', label: 'Past 14 days' },
   { value: 'Past 30 days', label: 'Past 30 days' },
   { value: 'Custom range', label: 'Custom range' },
 ]
@@ -161,123 +173,90 @@ function ActionBadge({ action }: ActionBadgeProps) {
   )
 }
 
-interface AuditLogRowProps {
-  entry: EnterpriseAuditLogEntry
-}
-
-function AuditLogRow({ entry }: AuditLogRowProps) {
-  const [expanded, setExpanded] = useState(false)
-  const timestamp = formatDateTime(new Date(entry.createdAt))
+/** The expanded detail box content for one audit entry (resource, actor, metadata). */
+function auditLogDetails(entry: EnterpriseAuditLogEntry): ReactNode {
   const metadataEntries = getMetadataEntries(entry.metadata)
-
   return (
-    <div
-      className={cn(
-        'rounded-md transition-colors',
-        'hover-hover:bg-[var(--surface-2)]',
-        expanded && 'bg-[var(--surface-2)]'
-      )}
-    >
-      <button
-        type='button'
-        className='flex w-full items-center gap-3 px-3 py-2 text-left'
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className='w-[160px] flex-shrink-0 text-[var(--text-secondary)] text-small'>
-          {timestamp}
+    <>
+      <div className='flex gap-2'>
+        <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Resource</span>
+        <span className='text-[var(--text-primary)]'>
+          {formatResourceType(entry.resourceType)}
+          {entry.resourceId && (
+            <span className='ml-1 text-[var(--text-muted)]'>({entry.resourceId})</span>
+          )}
         </span>
-        <span className='w-[180px] flex-shrink-0'>
-          <ActionBadge action={entry.action} />
-        </span>
-        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-small'>
-          {entry.description || entry.resourceName || entry.resourceId || '-'}
-        </span>
-        <span className='flex w-[160px] flex-shrink-0 items-center justify-end gap-1.5 text-[var(--text-secondary)] text-small'>
-          <span className='min-w-0 truncate'>
-            {entry.actorEmail || entry.actorName || 'System'}
-          </span>
-          <ChevronDown
-            className={cn(
-              'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-              expanded && 'rotate-180'
-            )}
-          />
-        </span>
-      </button>
-      {expanded && (
-        <div className='px-3 pb-2'>
-          <div className='flex flex-col gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)] p-3 text-small'>
-            <div className='flex gap-2'>
-              <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Resource</span>
-              <span className='text-[var(--text-primary)]'>
-                {formatResourceType(entry.resourceType)}
-                {entry.resourceId && (
-                  <span className='ml-1 text-[var(--text-muted)]'>({entry.resourceId})</span>
-                )}
-              </span>
-            </div>
-            {entry.resourceName && (
-              <div className='flex gap-2'>
-                <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Name</span>
-                <span className='text-[var(--text-primary)]'>{entry.resourceName}</span>
-              </div>
-            )}
-            <div className='flex gap-2'>
-              <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Actor</span>
-              <span className='text-[var(--text-primary)]'>
-                {entry.actorName || 'Unknown'}
-                {entry.actorEmail && (
-                  <span className='ml-1 text-[var(--text-muted)]'>({entry.actorEmail})</span>
-                )}
-              </span>
-            </div>
-            {entry.description && (
-              <div className='flex gap-2'>
-                <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
-                  Description
-                </span>
-                <span className='text-[var(--text-primary)]'>{entry.description}</span>
-              </div>
-            )}
-            {metadataEntries.map(([key, value]) => (
-              <div key={key} className='flex gap-2'>
-                <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
-                  {formatMetadataLabel(key)}
-                </span>
-                <div className='min-w-0 flex-1'>{renderMetadataValue(value)}</div>
-              </div>
-            ))}
-          </div>
+      </div>
+      {entry.resourceName && (
+        <div className='flex gap-2'>
+          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Name</span>
+          <span className='text-[var(--text-primary)]'>{entry.resourceName}</span>
         </div>
       )}
-    </div>
+      <div className='flex gap-2'>
+        <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Actor</span>
+        <span className='text-[var(--text-primary)]'>
+          {entry.actorName || 'Unknown'}
+          {entry.actorEmail && (
+            <span className='ml-1 text-[var(--text-muted)]'>({entry.actorEmail})</span>
+          )}
+        </span>
+      </div>
+      {entry.description && (
+        <div className='flex gap-2'>
+          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Description</span>
+          <span className='text-[var(--text-primary)]'>{entry.description}</span>
+        </div>
+      )}
+      {metadataEntries.map(([key, value]) => (
+        <div key={key} className='flex gap-2'>
+          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
+            {formatMetadataLabel(key)}
+          </span>
+          <div className='min-w-0 flex-1'>{renderMetadataValue(value)}</div>
+        </div>
+      ))}
+    </>
   )
 }
 
-export function AuditLogs() {
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
-  const [timeRange, setTimeRange] = useState<TimeRange>('Past 30 days')
-  const [customStartDate, setCustomStartDate] = useState('')
-  const [customEndDate, setCustomEndDate] = useState('')
+/** Maps an audit entry to the shared {@link ActivityLog} row shape. */
+function toActivityEntry(entry: EnterpriseAuditLogEntry): ActivityLogEntry {
+  return {
+    id: entry.id,
+    timestamp: formatDateTime(new Date(entry.createdAt)),
+    event: <ActionBadge action={entry.action} />,
+    description: entry.description || entry.resourceName || entry.resourceId || '-',
+    actor: entry.actorEmail || entry.actorName || 'System',
+    details: auditLogDetails(entry),
+  }
+}
+
+interface AuditLogsProps {
+  organizationId: string
+}
+
+export function AuditLogs({ organizationId }: AuditLogsProps) {
+  const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
+  const { types: selectedTypes } = urlFilters
+  const customStartDate = urlFilters.startDate ?? ''
+  const customEndDate = urlFilters.endDate ?? ''
+  /**
+   * 'Custom range' is only honored with both bounds present — a partial deep
+   * link (`?time-range=custom` with a missing date) falls back to the default
+   * preset window instead of silently querying unbounded.
+   */
+  const timeRange: TimeRange =
+    urlFilters.timeRange === 'Custom range' && (!customStartDate || !customEndDate)
+      ? DEFAULT_AUDIT_TIME_RANGE
+      : urlFilters.timeRange
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const previousTimeRangeRef = useRef<TimeRange>('Past 30 days')
   const dateRangeAppliedRef = useRef(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
   const refreshTimersRef = useRef(new Set<number>())
-
-  useEffect(() => {
-    const trimmed = searchTerm.trim()
-    if (trimmed === debouncedSearch) return
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(trimmed)
-    }, 300)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [searchTerm, debouncedSearch])
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const timers = refreshTimersRef.current
@@ -295,8 +274,15 @@ export function AuditLogs() {
     }
   }, [debouncedSearch, selectedTypes, timeRange, customStartDate, customEndDate])
 
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, refetch } =
-    useAuditLogs(filters)
+  const {
+    data,
+    isLoading,
+    isPlaceholderData,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useAuditLogs(organizationId, filters)
 
   const allEntries = useMemo(() => {
     if (!data?.pages) return []
@@ -317,27 +303,23 @@ export function AuditLogs() {
 
   const handleTimeRangeChange = (value: string) => {
     if (value === 'Custom range') {
-      previousTimeRangeRef.current = timeRange
       setDatePickerOpen(true)
     } else {
-      setCustomStartDate('')
-      setCustomEndDate('')
-      setTimeRange(value as TimeRange)
+      void setUrlFilters({ timeRange: value as TimeRange, startDate: null, endDate: null })
     }
   }
 
   const handleDateRangeApply = (start: string, end: string) => {
     dateRangeAppliedRef.current = true
-    setCustomStartDate(start)
-    setCustomEndDate(end)
-    setTimeRange('Custom range')
+    void setUrlFilters({ timeRange: 'Custom range', startDate: start, endDate: end })
     setDatePickerOpen(false)
   }
 
+  /**
+   * Cancel is a pure close: the URL only ever holds 'Custom range' after Apply
+   * wrote both bounds atomically, so there is never a pending state to revert.
+   */
   const handleDatePickerCancel = () => {
-    if (timeRange === 'Custom range' && !customStartDate) {
-      setTimeRange(previousTimeRangeRef.current)
-    }
     setDatePickerOpen(false)
   }
 
@@ -361,8 +343,51 @@ export function AuditLogs() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
+  const handleExportCsv = async () => {
+    setIsExporting(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('organizationId', organizationId)
+      if (filters.search) params.set('search', filters.search)
+      if (filters.resourceType) params.set('resourceType', filters.resourceType)
+      if (filters.startDate) params.set('startDate', filters.startDate)
+      if (filters.endDate) params.set('endDate', filters.endDate)
+
+      // boundary-raw-fetch: downloads a CSV blob and reads a response header before saving — a plain anchor navigation can't do either
+      const response = await fetch(`/api/audit-logs/export?${params.toString()}`)
+      if (!response.ok) {
+        toast.error('Failed to export audit logs')
+        return
+      }
+      if (response.headers.get('X-Export-Truncated') === '1') {
+        toast.info('Export truncated — narrow the date range to see everything')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
-    <SettingsPanel>
+    <SettingsPanel
+      actions={[
+        {
+          text: 'Export',
+          icon: Download,
+          onSelect: () => void handleExportCsv(),
+          disabled: allEntries.length === 0 || isExporting || isPlaceholderData,
+        },
+      ]}
+    >
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
@@ -375,7 +400,7 @@ export function AuditLogs() {
           options={RESOURCE_TYPE_OPTIONS}
           multiSelect
           multiSelectValues={selectedTypes}
-          onMultiSelectChange={setSelectedTypes}
+          onMultiSelectChange={(values) => void setUrlFilters({ types: values })}
           placeholder='All types'
           displayLabel={typeDisplayLabel}
           searchable
@@ -385,12 +410,18 @@ export function AuditLogs() {
           align='start'
         />
         <div className='relative'>
-          <ChipSelect
+          {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
+              DropdownMenu, modal by default) — a modal trigger closing in the
+              same tick that opens the Calendar popover below traps it behind
+              the modal's focus lock, so "Custom range" silently did nothing. */}
+          <ChipCombobox
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
-            displayLabel={timeDisplayLabel}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+            }
             maxHeight={320}
             align='start'
           />
@@ -419,42 +450,37 @@ export function AuditLogs() {
             </PopoverContent>
           </Popover>
         </div>
-        <Button variant='ghost' onClick={handleRefresh} disabled={isVisuallyRefreshing}>
+        <Button
+          variant='ghost'
+          onClick={handleRefresh}
+          disabled={isVisuallyRefreshing}
+          aria-label='Refresh audit logs'
+        >
           <RefreshCw animate={isVisuallyRefreshing} className='size-[14px]' />
         </Button>
       </div>
 
-      <div className='flex flex-col'>
-        <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
-          <span className='w-[160px] flex-shrink-0'>Timestamp</span>
-          <span className='w-[180px] flex-shrink-0'>Event</span>
-          <span className='min-w-0 flex-1'>Description</span>
-          <span className='w-[160px] flex-shrink-0 text-right'>Actor</span>
-        </div>
-
-        {isLoading ? null : allEntries.length === 0 ? (
-          debouncedSearch ? (
+      <ActivityLog
+        entries={allEntries.map(toActivityEntry)}
+        emptyState={
+          isLoading ? undefined : debouncedSearch ? (
             <SettingsEmptyState variant='inline'>
               No results for "{debouncedSearch}"
             </SettingsEmptyState>
           ) : (
             <SettingsEmptyState>No audit logs found</SettingsEmptyState>
           )
-        ) : (
-          <div className='flex flex-col gap-0.5'>
-            {allEntries.map((entry) => (
-              <AuditLogRow key={entry.id} entry={entry} />
-            ))}
-            {hasNextPage && (
-              <div className='flex justify-center py-4'>
-                <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
-                  {isFetchingNextPage ? 'Loading...' : 'Load more'}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        }
+        footer={
+          hasNextPage ? (
+            <div className='flex justify-center py-4'>
+              <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
+                {isFetchingNextPage ? 'Loading...' : 'Load more'}
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
     </SettingsPanel>
   )
 }

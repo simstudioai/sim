@@ -1,6 +1,6 @@
 ---
 description: Analyze and fix useCallback anti-patterns in your code
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # You Might Not Need a Callback
@@ -25,6 +25,7 @@ Observers that care about reference stability:
 - A `useMemo` that lists the function in its deps array
 - Another `useCallback` that lists the function in its deps array
 - A child component wrapped in `React.memo` that receives the function as a prop
+- A custom hook that documents a referential-stability requirement for the callback
 
 If none of those apply — if the function is only called inline, or passed to a non-memoized child, or assigned to a native element event — the reference is unobserved and `useCallback` adds overhead with zero benefit.
 
@@ -36,6 +37,7 @@ If none of those apply — if the function is only called inline, or passed to a
 4. **useCallback wrapping functions that return new objects/arrays**: Stable function identity, unstable return value — memoization is at the wrong level. Use `useMemo` on the return value instead, or restructure.
 5. **useCallback with empty deps when deps are needed**: Stale closure — reads initial values forever. This is a correctness bug, not just a performance issue.
 6. **Pairing useCallback + React.memo on trivially cheap renders**: If the child renders in < 1ms and re-renders rarely, the memo infrastructure costs more than it saves.
+7. **useCallback in custom hooks that don't need stable references**: Not every hook return needs to be memoized. Only stabilize callbacks when consumers depend on referential equality.
 
 ## Patterns that ARE correct — do not flag
 
@@ -43,7 +45,15 @@ If none of those apply — if the function is only called inline, or passed to a
 - `useCallback` whose result is in a `useMemo` dep array — prevents the memo from recomputing on every render
 - `useCallback` whose result is a dep of another `useCallback` — stabilises a callback chain
 - `useCallback` passed to a `React.memo`-wrapped child — the whole point of the pattern
-- This codebase's ref pattern: `useRef` + callback with empty deps that reads the ref inside — correct, do not flag
+- This codebase's ref pattern: `useRef` + callback with empty deps that reads the ref inside — correct, do not flag:
+
+```tsx
+const idRef = useRef(id)
+useEffect(() => { idRef.current = id }, [id])
+const fetchData = useCallback(async () => {
+  // use idRef.current instead of id
+}, []) // empty deps because refs are used
+```
 
 ## Steps
 

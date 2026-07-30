@@ -30,7 +30,7 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId}`,
+    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

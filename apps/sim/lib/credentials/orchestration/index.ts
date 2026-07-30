@@ -1,17 +1,23 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
+import { credential, environment, webhook, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import {
   deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import {
+  ServiceAccountSecretError,
+  verifyAndBuildServiceAccountSecret,
+} from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
@@ -37,14 +43,27 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   displayName?: string
   description?: string | null
   serviceAccountJson?: string
+  /** Slack custom-bot secret rotation (reconnect). */
+  signingSecret?: string
+  botToken?: string
+  /** Atlassian service-account secret rotation (reconnect). */
+  apiToken?: string
+  domain?: string
+  /** Client-credential service-account secret rotation (reconnect). */
+  clientId?: string
+  clientSecret?: string
+  orgId?: string
 }
 
 export interface PerformCredentialResult {
   success: boolean
   error?: string
   errorCode?: CredentialOrchestrationErrorCode
+  /** Provider-specific code (e.g. Atlassian `invalid_credentials`) for client message mapping. */
+  providerErrorCode?: string
   workspaceId?: string
   updatedFields?: string[]
+  previousDisplayName?: string
 }
 
 export async function performUpdateCredential(
@@ -103,6 +122,61 @@ export async function performUpdateCredential(
       updates.encryptedServiceAccountKey = encrypted
     }
 
+    // Reconnect: rotate a service-account secret (Slack, Atlassian, or any
+    // token-paste provider) in place. The
+    // secret is re-verified against the provider and re-encrypted; the display
+    // name is preserved (the user may have renamed it).
+    const hasRotationSecret =
+      params.signingSecret !== undefined ||
+      params.botToken !== undefined ||
+      params.apiToken !== undefined ||
+      params.domain !== undefined ||
+      params.clientId !== undefined ||
+      params.clientSecret !== undefined ||
+      params.orgId !== undefined
+    let rotatedSlackBotUserId: string | undefined
+    if (hasRotationSecret && access.credential.type === 'service_account') {
+      try {
+        const secret = await verifyAndBuildServiceAccountSecret(
+          access.credential.providerId ?? '',
+          {
+            signingSecret: params.signingSecret,
+            botToken: params.botToken,
+            apiToken: params.apiToken,
+            domain: params.domain,
+            clientId: params.clientId,
+            clientSecret: params.clientSecret,
+            orgId: params.orgId,
+          }
+        )
+        updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
+        rotatedSlackBotUserId = secret.botUserId
+      } catch (error) {
+        if (error instanceof ServiceAccountSecretError) {
+          return { success: false, error: error.message, errorCode: 'validation' }
+        }
+        if (error instanceof AtlassianValidationError) {
+          // Surface the provider code so the client maps it to the specific
+          // token/domain message (create returns it too).
+          return {
+            success: false,
+            error: error.code,
+            errorCode: 'validation',
+            providerErrorCode: error.code,
+          }
+        }
+        if (error instanceof TokenServiceAccountValidationError) {
+          return {
+            success: false,
+            error: error.code,
+            errorCode: 'validation',
+            providerErrorCode: error.code,
+          }
+        }
+        throw error
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
         return { success: false, error: 'No updatable fields provided.', errorCode: 'validation' }
@@ -117,6 +191,20 @@ export async function performUpdateCredential(
 
     updates.updatedAt = new Date()
     await db.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+
+    // Reconnecting to a recreated Slack app changes the bot user id, but each
+    // deployed webhook cached the old one at deploy for reaction self-drop.
+    // Propagate the rotated id to the credential's live custom-bot webhooks so
+    // the bot's own reactions keep being dropped (a stale id lets them re-enter).
+    if (rotatedSlackBotUserId) {
+      await db
+        .update(webhook)
+        .set({
+          providerConfig: sql`jsonb_set((${webhook.providerConfig})::jsonb, '{bot_user_id}', to_jsonb(${rotatedSlackBotUserId}::text))::json`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(webhook.provider, 'slack'), eq(webhook.routingKey, params.credentialId)))
+    }
 
     const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')
     recordAudit({
@@ -136,7 +224,12 @@ export async function performUpdateCredential(
       request: params.request,
     })
 
-    return { success: true, workspaceId: access.credential.workspaceId, updatedFields }
+    return {
+      success: true,
+      workspaceId: access.credential.workspaceId,
+      updatedFields,
+      previousDisplayName: access.credential.displayName,
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes('unique')) {
       return {

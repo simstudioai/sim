@@ -1,59 +1,69 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  authMockFns,
+  createMockRequest,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvMock,
+  schemaMock,
+  setEnv,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockRecordUsage,
   mockCheckActorUsageLimits,
-  mockGetWorkspaceBilledAccountUserId,
   mockVerifyWorkspaceMembership,
-  mockChatRows,
+  mockResolveBillingAttribution,
+  mockResolveSystemBillingAttribution,
+  mockCheckAttributedUsageLimits,
+  mockToBillingContext,
+  mockCheckAndBillPayerOverageThreshold,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockRecordUsage: vi.fn(),
   mockCheckActorUsageLimits: vi.fn(),
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
   mockVerifyWorkspaceMembership: vi.fn(),
-  mockChatRows: { value: [] as Array<Record<string, unknown>> },
+  mockResolveBillingAttribution: vi.fn(),
+  mockResolveSystemBillingAttribution: vi.fn(),
+  mockCheckAttributedUsageLimits: vi.fn(),
+  mockToBillingContext: vi.fn(),
+  mockCheckAndBillPayerOverageThreshold: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => {
-      const chain: Record<string, unknown> = {}
-      chain.from = () => chain
-      chain.leftJoin = () => chain
-      chain.where = () => chain
-      chain.limit = () => Promise.resolve(mockChatRows.value)
-      return chain
-    },
+const SYSTEM_BILLING_ATTRIBUTION = {
+  actorUserId: 'owner-after-transfer',
+  workspaceId: 'ws-1',
+  organizationId: 'org-after-transfer',
+  billedAccountUserId: 'owner-after-transfer',
+  billingEntity: { type: 'organization' as const, id: 'org-after-transfer' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
   },
-}))
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+  payerSubscription: null,
+}
 
 vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mockRecordUsage }))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: mockResolveBillingAttribution,
+  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
+  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
+  toBillingContext: mockToBillingContext,
+}))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: mockCheckActorUsageLimits,
 }))
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
+vi.mock('@/lib/billing/threshold-billing', () => ({
+  checkAndBillPayerOverageThreshold: mockCheckAndBillPayerOverageThreshold,
 }))
 
 vi.mock('@/app/api/workflows/utils', () => ({
   verifyWorkspaceMembership: mockVerifyWorkspaceMembership,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({ env: { ELEVENLABS_API_KEY: 'test-key' } }))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isBillingEnabled: false,
-  getCostMultiplier: () => 1,
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
@@ -66,6 +76,8 @@ vi.mock('@/lib/core/security/deployment', () => ({ validateAuthToken: vi.fn(() =
 
 import { POST } from '@/app/api/speech/token/route'
 
+const mockGetSession = authMockFns.mockGetSession
+
 const publicChatRow = {
   id: 'chat-1',
   userId: 'owner-1',
@@ -77,17 +89,40 @@ const publicChatRow = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockChatRows.value = []
+  resetDbChainMock()
+  setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   mockGetSession.mockResolvedValue({ user: { id: 'member-1' } })
   mockRecordUsage.mockResolvedValue(undefined)
   mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
-  mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-acct')
+  mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+  mockResolveBillingAttribution.mockImplementation(
+    ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({
+      actorUserId,
+      workspaceId,
+      billingEntity: { type: 'organization', id: 'org-1' },
+    })
+  )
+  mockResolveSystemBillingAttribution.mockResolvedValue(SYSTEM_BILLING_ATTRIBUTION)
+  mockToBillingContext.mockImplementation(
+    (attribution: { billingEntity: { type: 'organization' | 'user'; id: string } }) => ({
+      billingEntity: attribution.billingEntity,
+      billingPeriod: {
+        start: new Date('2026-07-01T00:00:00.000Z'),
+        end: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    })
+  )
   mockVerifyWorkspaceMembership.mockResolvedValue('admin')
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
     json: async () => ({ token: 'tok-123' }),
     // double-cast-allowed: minimal fetch stub for the ElevenLabs token call
   }) as unknown as typeof fetch
+})
+
+afterAll(() => {
+  resetDbChainMock()
+  resetEnvMock()
 })
 
 describe('POST /api/speech/token — usage attribution', () => {
@@ -101,6 +136,15 @@ describe('POST /api/speech/token — usage attribution', () => {
       userId: 'member-1',
       workspaceId: 'ws-1',
     })
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'member-1',
+      workspaceId: 'ws-1',
+    })
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith({
+      type: 'organization',
+      id: 'org-1',
+    })
   })
 
   it('editor voice: rejects an unverified workspace id (requires an attributable workspace)', async () => {
@@ -112,30 +156,48 @@ describe('POST /api/speech/token — usage attribution', () => {
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
-  it('deployed chat: bills the workspace billed account and stamps the chat workspace', async () => {
-    mockChatRows.value = [publicChatRow]
+  it('deployed chat: uses one atomic system actor and payer snapshot', async () => {
+    queueTableRows(schemaMock.chat, [publicChatRow])
 
     const res = await POST(createMockRequest('POST', { chatId: 'chat-1' }))
 
     expect(res.status).toBe(200)
     expect(mockGetSession).not.toHaveBeenCalled()
-    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledWith('ws-1')
+    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('ws-1')
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(SYSTEM_BILLING_ATTRIBUTION)
+    expect(mockToBillingContext).toHaveBeenCalledWith(SYSTEM_BILLING_ATTRIBUTION)
     expect(mockRecordUsage.mock.calls[0][0]).toMatchObject({
-      userId: 'billed-acct',
+      userId: 'owner-after-transfer',
       workspaceId: 'ws-1',
+      billingEntity: { type: 'organization', id: 'org-after-transfer' },
+    })
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith({
+      type: 'organization',
+      id: 'org-after-transfer',
     })
   })
 
-  it('deployed chat: falls back to the chat owner when no billed account resolves', async () => {
-    mockChatRows.value = [publicChatRow]
-    mockGetWorkspaceBilledAccountUserId.mockResolvedValue(null)
+  it('deployed chat: uses the chat owner only when no workspace exists', async () => {
+    queueTableRows(schemaMock.chat, [{ ...publicChatRow, workspaceId: null }])
 
     const res = await POST(createMockRequest('POST', { chatId: 'chat-1' }))
 
     expect(res.status).toBe(200)
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockRecordUsage.mock.calls[0][0]).toMatchObject({
       userId: 'owner-1',
-      workspaceId: 'ws-1',
     })
+    expect(mockRecordUsage.mock.calls[0][0].workspaceId).toBeUndefined()
+  })
+
+  it('rejects an oversized body before any auth/billing work runs', async () => {
+    const oversizedBody = { chatId: 'x'.repeat(64 * 1024) }
+    const res = await POST(createMockRequest('POST', oversizedBody))
+
+    expect(res.status).toBe(413)
+    expect(mockGetSession).not.toHaveBeenCalled()
+    expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 })

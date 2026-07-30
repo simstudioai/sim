@@ -1765,6 +1765,174 @@
       "when": 1782685998491,
       "tag": "0252_remove_a2a",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1782860073503,
+      "tag": "0253_canonical_trigger_provider_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1782957781005,
+      "tag": "0254_custom_block",
+      "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1783382202081,
+      "tag": "0255_remove_credential_sets",
+      "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1783392614134,
+      "tag": "0256_custom_block_inputs",
+      "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1783531236677,
+      "tag": "0257_majestic_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1783620533559,
+      "tag": "0258_gigantic_lady_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 259,
+      "version": "7",
+      "when": 1783722352108,
+      "tag": "0259_slack_native_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 260,
+      "version": "7",
+      "when": 1783810442774,
+      "tag": "0260_unknown_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 261,
+      "version": "7",
+      "when": 1784043925919,
+      "tag": "0261_tranquil_donald_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 262,
+      "version": "7",
+      "when": 1784224314431,
+      "tag": "0262_strong_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 263,
+      "version": "7",
+      "when": 1784252317428,
+      "tag": "0263_workflow_fork_sync_excluded",
+      "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1784680777879,
+      "tag": "0264_fat_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1784756534601,
+      "tag": "0265_org_session_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1784838122475,
+      "tag": "0266_spotty_alex_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1784861110986,
+      "tag": "0267_dark_romulus",
+      "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1784861741441,
+      "tag": "0268_sso_domain_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1784911198876,
+      "tag": "0269_late_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1784960447583,
+      "tag": "0270_table_mutation_locks",
+      "breakpoints": true
+    },
+    {
+      "idx": 271,
+      "version": "7",
+      "when": 1785267088106,
+      "tag": "0271_usage_log_billing_period_cost_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1785267616623,
+      "tag": "0272_generic_folders_and_pinning",
+      "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1785281897201,
+      "tag": "0273_copilot_tool_permission_decision",
+      "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1785281897202,
+      "tag": "0274_file_folder_cutover_reconcile",
+      "breakpoints": true
+    },
+    {
+      "idx": 275,
+      "version": "7",
+      "when": 1785344855092,
+      "tag": "0275_table_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 276,
+      "version": "7",
+      "when": 1785352177983,
+      "tag": "0276_drop_legacy_folder_tables",
+      "breakpoints": true
     }
   ]
 }

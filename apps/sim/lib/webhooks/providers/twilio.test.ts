@@ -135,6 +135,13 @@ describe('twilioHandler', () => {
       expect(twilioHandler.extractIdempotencyId!({})).toBeNull()
     })
 
+    it('returns null instead of throwing when body is not a record', () => {
+      expect(twilioHandler.extractIdempotencyId!(null)).toBeNull()
+      expect(twilioHandler.extractIdempotencyId!(undefined)).toBeNull()
+      expect(twilioHandler.extractIdempotencyId!('not-an-object')).toBeNull()
+      expect(twilioHandler.extractIdempotencyId!([1, 2, 3])).toBeNull()
+    })
+
     it('keys status callbacks by SID + status so each delivery state is distinct', () => {
       const sent = twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', MessageStatus: 'sent' })
       const delivered = twilioHandler.extractIdempotencyId!({
@@ -180,6 +187,11 @@ describe('twilioHandler', () => {
       const ambiguous = { MessageSid: 'SM1', From: '+1' }
       expect(match('twilio_sms_received', ambiguous)).toBe(false)
       expect(match('twilio_sms_status', ambiguous)).toBe(false)
+    })
+
+    it('matches neither trigger instead of throwing when body is not a record', () => {
+      expect(match('twilio_sms_received', null as never)).toBe(false)
+      expect(match('twilio_sms_status', null as never)).toBe(false)
     })
   })
 
@@ -251,6 +263,14 @@ describe('twilioHandler', () => {
       expect(i.messageStatus).toBe('failed')
       expect(i.errorCode).toBe('30008')
       expect(i.media).toEqual([])
+    })
+
+    it('degrades to empty output instead of throwing when body is not a record', async () => {
+      const { input } = await twilioHandler.formatInput!(ctx(null as never))
+      const i = input as Record<string, unknown>
+      expect(i.messageSid).toBeUndefined()
+      expect(i.media).toEqual([])
+      expect(i.raw).toBe('{}')
     })
   })
 })

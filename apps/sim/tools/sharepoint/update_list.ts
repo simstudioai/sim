@@ -1,12 +1,9 @@
-import { createLogger } from '@sim/logger'
 import type {
   SharepointToolParams,
   SharepointUpdateListItemResponse,
 } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { optionalTrim, sanitizeListItemFields } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('SharePointUpdateListItem')
 
 export const updateListItemTool: ToolConfig<
   SharepointToolParams,
@@ -72,7 +69,7 @@ export const updateListItemTool: ToolConfig<
         throw new Error('listId must be provided')
       }
       const listSegment = encodeURIComponent(listId)
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${encodeURIComponent(itemId)}/fields`
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${encodeURIComponent(itemId)}/fields`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -85,53 +82,7 @@ export const updateListItemTool: ToolConfig<
         throw new Error('listItemFields must not be empty')
       }
 
-      // Filter out system/read-only fields that cannot be updated via Graph
-      const readOnlyFields = new Set<string>([
-        'Id',
-        'id',
-        'UniqueId',
-        'GUID',
-        'ContentTypeId',
-        'Created',
-        'Modified',
-        'Author',
-        'Editor',
-        'CreatedBy',
-        'ModifiedBy',
-        'AuthorId',
-        'EditorId',
-        '_UIVersionString',
-        'Attachments',
-        'FileRef',
-        'FileDirRef',
-        'FileLeafRef',
-      ])
-
-      const entries = Object.entries(params.listItemFields)
-      const updatableEntries = entries.filter(([key]) => !readOnlyFields.has(key))
-
-      if (updatableEntries.length !== entries.length) {
-        const removed = entries.filter(([key]) => readOnlyFields.has(key)).map(([key]) => key)
-        logger.warn('Removed read-only SharePoint fields from update', {
-          removed,
-        })
-      }
-
-      if (updatableEntries.length === 0) {
-        const requestedKeys = Object.keys(params.listItemFields)
-        throw new Error(
-          `All provided fields are read-only and cannot be updated: ${requestedKeys.join(', ')}`
-        )
-      }
-
-      const sanitizedFields = Object.fromEntries(updatableEntries)
-
-      logger.info('Updating SharePoint list item fields', {
-        listItemId: params.itemId,
-        listId: params.listId,
-        fieldsKeys: Object.keys(sanitizedFields),
-      })
-      return sanitizedFields
+      return sanitizeListItemFields(params.listItemFields, { action: 'update' })
     },
   },
 

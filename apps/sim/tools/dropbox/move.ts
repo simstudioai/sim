@@ -46,8 +46,8 @@ export const dropboxMoveTool: ToolConfig<DropboxMoveParams, DropboxMoveResponse>
       }
     },
     body: (params) => ({
-      from_path: params.fromPath,
-      to_path: params.toPath,
+      from_path: params.fromPath.trim(),
+      to_path: params.toPath.trim(),
       autorename: params.autorename ?? false,
     }),
   },
@@ -77,10 +77,10 @@ export const dropboxMoveTool: ToolConfig<DropboxMoveParams, DropboxMoveResponse>
       description: 'Metadata of the moved item',
       properties: {
         '.tag': { type: 'string', description: 'Type: file or folder' },
-        id: { type: 'string', description: 'Unique identifier' },
+        id: { type: 'string', description: 'Unique identifier', optional: true },
         name: { type: 'string', description: 'Name of the moved item' },
-        path_display: { type: 'string', description: 'Display path' },
-        size: { type: 'number', description: 'Size in bytes (files only)' },
+        path_display: { type: 'string', description: 'Display path', optional: true },
+        size: { type: 'number', description: 'Size in bytes (files only)', optional: true },
       },
     },
   },

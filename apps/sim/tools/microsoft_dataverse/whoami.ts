@@ -3,6 +3,7 @@ import type {
   DataverseWhoAmIParams,
   DataverseWhoAmIResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseWhoAmI')
@@ -34,7 +35,7 @@ export const dataverseWhoAmITool: ToolConfig<DataverseWhoAmIParams, DataverseWho
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       return `${baseUrl}/api/data/v9.2/WhoAmI()`
     },
     method: 'GET',

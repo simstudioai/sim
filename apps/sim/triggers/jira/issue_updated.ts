@@ -1,5 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import { buildIssueUpdatedOutputs, jiraSetupInstructions } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers'
+import {
+  buildIssueUpdatedOutputs,
+  buildJiraExtraFields,
+  jiraSetupInstructions,
+  jiraTriggerOptions,
+} from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -14,75 +20,15 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: JiraIcon,
 
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_updated',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-      password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_updated',
-      },
-    },
-    {
-      id: 'jqlFilter',
-      title: 'JQL Filter',
-      type: 'long-input',
-      placeholder: 'project = PROJ AND status changed to "In Progress"',
-      description: 'Filter which issue updates trigger this workflow using JQL',
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_updated',
-      },
-    },
-    {
-      id: 'fieldFilters',
-      title: 'Field Filters',
-      type: 'long-input',
-      placeholder: 'status, assignee, priority',
-      description:
-        'Comma-separated list of fields to monitor. Only trigger when these fields change.',
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_updated',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('jira:issue_updated'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_updated',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'jira_issue_updated',
+    triggerOptions: jiraTriggerOptions,
+    setupInstructions: jiraSetupInstructions('jira:issue_updated'),
+    extraFields: buildJiraExtraFields(
+      'jira_issue_updated',
+      'Filter which issue updates trigger this workflow using JQL'
+    ),
+  }),
 
   outputs: buildIssueUpdatedOutputs(),
 

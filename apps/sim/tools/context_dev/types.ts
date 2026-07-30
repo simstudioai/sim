@@ -133,6 +133,8 @@ export interface ContextDevSearchParams {
   includeDomains?: string[]
   excludeDomains?: string[]
   freshness?: string
+  numResults?: number
+  country?: string
   queryFanout?: boolean
   markdownEnabled?: boolean
   timeoutMS?: number
@@ -324,41 +326,6 @@ export interface ContextDevIdentifyTransactionParams {
   timeoutMS?: number
 }
 
-export interface ContextDevGetBrandSimplifiedParams {
-  apiKey: string
-  domain: string
-  maxAgeMs?: number
-  timeoutMS?: number
-}
-
-export interface ContextDevGetBrandSimplifiedResponse extends ToolResponse {
-  output: CreditFields & {
-    status: string
-    brand: Record<string, unknown> | null
-  }
-}
-
-export interface ContextDevPrefetchByEmailParams {
-  apiKey: string
-  email: string
-  timeoutMS?: number
-}
-
-export interface ContextDevPrefetchDomainParams {
-  apiKey: string
-  domain: string
-  timeoutMS?: number
-}
-
-/** Shared response shape for the prefetch utility endpoints. */
-export interface ContextDevPrefetchResponse extends ToolResponse {
-  output: CreditFields & {
-    status: string
-    message: string
-    domain: string
-  }
-}
-
 /** Output schema for a single web search result. */
 export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Result page URL' },
@@ -400,7 +367,10 @@ export const BRAND_OUTPUT_PROPERTIES = {
   email: { type: 'string', description: 'Brand contact email' },
   phone: { type: 'string', description: 'Brand contact phone' },
   industries: { type: 'json', description: 'Industry taxonomy (eic industry/subindustry pairs)' },
-  links: { type: 'json', description: 'Key brand links (careers, privacy, terms, blog, pricing)' },
+  links: {
+    type: 'json',
+    description: 'Key brand links (careers, privacy, terms, blog, pricing, contact)',
+  },
   primary_language: { type: 'string', description: 'Primary language of the brand site' },
 } as const
 

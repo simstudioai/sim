@@ -396,6 +396,29 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const [mounted, setMounted] = useState(false)
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
+  /**
+   * Clear the previous route's toasts when the route changes. Toasts flagged
+   * `persistAcrossRoutes` — global, ongoing-state notifications like the
+   * connection status — survive; page-scoped ones do not.
+   *
+   * Done during render rather than in an effect. Effects run child-first, so an
+   * effect here would also sweep toasts the newly rendered route just raised: a
+   * toast added from a child's mount effect — which is what happens whenever
+   * that child's data is already cached — would be appended and filtered out in
+   * the same commit, before it ever painted. Adjusting state during render runs
+   * before children render, so only toasts predating the navigation are cleared.
+   *
+   * Stays a pure state update: orphaned timers and measured heights are already
+   * reconciled by the effects below, which key off `toasts`.
+   */
+  const [sweptPathname, setSweptPathname] = useState(pathname)
+  if (pathname !== sweptPathname) {
+    setSweptPathname(pathname)
+    setToasts((prev) =>
+      prev.some((t) => !t.persistAcrossRoutes) ? prev.filter((t) => t.persistAcrossRoutes) : prev
+    )
+  }
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -459,27 +482,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     setHeights({})
   }, [])
 
-  /**
-   * Clear only route-scoped toasts. Toasts flagged `persistAcrossRoutes` —
-   * global, ongoing-state notifications like the connection status — survive,
-   * everything else (page-scoped notifications) is cleared on navigation.
-   */
-  const dismissRouteScopedToasts = useCallback(() => {
-    setToasts((prev) => {
-      const kept = prev.filter((t) => t.persistAcrossRoutes)
-      if (kept.length === prev.length) return prev
-      for (const t of prev) {
-        if (t.persistAcrossRoutes) continue
-        const timer = timersRef.current.get(t.id)
-        if (timer) {
-          clearTimeout(timer)
-          timersRef.current.delete(t.id)
-        }
-      }
-      return kept
-    })
-  }, [])
-
   const measureToast = useCallback((id: string, height: number) => {
     setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
   }, [])
@@ -536,11 +538,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     }
   }, [])
 
-  /** On navigation, clear route-scoped toasts so they don't trail the user; `persistAcrossRoutes` toasts survive. */
-  useEffect(() => {
-    dismissRouteScopedToasts()
-  }, [pathname, dismissRouteScopedToasts])
-
   /** Held in a ref (seeded once from the stable `addToast`) so the module-level `toast` binds to the live provider. */
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
 
@@ -593,6 +590,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   key='toast-stack'
                   aria-live='polite'
                   aria-label='Notifications'
+                  data-native-surface-overlay=''
                   className='fixed z-[var(--z-toast)] m-0 list-none p-0'
                   exit={{
                     opacity: 0,

@@ -169,7 +169,10 @@ export async function performCreateMcpServer(
         currentEncryptedClientSecret: existingServer.oauthClientSecret,
       })
       const isRevival = existingServer.deletedAt !== null
-      const shouldClearOauth = urlChanged || credsChanged || isRevival
+      const authTypeChanged = existingServer.authType !== resolvedAuthType
+      // Turning OAuth off orphans its tokens; revoke and delete them, mirroring the update path.
+      const oauthDisabled = existingServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
+      const shouldClearOauth = urlChanged || credsChanged || isRevival || oauthDisabled
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId)
 
@@ -190,12 +193,16 @@ export async function performCreateMcpServer(
           updatedAt: new Date(),
           deletedAt: null,
         }
-        if (resolvedAuthType === 'oauth') {
-          if (shouldClearOauth) {
-            updateValues.connectionStatus = 'disconnected'
-            updateValues.lastConnected = null
-          }
-        } else {
+        if (authTypeChanged || (shouldClearOauth && resolvedAuthType === 'oauth')) {
+          // An auth-type flip, or an OAuth URL/creds change, invalidates any prior connection:
+          // reset to disconnected and clear the stale error so the UI never shows
+          // connected-with-error until re-discovery. Mirrors performUpdateMcpServer.
+          updateValues.connectionStatus = 'disconnected'
+          updateValues.lastConnected = null
+          updateValues.lastError = null
+        } else if (resolvedAuthType !== 'oauth') {
+          // A non-OAuth (re-)registration with unchanged auth optimistically marks the server
+          // reachable; discovery corrects it if the endpoint is unhealthy.
           updateValues.connectionStatus = 'connected'
           updateValues.lastConnected = new Date()
         }
@@ -207,6 +214,7 @@ export async function performCreateMcpServer(
       })
 
       await mcpService.clearCache(params.workspaceId)
+      await mcpService.evictServerConnections(serverId, 'config changed')
       return { success: true, serverId, updated: true, authType: resolvedAuthType }
     }
 
@@ -349,11 +357,16 @@ export async function performUpdateMcpServer(
       currentClientId: currentServer.oauthClientId,
       currentEncryptedClientSecret: currentServer.oauthClientSecret,
     })
-    const shouldClearOauth = urlChanged || credsChanged
     const resolvedAuthType = (updateData.authType ?? currentServer.authType) as McpAuthType
-    if (shouldClearOauth && resolvedAuthType === 'oauth') {
+    const authTypeChanged = resolvedAuthType !== currentServer.authType
+    // Turning OAuth off must revoke and delete its now-orphaned tokens, not just reset the connection.
+    const oauthDisabled = currentServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
+    const shouldClearOauth = urlChanged || credsChanged || oauthDisabled
+    // An auth-type flip (either direction) or OAuth creds/URL change invalidates the connection: reset and clear stale state.
+    if (authTypeChanged || (shouldClearOauth && resolvedAuthType === 'oauth')) {
       updateData.connectionStatus = 'disconnected'
       updateData.lastConnected = null
+      updateData.lastError = null
     }
 
     if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId)
@@ -384,12 +397,17 @@ export async function performUpdateMcpServer(
     const shouldClearCache =
       urlChanged ||
       credsChanged ||
+      params.transport !== undefined ||
+      authTypeChanged ||
       params.enabled !== undefined ||
       params.headers !== undefined ||
       params.timeout !== undefined ||
       params.retries !== undefined
 
-    if (shouldClearCache) await mcpService.clearCache(params.workspaceId)
+    if (shouldClearCache) {
+      await mcpService.clearCache(params.workspaceId)
+      await mcpService.evictServerConnections(params.serverId, 'config changed')
+    }
 
     recordAudit({
       workspaceId: params.workspaceId,
@@ -432,6 +450,7 @@ export async function performDeleteMcpServer(
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
     await mcpService.clearCache(params.workspaceId)
+    await mcpService.evictServerConnections(params.serverId, 'server deleted')
     const source =
       params.source === 'settings' || params.source === 'tool_input' ? params.source : undefined
 

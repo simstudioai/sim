@@ -1,5 +1,6 @@
 import type { LinearUpdateIssueParams, LinearUpdateIssueResponse } from '@/tools/linear/types'
 import { ISSUE_EXTENDED_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUpdateIssueResponse> =
@@ -110,7 +111,7 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
         }
         return {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${params.accessToken}`,
+          Authorization: linearAuthorizationHeader(params.accessToken),
         }
       },
       body: (params) => {

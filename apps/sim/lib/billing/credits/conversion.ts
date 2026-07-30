@@ -22,6 +22,18 @@ export function creditsToDollars(credits: number): number {
 }
 
 /**
+ * Pluralizes an already credit-denominated integer, e.g. `1234` -> `"1,234
+ * credits"`, `1` -> `"1 credit"`. Low-level building block for
+ * {@link formatCreditCost} — also useful directly for consumers that already
+ * hold precise integer credits (e.g. a server-converted `creditCost` value),
+ * which would otherwise double-convert by round-tripping back through
+ * dollars.
+ */
+export function formatCreditsLabel(credits: number): string {
+  return `${credits.toLocaleString()} ${credits === 1 ? 'credit' : 'credits'}`
+}
+
+/**
  * Single source of truth for rendering a dollar cost as a credit label.
  *
  * Both the billing cost breakdown and the trace view derive their credit
@@ -50,7 +62,21 @@ export function formatCreditCost(
     return opts?.emptyForZeroOrLess ? undefined : '0 credits'
   }
 
-  return `${credits.toLocaleString()} ${credits === 1 ? 'credit' : 'credits'}`
+  return formatCreditsLabel(credits)
+}
+
+/**
+ * Renders an already-apportioned integer `creditCost` (see {@link apportionCredits})
+ * alongside its raw `dollarCost`, so a row can legitimately apportion to 0
+ * credits — once a sibling absorbs the shared rounding remainder — without
+ * reading as a flat, misleading "0 credits" for an event that had a real,
+ * positive charge. Mirrors {@link formatCreditCost}'s zero/sub-credit
+ * wording, but never recomputes credits from `dollarCost` (that would
+ * double-convert a value the caller already apportioned).
+ */
+export function formatApportionedCreditCost(creditCost: number, dollarCost: number): string {
+  if (creditCost > 0) return formatCreditsLabel(creditCost)
+  return dollarCost > 0 ? '<1 credit' : '0 credits'
 }
 
 /**

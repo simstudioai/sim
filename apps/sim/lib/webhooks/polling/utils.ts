@@ -1,19 +1,14 @@
 import { db } from '@sim/db'
-import {
-  account,
-  credentialSet,
-  webhook,
-  workflow,
-  workflowDeploymentVersion,
-} from '@sim/db/schema'
+import { account, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
-import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
+  resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
@@ -87,8 +82,7 @@ export async function fetchActiveWebhooks(
     .where(
       and(
         eq(webhook.provider, provider),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt),
+        deliverableWebhookPredicate(webhook),
         eq(workflow.isDeployed, true),
         isNull(workflow.archivedAt),
         or(
@@ -170,7 +164,13 @@ export async function updateWebhookProviderConfig(
     }
 
     const merged = sql`COALESCE(${webhook.providerConfig}::jsonb, '{}'::jsonb) || ${JSON.stringify(defined)}::jsonb`
-    const nextConfig = removedKeys.length > 0 ? sql`(${merged}) - ${removedKeys}::text[]` : merged
+    const nextConfig =
+      removedKeys.length > 0
+        ? sql`(${merged}) - ARRAY[${sql.join(
+            removedKeys.map((key) => sql`${key}`),
+            sql`, `
+          )}]::text[]`
+        : merged
 
     await db
       .update(webhook)
@@ -191,39 +191,14 @@ export async function updateWebhookProviderConfig(
 export async function resolveOAuthCredential(
   webhookData: WebhookRecord,
   oauthProvider: string,
-  requestId: string,
-  logger: Logger
+  requestId: string
 ): Promise<string> {
   const metadata = webhookData.providerConfig as Record<string, unknown> | null
   const credentialId = metadata?.credentialId as string | undefined
   const userId = metadata?.userId as string | undefined
-  const credentialSetId = (webhookData.credentialSetId as string | undefined) ?? undefined
 
   if (!credentialId && !userId) {
     throw new Error(`Missing credential info for webhook ${webhookData.id}`)
-  }
-
-  if (credentialSetId) {
-    const [cs] = await db
-      .select({ organizationId: credentialSet.organizationId })
-      .from(credentialSet)
-      .where(eq(credentialSet.id, credentialSetId))
-      .limit(1)
-
-    if (cs?.organizationId) {
-      const hasAccess = await isOrganizationOnTeamOrEnterprisePlan(cs.organizationId)
-      if (!hasAccess) {
-        logger.error(
-          `[${requestId}] Polling Group plan restriction: Your current plan does not support Polling Groups. Upgrade to Team or Enterprise to use this feature.`,
-          {
-            webhookId: webhookData.id,
-            credentialSetId,
-            organizationId: cs.organizationId,
-          }
-        )
-        throw new Error('Polling Group plan restriction')
-      }
-    }
   }
 
   let accessToken: string | null = null
@@ -234,6 +209,13 @@ export async function resolveOAuthCredential(
       throw new Error(
         `Failed to resolve OAuth account for credential ${credentialId}, webhook ${webhookData.id}`
       )
+    }
+    if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+      const { accessToken: serviceAccountToken } = await resolveServiceAccountToken(
+        resolved.credentialId,
+        resolved.providerId
+      )
+      return serviceAccountToken
     }
     const rows = await db.select().from(account).where(eq(account.id, resolved.accountId)).limit(1)
     if (!rows.length) {

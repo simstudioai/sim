@@ -13,7 +13,6 @@ import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
 import {
   applyDescriptionOverrides,
   generateToolInputSchema,
-  getMeaningfulWorkflowDescription,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
 import {
@@ -23,6 +22,10 @@ import {
   performFullUndeploy,
 } from '@/lib/workflows/orchestration'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import {
+  ChatDeployAuthNotAllowedError,
+  validateChatDeployAuth,
+} from '@/ee/access-control/utils/permission-check'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 
@@ -185,7 +188,6 @@ export async function executeDeployApi(
     const result = await performFullDeploy({
       workflowId,
       userId: context.userId,
-      workflowName: workflowRecord.name || undefined,
       versionDescription,
       versionName,
     })
@@ -197,19 +199,24 @@ export async function executeDeployApi(
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
+    const isDeployed = Boolean(result.activeDeployment)
     return {
       success: true,
       output: {
         workflowId,
-        isDeployed: true,
+        isDeployed,
         deployedAt: result.deployedAt,
         version: result.version,
+        lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
+        readiness: result.latestDeploymentAttempt?.readiness ?? null,
+        error: result.latestDeploymentAttempt?.error ?? null,
+        warnings: result.warnings ?? [],
         apiEndpoint,
         baseUrl,
         deploymentType: 'api',
         deploymentStatus: {
           api: {
-            isDeployed: true,
+            isDeployed,
             endpoint: apiEndpoint,
             deployedAt: result.deployedAt,
             version: result.version,
@@ -301,6 +308,8 @@ export async function executeDeployChat(
               allowedEmails: (existing[0].allowedEmails as string[]) || [],
               outputConfigs:
                 (existing[0].outputConfigs as Array<{ blockId: string; path: string }>) || [],
+              includeThinking: existing[0].includeThinking ?? false,
+              includeToolCalls: existing[0].includeToolCalls ?? false,
               welcomeMessage:
                 (existing[0].customizations as { welcomeMessage?: string } | null)
                   ?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -388,6 +397,14 @@ export async function executeDeployChat(
       blockId: string
       path: string
     }>
+    const resolvedIncludeThinking =
+      typeof params.includeThinking === 'boolean'
+        ? params.includeThinking
+        : (existingDeployment?.includeThinking ?? false)
+    const resolvedIncludeToolCalls =
+      typeof params.includeToolCalls === 'boolean'
+        ? params.includeToolCalls
+        : (existingDeployment?.includeToolCalls ?? false)
     const welcomeMessage =
       typeof params.welcomeMessage === 'string'
         ? params.welcomeMessage
@@ -396,6 +413,20 @@ export async function executeDeployChat(
       params.customizations?.imageUrl ||
       params.customizations?.iconUrl ||
       existingCustomizations.imageUrl
+
+    // Enforce the permission group's chat auth-mode allow-list, but only when the
+    // mode actually changes (or on a first deploy) so an existing grandfathered
+    // mode can be re-saved.
+    if (workflowRecord.workspaceId && resolvedAuthType !== existingDeployment?.authType) {
+      try {
+        await validateChatDeployAuth(context.userId, workflowRecord.workspaceId, resolvedAuthType)
+      } catch (error) {
+        if (error instanceof ChatDeployAuthNotAllowedError) {
+          return { success: false, error: error.message }
+        }
+        throw error
+      }
+    }
 
     const result = await performChatDeploy({
       workflowId,
@@ -417,6 +448,8 @@ export async function executeDeployChat(
       password: params.password,
       allowedEmails: resolvedAllowedEmails,
       outputConfigs: resolvedOutputConfigs,
+      includeThinking: resolvedIncludeThinking,
+      includeToolCalls: resolvedIncludeToolCalls,
       workspaceId: workflowRecord.workspaceId,
     })
 
@@ -469,6 +502,8 @@ export async function executeDeployChat(
             authType: resolvedAuthType,
             allowedEmails: resolvedAllowedEmails,
             outputConfigs: resolvedOutputConfigs,
+            includeThinking: resolvedIncludeThinking,
+            includeToolCalls: resolvedIncludeToolCalls,
             welcomeMessage: welcomeMessage || 'Hi there! How can I help you today?',
             primaryColor:
               params.customizations?.primaryColor ||
@@ -608,9 +643,7 @@ export async function executeDeployMcp(
       params.toolName || workflowRecord.name || `workflow_${workflowId}`
     )
     const toolDescription =
-      params.toolDescription?.trim() ||
-      getMeaningfulWorkflowDescription(workflowRecord.description, workflowRecord.name) ||
-      `Execute ${workflowRecord.name} workflow`
+      params.toolDescription?.trim() || `Execute ${workflowRecord.name} workflow`
     /**
      * Parameter names/types come from the workflow's deployed input trigger; this tool only sets
      * per-parameter descriptions, sent as sparse overrides. The materialized schema is echoed in the
@@ -802,19 +835,24 @@ export async function executeRedeploy(
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
+    const isDeployed = Boolean(result.activeDeployment)
     return {
       success: true,
       output: {
         workflowId,
-        isDeployed: true,
+        isDeployed,
         deployedAt: result.deployedAt || null,
         version: result.version,
+        lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
+        readiness: result.latestDeploymentAttempt?.readiness ?? null,
+        error: result.latestDeploymentAttempt?.error ?? null,
+        warnings: result.warnings ?? [],
         apiEndpoint,
         baseUrl,
         deploymentType: 'api',
         deploymentStatus: {
           api: {
-            isDeployed: true,
+            isDeployed,
             endpoint: apiEndpoint,
             deployedAt: result.deployedAt || null,
             version: result.version,

@@ -510,7 +510,7 @@ describe.concurrent('Blocks Module', () => {
         expect(modelSubBlock).toBeDefined()
         expect(modelSubBlock?.type).toBe('combobox')
         expect(modelSubBlock?.required).toBe(true)
-        expect(modelSubBlock?.defaultValue).toBe('claude-sonnet-4-6')
+        expect(modelSubBlock?.defaultValue).toBe('claude-sonnet-5')
       })
 
       it('should have LLM tool access', () => {
@@ -867,7 +867,14 @@ describe.concurrent('Blocks Module', () => {
   describe('Block Consistency', () => {
     it('should have consistent registry keys matching block types', () => {
       for (const block of getAllBlocks()) {
-        expect(getBlock(block.type)).toBe(block)
+        const canonical = getBlock(block.type)
+        if (canonical?.preview) {
+          // Preview blocks surface in getAllBlocks() as projection clones
+          // (hidden or "(Preview)"-suffixed); getBlock stays the pure config.
+          expect(canonical.type).toBe(block.type)
+          continue
+        }
+        expect(canonical).toBe(block)
       }
     })
 

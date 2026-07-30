@@ -1,11 +1,14 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   createTableColumnBodySchema,
   deleteTableColumnBodySchema,
-  deleteTableRowsBodySchema,
+  predicateSchema,
+  sortSpecSchema,
   tableColumnSchema,
   tableIdParamsSchema,
   tableRowParamsSchema,
+  tableRowsQueryBaseSchema,
   updateRowsByFilterBodySchema,
   updateTableColumnBodySchema,
   updateTableRowBodySchema,
@@ -16,19 +19,23 @@ import {
   v1CreateTableBodySchema,
   v1CreateTableRowsBodySchema,
   v1ListTablesQuerySchema,
-  v1TableRowsQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 
 /**
  * v2 tables contracts.
  *
- * Request shapes (params/query/body) are reused verbatim from the v1 contract
- * and the first-party `/api/table` contract — the public table request surface
- * is unchanged. Only the response envelope is upgraded to the canonical v2
- * shapes (`{ data }` for single/mutation, `{ data, pagination }` for the
- * list/offset surfaces), and the outcome-dependent payloads are made consistent
- * (see per-contract notes below).
+ * Request shapes (params/query/body) are reused from the v1 contract and the
+ * first-party `/api/table` contract where the surface is unchanged. Two things
+ * are upgraded relative to v1:
+ *
+ * - The response envelope is the canonical v2 family (`{ data }` for
+ *   single/mutation, `{ data, nextCursor }` for lists).
+ * - Filters speak ONLY the typed predicate tree (`{ all | any: [...] }` — the
+ *   same grammar the table_v2 block consumes). The legacy MongoDB-style
+ *   `$`-operator object stays a v1-only dialect. Rich filtered reads live on
+ *   the dedicated `POST /query` endpoint; the rows GET is a plain cursor page.
  *
  * The `data` item schemas are concrete and describe exactly what the route's
  * `toApiTable`/`toApiRow` serializers emit. The first-party
@@ -37,6 +44,11 @@ import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/sha
  * never carries (`executions`, `workspaceId`, `Date` timestamps, …). Column
  * shape is reused from the concrete first-party `tableColumnSchema`.
  */
+
+/** Default page size when a row query/list `limit` is omitted. */
+export const V2_DEFAULT_ROW_LIMIT = 100
+/** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or the async export. */
+export const V2_MAX_ROW_LIMIT = 1000
 
 /**
  * Public table shape emitted by `toApiTable` (timestamps ISO-serialized).
@@ -55,14 +67,14 @@ export const v2ApiTableSchema = z.object({
 export type V2ApiTable = z.output<typeof v2ApiTableSchema>
 
 /**
- * Public row shape emitted by `toApiRow`. `data` is keyed by column NAME (the
- * id→name translation the route applies); cell values are user-defined, so the
- * map is `Record<string, unknown>`. Timestamps ISO.
+ * Public row shape emitted by `toApiRow`: `{ id, data, createdAt, updatedAt }`,
+ * no storage internals (`position`/`orderKey`/`executions`). `data` is keyed by
+ * column NAME and select cells carry their option NAME; cell values are
+ * user-defined, so the map is `Record<string, unknown>`. Timestamps ISO.
  */
 export const v2ApiRowSchema = z.object({
   id: z.string(),
   data: z.record(z.string(), z.unknown()),
-  position: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -122,7 +134,7 @@ export const v2DeleteRowDataSchema = z.object({
 })
 export type V2DeleteRowData = z.output<typeof v2DeleteRowDataSchema>
 
-/** Upsert payload — the row object includes `position` like every other row endpoint. */
+/** Upsert payload — the row object matches every other v2 row endpoint. */
 export const v2UpsertRowDataSchema = z.object({
   row: v2ApiRowSchema,
   operation: z.enum(['insert', 'update']),
@@ -212,14 +224,17 @@ export const v2DeleteTableColumnContract = defineRouteContract({
 })
 
 /**
- * Row list query: the v1 filter/sort/limit request shape with `offset` swapped
- * for an opaque `cursor` (cursor-uniform v2 pagination). The cursor encodes the
+ * Row list query: a plain cursor page over the default row order. Filtering and
+ * sorting are NOT part of this surface — rich reads go through the dedicated
+ * `POST /query` endpoint's predicate grammar. The opaque cursor encodes the
  * underlying offset today; it can move to a keyset implementation later without
  * an interface change. Total row count is available as `rowCount` on the table.
  */
-export const v2TableRowsQuerySchema = v1TableRowsQuerySchema.omit({ offset: true }).extend({
-  cursor: z.string().min(1).optional(),
-})
+export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
+  .pick({ workspaceId: true, limit: true })
+  .extend({
+    cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
+  })
 export type V2TableRowsQuery = z.output<typeof v2TableRowsQuerySchema>
 
 /** Cursor-paginated row list. */
@@ -228,6 +243,45 @@ export const v2ListTableRowsContract = defineRouteContract({
   path: '/api/v2/tables/[tableId]/rows',
   params: tableIdParamsSchema,
   query: v2TableRowsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2ApiRowSchema),
+  },
+})
+
+/**
+ * Rows query body. `predicate`/`sort` are the typed predicate tree / sort spec,
+ * field refs keyed by column NAME. `limit`: omitted →
+ * {@link V2_DEFAULT_ROW_LIMIT}; `0` → unbounded (whole result or a 400
+ * `TABLE_QUERY_RESULT_TOO_LARGE`); `1..{@link V2_MAX_ROW_LIMIT}` → page cap.
+ */
+export const v2QueryRowsBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  predicate: predicateSchema.optional(),
+  sort: sortSpecSchema.optional(),
+  limit: z
+    .number({ error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(0, 'Limit must be at least 0 (use 0 for an unbounded query)')
+    .max(
+      V2_MAX_ROW_LIMIT,
+      `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or the async export for large datasets`
+    )
+    .optional(),
+  cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
+})
+export type V2QueryRowsBody = z.input<typeof v2QueryRowsBodySchema>
+
+/**
+ * Rich filtered/sorted row read with cursor pagination — the v2 read surface
+ * for anything beyond a plain page. POST because the predicate tree is a
+ * structured body, not a querystring dialect.
+ */
+export const v2QueryRowsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/query',
+  params: tableIdParamsSchema,
+  body: v2QueryRowsBodySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2ApiRowSchema),
@@ -254,22 +308,56 @@ export const v2CreateTableRowsContract = defineRouteContract({
   },
 })
 
+/** Bulk update body — v2 accepts ONLY the predicate tree as the filter. */
+export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema.extend({
+  filter: predicateSchema,
+})
+export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicateBodySchema>
+
 export const v2UpdateRowsByFilterContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/tables/[tableId]/rows',
   params: tableIdParamsSchema,
-  body: updateRowsByFilterBodySchema,
+  body: v2UpdateRowsByPredicateBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2UpdateRowsDataSchema),
   },
 })
 
+/** Bulk delete body — either row ids or a predicate-tree filter, never both. */
+export const v2DeleteTableRowsBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    filter: predicateSchema.optional(),
+    limit: z
+      .number({ error: 'Limit must be a number' })
+      .int('Limit must be an integer')
+      .min(1, 'Limit must be at least 1')
+      .max(
+        TABLE_LIMITS.MAX_BULK_OPERATION_SIZE,
+        `Cannot delete more than ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE} rows per operation`
+      )
+      .optional(),
+    rowIds: z
+      .array(z.string().min(1))
+      .min(1, 'At least one row ID is required')
+      .max(
+        TABLE_LIMITS.MAX_BULK_OPERATION_SIZE,
+        `Cannot delete more than ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE} rows per operation`
+      )
+      .optional(),
+  })
+  .refine((data) => Boolean(data.filter) !== Boolean(data.rowIds), {
+    message: 'Provide either filter or rowIds, but not both',
+  })
+export type V2DeleteTableRowsBody = z.input<typeof v2DeleteTableRowsBodySchema>
+
 export const v2DeleteTableRowsContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/rows',
   params: tableIdParamsSchema,
-  body: deleteTableRowsBodySchema,
+  body: v2DeleteTableRowsBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2DeleteRowsDataSchema),

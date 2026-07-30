@@ -10,6 +10,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
+import { getUserSettings } from '@/lib/users/queries'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportIntoAsync')
@@ -33,7 +35,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const parsed = await parseRequest(importIntoTableAsyncContract, request, { params })
   if (!parsed.success) return parsed.response
   const { tableId } = parsed.data.params
-  const { workspaceId, fileKey, fileName, mode, mapping, createColumns } = parsed.data.body
+  const { workspaceId, fileKey, fileName, mode, mapping, createColumns, timezone } =
+    parsed.data.body
 
   const access = await checkAccess(tableId, userId, 'write')
   if (!access.ok) return accessError(access, requestId, tableId)
@@ -50,6 +53,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   if (table.archivedAt) {
     return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
   }
+
+  // Gate the locks before claiming the single write-job slot, so a locked table
+  // reports 423 here instead of holding the slot and failing inside the worker.
+  assertRowInsert(table)
+  if (mode === 'replace') assertRowDelete(table)
+  if (createColumns && createColumns.length > 0) assertSchemaMutable(table)
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext !== 'csv' && ext !== 'tsv') {
@@ -79,6 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     mode,
     mapping,
     createColumns,
+    timezone: timezone ?? (await getUserSettings(userId)).timezone ?? 'UTC',
   }
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the import outside the web container, so it survives app deploys.

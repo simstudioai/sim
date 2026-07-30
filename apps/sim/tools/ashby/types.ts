@@ -148,7 +148,6 @@ export interface AshbyListApplicationsParams extends AshbyBaseParams {
   perPage?: number
   status?: string
   jobId?: string
-  candidateId?: string
   createdAfter?: string
 }
 

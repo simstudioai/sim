@@ -38,6 +38,13 @@ export const getTemplateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Stack name or ID',
     },
+    templateStage: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Which template version to retrieve: Processed (default, with transforms applied) or Original (as submitted)',
+    },
   },
 
   request: {
@@ -51,6 +58,7 @@ export const getTemplateTool: ToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       stackName: params.stackName,
+      ...(params.templateStage && { templateStage: params.templateStage }),
     }),
   },
 

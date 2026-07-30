@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import type {
   ContractBody,
@@ -20,9 +21,36 @@ const AssumeRoleSchema = z.object({
   roleSessionName: z.string().min(1, 'Role session name is required'),
   durationSeconds: z.number().int().min(900).max(43200).nullish(),
   policy: z.string().max(2048).nullish(),
-  externalId: z.string().nullish(),
+  externalId: z.string().min(2).max(1224).nullish(),
   serialNumber: z.string().nullish(),
   tokenCode: z.string().nullish(),
+  policyArns: z
+    .string()
+    .nullish()
+    .refine((v) => !v || v.split(',').filter((arn) => arn.trim().length > 0).length <= 10, {
+      message: 'A maximum of 10 policy ARNs can be provided',
+    }),
+  tags: z
+    .string()
+    .nullish()
+    .refine(
+      (v) => {
+        if (!v) return true
+        try {
+          const parsed = JSON.parse(v)
+          return isRecordLike(parsed)
+        } catch {
+          return false
+        }
+      },
+      { message: 'tags must be a valid JSON object string' }
+    ),
+  transitiveTagKeys: z
+    .string()
+    .nullish()
+    .refine((v) => !v || v.split(',').filter((key) => key.trim().length > 0).length <= 50, {
+      message: 'A maximum of 50 transitive tag keys can be provided',
+    }),
 })
 
 const AssumeRoleResponseSchema = z.object({

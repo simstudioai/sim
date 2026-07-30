@@ -13,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import {
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -22,7 +23,7 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
+import { isArchiveFileName, isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_ATTACHMENT_EXTENSIONS,
   SUPPORTED_IMAGE_EXTENSIONS,
@@ -32,11 +33,13 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse, InvalidRequestError } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
-function validateFileExtension(filename: string): boolean {
+function validateFileExtension(filename: string, context: StorageContext): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
   if (!extension) return false
+  // Archives are only extractable in the mothership copilot flow; every other
+  // context keeps rejecting them up front instead of failing downstream.
+  if (context === 'mothership' && isArchiveFileName(filename)) return true
   return ALLOWED_EXTENSIONS.has(extension)
 }
 
@@ -92,12 +95,65 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const usingCloudStorage = storageService.hasCloudStorage()
     logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
 
+    // Execution context requires a workspace write/admin permission check. Resolve it once per
+    // request (not per file) since workspaceId is invariant across all files in the upload.
+    let executionUploadContext:
+      | { workspaceId: string; workflowId: string; executionId: string }
+      | undefined
+    if (context === 'execution') {
+      if (!workflowId || !executionId || !workspaceId) {
+        throw new InvalidRequestError(
+          'Execution context requires workflowId, executionId, and workspaceId parameters'
+        )
+      }
+
+      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for execution uploads' },
+          { status: 403 }
+        )
+      }
+
+      executionUploadContext = { workspaceId, workflowId, executionId }
+    }
+
+    // Mothership context requires the same workspace write/admin permission check, plus a
+    // storage quota check. Resolve both once per request (not per file) since workspaceId is
+    // invariant across all files in the upload and quota must account for the full batch size,
+    // not just one file.
+    let mothershipWorkspaceId: string | undefined
+    if (context === 'mothership') {
+      if (!workspaceId) {
+        throw new InvalidRequestError('Mothership context requires workspaceId parameter')
+      }
+
+      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for mothership uploads' },
+          { status: 403 }
+        )
+      }
+
+      const { checkStorageQuota } = await import('@/lib/billing/storage')
+      const quotaCheck = await checkStorageQuota(session.user.id, totalFileSize)
+      if (!quotaCheck.allowed) {
+        return NextResponse.json(
+          { error: quotaCheck.error || 'Storage limit exceeded' },
+          { status: 413 }
+        )
+      }
+
+      mothershipWorkspaceId = workspaceId
+    }
+
     const uploadResults = []
 
     for (const file of files) {
       const originalName = file.name || 'untitled.md'
 
-      if (!validateFileExtension(originalName)) {
+      if (!validateFileExtension(originalName, context)) {
         const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'
         throw new InvalidRequestError(
           `File type '${extension}' is not allowed. Allowed types: ${Array.from(ALLOWED_EXTENSIONS).join(', ')}`
@@ -110,20 +166,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       // Handle execution context
-      if (context === 'execution') {
-        if (!workflowId || !executionId) {
-          throw new InvalidRequestError(
-            'Execution context requires workflowId and executionId parameters'
-          )
-        }
-
+      if (context === 'execution' && executionUploadContext) {
         const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
         const userFile = await uploadExecutionFile(
-          {
-            workspaceId: workspaceId || '',
-            workflowId,
-            executionId,
-          },
+          executionUploadContext,
           buffer,
           originalName,
           file.type,
@@ -248,21 +294,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       // Handle mothership context (chat-scoped uploads to workspace S3)
-      if (context === 'mothership') {
-        if (!workspaceId) {
-          throw new InvalidRequestError('Chat context requires workspaceId parameter')
-        }
-
+      if (context === 'mothership' && mothershipWorkspaceId) {
         logger.info(`Uploading mothership file: ${originalName}`)
 
-        const storageKey = generateWorkspaceFileKey(workspaceId, originalName)
+        const storageKey = generateWorkspaceFileKey(mothershipWorkspaceId, originalName)
 
         const metadata: Record<string, string> = {
           originalName: originalName,
           uploadedAt: new Date().toISOString(),
           purpose: 'mothership',
           userId: session.user.id,
-          workspaceId,
+          workspaceId: mothershipWorkspaceId,
         }
 
         const fileInfo = await storageService.uploadFile({

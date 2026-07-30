@@ -31,17 +31,11 @@ export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDe
         visibility: 'user-or-llm',
         description: 'The ID of the media item to delete',
       },
-      force: {
-        type: 'boolean',
-        required: false,
-        visibility: 'user-only',
-        description: 'Force delete (media has no trash, so deletion is permanent)',
-      },
     },
 
     request: {
       url: (params) => {
-        // Media deletion requires force=true to actually delete
+        // Media has no trash — deletion always requires force=true to take effect
         return `${WORDPRESS_COM_API_BASE}/${params.siteId}/media/${params.mediaId}?force=true`
       },
       method: 'DELETE',
@@ -62,9 +56,9 @@ export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDe
       return {
         success: true,
         output: {
-          deleted: data.deleted || true,
+          deleted: data.deleted ?? true,
           media: {
-            id: data.id || data.previous?.id,
+            id: data.id ?? data.previous?.id,
             date: data.date || data.previous?.date,
             slug: data.slug || data.previous?.slug,
             type: data.type || data.previous?.type,

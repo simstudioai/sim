@@ -45,11 +45,19 @@ export const listWorkspacesTool: ToolConfig<GongListWorkspacesParams, GongListWo
       }))
       return {
         success: true,
-        output: { workspaces },
+        output: {
+          requestId: data.requestId ?? null,
+          workspaces,
+        },
       }
     },
 
     outputs: {
+      requestId: {
+        type: 'string',
+        description: 'A Gong request reference ID for troubleshooting purposes',
+        optional: true,
+      },
       workspaces: {
         type: 'array',
         description: 'List of Gong workspaces',

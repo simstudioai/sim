@@ -36,19 +36,15 @@
   "author": "Sim",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "dependencies": {
-    "chalk": "^4.1.2",
-    "commander": "^11.1.0",
-    "dotenv": "^16.3.1",
-    "inquirer": "^8.2.6",
-    "listr2": "^6.6.1"
+    "chalk": "5.6.2",
+    "commander": "^11.1.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@types/inquirer": "^8.2.6",
-    "@types/node": "^20.5.1",
-    "typescript": "^5.7.3"
+    "@types/node": "24.2.1",
+    "typescript": "^7.0.2"
   }
 }

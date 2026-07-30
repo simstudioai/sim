@@ -21,6 +21,12 @@ export const getQrCodeTool: ToolConfig<DubGetQrCodeParams, DubGetQrCodeResponse>
       visibility: 'user-or-llm',
       description: 'The short link URL to encode in the QR code',
     },
+    logo: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'URL of a custom logo to embed in the QR code (requires a paid Dub plan)',
+    },
     size: {
       type: 'number',
       required: false,
@@ -63,6 +69,7 @@ export const getQrCodeTool: ToolConfig<DubGetQrCodeParams, DubGetQrCodeResponse>
     url: (params) => {
       const url = new URL('https://api.dub.co/qr')
       url.searchParams.set('url', params.url.trim())
+      if (params.logo) url.searchParams.set('logo', params.logo)
       if (params.size !== undefined) url.searchParams.set('size', String(params.size))
       if (params.level) url.searchParams.set('level', params.level)
       if (params.fgColor) url.searchParams.set('fgColor', params.fgColor)

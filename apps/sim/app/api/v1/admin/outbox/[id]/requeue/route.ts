@@ -2,10 +2,15 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1RequeueOutboxEventContract } from '@/lib/api/contracts/v1/admin'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import {
+  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
+  ENTERPRISE_PROVISION_EVENT_TYPE,
+  enterpriseMetadataSyncPayloadSchema,
+} from '@/lib/billing/enterprise-outbox'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 
@@ -36,6 +41,26 @@ export const POST = withRouteHandler(
     const { id } = parsed.data.params
 
     try {
+      const [existing] = await db
+        .select({ eventType: outboxEvent.eventType, payload: outboxEvent.payload })
+        .from(outboxEvent)
+        .where(eq(outboxEvent.id, id))
+        .limit(1)
+      if (existing?.eventType === ENTERPRISE_PROVISION_EVENT_TYPE) {
+        return invalidOutboxEventResponse(
+          'Enterprise issuance must be retried through its dedicated admin action'
+        )
+      }
+      const metadataIntent =
+        existing?.eventType === ENTERPRISE_METADATA_SYNC_EVENT_TYPE
+          ? enterpriseMetadataSyncPayloadSchema.safeParse(existing.payload)
+          : null
+      if (metadataIntent && !metadataIntent.success) {
+        return invalidOutboxEventResponse('Enterprise metadata intent payload is invalid')
+      }
+      const deliveryRevision = metadataIntent?.success
+        ? metadataIntent.data.deliveryRevision + 1
+        : null
       const result = await db
         .update(outboxEvent)
         .set({
@@ -45,6 +70,11 @@ export const POST = withRouteHandler(
           availableAt: new Date(),
           lockedAt: null,
           processedAt: null,
+          ...(deliveryRevision === null
+            ? {}
+            : {
+                payload: sql`(${outboxEvent.payload}::jsonb || ${JSON.stringify({ deliveryRevision })}::jsonb)::json`,
+              }),
         })
         .where(and(eq(outboxEvent.id, id), eq(outboxEvent.status, 'dead_letter')))
         .returning({ id: outboxEvent.id, eventType: outboxEvent.eventType })

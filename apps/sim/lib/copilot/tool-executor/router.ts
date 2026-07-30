@@ -39,6 +39,11 @@ export function isKnownTool(toolId: string): boolean {
   return isToolInCatalog(toolId)
 }
 
+/** Declared in the mothership tool catalog; Go carries the flag but never enforces it. */
+export function toolRequiresApproval(toolId: string): boolean {
+  return getToolEntry(toolId)?.requiresApproval === true
+}
+
 interface PartitionedBatch {
   sim: ToolCallDescriptor[]
   go: ToolCallDescriptor[]

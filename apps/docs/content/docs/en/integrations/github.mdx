@@ -43,10 +43,7 @@ Fetch PR details including diff and files changed
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner |
-| `repo` | string | Yes | Repository name |
-| `pullNumber` | number | Yes | Pull request number |
-| `apiKey` | string | Yes | GitHub API token |
+| `includeFiles` | boolean | No | Whether to fetch changed-file details from the separate files endpoint |
 
 #### Output
 
@@ -62,16 +59,12 @@ Fetch PR details including diff and files changed
 |   ↳ `label` | string | Branch label \(owner:branch\) |
 |   ↳ `ref` | string | Branch name |
 |   ↳ `sha` | string | Commit SHA |
+|   ↳ `repo_full_name` | string | Full name \(owner/repo\) of the branch's repository |
 | `base` | object | Branch reference info |
 |   ↳ `label` | string | Branch label \(owner:branch\) |
 |   ↳ `ref` | string | Branch name |
 |   ↳ `sha` | string | Commit SHA |
-| `merged_by` | object | GitHub user object |
-|   ↳ `login` | string | GitHub username |
-|   ↳ `id` | number | User ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `html_url` | string | Profile URL |
-|   ↳ `type` | string | Account type \(User or Organization\) |
+|   ↳ `repo_full_name` | string | Full name \(owner/repo\) of the branch's repository |
 | `id` | number | Pull request ID |
 | `number` | number | Pull request number |
 | `title` | string | PR title |
@@ -81,6 +74,12 @@ Fetch PR details including diff and files changed
 | `body` | string | PR description |
 | `merged` | boolean | Whether PR is merged |
 | `mergeable` | boolean | Whether PR is mergeable |
+| `merged_by` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `type` | string | Account type \(User or Organization\) |
 | `comments` | number | Number of comments |
 | `review_comments` | number | Number of review comments |
 | `commits` | number | Number of commits |
@@ -648,7 +647,7 @@ Request reviewers for a pull request
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `pullNumber` | number | Yes | Pull request number |
-| `reviewers` | string | Yes | Comma-separated list of user logins to request reviews from |
+| `reviewers` | string | No | Comma-separated list of user logins to request reviews from \(at least one of reviewers or team_reviewers is required\) |
 | `team_reviewers` | string | No | Comma-separated list of team slugs to request reviews from |
 | `apiKey` | string | Yes | GitHub API token |
 
@@ -662,6 +661,41 @@ Request reviewers for a pull request
 | `html_url` | string | GitHub web URL |
 | `requested_reviewers` | array | Array of requested reviewer objects |
 | `requested_teams` | array | Array of requested team objects |
+
+### `github_create_pr_review`
+
+Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `pullNumber` | number | Yes | Pull request number |
+| `event` | string | Yes | The review action to perform: APPROVE, REQUEST_CHANGES, or COMMENT |
+| `body` | string | No | The body text of the review \(required for REQUEST_CHANGES and COMMENT\) |
+| `commit_id` | string | No | The SHA of the commit that needs a review \(required when posting inline comments; defaults to the most recent commit otherwise\) |
+| `comments` | array | No | Optional inline comments with required path, body, line, and side fields |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Review ID |
+| `user` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `type` | string | Account type \(User or Organization\) |
+| `body` | string | Review body text |
+| `state` | string | Review state \(APPROVED/CHANGES_REQUESTED/COMMENTED\) |
+| `html_url` | string | GitHub web URL for the review |
+| `pull_request_url` | string | API URL of the reviewed pull request |
+| `commit_id` | string | SHA of the reviewed commit |
+| `submitted_at` | string | Review submission timestamp |
 
 ### `github_get_file_content`
 
@@ -794,6 +828,60 @@ Get the contents of a directory in a GitHub repository. Returns a list of files 
 |   ↳ `url` | string | API URL for this item |
 |   ↳ `_links` | json | Related links |
 | `count` | number | Total number of items |
+
+### `github_get_readme`
+
+Get the preferred README for a GitHub repository, with its content decoded to plain text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner \(user or organization\) |
+| `repo` | string | Yes | Repository name |
+| `ref` | string | No | The name of the commit/branch/tag to read the README from \(defaults to the repository default branch\) |
+| `apiKey` | string | Yes | GitHub Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | README file name |
+| `path` | string | README file path |
+| `sha` | string | Blob SHA of the README |
+| `size` | number | File size in bytes |
+| `encoding` | string | Original content encoding from the API |
+| `html_url` | string | GitHub web URL for the README |
+| `download_url` | string | Raw download URL for the README |
+| `content` | string | Decoded README text content |
+
+### `github_list_tags`
+
+List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner \(user or organization\) |
+| `repo` | string | Yes | Repository name |
+| `per_page` | number | No | Number of results per page \(max 100\) |
+| `page` | number | No | Page number of the results to fetch |
+| `apiKey` | string | Yes | GitHub Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of tag objects |
+|   ↳ `name` | string | Tag name |
+|   ↳ `zipball_url` | string | Zipball download URL |
+|   ↳ `tarball_url` | string | Tarball download URL |
+|   ↳ `node_id` | string | Node ID |
+|   ↳ `commit` | object | Commit the tag points to |
+|     ↳ `sha` | string | Commit SHA |
+|     ↳ `url` | string | Commit API URL |
+| `count` | number | Number of tags returned |
 
 ### `github_list_branches`
 
@@ -1512,6 +1600,60 @@ Get detailed information about a specific GitHub release by ID. Returns release 
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `release_id` | number | Yes | The unique identifier of the release |
+| `apiKey` | string | Yes | GitHub Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `author` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `type` | string | Account type \(User or Organization\) |
+| `id` | number | Release ID |
+| `node_id` | string | GraphQL node ID |
+| `tag_name` | string | Git tag name |
+| `name` | string | Release name |
+| `body` | string | Release notes \(markdown\) |
+| `html_url` | string | GitHub web URL |
+| `tarball_url` | string | Source tarball URL |
+| `zipball_url` | string | Source zipball URL |
+| `draft` | boolean | Whether this is a draft release |
+| `prerelease` | boolean | Whether this is a prerelease |
+| `target_commitish` | string | Target branch or commit SHA |
+| `created_at` | string | Creation timestamp |
+| `published_at` | string | Publication timestamp |
+| `assets` | array | Release assets |
+|   ↳ `uploader` | object | GitHub user object |
+|     ↳ `login` | string | GitHub username |
+|     ↳ `id` | number | User ID |
+|     ↳ `avatar_url` | string | Avatar image URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `type` | string | Account type \(User or Organization\) |
+|   ↳ `id` | number | Asset ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `name` | string | Asset filename |
+|   ↳ `label` | string | Asset label |
+|   ↳ `state` | string | Asset state \(uploaded/open\) |
+|   ↳ `content_type` | string | MIME type |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `download_count` | number | Number of downloads |
+|   ↳ `browser_download_url` | string | Direct download URL |
+|   ↳ `created_at` | string | Upload timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+
+### `github_get_latest_release`
+
+Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner \(user or organization\) |
+| `repo` | string | Yes | Repository name |
 | `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output

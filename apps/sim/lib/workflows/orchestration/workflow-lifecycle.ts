@@ -1,12 +1,13 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -51,11 +52,16 @@ export interface PerformUpdateWorkflowParams {
   workspaceId: string
   currentName: string
   currentFolderId?: string | null
+  /** Prior `locked` value, used to detect lock-state transitions for instrumentation. */
+  currentLocked?: boolean | null
+  /** Prior `forkSyncExcluded` value, used to detect exclusion transitions for instrumentation. */
+  currentForkSyncExcluded?: boolean | null
   name?: string
   description?: string | null
   folderId?: string | null
   sortOrder?: number
   locked?: boolean
+  forkSyncExcluded?: boolean
   requestId?: string
 }
 
@@ -71,6 +77,7 @@ export interface PerformUpdateWorkflowResult {
     folderId: string | null
     sortOrder: number | null
     locked: boolean | null
+    forkSyncExcluded: boolean | null
     createdAt: Date
     updatedAt: Date
     archivedAt: Date | null
@@ -114,8 +121,8 @@ async function nextWorkflowSortOrder(
     ? eq(workflow.folderId, folderId)
     : isNull(workflow.folderId)
   const folderParentCondition = folderId
-    ? eq(workflowFolder.parentId, folderId)
-    : isNull(workflowFolder.parentId)
+    ? eq(folderTable.parentId, folderId)
+    : isNull(folderTable.parentId)
 
   const [[workflowMinResult], [folderMinResult]] = await Promise.all([
     db
@@ -129,9 +136,15 @@ async function nextWorkflowSortOrder(
         )
       ),
     db
-      .select({ minOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .select({ minOrder: min(folderTable.sortOrder) })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
   ])
 
   const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
@@ -312,6 +325,7 @@ export async function performUpdateWorkflow(
     if (params.folderId !== undefined) updateData.folderId = params.folderId
     if (params.sortOrder !== undefined) updateData.sortOrder = params.sortOrder
     if (params.locked !== undefined) updateData.locked = params.locked
+    if (params.forkSyncExcluded !== undefined) updateData.forkSyncExcluded = params.forkSyncExcluded
 
     const [updatedWorkflow] = await db
       .update(workflow)
@@ -325,6 +339,7 @@ export async function performUpdateWorkflow(
         folderId: workflow.folderId,
         sortOrder: workflow.sortOrder,
         locked: workflow.locked,
+        forkSyncExcluded: workflow.forkSyncExcluded,
         createdAt: workflow.createdAt,
         updatedAt: workflow.updatedAt,
         archivedAt: workflow.archivedAt,
@@ -337,6 +352,61 @@ export async function performUpdateWorkflow(
     logger.info(`[${requestId}] Successfully updated workflow ${params.workflowId}`, {
       updates: updateData,
     })
+
+    if (params.locked !== undefined && params.locked !== (params.currentLocked ?? false)) {
+      const workspaceId = updatedWorkflow.workspaceId
+      recordAudit({
+        workspaceId: workspaceId ?? null,
+        actorId: params.userId,
+        action: params.locked ? AuditAction.WORKFLOW_LOCKED : AuditAction.WORKFLOW_UNLOCKED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: params.workflowId,
+        resourceName: updatedWorkflow.name,
+        description: `${params.locked ? 'Locked' : 'Unlocked'} workflow "${updatedWorkflow.name}"`,
+        metadata: { locked: params.locked },
+      })
+
+      captureServerEvent(
+        params.userId,
+        'workflow_lock_toggled',
+        {
+          workflow_id: params.workflowId,
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          locked: params.locked,
+        },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
+    }
+
+    if (
+      params.forkSyncExcluded !== undefined &&
+      params.forkSyncExcluded !== (params.currentForkSyncExcluded ?? false)
+    ) {
+      const workspaceId = updatedWorkflow.workspaceId
+      recordAudit({
+        workspaceId: workspaceId ?? null,
+        actorId: params.userId,
+        action: params.forkSyncExcluded
+          ? AuditAction.WORKFLOW_FORK_SYNC_EXCLUDED
+          : AuditAction.WORKFLOW_FORK_SYNC_INCLUDED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: params.workflowId,
+        resourceName: updatedWorkflow.name,
+        description: `${params.forkSyncExcluded ? 'Excluded' : 'Included'} workflow "${updatedWorkflow.name}" ${params.forkSyncExcluded ? 'from' : 'in'} fork sync`,
+        metadata: { forkSyncExcluded: params.forkSyncExcluded },
+      })
+
+      captureServerEvent(
+        params.userId,
+        'workflow_fork_sync_exclusion_toggled',
+        {
+          workflow_id: params.workflowId,
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          fork_sync_excluded: params.forkSyncExcluded,
+        },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
+    }
 
     return { success: true, workflow: updatedWorkflow }
   } catch (error) {

@@ -79,6 +79,66 @@ const asanaGetTaskResponseSchema = z.union([
   asanaTasksResponseSchema,
 ])
 
+const asanaProjectRecordResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  gid: z.string(),
+  name: z.string(),
+  notes: z.string(),
+  archived: z.boolean().optional(),
+  color: z.string().nullable().optional(),
+  created_at: z.string().optional(),
+  modified_at: z.string().optional(),
+  permalink_url: z.string().optional(),
+})
+
+const asanaWorkspaceSchema = z.object({
+  gid: z.string(),
+  name: z.string(),
+  resource_type: z.string().optional(),
+})
+
+const asanaListWorkspacesResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  workspaces: z.array(asanaWorkspaceSchema),
+})
+
+const asanaDeleteTaskResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  gid: z.string(),
+  deleted: z.literal(true),
+})
+
+const asanaAddFollowersResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  gid: z.string(),
+  name: z.string(),
+  followers: z.array(asanaUserSummarySchema),
+})
+
+const asanaSectionSchema = z.object({
+  gid: z.string(),
+  name: z.string(),
+  resource_type: z.string().optional(),
+})
+
+const asanaSectionResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  gid: z.string(),
+  name: z.string(),
+  created_at: z.string().optional(),
+})
+
+const asanaListSectionsResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  sections: z.array(asanaSectionSchema),
+})
+
 export const asanaAddCommentBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().min(1, 'Task GID is required'),
@@ -126,6 +186,53 @@ export const asanaUpdateTaskBodySchema = z.object({
   due_on: z.string().nullish(),
 })
 
+export const asanaCreateProjectBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  workspace: z.string().min(1, 'Workspace GID is required'),
+  name: z.string().min(1, 'Project name is required'),
+  notes: z.string().nullish(),
+})
+
+export const asanaGetProjectBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  projectGid: z.string().min(1, 'Project GID is required'),
+})
+
+export const asanaListWorkspacesBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+})
+
+export const asanaCreateSubtaskBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  taskGid: z.string().min(1, 'Parent task GID is required'),
+  name: z.string().min(1, 'Subtask name is required'),
+  notes: z.string().nullish(),
+  assignee: z.string().nullish(),
+  due_on: z.string().nullish(),
+})
+
+export const asanaDeleteTaskBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  taskGid: z.string().min(1, 'Task GID is required'),
+})
+
+export const asanaAddFollowersBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  taskGid: z.string().min(1, 'Task GID is required'),
+  followers: z.array(z.string().min(1)).min(1, 'At least one follower GID is required'),
+})
+
+export const asanaCreateSectionBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  projectGid: z.string().min(1, 'Project GID is required'),
+  name: z.string().min(1, 'Section name is required'),
+})
+
+export const asanaListSectionsBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  projectGid: z.string().min(1, 'Project GID is required'),
+})
+
 export const asanaAddCommentContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/asana/add-comment',
@@ -167,6 +274,87 @@ export const asanaUpdateTaskContract = defineRouteContract({
   body: asanaUpdateTaskBodySchema,
   response: { mode: 'json', schema: asanaTaskMutationResponseSchema },
 })
+
+export const asanaCreateProjectContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/create-project',
+  body: asanaCreateProjectBodySchema,
+  response: { mode: 'json', schema: asanaProjectRecordResponseSchema },
+})
+
+export const asanaGetProjectContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/get-project',
+  body: asanaGetProjectBodySchema,
+  response: { mode: 'json', schema: asanaProjectRecordResponseSchema },
+})
+
+export const asanaListWorkspacesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/list-workspaces',
+  body: asanaListWorkspacesBodySchema,
+  response: { mode: 'json', schema: asanaListWorkspacesResponseSchema },
+})
+
+export const asanaCreateSubtaskContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/create-subtask',
+  body: asanaCreateSubtaskBodySchema,
+  response: { mode: 'json', schema: asanaTaskMutationResponseSchema },
+})
+
+export const asanaDeleteTaskContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/delete-task',
+  body: asanaDeleteTaskBodySchema,
+  response: { mode: 'json', schema: asanaDeleteTaskResponseSchema },
+})
+
+export const asanaAddFollowersContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/add-followers',
+  body: asanaAddFollowersBodySchema,
+  response: { mode: 'json', schema: asanaAddFollowersResponseSchema },
+})
+
+export const asanaCreateSectionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/create-section',
+  body: asanaCreateSectionBodySchema,
+  response: { mode: 'json', schema: asanaSectionResponseSchema },
+})
+
+export const asanaListSectionsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/asana/list-sections',
+  body: asanaListSectionsBodySchema,
+  response: { mode: 'json', schema: asanaListSectionsResponseSchema },
+})
+
+export type AsanaCreateProjectBody = ContractBody<typeof asanaCreateProjectContract>
+export type AsanaCreateProjectBodyInput = ContractBodyInput<typeof asanaCreateProjectContract>
+export type AsanaCreateProjectResponse = ContractJsonResponse<typeof asanaCreateProjectContract>
+export type AsanaGetProjectBody = ContractBody<typeof asanaGetProjectContract>
+export type AsanaGetProjectBodyInput = ContractBodyInput<typeof asanaGetProjectContract>
+export type AsanaGetProjectResponse = ContractJsonResponse<typeof asanaGetProjectContract>
+export type AsanaListWorkspacesBody = ContractBody<typeof asanaListWorkspacesContract>
+export type AsanaListWorkspacesBodyInput = ContractBodyInput<typeof asanaListWorkspacesContract>
+export type AsanaListWorkspacesResponse = ContractJsonResponse<typeof asanaListWorkspacesContract>
+export type AsanaCreateSubtaskBody = ContractBody<typeof asanaCreateSubtaskContract>
+export type AsanaCreateSubtaskBodyInput = ContractBodyInput<typeof asanaCreateSubtaskContract>
+export type AsanaCreateSubtaskResponse = ContractJsonResponse<typeof asanaCreateSubtaskContract>
+export type AsanaDeleteTaskBody = ContractBody<typeof asanaDeleteTaskContract>
+export type AsanaDeleteTaskBodyInput = ContractBodyInput<typeof asanaDeleteTaskContract>
+export type AsanaDeleteTaskResponse = ContractJsonResponse<typeof asanaDeleteTaskContract>
+export type AsanaAddFollowersBody = ContractBody<typeof asanaAddFollowersContract>
+export type AsanaAddFollowersBodyInput = ContractBodyInput<typeof asanaAddFollowersContract>
+export type AsanaAddFollowersResponse = ContractJsonResponse<typeof asanaAddFollowersContract>
+export type AsanaCreateSectionBody = ContractBody<typeof asanaCreateSectionContract>
+export type AsanaCreateSectionBodyInput = ContractBodyInput<typeof asanaCreateSectionContract>
+export type AsanaCreateSectionResponse = ContractJsonResponse<typeof asanaCreateSectionContract>
+export type AsanaListSectionsBody = ContractBody<typeof asanaListSectionsContract>
+export type AsanaListSectionsBodyInput = ContractBodyInput<typeof asanaListSectionsContract>
+export type AsanaListSectionsResponse = ContractJsonResponse<typeof asanaListSectionsContract>
 
 export type AsanaAddCommentBody = ContractBody<typeof asanaAddCommentContract>
 export type AsanaAddCommentBodyInput = ContractBodyInput<typeof asanaAddCommentContract>

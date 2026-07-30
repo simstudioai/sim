@@ -6,6 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { forwardPspRequest } from '@/app/api/tools/uptimerobot/server-utils'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger,
     })
   } catch (error) {
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
     logger.error(`[${requestId}] Unexpected error updating status page:`, error)
     return NextResponse.json(
       { success: false, error: getErrorMessage(error, 'Unknown error') },

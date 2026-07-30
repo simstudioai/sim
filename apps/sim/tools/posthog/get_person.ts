@@ -1,8 +1,10 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogGetPersonParams {
   apiKey: string
   region?: 'us' | 'eu'
+  host?: string
   projectId: string
   personId: string
 }
@@ -26,6 +28,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   name: 'PostHog Get Person',
   description: 'Get detailed information about a specific person in PostHog by their ID or UUID.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -40,6 +43,13 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
       visibility: 'user-only',
       description: 'PostHog region: us (default) or eu',
       default: 'us',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
     },
     projectId: {
       type: 'string',
@@ -57,7 +67,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/persons/${params.personId}/`
     },
     method: 'GET',
@@ -68,24 +78,6 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          person: {
-            id: '',
-            name: '',
-            distinct_ids: [],
-            properties: {},
-            created_at: '',
-            uuid: '',
-          },
-        },
-        error: error || 'Failed to get person',
-      }
-    }
-
     const data = await response.json()
 
     return {

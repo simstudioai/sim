@@ -25,10 +25,6 @@ vi.mock('@sim/db', () => ({
   eq: mockEq,
 }))
 
-vi.mock('drizzle-orm', () => ({
-  eq: mockEq,
-}))
-
 vi.mock('jose', () => ({
   decodeJwt: mockDecodeJwt,
 }))

@@ -9,7 +9,6 @@
 // single source of truth and typos become compile errors.
 
 export const TraceSpan = {
-  AnthropicCountTokens: 'anthropic.count_tokens',
   AsyncToolStoreSet: 'async_tool_store.set',
   AuthRateLimitRecord: 'auth.rate_limit.record',
   AuthValidateKey: 'auth.validate_key',
@@ -62,6 +61,8 @@ export const TraceSpan = {
   CopilotSseReadLoop: 'copilot.sse.read_loop',
   CopilotSubagentExecute: 'copilot.subagent.execute',
   CopilotToolWaitForClientResult: 'copilot.tool.wait_for_client_result',
+  CopilotToolWaitForPermission: 'copilot.tool.wait_for_permission',
+  CopilotToolPermissionDecide: 'copilot.tool_permission.decide',
   CopilotToolsHandleResourceSideEffects: 'copilot.tools.handle_resource_side_effects',
   CopilotToolsWriteCsvToTable: 'copilot.tools.write_csv_to_table',
   CopilotToolsWriteOutputFile: 'copilot.tools.write_output_file',
@@ -71,7 +72,6 @@ export const TraceSpan = {
   CopilotVfsReadFile: 'copilot.vfs.read_file',
   GenAiAgentExecute: 'gen_ai.agent.execute',
   LlmStream: 'llm.stream',
-  ProviderRouterCountTokens: 'provider.router.count_tokens',
   ProviderRouterRoute: 'provider.router.route',
   SimUpdateCost: 'sim.update_cost',
   SimValidateApiKey: 'sim.validate_api_key',
@@ -84,7 +84,6 @@ export type TraceSpanValue = (typeof TraceSpan)[TraceSpanKey]
 
 /** Readonly sorted list of every canonical span name. */
 export const TraceSpanValues: readonly TraceSpanValue[] = [
-  'anthropic.count_tokens',
   'async_tool_store.set',
   'auth.rate_limit.record',
   'auth.validate_key',
@@ -137,6 +136,8 @@ export const TraceSpanValues: readonly TraceSpanValue[] = [
   'copilot.sse.read_loop',
   'copilot.subagent.execute',
   'copilot.tool.wait_for_client_result',
+  'copilot.tool.wait_for_permission',
+  'copilot.tool_permission.decide',
   'copilot.tools.handle_resource_side_effects',
   'copilot.tools.write_csv_to_table',
   'copilot.tools.write_output_file',
@@ -146,7 +147,6 @@ export const TraceSpanValues: readonly TraceSpanValue[] = [
   'copilot.vfs.read_file',
   'gen_ai.agent.execute',
   'llm.stream',
-  'provider.router.count_tokens',
   'provider.router.route',
   'sim.update_cost',
   'sim.validate_api_key',

@@ -4,6 +4,7 @@ import type {
   DataverseListRecordsResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORDS_ARRAY_OUTPUT } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseListRecords')
@@ -80,25 +81,33 @@ export const dataverseListRecordsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       const queryParts: string[] = []
-      if (params.select) queryParts.push(`$select=${params.select}`)
-      if (params.filter) queryParts.push(`$filter=${params.filter}`)
-      if (params.orderBy) queryParts.push(`$orderby=${params.orderBy}`)
+      if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
+      if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
+      if (params.orderBy) queryParts.push(`$orderby=${encodeURIComponent(params.orderBy)}`)
       if (params.top) queryParts.push(`$top=${params.top}`)
-      if (params.expand) queryParts.push(`$expand=${params.expand}`)
+      if (params.expand) queryParts.push(`$expand=${encodeURIComponent(params.expand)}`)
       if (params.count) queryParts.push(`$count=${params.count}`)
       const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}${query}`
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}${query}`
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'OData-MaxVersion': '4.0',
-      'OData-Version': '4.0',
-      Accept: 'application/json',
-      Prefer: 'odata.include-annotations="*",odata.maxpagesize=100',
-    }),
+    headers: (params) => {
+      // Dataverse ignores $top entirely when Prefer: odata.maxpagesize is also sent, so the
+      // page-size preference is only applied when the caller hasn't requested an explicit $top.
+      const preferParts = ['odata.include-annotations="*"']
+      if (!params.top) {
+        preferParts.push('odata.maxpagesize=100')
+      }
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'OData-MaxVersion': '4.0',
+        'OData-Version': '4.0',
+        Accept: 'application/json',
+        Prefer: preferParts.join(','),
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

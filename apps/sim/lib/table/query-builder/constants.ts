@@ -28,12 +28,54 @@ export const COMPARISON_OPERATORS = [
  */
 export const VALUELESS_OPERATORS = new Set<string>(['isEmpty', 'isNotEmpty'])
 
+/**
+ * Operators a `select` column supports (values are opaque option ids). A
+ * multi-select cell holds several ids, so it asks about membership — equality
+ * against the whole array can never be true.
+ *
+ * These must stay in step with the server whitelist in `lib/table/sql.ts`: the
+ * filter picker offers exactly these, and `pruneFilterForColumns` /
+ * `prunePredicateForColumns` DROP
+ * anything outside them, so an operator missing here is silently discarded from
+ * a filter the server would have accepted. `sql.test.ts` asserts the two sets
+ * agree through `UI_TO_WIRE_OPERATOR` rather than leaving it to a comment.
+ */
+export const SINGLE_SELECT_FILTER_OPERATORS = new Set<string>([
+  'eq',
+  'ne',
+  'in',
+  'nin',
+  'isEmpty',
+  'isNotEmpty',
+])
+export const MULTI_SELECT_FILTER_OPERATORS = new Set<string>([
+  'contains',
+  'ncontains',
+  'isEmpty',
+  'isNotEmpty',
+])
+
+/**
+ * UI operator → wire operator. `isEmpty`/`isNotEmpty` both serialize to
+ * `$empty` (they differ only in the boolean payload); every other operator is
+ * its own name prefixed with `$`, matching `toRuleValue`.
+ */
+export const UI_TO_WIRE_OPERATOR: Record<string, string> = {
+  isEmpty: '$empty',
+  isNotEmpty: '$empty',
+}
+
 export const LOGICAL_OPERATORS = [
   { value: 'and', label: 'and' },
   { value: 'or', label: 'or' },
 ] as const
 
-export const SORT_DIRECTIONS = [
+/**
+ * Direction picker options for the sort-builder UI. Distinct from the wire-level
+ * `SORT_DIRECTIONS` tuple in `lib/table/constants.ts` — both are star-exported
+ * through `lib/table/index.ts`, and a duplicate name resolves to nothing there.
+ */
+export const SORT_DIRECTION_OPTIONS = [
   { value: 'asc', label: 'ascending' },
   { value: 'desc', label: 'descending' },
 ] as const

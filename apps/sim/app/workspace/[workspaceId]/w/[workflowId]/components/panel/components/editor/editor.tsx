@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import {
   BookOpen,
@@ -23,6 +23,7 @@ import {
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isCanonicalPair,
+  isStandaloneAdvancedMode,
   resolveCanonicalMode,
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
@@ -49,6 +50,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -184,7 +186,7 @@ export function Editor() {
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
-      if (subBlock.mode !== 'advanced') continue
+      if (!isStandaloneAdvancedMode(subBlock.mode)) continue
       if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
 
       if (
@@ -219,7 +221,8 @@ export function Editor() {
 
     for (const subBlock of subBlocks) {
       const isStandaloneAdvanced =
-        subBlock.mode === 'advanced' && !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+        isStandaloneAdvancedMode(subBlock.mode) &&
+        !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
 
       if (isStandaloneAdvanced) {
         advancedOnly.push(subBlock)
@@ -370,12 +373,15 @@ export function Editor() {
           <div className='flex min-w-0 flex-1 items-center gap-2'>
             {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
               <div
-                className='flex size-[18px] items-center justify-center rounded-sm'
+                className='flex size-[18px] items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
                 style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
               >
                 <IconComponent
                   icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className='size-[12px] text-[var(--white)]'
+                  className={cn(
+                    'size-[12px]',
+                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
+                  )}
                 />
               </div>
             )}
@@ -644,7 +650,16 @@ export function Editor() {
                                 : undefined
                             }
                           />
-                          {showDivider && <FieldDivider subblockMarker />}
+                          {showDivider && (
+                            <FieldDivider
+                              subblockMarker
+                              className={
+                                regularSubBlocks[index + 1]?.hideDividerBefore
+                                  ? '[&>div]:invisible'
+                                  : undefined
+                              }
+                            />
+                          )}
                         </div>
                       )
                     })}
@@ -701,7 +716,14 @@ export function Editor() {
                             }
                           />
                           {index < advancedOnlySubBlocks.length - 1 && (
-                            <FieldDivider subblockMarker />
+                            <FieldDivider
+                              subblockMarker
+                              className={
+                                advancedOnlySubBlocks[index + 1]?.hideDividerBefore
+                                  ? '[&>div]:invisible'
+                                  : undefined
+                              }
+                            />
                           )}
                         </div>
                       )

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Button,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -11,7 +10,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
-  handleKeyboardActivation,
   Input,
   Label,
   Switch,
@@ -29,6 +27,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -269,35 +268,35 @@ export function General() {
     return null
   }
 
+  const actions: SettingsAction[] = [
+    ...(isHosted
+      ? [
+          {
+            text: 'Home page',
+            onSelect: () => window.open('/?home', '_blank', 'noopener,noreferrer'),
+          },
+        ]
+      : []),
+    ...(!isAuthDisabled
+      ? [
+          { text: 'Sign out', onSelect: handleSignOut },
+          { text: 'Reset password', onSelect: () => setShowResetPasswordModal(true) },
+        ]
+      : []),
+  ]
+
   return (
     <>
-      <SettingsPanel
-        actions={
-          <>
-            {isHosted && (
-              <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-                Home Page
-              </Chip>
-            )}
-            {!isAuthDisabled && (
-              <>
-                <Chip onClick={handleSignOut}>Sign out</Chip>
-                <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
-              </>
-            )}
-          </>
-        }
-      >
+      <SettingsPanel actions={actions}>
         <SettingsSection label='Profile'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center gap-3'>
               <div className='relative'>
-                <div
-                  role='button'
-                  tabIndex={0}
+                <button
+                  type='button'
+                  aria-label='Change profile picture'
                   className={`group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
                   onClick={handleProfilePictureClick}
-                  onKeyDown={(event) => handleKeyboardActivation(event, handleProfilePictureClick)}
                 >
                   {(() => {
                     if (imageUrl) {
@@ -333,7 +332,7 @@ export function General() {
                       <Camera className='size-4 text-white' />
                     )}
                   </div>
-                </div>
+                </button>
                 <Input
                   type='file'
                   accept='image/png,image/jpeg,image/jpg'
@@ -356,6 +355,7 @@ export function General() {
                         </span>
                         <input
                           ref={inputRef}
+                          aria-label='Your name'
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}
@@ -403,9 +403,10 @@ export function General() {
         <SettingsSection label='Preferences'>
           <div className='flex flex-col gap-4'>
             <div className='flex items-center justify-between'>
-              <Label htmlFor='theme-select'>Theme</Label>
+              <Label>Theme</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
+                  aria-label='Theme'
                   align='start'
                   fullWidth
                   dropdownWidth='trigger'
@@ -442,7 +443,13 @@ export function General() {
                 <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                    <button
+                      type='button'
+                      aria-label='About auto-connect on drop'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <Info className='size-[14px]' />
+                    </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
                     <p>Automatically connect blocks when dropped near each other</p>
@@ -466,7 +473,13 @@ export function General() {
                 <Label htmlFor='error-notifications'>Canvas error notifications</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                    <button
+                      type='button'
+                      aria-label='About canvas error notifications'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <Info className='size-[14px]' />
+                    </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
                     <p>Show error popups on blocks when a workflow run fails</p>
@@ -485,9 +498,10 @@ export function General() {
             </div>
 
             <div className='flex items-center justify-between'>
-              <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+              <Label>Snap to grid</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
+                  aria-label='Snap to grid'
                   align='start'
                   fullWidth
                   dropdownWidth='trigger'

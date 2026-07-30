@@ -46,7 +46,7 @@ export const insertTableTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertT
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The 1-based character index at which to insert the table. When omitted, the table is appended to the end of the document.',
+        'The character index (the document body starts at index 1) at which to insert the table. When omitted, the table is appended to the end of the document.',
     },
   },
   request: {

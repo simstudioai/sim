@@ -2,7 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES } from '@/lib/table/constants'
+import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -26,6 +26,15 @@ export interface ColumnOption {
   label: string
 }
 
+/**
+ * One choice in a `select`/`multiselect` column. `id` is stable — cell data
+ * references it, so renaming an option never rewrites rows.
+ */
+export interface SelectOption {
+  id: string
+  name: string
+}
+
 export interface ColumnDefinition {
   /**
    * Stable storage key for this column. Row data, metadata, workflow-group
@@ -45,7 +54,17 @@ export interface ColumnDefinition {
    * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
+  /**
+   * Declared options for a `select` column. Cells store option ids — a single
+   * id when `multiple` is falsy, an array of ids when `multiple` is true.
+   */
+  options?: SelectOption[]
+  /** When true, a `select` column accepts several options per cell (string[]). */
+  multiple?: boolean
 }
+
+/** The column `type` discriminator, named so callers don't index into the interface. */
+export type ColumnType = ColumnDefinition['type']
 
 /** One group output → one plain column. */
 export interface WorkflowGroupOutput {
@@ -239,8 +258,8 @@ export interface TableSchema {
 
 /**
  * Table-level metadata stored alongside the table definition. UI state only
- * (column widths, column order, pinned columns) — workflow-group concurrency
- * is enforced at the trigger.dev queue layer, not via metadata.
+ * (column widths, column order, pinned columns, hidden columns) — workflow-group
+ * concurrency is enforced at the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
   /** Pixel widths keyed by **column id** (`getColumnId`). */
@@ -249,6 +268,26 @@ export interface TableMetadata {
   columnOrder?: string[]
   /** **Column ids** pinned to the left while scrolling horizontally. */
   pinnedColumns?: string[]
+  /**
+   * **Column ids** hidden from the grid. A deny-list, so a column added later is
+   * visible by default instead of needing to be re-enabled everywhere. Hiding is
+   * render-only — rows still arrive as whole JSONB blobs, so a hidden column's
+   * data is retained and reappears intact when it is unhidden.
+   */
+  hiddenColumns?: string[]
+}
+
+/**
+ * The saved shape of a table view: everything `TableMetadata` covers plus the
+ * row predicate and sort. Stored in `table_views.config`.
+ *
+ * `filter`/`sort` are what the view builder persists explicitly; the layout keys
+ * are inherited from `TableMetadata` and auto-save into the active view as the
+ * user resizes, reorders, pins, or hides columns.
+ */
+export interface TableViewConfig extends TableMetadata {
+  filter?: TablePredicate | null
+  sort?: SortSpec | null
 }
 
 /** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
@@ -332,6 +371,43 @@ export interface TableBackfillJobPayload {
   overwrite: boolean
 }
 
+/**
+ * The four independent mutation verbs a table lock can guard. `schema` covers
+ * column/workflow-group structure; `insert`/`update`/`delete` cover row data.
+ * Shared by the DB columns, the wire contract, the {@link TableLockedError},
+ * and the settings UI so all four agree on one source of truth.
+ */
+export const TABLE_LOCK_KINDS = ['schema', 'insert', 'update', 'delete'] as const
+export type TableLockKind = (typeof TABLE_LOCK_KINDS)[number]
+
+/**
+ * Per-table mutation locks. Each flag independently forbids one verb. Enforced
+ * at the `lib/table` service layer (see `lib/table/mutation-locks.ts`).
+ * Append-only = `{ update: true, delete: true }`; read-only = all four true.
+ */
+export interface TableLocks {
+  schemaLocked: boolean
+  insertLocked: boolean
+  updateLocked: boolean
+  deleteLocked: boolean
+}
+
+/** Maps each verb to the {@link TableLocks} flag that guards it. */
+export const TABLE_LOCK_FLAGS: Record<TableLockKind, keyof TableLocks> = {
+  schema: 'schemaLocked',
+  insert: 'insertLocked',
+  update: 'updateLocked',
+  delete: 'deleteLocked',
+}
+
+/** A fully-unlocked lock set — the state every new table is created in. */
+export const UNLOCKED_TABLE_LOCKS: TableLocks = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+
 export interface TableDefinition {
   id: string
   name: string
@@ -341,7 +417,11 @@ export interface TableDefinition {
   rowCount: number
   maxRows: number
   workspaceId: string
+  /** Folder the table lives in, or `null` at the workspace root. */
+  folderId?: string | null
   createdBy: string
+  /** Per-table mutation locks; absent-as-all-false is normalized on read. */
+  locks: TableLocks
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
@@ -372,8 +452,8 @@ export interface TableRow {
   executions: RowExecutions
   position: number
   /**
-   * Fractional order key. Authoritative row order when `TABLES_FRACTIONAL_ORDERING`
-   * is on; absent only for rows not yet backfilled (clients fall back to `position`).
+   * Fractional order key — the authoritative row order. Absent only for rows not
+   * yet backfilled (clients fall back to `position`).
    */
   orderKey?: string
   createdAt: Date | string
@@ -423,6 +503,39 @@ export interface Filter {
   [key: string]: ColumnValue | ConditionOperators | Filter[] | undefined
 }
 
+/**
+ * v2 filter operators (bare, no `$`). Equality and `in`/`nin` are case-sensitive
+ * (JSONB containment, GIN-indexed); the text ops `contains`/`ncontains`/
+ * `startsWith`/`endsWith` are ILIKE (case-insensitive). `isEmpty`/`isNotEmpty`
+ * match null OR empty string;
+ * `isNull`/`isNotNull` are strict null checks. The four `is*` ops are valueless.
+ * This is the canonical operator set the shared `fieldPredicate` leaf
+ * understands; the legacy `$`-operators normalize onto it.
+ */
+export type FilterOp = (typeof FILTER_OPS)[number]
+
+/** A single v2 leaf predicate: `field op value`. `value` is omitted for `isEmpty`/`isNotEmpty`. */
+export interface Predicate {
+  field: string
+  op: FilterOp
+  value?: JsonValue
+}
+
+/**
+ * v2 nestable filter tree. A group is either `{ all: [...] }` (AND) or
+ * `{ any: [...] }` (OR); members are leaves or nested groups. Replaces the
+ * MongoDB-style `Filter` on the v2 surface — same engine, legible grammar.
+ *
+ * @example
+ * { all: [{ field: 'slack_user_id', op: 'in', value: ['U1','U2'] }, { field: 'wins', op: 'gte', value: 10 }] }
+ * { any: [{ field: 'status', op: 'eq', value: 'active' }, { field: 'status', op: 'eq', value: 'pending' }] }
+ */
+export type PredicateNode = Predicate | TablePredicate
+export type TablePredicate = { all: PredicateNode[] } | { any: PredicateNode[] }
+
+/** v2 sort specification: an ordered list of `{ field, direction }`. */
+export type SortSpec = Array<{ field: string; direction: SortDirection }>
+
 export interface ValidationResult {
   valid: boolean
   errors: string[]
@@ -454,11 +567,21 @@ export interface SortRule {
 
 export interface QueryOptions {
   filter?: Filter
+  /**
+   * v2 nestable predicate. When set it takes precedence over `filter` — the two
+   * compile through the same `fieldPredicate` leaf, so callers pick one grammar.
+   */
+  predicate?: TablePredicate
   sort?: Sort
+  /** Page row cap. Omitted = return the ENTIRE matching result, failing fast if
+   *  it exceeds the response byte budget (`MAX_QUERY_RESULT_BYTES`). A bounded
+   *  page may byte-cut early with `nextCursor` set. Never an unbounded fetch —
+   *  the drain stops at the budget either way. */
   limit?: number
   offset?: number
   /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
-   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+   *  Mutually exclusive with `sort`. May be combined with `offset` (a compound
+   *  cursor seeks the anchor, then offsets past unkeyed rows consumed after it). */
   after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
@@ -480,6 +603,13 @@ export interface QueryResult {
   totalCount: number | null
   limit: number
   offset: number
+  /**
+   * Opaque cursor for the next page — non-null whenever more matching rows
+   * exist beyond this page, whether the page was cut by `limit` or by the
+   * response byte budget. Callers echo it back as `cursor` and never construct
+   * keyset/offset state themselves. See `rows/cursor.ts`.
+   */
+  nextCursor: string | null
 }
 
 export interface BulkOperationResult {
@@ -493,6 +623,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
+  /** Folder to create the table in. Omitted or `null` creates it at the workspace root. */
+  folderId?: string | null
   /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
    *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number
@@ -526,11 +658,9 @@ export interface BatchInsertData {
   rows: RowData[]
   workspaceId: string
   userId?: string
-  /** Optional per-row target positions. Length must equal `rows.length`. */
-  positions?: number[]
   /**
    * Optional per-row exact order keys (undo restore re-inserts at the saved key).
-   * Length must equal `rows.length`. Takes precedence over `positions`.
+   * Length must equal `rows.length`.
    */
   orderKeys?: string[]
 }
@@ -563,13 +693,20 @@ export interface UpdateRowData {
    */
   executionsPatch?: Record<string, RowExecutionMetadata | null>
   /**
-   * Optional SQL-level guard: the update is a no-op if the row's
-   * `executions[groupId]` already shows `cancelled` for the same
-   * `executionId`. The cell task passes this so a `running` partial-write
-   * landing after a stop click can't clobber the authoritative `cancelled`
+   * Optional SQL-level guard: the update is a no-op when another execution
+   * owns the cell or the current state is already `cancelled`. The cell task
+   * passes this so stale or late partial writes cannot clobber authoritative
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
-  cancellationGuard?: { groupId: string; executionId: string }
+  cancellationGuard?: {
+    groupId: string
+    executionId: string
+    /**
+     * A queued scheduler stamp may claim a different execution while still
+     * rejecting a late same-execution stamp after the worker advanced.
+     */
+    allowNewExecution?: boolean
+  }
   /**
    * The member who performed this write. Billed and usage-gated for any
    * enrichment the write triggers (auto-fire or dependency-cascade re-run), so
@@ -639,6 +776,32 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /** Options to set when changing to a `select` type. */
+  options?: SelectOption[]
+  /** Whether the `select` column accepts multiple options per cell. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set, when it changes type
+   * and constraints together. Those are separate transactions, so the
+   * conversion has to validate against the constraint the column will END UP
+   * with — otherwise it commits and the constraint write then fails.
+   */
+  required?: boolean
+}
+
+export interface UpdateColumnOptionsData {
+  tableId: string
+  columnName: string
+  options: SelectOption[]
+  /** Toggle single/multi selection alongside the options update. */
+  multiple?: boolean
+  /**
+   * The `required` value the same request is about to set. The constraint write
+   * is a separate transaction, so the options update has to validate against
+   * the constraint the column will END UP with — otherwise it clears cells and
+   * the constraint write then fails, leaving the removal committed.
+   */
+  required?: boolean
 }
 
 export interface UpdateColumnConstraintsData {

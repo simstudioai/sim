@@ -1,0 +1,54 @@
+/**
+ * The RunTraceGraphic's motion: the trace rows stamp in top to bottom
+ * one after another — the agent-code tile's one-shot settle, never
+ * re-played. Under prefers-reduced-motion the rows render fully settled.
+ */
+
+.row0,
+.row1,
+.row2,
+.row3,
+.row4 {
+  animation: run-trace-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.row0 {
+  animation-delay: 0.35s;
+}
+
+.row1 {
+  animation-delay: 0.5s;
+}
+
+.row2 {
+  animation-delay: 0.65s;
+}
+
+.row3 {
+  animation-delay: 0.8s;
+}
+
+.row4 {
+  animation-delay: 0.95s;
+}
+
+@keyframes run-trace-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row0,
+  .row1,
+  .row2,
+  .row3,
+  .row4 {
+    animation: none;
+  }
+}

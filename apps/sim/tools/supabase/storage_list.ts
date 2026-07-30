@@ -3,14 +3,14 @@ import {
   type SupabaseStorageListParams,
   type SupabaseStorageListResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStorageListResponse> = {
   id: 'supabase_storage_list',
   name: 'Supabase Storage List',
   description: 'List files in a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -72,7 +72,7 @@ export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStor
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/list/${params.bucket}`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/list/${encodeStorageSegment(params.bucket)}`
     },
     method: 'POST',
     headers: (params) => ({

@@ -13,7 +13,7 @@ export const vectorSearchTool: ToolConfig<
   id: 'supabase_vector_search',
   name: 'Supabase Vector Search',
   description: 'Perform similarity search using pgvector in a Supabase table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

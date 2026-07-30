@@ -50,7 +50,7 @@ export function Heading({ as, className, ...props }: HeadingProps) {
       ) : (
         <Link
           aria-hidden
-          className='size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100'
+          className='size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100 peer-focus-visible:opacity-100'
         />
       )}
     </As>

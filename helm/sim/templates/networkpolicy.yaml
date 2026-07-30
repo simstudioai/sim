@@ -16,7 +16,7 @@ spec:
   - Ingress
   - Egress
   ingress:
-  # Allow ingress from realtime service
+  # Allow ingress from realtime pods (defensive — current traffic flows app -> realtime only)
   {{- if .Values.realtime.enabled }}
   - from:
     - podSelector:
@@ -81,7 +81,7 @@ spec:
     - protocol: TCP
       port: {{ .Values.ollama.service.targetPort }}
   {{- end }}
-  # Allow egress to the PII (Presidio) sidecar
+  # Allow egress to the PII (Presidio) service
   {{- if .Values.pii.enabled }}
   - to:
     - podSelector:
@@ -237,22 +237,12 @@ spec:
     ports:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
-  # Allow ingress from realtime service
+  # Allow ingress from realtime pods (defensive — current traffic flows app -> realtime only)
   {{- if .Values.realtime.enabled }}
   - from:
     - podSelector:
         matchLabels:
           {{- include "sim.realtime.selectorLabels" . | nindent 10 }}
-    ports:
-    - protocol: TCP
-      port: {{ .Values.postgresql.service.targetPort }}
-  {{- end }}
-  # Allow ingress from migrations job
-  {{- if .Values.migrations.enabled }}
-  - from:
-    - podSelector:
-        matchLabels:
-          {{- include "sim.migrations.labels" . | nindent 10 }}
     ports:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
@@ -316,7 +306,7 @@ spec:
 
 {{- if .Values.pii.enabled }}
 ---
-# Network Policy for the PII (Presidio) sidecar
+# Network Policy for the PII (Presidio) service
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

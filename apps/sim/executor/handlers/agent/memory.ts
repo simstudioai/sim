@@ -3,6 +3,7 @@ import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
+import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
@@ -58,6 +59,9 @@ export class Memory {
 
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
+
+    message = await this.maskContentForStorage(ctx, message)
+
     this.validateContent(message.content)
 
     const key = inputs.conversationId!
@@ -102,6 +106,10 @@ export class Memory {
       messagesToStore = this.applyTokenWindow(conversationMessages, maxTokens, inputs.model)
     }
 
+    messagesToStore = await Promise.all(
+      messagesToStore.map((message) => this.maskContentForStorage(ctx, message))
+    )
+
     await this.seedMemoryRecord(workspaceId, key, messagesToStore)
 
     logger.debug('Seeded memory', {
@@ -109,6 +117,27 @@ export class Memory {
       key,
       count: messagesToStore.length,
     })
+  }
+
+  /**
+   * Handlers persist messages to memory before the executor redacts block
+   * output, so mask content here too when the block-output stage is enabled —
+   * otherwise raw PII is stored in the memory table and read back on later runs.
+   * `onFailure: 'throw'` aborts rather than persisting unredacted content.
+   */
+  private async maskContentForStorage(ctx: ExecutionContext, message: Message): Promise<Message> {
+    if (!ctx.piiBlockOutputRedaction?.enabled || !message.content) {
+      return message
+    }
+    return {
+      ...message,
+      content: await redactObjectStrings(message.content, {
+        entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+        language: ctx.piiBlockOutputRedaction.language,
+        customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
+        onFailure: 'throw',
+      }),
+    }
   }
 
   private requireWorkspaceId(ctx: ExecutionContext): string {

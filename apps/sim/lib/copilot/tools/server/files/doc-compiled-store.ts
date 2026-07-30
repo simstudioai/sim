@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CopilotDocCompiledStore')
@@ -63,8 +64,8 @@ export async function storeCompiledDoc(
   } catch (err) {
     logger.error('Failed to store compiled doc artifact', {
       key,
-      error: err instanceof Error ? err.message : String(err),
+      error: getErrorMessage(err),
     })
-    throw err instanceof Error ? err : new Error(String(err))
+    throw toError(err)
   }
 }

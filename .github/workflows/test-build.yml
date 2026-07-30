@@ -9,8 +9,9 @@ permissions:
 
 jobs:
   test-build:
-    name: Test and Build
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    name: Lint and Test
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -24,36 +25,42 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: latest
+          node-version: 22
 
-      - name: Mount Bun cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      # Cache keys are scoped by event name, and fork PRs get their own
+      # namespace on top: untrusted fork runs must never share a cache with
+      # push runs (whose caches feed production image builds) or with trusted
+      # internal-PR runs.
+      #
+      # node_modules also keys on the lockfile hash: a sticky disk is a mutable
+      # volume, and `bun install --frozen-lockfile` adds what the lockfile needs
+      # without pruning what it dropped, so branches on different lockfiles were
+      # contaminating each other (a stale @next/swc 16.2.6 outlived the 16.2.11
+      # bump). The bun and Turbo caches are content/hash-addressed, so they stay
+      # shared — that is what keeps a fresh node_modules disk cheap to fill.
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
         with:
-          key: ${{ github.repository }}-bun-cache
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
-      - name: Mount node_modules (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
         with:
-          key: ${{ github.repository }}-node-modules
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
           path: ./node_modules
 
-      - name: Mount Turbo cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
         with:
-          key: ${{ github.repository }}-turbo-cache
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
-      - name: Restore Next.js build cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ./apps/sim/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       # Surfaces known CVEs in the dependency tree. Non-blocking until the
       # existing advisory backlog is triaged, then flip to a required gate by
@@ -116,6 +123,18 @@ jobs:
       - name: API contract boundary audit
         run: bun run check:api-validation:strict
 
+      - name: Desktop bridge contract audit
+        run: bun run check:desktop-bridge
+
+      # Complements the bridge audit above, which compares against a snapshot
+      # this same PR is allowed to regenerate. This one derives every fact from
+      # the source both sides execute, so it has no such blind spot.
+      - name: Desktop IPC contract audit
+        run: bun run check:desktop-ipc
+
+      - name: Shared utils enforcement audit
+        run: bun run check:utils
+
       - name: Zustand v5 selector audit
         run: bun run check:zustand-v5
 
@@ -125,8 +144,20 @@ jobs:
       - name: Client boundary import audit
         run: bun run check:client-boundary
 
+      - name: Bare-icon theme-safety audit
+        run: bun run check:bare-icons
+
+      - name: Icon SVG path validity audit
+        run: bun run check:icon-paths
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
+
+      - name: Verify skill projections are in sync
+        run: bun run skills:check
+
+      - name: Verify agent stream capability docs are in sync
+        run: bun run agent-stream-docs:check
 
       - name: Migration safety (zero-downtime) audit
         run: |
@@ -141,7 +172,14 @@ jobs:
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
 
-      - name: Run tests with coverage
+      # cloud-review-tools.test.ts runs the real helper on the runner, which shells
+      # out to rg. Blacksmith's image ships it, GitHub's doesn't.
+      - name: Install ripgrep
+        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
+
+      # Named for what it does: `bun run test` is `vitest run`, with no
+      # `--coverage`. See the Codecov note below.
+      - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
@@ -163,6 +201,103 @@ jobs:
           fi
           echo "✅ Schema and migrations are in sync"
 
+      # DEAD PATH: nothing generates `apps/sim/coverage`. The test step runs
+      # `vitest run` without `--coverage`, and vitest.config.ts declares no
+      # coverage provider, so this uploads nothing and still reports success in
+      # ~1s (`fail_ci_if_error: false` hides it). `@vitest/coverage-v8` IS
+      # installed, so wiring it up is possible — but coverage instrumentation
+      # costs test time and nothing gates on the result today. Left in place
+      # pending a decision to either enable coverage or drop this step; do not
+      # read its green tick as "coverage was published".
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          directory: ./apps/sim/coverage
+          fail_ci_if_error: false
+          verbose: true
+
+  # Next.js production build, in parallel with lint + tests. Sticky disks are
+  # cloned from the last committed snapshot per job and committed last-writer-
+  # wins, so concurrent mounts are safe. The bun/node_modules disks are shared
+  # with test-build (the lockfile-hashed key means they only ever share when the
+  # dependency tree really is identical, so LWW loss is harmless), but the Turbo
+  # cache gets its own key: with a shared key, only the last committer's new
+  # entries survive each run, so the test and build Turbo entries would evict
+  # each other nondeterministically.
+  #
+  # Runner is sized for the COLD-cache build, which is what OOM-killed the 8vcpu
+  # tier (23 kills / 1074 runs at 98% of its 30.4 GB): warm peaks ~12 GB, cold
+  # peaked 51 GB. NODE_OPTIONS' --max-old-space-size caps only Node's JS heap,
+  # not the native Turbopack workers that dominate, so it cannot prevent this.
+  build:
+    name: Build App
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    # Build durations crossed 15 minutes as the app grew (10m02 on Jul 29 AM,
+    # 14m44 after the folders/desktop/library merges, then two straight
+    # timeouts) — GitHub reports a job timeout as "cancelled". 25 keeps
+    # headroom without masking a genuine hang.
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ~/.bun/install/cache
+
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
+          path: ./node_modules
+
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./.turbo
+
+      # No `.next/cache` mount: the Turbopack persistent build cache is off. A
+      # controlled A/B on one branch (PR #6078) with a byte-identical module graph
+      # measured compile at 113s with the cache off, 162s cold with it on, and
+      # 360s warm — the cache made the same build 3.2x slower, and it grew
+      # 5.1 GB -> 12 GB across two runs of an unchanged tree, so a disk degrades
+      # the more it is used. Mounting a disk nothing reads would only cost storage.
+
+      # Running out of RAM kills the whole VM and surfaces only as "the runner
+      # has received a shutdown signal" — no mention of memory, ~12 min in. Warn
+      # with the real numbers so that failure is a one-line diagnosis instead of
+      # a mystery. Warn, never fail: a warm build peaks ~12 GB and a partial one
+      # ~28 GB, so a 32 GB runner still completes plenty of builds, and the
+      # GitHub fallback is the break-glass path — degrading it to a guaranteed
+      # failure would be worse than the risk this flags.
+      - name: Check runner memory headroom
+        run: |
+          TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
+          echo "Runner memory: ${TOTAL_GB} GB"
+          if [ "$TOTAL_GB" -lt 40 ]; then
+            echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
+          fi
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
       - name: Build application
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
@@ -175,10 +310,3 @@ jobs:
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=sim
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
-        with:
-          directory: ./apps/sim/coverage
-          fail_ci_if_error: false
-          verbose: true

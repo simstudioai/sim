@@ -7,6 +7,9 @@ export type BYOKProviderId =
   | 'anthropic'
   | 'google'
   | 'mistral'
+  | 'zai'
+  | 'kimi'
+  | 'xai'
   | 'fireworks'
   | 'together'
   | 'baseten'
@@ -14,6 +17,7 @@ export type BYOKProviderId =
   | 'falai'
   | 'firecrawl'
   | 'exa'
+  | 'context_dev'
   | 'serper'
   | 'jina'
   | 'perplexity'
@@ -72,6 +76,13 @@ export interface OutputProperty {
   }
 }
 
+export interface ToolOutputProperty extends OutputProperty {
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
 export type ParameterVisibility =
   | 'user-or-llm' // User can provide OR LLM must generate
   | 'user-only' // Only user can provide (required/optional determined by required field)
@@ -106,6 +117,22 @@ export interface ToolRetryConfig {
   retryIdempotentOnly?: boolean
 }
 
+/** JSON Schema subset supported for array item definitions in tool parameters. */
+export interface ToolParameterItemSchema {
+  readonly type?: string
+  readonly description?: string
+  readonly const?: string | number | boolean
+  readonly minimum?: number
+  readonly maximum?: number
+  readonly minLength?: number
+  readonly maxLength?: number
+  readonly pattern?: string
+  readonly additionalProperties?: boolean
+  readonly required?: readonly string[]
+  readonly properties?: Readonly<Record<string, ToolParameterItemSchema>>
+  readonly anyOf?: readonly ToolParameterItemSchema[]
+}
+
 export interface ToolConfig<P = any, R = any> {
   // Basic tool identification
   id: string
@@ -122,32 +149,11 @@ export interface ToolConfig<P = any, R = any> {
       visibility?: ParameterVisibility
       default?: any
       description?: string
-      items?: {
-        type: string
-        description?: string
-        properties?: Record<string, { type: string; description?: string }>
-      }
+      items?: ToolParameterItemSchema
     }
   >
   // Output schema - what this tool produces
-  outputs?: Record<
-    string,
-    {
-      type: OutputType
-      description?: string
-      optional?: boolean
-      fileConfig?: {
-        mimeType?: string // Expected MIME type for file outputs
-        extension?: string // Expected file extension
-      }
-      items?: {
-        type: OutputType
-        description?: string
-        properties?: Record<string, OutputProperty>
-      }
-      properties?: Record<string, OutputProperty>
-    }
-  >
+  outputs?: Record<string, ToolOutputProperty>
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig
@@ -164,6 +170,13 @@ export interface ToolConfig<P = any, R = any> {
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
     retry?: ToolRetryConfig
+    /**
+     * Drop the `Authorization` header when following a redirect. Set this on any
+     * tool whose endpoint redirects to a different origin carrying its own
+     * signed URL — GitHub's Actions log and artifact downloads are the canonical
+     * case — so the API credential is never sent to the storage host.
+     */
+    stripAuthOnRedirect?: boolean
   }
 
   // Post-processing (optional) - allows additional processing after the initial request
@@ -179,8 +192,10 @@ export interface ToolConfig<P = any, R = any> {
   /**
    * Direct execution function for tools that don't need HTTP requests.
    * If provided, this will be called instead of making an HTTP request.
+   * Receives the workflow execution's abort signal (when one is active) so
+   * long-running direct executions can propagate cancellation.
    */
-  directExecution?: (params: P) => Promise<ToolResponse>
+  directExecution?: (params: P, signal?: AbortSignal) => Promise<ToolResponse>
 
   /**
    * Optional dynamic schema enrichment for specific params.
@@ -299,6 +314,23 @@ interface CustomPricing<P = Record<string, unknown>> {
 /** Union of all pricing models */
 export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
 
+export type ToolHostingCondition =
+  | {
+      field: string
+      operator: 'equals'
+      value: string | number | boolean | null
+    }
+  | {
+      field: string
+      operator: 'one_of'
+      values: Array<string | number | boolean | null>
+    }
+
+export type ToolHostingPredicate<P> = ((params: P) => boolean) & {
+  /** Serializable equivalent of this predicate for VFS consumers. */
+  condition?: ToolHostingCondition
+}
+
 /**
  * Configuration for hosted API key support.
  * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
@@ -320,16 +352,20 @@ export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing 
  * EXA_API_KEY_5=sk-...
  * ```
  *
+ * For a single-key deployment, `{envKeyPrefix}` is also supported when no
+ * `{envKeyPrefix}_COUNT` is configured.
+ *
  * Adding more keys only requires updating the count and adding the new env var —
  * no code changes needed.
  */
 export interface ToolHostingConfig<P = Record<string, unknown>> {
   /** Optional predicate for tools where hosted keys only apply to some parameter combinations. */
-  enabled?: (params: P) => boolean
+  enabled?: ToolHostingPredicate<P>
   /**
    * Env var name prefix for hosted keys.
    * At runtime, `{envKeyPrefix}_COUNT` is read to determine how many keys exist,
-   * then `{envKeyPrefix}_1` through `{envKeyPrefix}_N` are resolved.
+   * then `{envKeyPrefix}_1` through `{envKeyPrefix}_N` are resolved. If no count
+   * is configured, a singular `{envKeyPrefix}` is used when present.
    */
   envKeyPrefix: string
   /** The parameter name that receives the API key */

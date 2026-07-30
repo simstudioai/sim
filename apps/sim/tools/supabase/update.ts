@@ -7,7 +7,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   id: 'supabase_update',
   name: 'Supabase Update Row',
   description: 'Update rows in a Supabase table based on filter criteria',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

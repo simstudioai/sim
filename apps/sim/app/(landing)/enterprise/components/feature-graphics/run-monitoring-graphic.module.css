@@ -1,0 +1,30 @@
+/**
+ * The RunMonitoringGraphic's only motion: a soft ring pulse blooming from
+ * the header's live-status dot every 6s — the family's shared quiet
+ * state-confirmation beat (the lifecycle tile's live node, the staging
+ * tile's Promote button). Under prefers-reduced-motion the pulse is
+ * removed and the dot sits static.
+ */
+
+.livePulse {
+  animation: run-monitoring-live-pulse 6s ease-out infinite;
+}
+
+@keyframes run-monitoring-live-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .livePulse {
+    animation: none;
+  }
+}

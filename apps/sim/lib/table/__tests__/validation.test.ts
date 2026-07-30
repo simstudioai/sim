@@ -87,6 +87,27 @@ describe('Validation', () => {
       }
     })
 
+    it('rejects select-only fields on a non-select column', () => {
+      // Both are inert on a string column, but `updateColumnType` inherits them
+      // on a later convert-to-select — options would be silently replaced and
+      // `multiple` would turn an intended single-select into a multiselect.
+      const withOptions = validateColumnDefinition({
+        name: 'status',
+        type: 'string',
+        options: [{ id: 'opt_a', name: 'Open' }],
+      })
+      expect(withOptions.valid).toBe(false)
+      expect(withOptions.errors[0]).toContain('cannot define options')
+
+      const withMultiple = validateColumnDefinition({
+        name: 'status',
+        type: 'string',
+        multiple: true,
+      })
+      expect(withMultiple.valid).toBe(false)
+      expect(withMultiple.errors[0]).toContain('cannot be multiple')
+    })
+
     it('should reject empty column name', () => {
       const result = validateColumnDefinition({ name: '', type: 'string' })
       expect(result.valid).toBe(false)
@@ -179,6 +200,14 @@ describe('Validation', () => {
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds limit')
     })
+
+    it('should measure UTF-8 bytes, not UTF-16 code units', () => {
+      // '工' is one UTF-16 code unit but three UTF-8 bytes — a char-count check
+      // would accept this row at ~1/3 of the real serialized size.
+      const chars = Math.ceil(TABLE_LIMITS.MAX_ROW_SIZE_BYTES / 3) + 1
+      const result = validateRowSize({ content: '工'.repeat(chars) })
+      expect(result.valid).toBe(false)
+    })
   })
 
   describe('validateRowAgainstSchema', () => {
@@ -270,12 +299,11 @@ describe('Validation', () => {
       expect(result.valid).toBe(true)
     })
 
-    it('should reject string exceeding max length', () => {
-      const longString = 'a'.repeat(TABLE_LIMITS.MAX_STRING_VALUE_LENGTH + 1)
+    it('should allow long strings — cell size is bounded by the row byte cap, not per-value', () => {
+      const longString = 'a'.repeat(100_000)
       const data = { name: longString }
       const result = validateRowAgainstSchema(data, schema)
-      expect(result.valid).toBe(false)
-      expect(result.errors[0]).toContain('exceeds max string length')
+      expect(result.valid).toBe(true)
     })
   })
 
@@ -398,6 +426,50 @@ describe('Validation', () => {
       coerceRowValues(patch as never, schema)
       expect(patch.founded).toBe('nope')
     })
+
+    describe('select coercion', () => {
+      const selectSchema: TableSchema = {
+        columns: [
+          {
+            id: 'status',
+            name: 'status',
+            type: 'select',
+            options: [
+              { id: 'opt_open', name: 'Open' },
+              { id: 'opt_closed', name: 'Closed' },
+            ],
+          },
+          {
+            id: 'tags',
+            name: 'tags',
+            type: 'select',
+            multiple: true,
+            options: [
+              { id: 'opt_a', name: 'Alpha' },
+              { id: 'opt_b', name: 'Beta' },
+            ],
+          },
+        ],
+      }
+
+      it('resolves a single-select name to its id', () => {
+        const patch: Record<string, unknown> = { status: 'Open' }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.status).toBe('opt_open')
+      })
+
+      it('splits a comma-delimited multiselect string into resolved ids', () => {
+        const patch: Record<string, unknown> = { tags: 'Alpha, Beta' }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+
+      it('resolves a multiselect array of names to ids and dedupes', () => {
+        const patch: Record<string, unknown> = { tags: ['Alpha', 'opt_a', 'Beta'] }
+        coerceRowValues(patch as never, selectSchema)
+        expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+    })
   })
 
   describe('getUniqueColumns', () => {
@@ -455,10 +527,12 @@ describe('Validation', () => {
       expect(result.errors[0]).toContain('abc123')
     })
 
-    it('should be case-insensitive for string comparisons', () => {
+    it('should be case-sensitive for string comparisons', () => {
+      // U333 vs u333: differing case is a DISTINCT value (matches the DB
+      // containment leaf). This is the v2 contract that fixes the upsert wedge.
       const data = { id: 'ABC123', email: 'new@example.com', name: 'New User' }
       const result = validateUniqueConstraints(data, schema, existingRows)
-      expect(result.valid).toBe(false)
+      expect(result.valid).toBe(true)
     })
 
     it('should exclude specified row from checks (for updates)', () => {

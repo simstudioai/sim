@@ -31,12 +31,6 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
         description:
           'Zone type: "full" (Cloudflare manages DNS), "partial" (CNAME setup), or "secondary" (secondary DNS)',
       },
-      jump_start: {
-        type: 'boolean',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Automatically attempt to fetch existing DNS records when creating the zone',
-      },
       apiKey: {
         type: 'string',
         required: true,
@@ -58,7 +52,6 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
           account: { id: params.accountId },
         }
         if (params.type) body.type = params.type
-        if (params.jump_start !== undefined) body.jump_start = params.jump_start
         return body
       },
     },

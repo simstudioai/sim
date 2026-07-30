@@ -1,0 +1,380 @@
+/**
+ * One shared 16s timeline of four 4s route phases, a precomputed shuffle
+ * so the routing feels varied without true randomness:
+ *
+ *   phase 0 (0%–25%):   Zendesk -> Slack
+ *   phase 1 (25%–50%):  Sheets  -> Jira
+ *   phase 2 (50%–75%):  Gmail   -> Salesforce
+ *   phase 3 (75%–100%): Zendesk -> Jira
+ *
+ * Within each 4s phase: the source tag's white filled state crossfades
+ * in over its outline (0–0.5s), a white pulse falls down its wire
+ * (0.4–1.2s), dwells in the router while the hub blooms (1.2–2s),
+ * travels out to the destination (2–2.8s), the destination tag's fill
+ * crossfades in as the route connects (2.7–3.1s), both hold (to 3.6s),
+ * then fade back to outlined (to 4s).
+ *
+ * Tag fill overlays rest transparent (opacity-0, set inline in the TSX)
+ * so under prefers-reduced-motion — where every animation here is
+ * disabled — all six tags render outlined and static.
+ */
+
+.pulse {
+  stroke-dasharray: 0.28 1;
+  stroke-dashoffset: 0.28;
+  opacity: 0;
+}
+
+.pulseInA {
+  animation: ops-pulse-in-a 16s linear infinite;
+}
+
+@keyframes ops-pulse-in-a {
+  0%,
+  2.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  2.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  7.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  7.6%,
+  77.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  77.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  82.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  82.6%,
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.pulseInB {
+  animation: ops-pulse-in-b 16s linear infinite;
+}
+
+@keyframes ops-pulse-in-b {
+  0%,
+  27.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  27.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  32.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  32.6%,
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.pulseInC {
+  animation: ops-pulse-in-c 16s linear infinite;
+}
+
+@keyframes ops-pulse-in-c {
+  0%,
+  52.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  52.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  57.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  57.6%,
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.pulseOutA {
+  animation: ops-pulse-out-a 16s linear infinite;
+}
+
+@keyframes ops-pulse-out-a {
+  0%,
+  12.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  12.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  17.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  17.6%,
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.pulseOutB {
+  animation: ops-pulse-out-b 16s linear infinite;
+}
+
+@keyframes ops-pulse-out-b {
+  0%,
+  37.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  37.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  42.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  42.6%,
+  87.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  87.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  92.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  92.6%,
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.pulseOutC {
+  animation: ops-pulse-out-c 16s linear infinite;
+}
+
+@keyframes ops-pulse-out-c {
+  0%,
+  62.4% {
+    stroke-dashoffset: 0.28;
+    opacity: 0;
+  }
+  62.5% {
+    stroke-dashoffset: 0.28;
+    opacity: 1;
+  }
+  67.5% {
+    stroke-dashoffset: -1;
+    opacity: 1;
+  }
+  67.6%,
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.fillSrcA {
+  animation: ops-fill-src-a 16s linear infinite;
+}
+
+@keyframes ops-fill-src-a {
+  0% {
+    opacity: 0;
+  }
+  3.1% {
+    opacity: 1;
+  }
+  22.5% {
+    opacity: 1;
+  }
+  24.9%,
+  75% {
+    opacity: 0;
+  }
+  78.1% {
+    opacity: 1;
+  }
+  97.5% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.fillSrcB {
+  animation: ops-fill-src-b 16s linear infinite;
+}
+
+@keyframes ops-fill-src-b {
+  0%,
+  25% {
+    opacity: 0;
+  }
+  28.1% {
+    opacity: 1;
+  }
+  47.5% {
+    opacity: 1;
+  }
+  49.9%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.fillSrcC {
+  animation: ops-fill-src-c 16s linear infinite;
+}
+
+@keyframes ops-fill-src-c {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  53.1% {
+    opacity: 1;
+  }
+  72.5% {
+    opacity: 1;
+  }
+  74.9%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.fillDstA {
+  animation: ops-fill-dst-a 16s linear infinite;
+}
+
+@keyframes ops-fill-dst-a {
+  0%,
+  16.9% {
+    opacity: 0;
+  }
+  19.4% {
+    opacity: 1;
+  }
+  22.5% {
+    opacity: 1;
+  }
+  24.9%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.fillDstB {
+  animation: ops-fill-dst-b 16s linear infinite;
+}
+
+@keyframes ops-fill-dst-b {
+  0%,
+  41.9% {
+    opacity: 0;
+  }
+  44.4% {
+    opacity: 1;
+  }
+  47.5% {
+    opacity: 1;
+  }
+  49.9%,
+  91.9% {
+    opacity: 0;
+  }
+  94.4% {
+    opacity: 1;
+  }
+  97.5% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.fillDstC {
+  animation: ops-fill-dst-c 16s linear infinite;
+}
+
+@keyframes ops-fill-dst-c {
+  0%,
+  66.9% {
+    opacity: 0;
+  }
+  69.4% {
+    opacity: 1;
+  }
+  72.5% {
+    opacity: 1;
+  }
+  74.9%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.routerBloom {
+  animation: ops-router-bloom 4s linear infinite;
+}
+
+@keyframes ops-router-bloom {
+  0%,
+  30% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-muted-inverse) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--text-muted-inverse) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-muted-inverse) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulseInA,
+  .pulseInB,
+  .pulseInC,
+  .pulseOutA,
+  .pulseOutB,
+  .pulseOutC,
+  .fillSrcA,
+  .fillSrcB,
+  .fillSrcC,
+  .fillDstA,
+  .fillDstB,
+  .fillDstC,
+  .routerBloom {
+    animation: none;
+  }
+}

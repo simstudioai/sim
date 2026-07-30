@@ -10,6 +10,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#ffffff"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Context.dev](https://context.dev/) is a web data API that scrapes, crawls, searches, and extracts data from the web, and resolves brand and company data from a domain, name, email, ticker, or transaction descriptor.
+
+With Context.dev, you can:
+
+- **Scrape and crawl pages**: Convert URLs to clean markdown or HTML, capture screenshots, discover images, crawl entire sites, and map sitemaps
+- **Search the web**: Run natural language searches with domain filters and optional markdown scraping of results
+- **Extract structured data**: Pull data matching a JSON schema, or detect and extract product details and catalogs from a page or domain
+- **Analyze brand and design data**: Extract a domain's fonts and design system, classify a brand into NAICS/SIC industry codes, and resolve brand data (logos, colors, socials, address) from a domain, company name, email, ticker, or transaction descriptor
+
+In Sim, the Context.dev integration allows your agents to scrape and crawl web pages into markdown or HTML, capture screenshots, search the web, extract structured data and product information, pull a site's fonts and style guide, classify a brand's industry, and look up brand assets and company details by domain, name, email, ticker, or transaction — all through a single set of API calls in your workflow.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.
@@ -65,7 +79,7 @@ Scrape any URL and return the raw HTML content of the page.
 | --------- | ---- | ----------- |
 | `html` | string | Raw HTML content of the page |
 | `url` | string | The scraped URL |
-| `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf\) |
+| `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf, doc, docx\) |
 
 ### `context_dev_scrape_images`
 
@@ -177,7 +191,7 @@ Build a sitemap of a domain and return every discovered page URL.
 | --------- | ---- | ----------- |
 | `domain` | string | The domain that was mapped |
 | `urls` | array | All page URLs discovered from the sitemap |
-| `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, errors\) |
+| `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, sitemapsSkipped, errors\) |
 
 ### `context_dev_search`
 
@@ -191,6 +205,8 @@ Search the web with natural language and optionally scrape results to markdown.
 | `includeDomains` | array | No | Only return results from these domains |
 | `excludeDomains` | array | No | Exclude results from these domains |
 | `freshness` | string | No | Recency filter \(last_24_hours, last_week, last_month, last_year\) |
+| `numResults` | number | No | Number of results to return \(10-100, default 10\) |
+| `country` | string | No | Restrict results to a country \(ISO 3166-1 alpha-2 code, e.g. US\) |
 | `queryFanout` | boolean | No | Expand the query into parallel variants for broader coverage |
 | `markdownEnabled` | boolean | No | Scrape each result page to markdown \(default: false\) |
 | `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
@@ -449,7 +465,7 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_by_name`
@@ -488,7 +504,7 @@ Retrieve brand data by company name: logos, colors, socials, address, and indust
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_by_email`
@@ -526,7 +542,7 @@ Retrieve brand data from a work email address. Free/disposable emails are reject
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_by_ticker`
@@ -565,33 +581,8 @@ Retrieve brand data for a public company by its stock ticker symbol.
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
-
-### `context_dev_get_brand_simplified`
-
-Retrieve essential brand data for a domain: title, colors, logos, and backdrops.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | The domain to retrieve simplified brand data for \(e.g., "airbnb.com"\) |
-| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
-| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
-| `apiKey` | string | Yes | Context.dev API key |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `status` | string | Retrieval status |
-| `brand` | object | Simplified brand data \(domain, title, colors, logos, backdrops\) |
-|   ↳ `domain` | string | Brand domain |
-|   ↳ `title` | string | Brand title |
-|   ↳ `colors` | json | Brand colors \(hex and name\) |
-|   ↳ `logos` | json | Brand logos with mode, colors, resolution, and type |
-|   ↳ `backdrops` | json | Brand backdrop images |
 
 ### `context_dev_identify_transaction`
 
@@ -632,47 +623,7 @@ Identify the brand behind a raw bank/card transaction descriptor and return its 
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
-
-### `context_dev_prefetch_domain`
-
-Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits).
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | The domain to prefetch brand data for \(e.g., "example.com"\) |
-| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
-| `apiKey` | string | Yes | Context.dev API key |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `status` | string | Prefetch status |
-| `message` | string | Human-readable prefetch result message |
-| `domain` | string | The domain queued for prefetching |
-
-### `context_dev_prefetch_by_email`
-
-Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `email` | string | Yes | Work email address whose domain should be prefetched \(free providers rejected\) |
-| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
-| `apiKey` | string | Yes | Context.dev API key |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `status` | string | Prefetch status |
-| `message` | string | Human-readable prefetch result message |
-| `domain` | string | The domain queued for prefetching |
 
 

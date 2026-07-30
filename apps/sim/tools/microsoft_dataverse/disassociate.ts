@@ -3,6 +3,7 @@ import type {
   DataverseDisassociateParams,
   DataverseDisassociateResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseDisassociate')
@@ -63,11 +64,14 @@ export const dataverseDisassociateTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const entitySetName = params.entitySetName.trim()
+      const recordId = params.recordId.trim()
+      const navigationProperty = params.navigationProperty.trim()
       if (params.targetRecordId) {
-        return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})/${params.navigationProperty}(${params.targetRecordId})/$ref`
+        return `${baseUrl}/api/data/v9.2/${entitySetName}(${recordId})/${navigationProperty}(${params.targetRecordId.trim()})/$ref`
       }
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})/${params.navigationProperty}/$ref`
+      return `${baseUrl}/api/data/v9.2/${entitySetName}(${recordId})/${navigationProperty}/$ref`
     },
     method: 'DELETE',
     headers: (params) => ({

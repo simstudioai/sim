@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label, Loader } from '@sim/emcn'
+import { cn, Input, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { publicFileSSOContract } from '@/lib/api/contracts/public-shares'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 
 interface PublicFileSSOAuthProps {
@@ -26,14 +27,14 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleAuthenticate = async () => {
-    if (!quickValidateEmail(email.trim().toLowerCase()).isValid) {
+    if (!quickValidateEmail(normalizeEmail(email)).isValid) {
       setError('Please enter a valid email address.')
       return
     }
     setError(null)
     setIsLoading(true)
     try {
-      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
       const { eligible } = await requestJson(publicFileSSOContract, {
         params: { token },
         body: { email: normalizedEmail },
@@ -86,16 +87,13 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
         </div>
 
-        <button type='submit' disabled={!email.trim() || isLoading} className={AUTH_SUBMIT_BTN}>
-          {isLoading ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              Redirecting to SSO…
-            </span>
-          ) : (
-            'Continue with SSO'
-          )}
-        </button>
+        <AuthSubmitButton
+          disabled={!email.trim()}
+          loading={isLoading}
+          loadingLabel='Redirecting to SSO…'
+        >
+          Continue with SSO
+        </AuthSubmitButton>
       </form>
     </PublicFileAuthShell>
   )

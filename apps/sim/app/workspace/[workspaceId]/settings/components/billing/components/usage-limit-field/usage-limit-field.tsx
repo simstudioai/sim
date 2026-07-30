@@ -13,6 +13,15 @@ import { useDebounce } from '@/hooks/use-debounce'
 /** Delay before a usage-limit edit is auto-saved once the user stops typing. */
 const AUTOSAVE_DELAY_MS = 1000
 
+/** Static help accessory for the usage-limit header; hoisted so it's a stable reference. */
+const USAGE_LIMIT_INFO = (
+  <Info side='top' className='text-[var(--text-muted)]'>
+    {
+      "Max usage to consume per month, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage, but you can set it beyond."
+    }
+  </Info>
+)
+
 interface UsageLimitFieldProps {
   /** Current monthly usage limit, in dollars. */
   currentLimit: number
@@ -111,16 +120,7 @@ export function UsageLimitField({
   }, [debouncedDraft, minimumLimit, canEdit, context, organizationId, saveOrgLimit, saveUserLimit])
 
   return (
-    <SettingsSection
-      label='Usage limit'
-      headerAccessory={
-        <Info side='top' className='text-[var(--text-muted)]'>
-          {
-            "Max usage to consume per month, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage, but you can set it beyond."
-          }
-        </Info>
-      }
-    >
+    <SettingsSection label='Usage limit' headerAccessory={USAGE_LIMIT_INFO}>
       <ChipInput
         type='number'
         inputMode='numeric'

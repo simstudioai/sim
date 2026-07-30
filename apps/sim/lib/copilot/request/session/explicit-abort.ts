@@ -1,4 +1,8 @@
 import type { Context } from '@opentelemetry/api'
+import {
+  COPILOT_BILLING_PROTOCOL,
+  COPILOT_BILLING_PROTOCOL_HEADER,
+} from '@/lib/billing/core/billing-attribution'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { AbortReason } from '@/lib/copilot/request/session/abort'
@@ -26,6 +30,7 @@ export async function requestExplicitStreamAbort(params: {
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    [COPILOT_BILLING_PROTOCOL_HEADER]: COPILOT_BILLING_PROTOCOL.legacy,
   }
   if (env.COPILOT_API_KEY) {
     headers['x-api-key'] = env.COPILOT_API_KEY

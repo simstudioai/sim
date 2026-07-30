@@ -6,7 +6,7 @@ export const OnePasswordBlock: BlockConfig = {
   name: '1Password',
   description: 'Manage secrets and items in 1Password vaults',
   longDescription:
-    'Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.',
+    'Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, download attached files, create new items, update existing ones, delete items, and resolve secret references.',
   docsLink: 'https://docs.sim.ai/integrations/onepassword',
   category: 'tools',
   integrationType: IntegrationType.Security,
@@ -24,6 +24,7 @@ export const OnePasswordBlock: BlockConfig = {
         { label: 'Get Vault', id: 'get_vault' },
         { label: 'List Items', id: 'list_items' },
         { label: 'Get Item', id: 'get_item' },
+        { label: 'Get Item File', id: 'get_item_file' },
         { label: 'Create Item', id: 'create_item' },
         { label: 'Replace Item', id: 'replace_item' },
         { label: 'Update Item', id: 'update_item' },
@@ -56,8 +57,16 @@ export const OnePasswordBlock: BlockConfig = {
       title: 'Server URL',
       type: 'short-input',
       placeholder: 'http://localhost:8080',
-      required: { field: 'connectionMode', value: 'connect' },
-      condition: { field: 'connectionMode', value: 'connect' },
+      required: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
+      condition: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
     },
     {
       id: 'apiKey',
@@ -65,8 +74,16 @@ export const OnePasswordBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter your 1Password Connect token',
       password: true,
-      required: { field: 'connectionMode', value: 'connect' },
-      condition: { field: 'connectionMode', value: 'connect' },
+      required: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
+      condition: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
     },
     {
       id: 'secretReference',
@@ -93,13 +110,13 @@ Return ONLY the op:// URI - no explanations, no quotes, no markdown.`,
       title: 'Vault ID',
       type: 'short-input',
       placeholder: 'Enter vault UUID',
-      password: true,
       required: {
         field: 'operation',
         value: [
           'get_vault',
           'list_items',
           'get_item',
+          'get_item_file',
           'create_item',
           'replace_item',
           'update_item',
@@ -119,12 +136,20 @@ Return ONLY the op:// URI - no explanations, no quotes, no markdown.`,
       placeholder: 'Enter item UUID',
       required: {
         field: 'operation',
-        value: ['get_item', 'replace_item', 'update_item', 'delete_item'],
+        value: ['get_item', 'get_item_file', 'replace_item', 'update_item', 'delete_item'],
       },
       condition: {
         field: 'operation',
-        value: ['get_item', 'replace_item', 'update_item', 'delete_item'],
+        value: ['get_item', 'get_item_file', 'replace_item', 'update_item', 'delete_item'],
       },
+    },
+    {
+      id: 'fileId',
+      title: 'File ID',
+      type: 'short-input',
+      placeholder: 'Enter file ID (from Get Item output)',
+      required: { field: 'operation', value: 'get_item_file' },
+      condition: { field: 'operation', value: 'get_item_file' },
     },
     {
       id: 'filter',
@@ -132,6 +157,17 @@ Return ONLY the op:// URI - no explanations, no quotes, no markdown.`,
       type: 'short-input',
       placeholder: 'SCIM filter (e.g., name eq "My Vault")',
       condition: { field: 'operation', value: ['list_vaults', 'list_items'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a SCIM filter expression for a 1Password vault or item list based on the user's description.
+Examples:
+- name eq "My Vault"
+- title eq "API Key"
+- tag eq "production"
+
+Return ONLY the SCIM filter expression - no explanations, no quotes, no markdown.`,
+      },
     },
     {
       id: 'category',
@@ -147,6 +183,17 @@ Return ONLY the op:// URI - no explanations, no quotes, no markdown.`,
         { label: 'Credit Card', id: 'CREDIT_CARD' },
         { label: 'Identity', id: 'IDENTITY' },
         { label: 'SSH Key', id: 'SSH_KEY' },
+        { label: 'Software License', id: 'SOFTWARE_LICENSE' },
+        { label: 'Email Account', id: 'EMAIL_ACCOUNT' },
+        { label: 'Membership', id: 'MEMBERSHIP' },
+        { label: 'Passport', id: 'PASSPORT' },
+        { label: 'Reward Program', id: 'REWARD_PROGRAM' },
+        { label: 'Driver License', id: 'DRIVER_LICENSE' },
+        { label: 'Bank Account', id: 'BANK_ACCOUNT' },
+        { label: 'Medical Record', id: 'MEDICAL_RECORD' },
+        { label: 'Outdoor License', id: 'OUTDOOR_LICENSE' },
+        { label: 'Wireless Router', id: 'WIRELESS_ROUTER' },
+        { label: 'Social Security Number', id: 'SOCIAL_SECURITY_NUMBER' },
       ],
       value: () => 'LOGIN',
       required: { field: 'operation', value: 'create_item' },
@@ -231,6 +278,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       'onepassword_get_vault',
       'onepassword_list_items',
       'onepassword_get_item',
+      'onepassword_get_item_file',
       'onepassword_create_item',
       'onepassword_replace_item',
       'onepassword_update_item',
@@ -251,6 +299,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     secretReference: { type: 'string', description: 'Secret reference URI (op://...)' },
     vaultId: { type: 'string', description: 'Vault UUID' },
     itemId: { type: 'string', description: 'Item UUID' },
+    fileId: { type: 'string', description: 'File ID of an attachment on the item' },
     filter: { type: 'string', description: 'SCIM filter expression' },
     category: { type: 'string', description: 'Item category' },
     title: { type: 'string', description: 'Item title' },
@@ -263,7 +312,176 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
   outputs: {
     response: {
       type: 'json',
-      description: 'Operation response data',
+      description:
+        'Deprecated — kept for backward compatibility with workflows saved before per-operation outputs were added below. Never populated; use the operation-specific outputs instead.',
+    },
+    vaults: {
+      type: 'json',
+      description:
+        'List of accessible vaults [{id, name, description, items, type, createdAt, updatedAt}]',
+      condition: { field: 'operation', value: 'list_vaults' },
+    },
+    id: {
+      type: 'string',
+      description: 'Vault or item ID',
+      condition: {
+        field: 'operation',
+        value: ['get_vault', 'get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    name: {
+      type: 'string',
+      description: 'Vault name',
+      condition: { field: 'operation', value: 'get_vault' },
+    },
+    description: {
+      type: 'string',
+      description: 'Vault description',
+      condition: { field: 'operation', value: 'get_vault' },
+    },
+    items: {
+      type: 'json',
+      description:
+        'Number of items in the vault (Get Vault) or item summaries [{id, title, category, tags, favorite, version, updatedAt}] (List Items)',
+      condition: { field: 'operation', value: ['get_vault', 'list_items'] },
+    },
+    type: {
+      type: 'string',
+      description: 'Vault type (USER_CREATED, PERSONAL, or EVERYONE)',
+      condition: { field: 'operation', value: 'get_vault' },
+    },
+    title: {
+      type: 'string',
+      description: 'Item title',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    category: {
+      type: 'string',
+      description: 'Item category (e.g., LOGIN, API_CREDENTIAL, SECURE_NOTE)',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    vault: {
+      type: 'json',
+      description: 'Vault reference the item belongs to {id}',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    fields: {
+      type: 'json',
+      description: 'Item fields including secrets [{id, label, type, purpose, value}]',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    sections: {
+      type: 'json',
+      description: 'Item sections [{id, label}]',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    files: {
+      type: 'json',
+      description:
+        'Files attached to the item [{id, name, size, section}] — fetch content with Get Item File',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    tags: {
+      type: 'json',
+      description: 'Item tags',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    urls: {
+      type: 'json',
+      description: 'URLs associated with the item [{href, label, primary}]',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    favorite: {
+      type: 'boolean',
+      description: 'Whether the item is favorited',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    version: {
+      type: 'number',
+      description: 'Item version number',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    state: {
+      type: 'string',
+      description: 'Item state (ARCHIVED, or absent/null when active)',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    lastEditedBy: {
+      type: 'string',
+      description: 'ID of the last editor',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    createdAt: {
+      type: 'string',
+      description: 'Creation timestamp',
+      condition: {
+        field: 'operation',
+        value: ['get_vault', 'get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    updatedAt: {
+      type: 'string',
+      description: 'Last update timestamp',
+      condition: {
+        field: 'operation',
+        value: ['get_vault', 'get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    success: {
+      type: 'boolean',
+      description: 'Whether the item was successfully deleted',
+      condition: { field: 'operation', value: 'delete_item' },
+    },
+    value: {
+      type: 'string',
+      description: 'The resolved secret value',
+      condition: { field: 'operation', value: 'resolve_secret' },
+    },
+    reference: {
+      type: 'string',
+      description: 'The original secret reference URI',
+      condition: { field: 'operation', value: 'resolve_secret' },
+    },
+    file: {
+      type: 'file',
+      description: 'Downloaded file attachment',
+      condition: { field: 'operation', value: 'get_item_file' },
     },
   },
 }

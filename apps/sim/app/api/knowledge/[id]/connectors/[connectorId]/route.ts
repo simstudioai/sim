@@ -1,12 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import {
-  document,
-  embedding,
-  knowledgeBase,
-  knowledgeConnector,
-  knowledgeConnectorSyncLog,
-} from '@sim/db/schema'
+import { document, embedding, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -14,9 +8,10 @@ import { updateKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
+import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -113,7 +108,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       body.syncIntervalMinutes > 0 &&
       body.syncIntervalMinutes < 60
     ) {
-      const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
+      const workspaceId = writeCheck.knowledgeBase.workspaceId
+      if (!workspaceId) {
+        return NextResponse.json(
+          { error: 'Knowledge base is missing workspace billing context' },
+          { status: 409 }
+        )
+      }
+      const canUseLiveSync = await hasWorkspaceLiveSyncAccess(workspaceId)
       if (!canUseLiveSync) {
         return NextResponse.json(
           { error: 'Live sync requires a Max or Enterprise plan' },
@@ -150,16 +152,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
         )
       }
 
-      const kbRows = await db
-        .select({ userId: knowledgeBase.userId })
-        .from(knowledgeBase)
-        .where(eq(knowledgeBase.id, knowledgeBaseId))
-        .limit(1)
-
-      if (kbRows.length === 0) {
-        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-      }
-
       let accessToken: string | null = null
       if (connectorConfig.auth.mode === 'apiKey') {
         if (!existing.encryptedApiKey) {
@@ -176,9 +168,32 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
             { status: 400 }
           )
         }
+        const connectorWorkspaceId = writeCheck.knowledgeBase.workspaceId
+        if (!connectorWorkspaceId) {
+          return NextResponse.json(
+            { error: 'Knowledge base is missing workspace context' },
+            { status: 409 }
+          )
+        }
+        /**
+         * Resolve the credential's own account owner, not the knowledge base owner:
+         * workspace credentials are shared, and token reads are scoped to
+         * `account.userId`.
+         */
+        const identity = await resolveCredentialTokenIdentity(
+          existing.credentialId,
+          connectorWorkspaceId
+        )
+        if (!identity) {
+          return NextResponse.json(
+            { error: 'Credential is no longer usable in this workspace. Please reconnect it.' },
+            { status: 400 }
+          )
+        }
         accessToken = await refreshAccessTokenIfNeeded(
           existing.credentialId,
-          kbRows[0].userId,
+          // Service accounts mint their own token and ignore the acting user.
+          identity.kind === 'oauth' ? identity.userId : auth.userId,
           `patch-${connectorId}`
         )
       }
@@ -321,23 +336,25 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
     const { deletedDocs, docCount } = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
 
+      // Includes pending-removal (tombstoned) docs — the connector is being
+      // deleted, so there's no future sync left to confirm or resurrect them.
       const docs = await tx
         .select({ id: document.id, fileUrl: document.fileUrl })
         .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
+        .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
 
+      const documentIds = docs.map((doc) => doc.id)
       if (deleteDocuments) {
-        const documentIds = docs.map((doc) => doc.id)
         if (documentIds.length > 0) {
           await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
           await tx.delete(document).where(inArray(document.id, documentIds))
         }
+      } else if (documentIds.length > 0) {
+        // Kept documents become normal standalone KB entries once their connector
+        // is gone — resurrect any pending-removal ones rather than leaving them
+        // invisible tombstones with no future sync left to ever confirm or
+        // resurrect them.
+        await tx.update(document).set({ deletedAt: null }).where(inArray(document.id, documentIds))
       }
 
       const deletedConnectors = await tx

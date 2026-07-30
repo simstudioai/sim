@@ -31,13 +31,13 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     state: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by state (opened, closed, merged, all)',
+      description: 'Filter by state (opened, closed, locked, merged, all)',
     },
     labels: {
       type: 'string',
@@ -61,7 +61,8 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Order by field (created_at, updated_at)',
+      description:
+        'Order by field (created_at, updated_at, merged_at, priority, label_priority, milestone_due, popularity, title)',
     },
     sort: {
       type: 'string',

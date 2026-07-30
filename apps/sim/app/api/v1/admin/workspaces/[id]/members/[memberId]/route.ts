@@ -21,6 +21,7 @@
  * Response: AdminSingleResponse<{ removed: true, memberId: string, userId: string }>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -33,6 +34,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
+import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -196,6 +198,22 @@ export const PATCH = withRouteHandler(
         previousPermissions: existingMember.permissionType,
       })
 
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.MEMBER_ROLE_CHANGED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        description: `Admin API changed workspace member permissions to ${permissionLevel}`,
+        metadata: {
+          memberId,
+          targetUserId: existingMember.userId,
+          previousPermissions: existingMember.permissionType,
+          permissions: permissionLevel,
+        },
+        request,
+      })
+
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to update workspace member', { error, workspaceId, memberId })
@@ -269,10 +287,22 @@ export const DELETE = withRouteHandler(
         await tx.delete(permissions).where(eq(permissions.id, memberId))
 
         await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, existingMember.userId)
+        await removeWorkspaceSkillMembershipsTx(tx, workspaceId, existingMember.userId)
       })
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
         userId: existingMember.userId,
+      })
+
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.MEMBER_REMOVED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        description: 'Admin API removed member from workspace',
+        metadata: { memberId, targetUserId: existingMember.userId },
+        request,
       })
 
       return singleResponse({

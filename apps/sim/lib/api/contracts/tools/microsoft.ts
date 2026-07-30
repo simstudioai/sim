@@ -86,6 +86,13 @@ export const sharepointUploadBodySchema = z.object({
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
+export const sharepointDownloadFileBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  driveId: z.string().min(1, 'Drive ID is required'),
+  itemId: z.string().min(1, 'Item ID is required'),
+  fileName: z.string().optional().nullable(),
+})
+
 export const dataverseUploadFileBodySchema = z.object({
   accessToken: accessTokenSchema,
   environmentUrl: z.string().min(1, 'Environment URL is required'),
@@ -190,6 +197,13 @@ export const sharepointUploadContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
+export const sharepointDownloadFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/sharepoint/download-file',
+  body: sharepointDownloadFileBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
 export const dataverseUploadFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/microsoft-dataverse/upload-file',
@@ -210,4 +224,5 @@ export type TeamsDeleteChatMessageBody = ContractBody<typeof teamsDeleteChatMess
 export type OneDriveUploadBody = ContractBody<typeof onedriveUploadContract>
 export type OneDriveDownloadBody = ContractBody<typeof onedriveDownloadContract>
 export type SharepointUploadBody = ContractBody<typeof sharepointUploadContract>
+export type SharepointDownloadFileBody = ContractBody<typeof sharepointDownloadFileContract>
 export type DataverseUploadFileBody = z.output<typeof dataverseUploadFileBodySchema>

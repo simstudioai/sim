@@ -2,22 +2,21 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1UpsertTableRowContract } from '@/lib/api/contracts/v1/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import {
-  buildIdByName,
-  buildNameById,
-  rowDataIdToName,
-  rowDataNameToId,
-  upsertRow,
-} from '@/lib/table'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { upsertRow } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableUpsertAPI')
@@ -40,13 +39,19 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpsertTableRowContract, request, context)
+    const parsed = await parseRequest(v1UpsertTableRowContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
+    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actorUserId) {
+      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
+    }
 
     const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -58,13 +63,13 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     }
 
     const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
     const upsertResult = await upsertRow(
       {
         tableId,
         workspaceId: validated.workspaceId,
         data: rowDataNameToId(validated.data as RowData, idByName),
-        userId,
+        userId: actorUserId,
         conflictTarget: validated.conflictTarget,
       },
       table,
@@ -76,7 +81,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       data: {
         row: {
           id: upsertResult.row.id,
-          data: rowDataIdToName(upsertResult.row.data, nameById),
+          data: toNamedRow(upsertResult.row.data),
           createdAt:
             upsertResult.row.createdAt instanceof Date
               ? upsertResult.row.createdAt.toISOString()
@@ -91,7 +96,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       },
     })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     const errorMessage = toError(error).message

@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { PII_LANGUAGE_CODES } from '@/lib/guardrails/pii-entities'
+import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
+import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 
@@ -25,30 +26,49 @@ export const jobIdParamsSchema = z.object({
 })
 
 /**
- * Non-empty string identifier (used for workspace, workflow, user, table, etc.).
- * Prefer this over inline `z.string().min(1)` so error wording stays consistent
- * and refactors can centralize ID validation in one place.
+ * Non-empty string identifier with no custom message — suitable for internal
+ * shapes where the field name is not worth surfacing. For a required *request*
+ * field prefer {@link requiredFieldSchema} (or a named primitive below), which
+ * also names the field when it is omitted entirely.
  */
 export const nonEmptyIdSchema = z.string().min(1)
 
 /**
- * Non-empty `workspaceId` field. Same constraint as `nonEmptyIdSchema` with a
- * stable, human-readable message. Use to deduplicate the
- * `z.string().min(1, 'Workspace ID is required')` pattern across contracts.
+ * Builds a required, non-empty string schema whose message covers **both**
+ * failure modes.
+ *
+ * `.min(1, message)` alone only fires for a present-but-empty string; an omitted
+ * field falls through to Zod's default `Invalid input: expected string, received
+ * undefined`, which never names the field the caller left out. Passing the same
+ * message to the `z.string({ error })` constructor closes that gap.
+ *
+ * Prefer this over a bare `z.string().min(1, '...')` for any required request
+ * field. When a named primitive below already carries the right wording, import
+ * that instead of rebuilding it here.
  */
-export const workspaceIdSchema = z.string().min(1, 'Workspace ID is required')
+export function requiredFieldSchema(message: string) {
+  return z.string({ error: message }).min(1, message)
+}
+
+/** Non-empty `workspaceId` field with a stable, human-readable message. */
+export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
+
+/** Non-empty `organizationId` field with a stable, human-readable message. */
+export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
+
+/** Non-empty `workflowId` field with a stable, human-readable message. */
+export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
 
 /**
- * Non-empty `organizationId` field. Same constraint as `nonEmptyIdSchema` with a
- * stable, human-readable message.
+ * A `folder.id` value. Not `.uuid()`: the column is free-form `text` and the
+ * legacy `workflow_folder` rows migrated onto it keep their original id shape.
+ * Callers that also allow "no folder" chain `.nullable()` themselves so the
+ * two-state and three-state spellings stay explicit at each call site.
  */
-export const organizationIdSchema = z.string().min(1, 'Organization ID is required')
-
-/**
- * Non-empty `workflowId` field. Same constraint as `nonEmptyIdSchema` with a
- * stable, human-readable message.
- */
-export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
+export const folderIdSchema = requiredFieldSchema('Folder ID is required').max(
+  128,
+  'Folder ID is too long'
+)
 
 /**
  * A `workspace_files.id` value. The column is a free-form `text` primary key, so
@@ -57,9 +77,7 @@ export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
  * path. Both are drawn from `[A-Za-z0-9_-]`, so accept that charset rather than a
  * UUID-only schema — a `.uuid()` constraint here silently 400s every `wf_` file.
  */
-export const workspaceFileIdSchema = z
-  .string()
-  .min(1, 'File ID is required')
+export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
   .max(128, 'File ID is too long')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
 
@@ -113,17 +131,114 @@ export const userFileSchema = z
   })
   .passthrough()
 
-/** A single PII redaction rule targeting one scope (all workspaces, or one). */
-export const piiRedactionRuleSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().max(100).optional(),
-  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
-  entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
-  /** null = all workspaces; otherwise the single targeted workspace. */
-  workspaceId: z.string().min(1).nullable(),
-  /** Language whose Presidio recognizers apply; defaults to English. */
-  language: z.enum(PII_LANGUAGE_CODES).optional(),
+/**
+ * Per-stage redaction policy: which entity types to mask, in which language. An
+ * enabled stage must name at least one entity type — "redact all" is not an
+ * expressible policy, so `enabled: true` with an empty list (which would resolve
+ * to off and silently skip masking) is rejected at the boundary.
+ */
+/**
+ * A user-supplied custom regex pattern. `name` is a label; `regex` is matched
+ * against text; matches are replaced with `replacement` wrapped in angle brackets
+ * (`EMPLOYEE_ID` → `<EMPLOYEE_ID>`). Bounds guard the Presidio boundary
+ * (ReDoS/oversized payloads).
+ *
+ * The `regex` is validated for both syntax and catastrophic-backtracking safety
+ * here at the write boundary — not just in the editor — so an invalid or unsafe
+ * pattern can never be persisted or reach Presidio (where it would abort the
+ * batch on a 400, or time out and silently fail open, leaving PII unredacted).
+ */
+export const customPatternSchema = z.object({
+  name: z.string().max(100, 'Pattern name is too long'),
+  regex: z
+    .string()
+    .min(1, 'Pattern cannot be empty')
+    .max(512, 'Pattern is too long')
+    .superRefine((regex, ctx) => {
+      const result = validateRegexPattern(regex)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.error ?? 'Invalid regex pattern',
+        })
+      }
+    }),
+  replacement: z.string().max(100, 'Replacement is too long'),
 })
+
+export type CustomPiiPattern = z.output<typeof customPatternSchema>
+
+export const piiStagePolicySchema = z
+  .object({
+    enabled: z.boolean(),
+    /** Presidio entity types to mask. Disabled stages may be empty. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
+    /** Language whose Presidio recognizers apply; defaults to English. */
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+    /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+    customPatterns: z.array(customPatternSchema).max(20).optional(),
+  })
+  .refine(
+    (stage) =>
+      !stage.enabled || stage.entityTypes.length > 0 || (stage.customPatterns?.length ?? 0) > 0,
+    {
+      message: 'An enabled redaction stage must select at least one entity type or custom pattern.',
+      path: ['entityTypes'],
+    }
+  )
+
+export type PiiStagePolicy = z.output<typeof piiStagePolicySchema>
+
+/**
+ * The three redaction stages, each independently configured.
+ *
+ * Block outputs are regex-only: they run in-flight on Presidio's spaCy-free fast
+ * path, so the spaCy-NER entities (PERSON/LOCATION/NRP/DATE_TIME) are stripped
+ * here rather than rejected — a stored rule that still selects NER stays saveable
+ * (migration-safe), and a blockOutputs stage left empty by the strip is disabled.
+ */
+export const piiStagesSchema = z
+  .object({
+    input: piiStagePolicySchema,
+    blockOutputs: piiStagePolicySchema,
+    logs: piiStagePolicySchema,
+  })
+  .transform((stages) => {
+    const entityTypes = stripNerEntities(stages.blockOutputs.entityTypes)
+    const customPatterns = stages.blockOutputs.customPatterns ?? []
+    return {
+      ...stages,
+      blockOutputs: {
+        ...stages.blockOutputs,
+        entityTypes,
+        enabled:
+          stages.blockOutputs.enabled && (entityTypes.length > 0 || customPatterns.length > 0),
+      },
+    }
+  })
+
+export type PiiStages = z.output<typeof piiStagesSchema>
+
+/**
+ * A single PII redaction rule targeting one scope (all workspaces, or one).
+ * New rules carry per-stage `stages`; legacy rows carry only the flat
+ * `entityTypes`/`language` (resolved as logs-only). At least one must be present.
+ */
+export const piiRedactionRuleSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().max(100).optional(),
+    /** null = all workspaces; otherwise the single targeted workspace. */
+    workspaceId: z.string().min(1).nullable(),
+    /** Per-stage policy (input / blockOutputs / logs). */
+    stages: piiStagesSchema.optional(),
+    /** Legacy flat policy (pre-stages). Retained for back-compat parse + migration. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100).optional(),
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+  })
+  .refine((rule) => rule.stages !== undefined || rule.entityTypes !== undefined, {
+    message: 'A PII redaction rule must define either stages or entityTypes.',
+  })
 
 export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>
 

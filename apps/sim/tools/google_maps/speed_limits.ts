@@ -32,6 +32,12 @@ export const googleMapsSpeedLimitsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Array of Place IDs for road segments (required if path not provided)',
     },
+    units: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Units for the returned speed limits: KPH (default) or MPH',
+    },
   },
 
   request: {
@@ -56,6 +62,10 @@ export const googleMapsSpeedLimitsTool: ToolConfig<
         for (const placeId of params.placeIds!) {
           url.searchParams.append('placeId', placeId.trim())
         }
+      }
+
+      if (params.units) {
+        url.searchParams.set('units', params.units)
       }
 
       return url.toString()

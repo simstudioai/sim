@@ -6,29 +6,26 @@
 import {
   auditMock,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
+  resetDbChainMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbChain } = vi.hoisted(() => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-  }
-  return { mockDbChain: chain }
-})
-
-vi.mock('@sim/db', () => ({ db: mockDbChain }))
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: vi.fn().mockResolvedValue({
+    actorUserId: 'user-1',
+    workspaceId: 'ws-1',
+    billingEntity: { type: 'organization', id: 'org-1' },
+  }),
+  checkAttributedUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -48,10 +45,7 @@ describe('POST /api/knowledge/[id]/documents/upsert', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbChain.select.mockReturnThis()
-    mockDbChain.from.mockReturnThis()
-    mockDbChain.where.mockReturnThis()
-    mockDbChain.limit.mockResolvedValue([])
+    resetDbChainMock()
 
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
@@ -70,6 +64,10 @@ describe('POST /api/knowledge/[id]/documents/upsert', () => {
       { documentId: 'doc-new', filename: 'note.txt' },
     ] as any)
     vi.mocked(processDocumentsWithQueue).mockResolvedValue(undefined as any)
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   const baseBody = {

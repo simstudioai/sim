@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -106,6 +107,22 @@ export const POST = withRouteHandler(
         billedAccountReassigned: result.billedAccountReassigned,
         overageMigrated: result.overageMigrated,
         billingBlockInherited: result.billingBlockInherited,
+      })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: 'admin-api',
+        action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        description: 'Admin API transferred organization ownership',
+        metadata: {
+          currentOwnerUserId,
+          newOwnerUserId,
+          workspacesReassigned: result.workspacesReassigned,
+          billedAccountReassigned: result.billedAccountReassigned,
+        },
+        request,
       })
 
       return singleResponse({

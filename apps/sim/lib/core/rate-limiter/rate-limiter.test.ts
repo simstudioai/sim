@@ -1,9 +1,34 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { RateLimiter } from './rate-limiter'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+/**
+ * Query-suffixed imports give this file private instances of the modules under
+ * test. Under `isolate: false` the worker's module graph is shared across test
+ * files, so the plain specifiers may already be cached with the real env-flags
+ * binding (`isBillingEnabled` false ⇒ unlimited limits; mocks never reach an
+ * already-evaluated module) — and evaluating them here under this file's mocks
+ * would poison them for later files. The suffixed ids are unique to this file,
+ * so they always evaluate fresh with the mocks below. The plain `./types` id is
+ * redirected to the same fresh instance so the `RateLimiter` under test and the
+ * assertions below share one `RATE_LIMITS`/`getRateLimit`.
+ */
+declare module '@/lib/core/rate-limiter/rate-limiter?rate-limiter-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/rate-limiter/rate-limiter'
+}
+declare module '@/lib/core/rate-limiter/types?rate-limiter-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
+  export * from '@/lib/core/rate-limiter/types'
+}
+
+vi.mock(
+  '@/lib/core/rate-limiter/types',
+  () => import('@/lib/core/rate-limiter/types?rate-limiter-test')
+)
+
+import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter?rate-limiter-test'
 import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './storage'
 import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS, RateLimitError } from './types'
-
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
 
 interface MockAdapter {
   consumeTokens: Mock
@@ -16,6 +41,12 @@ const createMockAdapter = (): MockAdapter => ({
   getTokenStatus: vi.fn(),
   resetBucket: vi.fn(),
 })
+
+beforeAll(() => {
+  setEnvFlags({ isBillingEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('RateLimiter', () => {
   const testUserId = 'test-user-123'
@@ -263,6 +294,43 @@ describe('RateLimiter', () => {
       mockAdapter.resetBucket.mockRejectedValue(new Error('Reset failed'))
 
       await expect(rateLimiter.resetRateLimit(testUserId)).rejects.toThrow('Reset failed')
+    })
+  })
+
+  describe('checkRateLimitDirect', () => {
+    const config = { maxTokens: 3, refillRate: 1, refillIntervalMs: 60_000 }
+
+    it('should reflect the storage decision when it succeeds', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue({
+        allowed: true,
+        tokensRemaining: 2,
+        resetAt: new Date(),
+      })
+
+      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config)
+
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(2)
+    })
+
+    it('should fail open on storage error by default', async () => {
+      mockAdapter.consumeTokens.mockRejectedValue(new Error('Storage error'))
+
+      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config)
+
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(1)
+    })
+
+    it('should fail closed on storage error when failClosed is set', async () => {
+      mockAdapter.consumeTokens.mockRejectedValue(new Error('Storage error'))
+
+      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config, {
+        failClosed: true,
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
     })
   })
 

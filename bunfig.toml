@@ -1,6 +1,52 @@
 [install]
 exact = true
+# Supply-chain gate: only install package versions published at least 7 days ago
+# (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
+# @typescript/native-preview stays excluded permanently: it only publishes nightly
+# dev builds, so every version is structurally younger than any age gate.
+# The exactly pinned Pi 0.80.10 packages were vetted for the cloud-review SDK
+# migration; they age out of the gate on 2026-07-24 — drop these four entries then.
+# next@16.2.12, @next/env@16.2.12 and the @next/swc-* binaries carry the July 2026 security
+# advisories (SSRF, cache confusion, DoS, middleware bypass — GHSA-89xv-2m56-2m9x et al.,
+# fixed in 16.2.11) plus the TypeScript 7 support backport (vercel/next.js#95831) that
+# 16.2.11 lacks — this repo resolves typescript to 7.x, and on 16.2.11 `next build`'s
+# type-check step can die with a silent SIGSEGV because the legacy TS JS API is gone in TS7.
+# Published 2026-07-25, they age out of the gate on 2026-08-01 — drop these entries then,
+# and re-date this note on any further bump rather than deleting the entries early: removing
+# them while the pinned version is still inside the 7-day window blocks the bump outright.
+# The swc binaries ship in lockstep with next and
+# MUST be excluded alongside it: they are next's platform-gated optionalDependencies, so
+# gating them out leaves them absent from bun.lock entirely, and `bun install
+# --frozen-lockfile` then installs no compiler at all — next falls back to downloading one
+# at build time, which fails in CI.
+# @anthropic-ai/sdk is exactly pinned to 0.114.0, vetted for the agent-events
+# streaming work (adaptive thinking display types + transform-json-schema);
+# published 2026-07-23, it ages out of the gate on 2026-07-30 — drop this entry then.
+# @e2b/code-interpreter (2.7.0, published 2026-07-23) and its `e2b` dependency
+# (2.36.1, published 2026-07-27) carry the fix for Pi's Create PR runs dying mid-stream
+# with "protocol error: received unsupported compressed output": e2b 2.36.0 moved envd's
+# Connect transport off the 2.0.0-rc.3 connect-web and onto undici 8 for Node >= 22.19.0,
+# which is this app's engine floor. Only these two are excluded — the rest of the chain
+# (@connectrpc/connect{,-web} 2.1.2, @bufbuild/protobuf 2.13.0, undici 8.8.0) already
+# clears the gate, and `tar` resolves to 7.5.21, which satisfies e2b's ^7.5.19 without
+# an exception. They age out on 2026-07-30 and 2026-08-03 — drop both entries then.
+minimumReleaseAgeExcludes = [
+  "@typescript/native-preview",
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-coding-agent",
+  "@earendil-works/pi-tui",
+  "next",
+  "@next/env",
+  "@next/swc-darwin-arm64",
+  "@next/swc-darwin-x64",
+  "@next/swc-linux-arm64-gnu",
+  "@next/swc-linux-x64-gnu",
+  "@anthropic-ai/sdk",
+  "@e2b/code-interpreter",
+  "e2b",
+]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }

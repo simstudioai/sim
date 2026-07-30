@@ -19,6 +19,7 @@ import {
 } from '@/lib/table'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
+import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   addImportColumns,
@@ -27,6 +28,8 @@ import {
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
 import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
+import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
@@ -68,6 +71,12 @@ export interface TableImportPayload {
    * survive the import.
    */
   deleteSourceFile?: boolean
+  /**
+   * IANA zone used to interpret naive datetime strings in the file. The
+   * kickoff routes resolve it (request → user setting → UTC) so the detached
+   * worker never needs a settings lookup.
+   */
+  timezone?: string
 }
 
 /**
@@ -90,12 +99,47 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
     const table = loaded
 
+    // Every mode ends in row inserts, and `replace` deletes first. Assert both
+    // verbs here — before the file is even read — so an insert-locked table
+    // fails up front instead of after `deleteAllTableRows` has already wiped it.
+    // (The sync replace path gets this for free from `replaceTableRowsWithTx`,
+    // which asserts both in one place; this path deletes and inserts separately.)
+    assertRowInsert(table)
+    if (mode === 'replace') assertRowDelete(table)
+
+    // Re-asserted inside every batch's insert transaction, under the same
+    // advisory lock `updateTableLocks` writes with, so enabling the insert lock
+    // mid-import stops it at the next batch instead of letting the rest of the
+    // file through. Rows already committed stay — as with an explicit cancel.
+    const revalidateInsert = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowInsert(fresh)
+      return fresh ?? undefined
+    }
+    /** Same guard for the replace-mode wipe, which lands before the first batch. */
+    const revalidateDelete = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertRowDelete(fresh)
+      return fresh ?? undefined
+    }
+    /** Same guard for the inferred-schema write and `createColumns`. */
+    const revalidateSchema = async (trx: DbTransaction) => {
+      const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
+      if (fresh) assertSchemaMutable(fresh)
+      return fresh ?? undefined
+    }
+
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
     const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
     source = await downloadFileStream({ key: fileKey, context: 'workspace' })
+
+    // The kickoff route's extension-derived delimiter is only the fallback — the separator is
+    // sniffed from the file's head so semicolon/pipe exports don't collapse into one column.
+    const sniffed = await sniffCsvDelimiterFromStream(source, delimiter)
+    const csvStream = sniffed.stream
 
     // Append must continue after the existing rows; create/replace start empty. Read once up
     // front (the import is the table's sole writer) and assign contiguous positions / threaded
@@ -117,11 +161,14 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       },
     })
 
-    const parser = createCsvParser(delimiter)
+    let csvHeaders: string[] = []
+    const parser = createCsvParser(sniffed.delimiter, (headers) => {
+      csvHeaders = headers
+    })
     // `.pipe` doesn't forward source errors; forward so the iterator throws.
-    source.on('error', (err) => parser.destroy(err))
+    csvStream.on('error', (err) => parser.destroy(err))
     byteCounter.on('error', (err) => parser.destroy(err))
-    source.pipe(byteCounter).pipe(parser)
+    csvStream.pipe(byteCounter).pipe(parser)
 
     let schema: TableSchema | null = null
     let headerToColumn: Map<string, string> | null = null
@@ -136,7 +183,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
      * map onto the existing schema, optionally auto-creating `createColumns` first.
      */
     const resolveSetup = async () => {
-      const headers = Object.keys(sample[0])
+      const headers = csvHeaders
 
       if (mode === 'create') {
         const inferred = inferSchemaFromCsv(headers, sample)
@@ -144,7 +191,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // the same ids).
         schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
         headerToColumn = inferred.headerToColumn
-        await setTableSchemaForImport(tableId, schema)
+        await setTableSchemaForImport(table, schema, revalidateSchema)
         return
       }
 
@@ -173,7 +220,13 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           additions.push({ name: columnName, type: inferColumnType(sample.map((r) => r[header])) })
           updatedMapping[header] = columnName
         }
-        const updated = await addImportColumns(table, additions, requestId)
+        const updated = await addImportColumns(
+          table,
+          additions,
+          requestId,
+          userId,
+          revalidateSchema
+        )
         targetSchema = updated.schema
         effectiveMapping = updatedMapping
       }
@@ -189,7 +242,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Replace deletes existing rows only after schema/mapping validation passes, so an
       // invalid or empty file fails the import with the old rows still intact (a mid-stream
       // insert failure after this point leaves a partial replace — replace is destructive).
-      if (mode === 'replace') await deleteAllTableRows(tableId)
+      if (mode === 'replace') await deleteAllTableRows(table, revalidateDelete)
     }
 
     const flush = async (rows: Record<string, unknown>[]) => {
@@ -199,7 +252,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
       const owns = await updateJobProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
-      const coerced = coerceRowsForTable(rows, schema, headerToColumn)
+      const coerced = coerceRowsForTable(rows, schema, headerToColumn, {
+        timezone: payload.timezone,
+      })
       const rowLimit = await assertRowCapacity({
         workspaceId,
         currentRowCount: existingRowCount + inserted,
@@ -215,7 +270,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           afterOrderKey: lastOrderKey,
         },
         { ...table, schema },
-        requestId
+        requestId,
+        revalidateInsert
       )
       notifyTableRowUsage({
         workspaceId,

@@ -9,22 +9,21 @@ import {
   v1GetTableRowContract,
   v1UpdateTableRowContract,
 } from '@/lib/api/contracts/v1/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import {
-  buildIdByName,
-  buildNameById,
-  rowDataIdToName,
-  rowDataNameToId,
-  updateRow,
-} from '@/lib/table'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { deleteRow, updateRow } from '@/lib/table'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowAPI')
@@ -87,13 +86,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
-    const nameById = buildNameById(result.table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((result.table.schema as TableSchema).columns)
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: rowDataIdToName(row.data as RowData, nameById),
+          data: toNamedRow(row.data as RowData),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -119,13 +118,19 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpdateTableRowContract, request, context)
+    const parsed = await parseRequest(v1UpdateTableRowContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
 
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
+    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actorUserId) {
+      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
+    }
 
     const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -137,14 +142,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const idByName = buildIdByName(table.schema as TableSchema)
-    const nameById = buildNameById(table.schema as TableSchema)
+    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
         data: rowDataNameToId(validated.data as RowData, idByName),
         workspaceId: validated.workspaceId,
-        actorUserId: userId,
+        actorUserId,
       },
       table,
       requestId
@@ -163,7 +168,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       data: {
         row: {
           id: updatedRow.id,
-          data: rowDataIdToName(updatedRow.data, nameById),
+          data: toNamedRow(updatedRow.data),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
@@ -178,7 +183,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       },
     })
   } catch (error) {
-    const validationResponse = validationErrorResponseFromError(error)
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     const errorMessage = toError(error).message
@@ -231,20 +238,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const [deletedRow] = await db
-      .delete(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, workspaceId)
-        )
-      )
-      .returning({ id: userTableRows.id })
-
-    if (!deletedRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
+    // Route through the service (not a raw `db.delete`) so the delete lock is
+    // enforced — the raw path would return 200 on a locked table.
+    await deleteRow(result.table, rowId, requestId)
 
     return NextResponse.json({
       success: true,
@@ -254,6 +250,11 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       },
     })
   } catch (error) {
+    const lockError = tableLockErrorResponse(error)
+    if (lockError) return lockError
+    if (error instanceof Error && error.message === 'Row not found') {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
+    }
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }

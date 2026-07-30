@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
+
+const logger = createLogger('UserQueries')
 
 /**
  * Default user settings returned for unauthenticated users or when no
@@ -19,8 +23,19 @@ export const defaultUserSettings: UserSettingsApi = {
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
   showActionBar: true,
+  copilotAutoAllowedTools: [],
   timezone: null,
   lastActiveWorkspaceId: null,
+}
+
+/**
+ * The auto-allowed tool list is a jsonb column, so the driver hands back
+ * `unknown`. Anything that is not an array of strings is treated as an empty
+ * list: a malformed value must not widen what the copilot may run unprompted.
+ */
+function normalizeAutoAllowedTools(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((entry): entry is string => typeof entry === 'string')
 }
 
 /**
@@ -45,6 +60,7 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
       errorNotificationsEnabled: settings.errorNotificationsEnabled,
       snapToGridSize: settings.snapToGridSize,
       showActionBar: settings.showActionBar,
+      copilotAutoAllowedTools: settings.copilotAutoAllowedTools,
       timezone: settings.timezone,
       lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
     })
@@ -71,8 +87,29 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
     snapToGridSize: userSettings.snapToGridSize ?? 0,
     showActionBar: userSettings.showActionBar ?? true,
+    copilotAutoAllowedTools: normalizeAutoAllowedTools(userSettings.copilotAutoAllowedTools),
     timezone: userSettings.timezone ?? null,
     lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
+  }
+}
+
+/**
+ * Loads a user's email address, or `null` when no matching user exists or the
+ * lookup fails. Fail-soft: callers use this for optional run metadata, and a
+ * transient lookup error must not abort an otherwise valid execution.
+ */
+export async function getUserEmailById(userId: string): Promise<string | null> {
+  try {
+    const [userRecord] = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+
+    return userRecord?.email ?? null
+  } catch (error) {
+    logger.warn('Failed to load user email', { userId, error: getErrorMessage(error) })
+    return null
   }
 }
 

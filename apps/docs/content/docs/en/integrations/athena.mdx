@@ -166,6 +166,45 @@ List recent Athena query execution IDs
 | `queryExecutionIds` | array | List of query execution IDs |
 | `nextToken` | string | Pagination token for next page |
 
+### `athena_batch_get_query_execution`
+
+Get the status and details of up to 50 Athena query executions in one call
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryExecutionIds` | string | Yes | Comma-separated query execution IDs to check \(up to 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryExecutions` | array | Details for each successfully retrieved query execution |
+|   ↳ `queryExecutionId` | string | Query execution ID |
+|   ↳ `query` | string | SQL query string |
+|   ↳ `state` | string | Query state \(QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED\) |
+|   ↳ `stateChangeReason` | string | Reason for state change |
+|   ↳ `statementType` | string | Statement type \(DDL, DML, UTILITY\) |
+|   ↳ `database` | string | Database name |
+|   ↳ `catalog` | string | Data catalog name |
+|   ↳ `workGroup` | string | Workgroup name |
+|   ↳ `submissionDateTime` | number | Query submission time \(Unix epoch ms\) |
+|   ↳ `completionDateTime` | number | Query completion time \(Unix epoch ms\) |
+|   ↳ `dataScannedInBytes` | number | Amount of data scanned in bytes |
+|   ↳ `engineExecutionTimeInMillis` | number | Engine execution time in milliseconds |
+|   ↳ `queryPlanningTimeInMillis` | number | Query planning time in milliseconds |
+|   ↳ `queryQueueTimeInMillis` | number | Time the query spent in queue in milliseconds |
+|   ↳ `totalExecutionTimeInMillis` | number | Total execution time in milliseconds |
+|   ↳ `outputLocation` | string | S3 location of query results |
+| `unprocessedQueryExecutionIds` | array | Query execution IDs that could not be retrieved, with error details |
+|   ↳ `queryExecutionId` | string | Query execution ID |
+|   ↳ `errorCode` | string | Error code |
+|   ↳ `errorMessage` | string | Error message |
+
 ### `athena_create_named_query`
 
 Create a saved/named query in AWS Athena
@@ -233,6 +272,87 @@ List saved/named query IDs in AWS Athena
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `namedQueryIds` | array | List of named query IDs |
+| `nextToken` | string | Pagination token for next page |
+
+### `athena_delete_named_query`
+
+Delete a saved/named query in AWS Athena
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namedQueryId` | string | Yes | Named query ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the named query was successfully deleted |
+
+### `athena_list_databases`
+
+List the databases available in an Athena data catalog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `catalogName` | string | Yes | Data catalog name to list databases from \(e.g., AwsDataCatalog\) |
+| `workGroup` | string | No | Workgroup for which the metadata is being fetched \(required for IAM Identity Center enabled catalogs\) |
+| `maxResults` | number | No | Maximum number of results \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `databases` | array | List of databases \(name, description\) |
+|   ↳ `name` | string | Database name |
+|   ↳ `description` | string | Database description |
+| `nextToken` | string | Pagination token for next page |
+
+### `athena_list_table_metadata`
+
+List tables and their column/partition metadata for an Athena database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `catalogName` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
+| `databaseName` | string | Yes | Database name to list tables from |
+| `expression` | string | No | Regex filter that pattern-matches table names |
+| `workGroup` | string | No | Workgroup for which the metadata is being fetched \(required for IAM Identity Center enabled catalogs\) |
+| `maxResults` | number | No | Maximum number of results \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Table metadata \(name, type, columns, partition keys\) |
+|   ↳ `name` | string | Table name |
+|   ↳ `tableType` | string | Table type |
+|   ↳ `createTime` | number | Table creation time \(Unix epoch ms\) |
+|   ↳ `lastAccessTime` | number | Table last access time \(Unix epoch ms\) |
+|   ↳ `columns` | array | Column definitions |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Column data type |
+|     ↳ `comment` | string | Column comment |
+|   ↳ `partitionKeys` | array | Partition key definitions |
+|     ↳ `name` | string | Partition key name |
+|     ↳ `type` | string | Partition key data type |
+|     ↳ `comment` | string | Partition key comment |
 | `nextToken` | string | Pagination token for next page |
 
 

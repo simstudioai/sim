@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetSessionRecordingParams {
@@ -5,6 +6,7 @@ interface PostHogGetSessionRecordingParams {
   projectId: string
   recordingId: string
   region?: 'us' | 'eu'
+  host?: string
 }
 
 interface PostHogSessionRecording {
@@ -27,13 +29,6 @@ interface PostHogSessionRecording {
     name?: string
     properties?: Record<string, any>
   }
-  matching_events?: Array<{
-    id: string
-    event: string
-    timestamp: string
-    properties: Record<string, any>
-  }>
-  snapshot_data_by_window_id?: Record<string, any>
 }
 
 interface PostHogGetSessionRecordingResponse {
@@ -51,6 +46,7 @@ export const getSessionRecordingTool: ToolConfig<
   name: 'PostHog Get Session Recording',
   description: 'Get details of a specific session recording in PostHog by ID.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -79,11 +75,18 @@ export const getSessionRecordingTool: ToolConfig<
       description: 'PostHog cloud region: us or eu (default: us)',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/session_recordings/${params.recordingId}/`
     },
     method: 'GET',
@@ -124,7 +127,6 @@ export const getSessionRecordingTool: ToolConfig<
         console_error_count: { type: 'number', description: 'Number of console errors' },
         start_url: { type: 'string', description: 'Starting URL of the recording' },
         person: { type: 'object', description: 'Person information' },
-        matching_events: { type: 'array', description: 'Events that occurred during recording' },
       },
     },
   },

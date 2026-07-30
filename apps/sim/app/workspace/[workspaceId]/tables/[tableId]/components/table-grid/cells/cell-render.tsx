@@ -4,26 +4,29 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
-import type { RowExecutionMetadata } from '@/lib/table'
+import { faviconUrl } from '@/lib/core/utils/favicon'
+import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
+import { resolveSelectOptions, SelectPill } from '../../select-field'
 import type { DisplayColumn } from '../types'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 
 export type CellRenderKind =
   // Workflow-output cells
   | { kind: 'value'; text: string }
-  | { kind: 'block-error' }
+  | { kind: 'block-error'; message: string }
   | { kind: 'running' }
-  | { kind: 'pending-upstream' }
+  | { kind: 'pending-upstream'; paused: boolean }
   | { kind: 'queued' }
   | { kind: 'cancelled' }
-  | { kind: 'error' }
+  | { kind: 'error'; message: string | null }
   | { kind: 'waiting'; labels: string[] }
   | { kind: 'not-found' }
   | { kind: 'no-output' }
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
+  | { kind: 'select'; options: SelectOption[] }
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
   | { kind: 'url'; text: string; href: string; domain: string }
@@ -68,7 +71,7 @@ export function resolveCellRender({
     const blockRunning = blockId ? (exec?.runningBlockIds?.includes(blockId) ?? false) : false
     const groupHasBlockErrors = !!(exec?.blockErrors && Object.keys(exec.blockErrors).length > 0)
 
-    if (blockError) return { kind: 'block-error' }
+    if (blockError) return { kind: 'block-error', message: blockError }
 
     const inFlight =
       exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
@@ -85,6 +88,12 @@ export function resolveCellRender({
       return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'value', text }
     }
 
+    // Enrichment outputs share an empty blockId, so `runningBlockIds` can never
+    // match them — the group-level `running` status is the only "worker picked
+    // this up" signal an enrichment cell has. Checked after the value so a
+    // rerun keeps showing the previous output until the new result lands.
+    if (isEnrichmentOutput && exec?.status === 'running') return { kind: 'running' }
+
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
       // (workflow yielded for human-in-the-loop). Render as Pending rather
@@ -93,9 +102,9 @@ export function resolveCellRender({
         exec?.status === 'pending' &&
         typeof exec.jobId === 'string' &&
         exec.jobId.startsWith('paused-')
-      if (isPaused) return { kind: 'pending-upstream' }
+      if (isPaused) return { kind: 'pending-upstream', paused: true }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
-      return { kind: 'pending-upstream' }
+      return { kind: 'pending-upstream', paused: false }
     }
 
     // Waiting wins over a stale terminal status — show the actionable state.
@@ -103,7 +112,7 @@ export function resolveCellRender({
       return { kind: 'waiting', labels: waitingOnLabels }
     }
     if (exec?.status === 'cancelled') return { kind: 'cancelled' }
-    if (exec?.status === 'error') return { kind: 'error' }
+    if (exec?.status === 'error') return { kind: 'error', message: exec.error }
     // Enrichment ran to completion but matched nothing → "Not found".
     if (isEnrichmentOutput && exec?.status === 'completed') return { kind: 'not-found' }
     // Workflow output: the group's run completed but this block produced no
@@ -113,6 +122,11 @@ export function resolveCellRender({
   }
 
   if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
+  // Always render select cells as the `select` kind — an empty one shows a muted
+  // "None" so every select cell reads as a clickable dropdown.
+  if (column.type === 'select') {
+    return { kind: 'select', options: resolveSelectOptions(column, value) }
+  }
   if (isNull) return { kind: 'empty' }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
   if (column.type === 'date') return { kind: 'date', text: String(value) }
@@ -249,58 +263,80 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       )
 
     case 'block-error':
-    case 'error':
+    case 'error': {
+      if (!kind.message) {
+        return (
+          <Wrap isEditing={isEditing}>
+            <StatusBadge status='error' />
+          </Wrap>
+        )
+      }
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='error' />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span>
+                <StatusBadge status='error' />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>{kind.message}</Tooltip.Content>
+          </Tooltip.Root>
         </Wrap>
       )
+    }
 
     case 'running':
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='running' />
+          <BadgeTooltip tip='The block is running.'>
+            <StatusBadge status='running' />
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'pending-upstream':
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='pending' />
+          <BadgeTooltip
+            tip={
+              kind.paused
+                ? 'Paused — waiting on input to resume.'
+                : 'Waiting on an earlier block in this run.'
+            }
+          >
+            <StatusBadge status='pending' />
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'cancelled':
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='cancelled' />
+          <BadgeTooltip tip='Stopped before finishing — re-run to retry.'>
+            <StatusBadge status='cancelled' />
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'queued':
       return (
         <Wrap isEditing={isEditing}>
-          <Badge variant='gray' dot size='sm'>
-            Queued
-          </Badge>
+          <BadgeTooltip tip='In line to run — starts when a batch slot opens.'>
+            <Badge variant='gray' dot size='sm'>
+              Queued
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'waiting':
       return (
         <Wrap isEditing={isEditing}>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span>
-                <Badge variant='gray' dot size='sm'>
-                  Waiting
-                </Badge>
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              Waiting on {kind.labels.map((l) => `"${l}"`).join(', ')}
-            </Tooltip.Content>
-          </Tooltip.Root>
+          <BadgeTooltip tip={`Waiting on ${kind.labels.map((l) => `"${l}"`).join(', ')}`}>
+            <Badge variant='gray' dot size='sm'>
+              Waiting
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
@@ -315,6 +351,20 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
         >
           <Checkbox size='sm' checked={kind.checked} className='pointer-events-none' />
         </div>
+      )
+
+    case 'select':
+      // Chip-only view: just the option pills. Pills stay visible while editing —
+      // the inline editor overlays an invisible trigger and portals its menu
+      // below, so the cell keeps showing the current selection.
+      return (
+        <span className='flex min-w-0 items-center gap-1 overflow-hidden'>
+          {kind.options.length > 0 ? (
+            kind.options.map((option) => <SelectPill key={option.id} option={option} />)
+          ) : (
+            <span className='text-[var(--text-muted)] text-small'>None</span>
+          )}
+        </span>
       )
 
     case 'json':
@@ -332,7 +382,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'date':
       return (
         <span className={cn('text-[var(--text-primary)]', isEditing && 'invisible')}>
-          {storageToDisplay(kind.text)}
+          {storageToDisplay(kind.text, { seconds: true })}
         </span>
       )
 
@@ -340,7 +390,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
           <img
-            src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(kind.domain)}&sz=16`}
+            src={faviconUrl(kind.domain, 16)}
             alt=''
             width={12}
             height={12}
@@ -391,18 +441,22 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'not-found':
       return (
         <Wrap isEditing={isEditing}>
-          <Badge variant='gray' dot size='sm'>
-            Not found
-          </Badge>
+          <BadgeTooltip tip='No match found for this row.'>
+            <Badge variant='gray' dot size='sm'>
+              Not found
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'no-output':
       return (
         <Wrap isEditing={isEditing}>
-          <Badge variant='gray' dot size='sm'>
-            No output
-          </Badge>
+          <BadgeTooltip tip='Finished with no value for this cell.'>
+            <Badge variant='gray' dot size='sm'>
+              No output
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
@@ -419,6 +473,19 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+/** Hover explanation for a status badge. The `<span>` trigger is required —
+ *  Badge/StatusBadge don't forward refs, so the tooltip anchors to a wrapper. */
+function BadgeTooltip({ tip, children }: { tip: string; children: React.ReactNode }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span>{children}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>{tip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
 }
 
 const TYPEWRITER_MS_PER_CHAR = 15

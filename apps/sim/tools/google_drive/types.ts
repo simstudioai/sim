@@ -184,6 +184,38 @@ export interface GoogleDriveRevision {
   kind?: string
 }
 
+/** A threaded reply attached to a comment. */
+export interface GoogleDriveCommentReply {
+  id?: string
+  kind?: string
+  createdTime?: string
+  modifiedTime?: string
+  author?: GoogleDriveUser
+  htmlContent?: string
+  content?: string
+  deleted?: boolean
+  action?: string // 'resolve' | 'reopen'
+}
+
+/** A comment on a Google Drive file. */
+export interface GoogleDriveComment {
+  id?: string
+  kind?: string
+  createdTime?: string
+  modifiedTime?: string
+  author?: GoogleDriveUser
+  htmlContent?: string
+  content?: string
+  deleted?: boolean
+  resolved?: boolean
+  anchor?: string
+  quotedFileContent?: {
+    mimeType?: string
+    value?: string
+  }
+  replies?: GoogleDriveCommentReply[]
+}
+
 // Complete file metadata - all 50+ fields from Google Drive API v3
 export interface GoogleDriveFile {
   // Basic Info

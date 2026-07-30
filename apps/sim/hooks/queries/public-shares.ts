@@ -14,6 +14,8 @@ import {
 } from '@/lib/api/contracts/public-shares'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
+export const FILE_SHARE_STALE_TIME = 30 * 1000
+
 /**
  * Query key factories for public shares
  */
@@ -41,7 +43,7 @@ export function useFileShare(workspaceId: string, fileId: string, options?: { en
     queryKey: shareKeys.detail(workspaceId, fileId),
     queryFn: ({ signal }) => fetchFileShare(workspaceId, fileId, signal),
     enabled: Boolean(workspaceId) && Boolean(fileId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: FILE_SHARE_STALE_TIME,
   })
 }
 

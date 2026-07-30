@@ -1,14 +1,15 @@
 import { db } from '@sim/db'
-import { invitation, member, organization, subscription, user } from '@sim/db/schema'
+import { invitation, member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { resolveEnterpriseMetadataIntent } from '@/lib/billing/enterprise-outbox'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { hasInflightOutboxEvent } from '@/lib/core/outbox/service'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SeatManagement')
 
@@ -34,6 +35,105 @@ interface ValidateSeatOptions {
   excludePendingInvitationId?: string
 }
 
+/**
+ * Counts the pending invitations that stand to become seats.
+ *
+ * The single definition of that predicate: still `pending`, not yet expired, and
+ * internal — external collaborators never take a seat. Every seat number in the
+ * product derives from this one count so no two surfaces can drift.
+ */
+export async function countPendingSeatInvitations(
+  organizationId: string,
+  executor: DbOrTx = db,
+  excludePendingInvitationId?: string
+): Promise<number> {
+  const filters = [
+    eq(invitation.organizationId, organizationId),
+    eq(invitation.status, 'pending'),
+    ne(invitation.membershipIntent, 'external'),
+    gt(invitation.expiresAt, new Date()),
+  ]
+  if (excludePendingInvitationId) {
+    filters.push(ne(invitation.id, excludePendingInvitationId))
+  }
+  const [row] = await executor
+    .select({ count: count() })
+    .from(invitation)
+    .where(and(...filters))
+  return row?.count ?? 0
+}
+
+/**
+ * Resolves the organization's seat capacity, honouring an Enterprise seat
+ * change that is still in flight to Stripe.
+ */
+async function resolveSeatCapacity(
+  organizationSubscription: { id: string; plan: string; metadata?: unknown } & Record<
+    string,
+    unknown
+  >,
+  executor: DbOrTx = db
+): Promise<number> {
+  const canonicalSeats = getEffectiveSeats(organizationSubscription)
+  if (!isEnterprise(organizationSubscription.plan)) return canonicalSeats
+  const intent = await resolveEnterpriseMetadataIntent(
+    executor,
+    organizationSubscription.id,
+    organizationSubscription.metadata
+  )
+  return intent?.effectiveSeatCapacity ?? canonicalSeats
+}
+
+/**
+ * Whether the plan has a seat cap that can actually be exhausted.
+ *
+ * Only Enterprise does. Team seats are billed per member and grown on demand,
+ * so its `subscription.seats` tracks the current member count rather than a
+ * ceiling — comparing usage against it would always read as "full". Surfaces
+ * that gate or visualise remaining capacity must branch on this.
+ */
+export function planHasFixedSeatCap(plan: string | undefined | null): boolean {
+  return isEnterprise(plan)
+}
+
+/**
+ * Derives the seat figures every surface should report, from one rule.
+ *
+ * `usedSeats` stays members + pending so the wire meaning is unchanged, while
+ * the two components are exposed separately because the UI legitimately needs
+ * to distinguish "occupied" from "promised". `availableSeats` is only meaningful
+ * under a fixed cap, and is clamped at zero so an elastic plan can never report
+ * negative headroom.
+ */
+export function computeSeatUsage({
+  memberSeats,
+  pendingSeats,
+  totalSeats,
+  hasFixedSeatCap,
+}: {
+  memberSeats: number
+  pendingSeats: number
+  totalSeats: number
+  hasFixedSeatCap: boolean
+}): {
+  memberSeats: number
+  pendingSeats: number
+  usedSeats: number
+  totalSeats: number
+  availableSeats: number
+  hasFixedSeatCap: boolean
+} {
+  const usedSeats = memberSeats + pendingSeats
+  return {
+    memberSeats,
+    pendingSeats,
+    usedSeats,
+    totalSeats,
+    availableSeats: Math.max(0, totalSeats - usedSeats),
+    hasFixedSeatCap,
+  }
+}
+
 export async function validateSeatAvailability(
   organizationId: string,
   additionalSeats = 1,
@@ -41,14 +141,13 @@ export async function validateSeatAvailability(
 ): Promise<SeatValidationResult> {
   try {
     if (!isBillingEnabled) {
-      const memberCount = await db
-        .select({ count: count() })
-        .from(member)
-        .where(eq(member.organizationId, organizationId))
-      const currentSeats = memberCount[0]?.count || 0
+      const [memberCount, pendingSeats] = await Promise.all([
+        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
+        countPendingSeatInvitations(organizationId),
+      ])
       return {
         canInvite: true,
-        currentSeats,
+        currentSeats: (memberCount[0]?.count ?? 0) + pendingSeats,
         maxSeats: Number.MAX_SAFE_INTEGER,
         availableSeats: Number.MAX_SAFE_INTEGER,
       }
@@ -76,30 +175,27 @@ export async function validateSeatAvailability(
       }
     }
 
-    const [memberCount] = await db
-      .select({ count: count() })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
+    const [memberCount, pendingSeats, maxSeats] = await Promise.all([
+      db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
+      countPendingSeatInvitations(organizationId, db, options.excludePendingInvitationId),
+      resolveSeatCapacity(subscription),
+    ])
 
-    const pendingFilters = [
-      eq(invitation.organizationId, organizationId),
-      eq(invitation.status, 'pending'),
-      ne(invitation.membershipIntent, 'external'),
-      gt(invitation.expiresAt, new Date()),
-    ]
-    if (options.excludePendingInvitationId) {
-      pendingFilters.push(ne(invitation.id, options.excludePendingInvitationId))
-    }
-    const [pendingCount] = await db
-      .select({ count: count() })
-      .from(invitation)
-      .where(and(...pendingFilters))
-
-    const currentSeats = (memberCount?.count ?? 0) + (pendingCount?.count ?? 0)
-
-    const maxSeats = getEffectiveSeats(subscription)
-    const availableSeats = Math.max(0, maxSeats - currentSeats)
-    const canInvite = availableSeats >= additionalSeats
+    const {
+      usedSeats: currentSeats,
+      availableSeats,
+      hasFixedSeatCap,
+    } = computeSeatUsage({
+      memberSeats: memberCount[0]?.count ?? 0,
+      pendingSeats,
+      totalSeats: maxSeats,
+      hasFixedSeatCap: planHasFixedSeatCap(subscription.plan),
+    })
+    /**
+     * Only a fixed cap can refuse an invite. Team seats are provisioned when the
+     * invitee accepts, so there is nothing to run out of at invite time.
+     */
+    const canInvite = !hasFixedSeatCap || availableSeats >= additionalSeats
 
     const result: SeatValidationResult = {
       canInvite,
@@ -160,19 +256,9 @@ export async function getOrganizationSeatInfo(
       .from(member)
       .where(eq(member.organizationId, organizationId))
 
-    const [pendingCountRow] = await db
-      .select({ count: count() })
-      .from(invitation)
-      .where(
-        and(
-          eq(invitation.organizationId, organizationId),
-          eq(invitation.status, 'pending'),
-          ne(invitation.membershipIntent, 'external'),
-          gt(invitation.expiresAt, new Date())
-        )
-      )
-
-    const currentSeats = (memberCountRow?.count ?? 0) + (pendingCountRow?.count ?? 0)
+    const memberSeats = memberCountRow?.count ?? 0
+    const pendingSeats = await countPendingSeatInvitations(organizationId)
+    const currentSeats = memberSeats + pendingSeats
 
     if (!isBillingEnabled) {
       return {
@@ -192,11 +278,13 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
-    const maxSeats = getEffectiveSeats(subscription)
-
-    const canAddSeats = !isEnterprise(subscription.plan)
-
-    const availableSeats = Math.max(0, maxSeats - currentSeats)
+    const maxSeats = await resolveSeatCapacity(subscription)
+    const { availableSeats } = computeSeatUsage({
+      memberSeats,
+      pendingSeats,
+      totalSeats: maxSeats,
+      hasFixedSeatCap: planHasFixedSeatCap(subscription.plan),
+    })
 
     return {
       organizationId,
@@ -205,96 +293,11 @@ export async function getOrganizationSeatInfo(
       maxSeats,
       availableSeats,
       subscriptionPlan: subscription.plan,
-      canAddSeats,
+      canAddSeats: !isEnterprise(subscription.plan),
     }
   } catch (error) {
     logger.error('Failed to get organization seat info', { organizationId, error })
     return null
-  }
-}
-
-/**
- * Validate and reserve seats for bulk invitations
- */
-export async function validateBulkInvitations(
-  organizationId: string,
-  emailList: string[]
-): Promise<{
-  canInviteAll: boolean
-  validEmails: string[]
-  duplicateEmails: string[]
-  existingMembers: string[]
-  seatsNeeded: number
-  seatsAvailable: number
-  validationResult: SeatValidationResult
-}> {
-  try {
-    const uniqueEmails = [...new Set(emailList)]
-    const validEmails = uniqueEmails.filter(
-      (email) => quickValidateEmail(email.trim().toLowerCase()).isValid
-    )
-    const duplicateEmails = emailList.filter((email, index) => emailList.indexOf(email) !== index)
-
-    const existingMembers = await db
-      .select({ userEmail: user.email })
-      .from(member)
-      .innerJoin(user, eq(member.userId, user.id))
-      .where(eq(member.organizationId, organizationId))
-
-    const existingEmails = existingMembers.map((m) => m.userEmail)
-    const newEmails = validEmails.filter((email) => !existingEmails.includes(email))
-
-    const pendingInvitations = await db
-      .select({ email: invitation.email })
-      .from(invitation)
-      .where(
-        and(
-          eq(invitation.organizationId, organizationId),
-          eq(invitation.status, 'pending'),
-          ne(invitation.membershipIntent, 'external'),
-          gt(invitation.expiresAt, new Date())
-        )
-      )
-
-    const pendingEmails = pendingInvitations.map((i) => i.email)
-    const finalEmailsToInvite = newEmails.filter((email) => !pendingEmails.includes(email))
-
-    const seatsNeeded = finalEmailsToInvite.length
-    const validationResult = await validateSeatAvailability(organizationId, seatsNeeded)
-
-    return {
-      canInviteAll: validationResult.canInvite && finalEmailsToInvite.length > 0,
-      validEmails: finalEmailsToInvite,
-      duplicateEmails,
-      existingMembers: validEmails.filter((email) => existingEmails.includes(email)),
-      seatsNeeded,
-      seatsAvailable: validationResult.availableSeats,
-      validationResult,
-    }
-  } catch (error) {
-    logger.error('Failed to validate bulk invitations', {
-      organizationId,
-      emailCount: emailList.length,
-      error,
-    })
-
-    const validationResult: SeatValidationResult = {
-      canInvite: false,
-      reason: 'Validation failed',
-      currentSeats: 0,
-      maxSeats: 0,
-      availableSeats: 0,
-    }
-
-    return {
-      canInviteAll: false,
-      validEmails: [],
-      duplicateEmails: [],
-      existingMembers: [],
-      seatsNeeded: 0,
-      seatsAvailable: 0,
-      validationResult,
-    }
   }
 }
 

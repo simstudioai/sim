@@ -67,18 +67,24 @@ export const useSearchModalStore = create<SearchModalState>()(
   devtools(
     (set, _) => ({
       isOpen: false,
+      sections: null,
+      pendingConnect: null,
       data: initialData,
 
       setOpen: (open: boolean) => {
-        set({ isOpen: open })
+        set({ isOpen: open, sections: null, pendingConnect: null })
       },
 
-      open: () => {
-        set({ isOpen: true })
+      open: (options) => {
+        set({
+          isOpen: true,
+          sections: options?.sections ?? null,
+          pendingConnect: options?.pendingConnect ?? null,
+        })
       },
 
       close: () => {
-        set({ isOpen: false })
+        set({ isOpen: false, sections: null, pendingConnect: null })
       },
 
       initializeData: (filterBlocks) => {
@@ -99,6 +105,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
             searchValue: `${block.name} ${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
+            sourceWorkflowId: block.sourceWorkflowId,
           }
 
           if (block.category === 'blocks' && block.type !== 'starter') {
@@ -138,7 +145,7 @@ export const useSearchModalStore = create<SearchModalState>()(
 
         const allTriggers = getTriggersForSidebar()
         const filteredTriggers = filterBlocks(allTriggers) as typeof allTriggers
-        const priorityOrder = ['Start', 'Schedule', 'Webhook']
+        const priorityOrder = ['Start', 'Schedule', 'Webhook Trigger']
 
         const sortedTriggers = [...filteredTriggers].sort(
           (a: (typeof filteredTriggers)[number], b: (typeof filteredTriggers)[number]) => {

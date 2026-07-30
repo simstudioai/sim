@@ -1,3 +1,4 @@
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
@@ -5,9 +6,11 @@ import type {
   ChildWorkflowContext,
   IterationContext,
   ParentIteration,
+  PiiBlockOutputRedaction,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
+import type { AgentStreamSink, UnsubscribeAgentStreamSink } from '@/providers/stream-events'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
@@ -68,6 +71,7 @@ export interface PausePoint {
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
+  automaticResumeWaitingReason?: string
   snapshotReady: boolean
   parallelScope?: ParallelPauseScope
   loopScope?: LoopPauseScope
@@ -181,7 +185,7 @@ export interface BlockToolCall {
   error?: string
   arguments?: Record<string, unknown>
   input?: Record<string, unknown>
-  result?: Record<string, unknown>
+  result?: unknown
   output?: Record<string, unknown>
 }
 
@@ -228,6 +232,28 @@ export const EXECUTION_CONTROL_OUTPUT_FIELD_NAMES = [
 
 export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_FIELD_NAMES)[number]
 
+/** Start block output key that carries trusted, server-injected run metadata. */
+export const START_BLOCK_METADATA_FIELD = 'metadata'
+
+/**
+ * Trusted run metadata surfaced under `<start.metadata.*>` when the Start
+ * block's "Add run metadata" toggle is enabled. Built server-side from the
+ * authenticated execution context — never from caller-supplied input.
+ * Every field describes the INVOKING run: on top-level runs that is the run
+ * itself; on child and custom-block executions it is the parent run (its
+ * actor's email, workspace, and workflow) — never the child's own static,
+ * authoring-time-known identity.
+ */
+export interface StartBlockRunMetadata {
+  userEmail?: string | null
+  workspaceId?: string | null
+  workflowId?: string | null
+  executionId?: string
+  executionType?: string
+  executionMode?: 'sync' | 'stream' | 'async'
+  startTime?: string
+}
+
 export interface BlockLog {
   blockId: string
   blockName?: string
@@ -263,6 +289,8 @@ interface ExecutionMetadata {
   requestId?: string
   workflowId?: string
   workspaceId?: string
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   startTime?: string
   endTime?: string
   duration: number
@@ -286,6 +314,12 @@ interface ExecutionMetadata {
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
+  executionMode?: 'sync' | 'stream' | 'async'
+  /**
+   * Run-level agent-events opt-in (see the snapshot ExecutionMetadata).
+   * Gates streaming tool loops and provider thinking-summary requests.
+   */
+  agentEvents?: boolean
 }
 
 export interface BlockState {
@@ -306,6 +340,8 @@ export interface ExecutionContext {
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
+  /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
+  piiBlockOutputRedaction?: PiiBlockOutputRedaction
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean
@@ -315,6 +351,8 @@ export interface ExecutionContext {
 
   blockLogs: BlockLog[]
   metadata: ExecutionMetadata
+  /** Trusted run metadata for the Start block's "Add run metadata" toggle. */
+  startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
   workflowVariables?: Record<string, any>
 
@@ -490,7 +528,32 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
+  /**
+   * Provider stream payload. Format is declared by {@link streamFormat}:
+   * - `'text'` (default): UTF-8 answer bytes (`ReadableStream<Uint8Array>`)
+   * - `'agent-events-v1'`: in-process `ReadableStream` of `AgentStreamEvent` objects
+   *
+   * Never sniff the payload; always read {@link streamFormat}.
+   * After the executor pump, {@link stream} is always projected UTF-8 answer text.
+   */
   stream: ReadableStream
+  /**
+   * Discriminator for {@link stream}. Defaults to `'text'` when omitted so
+   * existing providers remain byte-stream consumers without changes.
+   */
+  streamFormat?: 'text' | 'agent-events-v1'
+  /**
+   * Optional sink subscription installed synchronously during `onStream` before
+   * the executor pump starts draining. Late subscribers receive future events only.
+   */
+  subscribe?: (sink: AgentStreamSink) => UnsubscribeAgentStreamSink
+  /**
+   * True when {@link stream} is a response-format projection (selected JSON
+   * fields extracted from structured output) rather than raw answer text. Sink
+   * `text_delta` events then do NOT match the byte stream, so consumers must
+   * keep sourcing answer text from {@link stream} instead of the sink.
+   */
+  clientStreamTransformed?: boolean
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

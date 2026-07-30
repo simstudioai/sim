@@ -39,6 +39,12 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       visibility: 'user-or-llm',
       description: 'Number of results to return (default: 100, max: 100)',
     },
+    startCursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor returned by a previous request',
+    },
   },
 
   request: {
@@ -78,6 +84,11 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       // Add page size if provided
       if (params.pageSize) {
         body.page_size = Math.min(Number(params.pageSize), 100)
+      }
+
+      // Add pagination cursor if provided
+      if (params.startCursor) {
+        body.start_cursor = params.startCursor.trim()
       }
 
       return body

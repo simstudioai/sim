@@ -1,28 +1,25 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
+import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
-import {
-  getPlanTierCredits,
-  isEnterprise,
-  isFree,
-  isPaid,
-  isPro,
-  isTeam,
-} from '@/lib/billing/plan-helpers'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/upgrade/subscription-permissions'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { getPlanTierCredits, isEnterprise, isFree, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { workspaceHostKeys } from '@/hooks/queries/workspace-host'
 
 const PRO_TIER = CREDIT_TIERS[0]
 const MAX_TIER = CREDIT_TIERS[1]
 
 type TargetPlan = 'pro' | 'team'
+
+interface UseUpgradeStateOptions {
+  hostContext: WorkspaceHostContext
+  workspaceId: string
+}
 
 export interface UpgradeState {
   isLoading: boolean
@@ -45,7 +42,7 @@ export interface UpgradeState {
   isOnMax: boolean
   isOnMaxTier: boolean
   wantsIntervalSwitch: boolean
-  doUpgrade: (targetPlan: 'pro' | 'team', creditTier: number, seats?: number) => Promise<void>
+  doUpgrade: (targetPlan: 'pro' | 'team', creditTier: number) => Promise<void>
   handleSwitchInterval: (interval: 'month' | 'year') => Promise<void>
   upgradeOrSwitchToMax: () => Promise<void>
   onUpgradeToOtherTier: () => Promise<void>
@@ -59,86 +56,62 @@ export interface UpgradeState {
  * Plan and billing management (payment method, cancellation, invoices, usage
  * limits) lives on the Billing settings page, not here.
  */
-export function useUpgradeState(): UpgradeState {
+export function useUpgradeState({
+  hostContext,
+  workspaceId,
+}: UseUpgradeStateOptions): UpgradeState {
   const { handleUpgrade } = useSubscriptionUpgrade()
-
-  const {
-    data: subscriptionData,
-    isLoading,
-    refetch: refetchSubscription,
-  } = useSubscriptionData({ includeOrg: true })
-
-  const [isAnnual, setIsAnnual] = useState(true)
-  const hasInitializedInterval = useRef(false)
+  const queryClient = useQueryClient()
+  const { ownerBilling } = hostContext
+  const [isAnnual, setIsAnnual] = useState(
+    !ownerBilling.isPaid || ownerBilling.billingInterval === 'year'
+  )
 
   const subscription = {
-    isFree: isFree(subscriptionData?.data?.plan),
-    isPro: isPro(subscriptionData?.data?.plan),
-    isTeam: isTeam(subscriptionData?.data?.plan),
-    isEnterprise: isEnterprise(subscriptionData?.data?.plan),
-    isPaid:
-      isPaid(subscriptionData?.data?.plan) &&
-      hasPaidSubscriptionStatus(subscriptionData?.data?.status),
-    /**
-     * True when the subscription is attached to an org (regardless of plan
-     * name). Feeds the permission resolution below.
-     */
-    isOrgScoped: Boolean(subscriptionData?.data?.isOrgScoped),
-    plan: subscriptionData?.data?.plan || 'free',
-    status: subscriptionData?.data?.status || 'inactive',
+    isFree: isFree(ownerBilling.plan),
+    isPro: isPro(ownerBilling.plan),
+    isTeam: isTeam(ownerBilling.plan),
+    isEnterprise: isEnterprise(ownerBilling.plan),
+    isPaid: ownerBilling.isPaid,
+    isOrgScoped: Boolean(hostContext.hostOrganizationId),
+    plan: ownerBilling.plan,
+    status: ownerBilling.status ?? 'inactive',
   }
 
   const isLegacyPlan = subscription.plan === 'pro' || subscription.plan === 'team'
 
   /**
-   * Sync the billing-period toggle to a paid subscriber's actual interval once
-   * subscription data loads. Free/unsubscribed users keep the Annual default
-   * (the API reports `billingInterval: 'month'` for them, which must not
-   * override the default).
+   * Keeps the toggle aligned when the host context refreshes after a plan change.
    */
   useEffect(() => {
-    if (!hasInitializedInterval.current && subscription.isPaid) {
-      hasInitializedInterval.current = true
-      setIsAnnual(subscriptionData?.data?.billingInterval === 'year')
+    if (subscription.isPaid) {
+      setIsAnnual(ownerBilling.billingInterval === 'year')
     }
-  }, [subscription.isPaid, subscriptionData?.data?.billingInterval])
+  }, [ownerBilling.billingInterval, subscription.isPaid])
 
-  const userRole = subscriptionData?.data?.organization?.role ?? 'member'
-  const isTeamAdmin = isOrgAdminRole(userRole)
-
-  const permissions = getSubscriptionPermissions(
-    {
-      isFree: subscription.isFree,
-      isPro: subscription.isPro,
-      isTeam: subscription.isTeam,
-      isEnterprise: subscription.isEnterprise,
-      isPaid: subscription.isPaid,
-      isOrgScoped: subscription.isOrgScoped,
-      plan: subscription.plan || 'free',
-      status: subscription.status || 'inactive',
-    },
-    { isTeamAdmin, userRole: userRole || 'member' }
+  const refreshHostContext = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: workspaceHostKeys.detail(workspaceId) }),
+    [queryClient, workspaceId]
   )
 
-  const showUpgradePlans = permissions.showUpgradePlans
-
   const doUpgrade = useCallback(
-    async (targetPlan: TargetPlan, creditTier: number, seats?: number) => {
+    async (targetPlan: TargetPlan, creditTier: number) => {
       try {
         await handleUpgrade(targetPlan, {
           creditTier,
           annual: isAnnual,
-          ...(seats ? { seats } : {}),
+          ...(hostContext.hostOrganizationId
+            ? { organizationId: hostContext.hostOrganizationId }
+            : {}),
         })
       } catch (error) {
         toast.error(getErrorMessage(error, 'Unknown error occurred'))
       }
     },
-    [handleUpgrade, isAnnual]
+    [handleUpgrade, hostContext.hostOrganizationId, isAnnual]
   )
 
-  const currentInterval: 'month' | 'year' =
-    subscriptionData?.data?.billingInterval === 'year' ? 'year' : 'month'
+  const currentInterval = ownerBilling.billingInterval
 
   const handleSwitchInterval = useCallback(
     async (interval: 'month' | 'year') => {
@@ -148,11 +121,11 @@ export function useUpgradeState(): UpgradeState {
         )
       }
       await requestJson(billingSwitchPlanContract, {
-        body: { targetPlanName: subscription.plan, interval },
+        body: { targetPlanName: subscription.plan, interval, workspaceId },
       })
-      await refetchSubscription()
+      await refreshHostContext()
     },
-    [refetchSubscription, subscription.plan, isLegacyPlan]
+    [isLegacyPlan, refreshHostContext, subscription.plan, workspaceId]
   )
 
   const currentCredits = getPlanTierCredits(subscription.plan)
@@ -178,13 +151,14 @@ export function useUpgradeState(): UpgradeState {
         body: {
           targetPlanName: `${planType}_${MAX_TIER.credits}`,
           interval: isAnnual ? 'year' : 'month',
+          workspaceId,
         },
       })
-      await refetchSubscription()
+      await refreshHostContext()
     } catch (e) {
       toast.error(getErrorMessage(e, 'Failed to upgrade'))
     }
-  }, [subscription.isTeam, isAnnual, refetchSubscription])
+  }, [subscription.isTeam, isAnnual, refreshHostContext, workspaceId])
 
   const onUpgradeToOtherTier = useCallback(async () => {
     const onMax =
@@ -194,20 +168,20 @@ export function useUpgradeState(): UpgradeState {
     const targetPlanName = `${planType}_${targetTier.credits}`
     try {
       await requestJson(billingSwitchPlanContract, {
-        body: { targetPlanName },
+        body: { targetPlanName, workspaceId },
       })
-      await refetchSubscription()
+      await refreshHostContext()
     } catch (e) {
       toast.error(getErrorMessage(e, 'Failed to switch plan'))
     }
-  }, [subscription.plan, subscription.isTeam, refetchSubscription])
+  }, [subscription.plan, subscription.isTeam, refreshHostContext, workspaceId])
 
   return {
-    isLoading,
+    isLoading: false,
     isAnnual,
     setIsAnnual,
     subscription,
-    showUpgradePlans,
+    showUpgradePlans: !subscription.isEnterprise,
     proTier: PRO_TIER,
     maxTier: MAX_TIER,
     isOnPro,

@@ -8,6 +8,7 @@ export const IntercomBlock: BlockConfig = {
   type: 'intercom',
   name: 'Intercom (Legacy)',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'intercom_v2' },
   description: 'Manage contacts, companies, conversations, tickets, and messages in Intercom',
   longDescription:
     'Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.',
@@ -1404,6 +1405,7 @@ Return ONLY the numeric timestamp.`,
 
 export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
+  sunset: undefined,
   type: 'intercom_v2',
   name: 'Intercom',
   integrationType: IntegrationType.Support,
@@ -1743,7 +1745,7 @@ export const IntercomBlockMeta = {
   templates: [
     {
       icon: IntercomIcon,
-      title: 'Customer feedback analyzer',
+      title: 'Intercom feedback analyzer',
       prompt:
         'Build a scheduled workflow that pulls support tickets and conversations from Intercom daily, categorizes them by theme and sentiment, tracks trends in a table, and sends a weekly Slack report highlighting the top feature requests and pain points.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],

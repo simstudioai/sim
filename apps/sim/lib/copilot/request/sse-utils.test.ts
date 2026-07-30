@@ -40,6 +40,23 @@ describe('shouldSkipToolCallEvent', () => {
       )
     ).toBe(false)
   })
+
+  it('allows a gateway call id to rebind to its resolved integration operation', () => {
+    const callId = 'gateway-resolve-call'
+    const gateway = toolCallEvent(callId, 'call_integration_tool', {
+      toolId: 'gmail_read_v2',
+      description: 'Reading recent emails',
+      arguments: {},
+    })
+    const resolved = toolCallEvent(callId, 'gmail_read_v2', {
+      credentialId: 'cred-gmail',
+    })
+
+    expect(shouldSkipToolCallEvent(gateway)).toBe(false)
+    expect(shouldSkipToolCallEvent(gateway)).toBe(true)
+    expect(shouldSkipToolCallEvent(resolved)).toBe(false)
+    expect(shouldSkipToolCallEvent(resolved)).toBe(true)
+  })
 })
 
 function toolCallEvent(

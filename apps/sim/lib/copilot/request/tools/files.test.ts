@@ -93,13 +93,11 @@ describe('serializeOutputForFile (json / txt / md)', () => {
 })
 
 describe('normalizeOutputWorkspaceFileName', () => {
-  it('derives the leaf file name from workflow alias output paths', () => {
-    expect(normalizeOutputWorkspaceFileName('workflows/My%20Workflow/changelog.md')).toBe(
-      'changelog.md'
+  it('derives the leaf file name from nested, percent-encoded output paths', () => {
+    expect(normalizeOutputWorkspaceFileName('files/My%20Folder/notes.md')).toBe('notes.md')
+    expect(normalizeOutputWorkspaceFileName('files/My%20Folder/phase%201/implementation.md')).toBe(
+      'implementation.md'
     )
-    expect(
-      normalizeOutputWorkspaceFileName('workflows/My%20Workflow/.plans/phase%201/implementation.md')
-    ).toBe('implementation.md')
   })
 
   it('still handles normal workspace file output paths', () => {
@@ -163,6 +161,34 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails loudly instead of silently skipping declared outputs when workspace context is missing', async () => {
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
+      buildContext({ workspaceId: undefined })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('NOT written')
+    // The computed value survives so the model can use it without re-running.
+    expect(result.output).toEqual({ result: 'name,age\nAlice,30', stdout: '' })
+    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+  })
+
+  it('still passes results through untouched when no outputs are declared, even without workspace context', async () => {
+    const original = { success: true, output: { result: 42, stdout: '' } }
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      {},
+      original,
+      buildContext({ workspaceId: undefined })
+    )
+
+    expect(result).toBe(original)
+    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
   })
 })
 

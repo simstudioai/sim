@@ -1,6 +1,6 @@
 ---
 description: Sim product language, positioning, and tone guidelines
-globs: ["apps/sim/app/(landing)/**", "apps/sim/app/(home)/**", "apps/docs/**", "apps/sim/app/manifest.ts", "apps/sim/app/sitemap.ts", "apps/sim/app/robots.ts", "apps/sim/app/llms.txt/**", "apps/sim/app/llms-full.txt/**", "apps/sim/app/(landing)/**/structured-data*", "apps/docs/**/structured-data*", "**/metadata*", "**/seo*"]
+globs: ["apps/sim/app/(landing)/**", "apps/docs/**", "apps/sim/app/manifest.ts", "apps/sim/app/sitemap.ts", "apps/sim/app/robots.ts", "apps/sim/app/llms.txt/**", "apps/sim/app/llms-full.txt/**", "apps/sim/app/(landing)/**/structured-data*", "apps/docs/**/structured-data*", "**/metadata*", "**/seo*"]
 ---
 
 # Sim — Language & Positioning

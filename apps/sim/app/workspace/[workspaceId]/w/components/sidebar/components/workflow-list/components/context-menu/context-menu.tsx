@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,11 +19,11 @@ import {
   Mail,
   Pencil,
   Plus,
-  Rocket,
-  Shuffle,
   SquareArrowUpRight,
   Trash,
   Unlock,
+  Workflow,
+  X,
 } from '@sim/emcn/icons'
 import { Pin, PinOff } from 'lucide-react'
 
@@ -32,16 +33,36 @@ interface ContextMenuProps {
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onOpenInNewTab?: () => void
+  onFindReferences?: () => void
   onMarkAsRead?: () => void
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
   onRename?: () => void
+  /**
+   * Ref to the rename input rendered by the "Rename" action, if any. Radix's
+   * FocusScope defers its close-time focus teardown to a `setTimeout(0)`, which
+   * can run after the rename input's own mount-time `focus()`/`select()` and
+   * clobber the selection (the "rename deselects the text" bug). Focusing from
+   * `onCloseAutoFocus` runs synchronously inside that same deferred teardown, so
+   * it always wins the race regardless of scheduler timing. Only applied when
+   * this specific close was caused by selecting "Rename" (see
+   * `justSelectedRenameRef`) — an unrelated action closing the menu while an
+   * earlier rename is still live must not steal focus back into it.
+   */
+  renameInputRef?: React.RefObject<HTMLInputElement | null>
   onCreate?: () => void
   onCreateFolder?: () => void
   onDuplicate?: () => void
   onExport?: () => void
   onDelete: () => void
+  /**
+   * Closes the item rather than deleting it — for tabs, where the destructive
+   * action is "close this one", not "delete it forever". Named for the item so
+   * it cannot be confused with `onClose`, which dismisses this menu.
+   */
+  onCloseTab?: () => void
   showOpenInNewTab?: boolean
+  showFindReferences?: boolean
   showMarkAsRead?: boolean
   showMarkAsUnread?: boolean
   showPin?: boolean
@@ -67,13 +88,10 @@ interface ContextMenuProps {
   disableLock?: boolean
   isLocked?: boolean
   showDelete?: boolean
+  showCloseTab?: boolean
   onUploadLogo?: () => void
   showUploadLogo?: boolean
   disableUploadLogo?: boolean
-  onFork?: () => void
-  onSync?: () => void
-  showFork?: boolean
-  showSync?: boolean
 }
 
 /**
@@ -86,16 +104,20 @@ export function ContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onFindReferences,
   onMarkAsRead,
   onMarkAsUnread,
   onTogglePin,
   onRename,
+  renameInputRef,
   onCreate,
   onCreateFolder,
   onDuplicate,
   onExport,
   onDelete,
+  onCloseTab,
   showOpenInNewTab = false,
+  showFindReferences = false,
   showMarkAsRead = false,
   showMarkAsUnread = false,
   showPin = false,
@@ -121,15 +143,13 @@ export function ContextMenu({
   disableLock = false,
   isLocked = false,
   showDelete = true,
+  showCloseTab = false,
   onUploadLogo,
   showUploadLogo = false,
   disableUploadLogo = false,
-  onFork,
-  onSync,
-  showFork = false,
-  showSync = false,
 }: ContextMenuProps) {
-  const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
+  const hasNavigationSection =
+    (showOpenInNewTab && onOpenInNewTab) || (showFindReferences && onFindReferences)
   const hasStatusSection =
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
@@ -141,7 +161,13 @@ export function ContextMenu({
     (showLock && onToggleLock) ||
     (showUploadLogo && onUploadLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
-  const hasForkSection = (showFork && onFork) || (showSync && onSync)
+
+  /**
+   * Only the "Rename" item should trigger the `onCloseAutoFocus` refocus below —
+   * an unrelated action (Delete, Duplicate, ...) closing this menu while a rename
+   * from an earlier interaction is still live must not steal focus back into it.
+   */
+  const justSelectedRenameRef = useRef(false)
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -163,7 +189,16 @@ export function ContextMenu({
         side='bottom'
         sideOffset={4}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          const shouldFocusRenameInput = justSelectedRenameRef.current
+          justSelectedRenameRef.current = false
+          const input = shouldFocusRenameInput ? renameInputRef?.current : null
+          if (input) {
+            input.focus()
+            input.select()
+          }
+        }}
       >
         {showOpenInNewTab && onOpenInNewTab && (
           <DropdownMenuItem
@@ -174,6 +209,17 @@ export function ContextMenu({
           >
             <SquareArrowUpRight />
             Open in new tab
+          </DropdownMenuItem>
+        )}
+        {showFindReferences && onFindReferences && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onFindReferences()
+              onClose()
+            }}
+          >
+            <Workflow />
+            Show references
           </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (
@@ -221,6 +267,7 @@ export function ContextMenu({
           <DropdownMenuItem
             disabled={disableRename}
             onSelect={() => {
+              justSelectedRenameRef.current = true
               onRename()
               onClose()
             }}
@@ -305,36 +352,7 @@ export function ContextMenu({
         )}
 
         {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
-          hasForkSection && <DropdownMenuSeparator />}
-        {showFork && onFork && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onFork()
-              onClose()
-            }}
-          >
-            <Shuffle />
-            Manage Forks
-          </DropdownMenuItem>
-        )}
-        {showSync && onSync && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onSync()
-              onClose()
-            }}
-          >
-            <Rocket />
-            Sync workspace
-          </DropdownMenuItem>
-        )}
-
-        {(hasNavigationSection ||
-          hasStatusSection ||
-          hasEditSection ||
-          hasCopySection ||
-          hasForkSection) &&
-          (showLeave || showDelete) && <DropdownMenuSeparator />}
+          (showLeave || showDelete || (showCloseTab && onCloseTab)) && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem
             disabled={disableLeave}
@@ -357,6 +375,17 @@ export function ContextMenu({
           >
             <Trash />
             Delete
+          </DropdownMenuItem>
+        )}
+        {showCloseTab && onCloseTab && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onCloseTab()
+              onClose()
+            }}
+          >
+            <X />
+            Close
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

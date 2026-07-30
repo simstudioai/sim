@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScrapeMarkdownParams,
   ContextDevScrapeMarkdownResponse,
@@ -20,6 +21,8 @@ export const contextDevScrapeMarkdownTool: ToolConfig<
   name: 'Context.dev Scrape Markdown',
   description: 'Scrape any URL and return clean, LLM-ready markdown content.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScrapeMarkdownParams>(),
 
   params: {
     url: {

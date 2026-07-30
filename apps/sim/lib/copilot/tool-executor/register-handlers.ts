@@ -2,12 +2,13 @@ import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
   CompleteScheduledTask,
+  Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
-  DeleteWorkflow,
   DeleteWorkspaceMcpServer,
   DeployApi,
   DeployChat,
+  DeployCustomBlock,
   DeployMcp,
   DiffWorkflows,
   FunctionExecute,
@@ -27,21 +28,22 @@ import {
   LoadDeployment,
   ManageCredential,
   ManageCustomTool,
-  ManageFolder,
   ManageMcpTool,
   ManageScheduledTask,
   ManageSkill,
   MaterializeFile,
-  MoveWorkflow,
+  Mkdir as MkdirTool,
+  Mv as MvTool,
   OauthGetAuthLink,
   OauthRequestAccess,
   OpenResource,
   PromoteToLive,
   Read as ReadTool,
   Redeploy,
-  RenameWorkflow,
   RestoreResource,
+  Rm as RmTool,
   RunBlock,
+  RunCode,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
@@ -53,6 +55,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
+import { executeDeployCustomBlock } from '../tools/handlers/deployment/custom-block'
 import {
   executeDeployApi,
   executeDeployChat,
@@ -87,12 +90,17 @@ import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/han
 import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
+import { executeRunCode } from '../tools/handlers/run-code'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
 import {
+  executeVfsCp,
+  executeVfsMkdir,
+  executeVfsMv,
+  executeVfsRm,
+} from '../tools/handlers/vfs-mutate'
+import {
   executeCreateWorkflow,
-  executeDeleteWorkflow,
   executeGenerateApiKey,
-  executeManageFolder,
   executeMoveWorkflow,
   executeRenameWorkflow,
   executeRunBlock,
@@ -141,10 +149,11 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GetDeployedWorkflowState.id]: h(executeGetDeployedWorkflowState),
 
     [CreateWorkflow.id]: h(executeCreateWorkflow),
-    [DeleteWorkflow.id]: h(executeDeleteWorkflow),
-    [RenameWorkflow.id]: h(executeRenameWorkflow),
-    [MoveWorkflow.id]: h(executeMoveWorkflow),
-    [ManageFolder.id]: h(executeManageFolder),
+    // rename_workflow / move_workflow were removed from the mothership catalog
+    // in favor of mv; the executors stay registered under literal names so
+    // in-flight checkpoints still resume. Delete after the mv release soaks.
+    rename_workflow: h(executeRenameWorkflow),
+    move_workflow: h(executeMoveWorkflow),
     [RunWorkflow.id]: h(executeRunWorkflow),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),
@@ -156,6 +165,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [DeployApi.id]: h(executeDeployApi),
     [DeployChat.id]: h(executeDeployChat),
     [DeployMcp.id]: h(executeDeployMcp),
+    [DeployCustomBlock.id]: h(executeDeployCustomBlock),
     [Redeploy.id]: h(executeRedeploy),
     [CheckDeploymentStatus.id]: h(executeCheckDeploymentStatus),
     [ListWorkspaceMcpServers.id]: h(executeListWorkspaceMcpServers),
@@ -175,6 +185,10 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GrepTool.id]: h(executeVfsGrep),
     [GlobTool.id]: h(executeVfsGlob),
     [ReadTool.id]: h(executeVfsRead),
+    [MvTool.id]: h(executeVfsMv),
+    [CpTool.id]: h(executeVfsCp),
+    [MkdirTool.id]: h(executeVfsMkdir),
+    [RmTool.id]: h(executeVfsRm),
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
     [ManageMcpTool.id]: h(executeManageMcpTool),
@@ -188,6 +202,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [ListIntegrationTools.id]: h(executeListIntegrationTools),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),
+    [RunCode.id]: h(executeRunCode),
 
     ...buildServerToolHandlers(),
   }

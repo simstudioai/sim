@@ -10,10 +10,15 @@ import {
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   getReplayCompletedWorkflowToolCallIds,
+  panelForExecutingClientTool,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  ChatMessage,
+  ContentBlock,
+  ToolCallStatus,
+} from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-1/home',
@@ -142,79 +147,61 @@ describe('reconcileLiveAssistantTurn', () => {
 })
 
 describe('selectReconnectReplayState', () => {
-  it('hydrates nonzero cursor replay from a cached live assistant that is ahead', () => {
-    const cachedBlock: ContentBlock = { type: 'text', content: 'Hello world' }
+  it('continues from a nonzero cursor when live streaming state exists in memory', () => {
+    const currentBlock: ContentBlock = { type: 'text', content: 'Hello world' }
 
     const result = selectReconnectReplayState({
       afterCursor: '4',
-      cachedLiveAssistant: {
-        content: 'Hello world',
-        contentBlocks: [cachedBlock],
-      },
-      currentContent: 'Hello',
-      currentBlocks: [],
+      currentContent: 'Hello world',
+      currentBlocks: [currentBlock],
     })
 
     expect(result).toEqual({
       afterCursor: '4',
-      content: 'Hello world',
-      contentBlocks: [cachedBlock],
       preserveExistingState: true,
-      source: 'cache',
+      source: 'live',
     })
   })
 
-  it('resets to replay from the beginning when a nonzero cursor has no usable live cache', () => {
+  it('continues when only blocks carry live state (e.g. tool-only turn)', () => {
     const result = selectReconnectReplayState({
       afterCursor: '4',
-      cachedLiveAssistant: null,
+      currentContent: '',
+      currentBlocks: [{ type: 'tool_call', toolCall: { id: 't1', name: 'grep' } } as ContentBlock],
+    })
+
+    expect(result).toEqual({
+      afterCursor: '4',
+      preserveExistingState: true,
+      source: 'live',
+    })
+  })
+
+  it('replays the buffer from seq 0 when a nonzero cursor has no live in-memory state', () => {
+    const result = selectReconnectReplayState({
+      afterCursor: '4',
       currentContent: '',
       currentBlocks: [],
     })
 
     expect(result).toEqual({
       afterCursor: '0',
-      content: '',
-      contentBlocks: [],
       preserveExistingState: false,
       source: 'reset',
     })
   })
 
-  it('resets when cached live content diverges from the local prefix', () => {
-    const result = selectReconnectReplayState({
-      afterCursor: '4',
-      cachedLiveAssistant: {
-        content: 'Goodbye world',
-        contentBlocks: [{ type: 'text', content: 'Goodbye world' }],
-      },
-      currentContent: 'Hello',
-      currentBlocks: [{ type: 'text', content: 'Hello' }],
-    })
-
-    expect(result).toEqual({
-      afterCursor: '0',
-      content: '',
-      contentBlocks: [],
-      preserveExistingState: false,
-      source: 'reset',
-    })
-  })
-
-  it('resets current state for cursor zero replay', () => {
+  it('resets for cursor zero replay even when local state exists', () => {
     const currentBlock: ContentBlock = { type: 'text', content: 'Hello' }
 
     const result = selectReconnectReplayState({
       afterCursor: '0',
-      cachedLiveAssistant: null,
       currentContent: 'Hello',
       currentBlocks: [currentBlock],
     })
 
     expect(result).toEqual({
       afterCursor: '0',
-      content: '',
-      contentBlocks: [],
       preserveExistingState: false,
       source: 'reset',
     })
@@ -230,5 +217,61 @@ describe('getReplayCompletedWorkflowToolCallIds', () => {
     ])
 
     expect(result).toEqual(new Set(['workflow-complete']))
+  })
+})
+
+describe('panelForExecutingClientTool', () => {
+  function toolCallMessage(id: string, name: string, status: ToolCallStatus): ChatMessage {
+    return {
+      id,
+      role: 'assistant',
+      content: '',
+      contentBlocks: [{ type: 'tool_call', toolCall: { id: `${id}-tool`, name, status } }],
+    }
+  }
+
+  it('detects a browser tool call that is still executing', () => {
+    const messages = [
+      toolCallMessage('m1', 'browser_click', 'success'),
+      toolCallMessage('m2', 'browser_navigate', 'executing'),
+    ]
+
+    expect(panelForExecutingClientTool(messages)).toBe('browser')
+  })
+
+  it('detects a terminal tool call that is still executing', () => {
+    const messages = [
+      toolCallMessage('m1', 'terminal', 'success'),
+      toolCallMessage('m2', 'terminal', 'executing'),
+    ]
+
+    expect(panelForExecutingClientTool(messages)).toBe('terminal')
+  })
+
+  it('ignores completed calls and executing tools that own no panel', () => {
+    const messages = [
+      toolCallMessage('m1', 'browser_click', 'success'),
+      toolCallMessage('m2', 'terminal', 'success'),
+      toolCallMessage('m3', 'run_workflow', 'executing'),
+      { id: 'm4', role: 'assistant' as const, content: 'no blocks' },
+    ]
+
+    expect(panelForExecutingClientTool(messages)).toBe(null)
+  })
+
+  // Both panels can be in flight at once; the later call is the one the user
+  // was watching when they navigated away.
+  it('picks the later panel when both are mid-action', () => {
+    const browserFirst = [
+      toolCallMessage('m1', 'browser_navigate', 'executing'),
+      toolCallMessage('m2', 'terminal', 'executing'),
+    ]
+    const terminalFirst = [
+      toolCallMessage('m1', 'terminal', 'executing'),
+      toolCallMessage('m2', 'browser_navigate', 'executing'),
+    ]
+
+    expect(panelForExecutingClientTool(browserFirst)).toBe('terminal')
+    expect(panelForExecutingClientTool(terminalFirst)).toBe('browser')
   })
 })

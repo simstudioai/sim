@@ -1,4 +1,4 @@
-import { DevinIcon, LinearIcon, SlackIcon } from '@/components/icons'
+import { DevinIcon, LinearIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -11,6 +11,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   name: 'Linear (Legacy)',
   description: 'Interact with Linear issues, projects, and more',
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'linear_v2' },
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
@@ -2561,6 +2562,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
  */
 export const LinearV2Block: BlockConfig<LinearResponse> = {
   ...LinearBlock,
+  sunset: undefined,
   type: 'linear_v2',
   name: 'Linear',
   hideFromToolbar: false,
@@ -2635,8 +2637,8 @@ export const LinearBlockMeta = {
       alsoIntegrations: ['devin'],
     },
     {
-      icon: SlackIcon,
-      title: 'Meeting notes to action items',
+      icon: LinearIcon,
+      title: 'Meeting notes to Linear tasks',
       prompt:
         'Create a workflow that takes meeting notes or a transcript, extracts action items with owners and due dates, creates tasks in Linear or Asana for each one, and posts a summary to the relevant Slack channel.',
       modules: ['agent', 'workflows'],

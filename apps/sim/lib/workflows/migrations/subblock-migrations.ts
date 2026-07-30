@@ -26,6 +26,10 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   knowledge: {
     knowledgeBaseId: 'knowledgeBaseSelector',
   },
+  algolia: {
+    listPage: 'page',
+    listHitsPerPage: 'hitsPerPage',
+  },
   kalshi: {
     settlementStatus: '_removed_settlementStatus',
   },
@@ -42,6 +46,14 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     phoneType: '_removed_phoneType',
     expandApplicationFormDefinition: '_removed_expandApplicationFormDefinition',
     expandSurveyFormDefinitions: '_removed_expandSurveyFormDefinitions',
+    filterCandidateId: '_removed_filterCandidateId',
+  },
+  clickup: {
+    workspaceId: 'workspaceSelector',
+    spaceId: 'spaceSelector',
+    listSpaceId: 'listSpaceSelector',
+    folderId: 'folderSelector',
+    listId: 'listSelector',
   },
   apollo: {
     contact_ids_bulk: 'contacts',
@@ -52,6 +64,18 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     description: '_removed_description',
     stage_ids: '_removed_stage_ids',
     owner_ids: '_removed_owner_ids',
+  },
+  exa: {
+    /**
+     * Exa deprecated both fields. `useAutoprompt` is gone from the API, and
+     * `livecrawl` is superseded by `maxAgeHours` — but their values are not
+     * interchangeable (`livecrawl` is a mode string, `maxAgeHours` a number),
+     * so mapping one onto the other would send `NaN`. Dropping `livecrawl` is
+     * also the fix for the block having defaulted it to `never`, which pinned
+     * every saved search to cached results.
+     */
+    useAutoprompt: '_removed_useAutoprompt',
+    livecrawl: '_removed_livecrawl',
   },
   rippling: {
     action: '_removed_action',

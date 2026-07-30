@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
+import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import type { Node, ReactFlowInstance } from 'reactflow'
-import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 interface VisibleBounds {
   width: number

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { unknownRecordSchema } from '@/lib/api/contracts/primitives'
+import { customPatternSchema, unknownRecordSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 export const guardrailsValidateContract = defineRouteContract({
@@ -26,6 +26,7 @@ export const guardrailsValidateContract = defineRouteContract({
     piiEntityTypes: z.array(z.string()).optional(),
     piiMode: z.string().optional(),
     piiLanguage: z.string().optional(),
+    piiCustomPatterns: z.array(customPatternSchema).max(20).optional(),
   }),
   response: {
     mode: 'json',
@@ -49,6 +50,7 @@ const guardrailsMaskBatchBodySchema = z.object({
   texts: z.array(z.string()).max(100_000),
   entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(200),
   language: z.string().min(1).max(20).optional(),
+  customPatterns: z.array(customPatternSchema).max(20).optional(),
 })
 
 const guardrailsMaskBatchResponseSchema = z.object({

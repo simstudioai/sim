@@ -45,7 +45,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort field (name, status, account.id, account.name)',
+      description: 'Sort field (name, status, account.id, account.name, plan.id)',
     },
     direction: {
       type: 'string',

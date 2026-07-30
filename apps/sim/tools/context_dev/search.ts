@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type { ContextDevSearchParams, ContextDevSearchResponse } from '@/tools/context_dev/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/context_dev/types'
 import {
@@ -14,6 +15,8 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
   name: 'Context.dev Search',
   description: 'Search the web with natural language and optionally scrape results to markdown.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevSearchParams>(),
 
   params: {
     query: {
@@ -39,6 +42,18 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       required: false,
       visibility: 'user-or-llm',
       description: 'Recency filter (last_24_hours, last_week, last_month, last_year)',
+    },
+    numResults: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (10-100, default 10)',
+    },
+    country: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Restrict results to a country (ISO 3166-1 alpha-2 code, e.g. US)',
     },
     queryFanout: {
       type: 'boolean',
@@ -75,6 +90,20 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       if (params.includeDomains?.length) body.includeDomains = params.includeDomains
       if (params.excludeDomains?.length) body.excludeDomains = params.excludeDomains
       if (params.freshness) body.freshness = params.freshness
+      if (params.numResults != null) {
+        // Context.dev accepts 10-100 results — clamp to the documented bounds.
+        const requested = Math.trunc(Number(params.numResults))
+        if (Number.isFinite(requested)) {
+          body.numResults = Math.min(100, Math.max(10, requested))
+        }
+      }
+      if (params.country) {
+        const country = String(params.country).trim().toUpperCase()
+        if (!/^[A-Z]{2}$/.test(country)) {
+          throw new Error('country must be a 2-letter ISO 3166-1 alpha-2 code (e.g., US)')
+        }
+        body.country = country
+      }
       if (params.queryFanout != null) body.queryFanout = params.queryFanout
       if (params.markdownEnabled != null) {
         body.markdownOptions = { enabled: params.markdownEnabled }

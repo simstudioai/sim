@@ -1,7 +1,12 @@
 import { getBlock } from '@/blocks'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import type { SubBlockState } from '@/stores/workflows/workflow/types'
-import { buildCanonicalIndex } from './visibility'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  type CanonicalModeOverrides,
+  resolveActiveCanonicalValue,
+} from './visibility'
 
 /**
  * Canonical param IDs (or raw subblock IDs) that correspond to SelectorContext fields.
@@ -24,6 +29,9 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'serviceDeskId',
   'impersonateUserEmail',
   'boardId',
+  'spaceId',
+  'listSpaceId',
+  'folderId',
   'awsAccessKeyId',
   'awsSecretAccessKey',
   'awsRegion',
@@ -42,7 +50,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
 export function buildSelectorContextFromBlock(
   blockType: string,
   subBlocks: Record<string, SubBlockState | { value?: unknown }>,
-  opts?: { workflowId?: string; workspaceId?: string }
+  opts?: { workflowId?: string; workspaceId?: string; canonicalModes?: CanonicalModeOverrides }
 ): SelectorContext {
   const context: SelectorContext = {}
   if (opts?.workflowId) context.workflowId = opts.workflowId
@@ -52,17 +60,30 @@ export function buildSelectorContextFromBlock(
   if (!blockConfig) return context
 
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const values = buildSubBlockValues(subBlocks)
+  const resolvedGroups = new Set<string>()
+
+  const setField = (key: string, value: unknown) => {
+    if (value === null || value === undefined) return
+    const strValue = typeof value === 'string' ? value : String(value)
+    if (!strValue) return
+    if (SELECTOR_CONTEXT_FIELDS.has(key as keyof SelectorContext)) {
+      context[key as keyof SelectorContext] = strValue
+    }
+  }
 
   for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-    const val = subBlock?.value
-    if (val === null || val === undefined) continue
-    const strValue = typeof val === 'string' ? val : String(val)
-    if (!strValue) continue
-
-    const canonicalKey = canonicalIndex.canonicalIdBySubBlockId[subBlockId] ?? subBlockId
-    if (SELECTOR_CONTEXT_FIELDS.has(canonicalKey as keyof SelectorContext)) {
-      context[canonicalKey as keyof SelectorContext] = strValue
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockId]
+    if (canonicalId) {
+      // A canonical group resolves to its ACTIVE member only (no last-write-wins between a
+      // basic/advanced pair when both hold values), honoring an explicit mode override.
+      if (resolvedGroups.has(canonicalId)) continue
+      resolvedGroups.add(canonicalId)
+      const group = canonicalIndex.groupsById[canonicalId]
+      setField(canonicalId, resolveActiveCanonicalValue(group, values, opts?.canonicalModes))
+      continue
     }
+    setField(subBlockId, subBlock?.value)
   }
 
   return context

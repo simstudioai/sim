@@ -1,8 +1,12 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, credentialTypeEnum } from '@sim/db/schema'
+import { account, credential, credentialMember, credentialTypeEnum } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  resolveWorkspaceAccess,
+  type WorkspaceAccess,
+} from '@/lib/workspaces/permissions/utils'
 
 type ActiveCredentialMember = typeof credentialMember.$inferSelect
 type CredentialRecord = typeof credential.$inferSelect
@@ -18,6 +22,66 @@ export type CredentialType = (typeof credentialTypeEnum.enumValues)[number]
 export const SHARED_CREDENTIAL_TYPES = credentialTypeEnum.enumValues.filter(
   (type) => type !== 'env_personal'
 )
+
+/**
+ * Which user a credential's token must be read as.
+ *
+ * Service-account credentials mint their own token and ignore the acting user
+ * entirely, so they carry no user id — callers pass their existing one through.
+ */
+export type CredentialTokenIdentity =
+  | { kind: 'service_account' }
+  | { kind: 'oauth'; userId: string }
+
+/**
+ * Resolves which user a credential's token must be read as, for background jobs
+ * that run without a request context (connector syncs, scheduled runs).
+ *
+ * Workspace-scoped OAuth credentials are shared, so the member who authorized one
+ * is frequently not the user driving the job. Token reads are scoped to
+ * `account.userId`, so a job passing its own user id resolves no token at all.
+ * Mirrors the ownership resolution in `authorizeCredentialUse`: the credential must
+ * belong to `workspaceId`, and its owner must still have access to that workspace.
+ *
+ * @returns the identity to read the token as, or `null` when the credential is
+ * unusable from this workspace (wrong workspace, missing account, owner lost access).
+ */
+export async function resolveCredentialTokenIdentity(
+  credentialId: string,
+  workspaceId: string
+): Promise<CredentialTokenIdentity | null> {
+  const [platformCredential] = await db
+    .select({
+      workspaceId: credential.workspaceId,
+      type: credential.type,
+      accountId: credential.accountId,
+    })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (platformCredential) {
+    if (platformCredential.workspaceId !== workspaceId) return null
+    if (platformCredential.type === 'service_account') return { kind: 'service_account' }
+    if (platformCredential.type !== 'oauth' || !platformCredential.accountId) return null
+  }
+
+  // Credentials predating the workspace-scoped `credential` table are raw account ids.
+  const accountId = platformCredential?.accountId ?? credentialId
+
+  const [accountRow] = await db
+    .select({ userId: account.userId })
+    .from(account)
+    .where(eq(account.id, accountId))
+    .limit(1)
+
+  if (!accountRow) return null
+
+  const ownerPerm = await getUserEntityPermissions(accountRow.userId, 'workspace', workspaceId)
+  if (ownerPerm === null) return null
+
+  return { kind: 'oauth', userId: accountRow.userId }
+}
 
 /** Whether a credential is shared at the workspace level (i.e. not a personal env var). */
 export function isSharedCredentialType(type: CredentialType): boolean {
@@ -74,11 +138,11 @@ export async function getCredentialActorContext(
     }
   }
 
-  const providedAccess = options?.workspaceAccess
-  const workspaceAccess =
-    providedAccess && providedAccess.workspace?.id === credentialRow.workspaceId
-      ? providedAccess
-      : await checkWorkspaceAccess(credentialRow.workspaceId, userId)
+  const workspaceAccess = await resolveWorkspaceAccess(
+    credentialRow.workspaceId,
+    userId,
+    options?.workspaceAccess
+  )
   const [memberRow] = await db
     .select()
     .from(credentialMember)
@@ -111,6 +175,13 @@ export async function getCredentialActorContext(
  * Workspace owners and admins are derived credential admins, so no per-credential
  * owner promotion is needed to avoid orphaning a credential. Returns the number
  * of memberships revoked.
+ *
+ * Deliberately DIVERGES from the skill sibling (`removeWorkspaceSkillMembershipsTx`
+ * deletes active rows): credential access is explicit-rows-only, so a revoked
+ * row here is an inert tombstone the env-credential join sync uses to avoid
+ * resurrecting access. Skills have an implicit workspace-shared grant, where a
+ * revoked row is a live per-skill DENY marker and a kept-active row would
+ * re-grant on rejoin — do not "harmonize" either helper toward the other.
  */
 export async function revokeWorkspaceCredentialMembershipsTx(
   tx: DbOrTx,

@@ -1,16 +1,96 @@
 import { db, dbReplica } from '@sim/db'
-import { member } from '@sim/db/schema'
+import {
+  member,
+  organization as organizationTable,
+  subscription as subscriptionTable,
+  userStats,
+  workspace as workspaceTable,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { billingQuerySchema } from '@/lib/api/contracts/subscription'
+import { getBillingContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
-import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription, getPersonalBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
+import { resolveBillingInterval } from '@/lib/billing/core/subscription'
+import { getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
+import { isPaid } from '@/lib/billing/plan-helpers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedBillingAPI')
+
+interface BillingBlockState {
+  billingBlocked: boolean
+  billingBlockedReason: 'payment_failed' | 'dispute' | null
+  blockedByOrgOwner: boolean
+}
+
+/**
+ * Finds an active workspace whose host billing identity is the requested payer.
+ */
+async function getUpgradeWorkspaceId(
+  target: { type: 'user'; id: string } | { type: 'organization'; id: string }
+): Promise<string | null> {
+  const targetPredicate =
+    target.type === 'organization'
+      ? eq(workspaceTable.organizationId, target.id)
+      : and(
+          eq(workspaceTable.ownerId, target.id),
+          eq(workspaceTable.billedAccountUserId, target.id),
+          isNull(workspaceTable.organizationId)
+        )
+
+  const [workspace] = await dbReplica
+    .select({ id: workspaceTable.id })
+    .from(workspaceTable)
+    .where(and(targetPredicate, isNull(workspaceTable.archivedAt)))
+    .orderBy(asc(workspaceTable.createdAt), asc(workspaceTable.id))
+    .limit(1)
+
+  return workspace?.id ?? null
+}
+
+/**
+ * Reads the exact organization's payer block from its owner, without allowing
+ * the viewer's personal status or another organization membership to leak in.
+ */
+async function getOrganizationBillingBlockState(
+  organizationId: string,
+  viewerUserId: string
+): Promise<BillingBlockState> {
+  const [owner] = await dbReplica
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+    .limit(1)
+
+  if (!owner) {
+    return {
+      billingBlocked: false,
+      billingBlockedReason: null,
+      blockedByOrgOwner: false,
+    }
+  }
+
+  const [stats] = await dbReplica
+    .select({
+      billingBlocked: userStats.billingBlocked,
+      billingBlockedReason: userStats.billingBlockedReason,
+    })
+    .from(userStats)
+    .where(eq(userStats.userId, owner.userId))
+    .limit(1)
+
+  const billingBlocked = Boolean(stats?.billingBlocked)
+  return {
+    billingBlocked,
+    billingBlockedReason: billingBlocked ? (stats?.billingBlockedReason ?? null) : null,
+    blockedByOrgOwner: billingBlocked && owner.userId !== viewerUserId,
+  }
+}
 
 /**
  * Unified Billing Endpoint
@@ -23,23 +103,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const parsedQuery = billingQuerySchema.safeParse({
-      context: searchParams.get('context') || undefined,
-      id: searchParams.get('id') || undefined,
-      includeOrg: searchParams.get('includeOrg') === 'true',
-    })
+    const parsed = await parseRequest(
+      getBillingContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json(
+            { error: 'Invalid context. Must be "user" or "organization"' },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!parsedQuery.success) {
-      return NextResponse.json(
-        { error: 'Invalid context. Must be "user" or "organization"' },
-        { status: 400 }
-      )
-    }
-
-    const { context, id: contextId, includeOrg } = parsedQuery.data
-
-    // For organization context, require contextId
+    const { context, id: contextId, includeOrg } = parsed.data.query
     if (context === 'organization' && !contextId) {
       return NextResponse.json(
         { error: 'Organization ID is required when context=organization' },
@@ -47,39 +125,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    let billingData
-
     if (context === 'user') {
-      if (contextId) {
-        const membership = await db
-          .select({ role: member.role })
-          .from(member)
-          .where(and(eq(member.organizationId, contextId), eq(member.userId, session.user.id)))
-          .limit(1)
-        if (membership.length === 0) {
-          return NextResponse.json(
-            { error: 'Access denied - not a member of this organization' },
-            { status: 403 }
-          )
-        }
-      }
-
-      const [billingResult, billingStatus] = await Promise.all([
-        getSimplifiedBillingSummary(session.user.id, contextId || undefined, dbReplica),
-        getEffectiveBillingStatus(session.user.id),
+      const [personalBilling, upgradeWorkspaceId] = await Promise.all([
+        getPersonalBillingSummary(session.user.id, dbReplica),
+        getUpgradeWorkspaceId({ type: 'user', id: session.user.id }),
       ])
-      billingData = billingResult
+      let organizationMembership: { id: string; role: 'owner' | 'admin' | 'member' } | undefined
 
-      billingData = {
-        ...billingData,
-        billingBlocked: billingStatus.billingBlocked,
-        billingBlockedReason: billingStatus.billingBlockedReason,
-        blockedByOrgOwner: billingStatus.blockedByOrgOwner,
-      }
-
-      // Optionally include organization membership and role
       if (includeOrg) {
-        const userMembership = await db
+        const [userMembership] = await db
           .select({
             organizationId: member.organizationId,
             role: member.role,
@@ -88,89 +142,133 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           .where(eq(member.userId, session.user.id))
           .limit(1)
 
-        if (userMembership.length > 0) {
-          billingData = {
-            ...billingData,
-            organization: {
-              id: userMembership[0].organizationId,
-              role: userMembership[0].role as 'owner' | 'admin' | 'member',
-            },
+        if (userMembership) {
+          organizationMembership = {
+            id: userMembership.organizationId,
+            role: userMembership.role as 'owner' | 'admin' | 'member',
           }
         }
-      }
-    } else {
-      // Get user role in organization for permission checks first
-      const memberRecord = await db
-        .select({ role: member.role })
-        .from(member)
-        .where(and(eq(member.organizationId, contextId!), eq(member.userId, session.user.id)))
-        .limit(1)
-
-      if (memberRecord.length === 0) {
-        return NextResponse.json(
-          { error: 'Access denied - not a member of this organization' },
-          { status: 403 }
-        )
-      }
-
-      // Get organization-specific billing
-      const rawBillingData = await getOrganizationBillingData(contextId!, dbReplica)
-
-      if (!rawBillingData) {
-        return NextResponse.json(
-          { error: 'Organization not found or access denied' },
-          { status: 404 }
-        )
-      }
-
-      billingData = {
-        organizationId: rawBillingData.organizationId,
-        organizationName: rawBillingData.organizationName,
-        subscriptionPlan: rawBillingData.subscriptionPlan,
-        subscriptionStatus: rawBillingData.subscriptionStatus,
-        totalSeats: rawBillingData.totalSeats,
-        usedSeats: rawBillingData.usedSeats,
-        seatsCount: rawBillingData.seatsCount,
-        totalCurrentUsage: rawBillingData.totalCurrentUsage,
-        totalUsageLimit: rawBillingData.totalUsageLimit,
-        minimumBillingAmount: rawBillingData.minimumBillingAmount,
-        averageUsagePerMember: rawBillingData.averageUsagePerMember,
-        billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
-        billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
-        members: rawBillingData.members.map((m) => ({
-          ...m,
-          joinedAt: m.joinedAt.toISOString(),
-        })),
-      }
-
-      const userRole = memberRecord[0].role
-
-      // Get effective billing blocked status (includes org owner check)
-      const billingStatus = await getEffectiveBillingStatus(session.user.id)
-
-      // Merge blocked flag into data for convenience
-      billingData = {
-        ...billingData,
-        billingBlocked: billingStatus.billingBlocked,
-        billingBlockedReason: billingStatus.billingBlockedReason,
-        blockedByOrgOwner: billingStatus.blockedByOrgOwner,
       }
 
       return NextResponse.json({
         success: true,
         context,
-        data: billingData,
-        userRole,
-        billingBlocked: billingData.billingBlocked,
-        billingBlockedReason: billingData.billingBlockedReason,
-        blockedByOrgOwner: billingData.blockedByOrgOwner,
+        data: {
+          ...personalBilling,
+          upgradeWorkspaceId,
+          ...(organizationMembership ? { organization: organizationMembership } : {}),
+        },
       })
+    }
+
+    const organizationId = contextId!
+    const [memberRecord] = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+      .limit(1)
+
+    if (!memberRecord) {
+      return NextResponse.json(
+        { error: 'Access denied - not a member of this organization' },
+        { status: 403 }
+      )
+    }
+    if (!isOrgAdminRole(memberRecord.role)) {
+      return NextResponse.json(
+        { error: 'Access denied - organization admin permission is required' },
+        { status: 403 }
+      )
+    }
+
+    const [
+      rawBillingData,
+      entitledSubscription,
+      organizationRows,
+      latestSubscriptionRows,
+      creditBalance,
+      billingStatus,
+      upgradeWorkspaceId,
+    ] = await Promise.all([
+      getOrganizationBillingData(organizationId, dbReplica),
+      getOrganizationSubscription(organizationId, { executor: dbReplica, onError: 'throw' }),
+      dbReplica
+        .select({ id: organizationTable.id, name: organizationTable.name })
+        .from(organizationTable)
+        .where(eq(organizationTable.id, organizationId))
+        .limit(1),
+      dbReplica
+        .select()
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.referenceId, organizationId))
+        .orderBy(desc(subscriptionTable.periodStart), desc(subscriptionTable.id))
+        .limit(1),
+      getCreditBalanceForEntity('organization', organizationId, dbReplica),
+      getOrganizationBillingBlockState(organizationId, session.user.id),
+      getUpgradeWorkspaceId({ type: 'organization', id: organizationId }),
+    ])
+
+    const organizationRecord = organizationRows[0]
+    if (!organizationRecord) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+    }
+
+    const latestSubscription = latestSubscriptionRows[0] ?? null
+    const activeSubscription =
+      entitledSubscription && isPaid(entitledSubscription.plan) ? entitledSubscription : null
+    const freeSubscription =
+      entitledSubscription && !isPaid(entitledSubscription.plan) ? entitledSubscription : null
+    const lapsedSubscription =
+      !entitledSubscription && latestSubscription && isPaid(latestSubscription.plan)
+        ? latestSubscription
+        : null
+    const displayedSubscription = activeSubscription ?? freeSubscription ?? lapsedSubscription
+    const subscriptionState = activeSubscription
+      ? ('active' as const)
+      : lapsedSubscription
+        ? ('lapsed' as const)
+        : ('free' as const)
+
+    const billingData = {
+      organizationId,
+      organizationName: rawBillingData?.organizationName ?? organizationRecord.name ?? '',
+      subscriptionState,
+      hasSubscription: displayedSubscription !== null,
+      subscriptionPlan: displayedSubscription?.plan ?? 'free',
+      subscriptionStatus: displayedSubscription?.status ?? null,
+      creditBalance,
+      billingInterval: resolveBillingInterval(displayedSubscription),
+      cancelAtPeriodEnd: displayedSubscription?.cancelAtPeriodEnd ?? false,
+      totalSeats: rawBillingData?.totalSeats ?? 0,
+      usedSeats: rawBillingData?.usedSeats ?? 0,
+      seatsCount: rawBillingData?.seatsCount ?? 0,
+      totalCurrentUsage: rawBillingData?.totalCurrentUsage ?? 0,
+      totalUsageLimit: rawBillingData?.totalUsageLimit ?? 0,
+      minimumBillingAmount: rawBillingData?.minimumBillingAmount ?? 0,
+      averageUsagePerMember: rawBillingData?.averageUsagePerMember ?? 0,
+      billingPeriodStart:
+        rawBillingData?.billingPeriodStart?.toISOString() ??
+        displayedSubscription?.periodStart?.toISOString() ??
+        null,
+      billingPeriodEnd:
+        rawBillingData?.billingPeriodEnd?.toISOString() ??
+        displayedSubscription?.periodEnd?.toISOString() ??
+        null,
+      members:
+        rawBillingData?.members.map((organizationMember) => ({
+          ...organizationMember,
+          joinedAt: organizationMember.joinedAt.toISOString(),
+        })) ?? [],
+      ...billingStatus,
+      upgradeWorkspaceId,
     }
 
     return NextResponse.json({
       success: true,
       context,
       data: billingData,
+      userRole: memberRecord.role as 'owner' | 'admin' | 'member',
+      ...billingStatus,
     })
   } catch (error) {
     logger.error('Failed to get billing data', {

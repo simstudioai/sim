@@ -1,8 +1,12 @@
+import { isLoopbackHostname } from '@sim/security/hostnames'
 import { env, getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/env-flags'
 
 /** Canonical base URL for the public-facing marketing site. No trailing slash. */
 export const SITE_URL = 'https://www.sim.ai'
+
+/** Host of the canonical marketing site, e.g. `www.sim.ai`. */
+export const CANONICAL_SITE_HOST = new URL(SITE_URL).host
 
 function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
@@ -88,14 +92,36 @@ export function getBaseDomain(): string {
   }
 }
 
+/** Drops a leading `www.` label, e.g. `www.sim.ai` -> `sim.ai`. */
+function stripWwwPrefix(host: string): string {
+  return host.startsWith('www.') ? host.slice(4) : host
+}
+
+/**
+ * True for a sim.ai host that is not the canonical marketing site — dev.sim.ai,
+ * staging.sim.ai, and their www variants serve the same build as www.sim.ai, so
+ * search engines treat them as duplicates unless told otherwise.
+ *
+ * `sim.ai` and `www.sim.ai` are both canonical. Self-hosted domains return
+ * false, as do lookalikes such as `notsim.ai`.
+ *
+ * Takes the first entry of a comma-joined forwarded host so a chained proxy
+ * can't make the canonical site look non-canonical via a trailing entry.
+ */
+export function isNonCanonicalSimHost(host: string): boolean {
+  const first = host.split(',')[0]?.trim() ?? ''
+  const hostname = stripWwwPrefix(first.toLowerCase().split(':')[0])
+  const canonical = stripWwwPrefix(CANONICAL_SITE_HOST)
+  return hostname !== canonical && hostname.endsWith(`.${canonical}`)
+}
+
 /**
  * Returns the domain for email addresses, stripping www subdomain for Resend compatibility
  * @returns The email domain (e.g., 'sim.ai' instead of 'www.sim.ai')
  */
 export function getEmailDomain(): string {
   try {
-    const baseDomain = getBaseDomain()
-    return baseDomain.startsWith('www.') ? baseDomain.substring(4) : baseDomain
+    return stripWwwPrefix(getBaseDomain())
   } catch (_e) {
     return isProd ? 'sim.ai' : 'localhost:3000'
   }
@@ -103,17 +129,6 @@ export function getEmailDomain(): string {
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
-export const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
-  'localhost',
-  '127.0.0.1',
-  '[::1]',
-  '::1',
-])
-
-export function isLoopbackHostname(hostname: string): boolean {
-  return LOCALHOST_HOSTNAMES.has(hostname)
-}
-
 /**
  * Parses a comma-separated list of origins (e.g. from a `TRUSTED_ORIGINS` env
  * var) into a deduped array of normalized origins. Invalid entries are dropped.
@@ -152,7 +167,7 @@ export function parseOriginList(
 export function isLocalhostUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url)
-    return LOCALHOST_HOSTNAMES.has(hostname)
+    return isLoopbackHostname(hostname)
   } catch {
     return false
   }
@@ -167,6 +182,21 @@ export function isLocalhostUrl(url: string): boolean {
  */
 export function getBrowserOrigin(): string | null {
   return typeof window !== 'undefined' ? window.location.origin : null
+}
+
+/**
+ * Validates that a URL uses an http(s) scheme before it is opened in a new window.
+ * Rejects `javascript:`, `data:`, `blob:`, `vbscript:`, and other schemes that could
+ * execute script in the chat origin, since `file.url` originates from untrusted
+ * workflow/agent output.
+ */
+export function isSafeHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, getBrowserOrigin() ?? undefined)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -193,7 +223,7 @@ export function getSocketUrl(): string {
   if (explicit) return explicit
 
   const browserOrigin = getBrowserOrigin()
-  if (browserOrigin && !LOCALHOST_HOSTNAMES.has(new URL(browserOrigin).hostname)) {
+  if (browserOrigin && !isLoopbackHostname(new URL(browserOrigin).hostname)) {
     return browserOrigin
   }
 

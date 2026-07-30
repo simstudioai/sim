@@ -7,7 +7,7 @@ export {
   CalendarDayCell,
   type CalendarDayCellProps,
 } from './calendar/calendar-day-cell'
-export { Checkbox } from './checkbox/checkbox'
+export { Checkbox, checkboxIconVariants, checkboxVariants } from './checkbox/checkbox'
 export {
   Chip,
   ChipLink,
@@ -19,6 +19,7 @@ export {
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
+  chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,
@@ -166,6 +167,13 @@ export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider } from './slider/slider'
 export { Switch } from './switch/switch'
+export {
+  isTabTitleTruncated,
+  TabStrip,
+  type TabStripItem,
+  type TabStripProps,
+  tabDropIndex,
+} from './tab-strip/tab-strip'
 export {
   Table,
   TableBody,

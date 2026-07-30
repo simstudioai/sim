@@ -5,9 +5,11 @@ import {
   evaluateSubBlockCondition,
   getCanonicalValues,
   isCanonicalPair,
+  reindexToolCanonicalModes,
   resolveCanonicalMode,
   resolveDependencyValue,
   type SubBlockCondition,
+  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 
@@ -17,8 +19,10 @@ export {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  reindexToolCanonicalModes,
   resolveCanonicalMode,
   resolveDependencyValue,
+  scopeCanonicalModesForTool,
   type SubBlockCondition,
 }
 
@@ -27,6 +31,11 @@ export interface ToolParamContext {
   subBlocks: BlockSubBlockConfig[]
   canonicalIndex: CanonicalIndex
   values: Record<string, unknown>
+  /**
+   * Canonical-id-keyed mode overrides (the tool-scoped `canonicalModes`) so the preview honors an
+   * explicit basic/advanced toggle, matching execution. Omitted -> the value heuristic.
+   */
+  overrides?: CanonicalModeOverrides
 }
 
 /**
@@ -41,7 +50,7 @@ export function buildPreviewContextValues(
 
   for (const [canonicalId, group] of Object.entries(context.canonicalIndex.groupsById)) {
     if (isCanonicalPair(group)) {
-      const mode = resolveCanonicalMode(group, context.values)
+      const mode = resolveCanonicalMode(group, context.values, context.overrides)
       const { basicValue, advancedValue } = getCanonicalValues(group, context.values)
       result[canonicalId] =
         mode === 'advanced' ? (advancedValue ?? basicValue) : (basicValue ?? advancedValue)

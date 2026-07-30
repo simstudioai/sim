@@ -10,7 +10,7 @@ const GetQueryResultsSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  queryExecutionId: z.string().min(1, 'Query execution ID is required'),
+  queryExecutionId: z.string().trim().min(1, 'Query execution ID is required'),
   maxResults: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
     z.coerce.number().int().positive().max(999).optional()

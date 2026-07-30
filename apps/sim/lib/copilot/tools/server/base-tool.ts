@@ -1,8 +1,10 @@
 import type { z } from 'zod'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 export interface ServerToolContext {
   userId: string
   workspaceId?: string
+  billingAttribution?: BillingAttributionSnapshot
   userPermission?: string
   chatId?: string
   messageId?: string

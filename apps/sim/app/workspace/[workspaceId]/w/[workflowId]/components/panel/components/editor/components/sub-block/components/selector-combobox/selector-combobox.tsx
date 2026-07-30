@@ -28,6 +28,8 @@ interface SelectorComboboxProps {
   onOptionChange?: (value: string) => void
   allowSearch?: boolean
   missingOptionLabel?: string
+  /** When true, store an array of ids and render removable chips (e.g. channel filter). */
+  multiSelect?: boolean
 }
 
 export function SelectorCombobox({
@@ -43,17 +45,24 @@ export function SelectorCombobox({
   onOptionChange,
   allowSearch = true,
   missingOptionLabel,
+  multiSelect = false,
 }: SelectorComboboxProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const [storeValueRaw, setStoreValue] = useSubBlockValue<string | null | undefined>(
+  const [storeValueRaw, setStoreValue] = useSubBlockValue<string | string[] | null | undefined>(
     blockId,
     subBlock.id
   )
-  const storeValue = storeValueRaw ?? undefined
-  const previewedValue = previewValue ?? undefined
-  const activeValue: string | undefined = isPreview ? previewedValue : storeValue
+  const storeValue = typeof storeValueRaw === 'string' ? storeValueRaw : undefined
+  const previewedValue = typeof previewValue === 'string' ? previewValue : undefined
+  // Single-select active value; undefined in multi mode so detail/label hooks no-op.
+  const activeValue: string | undefined = multiSelect
+    ? undefined
+    : isPreview
+      ? previewedValue
+      : storeValue
   const [searchTerm, setSearchTerm] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [multiInput, setMultiInput] = useState('')
   const {
     data: options = [],
     isLoading,
@@ -127,6 +136,30 @@ export function SelectorCombobox({
     [setStoreValue, onOptionChange, readOnly, disabled]
   )
 
+  const selectedValues = useMemo<string[]>(() => {
+    if (!multiSelect) return []
+    const source = isPreview ? previewValue : storeValueRaw
+    if (Array.isArray(source)) return source.map(String)
+    if (typeof source === 'string' && source.length > 0) {
+      return source
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean)
+    }
+    return []
+  }, [multiSelect, isPreview, previewValue, storeValueRaw])
+
+  const handleMultiChange = useCallback(
+    (values: string[]) => {
+      if (readOnly || disabled) return
+      setStoreValue(values)
+      // Reset the search box so the next channel is picked from the full list.
+      setMultiInput('')
+      setSearchTerm('')
+    },
+    [setStoreValue, readOnly, disabled]
+  )
+
   const showClearButton = Boolean(activeValue) && !disabled && !readOnly
   const displayValue = allowSearch ? inputValue : selectedLabel
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
@@ -136,6 +169,54 @@ export function SelectorCombobox({
     valuePath: [],
     label: displayValue,
   })
+
+  if (multiSelect) {
+    return (
+      <div className='w-full'>
+        <EditableCombobox
+          options={comboboxOptions}
+          value={multiInput}
+          multiSelect
+          multiSelectValues={selectedValues}
+          onMultiSelectChange={handleMultiChange}
+          onChange={(newValue) => {
+            setMultiInput(newValue)
+            if (allowSearch) setSearchTerm(newValue)
+          }}
+          placeholder={placeholder || subBlock.placeholder || 'Select channels'}
+          disabled={disabled || readOnly}
+          editable={allowSearch}
+          filterOptions={allowSearch}
+          isLoading={isLoading}
+          error={error instanceof Error ? error.message : null}
+        />
+        {selectedValues.length > 0 && (
+          <div className='mt-2 space-y-2'>
+            {selectedValues.map((id) => (
+              <div
+                key={id}
+                className='flex items-center justify-between gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-4)] px-2.5 py-[5px]'
+              >
+                <span className='block min-w-0 flex-1 truncate text-[var(--text-tertiary)] text-sm'>
+                  {optionMap.get(id)?.label ?? id}
+                </span>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='h-auto shrink-0 p-0'
+                  disabled={disabled || readOnly}
+                  aria-label={`Remove ${optionMap.get(id)?.label ?? id}`}
+                  onClick={() => handleMultiChange(selectedValues.filter((v) => v !== id))}
+                >
+                  <X className='size-[14px] text-[var(--text-icon)]' />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className='w-full'>

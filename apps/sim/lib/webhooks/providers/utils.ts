@@ -1,10 +1,40 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { sha256Hex } from '@sim/security/hash'
 import { NextResponse } from 'next/server'
 import type { AuthContext, EventFilterContext } from '@/lib/webhooks/providers/types'
 
 const logger = createLogger('WebhookProviderAuth')
+
+/**
+ * Deterministic JSON serialization with object keys sorted, so structurally
+ * identical payloads produce identical output regardless of key order.
+ */
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(',')}]`
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${stableSerialize(nested)}`)
+      .join(',')}}`
+  }
+
+  return JSON.stringify(value)
+}
+
+/**
+ * Fallback idempotency fingerprint for payloads with no stable delivery id
+ * or content timestamp to key on. A provider retry resends identical bytes,
+ * so this hash is stable across retries of the same delivery while still
+ * differentiating distinct events.
+ */
+export function buildFallbackDeliveryFingerprint(body: unknown): string {
+  return sha256Hex(stableSerialize(body))
+}
 
 interface HmacVerifierOptions {
   configKey: string

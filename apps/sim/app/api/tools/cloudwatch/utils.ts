@@ -1,6 +1,7 @@
 import {
   CloudWatchLogsClient,
   DescribeLogStreamsCommand,
+  FilterLogEventsCommand,
   GetLogEventsCommand,
   GetQueryResultsCommand,
   type ResultField,
@@ -173,6 +174,88 @@ export async function describeLogStreams(
 
   return {
     logStreams: totalLimit !== undefined ? logStreams.slice(0, totalLimit) : logStreams,
+  }
+}
+
+/** AWS FilterLogEvents caps `limit` at 10,000 events per page. */
+const FILTER_LOG_EVENTS_PAGE_SIZE = 10_000
+
+/** Upper bound on pages drained to avoid unbounded loops on very active log groups. */
+const MAX_FILTER_LOG_EVENTS_PAGES = 20
+
+interface FilteredLogEventResult {
+  logStreamName: string | undefined
+  timestamp: number | undefined
+  message: string | undefined
+  ingestionTime: number | undefined
+}
+
+/**
+ * Searches log events across all streams (or a prefix-matched subset) in a log
+ * group, following `nextToken` so the complete matching set is returned rather
+ * than just the first page. Bounded by `MAX_FILTER_LOG_EVENTS_PAGES`.
+ *
+ * When `limit` is provided it is treated as a total result cap: draining stops
+ * once enough events have been collected. When omitted, every page is drained.
+ */
+export async function filterLogEvents(
+  client: CloudWatchLogsClient,
+  logGroupName: string,
+  options?: {
+    filterPattern?: string
+    logStreamNamePrefix?: string
+    startTime?: number
+    endTime?: number
+    startFromHead?: boolean
+    limit?: number
+  }
+): Promise<{ events: FilteredLogEventResult[] }> {
+  const totalLimit = options?.limit
+  const events: FilteredLogEventResult[] = []
+  let nextToken: string | undefined
+
+  for (let page = 0; page < MAX_FILTER_LOG_EVENTS_PAGES; page++) {
+    const pageLimit =
+      totalLimit !== undefined
+        ? Math.min(FILTER_LOG_EVENTS_PAGE_SIZE, totalLimit - events.length)
+        : FILTER_LOG_EVENTS_PAGE_SIZE
+
+    const command = new FilterLogEventsCommand({
+      logGroupName,
+      ...(options?.filterPattern && { filterPattern: options.filterPattern }),
+      ...(options?.logStreamNamePrefix && { logStreamNamePrefix: options.logStreamNamePrefix }),
+      ...(options?.startTime !== undefined && { startTime: options.startTime }),
+      ...(options?.endTime !== undefined && { endTime: options.endTime }),
+      ...(options?.startFromHead !== undefined && { startFromHead: options.startFromHead }),
+      limit: pageLimit,
+      ...(nextToken && { nextToken }),
+    })
+
+    const response = await client.send(command)
+
+    for (const e of response.events ?? []) {
+      events.push({
+        logStreamName: e.logStreamName,
+        timestamp: e.timestamp,
+        message: e.message,
+        ingestionTime: e.ingestionTime,
+      })
+    }
+
+    nextToken = response.nextToken
+    if (!nextToken) break
+    if (totalLimit !== undefined && events.length >= totalLimit) break
+
+    if (page === MAX_FILTER_LOG_EVENTS_PAGES - 1) {
+      logger.warn(
+        `FilterLogEvents hit pagination cap of ${MAX_FILTER_LOG_EVENTS_PAGES} pages; event list may be incomplete`,
+        { logGroupName }
+      )
+    }
+  }
+
+  return {
+    events: totalLimit !== undefined ? events.slice(0, totalLimit) : events,
   }
 }
 

@@ -19,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Table as TableIcon } from '@sim/emcn/icons'
+import { Calendar, Clock, Cursor, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -30,6 +30,9 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   glob: FolderCode,
   grep: Search,
   read: File,
+  mv: FolderCode,
+  cp: Layout,
+  mkdir: FolderCode,
   search_online: Search,
   scrape_page: Search,
   get_page_contents: Search,
@@ -38,6 +41,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   manage_skill: Asterisk,
   user_memory: Database,
   function_execute: TerminalWindow,
+  run_code: TerminalWindow,
   superagent: Blimp,
   user_table: TableIcon,
   workspace_file: File,
@@ -51,12 +55,16 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   auth: Integration,
   knowledge: Database,
   knowledge_base: Database,
+  search_knowledge_base: Database,
   table: TableIcon,
+  query_user_table: TableIcon,
   scheduled_task: Calendar,
   job: Calendar,
   agent: AgentIcon,
   custom_tool: Wrench,
   research: Search,
+  scout: Search,
+  search: Search,
   context_compaction: Asterisk,
   open_resource: Eye,
   file: File,
@@ -65,15 +73,37 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   generate_video: VideoIcon,
   generate_audio: TTSIcon,
   ffmpeg: Wrench,
+  browser: Cursor,
+  browser_navigate: Cursor,
+  browser_go_back: Cursor,
+  browser_go_forward: Cursor,
+  browser_open_tab: Cursor,
+  browser_switch_tab: Cursor,
+  browser_close_tab: Cursor,
+  browser_list_tabs: Cursor,
+  browser_wait_for: Cursor,
+  browser_snapshot: Eye,
+  browser_read_text: File,
+  browser_screenshot: Eye,
+  browser_extract: Search,
+  browser_click: Cursor,
+  browser_type: Pencil,
+  browser_press_key: Cursor,
+  browser_scroll: Cursor,
+  browser_select_option: Cursor,
+  browser_hover: Cursor,
+  browser_request_takeover: Cursor,
+  terminal: TerminalWindow,
+  terminal_run: TerminalWindow,
+  terminal_input: TerminalWindow,
+  terminal_read: TerminalWindow,
+  terminal_kill: TerminalWindow,
+  terminal_cwd: TerminalWindow,
+  wait: Clock,
 }
 
 export function getAgentIcon(name: string): IconComponent {
   return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? Blimp
-}
-
-export function getToolIcon(name: string): IconComponent | undefined {
-  const icon = TOOL_ICONS[name as keyof typeof TOOL_ICONS]
-  return icon === Blimp ? undefined : icon
 }
 
 export type MessagePhase = 'streaming' | 'revealing' | 'settled'
@@ -92,7 +122,7 @@ export function deriveMessagePhase({
   return 'settled'
 }
 
-type ToolDisplayState = 'spinner' | 'cancelled' | 'interrupted' | 'icon'
+type ToolDisplayState = 'spinner' | 'awaiting_approval' | 'cancelled' | 'interrupted' | 'icon'
 
 export function resolveToolDisplayState(status: ToolCallStatus): ToolDisplayState {
   // Pure projection of the tool's own status. A row spins iff it is genuinely
@@ -100,6 +130,9 @@ export function resolveToolDisplayState(status: ToolCallStatus): ToolDisplayStat
   // gating — deterministic terminals (tool `result`, turn propagation) guarantee
   // a row never lingers `executing` after its work is done.
   if (status === 'executing') return 'spinner'
+  // Waiting on a person, not on work: the row renders a permission card rather
+  // than a spinner, so it must not read as in-progress.
+  if (status === 'awaiting_approval') return 'awaiting_approval'
   if (status === 'cancelled') return 'cancelled'
   if (status === 'interrupted') return 'interrupted'
   return 'icon'

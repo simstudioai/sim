@@ -1,3 +1,4 @@
+import type { BlockFactoryOptions } from '@sim/testing'
 import {
   createAgentBlock,
   createBlock,
@@ -5,6 +6,7 @@ import {
   createLoopBlock,
   createStarterBlock,
 } from '@sim/testing'
+import type { Edge } from 'reactflow'
 import { describe, expect, it } from 'vitest'
 import { normalizeName } from '@/executor/constants'
 import { getUniqueBlockName, regenerateBlockIds } from './utils'
@@ -438,6 +440,67 @@ describe('regenerateBlockIds', () => {
     expect(duplicatedBlock.data?.parentId).toBe(loopId)
   })
 
+  /**
+   * Regression: a fallback writer stamped a condition block's `conditions`
+   * subblock `short-input`. The id remap must key on block type + subblock key
+   * (not the drifted stored type) so the condition row ids and the outgoing
+   * edge's sourceHandle move together — previously the handle remapped while
+   * the row ids stayed stale, orphaning the edge.
+   */
+  it('keeps condition row ids and edge handles consistent when the stored subblock type drifted', () => {
+    const conditionId = 'condition-1'
+    const targetId = 'target-1'
+
+    const blocksToCopy = {
+      [conditionId]: createBlock({
+        id: conditionId,
+        type: 'condition',
+        name: 'botFilter',
+        subBlocks: {
+          conditions: {
+            id: 'conditions',
+            type: 'short-input',
+            value: JSON.stringify([
+              { id: `${conditionId}-if`, title: 'if', value: '<a.b>' },
+              { id: `${conditionId}-else`, title: 'else', value: '' },
+            ]),
+          },
+        },
+      }),
+      [targetId]: createAgentBlock({ id: targetId, name: 'Agent 1' }),
+    }
+
+    const edges = [
+      {
+        id: 'edge-1',
+        source: conditionId,
+        sourceHandle: `condition-${conditionId}-else`,
+        target: targetId,
+        targetHandle: 'target',
+      },
+    ] as Edge[]
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      edges,
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newCondition = Object.values(result.blocks).find((b) => b.type === 'condition')!
+    const newEdge = result.edges[0]
+    const rowIds = JSON.parse(newCondition.subBlocks.conditions.value as string).map(
+      (row: { id: string }) => row.id
+    )
+
+    expect(rowIds).toEqual([`${newCondition.id}-if`, `${newCondition.id}-else`])
+    expect(newEdge.sourceHandle).toBe(`condition-${newCondition.id}-else`)
+  })
+
   it('should unlock pasted block when source is locked', () => {
     const blockId = 'block-1'
 
@@ -793,5 +856,158 @@ describe('regenerateBlockIds', () => {
     expect(new Set(names).size).toBe(2)
     expect(names).toContain('Agent 1')
     expect(names).toContain('Agent 2')
+  })
+})
+
+describe('regenerateBlockIds — cloned webhook path', () => {
+  const positionOffset = { x: 50, y: 50 }
+  const sourceId = 'webhook-source'
+  const deployedPath = 'webhook-source'
+
+  function pasteOne(block: Partial<BlockFactoryOptions>, values?: Record<string, unknown>) {
+    const blocks = { [sourceId]: createBlock({ id: sourceId, ...block }) }
+    const result = regenerateBlockIds(
+      blocks,
+      [],
+      {},
+      {},
+      values ? { [sourceId]: values } : {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+    return { newId: Object.keys(result.blocks)[0], result }
+  }
+
+  /**
+   * The reported bug. A Webhook Trigger added from the toolbar carries `triggerMode: true`
+   * (confirmed against production rows), and after a deploy its `triggerPath` holds the registered
+   * path — its own block id. A clone that copies that value renders the SOURCE's URL.
+   */
+  it('clears triggerPath on a pasted webhook trigger (triggerMode true)', () => {
+    const { newId, result } = pasteOne(
+      {
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: true,
+        subBlocks: {
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
+        },
+      },
+      { triggerPath: deployedPath }
+    )
+
+    expect(newId).not.toBe(sourceId)
+    // Both sources must be cleared: the value map overrides the structure in mergeSubblockState.
+    expect(result.blocks[newId].subBlocks.triggerPath?.value).toBeNull()
+    expect(result.subBlockValues[newId].triggerPath).toBeNull()
+  })
+
+  /** Rows written by the API/import path can carry `triggerMode: false`; same requirement. */
+  it('clears triggerPath on a pasted webhook trigger (triggerMode false)', () => {
+    const { newId, result } = pasteOne(
+      {
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: false,
+        subBlocks: {
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
+        },
+      },
+      { triggerPath: deployedPath }
+    )
+
+    expect(result.blocks[newId].subBlocks.triggerPath?.value).toBeNull()
+    expect(result.subBlockValues[newId].triggerPath).toBeNull()
+  })
+
+  it('clears it when the path lives only in the value map', () => {
+    const { newId, result } = pasteOne(
+      { type: 'generic_webhook', name: 'Webhook 1', triggerMode: true, subBlocks: {} },
+      { triggerPath: deployedPath }
+    )
+
+    expect(result.subBlockValues[newId].triggerPath).toBeNull()
+  })
+
+  it('clears it when the block has no value-map entry at all', () => {
+    const { newId, result } = pasteOne({
+      type: 'generic_webhook',
+      name: 'Webhook 1',
+      triggerMode: true,
+      subBlocks: {
+        triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
+      },
+    })
+
+    expect(result.blocks[newId].subBlocks.triggerPath?.value).toBeNull()
+  })
+
+  /**
+   * `webhookId` is a user-entered action field on Attio, Vercel, and Discord — and Attio/Vercel are
+   * trigger-capable, so any predicate keyed on trigger-ness would wipe it in trigger mode. It is
+   * deliberately NOT cleared: nothing reads it as trigger state.
+   */
+  it('preserves a user-entered webhookId on a trigger-capable block in trigger mode', () => {
+    const { newId, result } = pasteOne(
+      {
+        type: 'attio',
+        name: 'Attio 1',
+        triggerMode: true,
+        subBlocks: {
+          webhookId: { id: 'webhookId', type: 'short-input', value: 'attio-wh-42' },
+        },
+      },
+      { webhookId: 'attio-wh-42' }
+    )
+
+    expect(result.blocks[newId].subBlocks.webhookId?.value).toBe('attio-wh-42')
+    expect(result.subBlockValues[newId].webhookId).toBe('attio-wh-42')
+  })
+
+  it('preserves a user-entered webhookId on an action block', () => {
+    const { newId, result } = pasteOne(
+      {
+        type: 'discord',
+        name: 'Discord 1',
+        triggerMode: false,
+        subBlocks: {
+          webhookId: { id: 'webhookId', type: 'short-input', value: '1234567890' },
+          webhookToken: { id: 'webhookToken', type: 'short-input', value: 'tok_abc' },
+        },
+      },
+      { webhookId: '1234567890', webhookToken: 'tok_abc' }
+    )
+
+    expect(result.subBlockValues[newId].webhookId).toBe('1234567890')
+    expect(result.subBlockValues[newId].webhookToken).toBe('tok_abc')
+  })
+
+  /** Trigger configuration is user setup and must survive the copy. */
+  it('preserves trigger configuration on a cloned trigger block', () => {
+    const { newId, result } = pasteOne(
+      {
+        type: 'generic_webhook',
+        name: 'Webhook 1',
+        triggerMode: true,
+        subBlocks: {
+          triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
+          triggerConfig: { id: 'triggerConfig', type: 'short-input', value: { labelIds: ['a'] } },
+          triggerId: { id: 'triggerId', type: 'short-input', value: 'generic_webhook' },
+          token: { id: 'token', type: 'short-input', value: 'user-secret' },
+        },
+      },
+      {
+        triggerPath: deployedPath,
+        triggerConfig: { labelIds: ['a'] },
+        triggerId: 'generic_webhook',
+        token: 'user-secret',
+      }
+    )
+
+    expect(result.subBlockValues[newId].triggerPath).toBeNull()
+    expect(result.subBlockValues[newId].triggerConfig).toEqual({ labelIds: ['a'] })
+    expect(result.subBlockValues[newId].triggerId).toBe('generic_webhook')
+    expect(result.subBlockValues[newId].token).toBe('user-secret')
   })
 })

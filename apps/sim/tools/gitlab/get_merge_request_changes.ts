@@ -31,7 +31,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     mergeRequestIid: {
       type: 'number',
@@ -44,7 +44,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
   request: {
     /**
      * Uses the `/diffs` endpoint (the `/changes` endpoint was deprecated in
-     * GitLab 15.7 and removed in 18.0). `/diffs` returns the diff array directly
+     * GitLab 15.7, with removal scheduled for API v5). `/diffs` returns the diff array directly
      * and is paginated; we request the max page size (100) to return the changes
      * in a single call, which covers the vast majority of merge requests.
      */
@@ -70,6 +70,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
 
     const data = await response.json()
     const changes = Array.isArray(data) ? data : []
+    const nextPage = response.headers.get('x-next-page')
 
     return {
       success: true,
@@ -77,6 +78,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
         mergeRequestIid: params?.mergeRequestIid ?? null,
         changes,
         changesCount: changes.length,
+        hasMore: Boolean(nextPage),
       },
     }
   },
@@ -92,7 +94,11 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
     },
     changesCount: {
       type: 'number',
-      description: 'Number of changed files returned',
+      description: 'Number of changed files returned (first 100)',
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether the merge request has more than 100 changed files (results truncated)',
     },
   },
 }

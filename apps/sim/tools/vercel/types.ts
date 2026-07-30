@@ -23,6 +23,7 @@ export interface VercelListDeploymentsParams {
   until?: number
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetDeploymentParams {
@@ -30,19 +31,23 @@ export interface VercelGetDeploymentParams {
   deploymentId: string
   withGitRepoInfo?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListProjectsParams {
   apiKey: string
   search?: string
   limit?: number
+  from?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetProjectParams {
   apiKey: string
   projectId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateDeploymentParams {
@@ -54,18 +59,23 @@ export interface VercelCreateDeploymentParams {
   gitSource?: string
   forceNew?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListDomainsParams {
   apiKey: string
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetEnvVarsParams {
   apiKey: string
   projectId: string
+  decrypt?: boolean
+  gitBranch?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListDeploymentsResponse extends ToolResponse {
@@ -134,11 +144,14 @@ export interface VercelListProjectsResponse extends ToolResponse {
       id: string
       name: string
       framework: string | null
+      rootDirectory: string | null
+      nodeVersion: string | null
       createdAt: number
       updatedAt: number
     }>
     count: number
     hasMore: boolean
+    nextFrom: string | null
   }
 }
 
@@ -147,6 +160,8 @@ export interface VercelGetProjectResponse extends ToolResponse {
     id: string
     name: string
     framework: string | null
+    rootDirectory: string | null
+    nodeVersion: string | null
     createdAt: number
     updatedAt: number
     link: {
@@ -189,6 +204,10 @@ export interface VercelListDomainsResponse extends ToolResponse {
       boughtAt: number | null
       transferredAt: number | null
       creator: VercelDomainCreator | null
+      customNameservers: string[]
+      userId: string | null
+      teamId: string | null
+      transferStartedAt: number | null
     }>
     count: number
     hasMore: boolean
@@ -216,6 +235,7 @@ export interface VercelCancelDeploymentParams {
   apiKey: string
   deploymentId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCancelDeploymentResponse extends ToolResponse {
@@ -234,6 +254,7 @@ export interface VercelDeleteDeploymentParams {
   apiKey: string
   deploymentId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteDeploymentResponse extends ToolResponse {
@@ -252,6 +273,7 @@ export interface VercelGetDeploymentEventsParams {
   since?: number
   until?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetDeploymentEventsResponse extends ToolResponse {
@@ -281,6 +303,7 @@ export interface VercelCreateEnvVarParams {
   gitBranch?: string
   comment?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateEnvVarResponse extends ToolResponse {
@@ -308,6 +331,7 @@ export interface VercelUpdateEnvVarParams {
   gitBranch?: string
   comment?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelUpdateEnvVarResponse extends ToolResponse {
@@ -329,6 +353,7 @@ export interface VercelDeleteEnvVarParams {
   projectId: string
   envId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteEnvVarResponse extends ToolResponse {
@@ -341,6 +366,7 @@ export interface VercelListDeploymentFilesParams {
   apiKey: string
   deploymentId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListDeploymentFilesResponse extends ToolResponse {
@@ -365,7 +391,11 @@ export interface VercelCreateProjectParams {
   buildCommand?: string
   outputDirectory?: string
   installCommand?: string
+  rootDirectory?: string
+  nodeVersion?: string
+  devCommand?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateProjectResponse extends ToolResponse {
@@ -386,7 +416,11 @@ export interface VercelUpdateProjectParams {
   buildCommand?: string
   outputDirectory?: string
   installCommand?: string
+  rootDirectory?: string
+  nodeVersion?: string
+  devCommand?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelUpdateProjectResponse extends ToolResponse {
@@ -402,6 +436,7 @@ export interface VercelDeleteProjectParams {
   apiKey: string
   projectId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteProjectResponse extends ToolResponse {
@@ -414,6 +449,7 @@ export interface VercelPauseProjectParams {
   apiKey: string
   projectId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelPauseProjectResponse extends ToolResponse {
@@ -428,6 +464,7 @@ export interface VercelUnpauseProjectParams {
   apiKey: string
   projectId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelUnpauseProjectResponse extends ToolResponse {
@@ -442,6 +479,7 @@ export interface VercelListProjectDomainsParams {
   apiKey: string
   projectId: string
   teamId?: string
+  slug?: string
   limit?: number
 }
 
@@ -472,6 +510,7 @@ export interface VercelAddProjectDomainParams {
   redirectStatusCode?: number
   gitBranch?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelAddProjectDomainResponse extends ToolResponse {
@@ -494,6 +533,7 @@ export interface VercelRemoveProjectDomainParams {
   projectId: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelRemoveProjectDomainResponse extends ToolResponse {
@@ -506,6 +546,7 @@ export interface VercelGetDomainParams {
   apiKey: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetDomainResponse extends ToolResponse {
@@ -533,6 +574,7 @@ export interface VercelAddDomainParams {
   apiKey: string
   name: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelAddDomainResponse extends ToolResponse {
@@ -557,6 +599,7 @@ export interface VercelDeleteDomainParams {
   apiKey: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteDomainResponse extends ToolResponse {
@@ -570,6 +613,7 @@ export interface VercelGetDomainConfigParams {
   apiKey: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetDomainConfigResponse extends ToolResponse {
@@ -587,10 +631,19 @@ export interface VercelCreateDnsRecordParams {
   domain: string
   recordName: string
   recordType: string
-  value: string
+  value?: string
   ttl?: number
   mxPriority?: number
+  srvTarget?: string
+  srvWeight?: number
+  srvPort?: number
+  srvPriority?: number
+  httpsTarget?: string
+  httpsPriority?: number
+  httpsParams?: string
+  comment?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateDnsRecordResponse extends ToolResponse {
@@ -605,6 +658,7 @@ export interface VercelListDnsRecordsParams {
   domain: string
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListDnsRecordsResponse extends ToolResponse {
@@ -633,6 +687,7 @@ export interface VercelDeleteDnsRecordParams {
   domain: string
   recordId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteDnsRecordResponse extends ToolResponse {
@@ -772,6 +827,7 @@ export interface VercelListAliasesParams {
   domain?: string
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListAliasesResponse extends ToolResponse {
@@ -796,6 +852,7 @@ export interface VercelGetAliasParams {
   apiKey: string
   aliasId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetAliasResponse extends ToolResponse {
@@ -816,7 +873,9 @@ export interface VercelCreateAliasParams {
   apiKey: string
   deploymentId: string
   alias: string
+  redirect?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateAliasResponse extends ToolResponse {
@@ -832,6 +891,7 @@ export interface VercelDeleteAliasParams {
   apiKey: string
   aliasId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteAliasResponse extends ToolResponse {
@@ -997,6 +1057,7 @@ export interface VercelCreateCheckParams {
   externalId?: string
   rerequestable?: boolean
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCheckResponse extends ToolResponse {
@@ -1025,12 +1086,14 @@ export interface VercelGetCheckParams {
   deploymentId: string
   checkId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListChecksParams {
   apiKey: string
   deploymentId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListChecksResponse extends ToolResponse {
@@ -1069,6 +1132,7 @@ export interface VercelUpdateCheckParams {
   path?: string
   output?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelRerequestCheckParams {
@@ -1076,6 +1140,8 @@ export interface VercelRerequestCheckParams {
   deploymentId: string
   checkId: string
   teamId?: string
+  slug?: string
+  autoUpdate?: boolean
 }
 
 export interface VercelRerequestCheckResponse extends ToolResponse {
@@ -1092,8 +1158,16 @@ export interface VercelUpdateDnsRecordParams {
   type?: string
   ttl?: number
   mxPriority?: number
+  srvTarget?: string
+  srvWeight?: number
+  srvPort?: number
+  srvPriority?: number
+  httpsTarget?: string
+  httpsPriority?: number
+  httpsParams?: string
   comment?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelUpdateDnsRecordResponse extends ToolResponse {
@@ -1149,6 +1223,7 @@ export interface VercelUpdateProjectDomainParams {
   redirectStatusCode?: number
   gitBranch?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelUpdateProjectDomainResponse extends ToolResponse {
@@ -1171,6 +1246,7 @@ export interface VercelVerifyProjectDomainParams {
   projectId: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelVerifyProjectDomainResponse extends ToolResponse {
@@ -1192,6 +1268,7 @@ export interface VercelPromoteDeploymentParams {
   projectId: string
   deploymentId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelPromoteDeploymentResponse extends ToolResponse {

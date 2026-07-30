@@ -2,8 +2,15 @@
 
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  TableDefinition,
+  TablePredicate,
+  TableRow,
+  WorkflowGroup,
+} from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import {
@@ -11,6 +18,7 @@ import {
   useInfiniteTableRows,
   useTable as useTableQuery,
 } from '@/hooks/queries/tables'
+import { countLoadedTableRows, hasMoreTableRows } from '@/hooks/queries/utils/table-rows-pagination'
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -37,6 +45,13 @@ export interface UseTableReturn {
   rows: TableRow[]
   /** Filter-scoped total row count (server COUNT(*) for the active filter); null until loaded. */
   rowTotal: number | null
+  /**
+   * The filter actually sent to the server: `queryOptions.filter` minus any
+   * condition the current schema makes invalid. Anything server-bound —
+   * select-all run/stop/delete — must scope with THIS, not the raw filter, or
+   * the action targets a predicate the grid isn't displaying.
+   */
+  filter: TablePredicate | null
   isLoadingRows: boolean
   refetchRows: () => void
   /**
@@ -77,6 +92,16 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const queryClient = useQueryClient()
   const { data: tableData, isLoading: isLoadingTable } = useTableQuery(workspaceId, tableId)
 
+  // Applied filters outlive the schema they were built against: converting a
+  // column to `select`, or toggling its `multiple`, can strand an operator the
+  // server rejects outright, which would fail every subsequent rows query. Prune
+  // here, above every consumer of the rows query key, so the paged helpers below
+  // can't rebuild the key from the unpruned filter and drift.
+  const filter = useMemo(
+    () => prunePredicateForColumns(queryOptions.filter ?? null, tableData?.schema?.columns ?? []),
+    [queryOptions.filter, tableData?.schema?.columns]
+  )
+
   const {
     data: rowsData,
     isLoading: isLoadingRows,
@@ -88,7 +113,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     workspaceId,
     tableId,
     pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
-    filter: queryOptions.filter,
+    filter,
     sort: queryOptions.sort,
     enabled: Boolean(workspaceId && tableId),
   })
@@ -117,24 +142,29 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
       workspaceId,
       tableId,
       pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
-      filter: queryOptions.filter,
+      filter,
       sort: queryOptions.sort,
     })
 
     // getQueryData bypasses React's render cycle — pages added by fetchNextPage
     // are visible synchronously after each await without waiting for a re-render.
     while (true) {
-      const data = queryClient.getQueryData(opts.queryKey)
-      const lastPage = data?.pages[data.pages.length - 1]
-      if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+      const pages = queryClient.getQueryData(opts.queryKey)?.pages ?? []
+      if (!hasMoreTableRows(pages)) break
       const result = await fetchNextPage()
       if (result.status === 'error') {
         throw result.error ?? new Error('Failed to load table rows')
       }
+      const after = queryClient.getQueryData(opts.queryKey)?.pages.length ?? 0
+      if (after <= pages.length) {
+        // A cancelQueries race (optimistic mutation) can resolve the fetch without
+        // appending a page; retrying would spin forever on the same state.
+        throw new Error('Table rows pagination made no progress')
+      }
     }
 
     return queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
-  }, [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage])
+  }, [workspaceId, tableId, filter, queryOptions.sort, queryClient, fetchNextPage])
 
   const ensureRowsLoadedUpTo = useCallback(
     async (maxRows: number): Promise<{ rows: TableRow[]; hasMore: boolean }> => {
@@ -144,32 +174,33 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         workspaceId,
         tableId,
         pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
-        filter: queryOptions.filter,
+        filter,
         sort: queryOptions.sort,
       })
 
-      // Load one past the cap so `hasMore` is exact: a full final page only
-      // *might* have a successor, so we confirm by loading row `maxRows + 1`
-      // rather than inferring truncation from page fullness.
+      // Load one past the cap when needed so `hasMore` is exact: with the cap
+      // covered but hasMoreTableRows still true, row `maxRows + 1` confirms it.
       while (true) {
-        const data = queryClient.getQueryData(opts.queryKey)
-        const loaded = data?.pages.reduce((sum, p) => sum + p.rows.length, 0) ?? 0
-        if (loaded > maxRows) break
-        const lastPage = data?.pages[data.pages.length - 1]
-        if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+        const pages = queryClient.getQueryData(opts.queryKey)?.pages ?? []
+        if (countLoadedTableRows(pages) > maxRows || !hasMoreTableRows(pages)) break
         const result = await fetchNextPage()
         if (result.status === 'error') {
           throw result.error ?? new Error('Failed to load table rows')
         }
+        const after = queryClient.getQueryData(opts.queryKey)?.pages.length ?? 0
+        if (after <= pages.length) {
+          throw new Error('Table rows pagination made no progress')
+        }
       }
 
-      const all = queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
+      const pages = queryClient.getQueryData(opts.queryKey)?.pages ?? []
+      const all = pages.flatMap((p) => p.rows)
       return {
         rows: all.length > maxRows ? all.slice(0, maxRows) : all,
-        hasMore: all.length > maxRows,
+        hasMore: all.length > maxRows || hasMoreTableRows(pages),
       }
     },
-    [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage]
+    [workspaceId, tableId, filter, queryOptions.sort, queryClient, fetchNextPage]
   )
 
   const fetchNextPageWrapped = useCallback(async () => {
@@ -230,6 +261,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     isLoadingTable,
     rows,
     rowTotal,
+    filter,
     isLoadingRows,
     refetchRows,
     fetchNextPage: fetchNextPageWrapped,
