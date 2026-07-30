@@ -279,13 +279,10 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
       return localState
     }
   }
-  // The If-Match token: the FRESHEST synced version known — the max of the cluster-wide value (Redis)
-  // and this task's room value. Taking the max (not Redis-preferred) avoids a stale read shadowing a
-  // newer local value when a fire-and-forget `setSyncedVersion` to Redis lagged or failed; versions are
-  // monotonic epoch-ms, so the larger is the later sync point. The resolved value is CACHED back into the
-  // room so a later transient Redis read failure — or a peer-seeded/tail-only task that never set the
-  // version locally — still resolves it from the last value we saw (caching the max never regresses).
-  // `undefined` when neither source has ever yielded a version.
+  // The If-Match token: the freshest synced version known — max of the cluster value (Redis) and the
+  // room's, so a lagging fire-and-forget `setSyncedVersion` can't let a stale read shadow a newer local
+  // value (versions are monotonic epoch-ms). Cached back into the room so a later transient Redis failure
+  // — or a peer-seeded/tail-only task that never set it locally — still resolves it. `undefined` if unknown.
   const currentVersion = async (): Promise<number | undefined> => {
     const shared = store.enabled ? await store.getSyncedVersion(name) : null
     const best = Math.max(shared ?? 0, room.syncedVersion ?? 0)
@@ -297,19 +294,15 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
       return
 
-    // The If-Match token for the write, resolved ONCE up front and then advanced LOCALLY as we reconcile
-    // — never re-derived from `room.syncedVersion`/Redis mid-loop. On a last-leave flush the room is
-    // removed from `fileDocRooms` before this async flush finishes, so `mergeMarkdownIntoRoom`'s
-    // `recordVersion` can no longer write `room.syncedVersion`; carrying the reconciled version here makes
-    // each retry's precondition correct by construction rather than depending on that (now-dropped)
-    // mutation or a best-effort Redis re-read.
+    // The If-Match token, resolved ONCE and then advanced LOCALLY as we reconcile — never re-derived
+    // mid-loop. On a last-leave flush the room is already removed from `fileDocRooms`, so
+    // `mergeMarkdownIntoRoom`'s `recordVersion` can't write `room.syncedVersion`; carrying the reconciled
+    // version here keeps each retry's precondition correct without depending on that mutation or a Redis re-read.
     let ifMatch = await currentVersion()
-    // On a FINAL flush this is the last chance to persist before teardown; if the shared version read
-    // momentarily fails (a Redis blip) for a peer-seeded/tail-only task that never cached it locally,
-    // retry briefly rather than deferring and stranding the session's edits in the (TTL'd) stream — the
-    // version is cluster-wide and heartbeat-refreshed, so it is there to be read. Bounded small: a
-    // genuinely-unset version won't appear no matter how long we wait, and the flush must not stall
-    // teardown/shutdown.
+    // FINAL flush = last chance before teardown: if the version read momentarily fails (Redis blip) for a
+    // peer-seeded/tail-only task that never cached it, retry briefly rather than defer and strand the
+    // edits in the TTL'd stream (the version is cluster-wide + heartbeat-refreshed). Bounded — a genuinely
+    // unset version never appears, and the flush must not stall teardown.
     for (
       let i = 0;
       ifMatch === undefined && final && store.enabled && i < FINAL_VERSION_RETRIES;
