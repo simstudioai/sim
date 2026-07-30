@@ -65,6 +65,12 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
   const requestId = generateId().slice(0, 8)
   const budget = maxRows ?? Number.POSITIVE_INFINITY
 
+  // Whether any row was actually deleted this run. Signalled in `finally` so open editors refetch the
+  // grid on EVERY exit path — normal completion, a cancel/supersede between batches, a mid-batch lock,
+  // or a rethrown error after a partial delete — not only the throttled/`ready` paths (which a cancel
+  // landing after a committed batch would bypass, leaving deleted rows on screen).
+  let deletedAny = false
+
   try {
     const table = await getTableById(tableId, { includeArchived: true })
     if (!table) throw new Error(`Delete target table ${tableId} not found`)
@@ -154,7 +160,15 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       const toDelete = excluded.size > 0 ? page.filter((id) => !excluded.has(id)) : page
       if (toDelete.length > 0) {
         try {
-          processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof, revalidate)
+          const deleted = await deletePageByIds(
+            tableId,
+            workspaceId,
+            toDelete,
+            pageProof,
+            revalidate
+          )
+          processed += deleted
+          if (deleted > 0) deletedAny = true
         } catch (err) {
           if (!(err instanceof TableLockedError)) throw err
           // A lock landed between batches. Batches already committed stay
@@ -179,7 +193,8 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
           progress: processed,
         })
         // Refetch the live grid as rows drop out (throttled with the progress event above) — the `job`
-        // event only drives the progress meter, not the rows query.
+        // event only drives the progress meter, not the rows query. The `finally` below guarantees a
+        // final refetch on every exit, so a cancel after the last un-throttled batch can't leave stale rows.
         signalTableRowsChanged(tableId)
       }
     }
@@ -197,9 +212,6 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
         status: 'ready',
         progress: processed,
       })
-      // Final grid refetch so the deleted rows are gone in every open editor (the last progress
-      // signal above may predate the tail batch).
-      signalTableRowsChanged(tableId)
       logger.info(`[${requestId}] Delete complete`, { tableId, rows: processed })
     } else {
       logger.info(
@@ -223,6 +235,10 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     const error = cause ? toError(cause) : toError(err)
     logger.error(`[${requestId}] Delete failed for table ${tableId}:`, error)
     throw error
+  } finally {
+    // Guaranteed final grid refetch on every exit — completion, cancel/supersede, mid-batch lock, or a
+    // rethrown error — whenever this run deleted anything, so no open editor keeps showing deleted rows.
+    if (deletedAny) signalTableRowsChanged(tableId)
   }
 }
 

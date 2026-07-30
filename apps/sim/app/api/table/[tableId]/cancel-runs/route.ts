@@ -56,10 +56,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       } cancelled=${cancelled}`
     )
 
-    // Cancelling clears each affected row's exec state in the DB. The `dispatch: cancelled` events drop
-    // the run overlay, but the client then renders the row's authoritative DB state — so refetch the grid
-    // to pick up the cleared cells. Only when something was actually cancelled.
-    if (cancelled > 0) signalTableRowsChanged(tableId)
+    // Cancelling clears/tombstones affected rows' exec state in the DB. The `dispatch: cancelled` events
+    // drop the run overlay, but the client then renders the row's authoritative DB state — so refetch the
+    // grid to pick up the cleared cells. Unconditional: `cancelled` counts dispatches, but tombstone row
+    // writes can happen even when that is 0, and a stale-but-harmless refetch beats a missed one.
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({ success: true, data: { cancelled } })
   } catch (error) {

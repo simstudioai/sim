@@ -50,8 +50,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     // Starting a run clears the target group's cells to pending (`bulkClearWorkflowGroupCells`) — a DB
     // row change. The `dispatch: dispatching` events drive the run overlay, but the cleared cell values
-    // come from the rows query, so refetch the grid. Only when a dispatch was actually created.
-    if (dispatchId) signalTableRowsChanged(tableId)
+    // come from the rows query, so refetch the grid. Unconditional: the bulk clear can run even on a path
+    // that then returns a null `dispatchId` (dispatch cancelled post-clear), and a stale-but-harmless
+    // refetch beats a missed one.
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({ success: true, data: { dispatchId } })
   } catch (error) {

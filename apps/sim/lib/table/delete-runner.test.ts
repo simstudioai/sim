@@ -94,6 +94,8 @@ describe('runTableDelete', () => {
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'canceled' })
     )
+    // Nothing was deleted, so the grid must NOT be needlessly refetched.
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
   })
 
   it('stops mid-run when the delete lock is enabled between pages', async () => {
@@ -116,6 +118,9 @@ describe('runTableDelete', () => {
     )
     expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockMarkJobReady).not.toHaveBeenCalled()
+    // Even though the run was cancelled before completion, the first page WAS deleted — the `finally`
+    // must still refetch the grid so open editors don't keep showing those deleted rows.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
   })
 
   it('deletes every matching page then marks the job ready', async () => {
