@@ -200,6 +200,14 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'searchAfter',
+      title: 'Search After',
+      type: 'short-input',
+      placeholder: '["John Doe","2c9180...id"] (cursor from the last result to page past 10k)',
+      condition: { field: 'operation', value: 'sailpoint_search' },
+      mode: 'advanced',
+    },
+    {
       id: 'aggregationsDsl',
       title: 'Aggregations',
       type: 'code',
@@ -393,25 +401,25 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     },
     {
       id: 'entitlements',
-      title: 'Entitlements Filter',
+      title: 'Entitlement IDs',
       type: 'short-input',
-      placeholder: 'true / false',
+      placeholder: 'Comma-separated entitlement IDs to filter by',
       condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
       mode: 'advanced',
     },
     {
       id: 'accessProfiles',
-      title: 'Access Profiles Filter',
+      title: 'Access Profile IDs',
       type: 'short-input',
-      placeholder: 'true / false',
+      placeholder: 'Comma-separated access profile IDs to filter by',
       condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
       mode: 'advanced',
     },
     {
       id: 'roles',
-      title: 'Roles Filter',
+      title: 'Role IDs',
       type: 'short-input',
-      placeholder: 'true / false',
+      placeholder: 'Comma-separated role IDs to filter by',
       condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
       mode: 'advanced',
     },
@@ -617,6 +625,7 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
             setStr('indices', params.indices)
             setStr('query', params.query)
             setStr('sort', params.sort)
+            setStr('searchAfter', params.searchAfter)
             if (params.includeNested === 'false' || params.includeNested === false) {
               mapped.includeNested = false
             }
@@ -765,6 +774,7 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     query: { type: 'string', description: 'Elasticsearch query string' },
     includeNested: { type: 'string', description: 'Include nested objects in search results' },
     sort: { type: 'string', description: 'Search sort fields' },
+    searchAfter: { type: 'string', description: 'searchAfter cursor for deep search pagination' },
     aggregationsDsl: {
       type: 'json',
       description: 'Elasticsearch aggregations DSL for search aggregate',

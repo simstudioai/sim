@@ -57,11 +57,22 @@ function qs(params: Record<string, unknown>): string {
   return serialized ? `?${serialized}` : ''
 }
 
-/** Normalizes an array/JSON-string/comma-list into a string[] (or undefined when empty). */
+/** Coerces a primitive (string/number/boolean) to a non-empty string token, else null. */
+function coerceToken(value: unknown): string | null {
+  if (typeof value === 'string') return value.length ? value : null
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return null
+}
+
+/**
+ * Normalizes an array/JSON-string/comma-list into a string[] (or undefined when empty). Numeric or
+ * boolean array elements are coerced to strings rather than dropped - SailPoint's `searchAfter`
+ * cursor mirrors sort values, which may include numbers, and must be sent as strings.
+ */
 function toStringList(value: unknown): string[] | undefined {
   if (value == null) return undefined
   if (Array.isArray(value)) {
-    const arr = value.filter((v): v is string => typeof v === 'string' && v.length > 0)
+    const arr = value.map(coerceToken).filter((v): v is string => v !== null)
     return arr.length ? arr : undefined
   }
   if (typeof value === 'string') {
@@ -71,7 +82,7 @@ function toStringList(value: unknown): string[] | undefined {
       try {
         const parsed: unknown = JSON.parse(trimmed)
         if (Array.isArray(parsed)) {
-          const arr = parsed.filter((v): v is string => typeof v === 'string')
+          const arr = parsed.map(coerceToken).filter((v): v is string => v !== null)
           return arr.length ? arr : undefined
         }
       } catch {
@@ -196,6 +207,9 @@ function dispatch(
       const searchBody = filterUndefined({
         indices: toStringList(body.indices) ?? ['identities'],
         query: body.query ? { query: body.query } : undefined,
+        // Interpret aggregationsDsl as Elasticsearch DSL (also SailPoint's default) rather than
+        // the typed SAILPOINT aggregation mode.
+        aggregationType: 'DSL',
         aggregationsDsl: body.aggregationsDsl,
       })
       return execute(

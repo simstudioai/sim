@@ -139,6 +139,7 @@ describe('SailPoint query route', () => {
       operation: 'sailpoint_search_aggregate',
       indices: 'identities',
       query: 'attributes.department:*',
+      aggregationsDsl: { department: { terms: { field: 'attributes.department' } } },
     })
 
     const response = await POST(request)
@@ -148,8 +149,29 @@ describe('SailPoint query route', () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
       'https://acme-aggregate.api.identitynow.com/v2025/search/aggregate'
     )
+    const aggInit = fetchMock.mock.calls[1]?.[1] as RequestInit
+    expect(JSON.parse(aggInit.body as string)).toEqual({
+      indices: ['identities'],
+      query: { query: 'attributes.department:*' },
+      aggregationType: 'DSL',
+      aggregationsDsl: { department: { terms: { field: 'attributes.department' } } },
+    })
     // The full AggregationResult object is preserved under `item`, not dropped as an empty list.
     expect(data.output).toEqual({ item: aggregationResult })
+  })
+
+  it('rejects a search aggregate without an aggregations definition', async () => {
+    const request = createMockRequest('POST', {
+      ...baseCreds,
+      tenant: 'acme-agg-missing',
+      operation: 'sailpoint_search_aggregate',
+      indices: 'identities',
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('caches the token across calls with the same credentials', async () => {

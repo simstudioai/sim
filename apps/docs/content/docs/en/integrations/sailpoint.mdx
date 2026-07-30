@@ -725,7 +725,7 @@ Return the aggregation result (buckets under `aggregations`, plus `hits`) for a 
 | --------- | ---- | -------- | ----------- |
 | `indices` | json | No | Indices to aggregate over \(defaults to \["identities"\]\) |
 | `query` | string | No | Elasticsearch query string to scope the documents before aggregating |
-| `aggregationsDsl` | json | No | Elasticsearch aggregations DSL object defining the buckets/metrics to compute, e.g. \{ "department": \{ "terms": \{ "field": "attributes.department" \} \} \} |
+| `aggregationsDsl` | json | Yes | Elasticsearch aggregations DSL object defining the buckets/metrics to compute, e.g. \{ "department": \{ "terms": \{ "field": "attributes.department" \} \} \} |
 | `limit` | number | No | Maximum number of aggregation results \(max 250\) |
 | `offset` | number | No | Pagination offset \(0-based\) |
 

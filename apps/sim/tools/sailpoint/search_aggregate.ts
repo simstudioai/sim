@@ -33,7 +33,7 @@ export const sailpointSearchAggregateTool: ToolConfig<
     },
     aggregationsDsl: {
       type: 'json',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
         'Elasticsearch aggregations DSL object defining the buckets/metrics to compute, e.g. { "department": { "terms": { "field": "attributes.department" } } }',

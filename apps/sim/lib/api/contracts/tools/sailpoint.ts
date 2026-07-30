@@ -95,7 +95,12 @@ const searchAggregateSchema = z.object({
   operation: z.literal('sailpoint_search_aggregate'),
   indices: stringListField,
   query: z.string().optional(),
-  aggregationsDsl: z.preprocess(parseJson, z.record(z.string(), z.unknown())).optional(),
+  aggregationsDsl: z.preprocess(
+    parseJson,
+    z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0, {
+      message: 'aggregationsDsl is required and must define at least one aggregation',
+    })
+  ),
   limit: limitField(LIMIT_STANDARD),
   offset: offsetField,
 })
