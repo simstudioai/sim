@@ -154,11 +154,20 @@ const nextConfig: NextConfig = {
   experimental: {
     turbopackFileSystemCacheForDev: false,
     /**
-     * Turbopack's persistent build cache (beta) — opt-in via env so only the
-     * CI check build uses it; production image builds stay on the default
-     * cold-build path until the feature stabilizes.
+     * Turbopack's persistent build cache (beta) stays off — it is a net loss at
+     * this app's size. A controlled A/B on a byte-identical module graph (PR
+     * #6078) measured compile at 113s with it off, 162s cold with it on, and 360s
+     * warm: the cache made the same build 3.2x slower. It also grew 5.1 GB ->
+     * 12 GB across two runs of an unchanged tree, so a cache degrades the longer
+     * it lives. Restoring across commits is separately undocumented-as-supported
+     * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
+     *
+     * Pinned explicitly rather than left to the Next default: upstream already
+     * flips this default to true in canary/preview builds (vercel/next.js#94616),
+     * so relying on the default would let a version bump silently re-enable a
+     * config we measured as harmful.
      */
-    turbopackFileSystemCacheForBuild: process.env.NEXT_TURBOPACK_BUILD_CACHE === '1',
+    turbopackFileSystemCacheForBuild: false,
     preloadEntriesOnStart: false,
     /**
      * Under Turbopack this is not a no-op: the list feeds

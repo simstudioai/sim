@@ -263,24 +263,12 @@ jobs:
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
-      # Turbopack's persistent build cache (NEXT_TURBOPACK_BUILD_CACHE below)
-      # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
-      # actions/cache round-trip would eat the warm-build win.
-      #
-      # Keyed per branch, not just per event. A sticky disk is one mutable volume
-      # per key: mounting clones the last committed snapshot, job end commits back
-      # last-write-wins. An event-only key had every open PR restoring a cache
-      # built from a different branch — 14.0 min vs 9.3 min for the single-writer
-      # push disk on the same commit. Branch scoping also keeps us off
-      # cross-commit restore, which turbopackFileSystemCacheForBuild (beta) does
-      # not document as supported (vercel/next.js#87283: stale HTML from a cache
-      # built at another commit). ci-cache-cleanup.yml reclaims the disks.
-      - name: Mount Next.js build cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.head_ref || github.ref_name }}
-          path: ./apps/sim/.next/cache
+      # No `.next/cache` mount: the Turbopack persistent build cache is off. A
+      # controlled A/B on one branch (PR #6078) with a byte-identical module graph
+      # measured compile at 113s with the cache off, 162s cold with it on, and
+      # 360s warm — the cache made the same build 3.2x slower, and it grew
+      # 5.1 GB -> 12 GB across two runs of an unchanged tree, so a disk degrades
+      # the more it is used. Mounting a disk nothing reads would only cost storage.
 
       # Running out of RAM kills the whole VM and surfaces only as "the runner
       # has received a shutdown signal" — no mention of memory, ~12 min in. Warn
@@ -300,13 +288,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      # The disk mounts successfully whether or not it carried anything and turbo
-      # buffers the build log, so cache warmth is otherwise unobservable — #5859
-      # shipped a cache that carried almost nothing and it took a PR to notice.
-      # Reported, never gated.
-      - name: Report Next.js cache size (pre-build)
-        run: du -sh apps/sim/.next/cache 2>/dev/null || echo 'cold — no cache restored'
-
       - name: Build application
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
@@ -318,13 +299,4 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          # Opt into Turbopack's persistent build cache (beta) for this CI check
-          # build only. #5869's 105s-cold/22s-warm was measured locally and has
-          # never reproduced in CI (compile has ranged 3.5-17.8 min) — local
-          # numbers, not a CI target.
-          NEXT_TURBOPACK_BUILD_CACHE: '1'
         run: bunx turbo run build --filter=sim
-
-      - name: Report Next.js cache size (post-build)
-        if: always()
-        run: du -sh apps/sim/.next/cache 2>/dev/null || echo 'no cache written'
