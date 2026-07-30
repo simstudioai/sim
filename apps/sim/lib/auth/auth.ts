@@ -102,6 +102,7 @@ import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
 } from '@/lib/oauth/microsoft'
+import { fetchQuickBooksUserInfo, mapQuickBooksUserInfo } from '@/lib/oauth/quickbooks'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -1922,50 +1923,11 @@ export const auth = betterAuth({
           getUserInfo: async (tokens) => {
             try {
               logger.info('Fetching QuickBooks user profile')
-
-              const response = await fetch(
-                'https://accounts.platform.intuit.com/v1/openid_connect/userinfo',
-                {
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                  },
-                }
+              const profile = await fetchQuickBooksUserInfo(
+                tokens.accessToken,
+                env.NODE_ENV !== 'production'
               )
-
-              if (!response.ok) {
-                await response.text().catch(() => {})
-                logger.error('Failed to fetch QuickBooks user info', {
-                  status: response.status,
-                  statusText: response.statusText,
-                })
-                throw new Error('Failed to fetch user info')
-              }
-
-              const profile = (await response.json()) as {
-                sub?: string
-                given_name?: string
-                givenName?: string
-                family_name?: string
-                familyName?: string
-                email?: string
-                email_verified?: boolean
-                emailVerified?: boolean
-              }
-              const subject = profile.sub || 'quickbooks-user'
-              const givenName = profile.given_name ?? profile.givenName ?? ''
-              const familyName = profile.family_name ?? profile.familyName ?? ''
-              const name = `${givenName} ${familyName}`.trim() || profile.email || 'QuickBooks User'
-
-              return {
-                id: `${subject}-${generateId()}`,
-                name,
-                email: profile.email || `${subject}@quickbooks.user`,
-                emailVerified:
-                  profile.email_verified ?? profile.emailVerified ?? Boolean(profile.email),
-                image: undefined,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }
+              return mapQuickBooksUserInfo(profile)
             } catch (error) {
               logger.error('Error in QuickBooks getUserInfo:', { error })
               return null
