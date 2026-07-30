@@ -10,6 +10,8 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 import {
   fetchOpenPrSnapshot,
   fetchPrSnapshot,
+  findOpenPrForBranch,
+  setPullRequestDraftState,
   validateRepositoryCoordinates,
 } from '@/executor/handlers/pi/github-pr'
 
@@ -97,8 +99,155 @@ describe('fetchOpenPrSnapshot', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
 
     await expect(fetchOpenPrSnapshot(COORDINATES)).rejects.toThrow(
-      'PR #7 is closed; only open PRs can be reviewed'
+      'PR #7 is closed; only open PRs are supported'
     )
+  })
+})
+
+describe('findOpenPrForBranch', () => {
+  const params = {
+    owner: 'octo',
+    repo: 'demo',
+    branch: 'feature/existing',
+    githubToken: 'ghp_secret',
+  }
+
+  beforeEach(() => vi.clearAllMocks())
+
+  function list(items: unknown[]) {
+    return { success: true, output: { items, count: items.length } }
+  }
+
+  it('returns the one exact open same-repository pull request', async () => {
+    mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }])).mockResolvedValueOnce({
+      success: true,
+      output: snapshot({
+        head: { sha: HEAD_SHA, ref: 'feature/existing', repo_full_name: 'octo/demo' },
+      }),
+    })
+
+    await expect(findOpenPrForBranch(params)).resolves.toMatchObject({
+      pullNumber: 7,
+      snapshot: { htmlUrl: 'https://github.com/octo/demo/pull/7' },
+    })
+    expect(mockExecuteTool).toHaveBeenNthCalledWith(
+      1,
+      'github_list_prs_v2',
+      expect.objectContaining({
+        owner: 'octo',
+        repo: 'demo',
+        state: 'open',
+        head: 'octo:feature/existing',
+        per_page: 2,
+        apiKey: 'ghp_secret',
+      }),
+      { signal: undefined }
+    )
+  })
+
+  it('accepts a renamed same-repository pull request by comparing head to base', async () => {
+    mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }])).mockResolvedValueOnce({
+      success: true,
+      output: snapshot({
+        head: {
+          sha: HEAD_SHA,
+          ref: 'feature/existing',
+          repo_full_name: 'octo-renamed/demo',
+        },
+        base: { sha: BASE_SHA, ref: 'staging', repo_full_name: 'octo-renamed/demo' },
+      }),
+    })
+
+    await expect(findOpenPrForBranch(params)).resolves.toMatchObject({
+      pullNumber: 7,
+      snapshot: { headRepoFullName: 'octo-renamed/demo' },
+    })
+  })
+
+  it('returns no match so Update PR can create it, but fails when ambiguous', async () => {
+    mockExecuteTool.mockResolvedValueOnce(list([]))
+    await expect(findOpenPrForBranch(params)).resolves.toBeUndefined()
+
+    mockExecuteTool.mockResolvedValueOnce(list([{ number: 7 }, { number: 8 }]))
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/multiple open pull requests/)
+  })
+
+  it.each([
+    [
+      'fork',
+      {
+        head: { sha: HEAD_SHA, ref: 'feature/existing', repo_full_name: 'someone/fork' },
+      },
+    ],
+    [
+      'moved head',
+      {
+        head: { sha: HEAD_SHA, ref: 'feature/moved', repo_full_name: 'octo/demo' },
+      },
+    ],
+  ])('fails closed for a %s', async (_label, overrides) => {
+    mockExecuteTool
+      .mockResolvedValueOnce(list([{ number: 7 }]))
+      .mockResolvedValueOnce({ success: true, output: snapshot(overrides) })
+
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/no longer points to/)
+  })
+
+  it('fails closed when the matching pull request closes during validation', async () => {
+    mockExecuteTool
+      .mockResolvedValueOnce(list([{ number: 7 }]))
+      .mockResolvedValueOnce({ success: true, output: snapshot({ state: 'closed' }) })
+
+    await expect(findOpenPrForBranch(params)).rejects.toThrow(/only open PRs/)
+  })
+})
+
+describe('setPullRequestDraftState', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function graphQlResponse(data: Record<string, unknown>): Response {
+    return new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  it('does nothing when the pull request already has the requested state', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      graphQlResponse({
+        repository: { pullRequest: { id: 'PR_kwDOExample', isDraft: false } },
+      })
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    await setPullRequestDraftState({ ...COORDINATES, state: 'ready' })
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['draft', false, 'convertPullRequestToDraft'],
+    ['ready', true, 'markPullRequestReadyForReview'],
+  ] as const)('changes a pull request to %s', async (state, isDraft, mutation) => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        graphQlResponse({
+          repository: { pullRequest: { id: 'PR_kwDOExample', isDraft } },
+        })
+      )
+      .mockResolvedValueOnce(graphQlResponse({ [mutation]: { pullRequest: {} } }))
+    vi.stubGlobal('fetch', mockFetch)
+
+    await setPullRequestDraftState({ ...COORDINATES, state })
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const mutationRequest = mockFetch.mock.calls[1][1] as RequestInit
+    expect(mutationRequest.headers).toMatchObject({ Authorization: 'Bearer ghp_secret' })
+    expect(mutationRequest.body).toContain(mutation)
+    expect(mutationRequest.body).toContain('PR_kwDOExample')
   })
 })
 

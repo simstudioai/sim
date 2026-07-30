@@ -753,7 +753,7 @@ export async function runBabysitPiWithOptions(
     if (signal.aborted) throw new Error('Pi run aborted')
     if (lifetime < MIN_BABYSIT_BUDGET_MS) {
       progress.notes.push(
-        'Babysit had less than one minute of execution budget remaining after Create PR.'
+        'Babysit had less than one minute of execution budget remaining after authoring.'
       )
       return resultFor(totals, 'budget_exhausted', progress, false, false)
     }
@@ -779,7 +779,7 @@ export async function runBabysitPiWithOptions(
       return resultFor(totals, 'startup_failure', progress, threadsAreClean(latestThreads), false)
     }
     if (params.reviewMentions.length === 0) {
-      progress.notes.push('No reviewer mentions were configured for Create PR Babysit Mode.')
+      progress.notes.push('No reviewer mentions were configured for Babysit Mode.')
       return resultFor(
         totals,
         'startup_failure',
