@@ -96,6 +96,30 @@ describe('desktop title-bar surface audit', () => {
     expect(workspaceChrome).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
   })
 
+  it('reserves the login lane inside the box, never as a collapsing margin', () => {
+    // `body` carries `min-height: 100vh`, and a `margin-top` here collapses through it
+    // (body is a plain block box, so it opens no BFC) and displaces body itself. The
+    // document then measured one full lane taller than the viewport, which is what made
+    // the desktop login page scroll. Verified live: 40px of overflow, now 0.
+    // Comments are stripped first: the rule documents why `margin-top` is wrong, and a
+    // raw `not.toContain` would match that prose instead of a declaration.
+    const rule = (globalStyles.match(/\.desktop-title-bar-page \{[^}]*\}/)?.[0] ?? '').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ''
+    )
+    expect(rule).toContain('padding-top: var(--desktop-title-bar-height)')
+    expect(rule).toContain('min-height: 100vh')
+    expect(rule).not.toContain('margin-top')
+  })
+
+  it('drops the content pane border where the pane meets the window edge', () => {
+    // Collapsing the sidebar in the desktop shell takes the pane's padding to 0, so a
+    // retained border and radius drew a hairline outline inset from the square window.
+    const flush = '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:'
+    expect(workspaceChrome).toContain(`${flush}rounded-none`)
+    expect(workspaceChrome).toContain(`${flush}border-0`)
+  })
+
   it('clears the lane for panels that embed pages away from the lights', () => {
     // The mothership panel is the right half of the pane and embeds whole pages
     // (KnowledgeBase et al) whose header bars reserve the lane. It inherits the

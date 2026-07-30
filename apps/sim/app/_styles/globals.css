@@ -76,8 +76,14 @@ html[data-sim-desktop-title-bar="inset"] {
 
 /** The macOS desktop login shell reserves the native traffic-light lane. */
 .desktop-title-bar-page {
-  margin-top: var(--desktop-title-bar-height);
-  min-height: calc(100vh - var(--desktop-title-bar-height));
+  /* Reserve the lane with padding INSIDE the box, never `margin-top` + a
+     `calc(100vh - lane)` height. `body` carries `min-height: 100vh` of its own, and
+     a top margin here has nothing to collapse against (body is a block box with no
+     padding, border, or BFC), so it collapses through and displaces body itself —
+     leaving a document one full lane taller than the viewport. Global
+     `box-sizing: border-box` keeps this padding inside the 100vh. */
+  padding-top: var(--desktop-title-bar-height);
+  min-height: 100vh;
 }
 
 .desktop-window-drag-region {

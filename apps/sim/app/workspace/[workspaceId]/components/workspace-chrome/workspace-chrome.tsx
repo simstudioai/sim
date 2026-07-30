@@ -57,6 +57,20 @@ const PEEK_CARD_EXIT = cn(
 /** The docked rail: in flow, width-animated by the collapse toggle. */
 const SIDEBAR_SHELL_IN_FLOW = cn('transition-[width]', SLIDE_TRANSITION)
 
+/**
+ * The content pane's own chrome, dropped when the pane sits flush to the window.
+ *
+ * Collapsing the sidebar in the desktop shell takes the surrounding padding to `0`,
+ * which puts the pane hard against the window edge — and its border and radius then
+ * draw a hairline outline with rounded corners inset from the square window frame.
+ *
+ * Keyed off the ancestor attributes rather than React state on purpose: the title-bar
+ * attribute is written pre-paint, so a state-driven rule would flash the border on
+ * first paint before hydration settles.
+ */
+const CONTENT_PANE_FLUSH =
+  '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:rounded-none [[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:border-0'
+
 interface WorkspaceChromeProps {
   children: React.ReactNode
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
@@ -299,7 +313,12 @@ export function WorkspaceChrome({
            inherits the traffic-light lane the same way a collapsed sidebar does. */
         data-content-fullscreen={isFullscreen || undefined}
       >
-        <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
+        <div
+          className={cn(
+            'flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]',
+            CONTENT_PANE_FLUSH
+          )}
+        >
           {children}
         </div>
       </div>
