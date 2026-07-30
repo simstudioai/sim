@@ -343,14 +343,20 @@ async function fetchAdminWorkspaces(
 }
 
 /**
- * Fetches workspaces where the user has admin access.
+ * Fetches workspaces where the user has admin access, optionally narrowed to
+ * one organization's shared workspaces.
  * @param userId - The user ID to check admin access for
+ * @param organizationId - Restrict to this organization's workspaces
  */
-export function useAdminWorkspaces(userId: string | undefined, organizationId?: string) {
+export function useAdminWorkspaces(
+  userId: string | undefined,
+  organizationId?: string,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: [...workspaceKeys.adminList(userId), organizationId ?? ''] as const,
     queryFn: ({ signal }) => fetchAdminWorkspaces(userId, organizationId, signal),
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_ADMIN_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })

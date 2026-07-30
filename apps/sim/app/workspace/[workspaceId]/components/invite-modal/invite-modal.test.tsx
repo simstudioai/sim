@@ -6,49 +6,41 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { hostContext, mockUseOrganizationBilling } = vi.hoisted(() => ({
-  hostContext: {
-    current: {
-      hostOrganizationId: 'org-host',
-      viewer: { isHostOrganizationAdmin: false },
+const { hostContext, mockUseOrganizationBilling, mockUseAdminWorkspaces, mockMutate } = vi.hoisted(
+  () => ({
+    hostContext: {
+      current: {
+        hostOrganizationId: 'org-host',
+        viewer: { isHostOrganizationAdmin: false },
+      },
     },
-  },
-  mockUseOrganizationBilling: vi.fn(),
-}))
+    mockUseOrganizationBilling: vi.fn(),
+    mockUseAdminWorkspaces: vi.fn(),
+    mockMutate: vi.fn(),
+  })
+)
 
 vi.mock('@sim/emcn', () => ({
+  ChipDropdown: () => <div />,
   ChipModal: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ChipModalError: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalField: () => <div />,
   ChipModalFooter: () => <div />,
   ChipModalHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   toast: { success: vi.fn() },
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
-
 vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { email: 'viewer@example.com' } } }),
+  useSession: () => ({ data: { user: { id: 'user-1', email: 'viewer@example.com' } } }),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => hostContext.current,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
-  useWorkspacePermissionsContext: () => ({
-    workspacePermissions: { users: [] },
-    userPermissions: { canAdmin: true },
-  }),
-}))
-
 vi.mock('@/hooks/queries/invitations', () => ({
-  useBatchSendWorkspaceInvitations: () => ({
-    isPending: false,
-    mutate: vi.fn(),
-  }),
+  useSendWorkspaceInvitations: () => ({ isPending: false, mutate: mockMutate }),
 }))
 
 vi.mock('@/hooks/queries/organization', () => ({
@@ -58,7 +50,14 @@ vi.mock('@/hooks/queries/organization', () => ({
   },
 }))
 
-import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/invite-modal'
+vi.mock('@/hooks/queries/workspace', () => ({
+  useAdminWorkspaces: (...args: unknown[]) => {
+    mockUseAdminWorkspaces(...args)
+    return { data: [] }
+  },
+}))
+
+import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal/invite-modal'
 
 let container: HTMLDivElement
 let root: Root
@@ -89,7 +88,13 @@ describe('InviteModal organization billing isolation', () => {
   it('does not fetch admin billing data for a workspace-only administrator', async () => {
     await act(async () => {
       root.render(
-        <InviteModal open onOpenChange={vi.fn()} organizationId='org-host' workspaceName='Host' />
+        <InviteModal
+          open
+          onOpenChange={vi.fn()}
+          workspaceId='workspace-1'
+          organizationId='org-host'
+          workspaceName='Host'
+        />
       )
     })
 
@@ -104,7 +109,13 @@ describe('InviteModal organization billing isolation', () => {
 
     await act(async () => {
       root.render(
-        <InviteModal open onOpenChange={vi.fn()} organizationId='org-host' workspaceName='Host' />
+        <InviteModal
+          open
+          onOpenChange={vi.fn()}
+          workspaceId='workspace-1'
+          organizationId='org-host'
+          workspaceName='Host'
+        />
       )
     })
 
@@ -119,10 +130,32 @@ describe('InviteModal organization billing isolation', () => {
 
     await act(async () => {
       root.render(
-        <InviteModal open onOpenChange={vi.fn()} organizationId='org-other' workspaceName='Host' />
+        <InviteModal
+          open
+          onOpenChange={vi.fn()}
+          workspaceId='workspace-1'
+          organizationId='org-other'
+          workspaceName='Host'
+        />
       )
     })
 
     expect(mockUseOrganizationBilling).toHaveBeenCalledWith('org-other', { enabled: false })
+  })
+
+  it('does not list selectable workspaces outside an organization', async () => {
+    await act(async () => {
+      root.render(
+        <InviteModal
+          open
+          onOpenChange={vi.fn()}
+          workspaceId='workspace-1'
+          organizationId={null}
+          workspaceName='Personal'
+        />
+      )
+    })
+
+    expect(mockUseAdminWorkspaces).toHaveBeenCalledWith('user-1', undefined, { enabled: false })
   })
 })
