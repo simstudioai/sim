@@ -346,4 +346,21 @@ describe('ensureSandboxImage failed-build cooldown', () => {
     const [failedBranch] = read() as unknown[]
     expect(hasTimeBound(failedBranch)).toBe(false)
   })
+
+  /**
+   * A row that reached `ready` before the delete landed is the permanent case:
+   * resolution repairs a missing or `failed` row, never one claiming to be ready,
+   * so its dead `imageRef` would survive until someone re-saved the sandbox.
+   */
+  it('reclaims a ready row when the image is known to be gone', async () => {
+    const read = captureSetWhere()
+
+    await ensureSandboxImage(SPEC, 'hash-1', { imageKnownGone: true })
+
+    const branch = predicateText((read() as unknown[])[0])
+    expect(branch).toContain('status')
+    // Excludes only in-flight statuses, so `ready` and `failed` both qualify.
+    expect(branch).toContain('pending')
+    expect(branch).not.toContain('failed')
+  })
 })

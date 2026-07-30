@@ -66,6 +66,38 @@ export interface EnsureSandboxImageOptions {
    * run of a scheduled workflow forever.
    */
   minFailureAgeMs?: number
+  /**
+   * Reclaim a `ready` row as well as a failed one.
+   *
+   * Only the release path sets this, and only once it has deleted an image out
+   * from under a hash something re-adopted. That row looks healthy while its
+   * `imageRef` points at nothing, and resolution cannot tell: it repairs a row
+   * that is missing or `failed`, never one claiming to be ready, so without this
+   * the sandbox stays broken until someone re-saves it by hand.
+   *
+   * An in-flight build is still left alone. It either recreates the template it
+   * was already building or fails into the normal repair path, and resetting it
+   * would only add a duplicate build.
+   */
+  imageKnownGone?: boolean
+}
+
+/**
+ * Which settled row a save may re-claim: any of them when the image is known to be
+ * gone, otherwise a failed one — immediately for a person, after the cooldown for
+ * an automatic caller.
+ */
+function settledRebuildBranch(options: EnsureSandboxImageOptions): SQL | undefined {
+  if (options.imageKnownGone) {
+    return notInArray(sandboxImage.status, ['pending', 'building'])
+  }
+  if (options.minFailureAgeMs) {
+    return and(
+      eq(sandboxImage.status, 'failed'),
+      lt(sandboxImage.updatedAt, new Date(Date.now() - options.minFailureAgeMs))
+    )
+  }
+  return eq(sandboxImage.status, 'failed')
 }
 
 /**
@@ -112,12 +144,7 @@ export async function ensureSandboxImage(
       // row forever, and no later save could revive it because the content address
       // never changes.
       setWhere: or(
-        options.minFailureAgeMs
-          ? and(
-              eq(sandboxImage.status, 'failed'),
-              lt(sandboxImage.updatedAt, new Date(Date.now() - options.minFailureAgeMs))
-            )
-          : eq(sandboxImage.status, 'failed'),
+        settledRebuildBranch(options),
         and(
           inArray(sandboxImage.status, ['pending', 'building']),
           lt(sandboxImage.updatedAt, new Date(Date.now() - STALE_BUILD_MS))
@@ -338,12 +365,14 @@ type ImageClaimOutcome = 'released' | 'skipped' | 'failed'
  * removes. The window is inherent: the registry row and the provider template are
  * two systems with no shared transaction, so it can be made small but not zero.
  *
- * What is avoidable is the adopter finding out the slow way. Its row is new and
- * healthy-looking, so nothing else would notice: resolution only repairs a row
- * that is missing or `failed`, and a `failed` one waits out
- * {@link FAILED_BUILD_RETRY_COOLDOWN_MS} first. Re-enqueueing here converts that
- * into a rebuild starting immediately. A build already in flight is left alone by
- * the conflict guard, since it may still outlive the delete.
+ * What is avoidable is the adopter being left broken. Its row is new and
+ * healthy-looking, so nothing else would notice — and a row that reached `ready`
+ * before the delete landed is worse than slow, it is permanent: resolution repairs
+ * a row that is missing or `failed`, never one claiming to be ready, so its
+ * `imageRef` would point at nothing until someone re-saved the sandbox by hand.
+ * `imageKnownGone` is what lets this reclaim that row. A build still in flight is
+ * left alone, since it either recreates the template or fails into the normal
+ * repair path.
  */
 async function rebuildIfReadopted(
   providerId: string,
@@ -358,7 +387,7 @@ async function rebuildIfReadopted(
   if (!readopted) return
 
   logger.warn('Sandbox image was re-adopted mid-delete; rebuilding it now', { specHash })
-  await ensureSandboxImage(spec, specHash)
+  await ensureSandboxImage(spec, specHash, { imageKnownGone: true })
 }
 
 /**
