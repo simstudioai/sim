@@ -545,23 +545,61 @@ export async function markNewsletterRunPushed(
   segmentId: string,
   segmentName: string
 ) {
-  await db
-    .update(newsletterAudienceRuns)
-    .set({
-      status: 'pushed',
-      resendSegmentId: segmentId,
-      resendSegmentName: segmentName,
-      resendSyncedAt: new Date(),
-      error: null,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(newsletterAudienceRuns.id, runId),
-        eq(newsletterAudienceRuns.resendSyncAttempt, attempt),
-        inArray(newsletterAudienceRuns.status, ['pushing', 'failed'])
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({
+        status: newsletterAudienceRuns.status,
+        snapshotVersion: newsletterAudienceRuns.snapshotVersion,
+        resendSyncAttempt: newsletterAudienceRuns.resendSyncAttempt,
+      })
+      .from(newsletterAudienceRuns)
+      .where(eq(newsletterAudienceRuns.id, runId))
+      .for('update')
+      .limit(1)
+    if (!current) throw new Error('Newsletter run not found')
+    if (current.resendSyncAttempt !== attempt) {
+      throw new Error('Newsletter Resend sync attempt was superseded')
+    }
+    if (current.status === 'pushed') return
+    if (current.status !== 'pushing' && current.status !== 'failed') {
+      throw new Error('Newsletter run is not eligible to complete its Resend sync')
+    }
+
+    const [incompleteRecipient] = await tx
+      .select({ id: newsletterAudienceRecipients.id })
+      .from(newsletterAudienceRecipients)
+      .where(
+        and(
+          eq(newsletterAudienceRecipients.runId, runId),
+          eq(newsletterAudienceRecipients.snapshotVersion, current.snapshotVersion),
+          inArray(newsletterAudienceRecipients.resendStatus, ['pending', 'failed'])
+        )
       )
-    )
+      .limit(1)
+    if (incompleteRecipient) {
+      throw new Error('Newsletter sync incomplete: recipients remain pending or failed')
+    }
+
+    const [updated] = await tx
+      .update(newsletterAudienceRuns)
+      .set({
+        status: 'pushed',
+        resendSegmentId: segmentId,
+        resendSegmentName: segmentName,
+        resendSyncedAt: new Date(),
+        error: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(newsletterAudienceRuns.id, runId),
+          eq(newsletterAudienceRuns.resendSyncAttempt, attempt),
+          inArray(newsletterAudienceRuns.status, ['pushing', 'failed'])
+        )
+      )
+      .returning()
+    if (!updated) throw new Error('Newsletter Resend sync attempt was superseded')
+  })
 }
 
 export async function setNewsletterRunResendSegment(
@@ -659,13 +697,18 @@ export async function createNewsletterCsvExport(
   }
 }
 
-export async function countNewsletterRecipientsByStatus(runId: string) {
+export async function countNewsletterRecipientsByStatus(runId: string, attempt: number) {
   const [run] = await db
     .select({ snapshotVersion: newsletterAudienceRuns.snapshotVersion })
     .from(newsletterAudienceRuns)
-    .where(eq(newsletterAudienceRuns.id, runId))
+    .where(
+      and(
+        eq(newsletterAudienceRuns.id, runId),
+        eq(newsletterAudienceRuns.resendSyncAttempt, attempt)
+      )
+    )
     .limit(1)
-  if (!run) throw new Error('Newsletter run not found')
+  if (!run) throw new Error('Newsletter Resend sync attempt was superseded')
 
   const rows = await db
     .select({
@@ -686,35 +729,67 @@ export async function countNewsletterRecipientsByStatus(runId: string) {
 
 export async function updateRecipientSyncStatus(
   runId: string,
+  attempt: number,
   snapshotVersion: number,
   email: string,
   status: NewsletterRecipientSyncStatus,
   options?: { contactId?: string; error?: string | null }
 ) {
-  await db
-    .update(newsletterAudienceRecipients)
-    .set({
-      resendStatus: status,
-      resendContactId: options?.contactId,
-      error: options?.error ?? null,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(newsletterAudienceRecipients.runId, runId),
-        eq(newsletterAudienceRecipients.snapshotVersion, snapshotVersion),
-        eq(newsletterAudienceRecipients.email, email)
+  await db.transaction(async (tx) => {
+    const [run] = await tx
+      .select({
+        status: newsletterAudienceRuns.status,
+        snapshotVersion: newsletterAudienceRuns.snapshotVersion,
+        resendSyncAttempt: newsletterAudienceRuns.resendSyncAttempt,
+      })
+      .from(newsletterAudienceRuns)
+      .where(eq(newsletterAudienceRuns.id, runId))
+      .for('update')
+      .limit(1)
+    if (
+      !run ||
+      run.snapshotVersion !== snapshotVersion ||
+      run.resendSyncAttempt !== attempt ||
+      (run.status !== 'pushing' && run.status !== 'failed')
+    ) {
+      return
+    }
+
+    await tx
+      .update(newsletterAudienceRecipients)
+      .set({
+        resendStatus: status,
+        resendContactId: options?.contactId,
+        error: options?.error ?? null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(newsletterAudienceRecipients.runId, runId),
+          eq(newsletterAudienceRecipients.snapshotVersion, snapshotVersion),
+          eq(newsletterAudienceRecipients.email, email)
+        )
       )
-    )
+  })
 }
 
-export async function getPendingNewsletterRecipients(runId: string, limit: number) {
+export async function getPendingNewsletterRecipients(
+  runId: string,
+  attempt: number,
+  limit: number
+) {
   const [run] = await db
     .select({ snapshotVersion: newsletterAudienceRuns.snapshotVersion })
     .from(newsletterAudienceRuns)
-    .where(eq(newsletterAudienceRuns.id, runId))
+    .where(
+      and(
+        eq(newsletterAudienceRuns.id, runId),
+        eq(newsletterAudienceRuns.resendSyncAttempt, attempt),
+        inArray(newsletterAudienceRuns.status, ['pushing', 'failed'])
+      )
+    )
     .limit(1)
-  if (!run) throw new Error('Newsletter run not found')
+  if (!run) throw new Error('Newsletter Resend sync attempt was superseded')
 
   return db
     .select({
@@ -742,28 +817,41 @@ export async function getPendingNewsletterRecipients(runId: string, limit: numbe
     .limit(limit)
 }
 
-export async function resetFailedNewsletterRecipients(runId: string) {
-  const [run] = await db
-    .select({ snapshotVersion: newsletterAudienceRuns.snapshotVersion })
-    .from(newsletterAudienceRuns)
-    .where(eq(newsletterAudienceRuns.id, runId))
-    .limit(1)
-  if (!run) throw new Error('Newsletter run not found')
+export async function resetFailedNewsletterRecipients(runId: string, attempt: number) {
+  await db.transaction(async (tx) => {
+    const [run] = await tx
+      .select({
+        status: newsletterAudienceRuns.status,
+        snapshotVersion: newsletterAudienceRuns.snapshotVersion,
+        resendSyncAttempt: newsletterAudienceRuns.resendSyncAttempt,
+      })
+      .from(newsletterAudienceRuns)
+      .where(eq(newsletterAudienceRuns.id, runId))
+      .for('update')
+      .limit(1)
+    if (
+      !run ||
+      run.resendSyncAttempt !== attempt ||
+      (run.status !== 'pushing' && run.status !== 'failed')
+    ) {
+      return
+    }
 
-  await db
-    .update(newsletterAudienceRecipients)
-    .set({
-      resendStatus: 'pending',
-      error: null,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(newsletterAudienceRecipients.runId, runId),
-        eq(newsletterAudienceRecipients.snapshotVersion, run.snapshotVersion),
-        eq(newsletterAudienceRecipients.resendStatus, 'failed')
+    await tx
+      .update(newsletterAudienceRecipients)
+      .set({
+        resendStatus: 'pending',
+        error: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(newsletterAudienceRecipients.runId, runId),
+          eq(newsletterAudienceRecipients.snapshotVersion, run.snapshotVersion),
+          eq(newsletterAudienceRecipients.resendStatus, 'failed')
+        )
       )
-    )
+  })
 }
 
 export async function requireNewsletterRunAttempt(runId: string, attempt: number) {

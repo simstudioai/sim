@@ -127,7 +127,10 @@ describe('newsletter Resend service', () => {
   it('normalizes suppressed email addresses', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
-        data: [{ email: ' First@Example.com ' }, { email: 'second@example.com' }],
+        data: [
+          { id: 'suppression-1', email: ' First@Example.com ' },
+          { id: 'suppression-2', email: 'second@example.com' },
+        ],
         has_more: false,
       })
     )
@@ -135,13 +138,42 @@ describe('newsletter Resend service', () => {
     const emails = await getResendSuppressedEmails()
 
     expect(emails).toEqual(new Set(['first@example.com', 'second@example.com']))
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.resend.com/suppressions?limit=100',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('paginates through all suppressed email addresses', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'suppression-1', email: 'first@example.com' }],
+          has_more: true,
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'suppression-2', email: 'second@example.com' }],
+          has_more: false,
+        })
+      )
+
+    const emails = await getResendSuppressedEmails()
+
+    expect(emails).toEqual(new Set(['first@example.com', 'second@example.com']))
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://api.resend.com/suppressions?limit=100&after=suppression-1',
+      expect.objectContaining({ method: 'GET' })
+    )
   })
 
   it('combines suppressions with globally unsubscribed contacts', async () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
-          data: [{ email: 'suppressed@example.com' }],
+          data: [{ id: 'suppression-1', email: 'suppressed@example.com' }],
           has_more: false,
         })
       )

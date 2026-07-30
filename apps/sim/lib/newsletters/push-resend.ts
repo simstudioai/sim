@@ -67,11 +67,13 @@ export async function runNewsletterResendSync(
   try {
     signal?.throwIfAborted()
     const run = await requireNewsletterRunAttempt(runId, attempt)
+    signal?.throwIfAborted()
     if (run.status === 'pushed') return
     if (run.status !== 'finalized' && run.status !== 'pushing' && run.status !== 'failed') {
       throw new Error('Newsletter run must be finalized before pushing to Resend')
     }
-    await resetFailedNewsletterRecipients(runId)
+    await resetFailedNewsletterRecipients(runId, attempt)
+    await requireNewsletterRunAttempt(runId, attempt)
 
     signal?.throwIfAborted()
     const segment =
@@ -92,7 +94,11 @@ export async function runNewsletterResendSync(
 
     while (true) {
       signal?.throwIfAborted()
-      const recipients = await getPendingNewsletterRecipients(runId, NEWSLETTER_RESEND_BATCH_SIZE)
+      const recipients = await getPendingNewsletterRecipients(
+        runId,
+        attempt,
+        NEWSLETTER_RESEND_BATCH_SIZE
+      )
       if (recipients.length === 0) break
 
       await runWithConcurrency(
@@ -107,6 +113,7 @@ export async function runNewsletterResendSync(
           ) {
             await updateRecipientSyncStatus(
               runId,
+              attempt,
               recipient.snapshotVersion,
               recipient.email,
               'excluded'
@@ -125,6 +132,7 @@ export async function runNewsletterResendSync(
             signal?.throwIfAborted()
             await updateRecipientSyncStatus(
               runId,
+              attempt,
               recipient.snapshotVersion,
               recipient.email,
               result.status,
@@ -136,6 +144,7 @@ export async function runNewsletterResendSync(
             signal?.throwIfAborted()
             await updateRecipientSyncStatus(
               runId,
+              attempt,
               recipient.snapshotVersion,
               recipient.email,
               'failed',
@@ -157,11 +166,14 @@ export async function runNewsletterResendSync(
     }
 
     signal?.throwIfAborted()
-    const statusCounts = await countNewsletterRecipientsByStatus(runId)
+    const statusCounts = await countNewsletterRecipientsByStatus(runId, attempt)
     signal?.throwIfAborted()
     const failed = statusCounts.failed ?? 0
-    if (failed > 0) {
-      throw new Error(`${failed} recipients failed to sync to Resend`)
+    const pending = statusCounts.pending ?? 0
+    if (failed > 0 || pending > 0) {
+      throw new Error(
+        `Newsletter sync incomplete: ${failed} recipients failed and ${pending} remain pending`
+      )
     }
 
     signal?.throwIfAborted()
@@ -174,28 +186,43 @@ export async function runNewsletterResendSync(
 }
 
 export async function enqueueNewsletterResendSync(runId: string, requestedById: string) {
-  const claim = await claimNewsletterRunResendAttempt(runId)
+  let claim = await claimNewsletterRunResendAttempt(runId)
   const queue = await getJobQueue()
+  const backendType = getAsyncBackendType()
   if (!claim.shouldEnqueue && claim.jobId) {
-    if (getAsyncBackendType() !== 'database') {
+    if (claim.run.status === 'pushed') {
       return { run: claim.run, jobId: claim.jobId }
     }
-
     const persistedJob = await queue.getJob(claim.jobId)
     if (persistedJob?.status === JOB_STATUS.COMPLETED) {
-      return { run: claim.run, jobId: claim.jobId }
-    }
-    if (persistedJob?.status === JOB_STATUS.FAILED) {
-      const error = new Error(persistedJob.error ?? 'Newsletter sync database job failed')
+      const error = new Error('Newsletter sync job completed without finalizing the newsletter run')
       await markNewsletterRunPushFailed(runId, claim.attempt, error)
-      throw error
+      claim = await claimNewsletterRunResendAttempt(runId)
+    } else if (backendType !== 'database') {
+      if (
+        persistedJob?.status === JOB_STATUS.PENDING ||
+        persistedJob?.status === JOB_STATUS.PROCESSING
+      ) {
+        await queue.cancelJob(claim.jobId)
+      }
+      const error = new Error(
+        persistedJob?.error ?? 'Newsletter sync was resumed with a fresh background job'
+      )
+      await markNewsletterRunPushFailed(runId, claim.attempt, error)
+      claim = await claimNewsletterRunResendAttempt(runId)
+    } else if (persistedJob?.status === JOB_STATUS.FAILED) {
+      const error = new Error(persistedJob.error ?? 'Newsletter sync job failed')
+      await markNewsletterRunPushFailed(runId, claim.attempt, error)
+      claim = await claimNewsletterRunResendAttempt(runId)
     }
   }
 
-  const enqueueKey = claim.jobId ?? `newsletter_resend_${runId}_${claim.attempt}`
+  const enqueueKey =
+    backendType === 'database' && claim.jobId
+      ? claim.jobId
+      : `newsletter_resend_${runId}_${claim.attempt}`
   let jobId: string
   try {
-    await resetFailedNewsletterRecipients(runId)
     jobId = await queue.enqueue<NewsletterResendSyncPayload>(
       'newsletter-resend-sync',
       { runId, attempt: claim.attempt, requestedById },

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   isAsyncJobEnqueueError: vi.fn(),
   markFailed: vi.fn(),
   markPushed: vi.fn(),
+  queueCancel: vi.fn(),
   queueEnqueue: vi.fn(),
   queueGetJob: vi.fn(),
   requireAttempt: vi.fn(),
@@ -31,6 +32,8 @@ vi.mock('@/lib/core/async-jobs', () => ({
   JOB_STATUS: {
     COMPLETED: 'completed',
     FAILED: 'failed',
+    PENDING: 'pending',
+    PROCESSING: 'processing',
   },
 }))
 
@@ -70,6 +73,7 @@ describe('newsletter Resend queueing', () => {
     vi.clearAllMocks()
     mocks.getAsyncBackendType.mockReturnValue('trigger-dev')
     mocks.getJobQueue.mockResolvedValue({
+      cancelJob: mocks.queueCancel,
       enqueue: mocks.queueEnqueue,
       getJob: mocks.queueGetJob,
     })
@@ -93,6 +97,7 @@ describe('newsletter Resend queueing', () => {
       expect.objectContaining({ jobId: 'newsletter_resend_run-1_2', maxAttempts: 3 })
     )
     expect(mocks.setJob).toHaveBeenCalledWith('run-1', 2, 'trigger-run-123')
+    expect(mocks.resetFailedRecipients).not.toHaveBeenCalled()
     expect(result.jobId).toBe('trigger-run-123')
   })
 
@@ -142,23 +147,151 @@ describe('newsletter Resend queueing', () => {
     )
   })
 
-  it('moves a newsletter run to failed when its persisted database job failed', async () => {
-    mocks.getAsyncBackendType.mockReturnValue('database')
-    mocks.claimAttempt.mockResolvedValue({
-      attempt: 2,
-      jobId: 'newsletter_resend_run-1_2',
-      run,
-      shouldEnqueue: false,
-    })
+  it('starts a new attempt when a persisted Trigger.dev job failed', async () => {
+    mocks.claimAttempt
+      .mockResolvedValueOnce({
+        attempt: 2,
+        jobId: 'trigger-run-failed',
+        run,
+        shouldEnqueue: false,
+      })
+      .mockResolvedValueOnce({
+        attempt: 3,
+        jobId: null,
+        run: { ...run, resendSyncJobId: null },
+        shouldEnqueue: true,
+      })
     mocks.queueGetJob.mockResolvedValue({
-      id: 'newsletter_resend_run-1_2',
+      id: 'trigger-run-failed',
       status: 'failed',
       error: 'worker stopped',
     })
+    mocks.queueEnqueue.mockResolvedValue('trigger-run-retry')
+    mocks.setJob.mockResolvedValue({ ...run, resendSyncJobId: 'trigger-run-retry' })
 
-    await expect(enqueueNewsletterResendSync('run-1', 'admin-1')).rejects.toThrow('worker stopped')
+    const result = await enqueueNewsletterResendSync('run-1', 'admin-1')
+
     expect(mocks.markFailed).toHaveBeenCalledWith('run-1', 2, expect.any(Error))
-    expect(mocks.queueEnqueue).not.toHaveBeenCalled()
+    expect(mocks.queueEnqueue).toHaveBeenCalledWith(
+      'newsletter-resend-sync',
+      { runId: 'run-1', attempt: 3, requestedById: 'admin-1' },
+      expect.objectContaining({ jobId: 'newsletter_resend_run-1_3' })
+    )
+    expect(result.jobId).toBe('trigger-run-retry')
+  })
+
+  it('starts a new attempt when a completed job did not finalize the newsletter run', async () => {
+    mocks.claimAttempt
+      .mockResolvedValueOnce({
+        attempt: 2,
+        jobId: 'trigger-run-completed',
+        run,
+        shouldEnqueue: false,
+      })
+      .mockResolvedValueOnce({
+        attempt: 3,
+        jobId: null,
+        run: { ...run, resendSyncJobId: null },
+        shouldEnqueue: true,
+      })
+    mocks.queueGetJob.mockResolvedValue({
+      id: 'trigger-run-completed',
+      status: 'completed',
+    })
+    mocks.queueEnqueue.mockResolvedValue('trigger-run-retry')
+    mocks.setJob.mockResolvedValue({ ...run, resendSyncJobId: 'trigger-run-retry' })
+
+    const result = await enqueueNewsletterResendSync('run-1', 'admin-1')
+
+    expect(mocks.markFailed).toHaveBeenCalledWith('run-1', 2, expect.any(Error))
+    expect(mocks.queueEnqueue).toHaveBeenCalledWith(
+      'newsletter-resend-sync',
+      { runId: 'run-1', attempt: 3, requestedById: 'admin-1' },
+      expect.objectContaining({ jobId: 'newsletter_resend_run-1_3' })
+    )
+    expect(result.jobId).toBe('trigger-run-retry')
+  })
+
+  it.each([
+    ['completed', { id: 'trigger-run-existing', status: 'completed' }],
+    ['processing', { id: 'trigger-run-existing', status: 'processing' }],
+    ['missing', null],
+  ])(
+    'keeps the stored job when the newsletter run is pushed and the provider job is %s',
+    async (_providerState, providerJob) => {
+      const pushedRun = { ...run, status: 'pushed' }
+      mocks.claimAttempt.mockResolvedValue({
+        attempt: 2,
+        jobId: 'trigger-run-existing',
+        run: pushedRun,
+        shouldEnqueue: false,
+      })
+      mocks.queueGetJob.mockResolvedValue(providerJob)
+
+      const result = await enqueueNewsletterResendSync('run-1', 'admin-1')
+
+      expect(mocks.queueGetJob).not.toHaveBeenCalled()
+      expect(mocks.markFailed).not.toHaveBeenCalled()
+      expect(mocks.queueEnqueue).not.toHaveBeenCalled()
+      expect(result).toEqual({ run: pushedRun, jobId: 'trigger-run-existing' })
+    }
+  )
+
+  it('re-enqueues when a stored Trigger.dev run no longer exists', async () => {
+    mocks.claimAttempt
+      .mockResolvedValueOnce({
+        attempt: 2,
+        jobId: 'trigger-run-missing',
+        run,
+        shouldEnqueue: false,
+      })
+      .mockResolvedValueOnce({
+        attempt: 3,
+        jobId: null,
+        run,
+        shouldEnqueue: true,
+      })
+    mocks.queueGetJob.mockResolvedValue(null)
+
+    await enqueueNewsletterResendSync('run-1', 'admin-1')
+
+    expect(mocks.markFailed).toHaveBeenCalledWith('run-1', 2, expect.any(Error))
+    expect(mocks.queueEnqueue).toHaveBeenCalledWith(
+      'newsletter-resend-sync',
+      { runId: 'run-1', attempt: 3, requestedById: 'admin-1' },
+      expect.objectContaining({ jobId: 'newsletter_resend_run-1_3' })
+    )
+  })
+
+  it('cancels and replaces an active Trigger.dev run when an admin resumes it', async () => {
+    mocks.claimAttempt
+      .mockResolvedValueOnce({
+        attempt: 2,
+        jobId: 'trigger-run-active',
+        run,
+        shouldEnqueue: false,
+      })
+      .mockResolvedValueOnce({
+        attempt: 3,
+        jobId: null,
+        run,
+        shouldEnqueue: true,
+      })
+    mocks.queueGetJob.mockResolvedValue({
+      id: 'trigger-run-active',
+      status: 'processing',
+    })
+
+    const result = await enqueueNewsletterResendSync('run-1', 'admin-1')
+
+    expect(mocks.queueCancel).toHaveBeenCalledWith('trigger-run-active')
+    expect(mocks.markFailed).toHaveBeenCalledWith('run-1', 2, expect.any(Error))
+    expect(mocks.queueEnqueue).toHaveBeenCalledWith(
+      'newsletter-resend-sync',
+      { runId: 'run-1', attempt: 3, requestedById: 'admin-1' },
+      expect.objectContaining({ jobId: 'newsletter_resend_run-1_3' })
+    )
+    expect(result.jobId).toBe('trigger-run-123')
   })
 
   it('resets failed recipients before a task retry', async () => {
@@ -173,8 +306,26 @@ describe('newsletter Resend queueing', () => {
       requestedById: 'admin-1',
     })
 
-    expect(mocks.resetFailedRecipients).toHaveBeenCalledWith('run-1')
+    expect(mocks.resetFailedRecipients).toHaveBeenCalledWith('run-1', 2)
     expect(mocks.markPushed).toHaveBeenCalledWith('run-1', 2, 'segment-1', 'Segment 1')
+  })
+
+  it('does not mark the run pushed while recipients remain pending', async () => {
+    mocks.requireAttempt.mockResolvedValue(run)
+    mocks.getExcludedEmails.mockResolvedValue(new Set())
+    mocks.getPendingRecipients.mockResolvedValue([])
+    mocks.countByStatus.mockResolvedValue({ pending: 1 })
+
+    await expect(
+      runNewsletterResendSync({
+        runId: 'run-1',
+        attempt: 2,
+        requestedById: 'admin-1',
+      })
+    ).rejects.toThrow('1 remain pending')
+
+    expect(mocks.markPushed).not.toHaveBeenCalled()
+    expect(mocks.markFailed).toHaveBeenCalledWith('run-1', 2, expect.any(Error))
   })
 
   it('treats same-attempt worker re-entry after success as a no-op', async () => {

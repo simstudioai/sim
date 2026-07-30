@@ -49,5 +49,6 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
   if (section === 'api-keys') return <ApiKeys scope='personal' />
   if (section === 'admin') return <Admin />
   if (section === 'mothership') return <Mothership />
-  return <Newsletters />
+  if (section === 'newsletters') return <Newsletters />
+  return null
 }

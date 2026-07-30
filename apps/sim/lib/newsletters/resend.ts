@@ -13,6 +13,8 @@ const RESEND_CONTACT_PROPERTY_PAGE_LIMIT = 100
 const RESEND_CONTACT_PROPERTY_MAX_PAGES = 10
 const RESEND_CONTACT_PAGE_LIMIT = 100
 const RESEND_CONTACT_MAX_PAGES = 1000
+const RESEND_SUPPRESSION_PAGE_LIMIT = 100
+const RESEND_SUPPRESSION_MAX_PAGES = 1000
 const NEWSLETTER_CONTACT_PROPERTY_KEYS = ['sim_user_id', 'newsletter_run_id'] as const
 
 interface ResendErrorBody {
@@ -43,7 +45,7 @@ interface ResendRequestOptions {
 }
 
 const resendSuppressionListSchema = z.object({
-  data: z.array(z.object({ email: z.string().min(1) })),
+  data: z.array(z.object({ id: z.string().min(1), email: z.string().min(1) })),
   has_more: z.boolean(),
 })
 
@@ -116,22 +118,37 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
 }
 
 export async function getResendSuppressedEmails(options?: { required?: boolean }) {
-  const rawResponse = await resendRequest<unknown>('/suppressions', {
-    required: options?.required ?? true,
-  })
-  if (rawResponse === undefined) return new Set<string>()
-  const parsedResponse = resendSuppressionListSchema.safeParse(rawResponse)
-  if (!parsedResponse.success) {
-    throw new Error('Resend suppression list response was malformed')
-  }
-  const response = parsedResponse.data
   const emails = new Set<string>()
-  if (response?.has_more) {
-    throw new Error('Resend suppression list was incomplete')
+  let after: string | null = null
+  let hasMore = false
+
+  for (let page = 0; page < RESEND_SUPPRESSION_MAX_PAGES; page++) {
+    const query = new URLSearchParams({ limit: String(RESEND_SUPPRESSION_PAGE_LIMIT) })
+    if (after) query.set('after', after)
+    const rawResponse = await resendRequest<unknown>(`/suppressions?${query.toString()}`, {
+      required: options?.required ?? true,
+    })
+    if (rawResponse === undefined) return emails
+    const parsedResponse = resendSuppressionListSchema.safeParse(rawResponse)
+    if (!parsedResponse.success) {
+      throw new Error('Resend suppression list response was malformed')
+    }
+    const response = parsedResponse.data
+
+    for (const suppression of response.data) {
+      emails.add(normalizeEmail(suppression.email))
+    }
+
+    hasMore = response.has_more
+    if (!hasMore) break
+    after = response.data.at(-1)?.id ?? null
+    if (!after) throw new Error('Resend suppression pagination returned no cursor')
   }
-  for (const suppression of response.data) {
-    emails.add(normalizeEmail(suppression.email))
+
+  if (hasMore) {
+    throw new Error('Resend suppression list exceeded the pagination safety limit')
   }
+
   return emails
 }
 
