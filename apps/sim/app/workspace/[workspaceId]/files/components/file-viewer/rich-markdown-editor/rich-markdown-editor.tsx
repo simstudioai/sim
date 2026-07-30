@@ -784,6 +784,8 @@ export function LoadedRichMarkdownEditor({
   const pendingStreamBodyRef = useRef<string | null>(null)
   const streamRafRef = useRef<number | null>(null)
   const lastStreamParseAtRef = useRef(0)
+  const settleRunSeqRef = useRef(0)
+  const pendingCollapseRef = useRef(false)
   useEffect(() => {
     if (!editor) return
     // Collaboration and agent-streaming are disjoint surfaces: collaboration is enabled
@@ -801,9 +803,29 @@ export function LoadedRichMarkdownEditor({
         emitUpdate: false,
       })
     }
+    // Editor view mutations flush synchronously through the @tiptap/react binding (setContent mounts
+    // the React node views via flushSync — tiptap#3764), so calling them directly in this effect body
+    // throws "flushSync ... cannot flush while rendering" when the effect runs mid-render. Defer to a
+    // microtask (after commit, before paint). The streaming rAF tick below already runs off-render.
+    //
+    // Tag each run: a deferred mutation applies only if it is still the latest run (this effect has
+    // several early-return exits, so a run-token beats a per-exit cleanup flag) and the editor is
+    // alive. This drops a superseded run's microtask when React ran the next pass — a newer stream or
+    // settle — before the microtask flushed, so it can't overwrite the newer state.
+    const runSeq = ++settleRunSeqRef.current
+    const runOffRender = (mutate: () => void) => {
+      queueMicrotask(() => {
+        if (runSeq !== settleRunSeqRef.current || editor.isDestroyed) return
+        mutate()
+      })
+    }
     if (isStreaming) {
       wasStreamingRef.current = true
-      if (editor.isEditable) editor.setEditable(false)
+      if (editor.isEditable) {
+        runOffRender(() => {
+          if (editor.isEditable) editor.setEditable(false)
+        })
+      }
       const body = splitFrontmatter(content).body
       if (body === lastSyncedBodyRef.current) return
       pendingStreamBodyRef.current = body
@@ -852,22 +874,37 @@ export function LoadedRichMarkdownEditor({
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      syncEditorBody(splitFrontmatter(content).body)
-      // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
-      // select-all survives as "select everything," permanently painting every divider/image with the
-      // `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. This must run
-      // on every settle regardless of whether `setContent` ran just above: the last streaming tick
-      // already syncs `lastSyncedBodyRef` to the final body before settle, so `body` usually already
-      // equals it here — collapsing only inside that `if` would skip the common streamed-content case
-      // entirely. `setTextSelection` (not `.focus()`) so this never steals DOM focus from whatever the
-      // user is doing outside the editor.
-      editor.commands.setTextSelection(editor.state.doc.content.size)
-      editor.setEditable(canEdit && settledRef.current.verdict && collabReady)
-      if (isInitialSettle && autoFocus) editor.commands.focus('end')
+      const settledVerdict = settledRef.current.verdict
+      const shouldFocus = isInitialSettle && autoFocus
+      // A settle owes a selection collapse. Track it as a ref, not just inline in this microtask: if a
+      // newer run bumps the token before this microtask fires, this settle's task is dropped — but the
+      // debt survives, and the run that supersedes it (settle OR the steady-sync path below) clears it.
+      pendingCollapseRef.current = true
+      // One ordered microtask: set body → collapse selection → re-apply editability. The collapse is
+      // load-bearing and runs on every settle even when the body is unchanged — setContent maps a
+      // pre-existing selection onto the new doc, so a prior select-all survives as "select everything",
+      // permanently painting every divider/image with the rich-leaf-in-selection decoration (keymap.ts)
+      // until the user clicks away. setTextSelection (not .focus()) never steals DOM focus.
+      runOffRender(() => {
+        syncEditorBody(splitFrontmatter(content).body)
+        pendingCollapseRef.current = false
+        editor.commands.setTextSelection(editor.state.doc.content.size)
+        editor.setEditable(canEdit && settledVerdict && collabReady)
+        if (shouldFocus) editor.commands.focus('end')
+      })
       return
     }
-    syncEditorBody(splitFrontmatter(content).body)
-    if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict && collabReady)
+    const settled = settledRef.current
+    runOffRender(() => {
+      syncEditorBody(splitFrontmatter(content).body)
+      // Honor a collapse a superseded settle owed but never applied (its microtask was dropped when this
+      // run bumped the token), so a post-stream select-all can't keep the leaf-in-selection decoration.
+      if (pendingCollapseRef.current) {
+        pendingCollapseRef.current = false
+        editor.commands.setTextSelection(editor.state.doc.content.size)
+      }
+      if (settled) editor.setEditable(canEdit && settled.verdict && collabReady)
+    })
   }, [
     editor,
     content,
