@@ -58,6 +58,7 @@ vi.mock('@/lib/newsletters/runs', () => ({
   updateRecipientSyncStatus: mocks.updateRecipient,
 }))
 
+import { pushNewsletterRunResponseSchema } from '@/lib/api/contracts/newsletters'
 import { enqueueNewsletterResendSync, runNewsletterResendSync } from '@/lib/newsletters/push-resend'
 
 const run = {
@@ -86,6 +87,7 @@ describe('newsletter Resend queueing', () => {
     })
     mocks.queueEnqueue.mockResolvedValue('trigger-run-123')
     mocks.setJob.mockResolvedValue({ ...run, resendSyncJobId: 'trigger-run-123' })
+    mocks.setSegment.mockResolvedValue(run)
     mocks.isAsyncJobEnqueueError.mockReturnValue(false)
   })
 
@@ -238,6 +240,55 @@ describe('newsletter Resend queueing', () => {
     }
   )
 
+  it('does not enqueue a pushed run without a stored job id', async () => {
+    const pushedRun = { ...run, status: 'pushed' }
+    mocks.claimAttempt.mockResolvedValue({
+      attempt: 2,
+      jobId: null,
+      run: pushedRun,
+      shouldEnqueue: false,
+    })
+
+    const result = await enqueueNewsletterResendSync('run-1', 'admin-1')
+
+    expect(mocks.getJobQueue).not.toHaveBeenCalled()
+    expect(mocks.queueEnqueue).not.toHaveBeenCalled()
+    expect(result).toEqual({ run: pushedRun, jobId: null })
+    expect(pushNewsletterRunResponseSchema.shape.jobId.parse(result.jobId)).toBeNull()
+  })
+
+  it.each([
+    ['completed', { id: 'trigger-run-existing', status: 'completed' }],
+    ['failed', { id: 'trigger-run-existing', status: 'failed', error: 'worker failed' }],
+    ['processing', { id: 'trigger-run-existing', status: 'processing' }],
+  ])(
+    'does not enqueue when reconciliation of a %s job refreshes to pushed',
+    async (_providerState, providerJob) => {
+      const pushedRun = { ...run, status: 'pushed' }
+      mocks.claimAttempt
+        .mockResolvedValueOnce({
+          attempt: 2,
+          jobId: 'trigger-run-existing',
+          run,
+          shouldEnqueue: false,
+        })
+        .mockResolvedValueOnce({
+          attempt: 2,
+          jobId: null,
+          run: pushedRun,
+          shouldEnqueue: false,
+        })
+      mocks.queueGetJob.mockResolvedValue(providerJob)
+
+      const result = await enqueueNewsletterResendSync('run-1', 'admin-1')
+
+      expect(mocks.markFailed).toHaveBeenCalledWith('run-1', 2, expect.any(Error))
+      expect(mocks.queueEnqueue).not.toHaveBeenCalled()
+      expect(mocks.setJob).not.toHaveBeenCalled()
+      expect(result).toEqual({ run: pushedRun, jobId: null })
+    }
+  )
+
   it('re-enqueues when a stored Trigger.dev run no longer exists', async () => {
     mocks.claimAttempt
       .mockResolvedValueOnce({
@@ -339,6 +390,78 @@ describe('newsletter Resend queueing', () => {
     })
 
     expect(mocks.resetFailedRecipients).not.toHaveBeenCalled()
+    expect(mocks.markFailed).not.toHaveBeenCalled()
+  })
+
+  it('stops when the authoritative post-reset read is already pushed', async () => {
+    mocks.requireAttempt
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce({ ...run, status: 'pushed' })
+
+    await runNewsletterResendSync({
+      runId: 'run-1',
+      attempt: 2,
+      requestedById: 'admin-1',
+    })
+
+    expect(mocks.createSegment).not.toHaveBeenCalled()
+    expect(mocks.setSegment).not.toHaveBeenCalled()
+    expect(mocks.ensureProperties).not.toHaveBeenCalled()
+    expect(mocks.markFailed).not.toHaveBeenCalled()
+  })
+
+  it('uses the segment from the authoritative post-reset read', async () => {
+    const staleRun = {
+      ...run,
+      resendSegmentId: null,
+      resendSegmentName: null,
+    }
+    const currentRun = {
+      ...run,
+      resendSegmentId: 'segment-current',
+      resendSegmentName: 'Current segment',
+    }
+    mocks.requireAttempt.mockResolvedValueOnce(staleRun).mockResolvedValueOnce(currentRun)
+    mocks.setSegment.mockResolvedValue(currentRun)
+    mocks.getExcludedEmails.mockResolvedValue(new Set())
+    mocks.getPendingRecipients.mockResolvedValue([])
+    mocks.countByStatus.mockResolvedValue({})
+
+    await runNewsletterResendSync({
+      runId: 'run-1',
+      attempt: 2,
+      requestedById: 'admin-1',
+    })
+
+    expect(mocks.createSegment).not.toHaveBeenCalled()
+    expect(mocks.setSegment).toHaveBeenCalledWith('run-1', 2, 'segment-current', 'Current segment')
+    expect(mocks.markPushed).toHaveBeenCalledWith('run-1', 2, 'segment-current', 'Current segment')
+  })
+
+  it('stops when another worker pushes while a segment is being created', async () => {
+    const runWithoutSegment = {
+      ...run,
+      resendSegmentId: null,
+      resendSegmentName: null,
+    }
+    mocks.requireAttempt.mockResolvedValue(runWithoutSegment)
+    mocks.createSegment.mockResolvedValue({ id: 'segment-new', name: 'New segment' })
+    mocks.setSegment.mockResolvedValue({
+      ...run,
+      status: 'pushed',
+      resendSegmentId: 'segment-winner',
+      resendSegmentName: 'Winner segment',
+    })
+
+    await runNewsletterResendSync({
+      runId: 'run-1',
+      attempt: 2,
+      requestedById: 'admin-1',
+    })
+
+    expect(mocks.setSegment).toHaveBeenCalledWith('run-1', 2, 'segment-new', 'New segment')
+    expect(mocks.ensureProperties).not.toHaveBeenCalled()
+    expect(mocks.markPushed).not.toHaveBeenCalled()
     expect(mocks.markFailed).not.toHaveBeenCalled()
   })
 

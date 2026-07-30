@@ -114,7 +114,7 @@ export const newsletterRunResponseSchema = z.object({
 
 export const pushNewsletterRunResponseSchema = z.object({
   run: newsletterRunSchema,
-  jobId: z.string(),
+  jobId: z.string().nullable(),
 })
 
 export const newsletterJobResponseSchema = z.object({

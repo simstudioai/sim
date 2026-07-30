@@ -22,6 +22,8 @@ import {
   ensureNewsletterContactProperties,
   getResendExcludedEmails,
   getResendSuppressedEmails,
+  isNewsletterResendError,
+  NewsletterResendError,
 } from '@/lib/newsletters/resend'
 
 function jsonResponse(body: unknown, status = 200) {
@@ -50,6 +52,11 @@ describe('newsletter Resend service', () => {
     )
   })
 
+  it('classifies only typed Resend service failures', () => {
+    expect(isNewsletterResendError(new NewsletterResendError('provider unavailable'))).toBe(true)
+    expect(isNewsletterResendError(new Error('Resend text from unrelated code'))).toBe(false)
+  })
+
   it('does not make a Resend request when already aborted', async () => {
     const controller = new AbortController()
     controller.abort('cancelled')
@@ -58,6 +65,21 @@ describe('newsletter Resend service', () => {
       'cancelled'
     )
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves cancellation while reading a Resend error response', async () => {
+    const controller = new AbortController()
+    const body = new ReadableStream({
+      pull(streamController) {
+        controller.abort('cancelled while reading')
+        streamController.error(new Error('body read failed'))
+      },
+    })
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 400 }))
+
+    await expect(createNewsletterSegment('Segment 1', { signal: controller.signal })).rejects.toBe(
+      'cancelled while reading'
+    )
   })
 
   it('does not retry after cancellation during backoff', async () => {

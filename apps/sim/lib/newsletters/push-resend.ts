@@ -74,17 +74,32 @@ export async function runNewsletterResendSync(
       throw new Error('Newsletter run must be finalized before pushing to Resend')
     }
     await resetFailedNewsletterRecipients(runId, attempt)
-    await requireNewsletterRunAttempt(runId, attempt)
+    const currentRun = await requireNewsletterRunAttempt(runId, attempt)
+    if (currentRun.status === 'pushed') return
+    if (currentRun.status !== 'pushing' && currentRun.status !== 'failed') {
+      throw new Error('Newsletter run is not eligible to continue its Resend sync')
+    }
 
     signal?.throwIfAborted()
-    const segment =
-      run.resendSegmentId && run.resendSegmentName
-        ? { id: run.resendSegmentId, name: run.resendSegmentName }
-        : await createNewsletterSegment(segmentNameForRun(run.name), { signal })
+    const segmentCandidate =
+      currentRun.resendSegmentId && currentRun.resendSegmentName
+        ? { id: currentRun.resendSegmentId, name: currentRun.resendSegmentName }
+        : await createNewsletterSegment(segmentNameForRun(currentRun.name), { signal })
 
     signal?.throwIfAborted()
-    if (!run.resendSegmentId) {
-      await setNewsletterRunResendSegment(runId, attempt, segment.id, segment.name)
+    const segmentRun = await setNewsletterRunResendSegment(
+      runId,
+      attempt,
+      segmentCandidate.id,
+      segmentCandidate.name
+    )
+    if (segmentRun.status === 'pushed') return
+    if (!segmentRun.resendSegmentId || !segmentRun.resendSegmentName) {
+      throw new Error('Newsletter Resend segment tracking is incomplete')
+    }
+    const segment = {
+      id: segmentRun.resendSegmentId,
+      name: segmentRun.resendSegmentName,
     }
 
     signal?.throwIfAborted()
@@ -189,17 +204,21 @@ export async function runNewsletterResendSync(
 
 export async function enqueueNewsletterResendSync(runId: string, requestedById: string) {
   let claim = await claimNewsletterRunResendAttempt(runId)
+  if (claim.run.status === 'pushed') {
+    return { run: claim.run, jobId: claim.jobId }
+  }
+
   const queue = await getJobQueue()
   const backendType = getAsyncBackendType()
   if (!claim.shouldEnqueue && claim.jobId) {
-    if (claim.run.status === 'pushed') {
-      return { run: claim.run, jobId: claim.jobId }
-    }
     const persistedJob = await queue.getJob(claim.jobId)
     if (persistedJob?.status === JOB_STATUS.COMPLETED) {
       const error = new Error('Newsletter sync job completed without finalizing the newsletter run')
       await markNewsletterRunPushFailed(runId, claim.attempt, error)
       claim = await claimNewsletterRunResendAttempt(runId)
+      if (claim.run.status === 'pushed') {
+        return { run: claim.run, jobId: claim.jobId }
+      }
     } else if (backendType !== 'database') {
       if (
         persistedJob?.status === JOB_STATUS.PENDING ||
@@ -212,10 +231,16 @@ export async function enqueueNewsletterResendSync(runId: string, requestedById: 
       )
       await markNewsletterRunPushFailed(runId, claim.attempt, error)
       claim = await claimNewsletterRunResendAttempt(runId)
+      if (claim.run.status === 'pushed') {
+        return { run: claim.run, jobId: claim.jobId }
+      }
     } else if (persistedJob?.status === JOB_STATUS.FAILED) {
       const error = new Error(persistedJob.error ?? 'Newsletter sync job failed')
       await markNewsletterRunPushFailed(runId, claim.attempt, error)
       claim = await claimNewsletterRunResendAttempt(runId)
+      if (claim.run.status === 'pushed') {
+        return { run: claim.run, jobId: claim.jobId }
+      }
     }
   }
 
@@ -254,5 +279,5 @@ export async function enqueueNewsletterResendSync(runId: string, requestedById: 
       { cause: error }
     )
   }
-  return { run: updatedRun, jobId }
+  return { run: updatedRun, jobId: updatedRun.resendSyncJobId ?? jobId }
 }

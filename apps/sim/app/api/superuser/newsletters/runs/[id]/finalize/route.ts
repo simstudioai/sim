@@ -5,6 +5,7 @@ import { finalizeNewsletterRunContract } from '@/lib/api/contracts/newsletters'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateNewsletterSuperuser } from '@/lib/newsletters/auth'
+import { isNewsletterResendError } from '@/lib/newsletters/resend'
 import { finalizeNewsletterRun } from '@/lib/newsletters/runs'
 
 const logger = createLogger('NewsletterFinalizeAPI')
@@ -35,7 +36,7 @@ export const POST = withRouteHandler(
       if (/already in progress/i.test(message)) {
         return NextResponse.json({ error: message }, { status: 409 })
       }
-      if (/RESEND_API_KEY|Resend .*list|Resend request/i.test(message)) {
+      if (isNewsletterResendError(error)) {
         return NextResponse.json({ error: message }, { status: 503 })
       }
       logger.error('Failed to finalize newsletter run', { error: message })

@@ -45,6 +45,17 @@ interface ResendRequestOptions {
   signal?: AbortSignal
 }
 
+export class NewsletterResendError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'NewsletterResendError'
+  }
+}
+
+export function isNewsletterResendError(error: unknown): error is NewsletterResendError {
+  return error instanceof NewsletterResendError
+}
+
 const resendSuppressionListSchema = z.object({
   data: z.array(z.object({ id: z.string().min(1), email: z.string().min(1) })),
   has_more: z.boolean(),
@@ -64,7 +75,7 @@ const resendContactListSchema = z.object({
 function getResendApiKey(required = true): string | null {
   const key = env.RESEND_API_KEY?.trim()
   if (!key || key === 'placeholder') {
-    if (required) throw new Error('RESEND_API_KEY is not configured')
+    if (required) throw new NewsletterResendError('RESEND_API_KEY is not configured')
     return null
   }
   return key
@@ -90,22 +101,38 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
 
   for (let attempt = 0; attempt < RESEND_MAX_ATTEMPTS; attempt++) {
     options.signal?.throwIfAborted()
-    const response = await fetch(`${RESEND_API_BASE}${path}`, {
-      method: options.method ?? 'GET',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: options.signal,
-    })
+    let response: Response
+    try {
+      response = await fetch(`${RESEND_API_BASE}${path}`, {
+        method: options.method ?? 'GET',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: options.signal,
+      })
+    } catch (error) {
+      options.signal?.throwIfAborted()
+      throw new NewsletterResendError(getErrorMessage(error, 'Resend request failed'), {
+        cause: error,
+      })
+    }
 
     if (response.ok) {
       if (response.status === 204) return {} as T
-      return readResponseJsonWithLimit<T>(response, {
-        maxBytes: options.maxResponseBytes ?? RESEND_MAX_RESPONSE_BYTES,
-        label: 'Resend API response',
-      })
+      try {
+        return await readResponseJsonWithLimit<T>(response, {
+          maxBytes: options.maxResponseBytes ?? RESEND_MAX_RESPONSE_BYTES,
+          label: 'Resend API response',
+        })
+      } catch (error) {
+        options.signal?.throwIfAborted()
+        throw new NewsletterResendError(
+          getErrorMessage(error, 'Failed to read Resend API response'),
+          { cause: error }
+        )
+      }
     }
 
     if (response.status === 429 || response.status >= 500) {
@@ -115,10 +142,12 @@ async function resendRequest<T>(path: string, options: ResendRequestOptions = {}
       continue
     }
 
-    throw new Error(await readError(response))
+    const message = await readError(response)
+    options.signal?.throwIfAborted()
+    throw new NewsletterResendError(message)
   }
 
-  throw new Error('Resend request failed after retries')
+  throw new NewsletterResendError('Resend request failed after retries')
 }
 
 export async function getResendSuppressedEmails(options?: {
@@ -139,7 +168,7 @@ export async function getResendSuppressedEmails(options?: {
     if (rawResponse === undefined) return emails
     const parsedResponse = resendSuppressionListSchema.safeParse(rawResponse)
     if (!parsedResponse.success) {
-      throw new Error('Resend suppression list response was malformed')
+      throw new NewsletterResendError('Resend suppression list response was malformed')
     }
     const response = parsedResponse.data
 
@@ -150,11 +179,13 @@ export async function getResendSuppressedEmails(options?: {
     hasMore = response.has_more
     if (!hasMore) break
     after = response.data.at(-1)?.id ?? null
-    if (!after) throw new Error('Resend suppression pagination returned no cursor')
+    if (!after) {
+      throw new NewsletterResendError('Resend suppression pagination returned no cursor')
+    }
   }
 
   if (hasMore) {
-    throw new Error('Resend suppression list exceeded the pagination safety limit')
+    throw new NewsletterResendError('Resend suppression list exceeded the pagination safety limit')
   }
 
   return emails
@@ -179,7 +210,7 @@ export async function getResendExcludedEmails(options?: {
     })
     const parsedContacts = resendContactListSchema.safeParse(rawContacts)
     if (!parsedContacts.success) {
-      throw new Error('Resend contact list response was malformed')
+      throw new NewsletterResendError('Resend contact list response was malformed')
     }
     const contacts = parsedContacts.data
 
@@ -192,11 +223,11 @@ export async function getResendExcludedEmails(options?: {
     hasMore = contacts.has_more
     if (!hasMore) break
     after = contacts.data.at(-1)?.id ?? null
-    if (!after) throw new Error('Resend contact pagination returned no cursor')
+    if (!after) throw new NewsletterResendError('Resend contact pagination returned no cursor')
   }
 
   if (hasMore) {
-    throw new Error('Resend contact list exceeded the pagination safety limit')
+    throw new NewsletterResendError('Resend contact list exceeded the pagination safety limit')
   }
 
   return excludedEmails
@@ -236,11 +267,15 @@ export async function ensureNewsletterContactProperties(options?: {
     if (!hasMore) break
 
     after = response.data?.at(-1)?.id ?? null
-    if (!after) throw new Error('Resend contact property pagination returned no cursor')
+    if (!after) {
+      throw new NewsletterResendError('Resend contact property pagination returned no cursor')
+    }
   }
 
   if (hasMore) {
-    throw new Error('Resend contact property list exceeded the pagination safety limit')
+    throw new NewsletterResendError(
+      'Resend contact property list exceeded the pagination safety limit'
+    )
   }
 
   await Promise.all(

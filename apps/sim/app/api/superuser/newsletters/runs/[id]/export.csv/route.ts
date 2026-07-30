@@ -5,6 +5,7 @@ import { exportNewsletterRunCsvContract } from '@/lib/api/contracts/newsletters'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateNewsletterSuperuser } from '@/lib/newsletters/auth'
+import { isNewsletterResendError } from '@/lib/newsletters/resend'
 import { createNewsletterCsvExport } from '@/lib/newsletters/runs'
 
 const logger = createLogger('NewsletterCsvExportAPI')
@@ -58,7 +59,7 @@ export const GET = withRouteHandler(
       if (/Finalize/i.test(message)) {
         return NextResponse.json({ error: message }, { status: 400 })
       }
-      if (/RESEND_API_KEY|Resend .*list|Resend request/i.test(message)) {
+      if (isNewsletterResendError(error)) {
         return NextResponse.json({ error: message }, { status: 503 })
       }
       logger.error('Failed to export newsletter CSV', { error: message })

@@ -489,7 +489,7 @@ export async function claimNewsletterRunResendAttempt(
       attempt: current.resendSyncAttempt,
       jobId: current.resendSyncJobId,
       run: serializeNewsletterRun(current),
-      shouldEnqueue: current.resendSyncJobId === null,
+      shouldEnqueue: false,
     }
   }
   if (current.status === 'pushing') {
@@ -504,22 +504,43 @@ export async function claimNewsletterRunResendAttempt(
 }
 
 export async function setNewsletterRunResendJob(runId: string, attempt: number, jobId: string) {
-  const [updated] = await db
-    .update(newsletterAudienceRuns)
-    .set({
-      resendSyncJobId: jobId,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(newsletterAudienceRuns.id, runId),
-        eq(newsletterAudienceRuns.resendSyncAttempt, attempt),
-        inArray(newsletterAudienceRuns.status, ['pushing', 'failed', 'pushed'])
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(newsletterAudienceRuns)
+      .where(eq(newsletterAudienceRuns.id, runId))
+      .for('update')
+      .limit(1)
+    if (!current || current.resendSyncAttempt !== attempt) {
+      throw new Error('Newsletter Resend enqueue attempt was superseded')
+    }
+    if (current.status === 'pushed' && current.resendSyncJobId) {
+      return serializeNewsletterRun(current)
+    }
+    if (
+      current.status !== 'pushing' &&
+      current.status !== 'failed' &&
+      current.status !== 'pushed'
+    ) {
+      throw new Error('Newsletter run is not eligible to track a Resend sync job')
+    }
+
+    const [updated] = await tx
+      .update(newsletterAudienceRuns)
+      .set({
+        resendSyncJobId: jobId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(newsletterAudienceRuns.id, runId),
+          eq(newsletterAudienceRuns.resendSyncAttempt, attempt)
+        )
       )
-    )
-    .returning()
-  if (!updated) throw new Error('Newsletter Resend enqueue attempt was superseded')
-  return serializeNewsletterRun(updated)
+      .returning()
+    if (!updated) throw new Error('Newsletter Resend enqueue attempt was superseded')
+    return serializeNewsletterRun(updated)
+  })
 }
 
 export async function markNewsletterRunPushFailed(runId: string, attempt: number, error: unknown) {
@@ -608,19 +629,40 @@ export async function setNewsletterRunResendSegment(
   segmentId: string,
   segmentName: string
 ) {
-  await db
-    .update(newsletterAudienceRuns)
-    .set({
-      resendSegmentId: segmentId,
-      resendSegmentName: segmentName,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(newsletterAudienceRuns.id, runId),
-        eq(newsletterAudienceRuns.resendSyncAttempt, attempt)
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(newsletterAudienceRuns)
+      .where(eq(newsletterAudienceRuns.id, runId))
+      .for('update')
+      .limit(1)
+    if (!current || current.resendSyncAttempt !== attempt) {
+      throw new Error('Newsletter Resend sync attempt was superseded')
+    }
+    if (current.status === 'pushed' || (current.resendSegmentId && current.resendSegmentName)) {
+      return serializeNewsletterRun(current)
+    }
+    if (current.status !== 'pushing' && current.status !== 'failed') {
+      throw new Error('Newsletter run is not eligible to persist a Resend segment')
+    }
+
+    const [updated] = await tx
+      .update(newsletterAudienceRuns)
+      .set({
+        resendSegmentId: segmentId,
+        resendSegmentName: segmentName,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(newsletterAudienceRuns.id, runId),
+          eq(newsletterAudienceRuns.resendSyncAttempt, attempt)
+        )
       )
-    )
+      .returning()
+    if (!updated) throw new Error('Newsletter Resend sync attempt was superseded')
+    return serializeNewsletterRun(updated)
+  })
 }
 
 const NEWSLETTER_CSV_PAGE_SIZE = 1000

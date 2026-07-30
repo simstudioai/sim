@@ -14,9 +14,12 @@ vi.mock('@/lib/newsletters/resend', () => ({
 }))
 
 import {
+  claimNewsletterRunResendAttempt,
   createNewsletterCsvExport,
   markNewsletterRunPushed,
   resetFailedNewsletterRecipients,
+  setNewsletterRunResendJob,
+  setNewsletterRunResendSegment,
   updateRecipientSyncStatus,
 } from '@/lib/newsletters/runs'
 
@@ -107,6 +110,124 @@ describe('newsletter Resend state transitions', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(dbChainMockFns.select).toHaveBeenCalledOnce()
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+  })
+
+  it('never asks callers to enqueue an already pushed run', async () => {
+    queueTableRows(newsletterAudienceRuns, [
+      {
+        ...finalizedRun,
+        status: 'pushed',
+        resendSyncAttempt: 2,
+        resendSyncJobId: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const claim = await claimNewsletterRunResendAttempt('run-1')
+
+    expect(claim.shouldEnqueue).toBe(false)
+    expect(claim.jobId).toBeNull()
+  })
+
+  it('preserves established pushed job tracking', async () => {
+    queueTableRows(newsletterAudienceRuns, [
+      {
+        ...finalizedRun,
+        status: 'pushed',
+        resendSyncAttempt: 2,
+        resendSyncJobId: 'job-winner',
+      },
+    ])
+
+    const result = await setNewsletterRunResendJob('run-1', 2, 'job-late')
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(result.resendSyncJobId).toBe('job-winner')
+  })
+
+  it('fills missing pushed job tracking without changing the pushed state', async () => {
+    const pushedRun = {
+      ...finalizedRun,
+      status: 'pushed',
+      resendSyncAttempt: 2,
+      resendSyncJobId: null,
+    }
+    queueTableRows(newsletterAudienceRuns, [pushedRun])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...pushedRun, resendSyncJobId: 'job-accepted' },
+    ])
+
+    const result = await setNewsletterRunResendJob('run-1', 2, 'job-accepted')
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(result.status).toBe('pushed')
+    expect(result.resendSyncJobId).toBe('job-accepted')
+  })
+
+  it('does not overwrite a segment after the run is pushed', async () => {
+    const pushedRun = {
+      ...finalizedRun,
+      status: 'pushed',
+      resendSyncAttempt: 2,
+      resendSegmentId: 'segment-winner',
+      resendSegmentName: 'Winner segment',
+    }
+    queueTableRows(newsletterAudienceRuns, [pushedRun])
+
+    const result = await setNewsletterRunResendSegment('run-1', 2, 'segment-late', 'Late segment')
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(result.resendSegmentId).toBe('segment-winner')
+  })
+
+  it('keeps the first segment persisted by same-attempt workers', async () => {
+    const runWithSegment = {
+      ...finalizedRun,
+      status: 'pushing',
+      resendSyncAttempt: 2,
+      resendSegmentId: 'segment-first',
+      resendSegmentName: 'First segment',
+    }
+    queueTableRows(newsletterAudienceRuns, [runWithSegment])
+
+    const result = await setNewsletterRunResendSegment(
+      'run-1',
+      2,
+      'segment-second',
+      'Second segment'
+    )
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(result.resendSegmentId).toBe('segment-first')
+  })
+
+  it('locks the run while persisting the first segment', async () => {
+    const pushingRun = {
+      ...finalizedRun,
+      status: 'pushing',
+      resendSyncAttempt: 2,
+    }
+    queueTableRows(newsletterAudienceRuns, [pushingRun])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        ...pushingRun,
+        resendSegmentId: 'segment-first',
+        resendSegmentName: 'First segment',
+      },
+    ])
+
+    const result = await setNewsletterRunResendSegment('run-1', 2, 'segment-first', 'First segment')
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(result.resendSegmentId).toBe('segment-first')
   })
 })
 
