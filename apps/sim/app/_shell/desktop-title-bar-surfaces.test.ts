@@ -4,19 +4,29 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-/** Anchored to this file, not `process.cwd()`, which only resolves from `apps/sim`. */
-const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), 'utf8')
+/** Raw file contents, anchored to this file rather than `process.cwd()`. */
+const readRaw = (relativePath: string) =>
+  readFileSync(new URL(relativePath, import.meta.url), 'utf8')
 
 /**
  * Source with comments removed.
  *
- * Every negative assertion here must run through this. These files document the shapes
- * they deliberately avoid, so a bare `not.toContain('min-h-screen')` matches the prose
- * explaining why `min-h-screen` is gone and fails on correct code. The mirror case is
- * worse: prose containing a wanted token makes a positive assertion pass on broken code.
+ * EVERY assertion here runs on stripped source — which is why {@link read} strips at the
+ * point of reading rather than leaving it to each callsite. These files document the very
+ * shapes they enforce, in both directions:
+ *
+ * - a negative like `not.toContain('min-h-screen')` matches the prose explaining why
+ *   `min-h-screen` is gone, and fails on correct code;
+ * - a positive like `toContain('desktop-title-bar-page')` matches the TSDoc naming the
+ *   class, and passes even after the class is deleted from the markup.
+ *
+ * The second is the dangerous one, and stripping only negatives left it live.
  */
 const stripComments = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+/** Every audit constant below reads through this, so no assertion can match prose. */
+const read = (relativePath: string) => stripComments(readRaw(relativePath))
 
 const authLayout = read('../(auth)/layout.tsx')
 const authShell = read('../(auth)/components/auth-shell.tsx')
@@ -42,8 +52,8 @@ describe('desktop title-bar surface audit', () => {
     // `/invite/[id]` either, so the shell owns the lane unconditionally.
     expect(authShell).toContain('desktop-title-bar-page')
     expect(authShell).toContain('<DesktopTitleBarLane />')
-    expect(stripComments(authShell)).not.toContain('reserveDesktopTitleBar')
-    expect(stripComments(authShell)).not.toContain('min-h-screen')
+    expect(authShell).not.toContain('reserveDesktopTitleBar')
+    expect(authShell).not.toContain('min-h-screen')
     expect(authLayout).toContain('<AuthShell>')
   })
 
@@ -109,7 +119,7 @@ describe('desktop title-bar surface audit', () => {
     // tall empty slab over the content. It now hugs its content and caps at the pane
     // height less the lane and the bottom gutter, so a long list still scrolls.
     expect(workspaceChrome).toContain('max-h-[calc(100%-var(--desktop-title-bar-height)-8px)]')
-    expect(stripComments(workspaceChrome)).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
+    expect(workspaceChrome).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
   })
 
   it('reserves the login lane inside the box, never as a collapsing margin', () => {
@@ -117,7 +127,7 @@ describe('desktop title-bar surface audit', () => {
     // (body is a plain block box, so it opens no BFC) and displaces body itself. The
     // document then measured one full lane taller than the viewport, which is what made
     // the desktop login page scroll. Verified live: 40px of overflow, now 0.
-    const rule = stripComments(globalStyles.match(/\.desktop-title-bar-page \{[^}]*\}/)?.[0] ?? '')
+    const rule = globalStyles.match(/\.desktop-title-bar-page \{[^}]*\}/)?.[0] ?? ''
     expect(rule).toContain('padding-top: var(--desktop-title-bar-height)')
     expect(rule).toContain('min-height: 100vh')
     expect(rule).not.toContain('margin-top')
@@ -188,7 +198,7 @@ describe('desktop traffic-light lane coverage', () => {
       .map((f) => `app/${f}`)
 
     const unaccounted = files.filter((file) => {
-      const source = stripComments(read(`../${file.slice('app/'.length)}`))
+      const source = read(`../${file.slice('app/'.length)}`)
       const fillsViewport = /\b(min-h-screen|h-screen)\b/.test(source)
       if (!fillsViewport) return false
       // Composition counts: a surface is covered if it wears a shell that reserves the
@@ -209,7 +219,7 @@ describe('desktop traffic-light lane coverage', () => {
       .filter((f) => f.endsWith('.tsx'))
       .map((f) => `app/${f}`)
       .filter((file) => {
-        const source = stripComments(read(`../${file.slice('app/'.length)}`))
+        const source = read(`../${file.slice('app/'.length)}`)
         // The class alone clears the lights but leaves the strip undraggable, so the
         // window loses its title bar on that page. Shipped that way twice in this PR.
         return source.includes('desktop-title-bar-page') && !/<DesktopTitleBarLane\b/.test(source)
