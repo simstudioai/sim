@@ -950,7 +950,13 @@
                   "value": {
                     "workspaceId": "YOUR_WORKSPACE_ID",
                     "filter": {
-                      "status": "archived"
+                      "all": [
+                        {
+                          "field": "status",
+                          "op": "eq",
+                          "value": "archived"
+                        }
+                      ]
                     }
                   }
                 }
@@ -1809,6 +1815,10 @@
                 }
               }
             }
+          },
+          "folderId": {
+            "type": ["string", "null"],
+            "description": "Folder to create the table in. Omitted or null creates it at the workspace root."
           }
         }
       },

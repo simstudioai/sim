@@ -564,6 +564,16 @@
               "enum": ["asc", "desc"],
               "default": "desc"
             }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace that owns the knowledge base."
           }
         ],
         "responses": {
@@ -727,7 +737,19 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace that owns the knowledge base."
+          }
+        ]
       }
     },
     "/api/v2/knowledge/{id}/documents/{documentId}": {
@@ -791,7 +813,19 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace that owns the knowledge base."
+          }
+        ]
       },
       "delete": {
         "operationId": "deleteKnowledgeDocument",
@@ -845,7 +879,19 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace that owns the knowledge base."
+          }
+        ]
       }
     }
   },

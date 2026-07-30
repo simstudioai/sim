@@ -334,7 +334,9 @@
                     "isDeployed": true,
                     "deployedAt": "2026-06-12T10:30:00.000Z",
                     "version": 4,
-                    "warnings": []
+                    "warnings": [],
+                    "activeDeployment": null,
+                    "latestDeploymentAttempt": null
                   }
                 }
               }
@@ -411,7 +413,9 @@
                     "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                     "isDeployed": false,
                     "deployedAt": null,
-                    "warnings": []
+                    "warnings": [],
+                    "activeDeployment": null,
+                    "latestDeploymentAttempt": null
                   }
                 }
               }
@@ -508,7 +512,9 @@
                     "isDeployed": true,
                     "deployedAt": "2026-06-12T10:30:00.000Z",
                     "version": 3,
-                    "warnings": []
+                    "warnings": [],
+                    "activeDeployment": null,
+                    "latestDeploymentAttempt": null
                   }
                 }
               }
