@@ -785,6 +785,7 @@ export function LoadedRichMarkdownEditor({
   const streamRafRef = useRef<number | null>(null)
   const lastStreamParseAtRef = useRef(0)
   const settleRunSeqRef = useRef(0)
+  const pendingCollapseRef = useRef(false)
   useEffect(() => {
     if (!editor) return
     // Collaboration and agent-streaming are disjoint surfaces: collaboration is enabled
@@ -875,6 +876,10 @@ export function LoadedRichMarkdownEditor({
       settledRef.current = lockSettled(content)
       const settledVerdict = settledRef.current.verdict
       const shouldFocus = isInitialSettle && autoFocus
+      // A settle owes a selection collapse. Track it as a ref, not just inline in this microtask: if a
+      // newer run bumps the token before this microtask fires, this settle's task is dropped — but the
+      // debt survives, and the run that supersedes it (settle OR the steady-sync path below) clears it.
+      pendingCollapseRef.current = true
       // One ordered microtask: set body → collapse selection → re-apply editability. The collapse is
       // load-bearing and runs on every settle even when the body is unchanged — setContent maps a
       // pre-existing selection onto the new doc, so a prior select-all survives as "select everything",
@@ -882,6 +887,7 @@ export function LoadedRichMarkdownEditor({
       // until the user clicks away. setTextSelection (not .focus()) never steals DOM focus.
       runOffRender(() => {
         syncEditorBody(splitFrontmatter(content).body)
+        pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
         editor.setEditable(canEdit && settledVerdict && collabReady)
         if (shouldFocus) editor.commands.focus('end')
@@ -891,6 +897,12 @@ export function LoadedRichMarkdownEditor({
     const settled = settledRef.current
     runOffRender(() => {
       syncEditorBody(splitFrontmatter(content).body)
+      // Honor a collapse a superseded settle owed but never applied (its microtask was dropped when this
+      // run bumped the token), so a post-stream select-all can't keep the leaf-in-selection decoration.
+      if (pendingCollapseRef.current) {
+        pendingCollapseRef.current = false
+        editor.commands.setTextSelection(editor.state.doc.content.size)
+      }
       if (settled) editor.setEditable(canEdit && settled.verdict && collabReady)
     })
   }, [
