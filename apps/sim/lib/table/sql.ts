@@ -9,6 +9,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
+import { sqlCastForColumnType } from '@/lib/table/column-types'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
@@ -68,17 +69,12 @@ const MULTI_SELECT_OPS = new Set<FilterOp>([
  * Returns the Postgres cast needed to compare a JSONB text value of the given
  * column type, or `null` when text comparison is correct. Single source of
  * truth for both filter range operators and sort ordering — keeps the two
- * paths from drifting apart.
+ * paths from drifting apart. Delegates to the column-type registry
+ * (`column-types.ts`) so a new column type's cast rule only needs to be added
+ * in one place — see `ColumnTypeDefinition.sqlCast`.
  */
 function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestamptz' | null {
-  switch (type) {
-    case 'number':
-      return 'numeric'
-    case 'date':
-      return 'timestamptz'
-    default:
-      return null
-  }
+  return sqlCastForColumnType(type)
 }
 
 /**
