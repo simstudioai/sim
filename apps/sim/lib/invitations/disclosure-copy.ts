@@ -75,11 +75,20 @@ export function buildMembershipNotice({
   if (!isOrganizationScoped || !membershipIntent) return ''
 
   /**
-   * No preview: fall back to the invitation's sent intent, which is the only
-   * signal available.
+   * No preview means the outcome is genuinely unknown, and the callers also send
+   * no disclosure token, so acceptance runs without the consent guards. Asserting
+   * a seat-taking join here would be a promise nothing verifies — acceptance may
+   * resolve to external, already-a-member, or a failure. The copy is conditional
+   * instead: the consequence is still disclosed, without claiming it as settled.
    */
-  const outcome =
-    joinPreview?.outcome ?? (membershipIntent === 'external' ? 'external' : 'will-join')
+  if (!joinPreview) {
+    if (membershipIntent === 'external') {
+      return ` You'll join as an external collaborator: you get access to the invited workspaces only, and you don't take one of their seats.`
+    }
+    return ` If you're added to ${organizationLabel} as a member, that uses one of their seats.`
+  }
+
+  const outcome = joinPreview.outcome
 
   switch (outcome) {
     /**

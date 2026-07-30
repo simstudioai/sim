@@ -320,6 +320,7 @@ export function Teammates() {
           workspaceName={activeWorkspace?.name ?? 'Workspace'}
           inviteDisabledReason={inviteDisabledReason}
           organizationId={activeWorkspace?.organizationId ?? null}
+          canInvite={canManage}
         />
       )}
     </>

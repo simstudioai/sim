@@ -349,6 +349,7 @@ export function TeamManagement({
           open={inviteModalOpen}
           onOpenChange={setInviteModalOpen}
           organizationId={displayOrganization.id}
+          canInvite={adminOrOwner}
         />
       )}
 

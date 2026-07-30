@@ -78,7 +78,11 @@ describe('buildMembershipNotice', () => {
     expect(notice).not.toContain('uses one of their seats')
   })
 
-  it('falls back to the sent intent when no preview could be computed', () => {
+  /**
+   * With no preview the outcome is unknown and acceptance runs without the consent
+   * guards, so the copy must not assert a settled outcome.
+   */
+  it('hedges when no preview could be computed', () => {
     expect(
       buildMembershipNotice({
         joinPreview: null,
@@ -87,7 +91,17 @@ describe('buildMembershipNotice', () => {
         organizationLabel: 'Acme',
         isOrganizationScoped: true,
       })
-    ).toContain('uses one of their seats')
+    ).toContain("If you're added")
+
+    expect(
+      buildMembershipNotice({
+        joinPreview: null,
+        membershipIntent: 'internal',
+        isOrganizationAdminRole: false,
+        organizationLabel: 'Acme',
+        isOrganizationScoped: true,
+      })
+    ).not.toContain("You'll join Acme as")
 
     expect(
       buildMembershipNotice({
