@@ -99,7 +99,12 @@ describe('POST /api/cli/auth/poll', () => {
       workspaceId: null,
       workspaceBound: false,
     })
-    expect(mockGenerateCopilotApiKey).toHaveBeenCalledWith('user-1', expect.stringMatching(/^CLI /))
+    // Second precision, not day: a date-only name made the second login of the
+    // day fail after the user had already approved in the browser.
+    expect(mockGenerateCopilotApiKey).toHaveBeenCalledWith(
+      'user-1',
+      expect.stringMatching(/^CLI \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z\)$/)
+    )
     expect(mockCompleteApproval).toHaveBeenCalledWith(REQUEST)
     expect(mockReleaseMint).not.toHaveBeenCalled()
   })

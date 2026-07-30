@@ -28,18 +28,25 @@ const POLL_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-/** Keys are named for the day they were issued, matching what the CLI prints. */
+/**
+ * Names a minted key for the instant it was issued, e.g. `CLI (2026-07-30
+ * 15:42:07Z)`.
+ *
+ * Second precision, not day: key names are unique per owner, so a date-only
+ * name made the second login of the day fail outright with "a key named …
+ * already exists" — after the user had already approved in the browser. UTC so
+ * the name is unambiguous in a shared workspace list and sorts chronologically.
+ */
 function cliKeyName(): string {
-  return `CLI (${new Date().toISOString().slice(0, 10)})`
+  return `CLI (${new Date().toISOString().slice(0, 19).replace('T', ' ')}Z)`
 }
 
 /**
  * Mints from the key space the approval recorded.
  *
- * A name collision is reported as a conflict rather than retried under a
- * generated name: two logins on the same day from the same terminal should
- * reuse the existing key, and silently accumulating `CLI (date) (2)` rows
- * would hide that.
+ * A name collision is still surfaced rather than retried under a suffixed name:
+ * with second precision it means something genuinely unexpected, and silently
+ * accumulating near-identical rows would hide it.
  */
 async function mintForGrant(
   grant: ApprovalGrant
