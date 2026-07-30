@@ -485,12 +485,27 @@ export class FileDocStore {
    * file's key can't outlive its room. No-op when disabled (single-pod fallback). */
   async setSyncedVersion(name: string, version: number): Promise<void> {
     if (!this.enabled || !this.write) return
-    await this.write
-      .eval(SET_VERSION_IF_NEWER_SCRIPT, {
-        keys: [`${SYNC_VERSION_PREFIX}${name}`],
-        arguments: [String(version), String(STREAM_TTL_SEC)],
-      })
-      .catch(() => {})
+    // Retry a transient failure (bounded) rather than swallow it: this token is the ONLY way a
+    // peer-seeded task learns the durable version, so a dropped write would leave that peer's persists
+    // deferring forever with the session's edits stranded in the TTL'd stream. The monotonic script makes
+    // a retry that races a newer value a no-op, never a regression.
+    for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
+      try {
+        await this.write.eval(SET_VERSION_IF_NEWER_SCRIPT, {
+          keys: [`${SYNC_VERSION_PREFIX}${name}`],
+          arguments: [String(version), String(STREAM_TTL_SEC)],
+        })
+        return
+      } catch (error) {
+        if (attempt === PUBLISH_MAX_RETRIES) {
+          logger.warn(`FileDocStore setSyncedVersion failed for ${name}`, {
+            error: getErrorMessage(error),
+          })
+          return
+        }
+        await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
+      }
+    }
   }
 
   async releaseMergeSlot(name: string, token: string): Promise<void> {

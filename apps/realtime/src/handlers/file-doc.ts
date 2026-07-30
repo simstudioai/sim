@@ -248,7 +248,9 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   const userId = room.lastEditorUserId
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
   // this yields. Only meaningful once seeded; used only when the authoritative stream state is absent.
-  const localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
+  // NULLED after a reconcile (below): once we've merged an out-of-band edit in, this pre-reconcile
+  // snapshot predates it and must never be persisted as a fallback, or it would re-drop that edit.
+  let localState = isDocSeeded(room.doc) ? Y.encodeStateAsUpdate(room.doc) : null
 
   // Capture the AUTHORITATIVE doc state: the shared stream when enabled (a copilot merge or a peer's
   // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
@@ -267,7 +269,9 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
       return (await store.getStreamState(name)) ?? localState
     } catch (streamError) {
       // A transient Redis read must NOT drop the write when we already hold a valid local snapshot —
-      // else the last-disconnect flush loses the session's edits as the room is torn down.
+      // else the last-disconnect flush loses the session's edits as the room is torn down. But once a
+      // reconcile has run, `localState` is NULLED (it predates the merged-in out-of-band edit), so a
+      // failed read then correctly THROWS and aborts rather than clobbering with the stale snapshot.
       if (!localState) throw streamError
       logger.warn(`Stream state unavailable for file ${room.fileId}; persisting local snapshot`, {
         error: getErrorMessage(streamError),
@@ -359,9 +363,22 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
         )
         return
       }
+      if (reconciled === 'merge-unavailable') {
+        // Merge-lock contention (NOT an absent stream): the reconcile could not run, so we have not
+        // incorporated the out-of-band edit and must not re-persist against it. Stop without clobbering;
+        // the session's edits stay in the stream and a later flush (or the next opener) retries. Distinct
+        // from `no-live-room` so a transient lock miss is never mistaken for "nothing to reconcile".
+        logger.warn(
+          `Persist conflict for file ${room.fileId}: merge lock unavailable, reconcile deferred (edits remain in stream)`
+        )
+        return
+      }
       // The out-of-band content is now reconciled into the live doc AT `result.version`, so that is the
       // correct If-Match for the re-projection — advance to it directly rather than re-reading a version
-      // a concurrent teardown may have left stale in `room.syncedVersion`/Redis.
+      // a concurrent teardown may have left stale in `room.syncedVersion`/Redis. The pre-await
+      // `localState` snapshot now predates this reconcile, so drop it: a subsequent failed stream read
+      // must abort rather than fall back to a snapshot that would re-drop the just-merged out-of-band edit.
+      localState = null
       ifMatch = result.version
     }
   } catch (error) {
@@ -564,12 +581,15 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
  *
  * Returns `'no-live-room'` when there is no shared state to merge against (no doc is or was recently
  * live): the caller (copilot) writes the file directly and the next open seeds from that markdown.
+ * Returns `'merge-unavailable'` when the cross-task merge lock could not be acquired (transient
+ * contention, not an absent stream) — the caller likewise falls back to a direct write, but a persist
+ * reconcile treats it distinctly (retry later) rather than as "nothing to reconcile into".
  */
 export function applyMarkdownToLiveFileDoc(
   fileId: string,
   markdown: string,
   version?: number
-): Promise<'applied' | 'no-live-room'> {
+): Promise<'applied' | 'no-live-room' | 'merge-unavailable'> {
   const name = roomName(fileDocRoom(fileId))
   const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
   // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
@@ -590,7 +610,7 @@ async function mergeMarkdownIntoRoom(
   fileId: string,
   markdown: string,
   version?: number
-): Promise<'applied' | 'no-live-room'> {
+): Promise<'applied' | 'no-live-room' | 'merge-unavailable'> {
   const store = getFileDocStore()
 
   // The durable version this merge carries is now incorporated in the live doc — record it (cluster-wide
@@ -620,7 +640,7 @@ async function mergeMarkdownIntoRoom(
     }
     if (!token) {
       logger.warn(`Merge lock unavailable for file ${fileId}; skipping live merge`)
-      return 'no-live-room'
+      return 'merge-unavailable'
     }
     try {
       // Compute the diff against the committed SHARED state and PUBLISH it — every task with the doc
