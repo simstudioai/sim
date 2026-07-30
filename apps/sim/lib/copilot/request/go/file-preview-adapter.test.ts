@@ -9,9 +9,10 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
-const { mergeEditIntoLiveFileDocMock } = vi.hoisted(() => ({
+const { mergeEditIntoLiveFileDocMock, isLiveDocMergeInFlightMock } = vi.hoisted(() => ({
   mergeEditIntoLiveFileDocMock:
     vi.fn<(fileId: string, markdown: string, version?: number) => Promise<void>>(),
+  isLiveDocMergeInFlightMock: vi.fn<(fileId: string) => boolean>(),
 }))
 
 const { peekFileIntentMock } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const { peekFileIntentMock } = vi.hoisted(() => ({
 
 vi.mock('@/lib/realtime/notify', () => ({
   mergeEditIntoLiveFileDoc: mergeEditIntoLiveFileDocMock,
+  isLiveDocMergeInFlight: isLiveDocMergeInFlightMock,
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-intent-store', () => ({
@@ -95,7 +97,9 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mergeEditIntoLiveFileDocMock.mockResolvedValue(undefined)
-    peekFileIntentMock.mockResolvedValue(undefined)
+    isLiveDocMergeInFlightMock.mockReturnValue(false)
+    // Default: an append/patch base is available (a non-empty file), so the base-present gate passes.
+    peekFileIntentMock.mockResolvedValue({ existingContent: 'Base.' })
     state = createFilePreviewAdapterState()
     nowMs = 1_000_000
     vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
@@ -120,7 +124,7 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
   }
 
   it('merges the growing full content (no version arg) into the live doc as it streams', async () => {
-    const intent = makeIntent({ operation: 'update', fileId: 'file-grow', fileName: 'notes.md' })
+    const intent = makeIntent({ operation: 'append', fileId: 'file-grow', fileName: 'notes.md' })
 
     await drive(editContentDelta('{"content":"Hello'), intent)
     await flushMicrotasks()
@@ -131,17 +135,21 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     await flushMicrotasks()
 
     expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(2)
-    expect(mergeEditIntoLiveFileDocMock.mock.calls[0]).toEqual(['file-grow', 'Hello'])
-    // The second merge carries the GROWN full text, never a diff.
-    expect(mergeEditIntoLiveFileDocMock.mock.calls[1]).toEqual(['file-grow', 'Hello world'])
-    // No version arg on either streaming merge — the durable version rides the final edit_content write.
-    expect(mergeEditIntoLiveFileDocMock.mock.calls[0]).toHaveLength(2)
-    expect(mergeEditIntoLiveFileDocMock.mock.calls[1]).toHaveLength(2)
+    const [first, second] = mergeEditIntoLiveFileDocMock.mock.calls
+    // A full-file snapshot (base + streamed), never a diff; it grows across deltas; no version arg on
+    // either streaming merge — the durable version rides the final edit_content write.
+    expect(first[0]).toBe('file-grow')
+    expect(first).toHaveLength(2)
+    expect(first[1]).toContain('Base.')
+    expect(first[1]).toContain('Hello')
+    expect(second).toHaveLength(2)
+    expect(second[1]).toContain('Hello world')
+    expect(second[1].length).toBeGreaterThan(first[1].length)
   })
 
   it('throttles merges: two deltas within LIVE_DOC_MERGE_THROTTLE_MS yield one merge', async () => {
     const intent = makeIntent({
-      operation: 'update',
+      operation: 'append',
       fileId: 'file-throttle',
       fileName: 'notes.md',
     })
@@ -155,11 +163,10 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     await flushMicrotasks()
 
     expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledWith('file-throttle', 'Hel')
   })
 
   it('does not merge for a non-markdown file (no collaborative room)', async () => {
-    const intent = makeIntent({ operation: 'update', fileId: 'file-txt', fileName: 'notes.txt' })
+    const intent = makeIntent({ operation: 'append', fileId: 'file-txt', fileName: 'notes.txt' })
 
     await drive(editContentDelta('{"content":"plain text body'), intent)
     await flushMicrotasks()
@@ -176,6 +183,27 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     await flushMicrotasks()
 
     // A base-less snapshot would diff to a delete-everything wipe of the seeded doc, so it must be skipped.
+    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
+  })
+
+  it('does not stream an update (from-scratch rewrite) — it would blank the doc mid-stream', async () => {
+    const intent = makeIntent({ operation: 'update', fileId: 'file-update', fileName: 'notes.md' })
+
+    await drive(editContentDelta('{"content":"Rewritten intro'), intent)
+    await flushMicrotasks()
+
+    // Update streams a partial rewrite; diffing the full doc toward it would delete most of the file
+    // until it grows back, so update applies atomically at the final durable write instead.
+    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
+  })
+
+  it('skips the merge while one is already in flight for the file (does not backlog / advance throttle)', async () => {
+    isLiveDocMergeInFlightMock.mockReturnValue(true)
+    const intent = makeIntent({ operation: 'append', fileId: 'file-busy', fileName: 'notes.md' })
+
+    await drive(editContentDelta('{"content":"Hello'), intent)
+    await flushMicrotasks()
+
     expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
   })
 })

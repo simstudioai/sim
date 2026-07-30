@@ -10,10 +10,12 @@ import { applyMarkdownToYDoc } from './converter'
  * and applies the returned diff, which Yjs merges with any concurrent user edits before relaying it to
  * every connected editor.
  *
- * `applyMarkdownToYDoc` performs a real `updateYFragment` diff (not a replace), so unrelated
- * paragraphs the user is editing are preserved. The returned update is relative to the document's
- * state at call time (`Y.encodeStateAsUpdate(doc, before)`), so it is exactly the change to apply — and
- * is empty (a no-op update) when `markdown` already matches the document.
+ * `applyMarkdownToYDoc` performs a real `updateYFragment` diff (not a replace), so paragraphs the diff
+ * does not touch are preserved even while the user edits them. A region the incoming `markdown` DOES
+ * change is reconciled toward that markdown — a concurrent user edit inside such a region is diffed
+ * away, since `markdown` is built from a base snapshot, not the user's in-flight text. The returned
+ * update is relative to the document's state at call time (`Y.encodeStateAsUpdate(doc, before)`), so it
+ * is exactly the change to apply — and is empty (a no-op update) when `markdown` already matches.
  */
 export function buildFileDocMergeUpdate(docState: Uint8Array, markdown: string): Uint8Array {
   const doc = new Y.Doc()

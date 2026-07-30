@@ -24,7 +24,7 @@ import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
 } from '@/lib/copilot/tools/server/files/file-preview'
-import { mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
+import { isLiveDocMergeInFlight, mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 
@@ -653,19 +653,25 @@ export async function processFilePreviewStreamEvent(input: {
 
           // Stream the growing content into the file's LIVE collaborative Y.Doc (when a room is open)
           // so collaborators watching the file see the copilot write stream in via Yjs — the AI as a
-          // CRDT peer, applied by the relay as a minimal `updateYFragment` diff. Throttled per file;
-          // fire-and-forget so a slow relay never stalls the stream (`mergeEditIntoLiveFileDoc` never
-          // throws, coordinates ordering per file, and treats a versionless call as a non-durable
-          // preview merge). No-op for `create` (never streams here) and for a file with no open room
-          // (the relay reports `applied: false`). Gates: markdown only — non-markdown has no
-          // collaborative room; and for `append`/`patch`, only once the base file content has loaded —
-          // a base-less snapshot would diff to a delete-everything wipe of the seeded doc. `update`
-          // streams a full rewrite from scratch, so it needs no base.
+          // CRDT peer, applied by the relay as a minimal `updateYFragment` diff. Fire-and-forget so a
+          // slow relay never stalls the stream; `mergeEditIntoLiveFileDoc` serializes ordering per file
+          // and treats a versionless call as a non-durable preview merge (the final `edit_content`
+          // write carries the real version and reconciles the durable file). No-op for `create` (never
+          // streams here) and for a file with no open room (the relay reports `applied: false`).
+          //
+          // Gates: markdown only (non-markdown has no collaborative room). Only `append`/`patch` stream
+          // — they build on the existing content, so they need the base loaded (a base-less snapshot
+          // would diff to a delete-everything wipe of the seeded doc). `update` is a from-scratch
+          // rewrite: streaming its partial content would diff the full doc toward a fragment and blank
+          // it mid-stream, so it applies atomically at the final durable write instead. Skip while a
+          // merge is in flight for this file — one at a time, and don't advance the throttle on a
+          // no-op — so a slow relay can't backlog stale snapshots or make the doc lag the stream.
           const dueForLiveMerge =
             nextSession.fileId !== undefined &&
             isMarkdownFile({ name: nextSession.fileName ?? '' }) &&
-            (editIntent.operation === 'update' ||
-              currentPreview.session.baseContent !== undefined) &&
+            (editIntent.operation === 'append' || editIntent.operation === 'patch') &&
+            currentPreview.session.baseContent !== undefined &&
+            !isLiveDocMergeInFlight(nextSession.fileId) &&
             now - currentPreview.lastLiveMergeAt >= LIVE_DOC_MERGE_THROTTLE_MS
           const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt
           if (dueForLiveMerge && nextSession.fileId) {

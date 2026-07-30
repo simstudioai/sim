@@ -935,6 +935,11 @@ export function LoadedRichMarkdownEditor({
     []
   )
 
+  // Show the read-only placeholder only for a plain cold open — never during an agent stream. A stream
+  // that begins before the doc has seeded fills the (hidden) editor via Yjs, so gating the placeholder
+  // off while streaming lets that live content show through instead of hiding it behind stale markdown.
+  const showPlaceholder = collaborationEnabled && !collabReady && !isStreaming
+
   return (
     <div
       ref={containerRef}
@@ -959,7 +964,7 @@ export function LoadedRichMarkdownEditor({
           if (images.length > 0) void insertImagesRef.current(images, at)
         }}
       />
-      {collaborationEnabled && !collabReady && placeholderHtml && (
+      {showPlaceholder && placeholderHtml && (
         // Instant read-only content while the collaborative doc seeds; the editor stays mounted-but-
         // hidden below so it renders the seeded doc before the swap. Same layout box → no reflow.
         <div
@@ -971,7 +976,7 @@ export function LoadedRichMarkdownEditor({
         editor={editor}
         className={cn(
           'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
-          collaborationEnabled && !collabReady && 'hidden'
+          showPlaceholder && placeholderHtml && 'hidden'
         )}
       />
     </div>

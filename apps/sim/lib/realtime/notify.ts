@@ -121,8 +121,9 @@ export async function notifyFolderResourceChanged(
  * server-side), and the relay applies this merge THROUGH the shared Redis stream, so it reaches the
  * live doc on whichever task holds it and can't go stale relative to this direct write.
  *
- * Awaited (not fire-and-forget) so the fetch dispatches before the route handler returns; bounded to
- * {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency only when the socket pod is unreachable.
+ * A durable caller awaits this (so the fetch dispatches before the route handler returns); the copilot
+ * streaming caller fires and forgets it. Bounded to {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency
+ * only when the socket pod is unreachable.
  *
  * `version` is the durable `contentUpdatedAt` (epoch ms) this markdown was written with, for a durable
  * write. Omit it for a STREAMING intermediate merge (the copilot stream mid-flight): intermediate
@@ -130,32 +131,41 @@ export async function notifyFolderResourceChanged(
  * synced version pinned to the last durable write — which is exactly the copilot tool's final
  * `edit_content` write, carrying the real version, that reconciles the durable file.
  *
- * Concurrency is coordinated per file so that ordering can never regress the doc: a STREAMING
- * (versionless) merge is DROPPED while another is already in flight for the file — the next throttled
- * caller sends the latest snapshot, and a stale snapshot can never land after a newer one; a DURABLE
- * (versioned) write instead WAITS for the in-flight streaming merge, so the final content is always the
- * last merge applied and cannot be clobbered by a late straggler.
+ * Merges for a file run on a single serialized chain: each is chained after the current tail and
+ * applies strictly after it, so ordering can never regress the doc — a DURABLE (versioned) write
+ * always applies after any in-flight streaming merge AND after every earlier durable write, never
+ * concurrently. The final durable write is therefore always the last merge applied and cannot be
+ * clobbered by a late straggler. The copilot streaming caller uses {@link isLiveDocMergeInFlight} to
+ * skip redundant snapshots while one is in flight, so a slow relay can't backlog stale snapshots.
  */
 export async function mergeEditIntoLiveFileDoc(
   fileId: string,
   markdown: string,
   version?: number
 ): Promise<void> {
-  const pending = liveDocMergeInFlight.get(fileId)
-  if (version === undefined && pending) return
-  if (pending) await pending
-
-  const run = applyLiveFileDocMerge(fileId, markdown, version)
-  liveDocMergeInFlight.set(fileId, run)
+  const tail = liveDocMergeChain.get(fileId) ?? Promise.resolve()
+  const run = tail.then(() => applyLiveFileDocMerge(fileId, markdown, version))
+  liveDocMergeChain.set(fileId, run)
   try {
     await run
   } finally {
-    if (liveDocMergeInFlight.get(fileId) === run) liveDocMergeInFlight.delete(fileId)
+    if (liveDocMergeChain.get(fileId) === run) liveDocMergeChain.delete(fileId)
   }
 }
 
-/** Files with a live-doc merge in flight → the running merge promise (never rejects). */
-const liveDocMergeInFlight = new Map<string, Promise<void>>()
+/** Per file, the tail of the serialized merge chain (each merge applies after it); never rejects
+ *  because {@link applyLiveFileDocMerge} never throws. Absent when the file's chain is idle. */
+const liveDocMergeChain = new Map<string, Promise<void>>()
+
+/**
+ * Whether a live-doc merge is currently running or queued for the file. The copilot streaming caller
+ * checks this to skip a redundant snapshot (and to not advance its send throttle) while a merge is in
+ * flight — bounding the stream to one live merge per file at a time without backlogging stale
+ * snapshots behind a slow relay.
+ */
+export function isLiveDocMergeInFlight(fileId: string): boolean {
+  return liveDocMergeChain.has(fileId)
+}
 
 /** POST the merge to the relay. Never throws (a live-doc merge is best-effort). */
 async function applyLiveFileDocMerge(
