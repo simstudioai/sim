@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/resources/extraction'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import type { TableViewDraft } from '@/lib/table/types'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
@@ -100,6 +101,29 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
         deps.setActiveResourceId(editedFileId)
       }
       invalidateResourceQueries(deps.queryClient, deps.workspaceId, 'file', editedFileId)
+    }
+  }
+
+  if (name === 'user_table' && isSuccess && params?.operation === 'show_view') {
+    const out = output as Record<string, unknown> | undefined
+    const data =
+      out && typeof out.data === 'object' && out.data !== null
+        ? (out.data as Record<string, unknown>)
+        : undefined
+    const shownTableId = typeof data?.tableId === 'string' ? data.tableId : undefined
+    if (shownTableId) {
+      const viewDraft = (data?.draft as TableViewDraft | undefined) ?? undefined
+      // Remove-then-add rather than update-in-place: the embedded table seeds a
+      // draft once per mount, so re-presenting an already-open tab must remount
+      // it — and both operations persist, keeping the stored tab's draft current.
+      deps.removeResource('table', shownTableId)
+      deps.addResource({
+        type: 'table',
+        id: shownTableId,
+        title: typeof data?.title === 'string' ? data.title : 'Table',
+        ...(viewDraft ? { viewDraft } : {}),
+      })
+      deps.setActiveResourceId(shownTableId)
     }
   }
 

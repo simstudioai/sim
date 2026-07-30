@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
+import { domainObjectSchema } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import type { Filter, Sort } from '@/lib/table/types'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   message: 'Expected a valid date string',
@@ -191,10 +193,18 @@ export const adminMothershipQuerySchema = z
   .passthrough()
 export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
+/** Applied-but-unsaved table state a table resource tab carries (name-keyed). */
+const resourceViewDraftSchema = z.object({
+  filter: domainObjectSchema<Filter>().nullable().optional(),
+  sort: domainObjectSchema<Sort>().nullable().optional(),
+  hiddenColumns: z.array(z.string().max(200)).max(200).optional(),
+})
+
 const mothershipChatResourceItemSchema = z.object({
   type: z.string(),
   id: z.string(),
   title: z.string(),
+  viewDraft: resourceViewDraftSchema.optional(),
 })
 
 const mothershipChatResourcesResponseSchema = z.object({

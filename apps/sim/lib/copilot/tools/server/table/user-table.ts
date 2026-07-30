@@ -2150,6 +2150,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
         }
 
+        case 'show_view':
         case 'create_view':
         case 'update_view':
         case 'delete_view': {
@@ -2160,18 +2161,26 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!viewTable || viewTable.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
-          // Mutations are gated like the UI (keyed on the workspace's HOST org,
-          // matching the table page) — an agent must not create views the user
-          // can't see or delete. Reads stay ungated, like the routes.
-          const host = await getWorkspaceHostContextForViewer(workspaceId, context.userId)
-          const viewsUiEnabled = await isFeatureEnabled('table-views', {
-            userId: context.userId,
-            orgId: host?.hostOrganizationId ?? undefined,
-          })
-          if (!viewsUiEnabled) {
-            return {
-              success: false,
-              message: 'Table views are not enabled for this workspace',
+          // Gated like the UI (keyed on the workspace's HOST org, matching the
+          // table page) — an agent must not create views the user can't see, or
+          // present view chrome the workspace doesn't have. A slice-less
+          // show_view merely opens the table and stays ungated.
+          const rendersViewChrome =
+            operation !== 'show_view' ||
+            'filter' in args ||
+            'sort' in args ||
+            'hiddenColumns' in args
+          if (rendersViewChrome) {
+            const host = await getWorkspaceHostContextForViewer(workspaceId, context.userId)
+            const viewsUiEnabled = await isFeatureEnabled('table-views', {
+              userId: context.userId,
+              orgId: host?.hostOrganizationId ?? undefined,
+            })
+            if (!viewsUiEnabled) {
+              return {
+                success: false,
+                message: 'Table views are not enabled for this workspace',
+              }
             }
           }
 
@@ -2217,6 +2226,25 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           })
 
           try {
+            if (operation === 'show_view') {
+              // Persists nothing. Validates and normalizes the draft (unknown
+              // hidden columns rejected, select labels resolved to option ids),
+              // then returns it name-keyed — the client opens the table tab and
+              // seeds it as applied-but-unsaved state, where the existing
+              // "Save as view" affordance takes over if the user keeps it.
+              const config = configFromArgs()
+              const draft = {
+                filter: config.filter ? filterIdsToNames(config.filter, viewNameById) : null,
+                sort: config.sort ? sortIdsToNames(config.sort, viewNameById) : null,
+                hiddenColumns: (config.hiddenColumns ?? []).map((id) => viewNameById.get(id) ?? id),
+              }
+              return {
+                success: true,
+                message: `Showing ${viewTable.name} with the requested view applied (not saved)`,
+                data: { tableId: args.tableId, title: viewTable.name, draft },
+              }
+            }
+
             if (operation === 'create_view') {
               const viewName = args.viewName as string | undefined
               if (!viewName) {

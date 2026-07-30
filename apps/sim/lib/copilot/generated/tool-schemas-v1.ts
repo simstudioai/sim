@@ -4587,6 +4587,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'list_workflow_outputs',
             'list_enrichments',
             'add_enrichment',
+            'show_view',
             'create_view',
             'update_view',
             'delete_view',

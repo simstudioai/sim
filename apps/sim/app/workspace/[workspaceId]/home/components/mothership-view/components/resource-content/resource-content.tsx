@@ -229,11 +229,18 @@ export const ResourceContent = memo(function ResourceContent({
     case 'table':
       return (
         <Table
-          key={resource.id}
+          // Draft in the key: re-presenting an open tab with a new draft must
+          // remount, since the table seeds a draft once per mount.
+          key={
+            resource.viewDraft
+              ? `${resource.id}:${JSON.stringify(resource.viewDraft)}`
+              : resource.id
+          }
           workspaceId={workspaceId}
           tableId={resource.id}
           embedded
           viewsEnabled={tableViewsEnabled}
+          initialViewDraft={resource.viewDraft}
         />
       )
 

@@ -20,6 +20,18 @@ export type SortDirection = 'asc' | 'desc'
 /** Sort specification mapping column names to direction. */
 export type Sort = Record<string, SortDirection>
 
+/**
+ * Applied-but-unsaved table state on the wire — column-NAME keyed, unlike
+ * stored view configs. Carried by a mothership resource tab (and, id-keyed,
+ * by the standalone page's `table-draft` URL param) to show a filtered table
+ * without persisting a view.
+ */
+export interface TableViewDraft {
+  filter?: Filter | null
+  sort?: Sort | null
+  hiddenColumns?: string[]
+}
+
 /** Option for dropdown/select components. */
 export interface ColumnOption {
   value: string

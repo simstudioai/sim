@@ -1,3 +1,5 @@
+import type { TableViewDraft } from '@/lib/table/types'
+
 export const MothershipResourceType = {
   table: 'table',
   file: 'file',
@@ -21,6 +23,13 @@ export interface MothershipResource {
   id: string
   title: string
   path?: string
+  /**
+   * Table tabs only: applied-but-unsaved view state (column-name keyed) the
+   * embedded table seeds on mount. Set when the agent shows a filtered table
+   * without saving a view; persisted with the chat so reopening restores the
+   * tab as it was presented. See `TableViewDraft`.
+   */
+  viewDraft?: TableViewDraft
 }
 
 interface ResourcePolicy {

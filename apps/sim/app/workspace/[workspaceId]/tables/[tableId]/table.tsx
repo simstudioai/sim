@@ -18,9 +18,15 @@ import type {
   TableMetadata,
   TableRow as TableRowType,
   TableViewConfig,
+  TableViewDraft,
   WorkflowGroup,
 } from '@/lib/table'
-import { getColumnId } from '@/lib/table/column-keys'
+import {
+  buildIdByName,
+  filterNamesToIds,
+  getColumnId,
+  sortNamesToIds,
+} from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type BreadcrumbItem,
@@ -102,6 +108,14 @@ interface TableProps {
    * — enforcement of stored locks is unaffected either way.
    */
   tableLocksEnabled?: boolean
+  /**
+   * Applied-but-unsaved state to seed on mount, column-NAME keyed (the wire
+   * convention). Embedded only: the standalone page seeds the same thing from
+   * its own `table-draft` URL param, but embedded tables bind to the host
+   * page's URL — shared across resource tabs — so the draft rides the chat
+   * resource instead.
+   */
+  initialViewDraft?: TableViewDraft
   /**
    * Resolved `table-views` flag. Server-only to resolve for the same reason.
    * Defaults to `false` so the embedded mothership table — which has no server
@@ -210,6 +224,7 @@ export function Table({
   tableId: propTableId,
   tableLocksEnabled = false,
   viewsEnabled = false,
+  initialViewDraft,
 }: TableProps = {}) {
   const params = useParams()
   const router = useRouter()
@@ -255,14 +270,25 @@ export function Table({
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
     singleWorkflowCell: null,
   })
-  const [filter, setFilter] = useState<Filter | null>(null)
+  const [
+    { sort: sortColumn, dir: sortDirection, view: activeViewId, draft: urlDraft },
+    setTableParams,
+  ] = useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+
+  // Applied-but-unsaved state seeds from the URL draft so a reload or shared
+  // link keeps it. Lazy init, not an effect: the param is already parsed on
+  // first render, and this must count as the user's own work before the views
+  // query resolves. Embedded tables bind to the HOST page's URL, which other
+  // resource tabs share — they seed from `initialViewDraft` instead.
+  const [filter, setFilter] = useState<Filter | null>(() =>
+    embedded ? null : (urlDraft?.filter ?? null)
+  )
   const [filterOpen, setFilterOpen] = useState(false)
   /** Hidden **column ids**. Lives here (not in the grid) because the filter
    *  panel's Columns section edits it and the active view persists it. */
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
-
-  const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
-    useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() =>
+    embedded ? [] : (urlDraft?.hiddenColumns ?? [])
+  )
 
   // Read-only mirrors for the resolve effect: it must know whether the user has
   // already applied a filter / hidden columns without re-running when they change.
@@ -686,6 +712,44 @@ export function Table({
   const isViewDirty = storedViewConfig
     ? !isSameViewConfig(currentViewConfig, storedViewConfig)
     : Boolean(effectiveFilter) || Boolean(sortQuery) || effectiveHiddenColumns.length > 0
+
+  /** One-shot: `initialViewDraft` is name-keyed, so it can't seed until the
+   *  schema arrives to translate against. Skipped once anything is already
+   *  applied — the draft describes the tab's initial state, not a reset. */
+  const draftSeededRef = useRef(false)
+  useEffect(() => {
+    if (!embedded || !initialViewDraft || draftSeededRef.current) return
+    if (columns.length === 0) return
+    draftSeededRef.current = true
+    if (filterRef.current !== null || hiddenColumnsRef.current.length > 0) return
+    const idByName = buildIdByName({ columns })
+    if (initialViewDraft.filter) {
+      setFilter(filterNamesToIds(initialViewDraft.filter, idByName))
+    }
+    if (initialViewDraft.hiddenColumns && initialViewDraft.hiddenColumns.length > 0) {
+      setHiddenColumns(initialViewDraft.hiddenColumns.map((name) => idByName.get(name) ?? name))
+    }
+    if (initialViewDraft.sort) {
+      const entry = Object.entries(sortNamesToIds(initialViewDraft.sort, idByName))[0]
+      if (entry) setTableParams({ sort: entry[0], dir: entry[1] })
+    }
+  }, [embedded, initialViewDraft, columns, setTableParams])
+
+  /** Mirrors the applied-but-unsaved state into `?table-draft=` so a reload or
+   *  shared link keeps it. Dirty-gated: state that merely restates the active
+   *  view (or an empty All) clears the param rather than duplicating it.
+   *  Standalone only — the embedded host URL is shared across resource tabs. */
+  useEffect(() => {
+    if (embedded || !viewsEnabled) return
+    const draft =
+      isViewDirty && (effectiveFilter || effectiveHiddenColumns.length > 0)
+        ? {
+            ...(effectiveFilter ? { filter: effectiveFilter } : {}),
+            ...(effectiveHiddenColumns.length > 0 ? { hiddenColumns: effectiveHiddenColumns } : {}),
+          }
+        : null
+    setTableParams({ draft })
+  }, [embedded, viewsEnabled, isViewDirty, effectiveFilter, effectiveHiddenColumns, setTableParams])
 
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
    *  delete can't leave the modal editing stale data. */

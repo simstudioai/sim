@@ -1346,6 +1346,66 @@ describe('view operations', () => {
     expect(result.message).toContain('View not found')
   })
 
+  it('show_view validates and returns the draft name-keyed without persisting', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'show_view',
+        args: {
+          tableId: 'tbl_1',
+          filter: { Owner: { $eq: 'me' } },
+          hiddenColumns: ['Status'],
+        },
+      },
+      ctx
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({
+      tableId: 'tbl_1',
+      title: 'People',
+      draft: { filter: { Owner: { $eq: 'me' } }, sort: null, hiddenColumns: ['Status'] },
+    })
+    expect(mockCreateTableView).not.toHaveBeenCalled()
+    expect(mockUpdateTableView).not.toHaveBeenCalled()
+  })
+
+  it('show_view with only a tableId opens the table plain', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'show_view', args: { tableId: 'tbl_1' } },
+      ctx
+    )
+    expect(result.success).toBe(true)
+    expect(result.data?.draft).toEqual({ filter: null, sort: null, hiddenColumns: [] })
+  })
+
+  it('show_view rejects an unknown hidden column', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'show_view', args: { tableId: 'tbl_1', hiddenColumns: ['Nope'] } },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Unknown column')
+  })
+
+  it('show_view without draft slices opens the table even with the flag off', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(false)
+    const result = await userTableServerTool.execute(
+      { operation: 'show_view', args: { tableId: 'tbl_1' } },
+      ctx
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('show_view with a filter is flag-gated like the mutations', async () => {
+    mockIsFeatureEnabled.mockResolvedValueOnce(false)
+    const result = await userTableServerTool.execute(
+      { operation: 'show_view', args: { tableId: 'tbl_1', filter: { Owner: { $eq: 'me' } } } },
+      ctx
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('not enabled')
+  })
+
   it('refuses mutations when the table-views flag is off', async () => {
     mockIsFeatureEnabled.mockResolvedValueOnce(false)
     const result = await userTableServerTool.execute(

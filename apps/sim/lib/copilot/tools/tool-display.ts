@@ -319,6 +319,8 @@ function userTableTitle(args: ToolArgs): string {
       return 'Listing enrichments'
     case 'add_enrichment':
       return `Adding ${name || 'enrichment'}`
+    case 'show_view':
+      return 'Showing filtered table'
     case 'create_view':
       return 'Creating table view'
     case 'update_view':
@@ -1012,6 +1014,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Selecting: 'Selected',
   Setting: 'Set',
   Sharing: 'Shared',
+  Showing: 'Showed',
   Stopping: 'Stopped',
   Summarizing: 'Summarized',
   Switching: 'Switched',

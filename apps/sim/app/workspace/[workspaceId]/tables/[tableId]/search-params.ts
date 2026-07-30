@@ -1,5 +1,36 @@
-import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { createParser, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import type { Filter } from '@/lib/table/types'
 import { SORT_DIRECTIONS } from '@/lib/url-state'
+
+/** Ad-hoc state a draft carries: the two slices `sort`/`dir` don't already hold.
+ *  Column-ID keyed, like stored view configs — stable across renames. */
+export interface TableDraft {
+  filter?: Filter | null
+  hiddenColumns?: string[]
+}
+
+/**
+ * Applied-but-unsaved table state as one compact JSON param. A deliberate,
+ * narrow exception to the no-structured-blobs URL rule: a draft that dies on
+ * reload isn't a draft, and one param keeps the grammar out of the URL surface.
+ * Malformed values parse to `null` (fresh table) rather than throwing.
+ */
+const parseAsTableDraft = createParser<TableDraft>({
+  parse: (value) => {
+    try {
+      const parsed = JSON.parse(value)
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+      const draft: TableDraft = {}
+      if ('filter' in parsed) draft.filter = parsed.filter
+      if (Array.isArray(parsed.hiddenColumns)) draft.hiddenColumns = parsed.hiddenColumns
+      return Object.keys(draft).length > 0 ? draft : null
+    } catch {
+      return null
+    }
+  },
+  serialize: (draft) => JSON.stringify(draft),
+  eq: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+})
 
 /** Default sort direction applied when a sort column is selected. */
 export const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'
@@ -37,6 +68,8 @@ export const tableDetailParsers = {
    * same view even if someone later changes which one is default.
    */
   view: parseAsString,
+  /** Nullable by design: absent means no ad-hoc draft. */
+  draft: parseAsTableDraft,
 } as const
 
 /** Sentinel for an explicit "All" selection. See `tableDetailParsers.view`. */
@@ -52,5 +85,5 @@ export const ALL_VIEW_PARAM = 'all'
 export const tableDetailUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
-  urlKeys: { view: 'table-view' },
+  urlKeys: { view: 'table-view', draft: 'table-draft' },
 } as const
