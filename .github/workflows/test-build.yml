@@ -267,24 +267,14 @@ jobs:
       # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
       # actions/cache round-trip would eat the warm-build win.
       #
-      # Scoped per branch, not just per event. A sticky disk is a single mutable
-      # volume per key: mounting clones the last committed snapshot and the job
-      # commits back last-write-wins. Keyed on event alone, every open PR shared
-      # one volume, so each run cloned a snapshot built from a *different*
-      # branch. Measured on the same staging commit, minutes apart: the push
-      # disk (single-writer, genuinely warm) compiled in 9.3 min while the
-      # shared pull_request disk took 14.0 min.
-      #
-      # Branch scoping is also the correctness-preserving choice —
-      # turbopackFileSystemCacheForBuild is beta, and cross-commit restore is
-      # not a documented-supported mode (vercel/next.js#87283 reports stale HTML
-      # from a cache built at another commit). Every other cache layer here
-      # already isolates by branch: GitHub's cache can't read sibling branches,
-      # and Blacksmith's own cache product branch-scopes by default. Only this
-      # key didn't.
-      #
-      # Cost of per-branch disks is bounded by ci-cache-cleanup.yml, which
-      # deletes a branch's disk when its PR closes.
+      # Keyed per branch, not just per event. A sticky disk is one mutable volume
+      # per key: mounting clones the last committed snapshot, job end commits back
+      # last-write-wins. An event-only key had every open PR restoring a cache
+      # built from a different branch — 14.0 min vs 9.3 min for the single-writer
+      # push disk on the same commit. Branch scoping also keeps us off
+      # cross-commit restore, which turbopackFileSystemCacheForBuild (beta) does
+      # not document as supported (vercel/next.js#87283: stale HTML from a cache
+      # built at another commit). ci-cache-cleanup.yml reclaims the disks.
       - name: Mount Next.js build cache
         uses: ./.github/actions/cache-mount
         with:
@@ -310,19 +300,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      # Whether the Turbopack cache was warm is otherwise invisible: the disk
-      # mounts successfully either way, and turbo buffers the build log so
-      # compile time only surfaces at the end. Without this, "is the cache
-      # working" can only be answered by diffing compile times across runs and
-      # guessing. Reported, never gated — this is a measurement, not a check.
-      - name: Report Next.js cache state (pre-build)
-        run: |
-          CACHE_DIR=apps/sim/.next/cache
-          if [ -d "$CACHE_DIR" ] && [ -n "$(ls -A "$CACHE_DIR" 2>/dev/null)" ]; then
-            echo "PRE_BUILD_CACHE=warm ($(du -sh "$CACHE_DIR" | cut -f1), $(find "$CACHE_DIR" -type f | wc -l) files)"
-          else
-            echo 'PRE_BUILD_CACHE=cold (empty or absent — expect a full compile)'
-          fi
+      # The disk mounts successfully whether or not it carried anything and turbo
+      # buffers the build log, so cache warmth is otherwise unobservable — #5859
+      # shipped a cache that carried almost nothing and it took a PR to notice.
+      # Reported, never gated.
+      - name: Report Next.js cache size (pre-build)
+        run: du -sh apps/sim/.next/cache 2>/dev/null || echo 'cold — no cache restored'
 
       - name: Build application
         env:
@@ -336,18 +319,12 @@ jobs:
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
           # Opt into Turbopack's persistent build cache (beta) for this CI check
-          # build only. The 105s-cold/22s-warm figures behind this were measured
-          # locally and have never reproduced in CI, where compile has ranged
-          # 3.5-17.8 min — treat them as local numbers, not a CI target.
+          # build only. #5869's 105s-cold/22s-warm was measured locally and has
+          # never reproduced in CI (compile has ranged 3.5-17.8 min) — local
+          # numbers, not a CI target.
           NEXT_TURBOPACK_BUILD_CACHE: '1'
         run: bunx turbo run build --filter=sim
 
-      - name: Report Next.js cache state (post-build)
+      - name: Report Next.js cache size (post-build)
         if: always()
-        run: |
-          CACHE_DIR=apps/sim/.next/cache
-          if [ -d "$CACHE_DIR" ]; then
-            echo "POST_BUILD_CACHE=$(du -sh "$CACHE_DIR" | cut -f1) committed to the sticky disk for the next run on this branch"
-          else
-            echo 'POST_BUILD_CACHE=absent — the build wrote no cache'
-          fi
+        run: du -sh apps/sim/.next/cache 2>/dev/null || echo 'no cache written'
