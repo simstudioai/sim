@@ -13,7 +13,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipInput, ChipLink, Search, Tooltip } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink, cn, Search, Tooltip } from '@sim/emcn'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
@@ -123,7 +124,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={cn(PAGE_HEADER_BAR, 'justify-between')}>
         {back ? (
           <Chip leftIcon={back.icon} onClick={() => configRef?.current.back?.onSelect()}>
             {back.text}

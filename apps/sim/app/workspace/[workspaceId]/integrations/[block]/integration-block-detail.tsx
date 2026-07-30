@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import {
   blockTypeToIconMap,
   type Integration,
@@ -138,7 +139,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={PAGE_HEADER_BAR}>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>
