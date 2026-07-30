@@ -26,9 +26,12 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      # Must stay byte-identical to the Mount Next.js build cache key in
-      # test-build.yml, or this deletes nothing and the disks accumulate.
-      # Non-blocking: PRs skipped by ci.yml's paths-ignore never made a disk.
+      # A hard-coded legacy drain key. It no longer mirrors anything — the
+      # Mount Next.js build cache step it used to match was removed with the
+      # cache. Do not retarget or delete it while PRs from before that removal
+      # are still open, or their 5-12 GB disks are never reclaimed.
+      # Non-blocking: PRs skipped by ci.yml's paths-ignore never made a disk,
+      # and neither does any PR opened after the removal.
       - name: Delete sticky disk
         uses: useblacksmith/stickydisk-delete@b41313d28b8647d72114c9ba3c96bb04061562b6 # v1
         continue-on-error: true
