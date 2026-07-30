@@ -96,12 +96,6 @@ export function ConnectedCredentialDetail({
     [oauthServiceNameByProviderId]
   )
 
-  /**
-   * Service, brand tile, and copy all come from the shared resolver so this
-   * page, the integrations list, and the Cmd-K search agree on how a credential
-   * is named and branded — a family service account reads as its family
-   * ("Atlassian"), not as whichever product the provider walk happened to hit.
-   */
   const display = useMemo(
     () => (credential ? resolveCredentialDisplay(credential) : null),
     [credential]

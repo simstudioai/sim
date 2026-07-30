@@ -3,12 +3,11 @@
  * catalog integrations it powers, which mark and brand tile represent it, and
  * the sentence describing it.
  *
- * Before this module, three surfaces (the integrations list, the Cmd-K search
- * items, and the credential detail page) each re-derived this by looking the
- * catalog up by the OAuth service's *display name*. That silently failed for
- * family service accounts: `atlassian-service-account` resolves to a
- * pseudo-service named "Atlassian Service Account", which matches no catalog
- * integration, so the credential lost its brand tile and its category.
+ * Replaces a display-name-keyed catalog lookup that three surfaces each
+ * re-derived. That keying silently failed for family service accounts:
+ * `atlassian-service-account` resolves to a pseudo-service named "Atlassian
+ * Service Account", which matches no catalog entry, so the credential lost its
+ * brand tile and its category filter.
  */
 
 import type { ComponentType } from 'react'

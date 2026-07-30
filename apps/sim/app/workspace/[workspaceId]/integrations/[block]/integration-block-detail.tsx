@@ -68,12 +68,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   /**
-   * Credentials that authenticate this integration. Matching goes through
-   * `credentialProviderMatchesService` so a family service account lists on
-   * every product it powers — one Atlassian token covers Jira, Jira Service
-   * Management, and Confluence. Comparing resolved `providerId`s instead would
-   * hide it from all three, since `atlassian-service-account` resolves to its
-   * own pseudo-service rather than to any product.
+   * Matches on the service's own id *or* its service-account id, so a family
+   * credential lists on every product it powers. Comparing resolved
+   * `providerId`s instead hides it from all of them.
    */
   const connectedCredentials = useMemo(() => {
     if (!oauthService) return []

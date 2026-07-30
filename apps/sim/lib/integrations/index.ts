@@ -100,11 +100,6 @@ export function toIntegrationSummary(integration: Integration): IntegrationSumma
 
 export {
   type CredentialDisplay,
-  getIntegrationsForCredentialProvider,
-  getServiceAccountCoverageSentence,
-  getServiceAccountFamilyIcon,
-  getServiceAccountFamilyName,
-  isFamilyServiceAccount,
   resolveCredentialDisplay,
 } from '@/lib/integrations/credential-display'
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
