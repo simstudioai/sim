@@ -7,6 +7,7 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
+import { isValidColumnValue, parseColumnValue } from '@/lib/table/column-types'
 import {
   COLUMN_TYPES,
   getMaxRowSizeBytes,
@@ -15,14 +16,12 @@ import {
   TABLE_LIMITS,
   USER_TABLE_ROWS_SQL_NAME,
 } from '@/lib/table/constants'
-import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
 import { fieldPredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
   JsonValue,
   RowData,
-  SelectOption,
   TableSchema,
   ValidationResult,
 } from '@/lib/table/types'
@@ -220,7 +219,12 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   return { valid: errors.length === 0, errors }
 }
 
-/** Validates row data matches schema column types and required fields. */
+/**
+ * Validates row data matches schema column types and required fields.
+ * Delegates each column's shape check to the column-type registry
+ * (`column-types.ts`) so a new column type's validation rule only needs to be
+ * added in one place — see `ColumnTypeDefinition.isValidValue`.
+ */
 export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
@@ -234,174 +238,26 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
 
     if (value === null || value === undefined) continue
 
-    switch (column.type) {
-      case 'string':
-        if (typeof value !== 'string') {
-          errors.push(`${column.name} must be string, got ${typeof value}`)
-        }
-        break
-      case 'number':
-        if (typeof value !== 'number' || Number.isNaN(value)) {
-          errors.push(`${column.name} must be number`)
-        }
-        break
-      case 'boolean':
-        if (typeof value !== 'boolean') {
-          errors.push(`${column.name} must be boolean`)
-        }
-        break
-      case 'date':
-        if (
-          !(value instanceof Date) &&
-          (typeof value !== 'string' || Number.isNaN(Date.parse(value)))
-        ) {
-          errors.push(`${column.name} must be valid date`)
-        }
-        break
-      case 'json':
-        try {
-          JSON.stringify(value)
-        } catch {
-          errors.push(`${column.name} must be valid JSON`)
-        }
-        break
-      case 'select': {
-        const ids = optionIds(column)
-        if (column.multiple) {
-          if (!Array.isArray(value)) {
-            errors.push(`${column.name} must be a list of options`)
-          } else if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
-            errors.push(`${column.name} must only contain defined options`)
-          } else if (column.required && value.length === 0) {
-            errors.push(`Missing required field: ${column.name}`)
-          }
-        } else if (typeof value !== 'string' || !ids.has(value)) {
-          errors.push(`${column.name} must be one of the defined options`)
-        }
-        break
-      }
-    }
+    const error = isValidColumnValue(value, column)
+    if (error) errors.push(error)
   }
 
   return { valid: errors.length === 0, errors }
-}
-
-/** Set of valid option ids for a `select`/`multiselect` column. */
-function optionIds(column: ColumnDefinition): Set<string> {
-  return new Set((column.options ?? []).map((o) => o.id))
-}
-
-/**
- * Resolves a raw cell value to a declared option id, accepting either the
- * stable id or (tolerant for tool/import writes) the option's display name.
- * Returns null when no option matches. Exported so the column-type-conversion
- * path can gate a `select`/`multiselect` change on whether existing values
- * actually fit the target option set.
- */
-export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
-  // The block builder serializes without schema access, so an option NAME that
-  // looks numeric or boolean ("123", "true") arrives scalar-coerced. Stringify
-  // scalars so the name still resolves; arrays/objects stay unresolvable.
-  const text =
-    typeof value === 'string'
-      ? value
-      : typeof value === 'number' || typeof value === 'boolean'
-        ? String(value)
-        : null
-  if (text === null) return null
-  const byId = options.find((o) => o.id === text)
-  if (byId) return byId.id
-  const byName =
-    options.find((o) => o.name === text) ??
-    options.find((o) => o.name.toLowerCase() === text.toLowerCase())
-  return byName ? byName.id : null
-}
-
-/**
- * Splits a raw value into the parts a multi-select cell should resolve. A cell
- * may arrive as an array (canonical) or as a single comma-delimited string —
- * the shape a multi cell exports, copies, and converts to text as — so both the
- * write-path coercion and the column-conversion compatibility check read it
- * through here rather than each deciding for itself. Option names that
- * themselves contain commas are an accepted ambiguity.
- */
-export function splitMultiSelectInput(value: JsonValue): JsonValue[] {
-  if (Array.isArray(value)) return value
-  if (typeof value !== 'string') return [value]
-  return value
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part !== '')
 }
 
 /**
  * Attempts to coerce a non-null value to a column's declared type. Returns the
  * coerced value when the value already matches or can be converted without
  * ambiguity (e.g. the string `"1999"` to the number `1999`), and `ok: false`
- * when no safe conversion exists.
+ * when no safe conversion exists. Delegates to the column-type registry
+ * (`column-types.ts`) so a new column type's parse rule only needs to be
+ * added in one place — see `ColumnTypeDefinition.parse`.
  */
 function coerceValueToColumnType(
   value: JsonValue,
   column: ColumnDefinition
 ): { ok: true; value: JsonValue } | { ok: false } {
-  switch (column.type) {
-    case 'string':
-      if (typeof value === 'string') return { ok: true, value }
-      if (typeof value === 'number' || typeof value === 'boolean') {
-        return { ok: true, value: String(value) }
-      }
-      return { ok: false }
-    case 'number':
-      if (typeof value === 'number') {
-        return Number.isFinite(value) ? { ok: true, value } : { ok: false }
-      }
-      if (typeof value === 'string' && value.trim() !== '') {
-        const parsed = Number(value)
-        return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false }
-      }
-      return { ok: false }
-    case 'boolean':
-      if (typeof value === 'boolean') return { ok: true, value }
-      if (typeof value === 'string') {
-        const normalized = value.trim().toLowerCase()
-        if (normalized === 'true') return { ok: true, value: true }
-        if (normalized === 'false') return { ok: true, value: false }
-      }
-      return { ok: false }
-    case 'date': {
-      if (typeof value === 'string') {
-        const normalized = normalizeDateCellValue(value)
-        return normalized === null ? { ok: false } : { ok: true, value: normalized }
-      }
-      // Date instances and epoch numbers may still be out of the representable
-      // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
-      // an Invalid Date, so an over-range value degrades to `{ ok: false }`
-      // rather than crashing the write.
-      const date =
-        value instanceof Date ? value : typeof value === 'number' ? new Date(value) : null
-      if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
-      return { ok: false }
-    }
-    case 'select': {
-      const options = column.options ?? []
-      if (column.multiple) {
-        const raw = splitMultiSelectInput(value)
-        const ids: string[] = []
-        for (const entry of raw) {
-          const id = resolveSelectOptionId(entry, options)
-          if (id !== null && !ids.includes(id)) ids.push(id)
-        }
-        return { ok: true, value: ids }
-      }
-      // Single: tolerate an array (e.g. right after a multiple→single toggle) by
-      // resolving its first element so the value isn't dropped wholesale.
-      const single = Array.isArray(value) ? value[0] : value
-      const id = single === undefined ? null : resolveSelectOptionId(single, options)
-      return id !== null ? { ok: true, value: id } : { ok: false }
-    }
-    default:
-      return { ok: true, value }
-  }
+  return parseColumnValue(value, column)
 }
 
 /**
