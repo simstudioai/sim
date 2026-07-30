@@ -73,11 +73,13 @@ import {
 } from '@/tools/slack'
 import {
   tableBatchInsertRowsTool,
+  tableCreateTool,
   tableDeleteRowsByFilterTool,
   tableDeleteRowTool,
   tableGetRowTool,
   tableGetSchemaTool,
   tableInsertRowTool,
+  tableListTool,
   tableQueryRowsTool,
   tableQueryRowsV2Tool,
   tableUpdateRowsByFilterTool,
@@ -112,6 +114,8 @@ export const tools: Record<string, ToolConfig> = {
   table_query_rows_v2: tableQueryRowsV2Tool,
   table_get_row: tableGetRowTool,
   table_get_schema: tableGetSchemaTool,
+  table_create: tableCreateTool,
+  table_list: tableListTool,
   guardrails_validate: guardrailsValidateTool,
   // Needed so workflow-as-tool and custom (deploy-as-block) tools resolve their
   // config in minimal-registry dev mode (both route through `workflow_executor`).
