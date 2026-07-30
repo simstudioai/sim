@@ -10,7 +10,7 @@ import { buildIdByName, sortSpecNamesToIds } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
-import { decodeCursor } from '@/lib/table/rows/cursor'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
 import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
@@ -72,18 +72,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     const schema = table.schema as TableSchema
     const cursor = cursorToken ? decodeCursor(cursorToken) : undefined
 
-    // A keyset cursor is bound to the DEFAULT `(order_key, id)` order; combining
-    // it with a custom sort would relabel page 1 of the sorted view as a next page.
-    if (cursor?.after && sort?.length) {
-      return NextResponse.json(
-        {
-          error: 'Cursor is not valid for a sorted query. Restart paging without the cursor.',
-          code: 'CURSOR_SORT_CONFLICT',
-        },
-        { status: 400, headers: PRIVATE_NO_STORE }
-      )
-    }
-
     const idByName = buildIdByName(schema)
     // Fuses the id→name key remap with select-cell value formatting, so a select
     // cell surfaces its option NAME rather than the stored option id.
@@ -101,6 +89,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     const sortObj: Sort | undefined = sortSpec?.length
       ? Object.fromEntries(sortSpec.map((s) => [s.field, s.direction]))
       : undefined
+
+    // A cursor is only valid for the query shape it was minted under: keyset
+    // cursors bind to the default order, offset cursors to their sort. Runs on
+    // the STORAGE-keyed sort so the fingerprint matches what queryRows stamped.
+    if (cursor) assertCursorSortBinding(cursor, sortObj)
 
     // Public default is a bounded page (unlike the internal surface's unbounded
     // omit). `limit=0` is the explicit unbounded opt-in.

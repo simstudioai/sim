@@ -3,7 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
+import {
+  validatePredicate,
+  validatePredicateShape,
+  validateSortSpec,
+} from '@/lib/table/query-builder/validate'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const COLS: ColumnDefinition[] = [
@@ -173,5 +177,25 @@ describe('validatePredicate — legacy $-grammar diagnostics', () => {
     expect(() => validatePredicate({ nonsense: 'x' } as never, COLS)).toThrow(
       /must be a group .* or a condition/
     )
+  })
+})
+
+/**
+ * Bugbot round 2: `{all: []}` passes the dual union via the non-empty-OBJECT
+ * legacy branch, then compiled to no WHERE clause — silently widening a run /
+ * cancel / delete scope to every row. The shape validator now mirrors the Zod
+ * contract's .min(1).
+ */
+describe('empty groups are rejected at every layer', () => {
+  it('validatePredicateShape rejects an empty group', () => {
+    expect(() => validatePredicateShape({ all: [] })).toThrow(/at least one condition/)
+    expect(() => validatePredicateShape({ any: [] })).toThrow(/at least one condition/)
+    expect(() => validatePredicateShape({ all: [{ any: [] }] } as never)).toThrow(
+      /at least one condition/
+    )
+  })
+
+  it('validatePredicate rejects it too', () => {
+    expect(() => validatePredicate({ all: [] }, COLS)).toThrow(/at least one condition/)
   })
 })

@@ -403,7 +403,12 @@ describe('queryRows byte budget', () => {
 
     expect(dbChainMockFns.offset).toHaveBeenCalledWith(40)
     expect(result.rows).toHaveLength(1)
-    expect(decodeCursor(result.nextCursor as string)).toEqual({ offset: 41 })
+    // The offset cursor is stamped with the sort it was minted under, so a
+    // replay against a different ordering is rejected instead of paging wrong.
+    expect(decodeCursor(result.nextCursor as string)).toEqual({
+      offset: 41,
+      sortKey: JSON.stringify([['name', 'asc']]),
+    })
   })
 
   it('emits a compound cursor when rows past the inbound anchor are unkeyed', async () => {

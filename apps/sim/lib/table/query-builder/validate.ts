@@ -145,6 +145,15 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
         'INVALID_FILTER'
       )
     }
+    // Mirrors the Zod contract's .min(1). An empty group slips the strict union
+    // (falling to the non-empty-OBJECT legacy branch) and compiles to no WHERE
+    // clause — which on the run/cancel/delete scopes silently means EVERY row.
+    if (members.length === 0) {
+      throw new TableQueryValidationError(
+        'A filter group must contain at least one condition.',
+        'INVALID_FILTER'
+      )
+    }
     for (const child of members) validateNode(child, typeByName)
     return
   }

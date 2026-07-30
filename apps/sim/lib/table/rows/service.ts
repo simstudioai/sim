@@ -1145,6 +1145,7 @@ export async function queryRows(
           seekBase: fetched.anchor
             ? { anchor: fetched.anchor, offsetFromAnchor: fetched.anchorOffset }
             : undefined,
+          sort,
         })
       : null
 

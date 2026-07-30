@@ -497,3 +497,7 @@ describe('isTablePredicate vs columns literally named all/any', () => {
     expect(isTablePredicate({ any: [{ field: 'a', op: 'eq', value: 1 }] })).toBe(true)
   })
 })
+
+it('toLegacyFilter rejects an empty group instead of downgrading it to no WHERE', () => {
+  expect(() => toLegacyFilter({ all: [] })).toThrow(/at least one condition/)
+})

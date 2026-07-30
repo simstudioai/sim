@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -49,7 +49,7 @@ import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
-import { decodeCursor } from '@/lib/table/rows/cursor'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -700,11 +700,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // physically can't page). A keyset cursor is bound to the default order,
           // so it can't be combined with a fresh sort.
           const cursor = args.cursor ? decodeCursor(args.cursor) : undefined
-          if (cursor?.after && sort) {
-            return {
-              success: false,
-              message:
-                'Cursor is not valid for a sorted query. Restart paging without the cursor (omit it on the first sorted page).',
+          if (cursor) {
+            try {
+              // Keyset cursors bind to the default order; offset cursors to the
+              // exact sort they were minted under.
+              assertCursorSortBinding(cursor, sort)
+            } catch (bindError) {
+              return { success: false, message: getErrorMessage(bindError, 'Invalid cursor') }
             }
           }
 

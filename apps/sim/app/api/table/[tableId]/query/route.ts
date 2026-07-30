@@ -10,7 +10,7 @@ import type { Sort, TableSchema } from '@/lib/table'
 import { buildIdByName, sortSpecNamesToIds } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
-import { decodeCursor } from '@/lib/table/rows/cursor'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
@@ -63,19 +63,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
     const wire = rowWireTranslators(authResult.authType, schema)
     const cursor = body.cursor ? decodeCursor(body.cursor) : undefined
 
-    // A keyset cursor encodes a position on the DEFAULT `(order_key, id)`
-    // order; combining it with a custom order would silently return page 1
-    // of the sorted view relabeled as a next page.
-    if (cursor?.after && body.sort?.length) {
-      return NextResponse.json(
-        {
-          error: 'Cursor is not valid for a sorted query. Restart paging without the cursor.',
-          code: 'CURSOR_SORT_CONFLICT',
-        },
-        { status: 400 }
-      )
-    }
-
     // Predicate/sort fields are column-NAME-keyed by construction (the caller
     // authors names), so validate against the schema then translate names →
     // storage ids unconditionally — unlike row data, this is not authType-dependent.
@@ -93,6 +80,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
     const sort: Sort | undefined = sortSpec?.length
       ? Object.fromEntries(sortSpec.map((s) => [s.field, s.direction]))
       : undefined
+
+    // Cursor↔sort binding: keyset cursors are default-order only; an offset
+    // cursor must be replayed under the exact sort it was minted with.
+    if (cursor) assertCursorSortBinding(cursor, sort)
 
     const result = await queryRows(
       table,
