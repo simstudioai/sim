@@ -25,6 +25,7 @@ export interface ErrorInfo {
   status?: number
   statusText?: string
   data?: any
+  headers?: { get(name: string): string | null }
 }
 
 export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
@@ -36,6 +37,8 @@ interface ErrorExtractorConfig {
   description: string
   /** Example APIs that use this pattern */
   examples?: string[]
+  /** Whether this extractor may run in the legacy provider-agnostic fallback chain. */
+  useInFallback?: boolean
   /** The extraction function */
   extract: ErrorExtractor
 }
@@ -255,6 +258,44 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'quickbooks-fault',
+    description: 'QuickBooks Online Fault.Error[] responses with authentication and rate guidance',
+    examples: ['QuickBooks Online Accounting API'],
+    useInFallback: false,
+    extract: (errorInfo) => {
+      const status = errorInfo?.status
+      const fault = sanitizeQuickBooksFaultData(errorInfo?.data)
+      const faultMessage = fault ? formatQuickBooksFaultDetail(fault) : ''
+
+      const guidance =
+        status === 401
+          ? 'Reconnect the QuickBooks credential.'
+          : status === 403
+            ? 'Confirm the QuickBooks accounting scope and access to this company.'
+            : status === 429
+              ? 'QuickBooks rate limit reached; retry after the indicated delay.'
+              : ''
+      const trackingId =
+        errorInfo?.headers?.get('intuit_tid') ??
+        errorInfo?.headers?.get('x-request-id') ??
+        errorInfo?.headers?.get('request-id')
+      const retryAfter = status === 429 ? errorInfo?.headers?.get('retry-after') : null
+
+      const context = [
+        trackingId ? `Intuit tracking ID: ${trackingId}` : '',
+        retryAfter ? `Retry-After: ${retryAfter}` : '',
+      ]
+        .filter(Boolean)
+        .join('; ')
+      const statusMessage =
+        typeof status === 'number'
+          ? `QuickBooks request failed with HTTP ${status}.`
+          : 'QuickBooks request failed.'
+      const message = [statusMessage, guidance, faultMessage].filter(Boolean).join(' ')
+      return context ? `${message} (${context})` : message
+    },
+  },
+  {
     id: 'plain-text-data',
     description: 'Plain text error response',
     examples: ['APIs returning plain text errors like Apollo'],
@@ -303,6 +344,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
   // Backwards compatibility
   for (const extractor of ERROR_EXTRACTORS) {
+    if (extractor.useInFallback === false) continue
     try {
       const message = extractor.extract(errorInfo)
       if (message?.trim()) {
@@ -332,6 +374,9 @@ export const ErrorExtractorId = {
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
   POSTHOG_ERRORS: 'posthog-errors',
+  QUICKBOOKS_FAULT: 'quickbooks-fault',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const
+
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'

@@ -14516,6 +14516,42 @@
       "tags": ["data-analytics", "enrichment", "document-processing"]
     },
     {
+      "type": "quickbooks",
+      "slug": "quickbooks",
+      "name": "QuickBooks",
+      "description": "Read procurement data from QuickBooks Online",
+      "longDescription": "Connect one QuickBooks Online company and read its company profile, vendors, purchase orders, and bills. The connected company is selected during OAuth and cannot be overridden by workflow input.",
+      "bgColor": "#2CA01C",
+      "iconName": "QuickBooksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
+      "operations": [
+        {
+          "name": "Get Company Info",
+          "description": "Get information about the connected QuickBooks Online company"
+        },
+        {
+          "name": "List Vendors",
+          "description": "List vendors in the connected QuickBooks Online company"
+        },
+        {
+          "name": "List Purchase Orders",
+          "description": "List purchase orders in the connected QuickBooks Online company"
+        },
+        {
+          "name": "List Bills",
+          "description": "List bills in the connected QuickBooks Online company"
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "quickbooks",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "automation", "data-analytics"]
+    },
+    {
       "type": "quiver",
       "slug": "quiver",
       "name": "Quiver",

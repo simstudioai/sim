@@ -42,6 +42,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  QuickBooksIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -1008,6 +1009,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'pipedrive',
   },
+  quickbooks: {
+    name: 'QuickBooks',
+    icon: QuickBooksIcon,
+    services: {
+      quickbooks: {
+        name: 'QuickBooks',
+        description: 'Read company, vendor, purchase order, and bill data from QuickBooks Online.',
+        providerId: 'quickbooks',
+        icon: QuickBooksIcon,
+        baseProviderIcon: QuickBooksIcon,
+        scopes: ['openid', 'profile', 'email', 'com.intuit.quickbooks.accounting'],
+      },
+    },
+    defaultService: 'quickbooks',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -1488,6 +1504,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: true,
       }
     }
+    case 'quickbooks': {
+      const { clientId, clientSecret } = getCredentials(
+        env.QUICKBOOKS_CLIENT_ID,
+        env.QUICKBOOKS_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'hubspot': {
       const { clientId, clientSecret } = getCredentials(
         env.HUBSPOT_CLIENT_ID,
@@ -1788,43 +1817,23 @@ export async function refreshOAuthToken(
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
 
+    const responseText = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: `${provider} token refresh response`,
+    })
+    let responseData: unknown
+    try {
+      responseData = JSON.parse(responseText)
+    } catch {
+      responseData = null
+    }
+    const errorCode = extractErrorCode(responseData)
+
     if (!response.ok) {
-      const errorText = await response.text()
-      let errorData: unknown = errorText
-
-      try {
-        errorData = JSON.parse(errorText)
-      } catch (_e) {
-        // Not JSON, keep as text
-      }
-
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorText,
-        parsedError: errorData,
-        providerId,
-        tokenEndpoint: config.tokenEndpoint,
-        hasClientId: !!config.clientId,
-        hasClientSecret: !!config.clientSecret,
-        hasRefreshToken: !!refreshToken,
-        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
-      })
-      return {
-        ok: false,
-        errorCode: extractErrorCode(errorData),
-        message: `Failed to refresh token: ${response.status} ${errorText}`,
-      }
-    }
-
-    const data = await response.json()
-
-    if (data && typeof data === 'object' && data.ok === false) {
-      logger.error('Token refresh failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: data.error,
-        parsedError: data,
+        errorCode,
         providerId,
         tokenEndpoint: config.tokenEndpoint,
         hasClientId: !!config.clientId,
@@ -1833,23 +1842,59 @@ export async function refreshOAuthToken(
       })
       return {
         ok: false,
-        errorCode: typeof data.error === 'string' ? data.error : undefined,
-        message: `Failed to refresh token: ${data.error ?? 'unknown'}`,
+        errorCode,
+        message: `Failed to refresh token: ${response.status}${errorCode ? ` (${errorCode})` : ''}`,
       }
     }
 
-    const accessToken = data.access_token
+    if (!responseData || typeof responseData !== 'object' || Array.isArray(responseData)) {
+      logger.error('Token refresh returned an invalid response:', {
+        status: response.status,
+        providerId,
+        tokenEndpoint: config.tokenEndpoint,
+      })
+      return { ok: false, message: 'Token refresh returned an invalid response' }
+    }
+    const data = responseData as Record<string, unknown>
+
+    if (data.ok === false) {
+      const providerErrorCode = extractErrorCode(data)
+      logger.error('Token refresh failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorCode: providerErrorCode,
+        providerId,
+        tokenEndpoint: config.tokenEndpoint,
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRefreshToken: !!refreshToken,
+      })
+      return {
+        ok: false,
+        errorCode: providerErrorCode,
+        message: `Failed to refresh token${providerErrorCode ? `: ${providerErrorCode}` : ''}`,
+      }
+    }
+
+    const accessToken = typeof data.access_token === 'string' ? data.access_token : null
 
     let newRefreshToken = null
-    if (config.supportsRefreshTokenRotation && data.refresh_token) {
+    if (config.supportsRefreshTokenRotation && typeof data.refresh_token === 'string') {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
 
-    const expiresIn = data.expires_in || data.expiresIn || 3600
+    const expiresInCandidate = data.expires_in ?? data.expiresIn
+    const expiresIn =
+      typeof expiresInCandidate === 'number' && Number.isFinite(expiresInCandidate)
+        ? expiresInCandidate
+        : 3600
 
     if (!accessToken) {
-      logger.warn('No access token found in refresh response', { providerId, response: data })
+      logger.warn('No access token found in refresh response', {
+        providerId,
+        tokenEndpoint: config.tokenEndpoint,
+      })
       return { ok: false, message: 'No access token in refresh response' }
     }
 

@@ -170,6 +170,8 @@ export interface ToolConfig<P = any, R = any> {
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
     retry?: ToolRetryConfig
+    /** Maximum response body size accepted before parsing. Defaults to the executor's 10 MiB cap. */
+    maxResponseBytes?: number
     /**
      * Drop the `Authorization` header when following a redirect. Set this on any
      * tool whose endpoint redirects to a different origin carrying its own

@@ -1,0 +1,177 @@
+---
+title: QuickBooks
+description: Read procurement data from QuickBooks Online
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="quickbooks"
+  color="#2CA01C"
+/>
+
+## Usage Instructions
+
+Connect one QuickBooks Online company and read its company profile, vendors, purchase orders, and bills. The connected company is selected during OAuth and cannot be overridden by workflow input.
+
+
+
+## Actions
+
+### `quickbooks_get_company_info`
+
+Get information about the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | json | Verified QuickBooks CompanyInfo object, including Id, CompanyName, LegalName, addresses, contact details, NameValue settings, and MetaData when populated |
+|   ↳ `Id` | string | Connected QuickBooks company ID |
+|   ↳ `SyncToken` | string | CompanyInfo sync token |
+|   ↳ `CompanyName` | string | Company display name |
+|   ↳ `LegalName` | string | Company legal name |
+|   ↳ `CompanyAddr` | json | Company address |
+|   ↳ `CustomerCommunicationAddr` | json | Customer communication address |
+|   ↳ `LegalAddr` | json | Company legal address |
+|   ↳ `PrimaryPhone` | json | Primary phone details |
+|   ↳ `Email` | json | Company email details |
+|   ↳ `WebAddr` | json | Company website details |
+|   ↳ `CompanyStartDate` | string | Company start date |
+|   ↳ `Country` | string | Company country code |
+|   ↳ `FiscalYearStartMonth` | string | Fiscal year starting month |
+|   ↳ `DefaultTimeZone` | string | Company default time zone |
+|   ↳ `NameValue` | array | QuickBooks company settings represented as name/value entries |
+|   ↳ `MetaData` | json | CompanyInfo creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_list_bills`
+
+List bills in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startPosition` | number | Yes | One-based position of the first bill to return |
+| `maxResults` | number | Yes | Number of bills to request \(1–100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+| `items` | array | Bill objects returned by QuickBooks |
+|   ↳ `Id` | string | Bill ID |
+|   ↳ `SyncToken` | string | Bill sync token |
+|   ↳ `DocNumber` | string | Bill reference number |
+|   ↳ `TxnDate` | string | Bill transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Bill vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CurrencyRef` | json | Bill currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExchangeRate` | number | Bill exchange rate |
+|   ↳ `Line` | array | Bill line items and their detail objects |
+|   ↳ `TotalAmt` | number | Bill total amount |
+|   ↳ `Balance` | number | Unpaid bill balance |
+|   ↳ `PrivateNote` | string | Private bill note |
+|   ↳ `MetaData` | json | Bill creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_list_purchase_orders`
+
+List purchase orders in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startPosition` | number | Yes | One-based position of the first purchase order to return |
+| `maxResults` | number | Yes | Number of purchase orders to request \(1–100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+| `items` | array | PurchaseOrder objects returned by QuickBooks |
+|   ↳ `Id` | string | Purchase order ID |
+|   ↳ `SyncToken` | string | Purchase order sync token |
+|   ↳ `DocNumber` | string | Purchase order number |
+|   ↳ `TxnDate` | string | Purchase order date |
+|   ↳ `VendorRef` | json | Purchase order vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CurrencyRef` | json | Purchase order currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExchangeRate` | number | Purchase order exchange rate |
+|   ↳ `Line` | array | Purchase order line items and their detail objects |
+|   ↳ `TotalAmt` | number | Purchase order total amount |
+|   ↳ `PrivateNote` | string | Private purchase order note |
+|   ↳ `MetaData` | json | Purchase order creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_list_vendors`
+
+List vendors in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startPosition` | number | Yes | One-based position of the first vendor to return |
+| `maxResults` | number | Yes | Number of vendors to request \(1–100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+| `items` | array | Vendor objects returned by QuickBooks |
+|   ↳ `Id` | string | Vendor ID |
+|   ↳ `SyncToken` | string | Vendor sync token |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Vendor given name |
+|   ↳ `FamilyName` | string | Vendor family name |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Active` | boolean | Whether the vendor is active |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `PrimaryPhone` | json | Vendor primary phone details |
+|   ↳ `PrimaryEmailAddr` | json | Vendor primary email details |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `MetaData` | json | Vendor creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |

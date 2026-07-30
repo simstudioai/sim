@@ -29,6 +29,7 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import { sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
@@ -36,7 +37,7 @@ import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import type { ErrorInfo } from '@/tools/error-extractors'
-import { extractErrorMessage } from '@/tools/error-extractors'
+import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import type {
   BYOKProviderId,
   OAuthTokenPayload,
@@ -801,9 +802,6 @@ const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
   'Request body size limit exceeded (10MB). The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
 
-const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
-  'Tool response size limit exceeded (10MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.'
-
 /**
  * Validates request body size and throws a user-friendly error if exceeded
  * @param body - The request body string to check
@@ -878,7 +876,12 @@ function handleResponseSizeLimitError(error: unknown, requestId: string, context
     maxBytes: error.maxBytes,
     observedBytes: error.observedBytes,
   })
-  throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
+  const maxSizeMB = (error.maxBytes / (1024 * 1024)).toFixed(
+    error.maxBytes % (1024 * 1024) === 0 ? 0 : 2
+  )
+  throw new Error(
+    `Tool response size limit exceeded (${maxSizeMB}MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.`
+  )
 }
 
 function cloneResponseHeaders(headers: Headers | HeadersInit | undefined): Headers {
@@ -906,12 +909,13 @@ async function readToolResponseBody(
   options: {
     requestId: string
     toolId: string
+    maxBytes: number
     signal?: AbortSignal
   }
 ): Promise<Buffer> {
   try {
     return await readResponseToBufferWithLimit(response, {
-      maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+      maxBytes: options.maxBytes,
       label: `${options.toolId} response body`,
       signal: options.signal,
       allowNoBodyFallback: true,
@@ -953,12 +957,16 @@ const MCP_SYSTEM_PARAMETERS = new Set([
  * Uses the error extractor registry to find the best error message
  */
 function createTransformedErrorFromErrorInfo(errorInfo?: ErrorInfo, extractorId?: string): Error {
-  const message = extractErrorMessage(errorInfo, extractorId)
+  const safeErrorInfo =
+    extractorId === ErrorExtractorId.QUICKBOOKS_FAULT && errorInfo
+      ? { ...errorInfo, data: sanitizeQuickBooksFaultData(errorInfo.data) }
+      : errorInfo
+  const message = extractErrorMessage(safeErrorInfo, extractorId)
   const transformed = new Error(message)
   Object.assign(transformed, {
-    status: errorInfo?.status,
-    statusText: errorInfo?.statusText,
-    data: errorInfo?.data,
+    status: safeErrorInfo?.status,
+    statusText: safeErrorInfo?.statusText,
+    data: safeErrorInfo?.data,
   })
   return transformed
 }
@@ -1239,6 +1247,9 @@ export async function executeTool(
         }
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
+        }
+        if (data.realmId) {
+          contextParams.realmId = data.realmId
         }
         if (data.authStyle && !contextParams.authStyle) {
           contextParams.authStyle = data.authStyle
@@ -1666,6 +1677,7 @@ async function executeToolRequest(
   const requestId = generateRequestId()
 
   const requestParams = formatRequestParams(tool, params)
+  const maxResponseBytes = tool.request.maxResponseBytes ?? MAX_TOOL_RESPONSE_BODY_BYTES
 
   try {
     const endpointUrl =
@@ -1808,6 +1820,7 @@ async function executeToolRequest(
               const bodyBuffer = await readToolResponseBody(internalResponse, {
                 requestId,
                 toolId,
+                maxBytes: maxResponseBytes,
                 signal: controller.signal,
               })
               response = new Response(new Uint8Array(bodyBuffer), {
@@ -1852,7 +1865,7 @@ async function executeToolRequest(
             headers: headersRecord,
             body: requestParams.body ?? undefined,
             timeout: requestParams.timeout,
-            maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+            maxResponseBytes,
             signal,
             proxyUrl: proxyOption,
             stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
@@ -1879,6 +1892,7 @@ async function executeToolRequest(
             const bodyBuffer = await readToolResponseBody(secureResponse, {
               requestId,
               toolId,
+              maxBytes: maxResponseBytes,
               signal,
             })
             response = new Response(new Uint8Array(bodyBuffer), {
@@ -1964,6 +1978,7 @@ async function executeToolRequest(
         status: response.status,
         statusText: response.statusText,
         data: errorData,
+        headers: response.headers,
       }
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
@@ -1984,7 +1999,7 @@ async function executeToolRequest(
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
         status: errorInfo.status,
-        errorData: errorInfo.data,
+        errorData: (errorToTransform as Error & { data?: unknown }).data,
       })
 
       throw errorToTransform

@@ -12,6 +12,7 @@ import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getCredential,
@@ -249,6 +250,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const oauthActorId = authz.requesterUserId
     const oauthWorkspaceId = authz.workspaceId ?? null
 
+    let realmId: string | undefined
+    if (credential.providerId === 'quickbooks') {
+      try {
+        realmId = parseQuickBooksAccountId(credential.accountId).realmId
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error: getErrorMessage(
+              error,
+              'QuickBooks company identity is invalid. Reconnect the QuickBooks credential.'
+            ),
+          },
+          { status: 401 }
+        )
+      }
+    }
+
     try {
       const { accessToken } = await refreshTokenIfNeeded(
         requestId,
@@ -295,6 +313,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(realmId && { realmId }),
         },
         { status: 200 }
       )
@@ -360,6 +379,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const actorId = authz.requesterUserId
     const workspaceId = authz.workspaceId ?? null
 
+    let realmId: string | undefined
+    if (credential.providerId === 'quickbooks') {
+      try {
+        realmId = parseQuickBooksAccountId(credential.accountId).realmId
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error: getErrorMessage(
+              error,
+              'QuickBooks company identity is invalid. Reconnect the QuickBooks credential.'
+            ),
+          },
+          { status: 401 }
+        )
+      }
+    }
+
     try {
       const { accessToken } = await refreshTokenIfNeeded(
         requestId,
@@ -407,6 +443,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(realmId && { realmId }),
         },
         { status: 200 }
       )

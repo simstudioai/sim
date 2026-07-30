@@ -86,6 +86,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   openid: 'Standard authentication',
   profile: 'Access profile information',
   email: 'Access email address',
+  'com.intuit.quickbooks.accounting':
+    'Read accounting data from the connected QuickBooks Online company',
 
   // Notion scopes
   'database.read': 'Read database',

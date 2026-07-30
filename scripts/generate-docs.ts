@@ -2109,7 +2109,12 @@ function extractToolInfo(
         const paramName = param.name
         const paramBlock = param.content
 
-        if (paramName === 'accessToken' || paramName === 'params' || paramName === 'tools') {
+        if (
+          paramName === 'accessToken' ||
+          paramName === 'realmId' ||
+          paramName === 'params' ||
+          paramName === 'tools'
+        ) {
           continue
         }
 

@@ -412,6 +412,9 @@ export const env = createEnv({
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
     PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
+    QUICKBOOKS_CLIENT_ID:                  z.string().optional(),                  // QuickBooks Online OAuth client ID
+    QUICKBOOKS_CLIENT_SECRET:              z.string().optional(),                  // QuickBooks Online OAuth client secret
+    QUICKBOOKS_ENV:                        z.enum(['sandbox', 'production']).optional(), // QuickBooks Online API environment (defaults to sandbox)
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
     CLICKUP_CLIENT_ID:                     z.string().optional(),                  // ClickUp OAuth client ID

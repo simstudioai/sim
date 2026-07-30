@@ -102,11 +102,18 @@ import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
 } from '@/lib/oauth/microsoft'
+import {
+  fetchQuickBooksConnectionProfile,
+  QUICKBOOKS_AUTHORIZATION_URL,
+  QUICKBOOKS_OIDC_CLAIMS,
+  QUICKBOOKS_TOKEN_URL,
+} from '@/lib/oauth/quickbooks'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
+import { QUICKBOOKS_MAX_USER_INFO_BYTES } from '@/lib/quickbooks/client'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
@@ -3197,6 +3204,78 @@ export const auth = betterAuth({
             } catch (error) {
               logger.error('Error in DocuSign getUserInfo:', { error })
               return null
+            }
+          },
+        },
+
+        {
+          providerId: 'quickbooks',
+          clientId: env.QUICKBOOKS_CLIENT_ID as string,
+          clientSecret: env.QUICKBOOKS_CLIENT_SECRET as string,
+          authorizationUrl: QUICKBOOKS_AUTHORIZATION_URL,
+          tokenUrl: QUICKBOOKS_TOKEN_URL,
+          scopes: getCanonicalScopesForProvider('quickbooks'),
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/quickbooks`,
+          authorizationUrlParams: {
+            claims: JSON.stringify(QUICKBOOKS_OIDC_CLAIMS),
+          },
+          getToken: async ({ code, redirectURI }) => {
+            const clientId = env.QUICKBOOKS_CLIENT_ID
+            const clientSecret = env.QUICKBOOKS_CLIENT_SECRET
+            if (!clientId || !clientSecret) {
+              throw new Error('QuickBooks OAuth client credentials are not configured')
+            }
+
+            const response = await fetch(QUICKBOOKS_TOKEN_URL, {
+              method: 'POST',
+              headers: {
+                Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                code,
+                grant_type: 'authorization_code',
+                redirect_uri: redirectURI,
+              }),
+            })
+            const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+              maxBytes: QUICKBOOKS_MAX_USER_INFO_BYTES,
+              label: 'QuickBooks OAuth token response',
+            })
+
+            if (!response.ok || !data || typeof data !== 'object' || Array.isArray(data)) {
+              throw new Error(`QuickBooks OAuth token exchange failed with HTTP ${response.status}`)
+            }
+
+            const tokens = getOAuth2Tokens(data)
+            if (!tokens.accessToken || !tokens.refreshToken) {
+              throw new Error(
+                'QuickBooks OAuth token response did not include access and refresh tokens'
+              )
+            }
+            if (typeof data.scope === 'string') {
+              tokens.scopes = data.scope.split(/\s+/).filter(Boolean)
+            }
+            return tokens
+          },
+          getUserInfo: async (tokens) => {
+            if (!tokens.accessToken) {
+              throw new Error('QuickBooks OAuth did not issue an access token')
+            }
+
+            const profile = await fetchQuickBooksConnectionProfile(tokens.accessToken)
+
+            const now = new Date()
+            return {
+              id: profile.accountId,
+              name: profile.name,
+              email: profile.email,
+              emailVerified: profile.emailVerified,
+              createdAt: now,
+              updatedAt: now,
             }
           },
         },

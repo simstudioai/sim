@@ -67,10 +67,72 @@ describe('OAuth Token API Routes', () => {
 
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('accessToken', 'fresh-token')
+      expect(data).not.toHaveProperty('realmId')
 
       expect(mockAuthorizeCredentialUse).toHaveBeenCalled()
       expect(authOAuthUtilsMockFns.mockGetCredential).toHaveBeenCalled()
       expect(authOAuthUtilsMockFns.mockRefreshTokenIfNeeded).toHaveBeenCalled()
+    })
+
+    it('returns realmId only for QuickBooks credentials', async () => {
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'session',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'owner-user-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accountId: 'quickbooks:123456789:intuit-subject-01234567-89ab-4def-8abc-0123456789ab',
+        accessToken: 'test-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        providerId: 'quickbooks',
+      })
+      authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValueOnce({
+        accessToken: 'fresh-token',
+        refreshed: false,
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          credentialId: 'credential-id',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        accessToken: 'fresh-token',
+        realmId: '123456789',
+      })
+    })
+
+    it('rejects a malformed QuickBooks company identity with reconnect guidance', async () => {
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'session',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'owner-user-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accountId: 'malformed',
+        accessToken: 'test-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        providerId: 'quickbooks',
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          credentialId: 'credential-id',
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(data.error).toMatch(/Reconnect the QuickBooks credential/)
+      expect(authOAuthUtilsMockFns.mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
     })
 
     it('should handle workflowId for server-side authentication', async () => {
