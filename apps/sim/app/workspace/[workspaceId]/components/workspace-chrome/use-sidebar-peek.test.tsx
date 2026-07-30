@@ -300,6 +300,59 @@ describe('useSidebarPeek', () => {
     expect(active.state().isPeekActive).toBe(false)
   })
 
+  it('never mounts the card when a modal opens mid-dwell', () => {
+    active = renderPeek(true)
+
+    act(() => {
+      active?.triggerEnter()
+      vi.advanceTimersByTime(OPEN_DELAY_MS - 20)
+    })
+    active.setDismissed(true)
+    act(() => {
+      vi.advanceTimersByTime(OPEN_DELAY_MS * 2)
+    })
+
+    expect(active.state().isPeekActive).toBe(false)
+  })
+
+  it('drops an already-exiting card the instant a modal opens', () => {
+    active = renderPeek(true)
+    openPeek(active)
+    movePointerTo(POINT.onContent)
+    act(() => {
+      vi.advanceTimersByTime(CLOSE_DELAY_MS)
+    })
+    expect(active.state().isPeekActive).toBe(true)
+
+    active.setDismissed(true)
+
+    expect(active.state().isPeekActive).toBe(false)
+  })
+
+  it('snaps a card that is animating out back open on re-hover', () => {
+    active = renderPeek(true)
+    openPeek(active)
+    movePointerTo(POINT.onContent)
+    act(() => {
+      vi.advanceTimersByTime(CLOSE_DELAY_MS)
+    })
+    // Mid-exit: mounted but no longer open.
+    expect(active.state().isPeekActive).toBe(true)
+    expect(active.state().isPeekOpen).toBe(false)
+
+    // Re-hover late in the exit window; the pending exit timer must not win.
+    act(() => {
+      vi.advanceTimersByTime(EXIT_DURATION_MS - 20)
+      active?.triggerEnter()
+    })
+    expect(active.state().isPeekOpen).toBe(true)
+
+    act(() => {
+      vi.advanceTimersByTime(EXIT_DURATION_MS * 2)
+    })
+    expect(active.state().isPeekOpen).toBe(true)
+  })
+
   it('retracts when a modal opens, even with the pointer inside', () => {
     active = renderPeek(true)
     openPeek(active)

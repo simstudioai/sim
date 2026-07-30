@@ -145,29 +145,39 @@ export function useSidebarPeek(enabled: boolean, dismissed = false): SidebarPeek
     if (!enabled || dismissed) return
     clearTimer(closeTimerRef)
     clearTimer(openTimerRef)
+    // Still on screen and animating out: snap it back instead of waiting out another
+    // dwell, which the pending exit timer would win — unmounting the card and then
+    // re-mounting it, a visible flicker with the pointer never leaving the toggle.
+    if (phase === 'exiting') {
+      open()
+      return
+    }
     openTimerRef.current = setTimeout(() => {
       openTimerRef.current = null
       open()
     }, PEEK_OPEN_DELAY_MS)
-  }, [dismissed, enabled, open])
+  }, [dismissed, enabled, open, phase])
 
   const onTriggerLeave = useCallback(() => {
     clearTimer(openTimerRef)
   }, [])
 
-  /** Drop the card outright — no exit animation — once the peek stops being available. */
+  /**
+   * Drop the card outright — no exit animation — the moment the peek stops being
+   * available (⌘B, fullscreen) or a modal takes the screen.
+   *
+   * Unconditional rather than gated on the current phase, because every phase needs
+   * clearing: a pending dwell would otherwise fire and mount the card over the modal,
+   * and an in-flight exit would keep animating on top of it. Instant is also right
+   * visually — the modal's own scrim covers the card's position on the same frame.
+   */
   useEffect(() => {
-    if (enabled) return
+    if (enabled && !dismissed) return
     clearTimer(openTimerRef)
     clearTimer(closeTimerRef)
     clearTimer(exitTimerRef)
     setPhase('closed')
-  }, [enabled])
-
-  /** A modal is a destination and owns the screen, so the transient card yields to it. */
-  useEffect(() => {
-    if (dismissed && phase === 'open') close()
-  }, [close, dismissed, phase])
+  }, [dismissed, enabled])
 
   useEffect(() => {
     if (phase !== 'open') return
