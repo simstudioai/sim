@@ -32,7 +32,7 @@ const SLIDE_TRANSITION =
  * card widens as it appears and leaves a shrinking ghost on retract.
  */
 const PEEK_CARD_CHROME =
-  'absolute top-[var(--desktop-title-bar-height)] bottom-2 left-2 z-[var(--z-modal)] w-auto origin-top-left rounded-lg border border-[var(--border)] shadow-overlay'
+  'absolute top-[var(--desktop-title-bar-height)] left-2 z-[var(--z-modal)] flex max-h-[calc(100%-var(--desktop-title-bar-height)-8px)] w-auto flex-col origin-top-left rounded-lg border border-[var(--border)]'
 
 /**
  * Peek card enter/exit — the popper idiom rather than a slide, since the card is

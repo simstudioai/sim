@@ -44,7 +44,7 @@
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.15);
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
   --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -171,6 +171,14 @@ html[data-sim-desktop-title-bar="inset"]
    0 -> expanded inside it. */
 .sidebar-shell-outer[data-peek] .sidebar-container {
   transition: none;
+}
+
+/* The card is a flex column sized to its content, so the shell must be allowed to
+   shrink for the sidebar's own scroll region to bound itself once the card hits its
+   max height. Docked, this element is not a flex item and the rule is inert. */
+.sidebar-shell-outer[data-peek] .sidebar-shell-inner {
+  min-height: 0;
+  flex-shrink: 1;
 }
 
 .sidebar-container span,
@@ -583,7 +591,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --scrollbar-thumb-hover-color: #6a6a6a;
 
     /* Shadow scale - dark */
-    --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
   }
 }
 

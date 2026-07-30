@@ -88,6 +88,14 @@ describe('desktop title-bar surface audit', () => {
     expect(workspaceChrome).toContain('data-content-fullscreen={isFullscreen || undefined}')
   })
 
+  it('sizes the peek card to its content, capped against the lane', () => {
+    // Pinning both edges made the card full height, so a short list (settings) left a
+    // tall empty slab over the content. It now hugs its content and caps at the pane
+    // height less the lane and the bottom gutter, so a long list still scrolls.
+    expect(workspaceChrome).toContain('max-h-[calc(100%-var(--desktop-title-bar-height)-8px)]')
+    expect(workspaceChrome).not.toMatch(/PEEK_CARD_CHROME[\s\S]{0,240}?bottom-2/)
+  })
+
   it('clears the lane for panels that embed pages away from the lights', () => {
     // The mothership panel is the right half of the pane and embeds whole pages
     // (KnowledgeBase et al) whose header bars reserve the lane. It inherits the
