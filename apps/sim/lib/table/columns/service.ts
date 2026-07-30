@@ -486,6 +486,43 @@ export async function deleteColumns(
 }
 
 /**
+ * Validates a pending rename against the schema it will land in, and returns
+ * the renamed column.
+ *
+ * Exists so a rename can be folded into whatever OTHER column write a request
+ * carries, inside that write's transaction. Each write is its own locked
+ * transaction, so a standalone rename alongside one of them means either order
+ * can commit and then fail — and since a rename is metadata-only (rows key on
+ * the stable column id), there is nothing forcing it to be its own write.
+ *
+ * Returns the column unchanged when there is no rename to apply. Exported so
+ * the collision and name-shape rules are testable without a transaction.
+ */
+export function applyPendingRename(
+  columns: ColumnDefinition[],
+  columnIndex: number,
+  newName: string | undefined
+): ColumnDefinition {
+  const column = columns[columnIndex]
+  if (newName === undefined || newName === column.name) return column
+
+  if (!NAME_PATTERN.test(newName)) {
+    throw new Error(
+      `Invalid column name "${newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
+    )
+  }
+  if (newName.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    throw new Error(
+      `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+    )
+  }
+  if (columns.some((c, i) => i !== columnIndex && c.name.toLowerCase() === newName.toLowerCase())) {
+    throw new Error(`Column "${newName}" already exists`)
+  }
+  return { ...column, name: newName }
+}
+
+/**
  * The column definition a retype produces: prior per-type metadata dropped,
  * then only what the TARGET type declares it owns carried forward, then that
  * type's own defaults stamped on.
@@ -694,7 +731,10 @@ export async function updateColumnType(
       )
     }
 
-    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
+    const renamedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
+    const updatedColumns = renamedColumns.map((c, i) =>
+      i === columnIndex ? applyPendingRename(renamedColumns, columnIndex, data.newName) : c
+    )
 
     const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
     if (!columnValidation.valid) {
@@ -798,7 +838,7 @@ export async function updateColumnConstraints(
       }
     }
 
-    const updatedColumns = schema.columns.map((c, i) =>
+    const withConstraints = schema.columns.map((c, i) =>
       i === columnIndex
         ? {
             ...c,
@@ -806,6 +846,9 @@ export async function updateColumnConstraints(
             ...(data.unique !== undefined ? { unique: data.unique } : {}),
           }
         : c
+    )
+    const updatedColumns = withConstraints.map((c, i) =>
+      i === columnIndex ? applyPendingRename(withConstraints, columnIndex, data.newName) : c
     )
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
@@ -858,7 +901,10 @@ export async function updateColumnOptions(
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
-    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const withOptions = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedColumns = withOptions.map((c, i) =>
+      i === columnIndex ? applyPendingRename(withOptions, columnIndex, data.newName) : c
+    )
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
@@ -1024,7 +1070,10 @@ export async function updateColumnCurrency(
       return table
     }
 
-    const updatedColumns = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const withCurrency = schema.columns.map((c, i) => (i === columnIndex ? updatedColumn : c))
+    const updatedColumns = withCurrency.map((c, i) =>
+      i === columnIndex ? applyPendingRename(withCurrency, columnIndex, data.newName) : c
+    )
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 

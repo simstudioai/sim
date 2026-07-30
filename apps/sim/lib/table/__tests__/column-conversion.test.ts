@@ -5,7 +5,11 @@
  * coverage and every case below was a shipped defect caught in review.
  */
 import { describe, expect, it } from 'vitest'
-import { isValueCompatibleWithType, selectValueForConversion } from '@/lib/table/columns/service'
+import {
+  applyPendingRename,
+  isValueCompatibleWithType,
+  selectValueForConversion,
+} from '@/lib/table/columns/service'
 import type { ColumnDefinition, SelectOption } from '@/lib/table/types'
 
 const OPTIONS: SelectOption[] = [
@@ -159,5 +163,34 @@ describe('blank cells during conversion', () => {
   it('lets a cleared select cell through only when the target is optional', () => {
     expect(isValueCompatibleWithType('', 'select', OPTIONS, false, false)).toBe(true)
     expect(isValueCompatibleWithType('', 'select', OPTIONS, false, true)).toBe(false)
+  })
+})
+
+describe('rename folded into another write', () => {
+  // A rename is metadata-only — rows key on the stable column id — so nothing
+  // forces it to be its own transaction. Folding it into whichever write a
+  // request already carries is what makes a combined PATCH all-or-nothing: the
+  // name collision is detected against the same schema snapshot the other
+  // change is being applied to, and both abort together.
+  it('rejects a collision against the schema the write is landing in', () => {
+    const columns: ColumnDefinition[] = [
+      { id: 'col_a', name: 'amount', type: 'currency' },
+      { id: 'col_b', name: 'taken', type: 'string' },
+    ]
+    expect(() => applyPendingRename(columns, 0, 'taken')).toThrow(/already exists/)
+    expect(() => applyPendingRename(columns, 0, 'TAKEN')).toThrow(/already exists/)
+  })
+
+  it('applies a valid rename and is a no-op without one', () => {
+    const columns: ColumnDefinition[] = [{ id: 'col_a', name: 'amount', type: 'currency' }]
+    expect(applyPendingRename(columns, 0, 'total').name).toBe('total')
+    expect(applyPendingRename(columns, 0, undefined)).toBe(columns[0])
+    expect(applyPendingRename(columns, 0, 'amount')).toBe(columns[0])
+  })
+
+  it('rejects a name the column-name rules forbid', () => {
+    const columns: ColumnDefinition[] = [{ id: 'col_a', name: 'amount', type: 'currency' }]
+    expect(() => applyPendingRename(columns, 0, '1bad')).toThrow(/must start with/)
+    expect(() => applyPendingRename(columns, 0, 'a'.repeat(200))).toThrow(/maximum length/)
   })
 })

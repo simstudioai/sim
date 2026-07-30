@@ -113,6 +113,18 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
+  it('renames standalone when there is no other write to ride on', async () => {
+    mockRenameColumn.mockResolvedValue({ schema: { columns: [] } })
+
+    const response = await patch({ name: 'renamed' })
+
+    expect(response.status).toBe(200)
+    expect(mockRenameColumn).toHaveBeenCalledWith(
+      expect.objectContaining({ oldName: 'col_a', newName: 'renamed' }),
+      expect.any(String)
+    )
+  })
+
   it('leaves the column untouched when a typed write fails', async () => {
     mockCheckAccess.mockResolvedValue({
       ok: true,
@@ -177,7 +189,7 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
-  it('renames only after the typed write succeeds', async () => {
+  it('folds a rename into the typed write instead of running it separately', async () => {
     mockCheckAccess.mockResolvedValue({
       ok: true,
       table: {
@@ -190,15 +202,13 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     const response = await patch({ name: 'renamed', currencyCode: 'eur' })
 
     expect(response.status).toBe(200)
-    expect(mockRenameColumn).toHaveBeenCalledTimes(1)
+    // One transaction, not two: the rename rides along with the currency write,
+    // so neither half can commit without the other.
+    expect(mockRenameColumn).not.toHaveBeenCalled()
     expect(mockUpdateColumnCurrency).toHaveBeenCalledWith(
-      // Targets the column's CURRENT name: the rename has not run yet. The
-      // contract upper-cases the code on the way in.
-      expect.objectContaining({ columnName: 'amount', currencyCode: 'EUR' }),
+      // Addressed by stable id; the contract upper-cases the code on the way in.
+      expect.objectContaining({ columnName: 'col_a', currencyCode: 'EUR', newName: 'renamed' }),
       expect.any(String)
-    )
-    expect(mockUpdateColumnCurrency.mock.invocationCallOrder[0]).toBeLessThan(
-      mockRenameColumn.mock.invocationCallOrder[0]
     )
   })
 })

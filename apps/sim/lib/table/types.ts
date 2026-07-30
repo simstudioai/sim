@@ -781,6 +781,11 @@ export interface RenameColumnData {
 export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
   newType: (typeof COLUMN_TYPES)[number]
   /** Options to set when changing to a `select` type. */
   options?: SelectOption[]
@@ -800,6 +805,11 @@ export interface UpdateColumnTypeData {
 export interface UpdateColumnOptionsData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
   options: SelectOption[]
   /** Toggle single/multi selection alongside the options update. */
   multiple?: boolean
@@ -820,12 +830,22 @@ export interface UpdateColumnOptionsData {
 export interface UpdateColumnCurrencyData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
   currencyCode: string
 }
 
 export interface UpdateColumnConstraintsData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
   required?: boolean
   unique?: boolean
 }

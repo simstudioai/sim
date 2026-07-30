@@ -19,7 +19,7 @@ import {
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
-import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import {
@@ -130,6 +130,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const currentColumn = table.schema.columns.find((c) =>
       columnMatchesRef(c, validated.columnName)
     )
+    // Address every write below by the stable id, not the name: a rename folded
+    // into one of them must not break the next one's lookup.
+    const columnRef = currentColumn ? getColumnId(currentColumn) : validated.columnName
+    // The constraints write below is a separate, unconditional step, so it is
+    // the last one whenever it runs — that is the write the rename rides on.
+    const constraintsChanging = updates.required !== undefined || updates.unique !== undefined
+    const renameWithTypedWrite =
+      updates.name && !constraintsChanging ? { newName: updates.name } : {}
     const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
 
     // Every write below is its own locked transaction, so one that is going to
@@ -185,7 +193,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       updatedTable = await updateColumnType(
         {
           tableId,
-          columnName: validated.columnName,
+          columnName: columnRef,
           newType: updates.type as NonNullable<typeof updates.type>,
           ...(updates.options !== undefined ? { options: updates.options } : {}),
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
@@ -193,6 +201,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           // Forwarded so the conversion validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...renameWithTypedWrite,
         },
         requestId
       )
@@ -203,8 +212,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       updatedTable = await updateColumnCurrency(
         {
           tableId,
-          columnName: validated.columnName,
+          columnName: columnRef,
           currencyCode: updates.currencyCode,
+          ...renameWithTypedWrite,
         },
         requestId
       )
@@ -212,12 +222,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       updatedTable = await updateColumnOptions(
         {
           tableId,
-          columnName: validated.columnName,
+          columnName: columnRef,
           options: updates.options ?? currentColumn?.options ?? [],
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
           // Forwarded so the removal guard validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...renameWithTypedWrite,
         },
         requestId
       )
@@ -227,23 +238,23 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       updatedTable = await updateColumnConstraints(
         {
           tableId,
-          columnName: validated.columnName,
+          columnName: columnRef,
           ...(updates.required !== undefined ? { required: updates.required } : {}),
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+          ...(updates.name ? { newName: updates.name } : {}),
         },
         requestId
       )
     }
 
-    // Rename LAST, on purpose. Each write above is its own locked transaction,
-    // and the pre-flight guards read a schema snapshot — so a concurrent change
-    // can still make one of them fail. Renaming first meant that failure
-    // returned an error with the rename already committed. Going last, a failed
-    // typed write leaves the column untouched, and a failed rename leaves the
-    // typed change applied under the old name, which is the recoverable half.
-    if (updates.name) {
+    // A rename rides along with the LAST write above, inside that write's
+    // transaction — a rename is metadata-only (rows key on the stable column
+    // id), so nothing forces it to be its own write, and folding it in is what
+    // stops a combined request from committing one half and then failing. Only
+    // a rename with nothing to ride on runs standalone.
+    if (updates.name && !updatedTable) {
       updatedTable = await renameColumn(
-        { tableId, oldName: validated.columnName, newName: updates.name },
+        { tableId, oldName: columnRef, newName: updates.name },
         requestId
       )
     }
