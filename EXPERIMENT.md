@@ -57,7 +57,7 @@ Filled in as runs land.
 |---|---|---|---|---|---|
 | A — cold, cache on | **4.0K** | **2.7 min** | 5.1G | 3m54s | 30504331243 |
 | B — warm, cache on | **5.1G** | **6.0 min** | **12G** | 8m18s | 30504621611 |
-| C — cache off | | | | | |
+| C — cache off | 5.1G (ignored) | **113s = 1.9 min** | 5.1G | **2m53s** | 30505173423 |
 
 Run A notes: single CI run on the branch, no cancelled sibling, `--force` confirmed in the
 log so this was a real build and not a Turbo replay. 4.0K pre-build settles a separate
@@ -72,3 +72,28 @@ progressive degradation seen on older shared disks (up to 11.7 min): the more a 
 written, the more there is to read and revalidate. Run B's CI run shows `failure`, but Build
 App passed - the failing job was `Lint and Test` on a 1ms real-clock flake in
 `pi-lifetime.test.ts` (`expected 5399999 to be 5400000`), unrelated to this experiment.
+
+Run C notes: flag manipulation verified in the log — run A prints
+`✓ turbopackFileSystemCacheForBuild`, run C omits it entirely. Fastest of the three:
+**3.2x faster than warm** (113s vs 360s) and still 1.4x faster than cold-with-cache, because
+it neither reads nor writes the 5.1G.
+
+## Conclusion
+
+The Turbopack FS build cache is a net negative for this app at its current size. Ranked:
+
+| config | compile | Build App job |
+|---|---|---|
+| cache OFF | **113s** | **2m53s** |
+| cache ON, cold | 162s | 3m54s |
+| cache ON, warm | 360s | 8m18s |
+
+Recommendation: disable `NEXT_TURBOPACK_BUILD_CACHE`. #5869 enabled it on locally-measured
+numbers (105s cold -> 22s warm) that never reproduced in CI and are inverted here.
+
+Caveat: n=1 per cell. The effect size (3.2x) and agreement with ~15 prior observations make
+it convincing, but this is three runs, not a distribution.
+
+One unexplained anomaly: run B committed 12G, yet run C mounted 5.1G. Does not affect the
+conclusion (C ignores the disk either way), but it means sticky-disk commit semantics are not
+fully understood — do not build anything on assumptions about them.
