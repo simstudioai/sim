@@ -247,7 +247,15 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
   // local snapshot. Re-read each attempt so a post-reconcile retry projects the converged state.
   const captureState = async (): Promise<Uint8Array | null> => {
-    if (!store.enabled) return localState
+    if (!store.enabled) {
+      // Single-pod: re-read the live doc so a post-reconcile retry projects the CONVERGED state, not the
+      // snapshot captured before the reconcile mutated it (which — with the version already advanced —
+      // would let the If-Match pass and clobber the reconciled edit). Fall back to that snapshot once the
+      // room is torn down (last-leave), where the doc is gone and there is nothing left to reconcile.
+      return fileDocRooms.get(name) === room && isDocSeeded(room.doc)
+        ? Y.encodeStateAsUpdate(room.doc)
+        : localState
+    }
     try {
       return (await store.getStreamState(name)) ?? localState
     } catch (streamError) {
@@ -440,13 +448,6 @@ async function ensureServerSeed(
   try {
     const seed = await fetchFileDocSeed(workspaceId, room.fileId)
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    // Record the durable version this seed was built from: the live doc is now synced to it, so the
-    // first persist's If-Match guard compares against it. Cluster-wide (Redis) so any task's persist
-    // reads it, plus this task's room for the single-pod fallback. (Left null for an empty/missing file.)
-    if (seed) {
-      room.syncedVersion = seed.version
-      void store.setSyncedVersion(name, seed.version)
-    }
     // Build the seed (file content + seed flag, or just the flag for an empty/missing file) and write it
     // to the shared stream ATOMICALLY, iff the stream is still empty. This — NOT the seed lock — is the
     // split-brain guard: two tasks racing (even both past an expired lock) can never both seed, because
@@ -459,6 +460,15 @@ async function ensureServerSeed(
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
     if (didSeed) {
       Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
+      // Record the durable version ONLY now that THIS task's seed won — so the synced version reflects
+      // the stream's actual content. Setting it from our own fetch before knowing who won could record a
+      // newer version than a peer's winning seed and let a later persist clobber an out-of-band edit.
+      // Cluster-wide (Redis) so any task's persist reads it; local room is the single-pod fallback. A
+      // peer-seeded task leaves it null and reads the winner's cluster value. (Null for an empty file.)
+      if (seed) {
+        room.syncedVersion = seed.version
+        void store.setSyncedVersion(name, seed.version)
+      }
     } else {
       // A peer seeded first: its seed arrives via the tailer, so we must NOT apply our own — a second,
       // different-client-id seed IS the split-brain. Clear the guard so a later join can retry if that

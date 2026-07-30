@@ -52,6 +52,20 @@ export async function persistFileDoc(
   const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!record) return { status: 'missing' }
 
+  // Optimistic concurrency needs a version for any file that already has content. If none was supplied
+  // (the relay's synced version was momentarily unavailable — e.g. a Redis blip on a peer-seeded task),
+  // refuse to overwrite non-empty durable content unconditionally: return `conflict` so the relay
+  // reconciles/retries once the version is re-established, rather than silently clobbering. An empty
+  // file has nothing to clobber, so its first unconditional write stays allowed.
+  if (expectedVersion === undefined && record.size > 0) {
+    const currentBuffer = await fetchWorkspaceFileBuffer(record)
+    return {
+      status: 'conflict',
+      markdown: currentBuffer.toString('utf-8'),
+      version: record.updatedAt.getTime(),
+    }
+  }
+
   const ydoc = new Y.Doc()
   let markdownBuffer: Buffer
   try {
