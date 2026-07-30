@@ -2,6 +2,7 @@ import { truncate } from '@sim/utils/string'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   QuickBooksApiEnvelope,
+  QuickBooksAttachmentEntityName,
   QuickBooksEntityName,
   QuickBooksEnvironment,
   QuickBooksFault,
@@ -11,6 +12,7 @@ import type {
   QuickBooksSendableEntityName,
 } from '@/tools/quickbooks/types'
 import {
+  QUICKBOOKS_ATTACHMENT_ENTITIES,
   QUICKBOOKS_CDC_ENTITIES,
   QUICKBOOKS_CREATABLE_ENTITIES,
   QUICKBOOKS_DELETABLE_ENTITIES,
@@ -47,6 +49,7 @@ const QUICKBOOKS_RESOURCE_NAMES: Record<QuickBooksEntityName, string> = {
   Class: 'class',
   CompanyCurrency: 'companycurrency',
   CompanyInfo: 'companyinfo',
+  CreditCardPayment: 'creditcardpayment',
   CreditMemo: 'creditmemo',
   Customer: 'customer',
   Department: 'department',
@@ -56,15 +59,18 @@ const QUICKBOOKS_RESOURCE_NAMES: Record<QuickBooksEntityName, string> = {
   Invoice: 'invoice',
   InventoryAdjustment: 'inventoryadjustment',
   Item: 'item',
+  JournalCode: 'journalcode',
   JournalEntry: 'journalentry',
   Payment: 'payment',
   PaymentMethod: 'paymentmethod',
   Purchase: 'purchase',
   PurchaseOrder: 'purchaseorder',
+  RecurringTransaction: 'recurringtransaction',
   RefundReceipt: 'refundreceipt',
   SalesReceipt: 'salesreceipt',
   TaxAgency: 'taxagency',
   TaxCode: 'taxcode',
+  TaxPayment: 'taxpayment',
   TaxRate: 'taxrate',
   Term: 'term',
   TimeActivity: 'timeactivity',
@@ -196,16 +202,18 @@ export function buildQuickBooksCreateBody(payload: QuickBooksRecord | string): Q
 }
 
 export function buildQuickBooksUpdateBody(params: {
+  entity: QuickBooksEntityName | string
   payload: QuickBooksRecord | string
   recordId: string
   syncToken: string
   sparse?: boolean | string
 }): QuickBooksRecord {
+  const entity = normalizeQuickBooksEntity(params.entity, QUICKBOOKS_UPDATABLE_ENTITIES, 'updated')
   return {
     ...normalizeQuickBooksPayload(params.payload, 'QuickBooks record payload'),
     Id: normalizeRequiredString(params.recordId, 'QuickBooks record ID'),
     SyncToken: normalizeRequiredString(params.syncToken, 'QuickBooks sync token'),
-    sparse: toBoolean(params.sparse, true),
+    sparse: entity === 'InventoryAdjustment' ? true : toBoolean(params.sparse, true),
   }
 }
 
@@ -499,8 +507,8 @@ export function assertQuickBooksAttachmentUploadResponse(
   return data
 }
 
-export function normalizeQuickBooksAttachmentEntity(value: string): QuickBooksEntityName {
-  return normalizeQuickBooksEntity(value, QUICKBOOKS_READABLE_ENTITIES, 'linked to an attachment')
+export function normalizeQuickBooksAttachmentEntity(value: string): QuickBooksAttachmentEntityName {
+  return normalizeQuickBooksEntity(value, QUICKBOOKS_ATTACHMENT_ENTITIES, 'linked to an attachment')
 }
 
 export function extractQuickBooksRecords(

@@ -1,3 +1,4 @@
+import { extname } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -22,17 +23,58 @@ import {
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('QuickBooksUploadAttachmentAPI')
-const QUICKBOOKS_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+const QUICKBOOKS_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+const QUICKBOOKS_ATTACHMENT_CONTENT_TYPES: Record<string, readonly string[]> = {
+  ai: ['application/postscript'],
+  csv: ['text/csv'],
+  doc: ['application/msword'],
+  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  eps: ['application/postscript'],
+  gif: ['image/gif'],
+  jpeg: ['image/jpeg'],
+  jpg: ['image/jpeg', 'image/jpg'],
+  ods: ['application/vnd.oasis.opendocument.spreadsheet'],
+  pdf: ['application/pdf'],
+  png: ['image/png'],
+  rtf: ['application/rtf', 'text/rtf'],
+  tif: ['image/tiff'],
+  txt: ['text/plain'],
+  xls: ['application/vnd.ms-excel'],
+  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  xml: ['application/xml', 'text/xml'],
+}
 
 function uploadSizeError(bytes: number): NextResponse {
   const sizeMb = (bytes / (1024 * 1024)).toFixed(2)
   return NextResponse.json(
     {
       success: false,
-      error: `File size (${sizeMb}MB) exceeds QuickBooks attachment limit of 100MB`,
+      error: `File size (${sizeMb}MB) exceeds Sim's QuickBooks attachment limit of 25MB`,
     },
     { status: 400 }
   )
+}
+
+function attachmentValidationError(error: unknown): NextResponse {
+  return NextResponse.json(
+    { success: false, error: getErrorMessage(error, 'Invalid QuickBooks attachment') },
+    { status: 400 }
+  )
+}
+
+function validateQuickBooksAttachmentFile(fileName: string, contentType?: string): void {
+  const extension = extname(fileName).slice(1).toLowerCase()
+  const allowedContentTypes = QUICKBOOKS_ATTACHMENT_CONTENT_TYPES[extension]
+  if (!allowedContentTypes) {
+    throw new Error(`QuickBooks does not support .${extension || 'unknown'} attachment files`)
+  }
+
+  const normalizedContentType = contentType?.split(';', 1)[0]?.trim().toLowerCase()
+  if (normalizedContentType && !allowedContentTypes.includes(normalizedContentType)) {
+    throw new Error(
+      `QuickBooks does not support ${normalizedContentType} content for .${extension} attachments`
+    )
+  }
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -57,6 +99,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
   if (denied) return denied
   if (userFile.size > QUICKBOOKS_MAX_UPLOAD_BYTES) return uploadSizeError(userFile.size)
+  let entity: ReturnType<typeof normalizeQuickBooksAttachmentEntity>
+  try {
+    entity = normalizeQuickBooksAttachmentEntity(params.entity)
+    validateQuickBooksAttachmentFile(userFile.name, userFile.type)
+  } catch (error) {
+    return attachmentValidationError(error)
+  }
 
   try {
     const downloaded = await downloadServableFileFromStorage(userFile, requestId, logger, {
@@ -67,7 +116,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const contentType = downloaded.contentType || userFile.type || 'application/octet-stream'
-    const entity = normalizeQuickBooksAttachmentEntity(params.entity)
+    try {
+      validateQuickBooksAttachmentFile(userFile.name, contentType)
+    } catch (error) {
+      return attachmentValidationError(error)
+    }
     const metadata = {
       AttachableRef: [
         {

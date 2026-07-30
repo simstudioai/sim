@@ -10,6 +10,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2CA01C"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+## Setup
+
+Connect QuickBooks with OAuth 2.0, then enter the `realmId` for the company you authorized. Intuit returns this company ID as the `realmId` query parameter during the OAuth callback. Use a sandbox company ID with sandbox credentials and a production company ID with production credentials.
+
+QuickBooks Online does not provide a permanent API key or static per-user token for Accounting API access. Access tokens expire and are renewed through the connected OAuth credential.
+
+Entity availability can depend on the QuickBooks locale or subscription. For example, `TaxPayment` is limited to supported non-US locales, `JournalCode` is France-only, `RecurringTransaction` requires Essentials, Plus, or Advanced, and `InventoryAdjustment` requires a supported US Plus or Advanced company.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate QuickBooks Online into procurement and accounting workflows. Manage supported records, inventory adjustments, preferences, currencies, reports, attachments, PDFs, change-data-capture syncs, batches, and custom queries.
@@ -477,14 +488,14 @@ Update a supported QuickBooks Online accounting record
 
 ### `quickbooks_upload_attachment`
 
-Upload and link a file to a QuickBooks transaction or list entity
+Upload and link a supported file up to 25 MB to a QuickBooks transaction or item
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `realmId` | string | Yes | QuickBooks company ID returned by Intuit as realmId during OAuth |
-| `file` | file | Yes | File to upload and link in QuickBooks |
+| `file` | file | Yes | Supported attachment file up to 25 MB to upload and link in QuickBooks |
 | `entity` | string | Yes | QuickBooks entity type to link the attachment to |
 | `entityId` | string | Yes | QuickBooks entity ID to link the attachment to |
 | `note` | string | No | Optional note stored with the attachment |

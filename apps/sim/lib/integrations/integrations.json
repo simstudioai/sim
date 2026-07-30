@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-29",
+  "updatedAt": "2026-07-30",
   "integrations": [
     {
       "type": "onepassword",
@@ -14540,7 +14540,7 @@
         },
         {
           "name": "Upload Attachment",
-          "description": "Upload and link a file to a QuickBooks transaction or list entity"
+          "description": "Upload and link a supported file up to 25 MB to a QuickBooks transaction or item"
         },
         {
           "name": "Get Attachment URL",

@@ -10,7 +10,7 @@ export const quickBooksUploadAttachmentTool: ToolConfig<
 > = {
   id: 'quickbooks_upload_attachment',
   name: 'QuickBooks Upload Attachment',
-  description: 'Upload and link a file to a QuickBooks transaction or list entity',
+  description: 'Upload and link a supported file up to 25 MB to a QuickBooks transaction or item',
   version: '1.0.0',
   oauth: { required: true, provider: 'quickbooks' },
   params: {
@@ -30,7 +30,7 @@ export const quickBooksUploadAttachmentTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-only',
-      description: 'File to upload and link in QuickBooks',
+      description: 'Supported attachment file up to 25 MB to upload and link in QuickBooks',
     },
     entity: {
       type: 'string',

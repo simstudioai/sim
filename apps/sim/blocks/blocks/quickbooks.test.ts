@@ -84,6 +84,14 @@ describe('QuickBooksBlock', () => {
       entityId: '17',
       file,
     })
+
+    const attachmentInputs = QuickBooksBlock.subBlocks.filter(
+      (subBlock) => subBlock.canonicalParamId === 'file'
+    )
+    expect(attachmentInputs).toMatchObject([
+      { id: 'attachmentFile', mode: 'basic', required: expect.anything() },
+      { id: 'attachmentFileRef', mode: 'advanced', required: expect.anything() },
+    ])
   })
 
   it('requires full entity payloads for non-simplified deletes', () => {
@@ -99,7 +107,14 @@ describe('QuickBooksBlock', () => {
       })
     ).toEqual({
       field: 'deleteEntity',
-      value: ['Attachable', 'Deposit', 'InventoryAdjustment', 'Transfer'],
+      value: [
+        'Attachable',
+        'CreditCardPayment',
+        'Deposit',
+        'InventoryAdjustment',
+        'RecurringTransaction',
+        'Transfer',
+      ],
     })
     expect(
       payload.required({
@@ -110,5 +125,44 @@ describe('QuickBooksBlock', () => {
       field: 'operation',
       value: ['create_record', 'update_record', 'update_exchange_rate', 'update_preferences'],
     })
+  })
+
+  it('exposes only documented operations for newer and locale-specific entities', () => {
+    const optionsFor = (id: string) => {
+      const subBlock = QuickBooksBlock.subBlocks.find((candidate) => candidate.id === id)
+      if (!subBlock || !('options' in subBlock) || !Array.isArray(subBlock.options)) {
+        throw new Error(`Expected ${id} entity options`)
+      }
+      return subBlock.options.map((option) => option.id)
+    }
+
+    expect(optionsFor('listEntity')).toEqual(
+      expect.arrayContaining([
+        'CreditCardPayment',
+        'TaxPayment',
+        'RecurringTransaction',
+        'JournalCode',
+      ])
+    )
+    expect(optionsFor('getEntity')).toEqual(
+      expect.arrayContaining([
+        'CreditCardPayment',
+        'TaxPayment',
+        'RecurringTransaction',
+        'JournalCode',
+      ])
+    )
+    expect(optionsFor('createEntity')).toEqual(
+      expect.arrayContaining(['CreditCardPayment', 'RecurringTransaction', 'JournalCode'])
+    )
+    expect(optionsFor('createEntity')).not.toContain('TaxPayment')
+    expect(optionsFor('updateEntity')).toContain('CreditCardPayment')
+    expect(optionsFor('updateEntity')).toContain('JournalCode')
+    expect(optionsFor('updateEntity')).not.toContain('RecurringTransaction')
+    expect(optionsFor('updateEntity')).not.toContain('TaxPayment')
+    expect(optionsFor('deleteEntity')).toContain('CreditCardPayment')
+    expect(optionsFor('deleteEntity')).toContain('RecurringTransaction')
+    expect(optionsFor('deleteEntity')).not.toContain('JournalCode')
+    expect(optionsFor('deleteEntity')).not.toContain('TaxPayment')
   })
 })

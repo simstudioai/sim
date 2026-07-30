@@ -5,6 +5,7 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { QuickBooksResponse } from '@/tools/quickbooks/types'
 import {
+  QUICKBOOKS_ATTACHMENT_ENTITIES,
   QUICKBOOKS_CREATABLE_ENTITIES,
   QUICKBOOKS_DELETABLE_ENTITIES,
   QUICKBOOKS_FULL_DELETE_ENTITIES,
@@ -258,6 +259,17 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'File',
       type: 'file-upload',
       canonicalParamId: 'file',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'upload_attachment' },
+      required: { field: 'operation', value: 'upload_attachment' },
+    },
+    {
+      id: 'attachmentFileRef',
+      title: 'File',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      mode: 'advanced',
+      placeholder: 'Reference a file from a previous block',
       condition: { field: 'operation', value: 'upload_attachment' },
       required: { field: 'operation', value: 'upload_attachment' },
     },
@@ -265,7 +277,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       id: 'attachmentEntity',
       title: 'Linked Entity Type',
       type: 'dropdown',
-      options: buildEntityOptions(QUICKBOOKS_READABLE_ENTITIES),
+      options: buildEntityOptions(QUICKBOOKS_ATTACHMENT_ENTITIES),
       value: () => 'PurchaseOrder',
       condition: { field: 'operation', value: 'upload_attachment' },
       required: { field: 'operation', value: 'upload_attachment' },
@@ -313,7 +325,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'Sparse Update',
       type: 'switch',
       value: () => 'true',
-      condition: { field: 'operation', value: 'update_record' },
+      condition: {
+        field: 'operation',
+        value: 'update_record',
+        and: { field: 'updateEntity', value: 'InventoryAdjustment', not: true },
+      },
       mode: 'advanced',
     },
     {

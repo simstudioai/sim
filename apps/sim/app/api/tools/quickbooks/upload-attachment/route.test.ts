@@ -152,6 +152,60 @@ describe('POST /api/tools/quickbooks/upload-attachment', () => {
     )
   })
 
+  it('rejects unsupported linked entity types before downloading the file', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        ...baseBody,
+        entity: 'CompanyInfo',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'QuickBooks entity "CompanyInfo" cannot be linked to an attachment',
+    })
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects file types outside the QuickBooks attachment whitelist', async () => {
+    mockProcessFilesToUserFiles.mockReturnValueOnce([
+      {
+        ...baseBody.file,
+        key: 'uploads/archive.zip',
+        name: 'archive.zip',
+        type: 'application/zip',
+      },
+    ])
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'QuickBooks does not support .zip attachment files',
+    })
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects resolved content types that do not match the file extension', async () => {
+    mockDownloadFileFromStorage.mockResolvedValueOnce({
+      buffer: Buffer.from('not-a-pdf'),
+      contentType: 'text/plain',
+    })
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'QuickBooks does not support text/plain content for .pdf attachments',
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('rejects nested QuickBooks upload faults returned with HTTP 200', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(
@@ -193,16 +247,16 @@ describe('POST /api/tools/quickbooks/upload-attachment', () => {
     })
   })
 
-  it('rejects files over the QuickBooks 100 MB attachment limit', async () => {
+  it('rejects files over the buffered 25 MB attachment limit', async () => {
     mockProcessFilesToUserFiles.mockReturnValueOnce([
-      { ...baseBody.file, size: 100 * 1024 * 1024 + 1 },
+      { ...baseBody.file, size: 25 * 1024 * 1024 + 1 },
     ])
 
     const response = await POST(createMockRequest('POST', baseBody))
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
       success: false,
-      error: expect.stringContaining('100MB'),
+      error: expect.stringContaining('25MB'),
     })
     expect(mockFetch).not.toHaveBeenCalled()
   })

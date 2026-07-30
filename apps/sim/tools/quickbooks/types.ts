@@ -8,6 +8,7 @@ export const QUICKBOOKS_QUERYABLE_ENTITIES = [
   'Budget',
   'Class',
   'CompanyCurrency',
+  'CreditCardPayment',
   'CreditMemo',
   'Customer',
   'Department',
@@ -17,15 +18,18 @@ export const QUICKBOOKS_QUERYABLE_ENTITIES = [
   'Invoice',
   'InventoryAdjustment',
   'Item',
+  'JournalCode',
   'JournalEntry',
   'Payment',
   'PaymentMethod',
   'Purchase',
   'PurchaseOrder',
+  'RecurringTransaction',
   'RefundReceipt',
   'SalesReceipt',
   'TaxAgency',
   'TaxCode',
+  'TaxPayment',
   'TaxRate',
   'Term',
   'TimeActivity',
@@ -42,6 +46,7 @@ export const QUICKBOOKS_READABLE_ENTITIES = [
   'Class',
   'CompanyCurrency',
   'CompanyInfo',
+  'CreditCardPayment',
   'CreditMemo',
   'Customer',
   'Department',
@@ -51,15 +56,18 @@ export const QUICKBOOKS_READABLE_ENTITIES = [
   'Invoice',
   'InventoryAdjustment',
   'Item',
+  'JournalCode',
   'JournalEntry',
   'Payment',
   'PaymentMethod',
   'Purchase',
   'PurchaseOrder',
+  'RecurringTransaction',
   'RefundReceipt',
   'SalesReceipt',
   'TaxAgency',
   'TaxCode',
+  'TaxPayment',
   'TaxRate',
   'Term',
   'TimeActivity',
@@ -75,6 +83,7 @@ export const QUICKBOOKS_CREATABLE_ENTITIES = [
   'BillPayment',
   'Class',
   'CompanyCurrency',
+  'CreditCardPayment',
   'CreditMemo',
   'Customer',
   'Department',
@@ -84,11 +93,13 @@ export const QUICKBOOKS_CREATABLE_ENTITIES = [
   'Invoice',
   'InventoryAdjustment',
   'Item',
+  'JournalCode',
   'JournalEntry',
   'Payment',
   'PaymentMethod',
   'Purchase',
   'PurchaseOrder',
+  'RecurringTransaction',
   'RefundReceipt',
   'SalesReceipt',
   'Term',
@@ -99,7 +110,7 @@ export const QUICKBOOKS_CREATABLE_ENTITIES = [
 ] as const
 
 export const QUICKBOOKS_UPDATABLE_ENTITIES = [
-  ...QUICKBOOKS_CREATABLE_ENTITIES,
+  ...QUICKBOOKS_CREATABLE_ENTITIES.filter((entity) => entity !== 'RecurringTransaction'),
   'CompanyInfo',
 ] as const
 
@@ -121,8 +132,10 @@ export const QUICKBOOKS_SIMPLIFIED_DELETE_ENTITIES = [
 
 export const QUICKBOOKS_FULL_DELETE_ENTITIES = [
   'Attachable',
+  'CreditCardPayment',
   'Deposit',
   'InventoryAdjustment',
+  'RecurringTransaction',
   'Transfer',
 ] as const
 
@@ -131,11 +144,33 @@ export const QUICKBOOKS_DELETABLE_ENTITIES = [
   ...QUICKBOOKS_FULL_DELETE_ENTITIES,
 ] as const
 
-export const QUICKBOOKS_CDC_ENTITIES = QUICKBOOKS_READABLE_ENTITIES.filter(
-  (entity) => !['TaxAgency', 'TaxCode', 'TaxRate', 'TimeActivity'].includes(entity)
+export const QUICKBOOKS_ATTACHMENT_ENTITIES = [
+  'Bill',
+  'BillPayment',
+  'CreditCardPayment',
+  'CreditMemo',
+  'Deposit',
+  'Estimate',
+  'InventoryAdjustment',
+  'Invoice',
+  'Item',
+  'JournalEntry',
+  'Payment',
+  'Purchase',
+  'PurchaseOrder',
+  'RefundReceipt',
+  'SalesReceipt',
+  'TaxPayment',
+  'TimeActivity',
+  'Transfer',
+  'VendorCredit',
+] as const
+
+export const QUICKBOOKS_CDC_ENTITIES = [...QUICKBOOKS_QUERYABLE_ENTITIES, 'CompanyInfo'].filter(
+  (entity) => !['JournalCode', 'TaxAgency', 'TaxCode', 'TaxRate', 'TimeActivity'].includes(entity)
 ) as Exclude<
-  (typeof QUICKBOOKS_READABLE_ENTITIES)[number],
-  'TaxAgency' | 'TaxCode' | 'TaxRate' | 'TimeActivity'
+  (typeof QUICKBOOKS_QUERYABLE_ENTITIES)[number] | 'CompanyInfo',
+  'JournalCode' | 'TaxAgency' | 'TaxCode' | 'TaxRate' | 'TimeActivity'
 >[]
 
 export const QUICKBOOKS_REPORTS = [
@@ -178,6 +213,7 @@ export const QUICKBOOKS_PDF_ENTITIES = [
 export const QUICKBOOKS_SENDABLE_ENTITIES = QUICKBOOKS_PDF_ENTITIES
 
 export type QuickBooksEntityName = (typeof QUICKBOOKS_QUERYABLE_ENTITIES)[number] | 'CompanyInfo'
+export type QuickBooksAttachmentEntityName = (typeof QUICKBOOKS_ATTACHMENT_ENTITIES)[number]
 export type QuickBooksReportName = (typeof QUICKBOOKS_REPORTS)[number]
 export type QuickBooksPdfEntityName = (typeof QUICKBOOKS_PDF_ENTITIES)[number]
 export type QuickBooksSendableEntityName = (typeof QUICKBOOKS_SENDABLE_ENTITIES)[number]

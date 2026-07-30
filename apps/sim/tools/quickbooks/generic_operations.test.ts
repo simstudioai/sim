@@ -80,6 +80,67 @@ describe('QuickBooks generic operations', () => {
         operation: 'delete',
       })
     ).toThrow('QuickBooks entity "Vendor" cannot be deleted')
+
+    expect(() =>
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'TaxPayment',
+        operation: 'create',
+      })
+    ).toThrow('QuickBooks entity "TaxPayment" cannot be created')
+
+    expect(() =>
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'RecurringTransaction',
+        operation: 'update',
+      })
+    ).toThrow('QuickBooks entity "RecurringTransaction" cannot be updated')
+
+    expect(() =>
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'JournalCode',
+        operation: 'delete',
+      })
+    ).toThrow('QuickBooks entity "JournalCode" cannot be deleted')
+  })
+
+  it('builds current locale and SKU-dependent entity endpoints', () => {
+    expect(
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'CreditCardPayment',
+        operation: 'read',
+        recordId: '41',
+      }).url
+    ).toBe(
+      'https://quickbooks.api.intuit.com/v3/company/123145/creditcardpayment/41?minorversion=75'
+    )
+    expect(
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'TaxPayment',
+        operation: 'read',
+        recordId: '42',
+      }).url
+    ).toBe('https://quickbooks.api.intuit.com/v3/company/123145/taxpayment/42?minorversion=75')
+    expect(
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'RecurringTransaction',
+        operation: 'create',
+      }).url
+    ).toBe(
+      'https://quickbooks.api.intuit.com/v3/company/123145/recurringtransaction?minorversion=75'
+    )
+    expect(
+      buildQuickBooksRecordUrl({
+        realmId: '123145',
+        entity: 'JournalCode',
+        operation: 'update',
+      }).url
+    ).toBe('https://quickbooks.api.intuit.com/v3/company/123145/journalcode?minorversion=75')
   })
 
   it('rejects invalid access tokens before constructing QuickBooks headers', () => {
@@ -122,6 +183,23 @@ describe('QuickBooks generic operations', () => {
       DisplayName: 'Acme Industrial',
       Id: '42',
       SyncToken: '3',
+      sparse: true,
+    })
+
+    expect(
+      updateBody({
+        accessToken: 'token',
+        realmId: '123145',
+        entity: 'InventoryAdjustment',
+        recordId: '43',
+        syncToken: '4',
+        payload: { Line: [{ Id: '1' }] },
+        sparse: false,
+      })
+    ).toEqual({
+      Line: [{ Id: '1' }],
+      Id: '43',
+      SyncToken: '4',
       sparse: true,
     })
 
@@ -247,11 +325,11 @@ describe('QuickBooks generic operations', () => {
       expect(
         buildQuickBooksCdcUrl({
           realmId: '123145',
-          entities: 'Vendor, PurchaseOrder, Bill',
+          entities: 'Vendor, PurchaseOrder, Bill, Budget',
           changedSince: '2026-07-15T09:00:00-08:00',
         })
       ).toBe(
-        'https://quickbooks.api.intuit.com/v3/company/123145/cdc?minorversion=75&entities=Vendor%2CPurchaseOrder%2CBill&changedSince=2026-07-15T09%3A00%3A00-08%3A00'
+        'https://quickbooks.api.intuit.com/v3/company/123145/cdc?minorversion=75&entities=Vendor%2CPurchaseOrder%2CBill%2CBudget&changedSince=2026-07-15T09%3A00%3A00-08%3A00'
       )
 
       expect(() =>
@@ -261,6 +339,22 @@ describe('QuickBooks generic operations', () => {
           changedSince: '2026-07-15',
         })
       ).toThrow('QuickBooks entity "TaxRate" cannot be tracked by CDC')
+
+      expect(() =>
+        buildQuickBooksCdcUrl({
+          realmId: '123145',
+          entities: 'JournalCode',
+          changedSince: '2026-07-15',
+        })
+      ).toThrow('QuickBooks entity "JournalCode" cannot be tracked by CDC')
+
+      expect(
+        buildQuickBooksCdcUrl({
+          realmId: '123145',
+          entities: 'CreditCardPayment,TaxPayment,RecurringTransaction',
+          changedSince: '2026-07-15',
+        })
+      ).toContain('entities=CreditCardPayment%2CTaxPayment%2CRecurringTransaction')
 
       expect(() =>
         buildQuickBooksCdcUrl({
