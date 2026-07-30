@@ -221,6 +221,22 @@ const LANE_EXEMPT_PREFIXES: Record<string, string> = {
 const isExempt = (file: string) =>
   file in LANE_EXEMPT || Object.keys(LANE_EXEMPT_PREFIXES).some((prefix) => file.startsWith(prefix))
 
+/**
+ * Surfaces a layout returns *instead of* its lane-aware chrome, not inside it.
+ *
+ * Ancestor resolution is static, so it credits any file under a layout that mentions a
+ * lane-aware shell. That is wrong for an early return: `workspace/[workspaceId]/layout.tsx`
+ * returns `<WorkspaceAccessDenied />` at the top and only reaches `<WorkspaceChrome>` much
+ * later, so at runtime the denied page has no chrome and must reserve for itself. Without
+ * this, a regression there would read as inherited and pass.
+ *
+ * `SessionExpired` is deliberately absent: it renders as a sibling *within* the chrome
+ * tree, so its inherited coverage is real.
+ */
+const SELF_RESERVE_REQUIRED = new Set([
+  'app/workspace/[workspaceId]/components/workspace-access-denied.tsx',
+])
+
 /** Every file under `app/`, so ancestor layouts can be resolved without extra fs calls. */
 const ALL_APP_FILES = new Set(
   readdirSync(new URL('../', import.meta.url), { recursive: true, encoding: 'utf8' }).map(
@@ -254,7 +270,9 @@ function viewportRoots() {
         file,
         fillsViewport: FILLS_VIEWPORT.test(source),
         self: reservesLane(source),
-        inherited: ancestorLayouts(file).some((l) => reservesLane(sourceOf(l))),
+        inherited:
+          !SELF_RESERVE_REQUIRED.has(file) &&
+          ancestorLayouts(file).some((l) => reservesLane(sourceOf(l))),
       }
     })
     .filter((r) => r.fillsViewport)
