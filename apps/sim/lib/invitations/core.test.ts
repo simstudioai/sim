@@ -399,6 +399,70 @@ describe('acceptInvitation', () => {
     )
   })
 
+  it('accepts a personal-workspace invite on a billing-disabled deployment', async () => {
+    /**
+     * With billing off and no organization on the workspace there is nothing to
+     * provision and nothing to join, so the preview reports `external`. The
+     * consent guard must agree: `shouldJoinOrganization` is still true at that
+     * point (it is only cleared much later), so deriving the predicate from it
+     * alone rejected every self-hosted personal invite as `disclosure-outdated`,
+     * with a retry that rendered the same preview.
+     */
+    setEnvFlags({ isBillingEnabled: false })
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: 'owner-1',
+    })
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: null,
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      [],
+      [],
+      [{ variables: {} }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      disclosedWorkspaceIds: [],
+      disclosedOutcome: 'external',
+      request: new Request('http://localhost/api/invitations/inv-1/accept'),
+    })
+
+    expect(result.success ? 'ok' : result.kind).toBe('ok')
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+  })
+
   it('preserves a personal workspace organization null for external invitations', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',

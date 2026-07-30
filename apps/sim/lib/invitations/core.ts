@@ -793,7 +793,22 @@ async function acceptLockedInvitation(
    *
    * Runs before any write, so a plain failure return needs no rollback.
    */
-  const willCreateMembership = shouldJoinOrganization && !alreadyMemberOfTargetOrganization
+  /**
+   * Whether acceptance will actually create a member row, decided from the same
+   * conditions the join block below uses — `shouldJoinOrganization` alone is not
+   * enough here, because it is only cleared much later (after provisioning fails
+   * to yield a target organization), by which point a write has happened.
+   *
+   * The last term mirrors the preview: with no organization on the workspace and
+   * billing disabled there is nothing to provision and nothing to join, so a
+   * personal or grandfathered workspace invite creates no membership. Omitting it
+   * rejected every such acceptance as `disclosure-outdated` on billing-disabled
+   * deployments, with a retry that rendered the same preview.
+   */
+  const willCreateMembership =
+    shouldJoinOrganization &&
+    !alreadyMemberOfTargetOrganization &&
+    (!!workspaceOrganizationId || isBillingEnabled)
   if (input.disclosedOutcome !== undefined && input.disclosedOutcome !== 'blocked') {
     if ((input.disclosedOutcome === 'will-join') !== willCreateMembership) {
       return { success: false, kind: 'disclosure-outdated' }
