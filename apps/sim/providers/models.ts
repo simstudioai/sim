@@ -4219,10 +4219,11 @@ export function getHostedModels(): string[] {
     ...getProviderModels('zai'),
     ...getProviderModels('xai'),
     ...getProviderModels('kimi'),
-    // Static Fireworks entries only (the sim-auto pool, platform key). Dynamic
-    // user-configured fireworks/* ids are not in PROVIDER_DEFINITIONS and stay
-    // out of the hosted/billable set.
-    ...getProviderModels('fireworks'),
+    // The STATIC Fireworks catalog only (the sim-auto pool, platform key) —
+    // deliberately not the live provider list, which `updateFireworksModels`
+    // merges a workspace's own dynamic ids into. Those must never enter the
+    // hosted set: it gates both billing and the platform-key handout.
+    ...STATIC_FIREWORKS_MODELS.map((model) => model.id),
   ]
 }
 
@@ -4288,16 +4289,31 @@ export function updateLiteLLMModels(models: string[]): void {
   }))
 }
 
+/**
+ * The static Fireworks catalog (the hosted sim-auto pool), captured at module
+ * load before any dynamic sync runs. Hosted billing, pricing, and the agent
+ * block's API-key condition all key on these ids, so a workspace's own
+ * Fireworks models are merged on top of them rather than replacing them —
+ * unlike the other dynamic providers, whose static list is empty.
+ */
+const STATIC_FIREWORKS_MODELS = PROVIDER_DEFINITIONS.fireworks.models
+
 export function updateFireworksModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.fireworks.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  const staticIds = new Set(STATIC_FIREWORKS_MODELS.map((model) => model.id.toLowerCase()))
+  PROVIDER_DEFINITIONS.fireworks.models = [
+    ...STATIC_FIREWORKS_MODELS,
+    ...models
+      .filter((modelId) => !staticIds.has(modelId.toLowerCase()))
+      .map((modelId) => ({
+        id: modelId,
+        pricing: {
+          input: 0,
+          output: 0,
+          updatedAt: new Date().toISOString().split('T')[0],
+        },
+        capabilities: {},
+      })),
+  ]
 }
 
 export function updateTogetherModels(models: string[]): void {

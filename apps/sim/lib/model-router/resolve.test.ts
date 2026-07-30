@@ -3,10 +3,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchGo, mockValidateModelProvider, mockGetMothershipBaseURL } = vi.hoisted(() => ({
+const {
+  mockFetchGo,
+  mockValidateModelProvider,
+  mockGetMothershipBaseURL,
+  mockGetProviderFromModel,
+} = vi.hoisted(() => ({
   mockFetchGo: vi.fn(),
   mockValidateModelProvider: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
+  mockGetProviderFromModel: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -30,6 +36,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validateModelProvider: mockValidateModelProvider,
 }))
 
+vi.mock('@/providers/utils', () => ({
+  getProviderFromModel: mockGetProviderFromModel,
+}))
+
 import { type AutoRoutingSignals, resolveAutoModel } from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
 
@@ -47,7 +57,7 @@ function makeSignals(overrides: Partial<AutoRoutingSignals> = {}): AutoRoutingSi
     lastMessage: 'here is the data to reconcile against the ledger',
     messageCount: 1,
     toolNames: ['exa_search'],
-    hasAttachments: false,
+    mediaKind: 'none',
     hasResponseFormat: false,
     approxInputTokens: 5000,
     ...overrides,
@@ -63,35 +73,87 @@ describe('resolveAutoModel', () => {
     vi.clearAllMocks()
     mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
     mockValidateModelProvider.mockResolvedValue(undefined)
+    mockGetProviderFromModel.mockReturnValue('fireworks')
   })
 
-  it('restricts routing to vision-capable tiers when attachments are present', async () => {
+  /** The full pool, exactly as specified: media kind → tier → model. */
+  const POOL_CASES: Array<{ mediaKind: AutoRoutingSignals['mediaKind']; byTier: string[] }> = [
+    { mediaKind: 'none', byTier: ['fireworks/glm-5.2', 'fireworks/glm-5.2', 'fireworks/kimi-k3'] },
+    { mediaKind: 'image', byTier: ['gemini-3.6-flash', 'fireworks/kimi-k3', 'fireworks/kimi-k3'] },
+    { mediaKind: 'file', byTier: ['gemini-3.6-flash', 'claude-sonnet-5', 'gpt-5.6-sol'] },
+  ]
+
+  for (const { mediaKind, byTier } of POOL_CASES) {
+    byTier.forEach((expected, index) => {
+      const tier = String(index + 1)
+      it(`routes ${mediaKind} tier ${tier} to ${expected}`, async () => {
+        mockFetchGo.mockResolvedValue(routerResponse({ choice: tier }))
+
+        const result = await resolveAutoModel({
+          ctx,
+          blockId: 'b1',
+          signals: makeSignals({ mediaKind }),
+          fallbackModel: 'claude-sonnet-5',
+        })
+
+        expect(result.model).toBe(expected)
+        expect(result.tier).toBe(tier)
+      })
+    })
+  }
+
+  it('offers all three tiers and no model name to the router', async () => {
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '2' }))
-    const result = await resolveAutoModel({
+
+    await resolveAutoModel({
       ctx,
       blockId: 'b1',
-      signals: makeSignals({ hasAttachments: true }),
+      signals: makeSignals({ mediaKind: 'image' }),
       fallbackModel: 'claude-sonnet-5',
     })
-    expect(result.model).toBe('gpt-5.5')
-    expect(result.tier).toBe('2')
 
     const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
-    expect(body.candidates.map((c: { id: string }) => c.id)).toEqual(['1', '2'])
+    expect(body.candidates.map((c: { id: string }) => c.id)).toEqual(['1', '2', '3'])
+    // Media kind is Sim's business: the wire carries only its presence.
+    expect(body.signals.hasMedia).toBe(true)
+    expect(body.signals.mediaKind).toBeUndefined()
+    for (const model of ['glm', 'kimi', 'gemini', 'gpt-5.6-sol', 'sonnet']) {
+      expect(JSON.stringify(body)).not.toContain(model)
+    }
   })
 
-  it('routes trivially simple tasks to tier 1 without calling the router', async () => {
+  it('never crosses media kinds when walking down from a denied tier', async () => {
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '3' }))
+    // gpt-5.6-sol denied; the file column must drop to sonnet, never to a
+    // Fireworks model that cannot accept the attachment at all.
+    mockValidateModelProvider.mockImplementation(async (_u, _w, model: string) => {
+      if (model === 'gpt-5.6-sol') throw new Error('provider blocked')
+    })
+
     const result = await resolveAutoModel({
       ctx,
       blockId: 'b1',
-      signals: makeSignals({ approxInputTokens: 100, toolNames: [], hasResponseFormat: false }),
+      signals: makeSignals({ mediaKind: 'file' }),
       fallbackModel: 'claude-sonnet-5',
     })
-    expect(result.model).toBe('fireworks/glm-5.2')
-    expect(result.tier).toBe('1')
-    expect(result.decidedBy).toBe('heuristic')
-    expect(result.billableRoutingCost).toBe(0)
-    expect(mockFetchGo).not.toHaveBeenCalled()
+
+    expect(result.model).toBe('claude-sonnet-5')
+    expect(result.tier).toBe('3')
+  })
+
+  it('classifies even a tiny toolless prompt instead of assuming the lowest tier', async () => {
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '3' }))
+
+    const result = await resolveAutoModel({
+      ctx,
+      blockId: 'b1',
+      signals: makeSignals({ approxInputTokens: 20, toolNames: [], hasResponseFormat: false }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    expect(mockFetchGo).toHaveBeenCalledTimes(1)
+    expect(result.model).toBe('fireworks/kimi-k3')
+    expect(result.decidedBy).toBe('llm')
   })
 
   it('uses the router choice and applies the cost multiplier when billable', async () => {
@@ -115,7 +177,7 @@ describe('resolveAutoModel', () => {
       signals: makeSignals(),
       fallbackModel: 'claude-sonnet-5',
     })
-    expect(result.model).toBe('fireworks/kimi-k3')
+    expect(result.model).toBe('fireworks/glm-5.2')
     expect(result.tier).toBe('2')
     expect(result.decidedBy).toBe('llm')
     expect(result.billableRoutingCost).toBeCloseTo(0.002)
@@ -177,6 +239,23 @@ describe('resolveAutoModel', () => {
       signals: makeSignals(),
       fallbackModel: 'claude-sonnet-5',
     })
+    expect(result.model).toBe('claude-sonnet-5')
+    expect(result.decidedBy).toBe('fallback')
+  })
+
+  it('falls back when every pool model resolves to a blacklisted provider', async () => {
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '2' }))
+    mockGetProviderFromModel.mockImplementation(() => {
+      throw new Error('Provider "fireworks" is not available')
+    })
+
+    const result = await resolveAutoModel({
+      ctx,
+      blockId: 'b1',
+      signals: makeSignals(),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
     expect(result.model).toBe('claude-sonnet-5')
     expect(result.decidedBy).toBe('fallback')
   })

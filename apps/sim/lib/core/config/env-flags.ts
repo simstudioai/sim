@@ -34,7 +34,16 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+/**
+ * Local-development escape hatch for exercising hosted-only paths (the sim-auto
+ * pool, platform keys, hosted-only UI) without pointing `NEXT_PUBLIC_APP_URL` at
+ * a sim.ai hostname, which would break local callback URLs. Ignored in
+ * production builds, so a self-hosted deployment can never claim to be Sim's
+ * hosted environment.
+ */
+const forceHosted = !isProd && isTruthy(getEnv('NEXT_PUBLIC_FORCE_HOSTED'))
+
+export const isHosted = forceHosted || appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go

@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/env-flags'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -22,7 +21,6 @@ import {
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
   isAutoModel,
-  SIM_AUTO_MODEL_ID,
   supportsTemperature,
 } from '@/providers/models'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -135,9 +133,7 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      // Hosted Sim defaults new agent blocks to the automatic model; the
-      // runtime fallback for blocks with no model set stays AGENT.DEFAULT_MODEL.
-      defaultValue: isHosted ? SIM_AUTO_MODEL_ID : 'claude-sonnet-5',
+      defaultValue: 'claude-sonnet-5',
       options: getModelOptions,
       commandSearchable: true,
     },

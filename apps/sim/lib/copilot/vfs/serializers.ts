@@ -504,15 +504,14 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
 
   const models: StaticModelOption[] = []
 
-  // Hosted-only automatic model: presence in this options array is what
-  // licenses the build agent to write it (its prompt guidance is conditioned
-  // on presence), so self-hosted snapshots never carry it.
+  // Hosted-only automatic model. Deliberately not `recommended` and given no
+  // prompt guidance (limited-visibility release): the build agent can write it
+  // when a user explicitly asks for the auto model, but is never steered to it.
   if (isHosted) {
     models.push({
       id: SIM_AUTO_MODEL_ID,
       provider: 'sim',
       hosted: true,
-      recommended: true,
     })
   }
 

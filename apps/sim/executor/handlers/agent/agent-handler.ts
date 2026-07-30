@@ -8,12 +8,17 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import {
+  type AutoMediaKind,
   type AutoRoutingResult,
   type AutoRoutingSignals,
   resolveAutoModel,
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
-import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
+import {
+  MODEL_SUPPORTED_IMAGE_MIME_TYPES,
+  processFilesToUserFiles,
+  type RawFileInput,
+} from '@/lib/uploads/utils/file-utils'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
@@ -52,7 +57,7 @@ import {
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
-import { isAutoModel } from '@/providers/models'
+import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -166,6 +171,10 @@ export class AgentBlockHandler implements BlockHandler {
       this.applyRoutingCost(result as BlockOutput, autoRouting.billableRoutingCost)
     }
 
+    if (autoRouting) {
+      this.applyAutoModelLabel(result, model)
+    }
+
     if (this.isStreamingExecution(result)) {
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
         return this.wrapStreamForMemoryPersistence(
@@ -208,11 +217,74 @@ export class AgentBlockHandler implements BlockHandler {
       lastMessage,
       messageCount: (inputs.messages?.length ?? 0) + (inputs.userPrompt ? 1 : 0),
       toolNames: (inputs.tools ?? []).map((t) => t.title || t.type || 'tool'),
-      hasAttachments: Array.isArray(normalizedFiles)
-        ? normalizedFiles.length > 0
-        : Boolean(normalizedFiles),
+      mediaKind: this.resolveMediaKind(inputs, normalizedFiles),
       hasResponseFormat: Boolean(responseFormat),
       approxInputTokens: Math.ceil(approxChars / 4),
+    }
+  }
+
+  /**
+   * Classifies what the block attaches, which decides the sim-auto pool column.
+   *
+   * Media reaches the provider by two routes — the block's `files` input and
+   * files already carried on inbound messages (chat deployments, memory, an
+   * upstream block feeding `messages`) — and both count. A file whose MIME type
+   * is missing or unrecognized counts as `file`, the column served by the
+   * providers that accept the most input types, because the alternative is
+   * handing a document to a model whose API models no such content part.
+   */
+  private resolveMediaKind(inputs: AgentInputs, normalizedFiles: unknown): AutoMediaKind {
+    const attached: Array<{ type?: string }> = [
+      ...(Array.isArray(normalizedFiles) ? (normalizedFiles as Array<{ type?: string }>) : []),
+      ...(inputs.messages ?? []).flatMap((message) => message.files ?? []),
+    ]
+
+    if (attached.length === 0) return 'none'
+
+    return attached.every((file) =>
+      MODEL_SUPPORTED_IMAGE_MIME_TYPES.has((file.type ?? '').toLowerCase())
+    )
+      ? 'image'
+      : 'file'
+  }
+
+  /**
+   * Reports a completed auto run under the `sim-auto` identity everywhere the
+   * run is observed — the block output, the trace span, and the usage-ledger
+   * row keyed on the model name — so the pool model that served the request
+   * stays an implementation detail (matching the block's configured model and
+   * the hidden identity preamble the models themselves run under).
+   *
+   * Runs after `executeProviderRequest`, whose billability gate and pricing
+   * key on the concrete pool model: tokens and cost are already settled here,
+   * only the label changes.
+   */
+  private applyAutoModelLabel(
+    result: BlockOutput | StreamingExecution,
+    resolvedModel: string
+  ): void {
+    const output = this.isStreamingExecution(result)
+      ? (result as StreamingExecution).execution?.output
+      : (result as BlockOutput)
+    if (!output || typeof output !== 'object') return
+
+    const target = output as {
+      model?: string
+      providerTiming?: {
+        timeSegments?: Array<{ type?: string; name?: string; provider?: string }>
+      }
+    }
+    target.model = SIM_AUTO_MODEL_ID
+
+    // Model segments name themselves after the model (every provider does) and
+    // carry the serving provider, which the log detail renders as that
+    // provider's icon — the same leak by two other routes.
+    for (const segment of target.providerTiming?.timeSegments ?? []) {
+      if (segment.type !== 'model') continue
+      if (segment.name?.toLowerCase() === resolvedModel.toLowerCase()) {
+        segment.name = SIM_AUTO_MODEL_ID
+      }
+      segment.provider = undefined
     }
   }
 

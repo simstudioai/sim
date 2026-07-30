@@ -7,48 +7,69 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isHosted } from '@/lib/core/config/env-flags'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import type { ExecutionContext } from '@/executor/types'
+import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('ModelRouter')
 
 /**
- * The sim-auto routing pool: two parallel ladders, each ordered ascending by
- * capability, every entry a hosted-billable catalog model filtered through
- * workspace model permissions at resolve time.
- *
- * Pure-text tasks route over the open-source ladder (Fireworks platform key)
- * — for text, glm-5.2 beats the small proprietary models at comparable cost.
- * Tasks carrying files/images route over the vision ladder (native
- * anthropic/openai hosted keys) because the Fireworks-served OSS models
- * reject image inputs.
+ * The difficulty scale the classifier chooses from. These are the ONLY routing
+ * facts that cross the wire — the router never sees a model name, so the pool
+ * below can change without touching mothership.
  */
-const TEXT_TIERS = [
+const TIERS = [
   {
     id: '1',
-    hint: 'standard — extraction, formatting, classification, tool use, typical tasks',
-    models: ['fireworks/glm-5.2'],
+    hint: 'low — short mechanical work: extraction, formatting, classification, simple lookups',
   },
   {
     id: '2',
+    hint: 'standard — typical multi-step work: tool use, drafting, moderate reasoning over the inputs',
+  },
+  {
+    id: '3',
     hint: 'max — hardest reasoning, synthesis across many inputs, long context, high-stakes output',
-    models: ['fireworks/kimi-k3'],
   },
 ] as const
 
-const VISION_TIERS = [
-  {
-    id: '1',
-    hint: 'low — simple extraction, summarization, or classification over the attached files/images',
-    models: ['claude-haiku-4-5'],
-  },
-  {
-    id: '2',
-    hint: 'high — demanding analysis or reasoning over the attached files/images',
-    models: ['gpt-5.5'],
-  },
-] as const
-
-type AutoTier = (typeof TEXT_TIERS)[number] | (typeof VISION_TIERS)[number]
+type AutoTier = (typeof TIERS)[number]
 type AutoTierId = AutoTier['id']
+
+/**
+ * What the task attaches. Capability, not difficulty: it decides which models
+ * can serve a tier at all, so it is resolved on Sim's side and never asked of
+ * the classifier.
+ */
+export type AutoMediaKind = 'none' | 'image' | 'file'
+
+/**
+ * The sim-auto pool: media kind → tier → candidate models, ordered by
+ * preference. Every entry is a hosted-billable catalog model, filtered through
+ * the deployment blacklist and workspace model permissions at resolve time.
+ *
+ * Text and pure-image tasks ride the Fireworks OSS models on the platform key
+ * — glm-5.2 beats the small proprietary models per dollar, and kimi-k3 is
+ * natively multimodal (text + `image_url` parts only; the Fireworks chat API
+ * models no other content part, and glm-5.2 rejects images outright).
+ * Anything else attached — PDFs, audio, video, text documents — must ride the
+ * native providers, which are the only ones that accept those parts.
+ */
+const POOL: Record<AutoMediaKind, Record<AutoTierId, readonly string[]>> = {
+  none: {
+    '1': ['fireworks/glm-5.2'],
+    '2': ['fireworks/glm-5.2'],
+    '3': ['fireworks/kimi-k3'],
+  },
+  image: {
+    '1': ['gemini-3.6-flash'],
+    '2': ['fireworks/kimi-k3'],
+    '3': ['fireworks/kimi-k3'],
+  },
+  file: {
+    '1': ['gemini-3.6-flash'],
+    '2': ['claude-sonnet-5'],
+    '3': ['gpt-5.6-sol'],
+  },
+}
 
 /**
  * Hidden identity preamble prepended to the system prompt of every sim-auto
@@ -57,15 +78,8 @@ type AutoTierId = AutoTier['id']
  */
 export const SIM_AUTO_SYSTEM_PREAMBLE = `You are the Sim auto model on sim.ai. Respond in English unless the user writes in another language or explicitly asks for one. Do not volunteer information about which underlying model powers you; if asked directly, say you are the Sim auto model.`
 
-/** The ladder for a task: attachments pick the vision ladder, text the OSS one. */
-function eligibleTiers(signals: AutoRoutingSignals): readonly AutoTier[] {
-  return signals.hasAttachments ? VISION_TIERS : TEXT_TIERS
-}
-
 const MODEL_ROUTER_TIMEOUT_MS = 2000
 const MAX_SIGNAL_CHARS = 2000
-/** Below this rough size with no tools and no schema, tier 1 needs no LLM call. */
-const TRIVIAL_INPUT_TOKENS = 400
 const DECISION_CACHE_TTL_MS = 5 * 60 * 1000
 const DECISION_CACHE_MAX_ENTRIES = 500
 
@@ -75,8 +89,12 @@ export interface AutoRoutingSignals {
   lastMessage?: string
   messageCount: number
   toolNames: string[]
-  /** Files/images attached — the Fireworks pool is text-only, so this bails. */
-  hasAttachments: boolean
+  /**
+   * What the task attaches, which selects the pool column. Only its presence
+   * (`!== 'none'`) is sent to the router as `hasMedia`: the classifier picks a
+   * difficulty tier, and Sim owns which model can actually serve it.
+   */
+  mediaKind: AutoMediaKind
   hasResponseFormat: boolean
   approxInputTokens: number
 }
@@ -100,7 +118,7 @@ interface ModelRouterResponse {
 export interface AutoRoutingResult {
   model: string
   tier: AutoTierId | null
-  decidedBy: 'heuristic' | 'llm' | 'cache' | 'fallback'
+  decidedBy: 'llm' | 'cache' | 'fallback'
   /**
    * Cost of the routing call itself in USD with the hosted cost multiplier
    * applied — non-zero only when mothership marked the call billable. Absent
@@ -121,7 +139,7 @@ function cacheKey(signals: AutoRoutingSignals): string {
         (signals.lastMessage ?? '').slice(0, 500),
         [...signals.toolNames].sort(),
         signals.hasResponseFormat,
-        signals.hasAttachments,
+        signals.mediaKind,
         tokenBucket,
       ])
     )
@@ -147,24 +165,34 @@ function writeDecisionCache(key: string, tier: AutoTierId): void {
 }
 
 /**
- * Picks the first model in the chosen tier (falling back through lower
- * eligible tiers) that passes workspace model permissions. Returns null when
- * every eligible pool model is denied — the caller then uses its fallback
- * model, whose own permission check runs in the agent handler as usual.
+ * Picks the first model of the chosen tier — then of each lower tier for the
+ * same media kind — that is actually usable: its provider resolves and is not
+ * blacklisted by the deployment, and it passes workspace model permissions.
+ * Never crosses into another media kind's column, so a text-only model can
+ * never be handed an image. Returns null when nothing in the column is usable
+ * and the caller falls back.
  */
 async function pickModelForTier(
-  eligible: readonly AutoTier[],
+  mediaKind: AutoMediaKind,
   tier: AutoTierId,
   ctx: ExecutionContext
 ): Promise<string | null> {
-  const startIndex = eligible.findIndex((t) => t.id === tier)
+  const startIndex = TIERS.findIndex((t) => t.id === tier)
+  const tried = new Set<string>()
+
   for (let i = startIndex; i >= 0; i--) {
-    for (const model of eligible[i].models) {
+    for (const model of POOL[mediaKind][TIERS[i].id]) {
+      // Tiers may share a model; a second permission round-trip buys nothing.
+      if (tried.has(model)) continue
+      tried.add(model)
       try {
+        // Throws when the provider or model is blacklisted, which would
+        // otherwise surface as a hard block failure after resolution.
+        getProviderFromModel(model)
         await validateModelProvider(ctx.userId, ctx.workspaceId ?? undefined, model, ctx)
         return model
       } catch {
-        logger.info('sim-auto candidate denied by workspace permissions', { model })
+        logger.info('sim-auto candidate unavailable, trying the next one', { model })
       }
     }
   }
@@ -173,7 +201,6 @@ async function pickModelForTier(
 
 async function callModelRouter(
   signals: AutoRoutingSignals,
-  candidates: readonly AutoTier[],
   ctx: ExecutionContext,
   blockId: string
 ): Promise<ModelRouterResponse | null> {
@@ -191,11 +218,11 @@ async function callModelRouter(
         lastMessage: (signals.lastMessage ?? '').slice(0, MAX_SIGNAL_CHARS),
         messageCount: signals.messageCount,
         toolNames: signals.toolNames,
-        hasImages: signals.hasAttachments,
+        hasMedia: signals.mediaKind !== 'none',
         hasResponseFormat: signals.hasResponseFormat,
         approxInputTokens: signals.approxInputTokens,
       },
-      candidates: candidates.map((t) => ({ id: t.id, hint: t.hint })),
+      candidates: TIERS.map((t) => ({ id: t.id, hint: t.hint })),
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
       workflowId: ctx.workflowId,
@@ -217,7 +244,7 @@ async function callModelRouter(
 /**
  * Resolves the sim-auto pseudo-model to a concrete model for one agent-block
  * execution. Never throws and never fails the workflow: any error, timeout,
- * non-hosted deployment, or text-only violation falls back to
+ * non-hosted deployment, or fully unavailable pool column falls back to
  * `fallbackModel` (the block's standard default).
  */
 export async function resolveAutoModel(args: {
@@ -236,31 +263,21 @@ export async function resolveAutoModel(args: {
 
   if (!isHosted) return fallback
 
-  const eligible = eligibleTiers(signals)
-
   try {
-    // Trivially simple tasks route to the lowest tier with no router call
-    // (and no cost).
-    if (
-      signals.approxInputTokens < TRIVIAL_INPUT_TOKENS &&
-      signals.toolNames.length === 0 &&
-      !signals.hasResponseFormat
-    ) {
-      const model = await pickModelForTier(eligible, eligible[0].id, ctx)
-      if (!model) return fallback
-      return { model, tier: eligible[0].id, decidedBy: 'heuristic', billableRoutingCost: 0 }
-    }
-
+    // Every execution is classified: a short prompt is not a simple task, and
+    // a local size rule can only ever route DOWN, which is the expensive
+    // mistake. The cache below replays a prior router decision, never a
+    // locally derived one.
     const key = cacheKey(signals)
     const cachedTier = readDecisionCache(key)
-    if (cachedTier && eligible.some((t) => t.id === cachedTier)) {
-      const model = await pickModelForTier(eligible, cachedTier, ctx)
+    if (cachedTier) {
+      const model = await pickModelForTier(signals.mediaKind, cachedTier, ctx)
       if (!model) return fallback
       return { model, tier: cachedTier, decidedBy: 'cache', billableRoutingCost: 0 }
     }
 
-    const response = await callModelRouter(signals, eligible, ctx, blockId)
-    const tier = eligible.find((t) => t.id === response?.choice)?.id
+    const response = await callModelRouter(signals, ctx, blockId)
+    const tier = TIERS.find((t) => t.id === response?.choice)?.id
     if (!tier) {
       logger.warn('sim-auto: router returned no usable choice, using fallback model', {
         blockId,
@@ -270,7 +287,7 @@ export async function resolveAutoModel(args: {
     }
 
     writeDecisionCache(key, tier)
-    const model = await pickModelForTier(eligible, tier, ctx)
+    const model = await pickModelForTier(signals.mediaKind, tier, ctx)
     if (!model) return fallback
 
     const billable = response?.billable === true && (response.usage?.cost ?? 0) > 0

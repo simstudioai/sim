@@ -166,7 +166,10 @@ export const fireworksProvider: ProviderConfig = {
         )
 
         const streamingResult = createStreamingExecution({
-          model: requestedModel,
+          // Echo the catalog id, never the wire name: it is the billing and
+          // logging identity (cost policy, ledger row, trace span, model
+          // breakdown) the way every other Sim-hosted provider reports it.
+          model: request.model,
           providerStartTime,
           providerStartTimeISO,
           timing: { kind: 'simple', segmentName: request.model },
@@ -561,7 +564,7 @@ export const fireworksProvider: ProviderConfig = {
         }
 
         const streamingResult = createStreamingExecution({
-          model: requestedModel,
+          model: request.model,
           providerStartTime,
           providerStartTimeISO,
           timing: {
@@ -595,7 +598,7 @@ export const fireworksProvider: ProviderConfig = {
 
       return {
         content,
-        model: requestedModel,
+        model: request.model,
         tokens,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,

@@ -85,8 +85,11 @@ export function getModelOptions() {
       return { label: model, id: model, ...(icon && { icon }) }
     })
 
+  // Hosted-only automatic model. Deliberately LAST in the list (limited
+  // visibility for the initial release): available to anyone who scrolls or
+  // searches for it, but never the first thing the dropdown offers.
   if (isHosted) {
-    options.unshift({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
+    options.push({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
   }
 
   return options
@@ -192,8 +195,10 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 
-  // The auto pseudo-model resolves server-side to a hosted pool model.
-  if (isAutoModel(normalizedModel)) return false
+  // On hosted Sim the auto pseudo-model resolves server-side to a hosted pool
+  // model. On self-hosted it exists only via imported workflows and always
+  // falls back to the default Anthropic model, so the key field must show.
+  if (isAutoModel(normalizedModel)) return !isHosted
 
   if (isHosted) {
     const hostedModels = getHostedModels()

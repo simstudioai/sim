@@ -17,10 +17,11 @@ import {
   vi,
 } from 'vitest'
 import { getAllBlocks } from '@/blocks'
-import { BlockType, isMcpTool } from '@/executor/constants'
+import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
+import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -273,6 +274,88 @@ describe('AgentBlockHandler', () => {
       expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
       expect(result).toEqual(expectedOutput)
+    })
+
+    it('reports a sim-auto run under the sim-auto identity, not the model that served it', async () => {
+      mockExecuteProviderRequest.mockResolvedValue({
+        content: 'Mocked response content',
+        model: AGENT.DEFAULT_MODEL,
+        tokens: { input: 10, output: 20, total: 30 },
+        toolCalls: [],
+        cost: { input: 0.001, output: 0.002, total: 0.003 },
+        timing: {
+          total: 100,
+          timeSegments: [
+            { type: 'model', name: AGENT.DEFAULT_MODEL, provider: 'anthropic', duration: 100 },
+          ],
+        },
+      })
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        model: SIM_AUTO_MODEL_ID,
+        userPrompt: 'Hello!',
+      })) as {
+        model: string
+        cost: unknown
+        tokens: unknown
+        providerTiming: { timeSegments: Array<{ name?: string; provider?: string }> }
+      }
+
+      expect(result.model).toBe(SIM_AUTO_MODEL_ID)
+      expect(result.providerTiming.timeSegments[0].name).toBe(SIM_AUTO_MODEL_ID)
+      expect(result.providerTiming.timeSegments[0].provider).toBeUndefined()
+      // Only the label changes: tokens and the already-priced cost are untouched.
+      expect(result.tokens).toEqual({ input: 10, output: 20, total: 30 })
+      expect(result.cost).toEqual({ input: 0.001, output: 0.002, total: 0.003 })
+    })
+
+    /** Reaches the private signal builder; routing depends on nothing else. */
+    const buildAutoRoutingSignalsFor = (inputs: Record<string, unknown>) =>
+      (
+        handler as unknown as {
+          buildAutoRoutingSignals: (i: unknown, rf: unknown) => { mediaKind: string }
+        }
+      ).buildAutoRoutingSignals(inputs, undefined)
+
+    const png = { id: 'f1', type: 'image/png' }
+    const pdf = { id: 'f2', type: 'application/pdf' }
+
+    it('reports no media when neither the files input nor any message carries one', async () => {
+      const signals = buildAutoRoutingSignalsFor({
+        messages: [{ role: 'user' as const, content: 'Summarize this text' }],
+      })
+
+      expect(signals.mediaKind).toBe('none')
+    })
+
+    it('detects media carried on inbound messages, not just the files input', async () => {
+      const signals = buildAutoRoutingSignalsFor({
+        messages: [{ role: 'user' as const, content: 'What is in this image?', files: [png] }],
+      })
+
+      expect(signals.mediaKind).toBe('image')
+    })
+
+    it('classifies an all-image attachment set as image', async () => {
+      expect(buildAutoRoutingSignalsFor({ files: [png, png] }).mediaKind).toBe('image')
+    })
+
+    it('classifies a mixed image + document set as file', async () => {
+      expect(buildAutoRoutingSignalsFor({ files: [png, pdf] }).mediaKind).toBe('file')
+    })
+
+    it('treats an unknown MIME type as file rather than assuming it is an image', async () => {
+      expect(buildAutoRoutingSignalsFor({ files: [{ id: 'f3' }] }).mediaKind).toBe('file')
+    })
+
+    it('leaves the reported model alone for an explicitly selected model', async () => {
+      const result = (await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Hello!',
+        apiKey: 'test-api-key',
+      })) as { model: string }
+
+      expect(result.model).toBe('mock-model')
     })
 
     it('should attach files to the last user message only', async () => {
