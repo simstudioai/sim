@@ -26,6 +26,7 @@ import {
 } from '@/lib/copilot/tools/server/files/file-preview'
 import { mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -61,6 +62,24 @@ const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
  * regardless of token rate; the final durable `edit_content` write is the stream-end flush.
  */
 const LIVE_DOC_MERGE_THROTTLE_MS = 250
+
+/** Files with a live-doc merge currently in flight — one at a time per file. */
+const liveDocMergeInFlight = new Set<string>()
+
+/**
+ * Merge the growing copilot content into a file's live collaborative Y.Doc, at most one in flight per
+ * file. Dropping a snapshot while the previous merge is still in flight (rather than queuing it) keeps
+ * merges strictly ordered — so a stale, out-of-order snapshot can never land after a newer one and
+ * regress the doc — and bounds relay load to one request per file regardless of stream rate. Any
+ * snapshot dropped this way is superseded by the next throttled tick, and the durable `edit_content`
+ * write is the final, authoritative merge. Fire-and-forget: {@link mergeEditIntoLiveFileDoc} never
+ * throws, so the stream is never stalled by a slow or unreachable relay.
+ */
+function streamMergeIntoLiveDoc(fileId: string, markdown: string): void {
+  if (liveDocMergeInFlight.has(fileId)) return
+  liveDocMergeInFlight.add(fileId)
+  void mergeEditIntoLiveFileDoc(fileId, markdown).finally(() => liveDocMergeInFlight.delete(fileId))
+}
 
 function asJsonRecord(value: unknown): JsonRecord | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -652,17 +671,22 @@ export async function processFilePreviewStreamEvent(input: {
 
           // Stream the growing content into the file's LIVE collaborative Y.Doc (when a room is open)
           // so collaborators watching the file see the copilot write stream in via Yjs — the AI as a
-          // CRDT peer, applied as a minimal `updateYFragment` diff. Throttled so we don't merge per
-          // token; fire-and-forget so a slow/unreachable relay never stalls the stream; version omitted
-          // because intermediate content is not a durable checkpoint (the final `edit_content` write
-          // carries the real version and reconciles the durable file). No-op for `create` (never
-          // streams here) and for a file with no open room (relay reports `applied: false`).
+          // CRDT peer, applied as a minimal `updateYFragment` diff. Throttled per file; intermediate
+          // content is not a durable checkpoint (the final `edit_content` write carries the real version
+          // and reconciles the durable file). No-op for `create` (never streams here) and for a file
+          // with no open room (the relay reports `applied: false`). Gates: markdown only — non-markdown
+          // has no collaborative room; and for `append`/`patch`, only once the base file content has
+          // loaded — a base-less snapshot would diff to a delete-everything wipe of the seeded doc.
+          // `update` streams a full rewrite from scratch, so it needs no base.
           const dueForLiveMerge =
             nextSession.fileId !== undefined &&
+            isMarkdownFile({ name: nextSession.fileName ?? '' }) &&
+            (editIntent.operation === 'update' ||
+              currentPreview.session.baseContent !== undefined) &&
             now - currentPreview.lastLiveMergeAt >= LIVE_DOC_MERGE_THROTTLE_MS
           const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt
           if (dueForLiveMerge && nextSession.fileId) {
-            void mergeEditIntoLiveFileDoc(nextSession.fileId, nextSession.previewText)
+            streamMergeIntoLiveDoc(nextSession.fileId, nextSession.previewText)
           }
 
           if (
