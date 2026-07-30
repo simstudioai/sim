@@ -56,6 +56,35 @@ describe('fetchQuickBooksUserInfo', () => {
     )
   })
 
+  it('normalizes and validates access tokens before making a user-info request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          sub: 'intuit-user-1',
+        })
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchQuickBooksUserInfo('  access-token  ', true)).resolves.toMatchObject({
+      sub: 'intuit-user-1',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox-accounts.platform.intuit.com/v1/openid_connect/userinfo',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer access-token' }),
+      })
+    )
+
+    await expect(fetchQuickBooksUserInfo('token\r\nX-Injected: true', true)).rejects.toThrow(
+      'QuickBooks access token contains invalid characters'
+    )
+    await expect(fetchQuickBooksUserInfo('x'.repeat(4097), true)).rejects.toThrow(
+      'QuickBooks access token must be 4096 characters or less'
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('falls back to production when the sandbox endpoint rejects the token', async () => {
     const fetchMock = vi
       .fn()

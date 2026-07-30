@@ -592,6 +592,32 @@ describe('QuickBooks generic operations', () => {
     ).rejects.toThrow('QuickBooks API response did not include ExchangeRate')
   })
 
+  it('rejects successful entity responses without a record ID', async () => {
+    await expect(
+      quickBooksCreateRecordTool.transformResponse?.(
+        new Response(JSON.stringify({ Vendor: {} }), { status: 200 }),
+        {
+          accessToken: 'token',
+          realmId: '123145',
+          entity: 'Vendor',
+          payload: { DisplayName: 'Acme Supplies' },
+        }
+      )
+    ).rejects.toThrow('QuickBooks API response did not include Vendor')
+
+    await expect(
+      quickBooksCreateRecordTool.transformResponse?.(
+        new Response(JSON.stringify({ Vendor: { DisplayName: 'Acme Supplies' } }), { status: 200 }),
+        {
+          accessToken: 'token',
+          realmId: '123145',
+          entity: 'Vendor',
+          payload: { DisplayName: 'Acme Supplies' },
+        }
+      )
+    ).rejects.toThrow('QuickBooks API response did not include Vendor')
+  })
+
   it('transforms QuickBooks report sections', async () => {
     const response = new Response(
       JSON.stringify({

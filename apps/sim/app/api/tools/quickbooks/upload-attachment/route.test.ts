@@ -247,6 +247,28 @@ describe('POST /api/tools/quickbooks/upload-attachment', () => {
     })
   })
 
+  it('rejects QuickBooks upload responses with an empty attachment object', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          AttachableResponse: [{ Attachable: {} }],
+          time: '2026-07-29T23:00:00Z',
+        }),
+        {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        }
+      )
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'QuickBooks attachment upload returned no attachment',
+    })
+  })
+
   it('rejects files over the buffered 25 MB attachment limit', async () => {
     mockProcessFilesToUserFiles.mockReturnValueOnce([
       { ...baseBody.file, size: 25 * 1024 * 1024 + 1 },

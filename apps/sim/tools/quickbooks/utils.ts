@@ -1,5 +1,6 @@
 import { truncate } from '@sim/utils/string'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { normalizeQuickBooksAccessToken } from '@/lib/oauth/quickbooks-token'
 import type {
   QuickBooksApiEnvelope,
   QuickBooksAttachmentEntityName,
@@ -80,20 +81,8 @@ const QUICKBOOKS_RESOURCE_NAMES: Record<QuickBooksEntityName, string> = {
 }
 
 export function buildQuickBooksHeaders(accessToken: string): Record<string, string> {
-  if (/[\r\n]/.test(accessToken)) {
-    throw new Error('QuickBooks access token contains invalid characters')
-  }
-  if (accessToken.length > 4096) {
-    throw new Error('QuickBooks access token must be 4096 characters or less')
-  }
-
-  const normalizedAccessToken = accessToken.trim()
-  if (!normalizedAccessToken) {
-    throw new Error('QuickBooks access token is required')
-  }
-
   return {
-    Authorization: `Bearer ${normalizedAccessToken}`,
+    Authorization: `Bearer ${normalizeQuickBooksAccessToken(accessToken)}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
   }
@@ -500,7 +489,7 @@ export async function parseQuickBooksJson(response: Response): Promise<QuickBook
 export function assertQuickBooksAttachmentUploadResponse(
   data: QuickBooksApiEnvelope
 ): QuickBooksApiEnvelope {
-  const uploaded = data.AttachableResponse?.some((item) => isQuickBooksRecord(item.Attachable))
+  const uploaded = data.AttachableResponse?.some((item) => hasQuickBooksRecordId(item.Attachable))
   if (!uploaded) {
     throw new Error('QuickBooks attachment upload returned no attachment')
   }
@@ -555,7 +544,8 @@ export function extractQuickBooksRecord(
   entity: string
 ): QuickBooksRecord {
   const record = data[entity]
-  if (!isQuickBooksRecord(record)) {
+  const requiresId = entity !== 'Preferences' && entity !== 'ExchangeRate'
+  if (!isNonEmptyQuickBooksRecord(record) || (requiresId && !hasQuickBooksRecordId(record))) {
     throw new Error(`QuickBooks API response did not include ${entity}`)
   }
   return record
@@ -761,6 +751,14 @@ function normalizeRecords(value: unknown): QuickBooksRecord[] {
 
 function isQuickBooksRecord(value: unknown): value is QuickBooksRecord {
   return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isNonEmptyQuickBooksRecord(value: unknown): value is QuickBooksRecord {
+  return isQuickBooksRecord(value) && Object.keys(value).length > 0
+}
+
+function hasQuickBooksRecordId(value: unknown): value is QuickBooksRecord {
+  return isQuickBooksRecord(value) && typeof value.Id === 'string' && value.Id.trim().length > 0
 }
 
 function extractQuickBooksError(data: QuickBooksApiEnvelope): string | null {

@@ -4,6 +4,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { normalizeQuickBooksAccessToken } from '@/lib/oauth/quickbooks-token'
 
 const logger = createLogger('QuickBooksOAuth')
 
@@ -38,6 +39,7 @@ export async function fetchQuickBooksUserInfo(
   if (!accessToken) {
     throw new Error('QuickBooks OAuth token response did not include an access token')
   }
+  const normalizedAccessToken = normalizeQuickBooksAccessToken(accessToken)
 
   const failures: string[] = []
 
@@ -46,7 +48,7 @@ export async function fetchQuickBooksUserInfo(
       const response = await fetch(endpoint, {
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${normalizedAccessToken}`,
         },
       })
 
