@@ -59,6 +59,8 @@ function sendError(res: ServerResponse, message: string, status = 500): void {
  */
 export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
   return async (req: IncomingMessage, res: ServerResponse) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+
     // Health check doesn't require auth
     if (req.method === 'GET' && req.url === '/health') {
       try {
@@ -150,10 +152,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
-    res.writeHead(404, {
-      'Content-Type': 'application/json',
-      'X-Robots-Tag': 'noindex, nofollow',
-    })
+    res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'Not found' }))
   }
 }
