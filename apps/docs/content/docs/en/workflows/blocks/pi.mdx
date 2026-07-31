@@ -211,7 +211,7 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 
 ### Create PR [#setup-cloud-pr]
 
-Create PR runs in a sandbox image with the Pi CLI and git baked in.
+Create PR runs in a sandbox image with the Pi CLI, Git, Node.js, and Bun baked in. Repository dependencies are not preinstalled; Pi can run `bun install` when a repository needs them.
 
 1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals Create PR, Update PR, and Review Code in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. These modes stay hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
 
