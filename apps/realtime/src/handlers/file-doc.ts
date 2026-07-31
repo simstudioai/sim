@@ -178,6 +178,25 @@ function originSocketId(origin: unknown): string | null {
 }
 
 /**
+ * The transaction origin stamped on an agent-streamed frame (a {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}
+ * apply). It carries the emitting socket id for broadcast exclusion, but is deliberately NOT a plain
+ * string — so `originSocketId` returns `null` for it and the update never triggers `edited`/`schedulePersist`
+ * (the copilot's final `edit_content` write is the durable persist).
+ */
+interface AgentSyncOrigin {
+  readonly agentSocketId: string
+}
+
+function isAgentSyncOrigin(origin: unknown): origin is AgentSyncOrigin {
+  return typeof origin === 'object' && origin !== null && 'agentSocketId' in origin
+}
+
+/** The socket id to exclude when relaying an update — a client socket edit OR an agent-streamed frame. */
+function excludeSocketId(origin: unknown): string | null {
+  return originSocketId(origin) ?? (isAgentSyncOrigin(origin) ? origin.agentSocketId : null)
+}
+
+/**
  * Broadcast an AWARENESS frame to the room ACROSS tasks via the Socket.IO Redis adapter. Awareness
  * (cursors/selection) is ephemeral and needs no convergence or replay, so the adapter's cross-task
  * fan-out is exactly right for it.
@@ -684,9 +703,10 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
-    // Fan out to THIS task's clients only (excluding the origin socket if local). Cross-task delivery
-    // rides the shared stream — every task's tailer applies + runs its own local fan-out.
-    broadcastLocal(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
+    // Fan out to THIS task's clients only (excluding the origin socket if local — a user edit OR an
+    // agent-streamed frame). Cross-task delivery rides the shared stream — every task's tailer applies +
+    // runs its own local fan-out.
+    broadcastLocal(io, name, encoding.toUint8Array(encoder), excludeSocketId(origin))
     // Share every locally-originated update to the stream so peers converge. Skip updates that already
     // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN) and SEED_ORIGIN — the seed is published
     // EXPLICITLY and AWAITED under the seed lock (so it lands before the lock releases), which a
@@ -776,6 +796,22 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
         syncProtocol.readSyncMessage(decoder, encoder, room.doc, socket.id)
         // A reply longer than the 1-byte type tag is a sync step 2 (or step 1)
         // destined for the sender only; applied updates fan out via `doc.on`.
+        if (encoding.length(encoder) > 1) {
+          socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+        }
+        break
+      }
+      case FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST: {
+        // An agent-streamed frame: apply + fan out to peers (so a collaborator sees the stream live) but
+        // do NOT treat it as a durable user edit. Unlike SYNC, we do NOT set `lastEditorUserId`, and the
+        // apply uses an {@link AgentSyncOrigin} (not the bare socket id) so `originSocketId` is `null` in
+        // `doc.on('update')` — skipping `edited`/`schedulePersist`. `excludeSocketId` still reads the
+        // carried socket id, so the sender is excluded from the relay fan-out. The copilot's final
+        // `edit_content` write remains the authoritative durable persist.
+        const encoder = encoding.createEncoder()
+        encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+        const agentOrigin: AgentSyncOrigin = { agentSocketId: socket.id }
+        syncProtocol.readSyncMessage(decoder, encoder, room.doc, agentOrigin)
         if (encoding.length(encoder) > 1) {
           socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
         }

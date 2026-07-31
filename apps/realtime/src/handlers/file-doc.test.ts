@@ -299,6 +299,36 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
+  it('applies + fans out an agent-streamed frame (SYNC_NO_PERSIST) but never persists it', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+    const { io, sent } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    const before = sent.length
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'agent streamed this')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+
+    // It fans out to the room excluding the sender, so a collaborator sees the stream live...
+    const fanout = sent
+      .slice(before)
+      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && m.except === 'socket-1')
+    expect(fanout.length).toBeGreaterThan(0)
+
+    // ...but it must NOT mark the doc dirty: a last-disconnect flush never persists agent content (the
+    // copilot's final edit_content write is the authoritative durable persist).
+    cleanupFileDocForSocket('socket-1', io, true)
+    await flushMicrotasks()
+    expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+  })
+
   it('stops on a persist conflict without clobbering (single attempt, durable left authoritative)', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     // A persist reports an out-of-band change (If-Match conflict). The relay must NOT re-persist against

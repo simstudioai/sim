@@ -42,6 +42,15 @@ export const FILE_DOC_EVENTS = {
 export const FILE_DOC_MESSAGE_TYPE = {
   SYNC: 0,
   AWARENESS: 1,
+  /**
+   * Client → server: a Yjs sync UPDATE (same framing as {@link FILE_DOC_MESSAGE_TYPE.SYNC}) that the
+   * server must apply and fan out to peers WITHOUT treating it as a durable user edit — no
+   * `schedulePersist`, no `edited`/`lastEditorUserId` bookkeeping. Used for agent-streamed frames: the
+   * copilot's final `edit_content` write is the authoritative durable persist, so the live stream must
+   * not also durably write partial content (attributed to the watching user). The server never sends
+   * this type; replies always use {@link FILE_DOC_MESSAGE_TYPE.SYNC}.
+   */
+  SYNC_NO_PERSIST: 2,
 } as const
 
 export type FileDocMessageType = (typeof FILE_DOC_MESSAGE_TYPE)[keyof typeof FILE_DOC_MESSAGE_TYPE]

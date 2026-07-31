@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from 'vitest'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
+import { AGENT_STREAM_ORIGIN } from './apply-streamed-markdown'
 import { FileDocProvider } from './file-doc-provider'
 
 /** A minimal fake Socket.IO client whose server→client events can be fired in tests. */
@@ -123,6 +124,19 @@ describe('FileDocProvider', () => {
     const messages = emittedMessages(emit)
     expect(messages.length).toBe(1)
     expect(messages[0][0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
+  })
+
+  it('tags agent-streamed edits as SYNC_NO_PERSIST so the relay skips the durable persist', () => {
+    const { doc, emit } = createProvider(true)
+    emit.mockClear()
+
+    // An agent-streamed frame is applied under AGENT_STREAM_ORIGIN; it must still reach the server (peers
+    // see it live) but as SYNC_NO_PERSIST, so the relay fans it out without treating it as a user edit.
+    doc.transact(() => doc.getText('default').insert(0, 'agent'), AGENT_STREAM_ORIGIN)
+
+    const messages = emittedMessages(emit)
+    expect(messages.length).toBe(1)
+    expect(messages[0][0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST)
   })
 
   it('does not echo updates it applied from the server', () => {

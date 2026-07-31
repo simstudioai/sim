@@ -12,7 +12,7 @@ const COLLAB_DOC_FIELD = 'default'
  * the `ySyncPluginKey` origin that local user edits use, so the Collaboration UndoManager — which
  * tracks only `ySyncPluginKey` — excludes streamed ops from the user's undo stack.
  */
-const AGENT_STREAM_ORIGIN = Symbol('agent-stream')
+export const AGENT_STREAM_ORIGIN = Symbol('agent-stream')
 
 /**
  * A private Yjs replica the agent stream reconciles against, so a stream writes into the live doc as a
