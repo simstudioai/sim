@@ -120,6 +120,20 @@ export default function WorkspacePage() {
 
     if (isWorkspacesLoading || workspacesError || !data) return
 
+    const urlParams = new URLSearchParams(window.location.search)
+    const redirectWorkflowId = urlParams.get('redirect_workflow')
+    const redirectTarget = urlParams.get('redirect')
+    const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
+
+    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
+    // self-hosted deployment, an email — reaches the plan picker. It has to
+    // survive workspace creation too: a first-time visitor has no workspace to
+    // resolve, and dropping the intent lands them on home with no explanation.
+    const destinationFor = (id: string) =>
+      redirectTarget === 'upgrade'
+        ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
+        : `/workspace/${id}/home`
+
     const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
     if (workspaces.length === 0) {
@@ -140,15 +154,11 @@ export default function WorkspacePage() {
         return
       }
       hasRedirectedRef.current = true
-      handleNoWorkspaces(router, () => setRecoveryFailed(true))
+      handleNoWorkspaces(router, () => setRecoveryFailed(true), destinationFor)
       return
     }
 
     hasRedirectedRef.current = true
-
-    const urlParams = new URLSearchParams(window.location.search)
-    const redirectWorkflowId = urlParams.get('redirect_workflow')
-    const redirectTarget = urlParams.get('redirect')
 
     const localRecentId = WorkspaceRecencyStorage.getMostRecent()
     const findWorkspace = (id: string | null) =>
@@ -162,21 +172,8 @@ export default function WorkspacePage() {
       return
     }
 
-    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
-    // self-hosted deployment, an email — reaches the plan picker.
-    if (redirectTarget === 'upgrade') {
-      const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
-      const href = buildUpgradeHref(
-        targetWorkspace.id,
-        isUpgradeReason(rawReason) ? rawReason : undefined
-      )
-      logger.info(`Redirecting to upgrade: ${targetWorkspace.id}`)
-      router.replace(href)
-      return
-    }
-
     logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
-    router.replace(`/workspace/${targetWorkspace.id}/home`)
+    router.replace(destinationFor(targetWorkspace.id))
   }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
   const blockedPolicy =
@@ -261,7 +258,8 @@ async function handleWorkflowRedirect(
 
 async function handleNoWorkspaces(
   router: ReturnType<typeof useRouter>,
-  onUnrecoverable: () => void
+  onUnrecoverable: () => void,
+  destinationFor: (workspaceId: string) => string
 ): Promise<void> {
   logger.warn('No workspaces found, creating default workspace')
   try {
@@ -271,7 +269,7 @@ async function handleNoWorkspaces(
     if (data.workspace?.id) {
       logger.info(`Created default workspace: ${data.workspace.id}`)
       sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
-      router.replace(`/workspace/${data.workspace.id}/home`)
+      router.replace(destinationFor(data.workspace.id))
       return
     }
     logger.error('Failed to create default workspace')
