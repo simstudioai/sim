@@ -219,7 +219,7 @@ export function NoteBlockView({
         <div className='flex items-center justify-between border-[var(--divider)] border-b p-2'>
           <div className='flex min-w-0 flex-1 items-center'>
             <OverflowSpan
-              value={name}
+              value={name ?? ''}
               className={cn(
                 'truncate font-medium text-md',
                 !isEnabled && 'text-[var(--text-muted)]'
