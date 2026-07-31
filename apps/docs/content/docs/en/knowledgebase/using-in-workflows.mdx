@@ -37,6 +37,19 @@ In our example, adding `Department equals "Billing"` makes the search consider o
 
 Filters run before the vector comparison, so they make a search both more precise and cheaper. See [Tags and filtering](/knowledgebase/tags) for the full operator list by tag type.
 
+## Retrieval Mode
+
+**Retrieval Mode** is an advanced setting that chooses how matches are found.
+
+| Mode | What it does |
+| --- | --- |
+| Vector only | The default. Ranks purely on meaning, as described above. |
+| Hybrid | Also runs a keyword search over the same chunks and blends the two rankings. |
+
+Semantic search is strong on paraphrase and weak on literal strings: an error code, a ticket key like `PROJ-1234`, a SKU, or a rare product name carries little meaning for the model, so the chunk containing it may not rank near the top. Hybrid adds a keyword pass that matches those tokens exactly, then merges the two lists so a chunk found by either signal can surface.
+
+Turn it on when your documents are full of identifiers, codes, or names people search for verbatim. Leave it off for prose-heavy bases where questions are asked in natural language. Hybrid costs no extra API calls — the keyword pass runs entirely in the database.
+
 ## Rerank Results
 
 **Rerank Results** is an optional second pass. Vector search ranks by raw similarity; reranking re-scores the top matches with a dedicated relevance model (Cohere's rerank models) and reorders them, which sharpens the ordering when the best answer isn't the literal closest vector.
@@ -95,6 +108,7 @@ When the agent's answer is off, the cause is usually in retrieval, not the agent
 - **No results, or wrong documents.** A tag filter may be excluding what you want, or the documents may not be indexed yet. A document is only searchable once its processing status is `completed`; while it is `pending`, `processing`, or `failed`, its chunks won't appear.
 - **Low similarity scores across the board.** The query is too vague, or the information simply isn't in the base. Rewrite the query to match how the documents phrase things.
 - **Right documents, wrong order.** Turn on Rerank Results, or raise Number of Results so the relevant chunk is included.
+- **An exact code, ID, or name isn't found.** Switch Retrieval Mode to Hybrid so a keyword pass runs alongside the semantic one.
 
 See [debugging retrieval](/knowledgebase/debugging-retrieval) for the full diagnostic path, and [chunking strategies](/knowledgebase/chunking-strategies) for how chunk boundaries shape what a search can return.
 
