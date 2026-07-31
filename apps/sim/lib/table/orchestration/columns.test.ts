@@ -12,12 +12,14 @@ const {
   mockUpdateColumnType,
   mockUpdateColumnOptions,
   mockUpdateColumnConstraints,
+  mockUpdateColumnCurrency,
   mockRecordAudit,
 } = vi.hoisted(() => ({
   mockRenameColumn: vi.fn(),
   mockUpdateColumnType: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
   mockUpdateColumnConstraints: vi.fn(),
+  mockUpdateColumnCurrency: vi.fn(),
   mockRecordAudit: vi.fn(),
 }))
 
@@ -30,6 +32,7 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/table/columns/service', () => ({
   renameColumn: mockRenameColumn,
   updateColumnConstraints: mockUpdateColumnConstraints,
+  updateColumnCurrency: mockUpdateColumnCurrency,
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
@@ -71,6 +74,7 @@ describe('performUpdateTableColumn', () => {
     mockUpdateColumnType.mockResolvedValue(UPDATED)
     mockUpdateColumnOptions.mockResolvedValue(UPDATED)
     mockUpdateColumnConstraints.mockResolvedValue(UPDATED)
+    mockUpdateColumnCurrency.mockResolvedValue(UPDATED)
   })
 
   it('refuses to make a select column unique before writing anything', async () => {
@@ -94,8 +98,9 @@ describe('performUpdateTableColumn', () => {
     await run({ type: 'select', options: ['Open', 'Closed'] })
 
     expect(mockUpdateColumnType).not.toHaveBeenCalled()
+    // Addressed by stable id so a rename folded into the write can't break it.
     expect(mockUpdateColumnOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ columnName: 'Status' }),
+      expect.objectContaining({ columnName: 'col-1' }),
       'req-1'
     )
   })
@@ -118,24 +123,41 @@ describe('performUpdateTableColumn', () => {
     )
   })
 
-  it('applies a rename before the later writes and targets the new name', async () => {
+  it('folds a rename into the write it rides on rather than running it separately', async () => {
+    // A rename is metadata-only, so folding it into the last write's transaction
+    // is what stops a combined request committing one half and failing the other.
     await run({ name: 'State', required: true })
 
-    expect(mockRenameColumn).toHaveBeenCalledWith(
-      { tableId: 'table-1', oldName: 'Status', newName: 'State' },
-      'req-1'
-    )
+    expect(mockRenameColumn).not.toHaveBeenCalled()
     expect(mockUpdateColumnConstraints).toHaveBeenCalledWith(
-      expect.objectContaining({ columnName: 'State' }),
+      expect.objectContaining({ columnName: 'col-1', newName: 'State' }),
       'req-1'
     )
   })
 
-  it('rejects an options edit on a column that is not a select', async () => {
-    const result = await run({ multiple: true }, 'Priority')
+  it('runs a rename standalone when there is no write to ride on', async () => {
+    mockRenameColumn.mockResolvedValue(UPDATED)
+
+    await run({ name: 'State' })
+
+    expect(mockRenameColumn).toHaveBeenCalledWith(
+      { tableId: 'table-1', oldName: 'col-1', newName: 'State' },
+      'req-1'
+    )
+  })
+
+  it('rejects setting a currency code on a non-currency column', async () => {
+    const result = await run({ currencyCode: 'USD' })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(mockUpdateColumnCurrency).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unsupported currency code before any write', async () => {
+    const result = await run({ type: 'currency', currencyCode: 'XX' }, 'Priority')
 
     expect(result.errorCode).toBe('validation')
-    expect(mockUpdateColumnOptions).not.toHaveBeenCalled()
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
   })
 
   it('reports an empty payload as a validation failure', async () => {

@@ -42,6 +42,13 @@ vi.mock('@/lib/table', () => ({
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
+vi.mock('@/lib/table/columns/service', () => ({
+  renameColumn: mockRenameColumn,
+  updateColumnConstraints: mockUpdateColumnConstraints,
+  updateColumnCurrency: mockUpdateColumnCurrency,
+  updateColumnOptions: mockUpdateColumnOptions,
+  updateColumnType: mockUpdateColumnType,
+}))
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,

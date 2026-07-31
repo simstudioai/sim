@@ -160,7 +160,10 @@ export async function performUpdateTableColumn(
   ) {
     return fail(`Column "${updates.name}" already exists`, 'validation')
   }
-  if (currentColumn.workflowGroupId && (updates.required !== undefined || updates.unique !== undefined)) {
+  if (
+    currentColumn.workflowGroupId &&
+    (updates.required !== undefined || updates.unique !== undefined)
+  ) {
     return fail(
       `Cannot change constraints on workflow-output column "${currentColumn.name}". Constraints aren't applicable to columns whose values come from workflow execution.`,
       'validation'
@@ -241,7 +244,10 @@ export async function performUpdateTableColumn(
     // stops a combined request from committing one half and then failing. Only
     // a rename with nothing to ride on runs standalone.
     if (updates.name && !updated) {
-      updated = await renameColumn({ tableId, oldName: columnRef, newName: updates.name }, requestId)
+      updated = await renameColumn(
+        { tableId, oldName: columnRef, newName: updates.name },
+        requestId
+      )
     }
   } catch (error) {
     logger.error(`[${requestId}] Failed to update column "${columnName}" on table ${tableId}`, {
