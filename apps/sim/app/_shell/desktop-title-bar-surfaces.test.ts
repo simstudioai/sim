@@ -193,6 +193,10 @@ const LANE_EXEMPT: Record<string, string> = {
     'Marketing chrome. Verified: every consumer lives under app/(landing)/, and the desktop shell boots to /login or a workspace with no path to those routes.',
   'app/playground/page.tsx':
     'Verified dev-only: the page calls notFound() unless NEXT_PUBLIC_ENABLE_PLAYGROUND is set.',
+  'app/workspace/[workspaceId]/components/session-expired/session-expired.tsx':
+    'Centres its content (`items-center justify-center`) with no chrome in the lane, and is a transient sign-out notice.',
+  'app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-modal.tsx':
+    'The `fixed inset-0` here is the scrim, which carries no content. The panel itself is separately positioned at `top-[15%]`, well clear of the lane.',
   'app/_shell/desktop-update-gate.tsx':
     'Blocking overlay that centres its content, with no chrome in the lane. The lights stay usable regardless: under `titleBarStyle: hiddenInset` macOS draws them above the web contents, so web UI cannot cover them — this bug class is app chrome sitting *under* the lights, not the reverse.',
   'app/workspace/[workspaceId]/w/[workflowId]/components/error/index.tsx':
@@ -214,6 +218,16 @@ const LANE_EXEMPT: Record<string, string> = {
  * surface this PR converted lost its `min-h-screen` token and dropped out of the check
  * entirely, leaving the files most likely to regress unwatched.
  */
+/**
+ * A root positioned against the viewport rather than its parent.
+ *
+ * `position: fixed` ignores an ancestor's `padding-top`, so a lane-aware shell does NOT
+ * cover it — the chat surfaces sat inside `LogoShell` and still painted at viewport top,
+ * under the lights, while this check called them covered. Such a root must reserve for
+ * itself, and reserving must not then read as a double reservation.
+ */
+const ESCAPES_ANCESTOR_PADDING = /fixed inset-0/
+
 const FILLS_VIEWPORT = /\b(min-h-screen|h-screen)\b|fixed inset-0|desktop-title-bar-page/
 
 const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell|WorkspaceChrome|InterfacesShell)\b/
@@ -290,9 +304,11 @@ function viewportRoots() {
         file,
         fillsViewport: FILLS_VIEWPORT.test(source),
         self: reservesLane(source),
+        escapesPadding: ESCAPES_ANCESTOR_PADDING.test(source),
         inherited:
           !SELF_RESERVE_REQUIRED.has(file) &&
           !DEFINES_LANE_SHELL.test(source) &&
+          !ESCAPES_ANCESTOR_PADDING.test(source) &&
           ancestorLayouts(file).some((l) => reservesLane(sourceOf(l))),
       }
     })
@@ -316,7 +332,7 @@ describe('desktop traffic-light lane coverage', () => {
     // drag strips and two controllers. Shipped exactly that on the resume loading skeleton,
     // and the file-local check could not see it.
     const doubled = viewportRoots()
-      .filter((r) => r.self && r.inherited)
+      .filter((r) => r.self && r.inherited && !r.escapesPadding)
       .map((r) => r.file)
 
     expect(doubled).toEqual([])
