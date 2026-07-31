@@ -172,7 +172,14 @@ describe('desktop title-bar surface audit', () => {
  *
  * So the check enumerates instead of listing what to look at: any new full-viewport root
  * fails here until it either composes `.desktop-title-bar-page` or is added below with a
- * reason. Reaching for this allowlist should feel like a claim you have to defend — the
+ * reason.
+ *
+ * Known limit: a root is in scope because of how it claims the viewport, so deleting the
+ * reservation outright — class gone, nothing put back — also drops the file from the check.
+ * That regression is loud rather than silent (the surface stops being full height, which is
+ * plainly visible), and closing it properly means treating every route entry point as a
+ * window root, which pulls in seven account/organization/selfhost pages that each need
+ * their own assessment. Worth doing; not worth guessing at here. Reaching for this allowlist should feel like a claim you have to defend — the
  * entry that read "marketing chrome, not reachable in the desktop shell" was false, and
  * hid four live surfaces behind one unverified sentence.
  *
@@ -200,10 +207,14 @@ const LANE_EXEMPT: Record<string, string> = {
  * covered. Both mistakes were in the first draft of this check and made it unfailable.
  */
 /**
- * How a root claims the whole window. `fixed inset-0` counts: it covers the lights just as
- * completely as `h-screen`, and was invisible to the first version of this check.
+ * How a root claims the whole window.
+ *
+ * `fixed inset-0` counts: it covers the lights as completely as `h-screen`. So does
+ * `desktop-title-bar-page` itself, which sets `min-height: 100vh` — without that arm, every
+ * surface this PR converted lost its `min-h-screen` token and dropped out of the check
+ * entirely, leaving the files most likely to regress unwatched.
  */
-const FILLS_VIEWPORT = /\b(min-h-screen|h-screen)\b|fixed inset-0/
+const FILLS_VIEWPORT = /\b(min-h-screen|h-screen)\b|fixed inset-0|desktop-title-bar-page/
 
 const LANE_AWARE_SHELL_USAGE = /<(AuthShell|LogoShell|WorkspaceChrome|InterfacesShell)\b/
 
@@ -255,6 +266,15 @@ function ancestorLayouts(file: string): string[] {
   return layouts
 }
 
+/**
+ * A file that DEFINES a lane-aware shell, rather than wearing one.
+ *
+ * Such a file sits under the very layout that renders it, so ancestor resolution would
+ * call it nested inside itself and report a double reservation. The shell is the reason
+ * that layout is lane-aware in the first place.
+ */
+const DEFINES_LANE_SHELL = /export function (AuthShell|LogoShell|InterfacesShell|WorkspaceChrome)\b/
+
 const reservesLane = (source: string) =>
   source.includes('desktop-title-bar-page') || LANE_AWARE_SHELL_USAGE.test(source)
 
@@ -272,6 +292,7 @@ function viewportRoots() {
         self: reservesLane(source),
         inherited:
           !SELF_RESERVE_REQUIRED.has(file) &&
+          !DEFINES_LANE_SHELL.test(source) &&
           ancestorLayouts(file).some((l) => reservesLane(sourceOf(l))),
       }
     })
