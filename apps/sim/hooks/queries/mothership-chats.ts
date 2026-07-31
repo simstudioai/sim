@@ -22,6 +22,7 @@ import {
   restoreMothershipChatContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
+import { suspendBrowserScope } from '@/lib/browser-agent/transport'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -30,6 +31,7 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import { suspendTerminalScope } from '@/lib/terminal/transport'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -289,6 +291,10 @@ async function deleteChat(chatId: string): Promise<void> {
   })
 }
 
+async function suspendNativeChatResources(chatId: string): Promise<void> {
+  await Promise.allSettled([suspendBrowserScope(chatId), suspendTerminalScope(chatId)])
+}
+
 /**
  * Soft-deletes a mothership chat and invalidates both the active and archived
  * chat lists — the chat moves from the sidebar into Recently Deleted.
@@ -297,6 +303,9 @@ export function useDeleteMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteChat,
+    onSuccess: async (_data, chatId) => {
+      await suspendNativeChatResources(chatId)
+    },
     onSettled: (_data, _error, chatId) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
@@ -333,7 +342,16 @@ export function useDeleteMothershipChats(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (chatIds: string[]) => {
-      await Promise.all(chatIds.map(deleteChat))
+      // Couple each successful DELETE to its own native suspension. If one
+      // sibling request fails, Promise.all rejects but the independently
+      // successful tasks still stop their pages and PTYs instead of being
+      // stranded live behind the aggregate onSuccess callback.
+      await Promise.all(
+        chatIds.map(async (chatId) => {
+          await deleteChat(chatId)
+          await suspendNativeChatResources(chatId)
+        })
+      )
     },
     onSettled: (_data, _error, chatIds) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })

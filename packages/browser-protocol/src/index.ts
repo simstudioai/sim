@@ -119,6 +119,11 @@ export interface BrowserPanelAnchor {
 export interface BrowserPanelSnapshot {
   dataUrl: string
   tabId: string
+  /**
+   * Renderer-to-desktop scope that owns the captured tab. Optional for
+   * compatibility with desktop builds that predate chat isolation.
+   */
+  scopeId?: string
 }
 
 /**
@@ -150,6 +155,8 @@ export interface BrowserPanelAction {
 export interface BrowserPageState {
   /** Present on desktop versions with multi-tab UI support. */
   tabId?: string
+  /** Chat scope that owns this page, when reported by a scoped desktop build. */
+  scopeId?: string
   url: string
   title: string
   loading: boolean
@@ -207,6 +214,8 @@ export interface BrowserTabState {
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** Chat scope that owns this tab set, when reported by a scoped desktop build. */
+  scopeId?: string
 }
 
 /**

@@ -2,7 +2,12 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it, vi } from 'vitest'
-import { resolveUrlBarInput, selectFocusedOmniboxOnNextFrame } from './browser-session'
+import {
+  resolveUrlBarInput,
+  selectFocusedOmniboxOnNextFrame,
+  shouldRemoveBrowserResource,
+  shouldReportBrowserBounds,
+} from './browser-session'
 
 describe('resolveUrlBarInput', () => {
   it('passes explicit schemes through untouched', () => {
@@ -61,5 +66,18 @@ describe('selectFocusedOmniboxOnNextFrame', () => {
 
     requestFrame.mockRestore()
     input.remove()
+  })
+})
+
+describe('suspended browser resource lifecycle', () => {
+  it('does not remove a resource when administrative suspension clears its tabs', () => {
+    expect(shouldRemoveBrowserResource(false, true, true)).toBe(false)
+    expect(shouldRemoveBrowserResource(false, true, false)).toBe(true)
+  })
+
+  it('reports native bounds only while visible and unsuspended', () => {
+    expect(shouldReportBrowserBounds(true, false)).toBe(true)
+    expect(shouldReportBrowserBounds(true, true)).toBe(false)
+    expect(shouldReportBrowserBounds(false, false)).toBe(false)
   })
 })

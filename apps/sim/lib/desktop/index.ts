@@ -98,12 +98,19 @@ export function setDesktopPreferencesSnapshot(preferences: DesktopPreferences): 
 
 /** True when the agent browser is installed and switched on for this device. */
 export function isBrowserAgentEnabled(): boolean {
-  return hasBrowserAgent() && isSurfaceSwitchedOn('browserEnabled')
+  const browser = getDesktopBridge()?.browserAgent
+  return (
+    Boolean(browser?.activateScope && browser.migrateScope) && isSurfaceSwitchedOn('browserEnabled')
+  )
 }
 
 /** True when the agent terminal is installed and switched on for this device. */
 export function isTerminalEnabled(): boolean {
-  return hasTerminal() && isSurfaceSwitchedOn('terminalEnabled')
+  const terminal = getDesktopBridge()?.terminal
+  return (
+    Boolean(terminal?.activateScope && terminal.migrateScope) &&
+    isSurfaceSwitchedOn('terminalEnabled')
+  )
 }
 
 /**
@@ -150,7 +157,9 @@ export interface DesktopChatCapabilities {
  * user-local VFS guidance/routing and the browser subagent on these flags, so
  * in a plain web browser the model never sees the features.
  */
-export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilities> {
+export async function getDesktopChatCapabilities(
+  scopeId?: string
+): Promise<DesktopChatCapabilities> {
   const bridge = getDesktopBridge()
   // Never advertise a surface the user switched off, even on the first
   // request after launch, before the cached preferences have arrived.
@@ -164,7 +173,7 @@ export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilit
   const terminals: DesktopTerminalHint[] =
     terminal && bridge?.terminal?.getTabs
       ? await bridge.terminal
-          .getTabs()
+          .getTabs(scopeId)
           .then((state) =>
             state.tabs.map((tab) => ({
               id: tab.terminalId,

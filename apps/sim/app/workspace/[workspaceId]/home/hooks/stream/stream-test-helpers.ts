@@ -34,6 +34,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     setError: vi.fn(),
     setPendingMessages: vi.fn(),
     setResolvedChatId: vi.fn(),
+    adoptResolvedChatId: vi.fn(),
     setResources: vi.fn(),
     setActiveResourceId: vi.fn(),
     addResource: vi.fn(() => true),

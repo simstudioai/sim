@@ -78,6 +78,7 @@ const LOADING_SKELETON = (
 
 interface ResourceContentProps {
   workspaceId: string
+  desktopScopeId: string
   resource: MothershipResource
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
@@ -150,6 +151,7 @@ function useAgentFileEditLock(isStreamingToFile: boolean, isAgentResponding: boo
 
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
+  desktopScopeId,
   resource,
   previewMode,
   previewSession,
@@ -299,10 +301,10 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
-      return <BrowserSession key={resource.id} visible={visible} />
+      return <BrowserSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
 
     case 'terminal':
-      return <TerminalSession key={resource.id} visible={visible} />
+      return <TerminalSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
 
     default:
       return null

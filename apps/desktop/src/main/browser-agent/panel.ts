@@ -71,6 +71,8 @@ let panelOcclusionRequested = false
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
 let panelSnapshotGeneration = 0
+/** Chat whose native browser surface may currently be composited. */
+let activePanelScopeId = 'legacy'
 /** The window currently hosting the active view, for re-parenting checks. */
 let hostedWindow: BrowserWindow | null = null
 /** The app window whose renderer most recently leased the visible panel. */
@@ -105,6 +107,33 @@ export function initPanel(panelHost: PanelHost): void {
 }
 
 /**
+ * Moves the singleton compositor to another chat. Bounds are renderer leases,
+ * so the new chat must report its own rect before any native page is shown.
+ */
+export function activatePanelScope(scopeId: string): void {
+  if (activePanelScopeId === scopeId) return
+  activePanelScopeId = scopeId
+  panelSnapshotGeneration++
+  detachAttachedView()
+  resetOcclusion()
+  panelBounds = null
+  panelAnchor = null
+  panelLeaseAt = 0
+  panelOwnerWindow = null
+}
+
+/** Retags an active pending scope without tearing down the compositor. */
+export function migratePanelScope(fromScopeId: string, toScopeId: string): void {
+  if (activePanelScopeId !== fromScopeId) return
+  activePanelScopeId = toScopeId
+  panelSnapshotGeneration++
+}
+
+export function getActivePanelScopeId(): string {
+  return activePanelScopeId
+}
+
+/**
  * The window owning the visible panel, or null. Self-healing: a destroyed
  * owner is forgotten here rather than left to reject panel updates from a
  * window that is legitimately showing the browser.
@@ -126,7 +155,11 @@ export function panelWindow(): BrowserWindow | null {
  * owned, only the owner — so a stale report from a second window cannot hide
  * or steal the singleton browser surface.
  */
-export function panelUpdateAllowed(ownerWindow?: BrowserWindow): boolean {
+export function panelUpdateAllowed(
+  ownerWindow?: BrowserWindow,
+  scopeId = activePanelScopeId
+): boolean {
+  if (scopeId !== activePanelScopeId) return false
   if (!ownerWindow) return true
   const owner = panelOwner()
   return owner === null || owner === ownerWindow
@@ -141,8 +174,10 @@ export function panelUpdateAllowed(ownerWindow?: BrowserWindow): boolean {
  */
 export function canReportPanelBounds(
   win: BrowserWindow,
-  focusedWindow: BrowserWindow | null
+  focusedWindow: BrowserWindow | null,
+  scopeId = activePanelScopeId
 ): boolean {
+  if (scopeId !== activePanelScopeId) return false
   const owner = panelOwner()
   return owner === null || owner === win || focusedWindow === win
 }
@@ -324,11 +359,18 @@ function capturePanelSnapshot(onSettled?: () => void): void {
   }
 
   const generation = ++panelSnapshotGeneration
+  const scopeId = activePanelScopeId
   const tabId = active.id
   void active.view.webContents
     .capturePage(undefined, { stayHidden: panelOccluded })
     .then((image) => {
-      if (generation !== panelSnapshotGeneration || image.isEmpty()) return
+      if (
+        generation !== panelSnapshotGeneration ||
+        scopeId !== activePanelScopeId ||
+        image.isEmpty()
+      ) {
+        return
+      }
       // Ownership can move while the capture is in flight. This frame is a
       // picture of the page, so it goes to the window still showing the
       // browser or nowhere at all.
@@ -339,7 +381,11 @@ function capturePanelSnapshot(onSettled?: () => void): void {
       // full-size encode stalls every window's input for the frame. This is a
       // placeholder shown under a transient overlay, so a downscaled JPEG is
       // indistinguishable and an order of magnitude cheaper to encode and send.
-      const snapshot: BrowserPanelSnapshot = { dataUrl: encodeSnapshot(image), tabId }
+      const snapshot: BrowserPanelSnapshot = {
+        scopeId,
+        dataUrl: encodeSnapshot(image),
+        tabId,
+      }
       win.webContents.send('browser-agent:panel-snapshot', snapshot)
     })
     .catch((error) => {
@@ -447,8 +493,10 @@ export function layout(): void {
 export function setPanelBounds(
   bounds: BrowserPanelBounds | null,
   ownerWindow?: BrowserWindow,
-  anchor?: BrowserPanelAnchor
+  anchor?: BrowserPanelAnchor,
+  scopeId = activePanelScopeId
 ): void {
+  if (scopeId !== activePanelScopeId) return
   // A closing window releases the panel from its `closed` handler, by which
   // point Electron has already destroyed it. That release has to be honoured
   // or the panel stays "visible" with a dead owner, and the next layout
@@ -499,8 +547,12 @@ export function setPanelBounds(
  * {@link panelOcclusionRequested}). A capture that fails or finds nothing to
  * photograph still hides, so an overlay is never left with the page on top.
  */
-export function setPanelOccluded(occluded: boolean, ownerWindow?: BrowserWindow): void {
-  if (!panelUpdateAllowed(ownerWindow)) return
+export function setPanelOccluded(
+  occluded: boolean,
+  ownerWindow?: BrowserWindow,
+  scopeId = activePanelScopeId
+): void {
+  if (!panelUpdateAllowed(ownerWindow, scopeId)) return
   if (panelOcclusionRequested === occluded) return
   panelOcclusionRequested = occluded
   if (!occluded) {
@@ -511,7 +563,7 @@ export function setPanelOccluded(occluded: boolean, ownerWindow?: BrowserWindow)
   capturePanelSnapshot(() => {
     // The overlay can close while its frame is being taken; hiding then would
     // blank the page with nothing above it.
-    if (!panelOcclusionRequested) return
+    if (!panelOcclusionRequested || scopeId !== activePanelScopeId) return
     panelOccluded = true
     layout()
   })

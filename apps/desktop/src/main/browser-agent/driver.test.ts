@@ -65,6 +65,82 @@ describe('executeTool', () => {
     expect(second.result).toMatchObject({ tabs: [] })
   })
 
+  it('keeps tool queues and tab state isolated by chat scope', async () => {
+    await driver.executeTool('chat-a', 'browser_open_tab', {})
+    await driver.executeTool('chat-a', 'browser_open_tab', {})
+    await driver.executeTool('chat-b', 'browser_open_tab', {})
+
+    const chatA = await driver.executeTool('chat-a', 'browser_list_tabs', {})
+    const chatB = await driver.executeTool('chat-b', 'browser_list_tabs', {})
+
+    expect(chatA).toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-a', activeTabId: '2', tabs: [{ tabId: '1' }, { tabId: '2' }] },
+    })
+    expect(chatB).toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-b', activeTabId: '1', tabs: [{ tabId: '1' }] },
+    })
+  })
+
+  it('adopts pending tabs over an activation-only durable destination', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    driver.activateBrowserScope('chat-real')
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+    await expect(driver.executeTool('chat-real', 'browser_list_tabs', {})).resolves.toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-real', tabs: [{ tabId: '1' }] },
+    })
+
+    await driver.executeTool('pending:other-chat', 'browser_open_tab', {})
+    await driver.executeTool('chat-occupied', 'browser_open_tab', {})
+    expect(driver.migrateBrowserScope('pending:other-chat', 'chat-occupied')).toBe(false)
+  })
+
+  it('keeps activation lazy, then restores and disposes through the driver API', async () => {
+    const snapshot: session.BrowserSessionSnapshotV1 = {
+      v: 1,
+      tabs: [{ url: 'https://restored.example/', pinned: false }],
+      activeIndex: 0,
+    }
+    const load = vi.fn(() => snapshot)
+    const disposeScope = vi.fn()
+    driver.initDriver(
+      {
+        onPageState: vi.fn(),
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
+      () => null,
+      undefined,
+      {
+        load,
+        save: vi.fn(),
+        migrateScope: vi.fn(),
+        disposeScope,
+      }
+    )
+
+    driver.activateBrowserScope('chat-restored')
+    expect(load).not.toHaveBeenCalled()
+    expect(session.withBrowserScope('chat-restored', () => session.peekTabsState().tabs)).toEqual(
+      []
+    )
+
+    const listed = driver.restoreBrowserScope('chat-restored')
+    expect(load).toHaveBeenCalledWith('chat-restored')
+    expect(listed).toMatchObject({
+      tabs: [{ url: 'https://restored.example/' }],
+    })
+    const restoredTab = session.withBrowserScope('chat-restored', () => session.activeTab())
+
+    driver.disposeBrowserScope('chat-restored')
+    expect(restoredTab?.view.webContents.close).toHaveBeenCalled()
+    expect(disposeScope).toHaveBeenCalledWith('chat-restored')
+  })
+
   it.each(['', 'about:blank'])(
     'fails page tools immediately and releases queued tab listing when the URL is %j',
     async (url) => {

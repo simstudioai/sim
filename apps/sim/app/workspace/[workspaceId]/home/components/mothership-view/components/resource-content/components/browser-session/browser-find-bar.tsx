@@ -11,6 +11,7 @@ import {
 } from '@/lib/browser-agent/transport'
 
 interface BrowserFindBarProps {
+  scopeId: string
   /**
    * Owned by the panel so Mod+F can re-focus and select an already-open bar,
    * the way pressing it twice in Chrome does.
@@ -28,16 +29,16 @@ interface BrowserFindBarProps {
  * element overlapping the native view trips the occlusion path, which hides
  * the view and would blank the page being searched.
  */
-export function BrowserFindBar({ inputRef, onClose }: BrowserFindBarProps) {
+export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarProps) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<BrowserFindResult | null>(null)
 
-  useEffect(() => onBrowserFindResult(setResult), [])
+  useEffect(() => onBrowserFindResult(setResult, scopeId), [scopeId])
 
   // Stopping the find is the only thing that clears the highlights, so it has
   // to survive every unmount path — panel teardown and tab close included.
   // Focus-neutral: an unmount here is the panel going away, not a dismissal.
-  useEffect(() => () => stopBrowserFind(), [])
+  useEffect(() => () => stopBrowserFind(false, scopeId), [scopeId])
 
   /**
    * Dismissal proper. Stops the find with focus handed back to the page before
@@ -45,27 +46,33 @@ export function BrowserFindBar({ inputRef, onClose }: BrowserFindBarProps) {
    * in Chrome. The unmount cleanup then no-ops — the find is already stopped.
    */
   const dismiss = useCallback(() => {
-    stopBrowserFind(true)
+    stopBrowserFind(true, scopeId)
     onClose()
-  }, [onClose])
+  }, [onClose, scopeId])
 
   /**
    * `findNext: false` restarts the search and re-lights every match, which is
    * what each keystroke means; stepping passes true so Chromium advances the
    * active match instead of starting over at the top.
    */
-  const runFind = useCallback((nextQuery: string, step: 'none' | 'forward' | 'back') => {
-    if (nextQuery === '') {
-      setResult(null)
-      stopBrowserFind()
-      return
-    }
-    findInBrowserPage({
-      query: nextQuery,
-      findNext: step !== 'none',
-      forward: step !== 'back',
-    })
-  }, [])
+  const runFind = useCallback(
+    (nextQuery: string, step: 'none' | 'forward' | 'back') => {
+      if (nextQuery === '') {
+        setResult(null)
+        stopBrowserFind(false, scopeId)
+        return
+      }
+      findInBrowserPage(
+        {
+          query: nextQuery,
+          findNext: step !== 'none',
+          forward: step !== 'back',
+        },
+        scopeId
+      )
+    },
+    [scopeId]
+  )
 
   const step = useCallback(
     (direction: 'forward' | 'back') => {

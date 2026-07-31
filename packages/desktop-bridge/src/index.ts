@@ -40,7 +40,7 @@ import type {
  */
 export interface SimDesktopTerminalApi {
   /** Open the first terminal, or adopt the ones already running. */
-  start(options: TerminalStartOptions): Promise<TerminalTabsState>
+  start(options: TerminalStartOptions, scopeId?: string): Promise<TerminalTabsState>
   /**
    * Execute one terminal operation. Resolves with the outcome; never rejects
    * for tool-level failures (those ride `ok: false`).
@@ -48,10 +48,11 @@ export interface SimDesktopTerminalApi {
   executeTool(
     toolCallId: string,
     operation: TerminalOperation,
-    args: TerminalToolArgs
+    args: TerminalToolArgs,
+    scopeId?: string
   ): Promise<TerminalToolResponse>
   /** Forward the user's keystrokes to one terminal's PTY. */
-  write(terminalId: string, data: string): void
+  write(terminalId: string, data: string, scopeId?: string): void
   /**
    * Paste the system clipboard into one terminal's PTY.
    *
@@ -64,37 +65,47 @@ export interface SimDesktopTerminalApi {
    * Optional: shells that predate it fall back to reading the clipboard in the
    * renderer.
    */
-  paste?(terminalId: string): Promise<boolean>
-  resize(terminalId: string, cols: number, rows: number): void
+  paste?(terminalId: string, scopeId?: string): Promise<boolean>
+  resize(terminalId: string, cols: number, rows: number, scopeId?: string): void
   /** Open an additional terminal and make it active. */
-  openTerminal(cwd?: string): Promise<TerminalTabsState>
-  switchTerminal(terminalId: string): Promise<TerminalTabsState>
-  closeTerminal(terminalId: string): Promise<TerminalTabsState>
-  getTabs?(): Promise<TerminalTabsState>
+  openTerminal(cwd?: string, scopeId?: string): Promise<TerminalTabsState>
+  switchTerminal(terminalId: string, scopeId?: string): Promise<TerminalTabsState>
+  closeTerminal(terminalId: string, scopeId?: string): Promise<TerminalTabsState>
+  getTabs?(scopeId?: string): Promise<TerminalTabsState>
+  /** Makes a chat's terminal group the renderer-visible group. */
+  activateScope?(scopeId: string): Promise<TerminalTabsState>
+  /** Moves a pending new-chat terminal group onto its assigned chat id. */
+  migrateScope?(fromScopeId: string, toScopeId: string): Promise<TerminalTabsState>
+  /** Abandons a provisional new-chat terminal group and its fresh shells. */
+  disposeScope?(scopeId: string): Promise<boolean>
+  /** Stops a soft-deleted chat's shells while retaining its restart descriptor. */
+  suspendScope?(scopeId: string): Promise<boolean>
   /** End every shell. A new one starts on the next `start`. */
   dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
-  onData?(callback: (terminalId: string, data: string) => void): () => void
+  onData?(callback: (terminalId: string, data: string, scopeId?: string) => void): () => void
   /**
    * Everything already on a terminal's screen, for a new view to paint itself
    * from. Pulled per view so the repaint cannot be aimed at the wrong set of
    * subscribers, or at none at all.
    */
-  getScrollback(terminalId: string): Promise<string>
+  getScrollback(terminalId: string, scopeId?: string): Promise<string>
   /**
    * Reports whether the terminal panel owns keyboard focus, so global menu
    * accelerators can tell a Cmd-W meant for a terminal from one meant for the
    * window.
    */
-  setFocused?(focused: boolean): void
+  setFocused?(focused: boolean, scopeId?: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
-  finishHandoff?(terminalId: string): void
+  finishHandoff?(terminalId: string, scopeId?: string): void
   /** Subscribe to the open-terminal list and which one is active. */
   onTabs?(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
   onCommand?(callback: (event: TerminalCommandEvent) => void): () => void
+  /** Subscribe when a task's live PTYs are stopped but its restart descriptor is retained. */
+  onScopeSuspended?(callback: (scopeId: string) => void): () => void
 }
 
 /**
@@ -111,20 +122,31 @@ export interface SimDesktopBrowserAgentApi {
   executeTool(
     toolCallId: string,
     tool: BrowserToolName,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    scopeId?: string
   ): Promise<BrowserToolResponse>
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
-  panelAction(action: BrowserPanelAction): void
+  panelAction(action: BrowserPanelAction, scopeId?: string): void
+  /** Makes a chat's browser tab set the renderer-visible set. */
+  activateScope?(scopeId: string): Promise<BrowserTabsState>
+  /** Materializes a lazily activated chat's persisted tabs without showing its panel. */
+  restoreScope?(scopeId: string): Promise<BrowserTabsState>
+  /** Moves a pending new-chat browser set onto its assigned chat id. */
+  migrateScope?(fromScopeId: string, toScopeId: string): Promise<BrowserTabsState>
+  /** Abandons a provisional new-chat browser set and its local descriptor. */
+  disposeScope?(scopeId: string): Promise<boolean>
+  /** Closes a soft-deleted chat's live pages while retaining its restart descriptor. */
+  suspendScope?(scopeId: string): Promise<boolean>
   /**
    * Pin or unpin a live browser tab. Optional for compatibility with desktop
    * builds predating durable pinned tabs.
    */
-  setTabPinned?(tabId: string, pinned: boolean): void
+  setTabPinned?(tabId: string, pinned: boolean, scopeId?: string): void
   /**
    * Move a live tab to a final list index. Optional for compatibility with
    * desktop builds predating tab reordering.
    */
-  reorderTab?(tabId: string, targetIndex: number): void
+  reorderTab?(tabId: string, targetIndex: number, scopeId?: string): void
   /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
@@ -135,17 +157,21 @@ export interface SimDesktopBrowserAgentApi {
    * shell falls back to the measured rect alone. Shells predating it ignore the
    * argument.
    */
-  setPanelBounds(bounds: BrowserPanelBounds | null, anchor?: BrowserPanelAnchor | null): void
+  setPanelBounds(
+    bounds: BrowserPanelBounds | null,
+    anchor?: BrowserPanelAnchor | null,
+    scopeId?: string
+  ): void
   /**
    * Report whether renderer-owned browser chrome currently owns the user's
    * interaction context. Optional for compatibility with older desktop builds.
    */
-  setPanelFocused?(focused: boolean): void
+  setPanelFocused?(focused: boolean, scopeId?: string): void
   /**
    * Hide or reveal the native browser surface without detaching it. Optional
    * so newer web deployments remain compatible with older desktop builds.
    */
-  setPanelOccluded?(occluded: boolean): void
+  setPanelOccluded?(occluded: boolean, scopeId?: string): void
   /**
    * Mirror Sim's light/dark/system preference into the embedded pages.
    * Optional for compatibility with desktop builds predating theme sync.
@@ -155,32 +181,32 @@ export interface SimDesktopBrowserAgentApi {
    * Focus requests emitted by native tabs for browser-level keyboard
    * shortcuts such as Mod+L and Mod+T.
    */
-  onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode) => void): () => void
+  onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode, scopeId?: string) => void): () => void
   /**
    * Run Chromium's find-in-page against the active tab. Results do not come
    * back from this call — they stream through {@link onFindResult}. Optional
    * for compatibility with desktop builds predating find-in-page.
    */
-  find?(request: BrowserFindRequest): void
+  find?(request: BrowserFindRequest, scopeId?: string): void
   /**
    * Stop the running find and clear its highlights. `focusPage` hands keyboard
    * focus back to the page, for the user dismissing the bar; omit it when the
    * bar is going away because the panel is.
    */
-  stopFind?(focusPage?: boolean): void
+  stopFind?(focusPage?: boolean, scopeId?: string): void
   /**
    * Mod+F pressed while the embedded page had focus, which the renderer never
    * sees as a key event. Opening the find bar is the renderer's job either
    * way, so both entry paths land on the same handler.
    */
-  onOpenFind?(callback: () => void): () => void
+  onOpenFind?(callback: (scopeId?: string) => void): () => void
   /**
    * The shell dismissing the find bar — the active tab navigated away from the
    * document the find was run against, or the user switched tabs.
    */
-  onCloseFind?(callback: () => void): () => void
+  onCloseFind?(callback: (scopeId?: string) => void): () => void
   /** Match counts for the running find, as Chromium resolves them. */
-  onFindResult?(callback: (result: BrowserFindResult) => void): () => void
+  onFindResult?(callback: (result: BrowserFindResult, scopeId?: string) => void): () => void
   /**
    * Subscribe to captured browser frames used beneath renderer overlays.
    * Optional for compatibility with desktop builds predating occlusion.
@@ -192,7 +218,7 @@ export interface SimDesktopBrowserAgentApi {
    * Read the current live tab list. Optional so a newer web deployment remains
    * compatible with installed desktop versions that only support one visible tab.
    */
-  getTabsState?(): Promise<BrowserTabsState>
+  getTabsState?(scopeId?: string): Promise<BrowserTabsState>
   /**
    * Read a privacy-preserving hint of websites that may have a usable session
    * in the dedicated profile. Optional for compatibility with older shells.
@@ -215,7 +241,9 @@ export interface SimDesktopBrowserAgentApi {
    * Subscribe to session liveness changes (false when the browser session
    * ends). Returns an unsubscribe function.
    */
-  onSessionStatus(callback: (alive: boolean) => void): () => void
+  onSessionStatus(callback: (alive: boolean, scopeId?: string) => void): () => void
+  /** Subscribe when a task's live pages close but its restart descriptor is retained. */
+  onScopeSuspended?(callback: (scopeId: string) => void): () => void
 }
 
 /**

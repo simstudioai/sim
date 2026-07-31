@@ -5,6 +5,7 @@ import type { Session, WebContents } from 'electron'
 import { app, BrowserWindow, crashReporter, net, session } from 'electron'
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
+  activateBrowserScope as activateAgentBrowserScope,
   clearBrowserProfile as clearAgentBrowserProfile,
   initDriver as initBrowserAgentDriver,
 } from '@/main/browser-agent/driver'
@@ -16,6 +17,8 @@ import {
 import {
   closeSession as closeAgentBrowserSession,
   closeFocusedTab as closeFocusedBrowserTab,
+  isBrowserScopeSuspended,
+  quiesceBrowserSessions,
   reopenFocusedTab as reopenClosedBrowserTab,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
@@ -29,6 +32,7 @@ import {
 } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
+import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
@@ -39,6 +43,7 @@ import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesyste
 import { installApplicationMenu } from '@/main/menu'
 import { openExternalSafe } from '@/main/navigation'
 import { createEventLog } from '@/main/observability'
+import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
 import {
   createSessionLifecycleCoordinator,
@@ -48,7 +53,7 @@ import {
   resolveStartRoute,
 } from '@/main/session-lifecycle'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
-import { TerminalService } from '@/main/terminal'
+import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
@@ -79,15 +84,46 @@ function main(): void {
 
   const config = createConfigStore(join(app.getPath('userData'), 'settings.json'))
   const events = createEventLog(join(app.getPath('userData'), 'logs'))
+  const appOrigin = () => config.getOrigin()
+  const desktopChatSessions = new DesktopChatSessionStore(
+    join(app.getPath('userData'), 'desktop-chat-sessions.json')
+  )
+  const clearDesktopChatSessions = (): void => {
+    try {
+      desktopChatSessions.clear()
+    } catch (error) {
+      logger.error('Could not clear encrypted task resource state', {
+        error: getErrorMessage(error),
+      })
+    }
+  }
+  const flushDesktopChatSessions = (phase: 'before-quit' | 'will-quit'): void => {
+    if (!desktopChatSessions.flush()) {
+      logger.warn('Could not flush encrypted task resource state', { phase })
+    }
+  }
   const localFilesystem = new LocalFilesystemService({
     grantStore: createEncryptedLocalFilesystemGrantStore(
       join(app.getPath('userData'), 'local-filesystem-grants.json')
     ),
   })
-  const terminal = new TerminalService({
-    loadCwd: () => config.get('terminalCwd'),
-    saveCwd: (cwd) => config.set('terminalCwd', cwd),
-  })
+  const scopeEvents = new ScopedEventRouter()
+  const terminal = new TerminalRegistry(
+    {
+      loadCwd: () => config.get('terminalCwd'),
+      saveCwd: (cwd) => config.set('terminalCwd', cwd),
+    },
+    undefined,
+    {
+      load: (scopeId) => desktopChatSessions.getTerminal(appOrigin(), scopeId) ?? undefined,
+      save: (scopeId, snapshot) => desktopChatSessions.setTerminal(appOrigin(), scopeId, snapshot),
+      migrate: (fromScopeId, toScopeId) =>
+        desktopChatSessions.migrateTerminal(appOrigin(), fromScopeId, toScopeId),
+      disposeScope: (scopeId) => {
+        desktopChatSessions.deleteScope(appOrigin(), scopeId)
+      },
+    }
+  )
   const preloadPath = join(__dirname, 'preload.cjs')
 
   const windows = new Set<BrowserWindow>()
@@ -100,7 +136,6 @@ function main(): void {
   let updater: UpdaterHandle | null = null
   const configuredPartitions = new Set<string>()
 
-  const appOrigin = () => config.getOrigin()
   const allowHttpLocalhost = () => !app.isPackaged || appOrigin().startsWith('http://')
   const getWindows = () => [...windows].filter((win) => !win.isDestroyed())
   const getMainWindow = () => {
@@ -213,11 +248,43 @@ function main(): void {
       events,
       getWindows,
       clearHandoffState: async () => {
-        handoff.clear()
-        tray?.clearRecentChats()
-        await localFilesystem.forgetAll()
+        try {
+          handoff.clear()
+        } catch (error) {
+          logger.error('Could not clear sign-in handoff state', { error: getErrorMessage(error) })
+        }
+        try {
+          tray?.clearRecentChats()
+        } catch (error) {
+          logger.error('Could not clear recent tasks', { error: getErrorMessage(error) })
+        }
+        // Shells are account-scoped runtime state. Leaving them alive across
+        // sign-out would stream the previous account's output into the next
+        // renderer and keep its local processes running invisibly.
+        try {
+          terminal.dispose()
+        } catch (error) {
+          logger.error('Could not stop account terminal sessions', {
+            error: getErrorMessage(error),
+          })
+        }
+        clearDesktopChatSessions()
+        await localFilesystem.forgetAll().catch((error) => {
+          logger.error('Could not clear local filesystem grants', {
+            error: getErrorMessage(error),
+          })
+        })
       },
-      clearBrowserProfile: clearAgentBrowserProfile,
+      clearBrowserProfile: async () => {
+        try {
+          await clearAgentBrowserProfile()
+        } finally {
+          // Browser profile teardown emits empty tab snapshots while closing
+          // its live views. Clear once more afterward so those cannot recreate
+          // account-scoped task descriptors after sign-out.
+          clearDesktopChatSessions()
+        }
+      },
     })
     return ses
   }
@@ -410,10 +477,20 @@ function main(): void {
     tray?.destroy()
     tray = null
     localFilesystem.close()
+    // Quiesce native pages before publishing the final encrypted descriptor
+    // set. This prevents a navigation event racing the synchronous quit flush.
+    quiesceBrowserSessions()
     terminal.dispose()
+    flushDesktopChatSessions('before-quit')
     // Settings writes coalesce, so a change made in the last moments before
     // quit is still pending here.
     config.flush()
+  })
+
+  app.on('will-quit', () => {
+    // Final backstop for any descriptor dirtied while Electron was closing
+    // windows after before-quit.
+    flushDesktopChatSessions('will-quit')
   })
 
   app.on('activate', () => {
@@ -434,33 +511,57 @@ function main(): void {
       version: app.getVersion(),
       electron: process.versions.electron ?? '',
     })
+    if (!desktopChatSessions.initialize()) {
+      logger.warn(
+        'Encrypted task resource storage is unavailable; browser and terminal state will remain memory-only'
+      )
+    }
     initBrowserAgentDriver(
       {
         onPageState: (state) => {
-          broadcast('browser-agent:page-state', state)
+          if (state.scopeId)
+            scopeEvents.sendBrowser(state.scopeId, 'browser-agent:page-state', state)
         },
         onTabsState: (state) => {
-          broadcast('browser-agent:tabs-state', state)
+          if (state.scopeId)
+            scopeEvents.sendBrowser(state.scopeId, 'browser-agent:tabs-state', state)
         },
-        onSessionStatus: (alive) => {
-          broadcast('browser-agent:session-status', alive)
+        onSessionStatus: (alive, scopeId) => {
+          if (scopeId)
+            scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
-        onFillAvailability: (available) => {
-          broadcast('browser-credentials:fill-availability', { available })
+        onFillAvailability: (available, scopeId) => {
+          if (scopeId) {
+            scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', { available })
+          }
         },
       },
       getMainWindow,
-      config
+      config,
+      {
+        load: (scopeId) => desktopChatSessions.getBrowser(appOrigin(), scopeId),
+        save: (scopeId, snapshot) => desktopChatSessions.setBrowser(appOrigin(), scopeId, snapshot),
+        migrateScope: (fromScopeId, toScopeId) =>
+          desktopChatSessions.migrateBrowser(appOrigin(), fromScopeId, toScopeId),
+        flush: () => desktopChatSessions.flush(),
+        disposeScope: (scopeId) => {
+          desktopChatSessions.deleteScope(appOrigin(), scopeId)
+        },
+      }
     )
     await localFilesystem.initialize()
     terminal.setSink({
-      data: (terminalId, data) => broadcast('terminal:data', terminalId, data),
-      tabs: (state) => broadcast('terminal:tabs', state),
-      command: (event) => broadcast('terminal:command', event),
+      data: (scopeId, terminalId, data) =>
+        scopeEvents.sendTerminal(scopeId, 'terminal:data', terminalId, data, scopeId),
+      tabs: (scopeId, state) =>
+        scopeEvents.sendTerminal(scopeId, 'terminal:tabs', { ...state, scopeId }),
+      command: (scopeId, event) =>
+        scopeEvents.sendTerminal(scopeId, 'terminal:command', { ...event, scopeId }),
     })
     registerIpcHandlers({
       appOrigin,
       allowHttpLocalhost,
+      scopeEvents,
       retryLoad: (sender) => {
         const win = windowForContents(sender)
         if (win) loadHealthByWindow.get(win)?.retry()
@@ -473,21 +574,38 @@ function main(): void {
       }),
       getWindowForContents: (sender) => windowForContents(sender) ?? null,
       browserPanel: {
-        setBounds: (sender, bounds, anchor) => {
+        activateScope: (sender, scopeId) => {
+          const win = windowForContents(sender)
+          if (win && focusedAppWindow() === win) {
+            activateAgentBrowserScope(scopeId)
+          }
+        },
+        setBounds: (sender, bounds, anchor, scopeId) => {
           const win = windowForContents(sender)
           if (!win) return
-          if (bounds !== null && !canReportPanelBounds(win, focusedAppWindow())) {
+          // A second window can keep reporting its old panel rect after this
+          // task was soft-deleted elsewhere. Bounds are a heartbeat, not a
+          // task-open signal, so they must never clear the suspension
+          // tombstone and recreate the closed WebContents.
+          if (bounds !== null && isBrowserScopeSuspended(scopeId)) return
+          // A window may have become focused without its chat changing, so no
+          // renderer activation effect reran. Its live bounds lease is the
+          // authoritative signal to move the singleton compositor now.
+          if (bounds !== null && focusedAppWindow() === win) {
+            activateAgentBrowserScope(scopeId)
+          }
+          if (bounds !== null && !canReportPanelBounds(win, focusedAppWindow(), scopeId)) {
             return
           }
-          setBrowserAgentPanelBounds(bounds, win, anchor)
+          setBrowserAgentPanelBounds(bounds, win, anchor, scopeId)
         },
-        setFocused: (sender, focused) => {
+        setFocused: (sender, focused, scopeId) => {
           const win = windowForContents(sender)
-          if (win) setBrowserAgentPanelFocused(focused, win)
+          if (win) setBrowserAgentPanelFocused(focused, win, scopeId)
         },
-        setOccluded: (sender, occluded) => {
+        setOccluded: (sender, occluded, scopeId) => {
           const win = windowForContents(sender)
-          if (win) setBrowserAgentPanelOccluded(occluded, win)
+          if (win) setBrowserAgentPanelOccluded(occluded, win, scopeId)
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),

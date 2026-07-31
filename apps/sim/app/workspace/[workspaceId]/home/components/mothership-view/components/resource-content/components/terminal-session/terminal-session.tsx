@@ -20,7 +20,11 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
-import { MAX_TERMINALS, type TerminalTabState } from '@sim/terminal-protocol'
+import {
+  MAX_TERMINALS,
+  type TerminalTabState,
+  type TerminalTabsState,
+} from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
@@ -43,6 +47,7 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 const logger = createLogger('TerminalSession')
+const EMPTY_TERMINAL_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
 
 /**
  * How long a command must run before the tab names it.
@@ -233,12 +238,16 @@ function attachWebglRenderer(terminal: Terminal): (() => void) | null {
  * sending the keystroke on to the pty, which would otherwise put a stray
  * control character in front of whatever the user was typing.
  */
-function handleTerminalShortcut(event: KeyboardEvent, terminal: Terminal): boolean {
+function handleTerminalShortcut(
+  event: KeyboardEvent,
+  terminal: Terminal,
+  scopeId: string
+): boolean {
   const primary = event.metaKey || (event.ctrlKey && !event.altKey)
   if (event.type !== 'keydown' || !primary || event.shiftKey || event.altKey) return true
   switch (event.key.toLowerCase()) {
     case 't':
-      void openTerminal()
+      void openTerminal(undefined, scopeId)
       return false
     case 'k':
       // What Cmd-K means in every other macOS terminal: wipe the screen and
@@ -254,10 +263,12 @@ const TerminalView = memo(function TerminalView({
   terminalId,
   active,
   visible,
+  scopeId,
 }: {
   terminalId: string
   active: boolean
   visible: boolean
+  scopeId: string
 }) {
   const { resolvedTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
@@ -297,11 +308,13 @@ const TerminalView = memo(function TerminalView({
 
     terminalRef.current = terminal
     fitRef.current = fit
-    terminal.attachCustomKeyEventHandler((event) => handleTerminalShortcut(event, terminal))
+    terminal.attachCustomKeyEventHandler((event) =>
+      handleTerminalShortcut(event, terminal, scopeId)
+    )
 
-    const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data))
+    const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data, scopeId))
     const disposeResize = terminal.onResize(({ cols, rows }) =>
-      resizeTerminal(terminalId, cols, rows)
+      resizeTerminal(terminalId, cols, rows, scopeId)
     )
     // Output is only parsed into a terminal that is on screen.
     //
@@ -324,18 +337,22 @@ const TerminalView = memo(function TerminalView({
     let overflowed = false
     let painted = false
 
-    const unsubscribeData = onTerminalData(terminalId, (data) => {
-      if (writable) {
-        terminal.write(data)
-        return
-      }
-      if (overflowed) return
-      banked += data
-      if (banked.length > MAX_BANKED_CHARS) {
-        banked = ''
-        overflowed = true
-      }
-    })
+    const unsubscribeData = onTerminalData(
+      terminalId,
+      (data) => {
+        if (writable) {
+          terminal.write(data)
+          return
+        }
+        if (overflowed) return
+        banked += data
+        if (banked.length > MAX_BANKED_CHARS) {
+          banked = ''
+          overflowed = true
+        }
+      },
+      scopeId
+    )
 
     // Guarded because a snapshot is a round trip to the desktop app, and a tab
     // switched away from and back to during one would otherwise start a second
@@ -344,7 +361,7 @@ const TerminalView = memo(function TerminalView({
     const repaint = () => {
       if (repainting) return
       repainting = true
-      return getTerminalScrollback(terminalId)
+      return getTerminalScrollback(terminalId, scopeId)
         .catch((error: Error) => {
           // Logged rather than swallowed: a failure here is indistinguishable
           // on screen from a shell that has printed nothing, so the panel comes
@@ -436,7 +453,7 @@ const TerminalView = memo(function TerminalView({
     // Theme is applied by the effect below so the terminal is never torn down
     // (and its buffer never lost) for a repaint.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terminalId])
+  }, [terminalId, scopeId])
 
   // Runs after the effect above, which is what installs these.
   useEffect(() => {
@@ -513,7 +530,7 @@ const TerminalView = memo(function TerminalView({
       // Main-side first: it reads the clipboard synchronously, so the paste
       // cannot be refused for want of a recent gesture the way an awaited
       // renderer read can.
-      if (await pasteIntoTerminal(terminalId)) {
+      if (await pasteIntoTerminal(terminalId, scopeId)) {
         terminalRef.current?.focus()
         return
       }
@@ -521,7 +538,7 @@ const TerminalView = memo(function TerminalView({
         const text = await navigator.clipboard.readText()
         if (!text) return
         // Straight to the PTY: the shell echoes it, exactly like a real paste.
-        writeToTerminal(terminalId, text)
+        writeToTerminal(terminalId, text, scopeId)
         terminalRef.current?.focus()
       } catch {
         // Reading the clipboard needs a permission the shell grants to its own
@@ -530,7 +547,7 @@ const TerminalView = memo(function TerminalView({
         toast.error('Could not read the clipboard. Press ⌘V to paste.')
       }
     })()
-  }, [terminalId])
+  }, [terminalId, scopeId])
 
   const clearScreen = useCallback(() => {
     terminalRef.current?.clear()
@@ -538,8 +555,8 @@ const TerminalView = memo(function TerminalView({
   }, [])
 
   const newTab = useCallback(() => {
-    void openTerminal()
-  }, [])
+    void openTerminal(undefined, scopeId)
+  }, [scopeId])
 
   // Scoped to the terminal that was right-clicked, not the active one.
   // Offered even for the only terminal: closing the last one restarts its
@@ -547,8 +564,8 @@ const TerminalView = memo(function TerminalView({
   // for the action to do — and hiding it here while the tab strip's own close
   // stays available would just be the two menus disagreeing.
   const closeThisTerminal = useCallback(() => {
-    void closeTerminal(terminalId)
-  }, [terminalId])
+    void closeTerminal(terminalId, scopeId)
+  }, [terminalId, scopeId])
 
   // An inactive tab is `display: none`, not merely invisible. xterm watches its
   // element with an IntersectionObserver and pauses rendering once it stops
@@ -584,9 +601,30 @@ const TerminalView = memo(function TerminalView({
  * here: xterm.js renders each PTY's bytes in the DOM, so the panel is an
  * ordinary React subtree that happens to be a set of working terminals.
  */
-export function TerminalSession({ visible }: { visible: boolean }) {
+interface TerminalSessionProps {
+  visible: boolean
+  scopeId: string
+}
+
+/** Administrative suspension retains the resource even though live PTYs are gone. */
+export function shouldRemoveTerminalResource(
+  tabCount: number,
+  hasStarted: boolean,
+  suspended: boolean
+): boolean {
+  return !suspended && tabCount === 0 && hasStarted
+}
+
+export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const panelRef = useRef<HTMLDivElement>(null)
-  const { tabs, activeTerminalId } = useCopilotTerminalStore((state) => state.tabs)
+  // Scope activation happens after a navigation commits. Selecting this
+  // panel's bucket directly avoids briefly rendering the previous chat's
+  // terminal ids and then sending user actions for them under the new scope.
+  const tabsState = useCopilotTerminalStore(
+    (state) => state.sessions[scopeId]?.tabs ?? EMPTY_TERMINAL_TABS
+  )
+  const suspended = useCopilotTerminalStore((state) => state.sessions[scopeId]?.suspended ?? false)
+  const { tabs, activeTerminalId } = tabsState
   const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
@@ -602,13 +640,17 @@ export function TerminalSession({ visible }: { visible: boolean }) {
   // Cmd-W meant for the chat close a shell the user never touched.
   useEffect(() => {
     const panel = panelRef.current
-    if (!panel || !visible) return
-    return trackPanelFocus(panel, reportTerminalFocused)
-  }, [visible])
+    if (!panel || !visible || suspended) return
+    return trackPanelFocus(panel, (focused) => reportTerminalFocused(focused, scopeId))
+  }, [visible, suspended, scopeId])
 
   useEffect(() => {
+    if (suspended) {
+      setStartError(null)
+      return
+    }
     let active = true
-    startTerminalSession({ cols: 80, rows: 24 })
+    startTerminalSession({ cols: 80, rows: 24 }, scopeId)
       .then(() => {
         if (active) setStartError(null)
       })
@@ -618,21 +660,25 @@ export function TerminalSession({ visible }: { visible: boolean }) {
     return () => {
       active = false
     }
-  }, [])
+  }, [scopeId, suspended])
 
   // Closing the last terminal closes the panel: there is nothing left to show
   // and no way back from inside it.
   const hasStarted = useRef(false)
   useEffect(() => {
+    if (suspended) {
+      hasStarted.current = false
+      return
+    }
     if (tabs.length > 0) {
       hasStarted.current = true
       return
     }
-    if (hasStarted.current) {
+    if (shouldRemoveTerminalResource(tabs.length, hasStarted.current, suspended)) {
       hasStarted.current = false
       removeResource('terminal', TERMINAL_SESSION_RESOURCE_ID)
     }
-  }, [tabs.length, removeResource])
+  }, [tabs.length, suspended, removeResource])
 
   // Every tab carries the same glyph. A spinner would have to mean "transient
   // work", and nothing here can tell that from a coding agent sitting open for
@@ -669,22 +715,31 @@ export function TerminalSession({ visible }: { visible: boolean }) {
   const contextTab = tabs.find((tab) => tab.terminalId === contextTerminalId)
 
   const handleNew = useCallback(() => {
-    void openTerminal()
-  }, [])
-  const handleSwitch = useCallback((terminalId: string) => {
-    void switchTerminal(terminalId)
-  }, [])
+    void openTerminal(undefined, scopeId)
+  }, [scopeId])
+  const handleSwitch = useCallback(
+    (terminalId: string) => {
+      void switchTerminal(terminalId, scopeId)
+    },
+    [scopeId]
+  )
   // Closing the only terminal resets it rather than emptying the panel; the
   // desktop app decides that, so the button means the same thing at any count.
-  const handleClose = useCallback((terminalId: string) => {
-    void closeTerminal(terminalId)
-  }, [])
+  const handleClose = useCallback(
+    (terminalId: string) => {
+      void closeTerminal(terminalId, scopeId)
+    },
+    [scopeId]
+  )
 
   // A duplicate is a new shell in the same directory, not a copy of the
   // session: scrollback and whatever is running belong to the original pty.
-  const handleDuplicate = useCallback((cwd: string | null) => {
-    void openTerminal(cwd ?? undefined)
-  }, [])
+  const handleDuplicate = useCallback(
+    (cwd: string | null) => {
+      void openTerminal(cwd ?? undefined, scopeId)
+    },
+    [scopeId]
+  )
 
   // Dragging a terminal tab into the chat attaches it as context. This strip
   // has no reordering, so supplying this is also what makes its tabs
@@ -749,6 +804,7 @@ export function TerminalSession({ visible }: { visible: boolean }) {
             terminalId={tab.terminalId}
             active={tab.terminalId === activeTerminalId}
             visible={visible}
+            scopeId={scopeId}
           />
         ))}
         {startError && (

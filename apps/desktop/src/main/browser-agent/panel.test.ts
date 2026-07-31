@@ -153,3 +153,55 @@ describe('panel occlusion', () => {
     await vi.waitFor(() => expect(hiddenAt(view)).toBeDefined())
   })
 })
+
+describe('panel chat scope', () => {
+  let panel: PanelModule
+
+  beforeEach(() => {
+    panel = freshPanel()
+  })
+
+  it('requires fresh bounds for the newly active chat and ignores stale reports', () => {
+    const { win, view } = showPanel(panel)
+    const previousScope = panel.getActivePanelScopeId()
+    const nextScope = `${previousScope}:next`
+
+    panel.activatePanelScope(nextScope)
+    expect(win.contentView.removeChildView).toHaveBeenCalledWith(view)
+    expect(panel.isPanelVisible()).toBe(false)
+
+    panel.setPanelBounds(PANEL_RECT, win, undefined, previousScope)
+    expect(panel.isPanelVisible()).toBe(false)
+
+    panel.setPanelBounds(PANEL_RECT, win, undefined, nextScope)
+    expect(panel.isPanelVisible()).toBe(true)
+  })
+
+  it('drops a snapshot that settles after another chat takes the compositor', async () => {
+    const { win, view } = showPanel(panel)
+    const previousScope = panel.getActivePanelScopeId()
+    let resolveCapture: ((image: Electron.NativeImage) => void) | undefined
+    vi.mocked(view.webContents.capturePage).mockReturnValue(
+      new Promise((resolve) => {
+        resolveCapture = resolve
+      })
+    )
+    vi.mocked(win.webContents.send).mockClear()
+
+    panel.setPanelOccluded(true, win, previousScope)
+    panel.activatePanelScope(`${previousScope}:next`)
+    resolveCapture?.({
+      isEmpty: () => false,
+      getSize: () => ({ width: 1, height: 1 }),
+      resize: vi.fn(),
+      toJPEG: () => Buffer.from('old'),
+    } as unknown as Electron.NativeImage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(win.webContents.send).not.toHaveBeenCalledWith(
+      'browser-agent:panel-snapshot',
+      expect.anything()
+    )
+  })
+})

@@ -75,12 +75,14 @@ const DEFAULT_TOOL_WATCHDOG_MS = 20_000
 const NAVIGATION_TOOL_WATCHDOG_MS = 30_000
 const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
 
+export type BrowserSessionPersistence = session.BrowserSessionPersistence
+
 export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
   onTabsState: (state: BrowserTabsState) => void
-  onSessionStatus: (alive: boolean) => void
+  onSessionStatus: (alive: boolean, scopeId?: string) => void
   /** Whether the active tab shows a login form Sim holds a credential for. */
-  onFillAvailability: (available: boolean) => void
+  onFillAvailability: (available: boolean, scopeId?: string) => void
 }
 
 let driverCallbacks: DriverCallbacks | null = null
@@ -93,10 +95,54 @@ let configStore: ConfigStore | null = null
  * suppressed file choosers, blocked downloads). Attached to the next tool
  * result so the model reacts to what actually happened on the page.
  */
-let pendingNotices: string[] = []
+interface DriverScopeState {
+  pendingNotices: string[]
+  takeoverActive: boolean
+  takeoverDone: boolean
+  lastTabsStateFingerprint: string | null
+  toolQueue: Promise<unknown>
+  /** True while activation is the only operation that has touched this scope. */
+  activationOnly: boolean
+}
+
+function createDriverScopeState(): DriverScopeState {
+  return {
+    pendingNotices: [],
+    takeoverActive: false,
+    takeoverDone: false,
+    lastTabsStateFingerprint: null,
+    toolQueue: Promise.resolve(),
+    activationOnly: true,
+  }
+}
+
+const driverScopeStates = new Map<string, DriverScopeState>()
+const driverScopeAliases = new Map<string, string>()
+
+function resolveDriverScopeId(scopeId: string): string {
+  let resolved = scopeId
+  const visited = new Set<string>()
+  while (driverScopeAliases.has(resolved) && !visited.has(resolved)) {
+    visited.add(resolved)
+    resolved = driverScopeAliases.get(resolved) as string
+  }
+  return session.resolveBrowserScopeId(resolved)
+}
+
+function driverScopeState(scopeId = session.getBrowserScopeId()): DriverScopeState {
+  const resolved = resolveDriverScopeId(scopeId)
+  let state = driverScopeStates.get(resolved)
+  if (!state) {
+    state = createDriverScopeState()
+    driverScopeStates.set(resolved, state)
+  }
+  return state
+}
 
 function recordNotice(notice: string): void {
-  if (pendingNotices.length < 10) pendingNotices.push(notice)
+  const state = driverScopeState()
+  state.activationOnly = false
+  if (state.pendingNotices.length < 10) state.pendingNotices.push(notice)
 }
 
 /**
@@ -105,11 +151,9 @@ function recordNotice(notice: string): void {
  * the state lives here (session-level, not in the page) so it survives
  * navigations and tab switches.
  */
-let takeoverActive = false
-let takeoverDone = false
-
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   return {
+    scopeId: session.getBrowserScopeId(),
     tabId,
     url: contents.getURL(),
     title: contents.getTitle(),
@@ -126,8 +170,6 @@ function pushPageState(contents: WebContents): void {
   driverCallbacks?.onPageState(pageStateFor(contents, active.id))
 }
 
-let lastTabsStateFingerprint: string | null = null
-
 /**
  * Pushes the tab list to the renderer, skipping a push identical to the last.
  *
@@ -139,56 +181,74 @@ let lastTabsStateFingerprint: string | null = null
 function pushTabsState(): void {
   const state = session.getTabsState()
   const fingerprint = JSON.stringify(state)
-  if (fingerprint === lastTabsStateFingerprint) return
-  lastTabsStateFingerprint = fingerprint
+  const driverState = driverScopeState()
+  if (fingerprint === driverState.lastTabsStateFingerprint) return
+  driverState.lastTabsStateFingerprint = fingerprint
   driverCallbacks?.onTabsState(state)
 }
 
 /** Instruments a fresh tab: CDP dialog/chooser handling + page-state pushes. */
 function instrumentTab(contents: WebContents): void {
+  const scopeId = session.browserScopeIdForContents(contents) ?? session.getBrowserScopeId()
+  const inScope =
+    <Args extends unknown[]>(fn: (...args: Args) => void) =>
+    (...args: Args) =>
+      session.withBrowserScope(scopeId, () => fn(...args))
+
   void cdp
     .ensureInstrumented(contents, {
-      onDialog: (dialog) => {
+      onDialog: inScope((dialog) => {
         recordNotice(
           `The page showed a ${dialog.type} dialog ("${dialog.message}") which was auto-dismissed.`
         )
-      },
-      onFileChooser: () => {
+      }),
+      onFileChooser: inScope(() => {
         recordNotice(
           'The page opened a file picker; native file uploads are not driven by the agent — ' +
             'the user can complete the upload directly in the browser panel if needed.'
         )
-      },
+      }),
     })
-    .then(() => cdp.setColorScheme(contents, session.getBrowserTheme()))
+    .then(() =>
+      session.withBrowserScope(scopeId, () =>
+        cdp.setColorScheme(contents, session.getBrowserTheme())
+      )
+    )
     .catch((error) => {
       logger.warn('CDP instrumentation failed', {
         error: getErrorMessage(error),
       })
     })
-  contents.on('did-navigate', () => {
-    knownSessions?.noteTopLevelNavigation(contents.getURL())
-    pushPageState(contents)
-    pushTabsState()
-  })
+  contents.on(
+    'did-navigate',
+    inScope(() => {
+      knownSessions?.noteTopLevelNavigation(contents.getURL())
+      pushPageState(contents)
+      pushTabsState()
+    })
+  )
   for (const event of [
     'did-navigate-in-page',
     'page-title-updated',
     'did-start-loading',
     'did-stop-loading',
   ] as const) {
-    contents.on(event as 'did-navigate', () => {
-      pushPageState(contents)
-      pushTabsState()
-    })
+    contents.on(
+      event as 'did-navigate',
+      inScope(() => {
+        pushPageState(contents)
+        pushTabsState()
+      })
+    )
   }
-  driverCallbacks?.onSessionStatus(true)
+  driverCallbacks?.onSessionStatus(true, scopeId)
 }
 
 export function initDriver(
   callbacks: DriverCallbacks,
   getMainWindow: () => BrowserWindow | null,
-  config?: ConfigStore
+  config?: ConfigStore,
+  persistence?: BrowserSessionPersistence
 ): void {
   driverCallbacks = callbacks
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
@@ -197,23 +257,25 @@ export function initDriver(
   // session inherits the previous one's pending notices, a takeover still
   // waiting on a user who is gone, and a fingerprint that suppresses its very
   // first tab push as a duplicate.
-  pendingNotices = []
-  takeoverActive = false
-  takeoverDone = false
-  lastTabsStateFingerprint = null
+  driverScopeStates.clear()
+  driverScopeAliases.clear()
   // The serialization chain, too. A takeover from the previous session can sit
   // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
   // leaving the old chain head in place would queue the new session's first
   // tool call behind a promise nothing can ever settle.
-  toolQueue = Promise.resolve()
   initFillCoordinator({
-    getActiveContents: () => session.activeTab()?.view.webContents ?? null,
-    onAvailabilityChanged: (available) => callbacks.onFillAvailability(available),
+    getActiveContents: () =>
+      session.withBrowserScope(
+        session.getActiveBrowserScopeId(),
+        () => session.activeTab()?.view.webContents ?? null
+      ),
+    onAvailabilityChanged: (available) =>
+      callbacks.onFillAvailability(available, session.getActiveBrowserScopeId()),
   })
   session.initSession(
     {
       onSessionClosed: () => {
-        driverCallbacks?.onSessionStatus(false)
+        driverCallbacks?.onSessionStatus(false, session.getBrowserScopeId())
       },
       onTabCreated: instrumentTab,
       onTabNavigated: (contents) => fillCoordinator()?.noteNavigation(contents),
@@ -242,9 +304,92 @@ export function initDriver(
       ? {
           load: () => config.get('browserPinnedTabUrls'),
           save: (urls) => config.set('browserPinnedTabUrls', urls),
+          flush: () => {
+            config.flush()
+            return true
+          },
         }
-      : undefined
+      : undefined,
+    persistence
   )
+}
+
+/** Activates a chat's isolated browser state and publishes its current header. */
+export function activateBrowserScope(scopeId: string): string {
+  const resolved = session.activateBrowserScope(scopeId)
+  driverScopeState(resolved)
+  session.withBrowserScope(resolved, () => {
+    pushTabsState()
+    const active = session.activeTab()
+    if (active) pushPageState(active.view.webContents)
+    driverCallbacks?.onSessionStatus(session.hasSession(), resolved)
+  })
+  return resolved
+}
+
+/**
+ * Materializes a lazily activated chat without changing which chat owns the
+ * singleton compositor. Used before page-dependent tools so persisted tabs can
+ * wake even while their resource panel is hidden.
+ */
+export function restoreBrowserScope(scopeId: string): BrowserTabsState {
+  const resolved = resolveDriverScopeId(scopeId)
+  if (session.isBrowserScopeSuspended(resolved)) {
+    return session.withBrowserScope(resolved, () => session.peekTabsState())
+  }
+  const state = driverScopeState(resolved)
+  state.activationOnly = false
+  return session.withBrowserScope(resolved, () => {
+    session.restoreBrowserSession()
+    return session.peekTabsState()
+  })
+}
+
+/** Moves pending-new-chat driver and tab state to the server-issued chat id. */
+export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boolean {
+  const from = resolveDriverScopeId(fromScopeId)
+  const to = resolveDriverScopeId(toScopeId)
+  if (from === to) return true
+  const state = driverScopeStates.get(from)
+  const destinationState = driverScopeStates.get(to)
+  if (destinationState && !destinationState.activationOnly) return false
+  if (!session.migrateBrowserScope(from, to)) return false
+  if (destinationState) driverScopeStates.delete(to)
+  if (state) {
+    driverScopeStates.delete(from)
+    driverScopeStates.set(to, state)
+  }
+  driverScopeAliases.set(from, to)
+  return true
+}
+
+export function disposeBrowserScope(scopeId: string): void {
+  const wasAlias = session.resolveBrowserScopeId(scopeId) !== scopeId
+  const resolved = resolveDriverScopeId(scopeId)
+  session.disposeBrowserScope(scopeId)
+  if (wasAlias) {
+    driverScopeAliases.delete(scopeId)
+    return
+  }
+
+  driverScopeStates.delete(resolved)
+  for (const [alias, target] of driverScopeAliases) {
+    if (alias === resolved || resolveDriverScopeId(target) === resolved) {
+      driverScopeAliases.delete(alias)
+    }
+  }
+}
+
+/**
+ * Stops one soft-deleted chat's live browser while retaining its persisted
+ * strip. Driver-only notices and takeover state are intentionally ephemeral;
+ * a restored chat receives fresh WebContents and a fresh automation queue.
+ */
+export function suspendBrowserScope(scopeId: string): boolean {
+  const resolved = resolveDriverScopeId(scopeId)
+  if (!session.suspendBrowserScope(resolved)) return false
+  driverScopeStates.delete(resolved)
+  return true
 }
 
 export async function getKnownSessions(): Promise<BrowserKnownSessionsState> {
@@ -477,8 +622,9 @@ async function activeElementState(contents: WebContents): Promise<Record<string,
 async function runTakeover(purpose: string | undefined): Promise<unknown> {
   const tab = session.ensureTab()
   const contents = tab.view.webContents
-  takeoverActive = true
-  takeoverDone = false
+  const state = driverScopeState()
+  state.takeoverActive = true
+  state.takeoverDone = false
 
   const startedAt = Date.now()
   try {
@@ -489,7 +635,7 @@ async function runTakeover(purpose: string | undefined): Promise<unknown> {
           'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
         )
       }
-      if (takeoverDone) {
+      if (state.takeoverDone) {
         if (purpose === 'sign_in') {
           const activeContents = session.activeTab()?.view.webContents
           if (activeContents && !activeContents.isDestroyed()) {
@@ -501,8 +647,8 @@ async function runTakeover(purpose: string | undefined): Promise<unknown> {
     }
     throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
   } finally {
-    takeoverActive = false
-    takeoverDone = false
+    state.takeoverActive = false
+    state.takeoverDone = false
   }
 }
 
@@ -598,6 +744,7 @@ async function executeToolInner(
     }
 
     case 'browser_list_tabs': {
+      session.restoreBrowserSession()
       return session.getTabsState()
     }
 
@@ -808,43 +955,67 @@ async function executeToolInner(
  * learns what happened without a dedicated tool.
  */
 function withNotices(result: unknown): unknown {
-  if (pendingNotices.length === 0) return result
-  const notices = pendingNotices
-  pendingNotices = []
+  const state = driverScopeState()
+  if (state.pendingNotices.length === 0) return result
+  const notices = state.pendingNotices
+  state.pendingNotices = []
   if (isRecordLike(result)) {
     return { ...(result as Record<string, unknown>), notices }
   }
   return { value: result, notices }
 }
 
-/** One real browser can only do one thing at a time — serialize tool calls. */
-let toolQueue: Promise<unknown> = Promise.resolve()
-
-export async function executeTool(
+export function executeTool(
+  scopeId: string,
   tool: BrowserToolName,
   params: Record<string, unknown>
+): Promise<{ ok: boolean; result?: unknown; error?: string }>
+export function executeTool(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): Promise<{ ok: boolean; result?: unknown; error?: string }>
+export async function executeTool(
+  scopeOrTool: string,
+  toolOrParams: BrowserToolName | Record<string, unknown>,
+  maybeParams?: Record<string, unknown>
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
-  const run = async () => {
-    logger.info('Executing browser tool', { tool })
-    const keepHiddenPageActive = tool !== 'browser_request_takeover'
-    if (keepHiddenPageActive) {
-      session.setAutomationActive(true)
-    }
-    try {
-      const execution = executeToolInner(tool, params)
-      const watchdogMs = browserToolWatchdogMs(tool, params)
-      return withNotices(
-        await (watchdogMs === null ? execution : raceAgainstWatchdog(execution, watchdogMs))
-      )
-    } finally {
-      if (keepHiddenPageActive) {
-        session.setAutomationActive(false)
-      }
+  const scopeId =
+    maybeParams === undefined
+      ? session.getActiveBrowserScopeId()
+      : resolveDriverScopeId(scopeOrTool)
+  const tool = (maybeParams === undefined ? scopeOrTool : toolOrParams) as BrowserToolName
+  const params = (maybeParams === undefined ? toolOrParams : maybeParams) as Record<string, unknown>
+  if (session.isBrowserScopeSuspended(scopeId)) {
+    return {
+      ok: false,
+      error: 'This task browser is suspended until the task is reopened.',
     }
   }
+  const state = driverScopeState(scopeId)
+  state.activationOnly = false
+  const run = async () => {
+    return await session.withBrowserScope(scopeId, async () => {
+      logger.info('Executing browser tool', { tool, scopeId })
+      const keepHiddenPageActive = tool !== 'browser_request_takeover'
+      if (keepHiddenPageActive) {
+        session.setAutomationActive(true)
+      }
+      try {
+        const execution = executeToolInner(tool, params)
+        const watchdogMs = browserToolWatchdogMs(tool, params)
+        return withNotices(
+          await (watchdogMs === null ? execution : raceAgainstWatchdog(execution, watchdogMs))
+        )
+      } finally {
+        if (keepHiddenPageActive) {
+          session.setAutomationActive(false)
+        }
+      }
+    })
+  }
 
-  const settled = toolQueue.then(run, run)
-  toolQueue = settled.catch(() => {})
+  const settled = state.toolQueue.then(run, run)
+  state.toolQueue = settled.catch(() => {})
   try {
     return { ok: true, result: await settled }
   } catch (error) {
@@ -855,59 +1026,73 @@ export async function executeTool(
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
-export async function handlePanelAction(action: BrowserPanelAction): Promise<void> {
-  // The Done chip on the chat's takeover tool row: hands control back to the
-  // agent. Meaningful only while a takeover is actually waiting.
-  if (action.action === 'takeover-done') {
-    if (takeoverActive) takeoverDone = true
-    return
-  }
-  // Navigate bootstraps the session: the user can open the panel manually
-  // (before the agent ever touched the browser) and drive it from the URL
-  // bar. The other chrome actions need an existing page.
-  if (action.action === 'navigate') {
-    if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
-      const contents = session.ensureTab().view.webContents
-      void contents.loadURL(action.url).catch(() => {})
-    }
-    return
-  }
-  if (action.action === 'new-tab') {
-    session.addTab()
-    return
-  }
-  if (action.action === 'duplicate-tab') {
-    if (typeof action.tabId === 'string') {
-      session.duplicateTab(action.tabId)
-    }
-    return
-  }
-  if (action.action === 'switch-tab') {
-    if (typeof action.tabId === 'string') {
-      session.switchTab(action.tabId)
-    }
-    return
-  }
-  if (action.action === 'close-tab') {
-    if (typeof action.tabId === 'string') {
-      session.closeTab(action.tabId)
-    }
-    return
-  }
-  const tab = session.activeTab()
-  if (!tab) return
-  const contents = tab.view.webContents
-  switch (action.action) {
-    case 'reload':
-      contents.reload()
+export function handlePanelAction(scopeId: string, action: BrowserPanelAction): Promise<void>
+export function handlePanelAction(action: BrowserPanelAction): Promise<void>
+export async function handlePanelAction(
+  scopeOrAction: string | BrowserPanelAction,
+  maybeAction?: BrowserPanelAction
+): Promise<void> {
+  const scopeId =
+    maybeAction === undefined
+      ? session.getActiveBrowserScopeId()
+      : resolveDriverScopeId(scopeOrAction as string)
+  const action = (maybeAction ?? scopeOrAction) as BrowserPanelAction
+  if (session.isBrowserScopeSuspended(scopeId)) return
+  return await session.withBrowserScope(scopeId, async () => {
+    // The Done chip on the chat's takeover tool row: hands control back to the
+    // agent. Meaningful only while a takeover is actually waiting.
+    if (action.action === 'takeover-done') {
+      const state = driverScopeState()
+      if (state.takeoverActive) state.takeoverDone = true
       return
-    case 'back':
-      if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack()
+    }
+    // Navigate bootstraps the session: the user can open the panel manually
+    // (before the agent ever touched the browser) and drive it from the URL
+    // bar. The other chrome actions need an existing page.
+    if (action.action === 'navigate') {
+      if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
+        const contents = session.ensureTab().view.webContents
+        void contents.loadURL(action.url).catch(() => {})
+      }
       return
-    case 'forward':
-      if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
+    }
+    if (action.action === 'new-tab') {
+      session.addTab()
       return
-    default:
+    }
+    if (action.action === 'duplicate-tab') {
+      if (typeof action.tabId === 'string') {
+        session.duplicateTab(action.tabId)
+      }
       return
-  }
+    }
+    if (action.action === 'switch-tab') {
+      if (typeof action.tabId === 'string') {
+        session.switchTab(action.tabId)
+      }
+      return
+    }
+    if (action.action === 'close-tab') {
+      if (typeof action.tabId === 'string') {
+        session.closeTab(action.tabId)
+      }
+      return
+    }
+    const tab = session.activeTab()
+    if (!tab) return
+    const contents = tab.view.webContents
+    switch (action.action) {
+      case 'reload':
+        contents.reload()
+        return
+      case 'back':
+        if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack()
+        return
+      case 'forward':
+        if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
+        return
+      default:
+        return
+    }
+  })
 }

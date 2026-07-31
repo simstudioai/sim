@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BrowserPanelAnchor } from '@sim/browser-protocol'
+import type { BrowserPanelAnchor, BrowserTabState } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
 import { Button, ChipInput, Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
@@ -40,6 +40,7 @@ import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 
 /** Ties the omnibox to its listbox for assistive tech. */
 const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
+const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
 
@@ -107,14 +108,49 @@ function describeAnchor(panel: HTMLElement | null): BrowserPanelAnchor | null {
   }
 }
 
-export function BrowserSession({ visible }: { visible: boolean }) {
+interface BrowserSessionProps {
+  visible: boolean
+  scopeId: string
+}
+
+/** Administrative suspension retains the resource even though live tabs are gone. */
+export function shouldRemoveBrowserResource(
+  sessionAlive: boolean,
+  observedLiveSession: boolean,
+  suspended: boolean
+): boolean {
+  return !suspended && !sessionAlive && observedLiveSession
+}
+
+/** A suspended scope never leases native compositor bounds. */
+export function shouldReportBrowserBounds(visible: boolean, suspended: boolean): boolean {
+  return visible && !suspended
+}
+
+export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
   const { theme } = useTheme()
-  const pageState = useBrowserSessionStore((state) => state.pageState)
-  const tabs = useBrowserSessionStore((state) => state.tabs)
-  const activeTabId = useBrowserSessionStore((state) => state.activeTabId)
-  const tabsSupported = useBrowserSessionStore((state) => state.tabsSupported)
-  const panelSnapshot = useBrowserSessionStore((state) => state.panelSnapshot)
-  const sessionAlive = useBrowserSessionStore((state) => state.sessionAlive)
+  // Read the panel's own bucket instead of the store's active projection.
+  // Chat navigation activates the desktop scope in an effect, so the projection
+  // can still describe the previous chat during the first render of this keyed
+  // panel. Direct selection prevents that one render from showing or acting on
+  // another chat's tabs.
+  const pageState = useBrowserSessionStore((state) => state.sessions[scopeId]?.pageState ?? null)
+  const tabs = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.tabs ?? EMPTY_BROWSER_TABS
+  )
+  const activeTabId = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.activeTabId ?? null
+  )
+  const tabsSupported = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.tabsSupported ?? false
+  )
+  const panelSnapshot = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.panelSnapshot ?? null
+  )
+  const sessionAlive = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.sessionAlive ?? true
+  )
+  const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
   const tabPinningSupported = isBrowserTabPinningAvailable()
   const tabReorderingSupported = isBrowserTabReorderingAvailable()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -122,7 +158,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   const urlInputRef = useRef<HTMLInputElement>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
   const fillButtonRef = useRef<HTMLButtonElement>(null)
-  const panelOccluded = useBrowserPanelOcclusion(hostRef, visible)
+  const panelOccluded = useBrowserPanelOcclusion(hostRef, visible && !suspended, scopeId)
   const { removeResource } = useMothershipResources()
 
   // The browser session ending closes the panel, the way the terminal panel
@@ -132,16 +168,25 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   // its next browser action anyway. Guarded on having seen a live session so
   // that opening the panel while the store still remembers a closed one does
   // not immediately close it again.
-  const wasAlive = useRef(false)
+  const observedLiveSession = useRef(false)
   useEffect(() => {
-    if (sessionAlive) {
-      wasAlive.current = true
+    if (suspended) {
+      observedLiveSession.current = false
       return
     }
-    if (!wasAlive.current) return
-    wasAlive.current = false
+    if (sessionAlive) {
+      // A new scope starts optimistically alive until the desktop answers.
+      // Only a real tab proves that this panel observed a live session;
+      // otherwise the expected empty response from lazy activation would look
+      // like a user closing the last tab and delete the persisted resource
+      // before its encrypted descriptor gets a chance to hydrate.
+      if (tabs.length > 0) observedLiveSession.current = true
+      return
+    }
+    if (!shouldRemoveBrowserResource(sessionAlive, observedLiveSession.current, suspended)) return
+    observedLiveSession.current = false
     removeResource('browser', BROWSER_SESSION_RESOURCE_ID)
-  }, [sessionAlive, removeResource])
+  }, [sessionAlive, suspended, tabs.length, removeResource])
   const pageUrlRef = useRef(pageState?.url ?? '')
   pageUrlRef.current = pageState?.url ?? ''
   /** Non-null while the user is editing the URL bar; otherwise it mirrors the page. */
@@ -195,9 +240,9 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     // seeds the claim either: attaching a view does not focus it, so
     // `webContents.isFocused()` is false until the user clicks the page. Drop
     // this and Cmd-W closes the whole window instead of the browser tab.
-    reportBrowserPanelFocused(true)
-    return trackPanelFocus(panel, reportBrowserPanelFocused)
-  }, [panelVisible])
+    reportBrowserPanelFocused(true, scopeId)
+    return trackPanelFocus(panel, (focused) => reportBrowserPanelFocused(focused, scopeId))
+  }, [panelVisible, scopeId])
 
   useEffect(() => {
     let focusRaf: number | null = null
@@ -211,14 +256,14 @@ export function BrowserSession({ visible }: { visible: boolean }) {
         urlInputRef.current?.focus()
         urlInputRef.current?.select()
       })
-    })
+    }, scopeId)
     return () => {
       unsubscribe()
       if (focusRaf !== null) {
         cancelAnimationFrame(focusRaf)
       }
     }
-  }, [])
+  }, [scopeId])
 
   /**
    * Opens the find bar, or re-selects it when it is already open — pressing
@@ -239,13 +284,13 @@ export function BrowserSession({ visible }: { visible: boolean }) {
   // focused the shell never sees it. Both land here.
   useEffect(() => {
     if (!findSupported) return
-    return onBrowserFindOpen(openFind)
-  }, [findSupported, openFind])
+    return onBrowserFindOpen(openFind, scopeId)
+  }, [findSupported, openFind, scopeId])
 
   useEffect(() => {
     if (!findSupported) return
-    return onBrowserFindClose(() => setFindOpen(false))
-  }, [findSupported])
+    return onBrowserFindClose(() => setFindOpen(false), scopeId)
+  }, [findSupported, scopeId])
 
   useEffect(() => {
     if (!findSupported || !panelVisible) return
@@ -284,9 +329,9 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     // report it gone once and install none of the scroll/resize/heartbeat
     // machinery below — all of which would otherwise fire on every scroll and
     // resize anywhere in the app, for a panel nobody can see.
-    if (!visible) {
+    if (!shouldReportBrowserBounds(visible, suspended)) {
       setPanelVisible(false)
-      reportBrowserPanelBounds(null)
+      reportBrowserPanelBounds(null, null, scopeId)
       return
     }
     // Resolved once: the panel is a stable ancestor for this effect's lifetime,
@@ -313,7 +358,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
         setPanelVisible(false)
         if (last !== 'hidden') {
           last = 'hidden'
-          reportBrowserPanelBounds(null)
+          reportBrowserPanelBounds(null, null, scopeId)
         }
         return
       }
@@ -321,7 +366,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
       const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
       if (force || key !== last) {
         last = key
-        reportBrowserPanelBounds(bounds, describeAnchor(panel))
+        reportBrowserPanelBounds(bounds, describeAnchor(panel), scopeId)
       }
     }
 
@@ -357,9 +402,9 @@ export function BrowserSession({ visible }: { visible: boolean }) {
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
       }
-      reportBrowserPanelBounds(null)
+      reportBrowserPanelBounds(null, null, scopeId)
     }
-  }, [visible])
+  }, [visible, suspended, scopeId])
 
   /**
    * Suggestions only exist while the omnibox is being edited. Reading them off
@@ -371,11 +416,14 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     [suggestionCorpus, urlDraft]
   )
 
-  const navigateTo = useCallback((url: string) => {
-    sendBrowserPanelAction('navigate', { url })
-    setActiveSuggestion(null)
-    urlInputRef.current?.blur()
-  }, [])
+  const navigateTo = useCallback(
+    (url: string) => {
+      sendBrowserPanelAction('navigate', { url }, scopeId)
+      setActiveSuggestion(null)
+      urlInputRef.current?.blur()
+    },
+    [scopeId]
+  )
 
   const submitUrl = useCallback(() => {
     const highlighted = activeSuggestion === null ? undefined : suggestions[activeSuggestion]
@@ -393,10 +441,10 @@ export function BrowserSession({ visible }: { visible: boolean }) {
 
   const handleNewTab = useCallback(() => {
     setUrlDraft('')
-    sendBrowserPanelAction('new-tab')
+    sendBrowserPanelAction('new-tab', {}, scopeId)
     urlInputRef.current?.focus()
     urlInputRef.current?.select()
-  }, [])
+  }, [scopeId])
 
   /**
    * Opens the shell's native account chooser under the key icon. Called
@@ -409,29 +457,44 @@ export function BrowserSession({ visible }: { visible: boolean }) {
     showBrowserCredentialChooser({ x: rect.left, y: rect.bottom })
   }, [])
 
-  const handleSwitchTab = useCallback((tabId: string) => {
-    setUrlDraft(null)
-    urlInputRef.current?.blur()
-    sendBrowserPanelAction('switch-tab', { tabId })
-  }, [])
+  const handleSwitchTab = useCallback(
+    (tabId: string) => {
+      setUrlDraft(null)
+      urlInputRef.current?.blur()
+      sendBrowserPanelAction('switch-tab', { tabId }, scopeId)
+    },
+    [scopeId]
+  )
 
-  const handleCloseTab = useCallback((tabId: string) => {
-    setUrlDraft(null)
-    urlInputRef.current?.blur()
-    sendBrowserPanelAction('close-tab', { tabId })
-  }, [])
+  const handleCloseTab = useCallback(
+    (tabId: string) => {
+      setUrlDraft(null)
+      urlInputRef.current?.blur()
+      sendBrowserPanelAction('close-tab', { tabId }, scopeId)
+    },
+    [scopeId]
+  )
 
-  const handleDuplicateTab = useCallback((tabId: string) => {
-    sendBrowserPanelAction('duplicate-tab', { tabId })
-  }, [])
+  const handleDuplicateTab = useCallback(
+    (tabId: string) => {
+      sendBrowserPanelAction('duplicate-tab', { tabId }, scopeId)
+    },
+    [scopeId]
+  )
 
-  const handleSetTabPinned = useCallback((tabId: string, pinned: boolean) => {
-    setBrowserTabPinned(tabId, pinned)
-  }, [])
+  const handleSetTabPinned = useCallback(
+    (tabId: string, pinned: boolean) => {
+      setBrowserTabPinned(tabId, pinned, scopeId)
+    },
+    [scopeId]
+  )
 
-  const handleReorderTab = useCallback((tabId: string, targetIndex: number) => {
-    reorderBrowserTab(tabId, targetIndex)
-  }, [])
+  const handleReorderTab = useCallback(
+    (tabId: string, targetIndex: number) => {
+      reorderBrowserTab(tabId, targetIndex, scopeId)
+    },
+    [scopeId]
+  )
 
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
@@ -458,7 +521,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
             aria-label='Back'
             disabled={!pageState?.canGoBack}
             className='size-[30px] flex-shrink-0 p-0'
-            onClick={() => sendBrowserPanelAction('back')}
+            onClick={() => sendBrowserPanelAction('back', {}, scopeId)}
           >
             <ArrowLeft className='size-[14px]' />
           </Button>
@@ -469,7 +532,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
             aria-label='Forward'
             disabled={!pageState?.canGoForward}
             className='size-[30px] flex-shrink-0 p-0'
-            onClick={() => sendBrowserPanelAction('forward')}
+            onClick={() => sendBrowserPanelAction('forward', {}, scopeId)}
           >
             <ArrowRight className='size-[14px]' />
           </Button>
@@ -479,7 +542,7 @@ export function BrowserSession({ visible }: { visible: boolean }) {
             size='sm'
             aria-label='Reload page'
             className='size-[30px] flex-shrink-0 p-0'
-            onClick={() => sendBrowserPanelAction('reload')}
+            onClick={() => sendBrowserPanelAction('reload', {}, scopeId)}
           >
             <RefreshCw className='size-[14px]' />
           </Button>
@@ -607,7 +670,9 @@ export function BrowserSession({ visible }: { visible: boolean }) {
             </Button>
           )}
         </div>
-        {findOpen && <BrowserFindBar inputRef={findInputRef} onClose={closeFind} />}
+        {findOpen && (
+          <BrowserFindBar inputRef={findInputRef} onClose={closeFind} scopeId={scopeId} />
+        )}
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>

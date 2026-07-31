@@ -60,6 +60,7 @@ function shouldShowStreamingFilePanel(
 interface MothershipViewProps {
   workspaceId: string
   chatId?: string
+  desktopScopeId: string
   resources: MothershipResource[]
   activeResourceId: string | null
   isCollapsed: boolean
@@ -76,6 +77,7 @@ export const MothershipView = memo(
     {
       workspaceId,
       chatId,
+      desktopScopeId,
       resources,
       activeResourceId,
       isCollapsed,
@@ -170,7 +172,7 @@ export const MothershipView = memo(
             */}
             {persistentResources.map((resource) => (
               <div
-                key={resource.id}
+                key={`${desktopScopeId}:${resource.id}`}
                 className={cn('absolute inset-0', resource.id !== active?.id && 'hidden')}
               >
                 {/*
@@ -182,6 +184,7 @@ export const MothershipView = memo(
                 */}
                 <ResourceContent
                   workspaceId={workspaceId}
+                  desktopScopeId={desktopScopeId}
                   resource={resource}
                   visible={resource.id === active?.id}
                 />
@@ -190,6 +193,7 @@ export const MothershipView = memo(
             {active && !isPersistentPanel(active) && (
               <ResourceContent
                 workspaceId={workspaceId}
+                desktopScopeId={desktopScopeId}
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}

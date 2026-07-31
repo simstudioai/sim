@@ -9,11 +9,6 @@
           "image-name": "logo.png",
           "is-glass": false,
           "name": "Sim"
-        },
-        {
-          "image-name": "border.svg",
-          "is-glass": false,
-          "name": "Staging Border"
         }
       ],
       "shadow": {

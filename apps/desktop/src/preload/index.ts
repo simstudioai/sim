@@ -130,62 +130,80 @@ const api: SimDesktopApi = {
     executeTool: (
       toolCallId: string,
       tool: BrowserToolName,
-      params: Record<string, unknown>
+      params: Record<string, unknown>,
+      scopeId?: string
     ): Promise<BrowserToolResponse> =>
-      ipcRenderer.invoke('browser-agent:execute-tool', toolCallId, tool, params),
-    panelAction: (action: BrowserPanelAction): void => {
-      ipcRenderer.send('browser-agent:panel-action', action)
+      ipcRenderer.invoke('browser-agent:execute-tool', toolCallId, tool, params, scopeId),
+    panelAction: (action: BrowserPanelAction, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:panel-action', action, scopeId)
     },
-    setTabPinned: (tabId: string, pinned: boolean): void => {
-      ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned)
+    activateScope: (scopeId: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:activate-scope', scopeId),
+    restoreScope: (scopeId: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:restore-scope', scopeId),
+    migrateScope: (fromScopeId: string, toScopeId: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:migrate-scope', fromScopeId, toScopeId),
+    disposeScope: (scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:dispose-scope', scopeId),
+    suspendScope: (scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:suspend-scope', scopeId),
+    setTabPinned: (tabId: string, pinned: boolean, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned, scopeId)
     },
-    reorderTab: (tabId: string, targetIndex: number): void => {
-      ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex)
+    reorderTab: (tabId: string, targetIndex: number, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex, scopeId)
     },
     setPanelBounds: (
       bounds: BrowserPanelBounds | null,
-      anchor?: BrowserPanelAnchor | null
+      anchor?: BrowserPanelAnchor | null,
+      scopeId?: string
     ): void => {
-      ipcRenderer.send('browser-agent:set-panel-bounds', bounds, anchor ?? null)
+      ipcRenderer.send('browser-agent:set-panel-bounds', bounds, anchor ?? null, scopeId)
     },
-    setPanelFocused: (focused: boolean): void => {
-      ipcRenderer.send('browser-agent:set-panel-focused', focused)
+    setPanelFocused: (focused: boolean, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:set-panel-focused', focused, scopeId)
     },
-    setPanelOccluded: (occluded: boolean): void => {
-      ipcRenderer.send('browser-agent:set-panel-occluded', occluded)
+    setPanelOccluded: (occluded: boolean, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:set-panel-occluded', occluded, scopeId)
     },
     setTheme: (theme: BrowserTheme): void => {
       ipcRenderer.send('browser-agent:set-theme', theme)
     },
-    onFocusOmnibox: (callback: (mode: BrowserOmniboxFocusMode) => void): (() => void) => {
-      const listener = (_event: unknown, mode: BrowserOmniboxFocusMode) => callback(mode)
+    onFocusOmnibox: (
+      callback: (mode: BrowserOmniboxFocusMode, scopeId?: string) => void
+    ): (() => void) => {
+      const listener = (_event: unknown, mode: BrowserOmniboxFocusMode, scopeId?: string) =>
+        callback(mode, scopeId)
       ipcRenderer.on('browser-agent:focus-omnibox', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:focus-omnibox', listener)
       }
     },
-    find: (request: BrowserFindRequest): void => {
-      ipcRenderer.send('browser-agent:find', request)
+    find: (request: BrowserFindRequest, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:find', request, scopeId)
     },
-    stopFind: (focusPage?: boolean): void => {
-      ipcRenderer.send('browser-agent:stop-find', focusPage === true)
+    stopFind: (focusPage?: boolean, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:stop-find', focusPage === true, scopeId)
     },
-    onOpenFind: (callback: () => void): (() => void) => {
-      const listener = () => callback()
+    onOpenFind: (callback: (scopeId?: string) => void): (() => void) => {
+      const listener = (_event: unknown, scopeId?: string) => callback(scopeId)
       ipcRenderer.on('browser-agent:open-find', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:open-find', listener)
       }
     },
-    onCloseFind: (callback: () => void): (() => void) => {
-      const listener = () => callback()
+    onCloseFind: (callback: (scopeId?: string) => void): (() => void) => {
+      const listener = (_event: unknown, scopeId?: string) => callback(scopeId)
       ipcRenderer.on('browser-agent:close-find', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:close-find', listener)
       }
     },
-    onFindResult: (callback: (result: BrowserFindResult) => void): (() => void) => {
-      const listener = (_event: unknown, result: BrowserFindResult) => callback(result)
+    onFindResult: (
+      callback: (result: BrowserFindResult, scopeId?: string) => void
+    ): (() => void) => {
+      const listener = (_event: unknown, result: BrowserFindResult, scopeId?: string) =>
+        callback(result, scopeId)
       ipcRenderer.on('browser-agent:find-result', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:find-result', listener)
@@ -205,8 +223,8 @@ const api: SimDesktopApi = {
         ipcRenderer.removeListener('browser-agent:page-state', listener)
       }
     },
-    getTabsState: (): Promise<BrowserTabsState> =>
-      ipcRenderer.invoke('browser-agent:get-tabs-state'),
+    getTabsState: (scopeId?: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:get-tabs-state', scopeId),
     getKnownSessions: (): Promise<BrowserKnownSessionsState> =>
       ipcRenderer.invoke('browser-agent:get-known-sessions'),
     clearBrowsingData: (kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState> =>
@@ -218,11 +236,19 @@ const api: SimDesktopApi = {
         ipcRenderer.removeListener('browser-agent:tabs-state', listener)
       }
     },
-    onSessionStatus: (callback: (alive: boolean) => void): (() => void) => {
-      const listener = (_event: unknown, alive: boolean) => callback(alive)
+    onSessionStatus: (callback: (alive: boolean, scopeId?: string) => void): (() => void) => {
+      const listener = (_event: unknown, alive: boolean, scopeId?: string) =>
+        callback(alive, scopeId)
       ipcRenderer.on('browser-agent:session-status', listener)
       return () => {
         ipcRenderer.removeListener('browser-agent:session-status', listener)
+      }
+    },
+    onScopeSuspended: (callback: (scopeId: string) => void): (() => void) => {
+      const listener = (_event: unknown, scopeId: string) => callback(scopeId)
+      ipcRenderer.on('browser-agent:scope-suspended', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:scope-suspended', listener)
       }
     },
   },
@@ -277,8 +303,8 @@ const api: SimDesktopApi = {
     },
   },
   terminal: {
-    start: async (options: TerminalStartOptions): Promise<TerminalTabsState> => {
-      const response = (await ipcRenderer.invoke('terminal:start', options)) as
+    start: async (options: TerminalStartOptions, scopeId?: string): Promise<TerminalTabsState> => {
+      const response = (await ipcRenderer.invoke('terminal:start', options, scopeId)) as
         | { ok: true; tabs: TerminalTabsState }
         | { ok: false; code?: string; error?: string }
       if (!response?.ok) {
@@ -294,45 +320,63 @@ const api: SimDesktopApi = {
     executeTool: (
       toolCallId: string,
       operation: TerminalOperation,
-      args: TerminalToolArgs
+      args: TerminalToolArgs,
+      scopeId?: string
     ): Promise<TerminalToolResponse> =>
-      ipcRenderer.invoke('terminal:execute-tool', toolCallId, TERMINAL_TOOL_NAME, {
-        operation,
-        args,
-      }),
-    write: (terminalId: string, data: string): void => {
-      ipcRenderer.send('terminal:write', terminalId, data)
+      ipcRenderer.invoke(
+        'terminal:execute-tool',
+        toolCallId,
+        TERMINAL_TOOL_NAME,
+        {
+          operation,
+          args,
+        },
+        scopeId
+      ),
+    write: (terminalId: string, data: string, scopeId?: string): void => {
+      ipcRenderer.send('terminal:write', terminalId, data, scopeId)
     },
-    paste: (terminalId: string): Promise<boolean> =>
-      ipcRenderer.invoke('terminal:paste', terminalId),
-    resize: (terminalId: string, cols: number, rows: number): void => {
-      ipcRenderer.send('terminal:resize', terminalId, cols, rows)
+    paste: (terminalId: string, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('terminal:paste', terminalId, scopeId),
+    resize: (terminalId: string, cols: number, rows: number, scopeId?: string): void => {
+      ipcRenderer.send('terminal:resize', terminalId, cols, rows, scopeId)
     },
-    openTerminal: (cwd?: string): Promise<TerminalTabsState> =>
-      ipcRenderer.invoke('terminal:open', cwd),
-    switchTerminal: (terminalId: string): Promise<TerminalTabsState> =>
-      ipcRenderer.invoke('terminal:switch', terminalId),
-    closeTerminal: (terminalId: string): Promise<TerminalTabsState> =>
-      ipcRenderer.invoke('terminal:close', terminalId),
-    getTabs: (): Promise<TerminalTabsState> => ipcRenderer.invoke('terminal:get-tabs'),
+    openTerminal: (cwd?: string, scopeId?: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:open', cwd, scopeId),
+    switchTerminal: (terminalId: string, scopeId?: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:switch', terminalId, scopeId),
+    closeTerminal: (terminalId: string, scopeId?: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:close', terminalId, scopeId),
+    getTabs: (scopeId?: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:get-tabs', scopeId),
+    activateScope: (scopeId: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:activate-scope', scopeId),
+    migrateScope: (fromScopeId: string, toScopeId: string): Promise<TerminalTabsState> =>
+      ipcRenderer.invoke('terminal:migrate-scope', fromScopeId, toScopeId),
+    disposeScope: (scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('terminal:dispose-scope', scopeId),
+    suspendScope: (scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('terminal:suspend-scope', scopeId),
     dispose: (): void => {
       ipcRenderer.send('terminal:dispose')
     },
-    onData: (callback: (terminalId: string, data: string) => void): (() => void) => {
-      const listener = (_event: unknown, terminalId: string, data: string) =>
-        callback(terminalId, data)
+    onData: (
+      callback: (terminalId: string, data: string, scopeId?: string) => void
+    ): (() => void) => {
+      const listener = (_event: unknown, terminalId: string, data: string, scopeId?: string) =>
+        callback(terminalId, data, scopeId)
       ipcRenderer.on('terminal:data', listener)
       return () => {
         ipcRenderer.removeListener('terminal:data', listener)
       }
     },
-    getScrollback: (terminalId: string): Promise<string> =>
-      ipcRenderer.invoke('terminal:scrollback', terminalId),
-    setFocused: (focused: boolean): void => {
-      ipcRenderer.send('terminal:focused', focused)
+    getScrollback: (terminalId: string, scopeId?: string): Promise<string> =>
+      ipcRenderer.invoke('terminal:scrollback', terminalId, scopeId),
+    setFocused: (focused: boolean, scopeId?: string): void => {
+      ipcRenderer.send('terminal:focused', focused, scopeId)
     },
-    finishHandoff: (terminalId: string): void => {
-      ipcRenderer.send('terminal:handoff-done', terminalId)
+    finishHandoff: (terminalId: string, scopeId?: string): void => {
+      ipcRenderer.send('terminal:handoff-done', terminalId, scopeId)
     },
     onTabs: (callback: (state: TerminalTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: TerminalTabsState) => callback(state)
@@ -346,6 +390,13 @@ const api: SimDesktopApi = {
       ipcRenderer.on('terminal:command', listener)
       return () => {
         ipcRenderer.removeListener('terminal:command', listener)
+      }
+    },
+    onScopeSuspended: (callback: (scopeId: string) => void): (() => void) => {
+      const listener = (_event: unknown, scopeId: string) => callback(scopeId)
+      ipcRenderer.on('terminal:scope-suspended', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:scope-suspended', listener)
       }
     },
   },

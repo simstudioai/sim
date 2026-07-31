@@ -77,7 +77,8 @@ function mutationTouchesOverlay(mutation: MutationRecord): boolean {
  */
 export function useBrowserPanelOcclusion(
   hostRef: RefObject<HTMLElement | null>,
-  visible: boolean
+  visible: boolean,
+  scopeId: string
 ): boolean {
   const [occluded, setOccluded] = useState(false)
 
@@ -92,7 +93,7 @@ export function useBrowserPanelOcclusion(
     // for a panel nobody can see.
     if (!visible) {
       setOccluded(false)
-      resetBrowserPanelOcclusion()
+      resetBrowserPanelOcclusion(scopeId)
       return
     }
 
@@ -112,7 +113,7 @@ export function useBrowserPanelOcclusion(
       if (nextOccluded === lastOccluded) return
       lastOccluded = nextOccluded
       setOccluded(nextOccluded)
-      reportBrowserPanelOcclusion(nextOccluded)
+      reportBrowserPanelOcclusion(nextOccluded, scopeId)
     }
 
     const scheduleOcclusionCheck = () => {
@@ -166,9 +167,9 @@ export function useBrowserPanelOcclusion(
       resizeObserver.disconnect()
       window.removeEventListener('resize', scheduleOcclusionCheck)
       window.removeEventListener('scroll', scheduleOcclusionCheck, true)
-      resetBrowserPanelOcclusion()
+      resetBrowserPanelOcclusion(scopeId)
     }
-  }, [hostRef, visible])
+  }, [hostRef, visible, scopeId])
 
   return occluded
 }

@@ -25,7 +25,13 @@ import {
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import { initBrowserAgentTransport, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import {
+  activateBrowserScope,
+  discardBrowserScope,
+  initBrowserAgentTransport,
+  migrateBrowserScope,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -80,7 +86,13 @@ import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
-import { initTerminalTransport } from '@/lib/terminal/transport'
+import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
+import {
+  activateTerminalScope,
+  discardTerminalScope,
+  initTerminalTransport,
+  migrateTerminalScope,
+} from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
@@ -128,6 +140,8 @@ export interface UseChatReturn {
   isReconnecting: boolean
   error: string | null
   resolvedChatId: string | undefined
+  /** Existing chat id, or the short-lived provisional scope before first send. */
+  desktopScopeId: string
   sendMessage: (
     message: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -183,6 +197,13 @@ type ActiveTurn = {
   assistantMessageId: string
   optimisticUserMessage: ChatMessage
   optimisticAssistantMessage: ChatMessage
+  pendingChatKey: string
+  desktopScopeId: string
+}
+
+interface DetachedChatResolution {
+  chatId?: string
+  terminal: boolean
 }
 
 interface QueuedSendHandoffState {
@@ -1285,6 +1306,15 @@ export function useChat(
       shouldContinue?: () => boolean
     }) => Promise<boolean>
   >(async () => false)
+  const resolveChatIdForStreamRef = useRef<
+    (
+      streamId: string,
+      options?: { preferExistingChatId?: boolean; signal?: AbortSignal }
+    ) => Promise<string | undefined>
+  >(async () => undefined)
+  const resolveDetachedChatForStreamRef = useRef<
+    (streamId: string) => Promise<DetachedChatResolution>
+  >(async () => ({ terminal: false }))
   const finalizeRef = useRef<(options?: { error?: boolean; targetChatId?: string }) => void>(
     () => {}
   )
@@ -1293,6 +1323,16 @@ export function useChat(
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  const pendingDesktopScopeIdRef = useRef(
+    desktopChatScopeId(workspaceId, undefined, pendingChatKeyRef.current)
+  )
+  const initialDesktopScopeId = desktopChatScopeId(
+    workspaceId,
+    initialChatId,
+    pendingChatKeyRef.current
+  )
+  const desktopScopeIdRef = useRef(initialDesktopScopeId)
+  const [desktopScopeId, setDesktopScopeId] = useState(initialDesktopScopeId)
   /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
@@ -1399,6 +1439,7 @@ export function useChat(
   }, [resetStreamingBuffers])
 
   const resetHomeChatState = useCallback(() => {
+    const abandonedDesktopScopeId = desktopScopeIdRef.current
     cancelActiveStreamRecovery()
     streamGenRef.current++
     cancelActiveStreamReader()
@@ -1425,6 +1466,29 @@ export function useChat(
     chatKeyRef.current = pendingChatKeyRef.current
     setChatKey(pendingChatKeyRef.current)
     clearQueueDispatchState()
+    const pendingDesktopScopeId = desktopChatScopeId(
+      workspaceId,
+      undefined,
+      pendingChatKeyRef.current
+    )
+    pendingDesktopScopeIdRef.current = pendingDesktopScopeId
+    desktopScopeIdRef.current = pendingDesktopScopeId
+    setDesktopScopeId(pendingDesktopScopeId)
+    void (async () => {
+      if (
+        abandonedDesktopScopeId.startsWith('pending:') &&
+        abandonedDesktopScopeId !== pendingDesktopScopeId
+      ) {
+        await Promise.all([
+          discardBrowserScope(abandonedDesktopScopeId),
+          discardTerminalScope(abandonedDesktopScopeId),
+        ])
+      }
+      await Promise.all([
+        activateBrowserScope(pendingDesktopScopeId),
+        activateTerminalScope(pendingDesktopScopeId),
+      ])
+    })().catch(() => {})
   }, [
     cancelActiveStreamRecovery,
     cancelActiveStreamReader,
@@ -1432,6 +1496,7 @@ export function useChat(
     clearQueueDispatchState,
     resetEphemeralPreviewState,
     setTransportIdle,
+    workspaceId,
   ])
 
   const flushPendingResources = useCallback(async (chatId: string) => {
@@ -1479,11 +1544,45 @@ export function useChat(
   const adoptResolvedChatId = useCallback(
     (chatId: string, options?: { replaceHomeHistory?: boolean; invalidateList?: boolean }) => {
       const selectedChatId = selectedChatIdRef.current
+      const wasPending = !chatIdRef.current
+      const activeTurn = activeTurnRef.current
+      const pendingDesktopScopeId =
+        wasPending && activeTurn?.desktopScopeId.startsWith('pending:')
+          ? activeTurn.desktopScopeId
+          : pendingDesktopScopeIdRef.current
+      const pendingChatKey =
+        wasPending && activeTurn?.pendingChatKey.startsWith('pending::')
+          ? activeTurn.pendingChatKey
+          : pendingChatKeyRef.current
       chatIdRef.current = chatId
+      const resolvedDesktopScopeId = desktopChatScopeId(workspaceId, chatId)
+      const migrateDesktopResources = wasPending
+        ? Promise.all([
+            migrateBrowserScope(pendingDesktopScopeId, resolvedDesktopScopeId),
+            migrateTerminalScope(pendingDesktopScopeId, resolvedDesktopScopeId),
+          ])
+        : Promise.resolve()
+      void migrateDesktopResources
+        .then(() => {
+          // Migration crosses IPC. The user can select another chat while it
+          // is in flight, so re-read the live selection before activating;
+          // the value captured above is only valid for the synchronous state
+          // updates in this call.
+          const currentSelectedChatId = selectedChatIdRef.current
+          if (!currentSelectedChatId || currentSelectedChatId === chatId) {
+            desktopScopeIdRef.current = resolvedDesktopScopeId
+            setDesktopScopeId(resolvedDesktopScopeId)
+            return Promise.all([
+              activateBrowserScope(resolvedDesktopScopeId),
+              activateTerminalScope(resolvedDesktopScopeId),
+            ])
+          }
+        })
+        .catch(() => {})
       // Migrate from the pending sentinel (not chatKeyRef — user may have
       // navigated to a different chat mid-stream, and we mustn't steal it).
-      if (pendingChatKeyRef.current !== chatId) {
-        useMothershipQueueStore.getState().migrate(pendingChatKeyRef.current, chatId)
+      if (wasPending && pendingChatKey !== chatId) {
+        useMothershipQueueStore.getState().migrate(pendingChatKey, chatId)
       }
       // Only rebind chatKey if the user is still viewing the resolved chat.
       const stillViewingResolvedChat = !selectedChatId || selectedChatId === chatId
@@ -1715,7 +1814,13 @@ export function useChat(
       openBrowserResource()
       // Replay/exactly-once guarding lives in executeBrowserToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run an action).
-      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, eventTs)
+      executeBrowserToolOnClient(
+        toolCallId,
+        toolName,
+        toolArgs,
+        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
+        eventTs
+      )
     },
     [openBrowserResource]
   )
@@ -1742,7 +1847,12 @@ export function useChat(
       openTerminalResource()
       // Replay/exactly-once guarding lives in executeTerminalToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run a command).
-      executeTerminalToolOnClient(toolCallId, toolArgs, eventTs)
+      executeTerminalToolOnClient(
+        toolCallId,
+        toolArgs,
+        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
+        eventTs
+      )
     },
     [openTerminalResource]
   )
@@ -1752,7 +1862,7 @@ export function useChat(
   useEffect(() => {
     return onOpenInBrowserPanel((url) => {
       openBrowserResource()
-      sendBrowserPanelAction('navigate', { url })
+      sendBrowserPanelAction('navigate', { url }, desktopScopeIdRef.current)
     })
   }, [openBrowserResource])
 
@@ -1800,7 +1910,16 @@ export function useChat(
   )
 
   useEffect(() => {
+    const previousDesktopScopeId = desktopScopeIdRef.current
+    const canDiscardPreviousPendingScope = !sendingRef.current
     const streamOwnerId = chatIdRef.current
+    const pendingTurn = activeTurnRef.current
+    const pendingStreamId = streamIdRef.current ?? pendingTurn?.userMessageId
+    const pendingResources = resourcesRef.current.filter(
+      (resource) =>
+        !isEphemeralResource(resource) &&
+        pendingPersistResourceKeysRef.current.has(`${resource.type}:${resource.id}`)
+    )
     const navigatedToDifferentChat =
       sendingRef.current &&
       initialChatId !== streamOwnerId &&
@@ -1808,6 +1927,61 @@ export function useChat(
     if (sendingRef.current) {
       if (navigatedToDifferentChat) {
         const abandonedChatId = streamOwnerId
+        if (!abandonedChatId && pendingStreamId && previousDesktopScopeId.startsWith('pending:')) {
+          const pendingChatKey = pendingTurn?.pendingChatKey
+          // The selected task changes before a brand-new stream necessarily
+          // emits its chat id. Keep resolving that detached stream in the
+          // background so its native resources are re-keyed onto the server
+          // chat even though this reader is intentionally being cancelled.
+          void (async () => {
+            let resolvedChatId: string | undefined
+            let retryDelayMs = 1000
+            while (!resolvedChatId) {
+              const resolution = await resolveDetachedChatForStreamRef.current(pendingStreamId)
+              resolvedChatId = resolution.chatId
+              if (resolvedChatId) break
+              if (resolution.terminal) {
+                await Promise.all([
+                  discardBrowserScope(previousDesktopScopeId),
+                  discardTerminalScope(previousDesktopScopeId),
+                ])
+                logger.warn(
+                  'Detached stream ended without a chat id; discarded provisional resources',
+                  {
+                    streamId: pendingStreamId,
+                  }
+                )
+                return
+              }
+              await sleep(retryDelayMs)
+              retryDelayMs = Math.min(retryDelayMs * 2, 30_000)
+            }
+
+            await Promise.all([
+              migrateBrowserScope(previousDesktopScopeId, resolvedChatId),
+              migrateTerminalScope(previousDesktopScopeId, resolvedChatId),
+            ])
+            if (pendingChatKey) {
+              useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)
+            }
+            await Promise.allSettled(
+              pendingResources.map((resource) =>
+                requestJson(addMothershipChatResourceContract, {
+                  body: { chatId: resolvedChatId, resource },
+                })
+              )
+            )
+            queryClient.invalidateQueries({
+              queryKey: mothershipChatKeys.detail(resolvedChatId),
+            })
+            queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+          })().catch((error) => {
+            logger.warn('Failed to attach provisional desktop resources to detached chat', {
+              streamId: pendingStreamId,
+              error: toError(error).message,
+            })
+          })
+        }
         // Detach the current UI from the old stream without cancelling it on the server.
         // Reopening that chat later will reconnect through the existing chatHistory flow.
         cancelActiveStreamRecovery()
@@ -1857,6 +2031,30 @@ export function useChat(
       setChatKey(pendingChatKeyRef.current)
     }
     clearQueueDispatchState()
+    const nextDesktopScopeId = desktopChatScopeId(
+      workspaceId,
+      initialChatId,
+      pendingChatKeyRef.current
+    )
+    if (!initialChatId) pendingDesktopScopeIdRef.current = nextDesktopScopeId
+    desktopScopeIdRef.current = nextDesktopScopeId
+    setDesktopScopeId(nextDesktopScopeId)
+    void (async () => {
+      if (
+        canDiscardPreviousPendingScope &&
+        previousDesktopScopeId.startsWith('pending:') &&
+        previousDesktopScopeId !== nextDesktopScopeId
+      ) {
+        await Promise.all([
+          discardBrowserScope(previousDesktopScopeId),
+          discardTerminalScope(previousDesktopScopeId),
+        ])
+      }
+      await Promise.all([
+        activateBrowserScope(nextDesktopScopeId),
+        activateTerminalScope(nextDesktopScopeId),
+      ])
+    })().catch(() => {})
   }, [
     initialChatId,
     queryClient,
@@ -1866,11 +2064,16 @@ export function useChat(
     setTransportIdle,
     cancelActiveStreamRecovery,
     cancelActiveStreamReader,
+    workspaceId,
   ])
 
   useEffect(() => {
     initBrowserAgentTransport()
     initTerminalTransport()
+    void Promise.all([
+      activateBrowserScope(desktopScopeIdRef.current),
+      activateTerminalScope(desktopScopeIdRef.current),
+    ]).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -2078,6 +2281,7 @@ export function useChat(
         setError,
         setPendingMessages,
         setResolvedChatId,
+        adoptResolvedChatId,
         setResources,
         setActiveResourceId,
         addResource,
@@ -2201,6 +2405,7 @@ export function useChat(
       startClientLocalFilesystemTool,
       startClientBrowserTool,
       startClientTerminalTool,
+      adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
       applyPreviewSessionUpdate,
@@ -2323,6 +2528,28 @@ export function useChat(
     },
     [fetchStreamBatch]
   )
+  resolveChatIdForStreamRef.current = resolveChatIdForStream
+
+  const resolveDetachedChatForStream = useCallback(
+    async (streamId: string): Promise<DetachedChatResolution> => {
+      try {
+        const batch = await fetchStreamBatch(streamId, '0')
+        const chatId = resolveChatIdFromStreamBatch(batch)
+        return {
+          ...(chatId ? { chatId } : {}),
+          terminal: !chatId && isTerminalStreamStatus(batch.status),
+        }
+      } catch (error) {
+        // A gone stream cannot yield a durable owner later. Network and
+        // timeout failures remain retryable, so detached native resources
+        // survive long offline windows instead of being orphaned after a
+        // fixed number of attempts.
+        return { terminal: isStreamGoneError(error) }
+      }
+    },
+    [fetchStreamBatch]
+  )
+  resolveDetachedChatForStreamRef.current = resolveDetachedChatForStream
 
   const seedStreamBatchPreviewSessions = useCallback(
     (batch: StreamBatchResponse) => {
@@ -3407,15 +3634,18 @@ export function useChat(
           assistantMessageId: assistantId,
           optimisticUserMessage,
           optimisticAssistantMessage,
+          pendingChatKey: pendingChatKeyRef.current,
+          desktopScopeId: desktopScopeIdRef.current,
         }
         const abortController = new AbortController()
         abortControllerRef.current = abortController
 
         const resourceAttachments = buildResourceAttachments(
           resourcesRef.current,
-          activeResourceIdRef.current
+          activeResourceIdRef.current,
+          desktopScopeIdRef.current
         )
-        const desktopChatCapabilities = await getDesktopChatCapabilities()
+        const desktopChatCapabilities = await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
@@ -4401,6 +4631,7 @@ export function useChat(
     isReconnecting,
     error,
     resolvedChatId,
+    desktopScopeId,
     sendMessage,
     stopGeneration,
     resources,

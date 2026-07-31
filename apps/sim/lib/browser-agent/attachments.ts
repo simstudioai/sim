@@ -9,7 +9,7 @@
  * nothing to say and is dropped.
  */
 import type { MothershipResource } from '@/lib/copilot/resources/types'
-import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-session/store'
 
 export interface ResourceAttachment {
   type: MothershipResource['type']
@@ -22,9 +22,10 @@ export interface ResourceAttachment {
 
 export function buildResourceAttachments(
   resources: readonly MothershipResource[],
-  activeResourceId: string | null
+  activeResourceId: string | null,
+  scopeId = useBrowserSessionStore.getState().activeScopeId
 ): ResourceAttachment[] | undefined {
-  const { pageState, tabs, tabsSupported } = useBrowserSessionStore.getState()
+  const { pageState, tabs, tabsSupported } = getBrowserSession(scopeId)
   const attachments = resources.flatMap<ResourceAttachment>((resource) => {
     // The terminal panel is not addressable context: unlike a browser tab it
     // carries no URL to reference, and the shell's state reaches the model
