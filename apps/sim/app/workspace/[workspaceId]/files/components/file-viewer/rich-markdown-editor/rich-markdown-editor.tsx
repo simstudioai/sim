@@ -390,6 +390,15 @@ export function LoadedRichMarkdownEditor({
   streamOperationRef.current = streamOperation
   /** The live agent-stream shadow replica, held for the current stream and freed on settle/unmount. */
   const agentStreamSessionRef = useRef<AgentStreamSession | null>(null)
+  /**
+   * True once THIS client has applied at least one mid-stream frame for the current stream — i.e. it was
+   * the elected leader whose shadow is up to date. Gates the settle apply LOCALLY (not on a settle-time
+   * re-election, which is racy: a straggler that settles after the leader clears its announcement would
+   * self-elect and re-insert the whole doc via its base-seeded shadow). A client that never applied
+   * (non-leader, a held `update`, or a pre-seed stream) converges to the final state via Yjs + the
+   * durable write instead. Reset on settle.
+   */
+  const didApplyStreamRef = useRef(false)
   const router = useRouter()
   const routerRef = useRef(router)
   routerRef.current = router
@@ -883,6 +892,7 @@ export function LoadedRichMarkdownEditor({
         // single-writer election so only one tab/window actually applies this stream (see the tick).
         if (agentStreamSessionRef.current === null) {
           agentStreamSessionRef.current = beginAgentStream(editor)
+          didApplyStreamRef.current = false
           if (collaboration) announceAgentApplying(collaboration.awareness)
         }
         const session = agentStreamSessionRef.current
@@ -930,6 +940,7 @@ export function LoadedRichMarkdownEditor({
             streamRafRef.current = null
             return
           }
+          didApplyStreamRef.current = true
           streamRafRef.current = null
           lastStreamedBodyRef.current = pending
           lastStreamParseAtRef.current = performance.now()
@@ -948,21 +959,22 @@ export function LoadedRichMarkdownEditor({
       // survive); otherwise open one on demand. The durable server write then lands as a noop diff.
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
-        // Only the elected leader applies the final body — a non-leader never applied mid-stream, so
-        // reconciling its base-seeded shadow to the final body would re-insert the whole doc as a
-        // duplicate; it converges to the final state via Yjs + the durable server write instead. Compute
-        // leadership BEFORE clearing our announcement, then stop announcing.
-        const wasLeader =
-          !collaboration || isAgentStreamLeader(collaboration.awareness, collaboration.doc.clientID)
+        // Only a client that actually applied mid-stream (the elected leader, `didApplyStreamRef`) applies
+        // the final body — its shadow is up to date, so this just catches a throttled last frame. A client
+        // that never applied has a base-seeded shadow; reconciling it to the final body would re-insert the
+        // whole doc as a duplicate, so it skips and converges via Yjs + the durable write. This is a LOCAL
+        // decision (no settle-time re-election), so a straggler can't self-elect after the leader clears.
+        const didApply = didApplyStreamRef.current
+        didApplyStreamRef.current = false
         if (collaboration) clearAgentApplying(collaboration.awareness)
         lastStreamedBodyRef.current = null
-        const finalBody = splitFrontmatter(content).body
-        const session = wasLeader
-          ? (agentStreamSessionRef.current ?? beginAgentStream(editor))
-          : agentStreamSessionRef.current
+        const session = agentStreamSessionRef.current
         agentStreamSessionRef.current = null
         if (session) {
-          if (wasLeader) runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
+          if (didApply) {
+            const finalBody = splitFrontmatter(content).body
+            runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
+          }
           // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
           // can supersede the run token and drop the apply above, but the shadow must always be
           // destroyed. Queued after the apply, so it frees the shadow only once that has had its chance.
