@@ -328,7 +328,7 @@ describe('LoggingSession completion retries', () => {
     )
     expect(rawFinalOutput.result.echoed).toBe(`prefix:${secret}:suffix`)
     expect(rawTraceSpans[0].output.echoed).toBe(secret)
-    expect(calculateCostSummary).toHaveBeenCalledWith(rawTraceSpans)
+    expect(calculateCostSummary).toHaveBeenCalledWith(rawTraceSpans, undefined)
   })
 
   it('sanitizes synthetic workflow errors and completion failure metadata', async () => {
