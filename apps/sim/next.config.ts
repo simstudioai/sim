@@ -9,19 +9,6 @@ import {
 } from './lib/core/security/csp'
 
 /**
- * Collab-doc converter deps (markdown ⇄ Yjs via headless TipTap). They are `serverExternalPackages`, and
- * the standalone tracer doesn't copy them — jsdom is a lazy `require`, and yjs's ESM resolves `lib0` via
- * subpath exports nft misses — so force them in or the file-doc routes 500 with MODULE_NOT_FOUND.
- */
-const COLLAB_DOC_SERVER_TRACE = [
-  './node_modules/jsdom/**/*',
-  './node_modules/yjs/**/*',
-  './node_modules/lib0/**/*',
-  './node_modules/y-protocols/**/*',
-  './node_modules/@tiptap/**/*',
-]
-
-/**
  * Dev-only escape hatch: when `SIM_DEV_MINIMAL_REGISTRY=1` (`bun run dev:minimal`),
  * swap the heavy block and tool registries for tiny curated variants via a
  * Turbopack/webpack resolve alias.
@@ -215,10 +202,15 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
-    // These routes run the collab-doc converter server-side; see COLLAB_DOC_SERVER_TRACE.
-    '/api/internal/file-doc/seed': COLLAB_DOC_SERVER_TRACE,
-    '/api/internal/file-doc/merge': COLLAB_DOC_SERVER_TRACE,
-    '/api/internal/file-doc/persist': COLLAB_DOC_SERVER_TRACE,
+    // The seed, merge, and persist endpoints all lazily `require('jsdom')` (via the collab-doc
+    // converter), which is invisible to the standalone file tracer, so force jsdom (and its transitive
+    // deps, followed from its static requires) into the trace — otherwise a Docker/standalone build
+    // omits it and the endpoint 500s with MODULE_NOT_FOUND. (The Yjs external stack — yjs/lib0/
+    // y-protocols — is copied whole in docker/app.Dockerfile: its glob would resolve against apps/sim
+    // but those deps hoist to the monorepo root, so a trace include can't reach them.)
+    '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
