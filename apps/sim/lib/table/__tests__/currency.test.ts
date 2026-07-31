@@ -203,6 +203,35 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('1 234,56 kr')).toBe(1234.56)
   })
 
+  it('refuses non-English magnitude words too', () => {
+    // These are why the marker check is an allowlist. As a denylist each one
+    // had to be named, and any that was missed read as a bare number — `1,2
+    // mio` as 1.2 rather than 1.2 million.
+    expect(parseCurrencyInput('1,2 mio')).toBeNull()
+    expect(parseCurrencyInput('3,4 mrd')).toBeNull()
+    expect(parseCurrencyInput('5 tsd')).toBeNull()
+    expect(parseCurrencyInput('2,5 mln')).toBeNull()
+    expect(parseCurrencyInput('1,5 bio')).toBeNull()
+    expect(parseCurrencyInput('7 md')).toBeNull()
+    // Anything else beside a number is refused by the same rule, so the parser
+    // no longer has to enumerate what a magnitude word looks like.
+    expect(parseCurrencyInput('12 units')).toBeNull()
+    expect(parseCurrencyInput('12 pcs')).toBeNull()
+  })
+
+  it('keeps every ISO code strippable — no code is a magnitude word', () => {
+    // The allowlist is only safe because these two sets do not overlap. If a
+    // future ISO code ever collided with a magnitude abbreviation, this fails
+    // and the marker rule needs a tiebreak.
+    const codes = new Set(
+      (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf(
+        'currency'
+      )
+    )
+    const magnitudeWords = ['K', 'M', 'B', 'T', 'BN', 'MN', 'MIO', 'MRD', 'TSD', 'MLN', 'BIO', 'MD']
+    expect(magnitudeWords.filter((w) => codes.has(w))).toEqual([])
+  })
+
   it('rejects an identifier whose letters touch its digits', () => {
     // The distinguishing rule: a currency marker is always separated from the
     // number by a space or a symbol, so letters touching digits mean this is a

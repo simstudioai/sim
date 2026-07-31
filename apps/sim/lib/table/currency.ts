@@ -25,24 +25,80 @@ const BIDI_MARKS = /[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g
 const UNICODE_MINUS = /[\u2212\u2012\u2013\uFE63\uFF0D]/g
 
 /**
- * A magnitude suffix (`1.2 M`, `5 K`, `3.4 bn`). Not a currency marker, and
- * stripping it would silently shrink the value by orders of magnitude.
+ * A magnitude suffix (`1.2 M`, `5 K`, `3.4 bn`), used only on runtimes that
+ * cannot enumerate currency codes \u2014 see {@link isCurrencyMarkerLetters}. Every
+ * other runtime rejects these by not recognising them, so this list does not
+ * have to be complete.
  */
-const SCALE_SUFFIX = /\d\s*(?:k|m|b|t|bn|mn|tn|mm|mil|bil)\.?\s*$/i
+const SCALE_SUFFIX = /^(?:k|m|b|t|bn|mn|tn|mm|mil|bil|mio|mrd|bio|tsd|mln|md)$/i
 
 /** A letter directly adjacent to a digit: an identifier, not an amount. */
 const LETTER_TOUCHING_DIGIT = /\p{L}\d|\d\p{L}/u
 
 /**
+ * Currency markers people type that are not ISO 4217 codes. Upper-cased for
+ * comparison; `\u0141` and `\u010c` upper-case as expected.
+ */
+const NON_ISO_CURRENCY_MARKERS = new Set([
+  'KR',
+  'Z\u0141',
+  'K\u010c',
+  'LEI',
+  'LV',
+  'FT',
+  'KN',
+  'RM',
+  'RP',
+  'TL',
+  'DIN',
+  'SR',
+])
+
+/**
+ * Whether a bare letter token sitting beside a number is a currency marker.
+ *
+ * An allowlist, deliberately. The alternative is a denylist of everything that
+ * is *not* a currency, which has to guess every magnitude abbreviation in every
+ * language \u2014 `mio`, `mrd`, `tsd`, `mln`, `bio` \u2014 and silently divides the value
+ * by a million for each one it has not thought of. An unknown token now simply
+ * fails to strip, so the leftover letters fail {@link AMOUNT_SHAPE} and the
+ * input is rejected rather than quietly rescaled.
+ *
+ * No ISO code collides with a magnitude abbreviation, so nothing legitimate is
+ * lost \u2014 `lib/table/__tests__/currency.test.ts` pins that.
+ *
+ * A runtime that cannot enumerate codes keeps the old permissive behaviour,
+ * minus the magnitude words it knows by name; rejecting every letter marker
+ * there would break `USD 12.50` outright.
+ */
+function isCurrencyMarkerLetters(letters: string): boolean {
+  const upper = letters.toUpperCase()
+  if (NON_ISO_CURRENCY_MARKERS.has(upper)) return true
+  if (supportedCurrencyCodes === null) return !SCALE_SUFFIX.test(upper)
+  return supportedCurrencyCodes.has(upper)
+}
+
+/**
  * A leading currency marker: up to three letters and/or a symbol, optionally
- * behind a sign. The sign is captured so `-$12.50` keeps it.
+ * behind a sign. The sign is captured so `-$12.50` keeps it, and the letters
+ * are captured so {@link isCurrencyMarkerLetters} can vet them.
  */
 const CURRENCY_MARKER_PREFIX =
-  /^[\s\u00a0\u202f]*([+-]?)[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|\p{L}{1,3}\p{Sc}?)[\s\u00a0\u202f]*/u
+  /^[\s\u00a0\u202f]*([+-]?)[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|(\p{L}{1,3})(\p{Sc})?)[\s\u00a0\u202f]*/u
 
 /** The same, trailing. */
 const CURRENCY_MARKER_SUFFIX =
-  /[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|\p{L}{1,3}\p{Sc}?)\.?[\s\u00a0\u202f]*$/u
+  /[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|(\p{L}{1,3})(\p{Sc})?)\.?[\s\u00a0\u202f]*$/u
+
+/**
+ * Whether a matched marker may be stripped. A marker carrying a currency
+ * SYMBOL needs no vetting — no magnitude abbreviation contains one — and
+ * `letters === undefined` means the symbol-led alternative matched.
+ */
+function isStrippableMarker(letters: string | undefined, symbol: string | undefined): boolean {
+  if (letters === undefined || symbol !== undefined) return true
+  return isCurrencyMarkerLetters(letters)
+}
 
 /** Only digits and separators, with at least one digit. */
 const AMOUNT_SHAPE = /^[+-]?[\d.,]*\d[\d.,]*$/
@@ -233,18 +289,17 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
   // by a space or a symbol, so this distinguishes them without a symbol list.
   if (LETTER_TOUCHING_DIGIT.test(body)) return null
 
-  // A scale suffix is not a currency marker, and dropping it loses orders of
-  // magnitude: `1.2 M` would read as 1.2, so a column of `1.2 M` / `3.4 M`
-  // would convert cleanly and rewrite every cell a millionfold too small.
-  // Refuse rather than guess what the writer meant.
-  if (SCALE_SUFFIX.test(body)) return null
-
   // Strip the currency marker: up to three letters (an ISO code, `kr`, `zł`)
-  // optionally joined to a symbol (`R$`, `CHF`), at either end. Bounded at
-  // three so prose does not qualify — `Revenue 5` keeps its letters and is
-  // rejected below.
-  const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, '$1')
-  const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, '')
+  // optionally joined to a symbol (`R$`, `CHF`), at either end. Only a marker
+  // that actually NAMES a currency is stripped — a magnitude word like `1.2 M`
+  // or `3,4 mrd` is left in place, so it fails the amount-shape check below
+  // instead of silently reading as 1.2, orders of magnitude too small.
+  const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, (match, sign, letters, symbol) =>
+    isStrippableMarker(letters, symbol) ? sign : match
+  )
+  const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, (match, letters, symbol) =>
+    isStrippableMarker(letters, symbol) ? '' : match
+  )
   const cleaned = withoutMarkers.replace(/[\s\u00a0\u202f\u2019']/gu, '')
   // What remains must be ONLY digits and separators. Anything else — a
   // US-format date, leftover prose — is not an amount.
