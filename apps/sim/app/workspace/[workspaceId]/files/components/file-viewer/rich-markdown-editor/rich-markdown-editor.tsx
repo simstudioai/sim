@@ -21,6 +21,11 @@ import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import {
+  announceAgentApplying,
+  clearAgentApplying,
+  isAgentStreamLeader,
+} from './collaboration/agent-stream-leader'
+import {
   type AgentStreamSession,
   applyAgentStreamFrame,
   beginAgentStream,
@@ -874,8 +879,12 @@ export function LoadedRichMarkdownEditor({
         if (!collabReady) return
         // Open the stream's shadow on the FIRST ready frame so it captures the pre-stream base (immune to
         // later peer edits) — including for an `update`, whose frames are all held until settle, so settle
-        // still has a shadow through which to apply the final rewrite.
-        agentStreamSessionRef.current ??= beginAgentStream(editor)
+        // still has a shadow through which to apply the final rewrite. Announce candidacy in the
+        // single-writer election so only one tab/window actually applies this stream (see the tick).
+        if (agentStreamSessionRef.current === null) {
+          agentStreamSessionRef.current = beginAgentStream(editor)
+          if (collaboration) announceAgentApplying(collaboration.awareness)
+        }
         const session = agentStreamSessionRef.current
         const body = splitFrontmatter(content).body
         if (body === lastStreamedBodyRef.current) return
@@ -892,6 +901,17 @@ export function LoadedRichMarkdownEditor({
           // shadow reconcile is peer-safe, and base-less `append` fragments no longer reach the client (the
           // server fail-closes them), so there is nothing here to string-prefix or wipe-guard against.
           if (streamOperationRef.current === 'update') {
+            streamRafRef.current = null
+            return
+          }
+          // Single-writer election: only the leader (min clientID among clients applying this stream)
+          // writes it into the shared doc, so multiple tabs/windows watching the same live copilot stream
+          // don't each insert it and duplicate content. A non-leader renders the leader's ops via Yjs;
+          // re-checked each frame, so it converges to one writer the moment awareness propagates.
+          if (
+            collaboration &&
+            !isAgentStreamLeader(collaboration.awareness, collaboration.doc.clientID)
+          ) {
             streamRafRef.current = null
             return
           }
@@ -928,14 +948,21 @@ export function LoadedRichMarkdownEditor({
       // survive); otherwise open one on demand. The durable server write then lands as a noop diff.
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
-        const finalBody = splitFrontmatter(content).body
-        const session = agentStreamSessionRef.current ?? beginAgentStream(editor)
-        agentStreamSessionRef.current = null
+        // Only the elected leader applies the final body — a non-leader never applied mid-stream, so
+        // reconciling its base-seeded shadow to the final body would re-insert the whole doc as a
+        // duplicate; it converges to the final state via Yjs + the durable server write instead. Compute
+        // leadership BEFORE clearing our announcement, then stop announcing.
+        const wasLeader =
+          !collaboration || isAgentStreamLeader(collaboration.awareness, collaboration.doc.clientID)
+        if (collaboration) clearAgentApplying(collaboration.awareness)
         lastStreamedBodyRef.current = null
+        const finalBody = splitFrontmatter(content).body
+        const session = wasLeader
+          ? (agentStreamSessionRef.current ?? beginAgentStream(editor))
+          : agentStreamSessionRef.current
+        agentStreamSessionRef.current = null
         if (session) {
-          runOffRender(() => {
-            applyAgentStreamFrame(editor, session, finalBody)
-          })
+          if (wasLeader) runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
           // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
           // can supersede the run token and drop the apply above, but the shadow must always be
           // destroyed. Queued after the apply, so it frees the shadow only once that has had its chance.
