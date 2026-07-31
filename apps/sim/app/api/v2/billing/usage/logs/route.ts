@@ -13,6 +13,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import { v2BillingWorkspaceFilter } from '@/app/api/v2/billing/utils'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CursorList,
   v2Error,
@@ -38,6 +39,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2ListUsageLogsContract,
       request,

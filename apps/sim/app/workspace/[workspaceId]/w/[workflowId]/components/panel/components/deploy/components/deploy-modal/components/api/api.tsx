@@ -12,7 +12,6 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Check, Clipboard } from 'lucide-react'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   AGENT_STREAM_PROTOCOL_HEADER_LABEL,
   AGENT_STREAM_PROTOCOL_V1,
@@ -25,6 +24,7 @@ interface WorkflowDeploymentInfo {
   deployedAt?: string
   apiKey: string
   endpoint: string
+  exampleCommand: string
   needsRedeployment: boolean
   isPublicApi?: boolean
 }
@@ -39,7 +39,7 @@ interface ApiDeployProps {
   onSelectedStreamingOutputsChange: (outputs: string[]) => void
 }
 
-type AsyncExampleType = 'execute' | 'status' | 'usage'
+type AsyncExampleType = 'execute' | 'status' | 'rate-limits'
 type CodeLanguage = 'curl' | 'python' | 'javascript' | 'typescript'
 
 type CopiedState = {
@@ -97,22 +97,18 @@ export function ApiDeploy({
     return info.endpoint.replace(info.apiKey, '$SIM_API_KEY')
   }
 
-  /** The workflow's example input fields, parsed from the shared example command. */
-  const getInputObject = (): Record<string, unknown> => {
+  const getPayloadObject = (): Record<string, unknown> => {
     const inputExample = getInputFormatExample ? getInputFormatExample(false) : ''
     const match = inputExample.match(/-d\s*'([\s\S]*)'/)
     if (match) {
       try {
         return JSON.parse(match[1]) as Record<string, unknown>
       } catch {
-        return { key: 'value' }
+        return { input: 'your data here' }
       }
     }
-    return { key: 'value' }
+    return { input: 'your data here' }
   }
-
-  /** v2 body: the input nests under `input`; control fields are siblings. */
-  const getPayloadObject = (): Record<string, unknown> => ({ input: getInputObject() })
 
   const getStreamPayloadObject = (): Record<string, unknown> => {
     const payload: Record<string, unknown> = { ...getPayloadObject(), stream: true }
@@ -152,7 +148,7 @@ ${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}      
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
 )
 
-print(response.json()["data"])`
+print(response.json())`
 
       case 'javascript':
         return `const response = await fetch("${endpoint}", {
@@ -163,7 +159,7 @@ ${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Typ
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const { data } = await response.json();
+const data = await response.json();
 console.log(data);`
 
       case 'typescript':
@@ -175,7 +171,7 @@ ${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Typ
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const { data }: { data: Record<string, unknown> } = await response.json();
+const data: Record<string, unknown> = await response.json();
 console.log(data);`
 
       default:
@@ -265,8 +261,8 @@ while (true) {
   const getAsyncCommand = (): string => {
     if (!info) return ''
     const endpoint = getBaseEndpoint()
-    const baseUrl = getBaseUrl()
-    const payload = { ...getPayloadObject(), async: true }
+    const baseUrl = endpoint.split('/api/workflows/')[0]
+    const payload = getPayloadObject()
     const isPublic = info.isPublicApi
 
     switch (asyncExampleType) {
@@ -275,6 +271,7 @@ while (true) {
           case 'curl':
             return `curl -X POST \\
 ${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
+  -H "X-Execution-Mode: async" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
 
@@ -285,38 +282,40 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json"
+${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json",
+        "X-Execution-Mode": "async"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
 )
 
-job = response.json()["data"]
-print(job)  # Contains executionId and statusUrl`
+job = response.json()
+print(job)  # Contains jobId and executionId`
 
           case 'javascript':
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
+    "X-Execution-Mode": "async"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const { data: job } = await response.json();
-console.log(job); // Contains executionId and statusUrl`
+const job = await response.json();
+console.log(job); // Contains jobId and executionId`
 
           case 'typescript':
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
+    "X-Execution-Mode": "async"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const { data: job }: { data: { executionId: string; statusUrl: string } } =
-  await response.json();
-console.log(job); // Poll statusUrl until status is terminal`
+const job: { jobId: string; executionId: string } = await response.json();
+console.log(job); // Contains jobId and executionId`
 
           default:
             return ''
@@ -326,84 +325,84 @@ console.log(job); // Poll statusUrl until status is terminal`
         switch (language) {
           case 'curl':
             return `curl -H "X-API-Key: $SIM_API_KEY" \\
-  ${baseUrl}/api/v2/workflows/${workflowId}/executions/EXECUTION_ID`
+  ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
 
           case 'python':
             return `import os
 import requests
 
 response = requests.get(
-    "${baseUrl}/api/v2/workflows/${workflowId}/executions/EXECUTION_ID",
+    "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
     headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
-status = response.json()["data"]
-print(status)  # status: queued | running | completed | failed | cancelled | paused`
+status = response.json()
+print(status)`
 
           case 'javascript':
             return `const response = await fetch(
-  "${baseUrl}/api/v2/workflows/${workflowId}/executions/EXECUTION_ID",
+  "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
-const { data: status } = await response.json();
+const status = await response.json();
 console.log(status);`
 
           case 'typescript':
             return `const response = await fetch(
-  "${baseUrl}/api/v2/workflows/${workflowId}/executions/EXECUTION_ID",
+  "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
-const { data: status }: { data: Record<string, unknown> } = await response.json();
+const status: Record<string, unknown> = await response.json();
 console.log(status);`
 
           default:
             return ''
         }
 
-      case 'usage':
+      case 'rate-limits':
         switch (language) {
           case 'curl':
             return `curl -H "X-API-Key: $SIM_API_KEY" \\
-  ${baseUrl}/api/v2/billing/usage`
+  ${baseUrl}/api/users/me/usage-limits`
 
           case 'python':
             return `import os
 import requests
 
 response = requests.get(
-    "${baseUrl}/api/v2/billing/usage",
+    "${baseUrl}/api/users/me/usage-limits",
     headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
-limits = response.json()["data"]
-print(limits)  # totalCredits + bySourceCredits breakdown`
+limits = response.json()
+print(limits)`
 
           case 'javascript':
             return `const response = await fetch(
-  "${baseUrl}/api/v2/billing/usage",
+  "${baseUrl}/api/users/me/usage-limits",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
-const { data: limits } = await response.json();
+const limits = await response.json();
 console.log(limits);`
 
           case 'typescript':
             return `const response = await fetch(
-  "${baseUrl}/api/v2/billing/usage",
+  "${baseUrl}/api/users/me/usage-limits",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
-const { data: limits }: { data: Record<string, unknown> } = await response.json();
+const limits: Record<string, unknown> = await response.json();
 console.log(limits);`
 
           default:
@@ -412,6 +411,19 @@ console.log(limits);`
 
       default:
         return ''
+    }
+  }
+
+  const getAsyncExampleTitle = () => {
+    switch (asyncExampleType) {
+      case 'execute':
+        return 'Execute Job'
+      case 'status':
+        return 'Check Status'
+      case 'rate-limits':
+        return 'Usage Limits'
+      default:
+        return 'Execute Job'
     }
   }
 
@@ -552,7 +564,7 @@ console.log(limits);`
               options={[
                 { label: 'Execute Job', value: 'execute' },
                 { label: 'Check Status', value: 'status' },
-                { label: 'Usage', value: 'usage' },
+                { label: 'Usage Limits', value: 'rate-limits' },
               ]}
               value={asyncExampleType}
               onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}

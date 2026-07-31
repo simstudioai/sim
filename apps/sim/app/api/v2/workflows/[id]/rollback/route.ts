@@ -12,6 +12,7 @@ import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2WorkflowRollbackAPI')
@@ -29,6 +30,10 @@ export const POST = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2RollbackWorkflowContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })

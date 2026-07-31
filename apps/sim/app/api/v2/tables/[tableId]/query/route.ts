@@ -16,6 +16,7 @@ import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CursorList,
   v2Error,
@@ -23,7 +24,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TablesGateError } from '@/app/api/v2/tables/utils'
+import { toApiRow } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableQueryAPI')
 
@@ -47,6 +48,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2QueryRowsContract, request, context, {
       maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES,
       validationErrorResponse: v2ValidationError,
@@ -67,9 +72,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Query
     if (workspaceId !== table.workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
-
-    const gateError = await v2TablesGateError(userId, workspaceId)
-    if (gateError) return gateError
 
     const schema = table.schema as TableSchema
     const cursor = cursorToken ? decodeCursor(cursorToken) : undefined

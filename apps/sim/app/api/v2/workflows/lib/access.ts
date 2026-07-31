@@ -3,6 +3,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/work
 import type { NextRequest, NextResponse } from 'next/server'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 type WorkflowRecord = typeof workflowTable.$inferSelect
@@ -31,6 +32,9 @@ export async function resolveV2WorkflowAccess(
   if (!auth.authenticated || !auth.userId) {
     return { ok: false, response: v2Error('UNAUTHORIZED', auth.error || 'Unauthorized') }
   }
+
+  const gate = await v2ApiGateError(auth.userId)
+  if (gate) return { ok: false, response: gate }
 
   const authorization = await authorizeWorkflowByWorkspacePermission({
     workflowId,

@@ -7,6 +7,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import type { V2ErrorCode } from '@/app/api/v2/lib/response'
 import {
   rateLimitHeaders,
@@ -39,6 +40,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2DownloadFileContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -84,6 +89,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2DeleteFileContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })

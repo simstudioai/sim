@@ -25,6 +25,7 @@ import {
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 import {
   PublicApiNotAllowedError,
@@ -133,6 +134,9 @@ export const POST = withRouteHandler(
       userId = wf.userId
       isPublicApiAccess = true
     }
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
 
     const ticket = tryAdmit()
     if (!ticket) {

@@ -132,6 +132,10 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
 import { attachExecutionResult } from '@/executor/utils/errors'
 import { POST } from './route'
 
@@ -266,6 +270,18 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({ rateLimitCounter: 'async' })
     )
+  })
+
+  it('404s the whole surface when the v2-api flag is off', async () => {
+    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
+    const { v2Error } = await import('@/app/api/v2/lib/response')
+    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+
+    const res = await callExecute({ input: {} })
+
+    expect(res.status).toBe(404)
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
   it('rejects unknown body keys (strict contract)', async () => {

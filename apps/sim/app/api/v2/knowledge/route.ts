@@ -13,6 +13,7 @@ import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowled
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CursorList,
   v2Data,
@@ -36,6 +37,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2ListKnowledgeBasesContract,
       request,
@@ -73,6 +78,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2CreateKnowledgeBaseContract,
       request,

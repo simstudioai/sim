@@ -36,6 +36,10 @@ vi.mock('@/lib/workflows/executor/enqueue-execution', () => ({
   WORKFLOW_EXECUTION_JOB_ID_PREFIX: 'workflow-execution:',
 }))
 
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
 import { POST as cancelPost } from './cancel/route'
 import { GET } from './route'
 
