@@ -1,16 +1,15 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, member, permissions, workspace } from '@sim/db/schema'
-import {
-  isOrgAdminRole,
-  type PermissionType,
-  permissionSatisfies,
-} from '@sim/platform-authz/workspace'
+import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import type { DbOrTx } from '@/lib/db/types'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  getEffectiveWorkspacePermission,
+  hasWorkspaceAdminAccess,
+} from '@/lib/workspaces/permissions/utils'
 
 const PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
 
@@ -78,35 +77,17 @@ export async function getCredentialCreationWorkspaceContext(params: {
   if (!workspaceRow) return null
 
   const permissionRows = await params.executor
-    .select({
-      userId: permissions.userId,
-      permissionType: permissions.permissionType,
-    })
+    .select({ userId: permissions.userId })
     .from(permissions)
     .where(
       and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, params.workspaceId))
     )
 
-  const explicitPermission =
-    (permissionRows.find((row) => row.userId === params.userId)?.permissionType as
-      | PermissionType
-      | undefined) ?? null
-  let effectivePermission = explicitPermission
-  if (workspaceRow.organizationId && explicitPermission !== 'admin') {
-    const [organizationMembership] = await params.executor
-      .select({ role: member.role })
-      .from(member)
-      .where(
-        and(
-          eq(member.userId, params.userId),
-          eq(member.organizationId, workspaceRow.organizationId)
-        )
-      )
-      .limit(1)
-    if (isOrgAdminRole(organizationMembership?.role)) {
-      effectivePermission = 'admin'
-    }
-  }
+  const effectivePermission = await getEffectiveWorkspacePermission(
+    params.userId,
+    { id: params.workspaceId, organizationId: workspaceRow.organizationId },
+    params.executor
+  )
 
   const memberUserIds = new Set(permissionRows.map((row) => row.userId))
   memberUserIds.add(workspaceRow.ownerId)

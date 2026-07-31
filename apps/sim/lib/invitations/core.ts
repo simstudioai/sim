@@ -1643,16 +1643,6 @@ export async function rejectInvitation(
   })
 }
 
-export async function cancelInvitation(invitationId: string): Promise<boolean> {
-  const result = await db
-    .update(invitation)
-    .set({ status: 'cancelled', updatedAt: new Date() })
-    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
-    .returning({ id: invitation.id })
-
-  return result.length > 0
-}
-
 export type AuthorizedInvitationRevocationResult =
   | {
       success: true

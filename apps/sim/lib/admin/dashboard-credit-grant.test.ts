@@ -340,7 +340,9 @@ describe('addDashboardOrganizationMember', () => {
   })
 
   it('uses the expected owner guard for an administrator-selected subset', async () => {
-    queueTableRows(workspace, [{ id: 'workspace-1' }, { id: 'workspace-2' }])
+    // The attachability query is scoped to the selected ids, so it returns only
+    // `workspace-1` even though the user owns more.
+    queueTableRows(workspace, [{ id: 'workspace-1' }])
     queueTableRows(member, [{ id: 'member-old', organizationId: 'org-old' }])
     mocks.transferMembership.mockResolvedValue({
       success: true,

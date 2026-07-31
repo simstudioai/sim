@@ -26,8 +26,6 @@ export const DEFAULT_WORKSPACE_CHUNK_SIZE = 50
 /** Bounds FK cascade trigger queue (per-statement in-memory) and bind-parameter count. */
 export const DEFAULT_DELETE_CHUNK_SIZE = 1000
 
-export { chunkArray }
-
 export interface SelectByIdChunksOptions {
   /** Cap on rows returned across all chunks. Defaults to a full per-table cleanup budget. */
   overallLimit?: number

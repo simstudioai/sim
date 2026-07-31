@@ -968,15 +968,21 @@ export async function addDashboardOrganizationMember(
   actor: AdminMutationActor
 ) {
   const selectedWorkspaceIds = [...new Set(values.personalWorkspaceIds ?? [])]
-  const attachableWorkspaceIds = (
-    await db
+  if (selectedWorkspaceIds.length > 0) {
+    const selectable = await db
       .select({ id: workspace.id })
       .from(workspace)
-      .where(ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }))
-  ).map((row) => row.id)
-  if (selectedWorkspaceIds.some((id) => !attachableWorkspaceIds.includes(id))) {
-    throw new Error('One or more selected personal workspaces can no longer be moved')
+      .where(
+        and(
+          ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }),
+          inArray(workspace.id, selectedWorkspaceIds)
+        )
+      )
+    if (selectable.length !== selectedWorkspaceIds.length) {
+      throw new Error('One or more selected personal workspaces can no longer be moved')
+    }
   }
+
   const [existingMembership] = await db
     .select({ id: member.id, organizationId: member.organizationId })
     .from(member)

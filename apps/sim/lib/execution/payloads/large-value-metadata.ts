@@ -7,8 +7,8 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
-import { chunkArray } from '@/lib/cleanup/batch-delete'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 
 const logger = createLogger('LargeValueMetadata')

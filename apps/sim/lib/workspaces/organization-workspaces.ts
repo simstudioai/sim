@@ -132,10 +132,12 @@ export async function attachOwnedWorkspacesToOrganization({
   }
 
   const attached = await db.transaction(async (tx) => {
-    // Match admin move and invitation acceptance: shared advisory scope first,
-    // then the organization mutation lock, then workspace rows. Ownership
-    // transfer also takes organization before workspace rows; taking the row
-    // first here would create a row/org lock inversion with that path.
+    // Shared advisory scope first, then the organization lock, then workspace
+    // rows — the order admin move uses. What makes it mandatory is acceptance:
+    // it holds `workspace-invitations:<id>` while waiting for the workspace
+    // row, so row-locking first here (as this did) deadlocks against it.
+    // Taking the organization lock before the rows also matches ownership
+    // transfer, so those two cannot invert on the org/row pair either.
     await acquireInvitationMutationLocks(tx, {
       invitationIds: [],
       workspaceIds: ownedWorkspaceIds,

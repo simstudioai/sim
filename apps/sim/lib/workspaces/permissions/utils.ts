@@ -465,13 +465,9 @@ export async function getWorkspacePermissionsForViewer(
  */
 export async function hasWorkspaceAdminAccess(
   userId: string,
-  workspaceId: string,
-  options?: { executor?: DbOrTx }
+  workspaceId: string
 ): Promise<boolean> {
-  const executor = options?.executor ?? db
-  const ws = await getWorkspaceWithOwner(workspaceId, { executor })
-  if (!ws) return false
-  return (await getEffectiveWorkspacePermission(userId, ws, executor)) === 'admin'
+  return (await checkWorkspaceAccess(workspaceId, userId)).canAdmin
 }
 
 /**
@@ -483,10 +479,9 @@ export async function hasWorkspaceAdminAccess(
  */
 export async function isOrganizationAdminOrOwner(
   userId: string,
-  organizationId: string,
-  executor: DbOrTx = db
+  organizationId: string
 ): Promise<boolean> {
-  const [row] = await executor
+  const [row] = await db
     .select({ role: member.role })
     .from(member)
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
