@@ -60,7 +60,7 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
   })
 
-  it('drops a stale-base streaming snapshot against the SHARED synced version and never records it', async () => {
+  it('drops a stale durable write against the SHARED synced version', async () => {
     // A durable write (e.g. a concurrent human save on another process) records the shared synced version.
     expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', { version: 100 })).toBe(
       'applied'
@@ -68,23 +68,19 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100)
     mockFetchFileDocMerge.mockClear()
 
-    // A streaming snapshot built from an older base (50) than the SHARED synced version is stale —
-    // rejected under the lock before any diff is built, so it can't clobber the durable write.
-    expect(
-      await applyMarkdownToLiveFileDoc('file-1', '# stale-base stream', { baseVersion: 50 })
-    ).toBe('stale')
+    // A durable write with an OLDER version than the SHARED synced version is stale — rejected under the
+    // lock before any diff is built, so it can't regress the doc across replicas.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older durable', { version: 50 })).toBe(
+      'stale'
+    )
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
 
-    // A streaming snapshot whose base is the current shared version applies (nothing newer to clobber)...
-    expect(
-      await applyMarkdownToLiveFileDoc('file-1', '# current-base stream', { baseVersion: 100 })
-    ).toBe('applied')
-    // ...but is never recorded: a later durable write at 150 still applies.
+    // A newer durable write applies and advances the shared synced version.
     expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', { version: 150 })).toBe(
       'applied'
     )
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 150)
-    // setSyncedVersion fired only for the two durable writes, never for a streaming snapshot.
+    // setSyncedVersion fired only for the two applied durable writes, never for the stale one.
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledTimes(2)
   })
 })

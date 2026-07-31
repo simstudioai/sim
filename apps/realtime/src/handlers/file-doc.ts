@@ -517,12 +517,11 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
 
 /**
  * How a merge is positioned on the file's version line — mirrors the sim-side `LiveFileDocMergeOrder`
- * wire fields. A durable `version` is checked AND recorded; a streaming `baseVersion` (the durable version
- * the snapshot was built from) is checked only — dropped if a newer durable write has since landed.
+ * wire field. A durable `version` is checked (applied only if newer than the doc's current version) AND
+ * recorded as the synced version.
  */
 interface MergeOrder {
   version?: number
-  baseVersion?: number
 }
 
 /**
@@ -569,16 +568,14 @@ async function mergeMarkdownIntoRoom(
   name: string,
   fileId: string,
   markdown: string,
-  { version, baseVersion }: MergeOrder
+  { version }: MergeOrder
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const store = getFileDocStore()
 
   // The durable version this merge carries is now incorporated in the live doc — record it (cluster-wide
   // in Redis for multi-task, plus this task's room) so the persist If-Match guard treats this write as
   // synced rather than an out-of-band conflict. AWAITED so the version is durable before the merge lock
-  // releases, so the next lock holder's staleness check (below) reads a consistent value. Only a durable
-  // `version` is recorded — a streaming `baseVersion` orders the merge (below) but is never a checkpoint,
-  // so the synced version stays pinned to the last durable write.
+  // releases, so the next lock holder's staleness check (below) reads a consistent value.
   const recordVersion = async () => {
     if (version === undefined) return
     const room = fileDocRooms.get(name)
@@ -590,29 +587,13 @@ async function mergeMarkdownIntoRoom(
   }
 
   // Order this merge on the file's version line, where `current` is the durable version the doc already
-  // incorporates. Both keys are DB-monotonic `contentUpdatedAt` values (no wall-clock), so ordering is
-  // immune to clock skew:
-  //   - A durable `version` is stale if it is NOT strictly newer than `current` — a newer durable write
-  //     already landed (possibly on another process, out of dispatch order); applying its older markdown
-  //     would regress the doc while the monotonic token stays high.
-  //   - A streaming `baseVersion` (the durable version the snapshot was built from) is stale if `current`
-  //     has moved PAST it — a newer durable write landed since the snapshot's base, so diffing the live
-  //     doc back toward the snapshot would clobber that write's content (which a later persist, still
-  //     holding the current If-Match token, would then write over the durable file). This is what stops a
-  //     concurrent human edit from being silently lost; the per-process caller chain cannot see it.
-  // A merge with neither key is never stale (legacy, unordered). Only a durable `version` is recorded,
-  // so a streaming snapshot never advances the synced version — the final `edit_content` write does.
-  //
-  // Known, accepted limitation: two INDEPENDENT copilot streams editing the SAME file at once share one
-  // base version, so neither is stale relative to the other and their snapshots can interleave in the live
-  // doc. This is transient only — each stream's final durable write is version-ordered and reconciles the
-  // doc, so the steady state is deterministic (last durable wins) and the durable file is never corrupted.
-  // Ordering two independent snapshot streams would need a shared sequence they don't have; the fully
-  // robust form (a per-file streaming lease, or embedding the version in each stream entry) is a scoped
-  // follow-up, not a durability fix owed here.
+  // incorporates. `version` is a DB-monotonic `contentUpdatedAt` value (no wall-clock), so ordering is
+  // immune to clock skew: a durable `version` is stale if it is NOT strictly newer than `current` — a
+  // newer durable write already landed (possibly on another process, out of dispatch order); applying its
+  // older markdown would regress the doc while the monotonic token stays high. A merge with no `version`
+  // is never stale (legacy, unordered).
   const isStale = (current: number): boolean => {
     if (version !== undefined) return version <= current
-    if (baseVersion !== undefined) return current > baseVersion
     return false
   }
 

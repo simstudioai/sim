@@ -141,16 +141,9 @@ function buildAppendPreview(existingContent: string, incomingContent: string): s
  * before Redis holds `existingContent`, which would make append previews look like
  * full-file replacement until the intent landed.
  */
-/**
- * The base content a copilot edit is computed against, plus the durable version (epoch ms) that content
- * is at. The version is the stream's causal base: the relay drops a streaming snapshot if a NEWER durable
- * write landed than this, so a concurrent human edit is never clobbered. Derived as
- * `contentUpdatedAt ?? updatedAt` — the SAME version line the seed/persist use — so it is directly
- * comparable to the relay's recorded synced version.
- */
+/** The base content a copilot append/patch edit is computed against, to compose the streamed preview. */
 export interface WorkspaceFilePreviewBase {
   text: string
-  baseVersion: number
 }
 
 export async function loadWorkspaceFileTextForPreview(
@@ -163,7 +156,6 @@ export async function loadWorkspaceFileTextForPreview(
     const buffer = await fetchWorkspaceFileBuffer(record)
     return {
       text: buffer.toString('utf-8'),
-      baseVersion: (record.contentUpdatedAt ?? record.updatedAt).getTime(),
     }
   } catch (error) {
     logger.warn('Failed to load workspace file text for preview', {

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
@@ -9,25 +9,8 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
-const { mergeEditIntoLiveFileDocMock, isLiveDocMergeInFlightMock } = vi.hoisted(() => ({
-  mergeEditIntoLiveFileDocMock:
-    vi.fn<
-      (
-        fileId: string,
-        markdown: string,
-        order?: { version?: number; baseVersion?: number }
-      ) => Promise<void>
-    >(),
-  isLiveDocMergeInFlightMock: vi.fn<(fileId: string) => boolean>(),
-}))
-
 const { peekFileIntentMock } = vi.hoisted(() => ({
   peekFileIntentMock: vi.fn(),
-}))
-
-vi.mock('@/lib/realtime/notify', () => ({
-  mergeEditIntoLiveFileDoc: mergeEditIntoLiveFileDocMock,
-  isLiveDocMergeInFlight: isLiveDocMergeInFlightMock,
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-intent-store', () => ({
@@ -46,7 +29,6 @@ import type { ActiveFileIntent, ExecutionContext, StreamEvent } from '@/lib/copi
 const STREAM_ID = 'stream-1'
 const EDIT_TOOL_CALL_ID = 'edit-content-1'
 const WORKSPACE_FILE_TOOL_CALL_ID = 'workspace-file-1'
-/** The durable version (`contentUpdatedAt`, epoch ms) the streamed base content is at. */
 const BASE_VERSION_MS = 900_000
 
 /** One args_delta chunk of the streamed `edit_content` JSON, as a driveable StreamEvent. */
@@ -91,9 +73,14 @@ const flushMicrotasks = async () => {
   await Promise.resolve()
 }
 
-describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
+/**
+ * The copilot preview adapter no longer merges the growing content into the file's live collaborative
+ * Y.Doc server-side — that is done client-side by the open editor as minimal CRDT diffs (see
+ * `applyStreamedMarkdownToLiveDoc`). These tests guard the surviving contract: the adapter still emits
+ * the growing `file_preview_content` events that drive the chat's inline preview.
+ */
+describe('processFilePreviewStreamEvent — preview content emission', () => {
   let state: FilePreviewAdapterState
-  let nowMs: number
   const execContext: ExecutionContext = {
     userId: 'user-1',
     workflowId: 'workflow-1',
@@ -101,162 +88,55 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     chatId: 'chat-1',
     messageId: 'msg-1',
   }
+  const events: Array<{ payload: Record<string, unknown> }> = []
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mergeEditIntoLiveFileDocMock.mockResolvedValue(undefined)
-    isLiveDocMergeInFlightMock.mockReturnValue(false)
-    // Default: an append/patch base is available (a non-empty file) at durable version BASE_VERSION_MS,
-    // so the base-present gate passes and the streaming merge carries that base version.
+    events.length = 0
+    // An append base is available (a non-empty file) at durable version BASE_VERSION_MS, so the preview
+    // text is composed as base + streamed content.
     peekFileIntentMock.mockResolvedValue({
       existingContent: 'Base.',
       fileRecord: { contentUpdatedAt: new Date(BASE_VERSION_MS) },
     })
     state = createFilePreviewAdapterState()
-    nowMs = 1_000_000
-    vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   async function drive(streamEvent: StreamEvent, intent: ActiveFileIntent) {
     const context = createStreamingContext()
-    // channelId resolves to '' when the event carries no scope.
     context.activeFileIntents.set('', intent)
     await processFilePreviewStreamEvent({
       streamId: STREAM_ID,
       streamEvent,
       context,
       execContext,
-      options: { onEvent: vi.fn() },
+      options: {
+        onEvent: (event) => {
+          events.push(event as { payload: Record<string, unknown> })
+        },
+      },
       state,
     })
   }
 
-  it('merges the growing full content (base version, no durable version) into the live doc as it streams', async () => {
+  function previewContent(): string {
+    return events
+      .filter((e) => e.payload?.previewPhase === 'file_preview_content')
+      .map((e) => String(e.payload?.content ?? ''))
+      .join('')
+  }
+
+  it('emits the growing preview content (base + streamed) for an append stream', async () => {
     const intent = makeIntent({ operation: 'append', fileId: 'file-grow', fileName: 'notes.md' })
 
     await drive(editContentDelta('{"content":"Hello'), intent)
     await flushMicrotasks()
-
-    // Advance past the throttle window so the next delta is due for another merge.
-    nowMs += 300
     await drive(editContentDelta(' world'), intent)
     await flushMicrotasks()
 
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(2)
-    const [first, second] = mergeEditIntoLiveFileDocMock.mock.calls
-    // A full-file snapshot (base + streamed), never a diff; it grows across deltas. Each streaming merge
-    // carries `baseVersion` (the durable version it was built from) to order it — never `version`, which
-    // rides the final edit_content write; so the relay drops it if a newer durable write has since landed
-    // but never records it as a durable checkpoint.
-    expect(first[0]).toBe('file-grow')
-    expect(first[1]).toContain('Base.')
-    expect(first[1]).toContain('Hello')
-    expect(first[2]?.baseVersion).toBe(BASE_VERSION_MS)
-    expect(first[2]?.version).toBeUndefined()
-    expect(second[1]).toContain('Hello world')
-    expect(second[1].length).toBeGreaterThan(first[1].length)
-    expect(second[2]?.baseVersion).toBe(BASE_VERSION_MS)
-  })
-
-  it('falls back to updatedAt for baseVersion when the file has no content version', async () => {
-    // A legacy file with no `contentUpdatedAt` — the base version must fall back to `updatedAt`, the SAME
-    // line the relay's synced version is on, so the snapshot is still ordered (not shipped unordered).
-    const UPDATED_AT_MS = 850_000
-    peekFileIntentMock.mockResolvedValue({
-      existingContent: 'Base.',
-      fileRecord: { contentUpdatedAt: null, updatedAt: new Date(UPDATED_AT_MS) },
-    })
-    const intent = makeIntent({ operation: 'append', fileId: 'file-legacy', fileName: 'notes.md' })
-
-    await drive(editContentDelta('{"content":"Hello'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
-    expect(mergeEditIntoLiveFileDocMock.mock.calls[0][2]?.baseVersion).toBe(UPDATED_AT_MS)
-  })
-
-  it('throttles merges: two deltas within LIVE_DOC_MERGE_THROTTLE_MS yield one merge', async () => {
-    const intent = makeIntent({
-      operation: 'append',
-      fileId: 'file-throttle',
-      fileName: 'notes.md',
-    })
-
-    await drive(editContentDelta('{"content":"Hel'), intent)
-    await flushMicrotasks()
-
-    // 100ms < 250ms throttle → the second snapshot is dropped, not merged.
-    nowMs += 100
-    await drive(editContentDelta('lo world'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not merge for a non-markdown file (no collaborative room)', async () => {
-    const intent = makeIntent({ operation: 'append', fileId: 'file-txt', fileName: 'notes.txt' })
-
-    await drive(editContentDelta('{"content":"plain text body'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
-  })
-
-  it('does not merge when base content loads without a version (unordered-wipe guard)', async () => {
-    // Base text is available but the intent carries no file record → no baseVersion. The relay would
-    // treat a versionless snapshot as unordered (never stale), so it must be skipped fail-closed.
-    peekFileIntentMock.mockResolvedValue({ existingContent: 'Base.' })
-    const intent = makeIntent({ operation: 'append', fileId: 'file-nover', fileName: 'notes.md' })
-
-    await drive(editContentDelta('{"content":"Hello'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
-  })
-
-  it('does not merge an append before base content loads (base-less-wipe guard)', async () => {
-    // No pending intent base is available yet → session.baseContent stays undefined.
-    peekFileIntentMock.mockResolvedValue(undefined)
-    const intent = makeIntent({ operation: 'append', fileId: 'file-append', fileName: 'notes.md' })
-
-    await drive(editContentDelta('{"content":"\\n- appended line'), intent)
-    await flushMicrotasks()
-
-    // A base-less snapshot would diff to a delete-everything wipe of the seeded doc, so it must be skipped.
-    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
-  })
-
-  it('does not stream an update (from-scratch rewrite) — it would blank the doc mid-stream', async () => {
-    const intent = makeIntent({ operation: 'update', fileId: 'file-update', fileName: 'notes.md' })
-
-    await drive(editContentDelta('{"content":"Rewritten intro'), intent)
-    await flushMicrotasks()
-
-    // Update streams a partial rewrite; diffing the full doc toward it would delete most of the file
-    // until it grows back, so update applies atomically at the final durable write instead.
-    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
-  })
-
-  it('skips the merge while one is already in flight for the file (does not backlog / advance throttle)', async () => {
-    isLiveDocMergeInFlightMock.mockReturnValue(true)
-    const intent = makeIntent({ operation: 'append', fileId: 'file-busy', fileName: 'notes.md' })
-
-    await drive(editContentDelta('{"content":"Hello'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
-
-    // The dropped in-flight tick must NOT advance the throttle window, so once the in-flight merge
-    // clears the very next delta merges immediately — no wait for a fresh throttle interval.
-    isLiveDocMergeInFlightMock.mockReturnValue(false)
-    await drive(editContentDelta(' world'), intent)
-    await flushMicrotasks()
-
-    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
-    expect(mergeEditIntoLiveFileDocMock.mock.calls[0][0]).toBe('file-busy')
+    const combined = previewContent()
+    expect(combined).toContain('Base.')
+    expect(combined).toContain('Hello')
+    expect(combined).toContain('world')
   })
 })

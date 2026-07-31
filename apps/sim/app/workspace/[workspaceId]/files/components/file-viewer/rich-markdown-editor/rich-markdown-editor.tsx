@@ -20,6 +20,7 @@ import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
+import { applyStreamedMarkdownToLiveDoc } from './collaboration/apply-streamed-markdown'
 import { useFileDocCollaboration } from './collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
@@ -83,10 +84,10 @@ interface RichMarkdownEditorProps {
   /** Disable the `@` tag-insertion menu (existing tags still render). Defaults off — the file editor keeps tagging. */
   disableTagging?: boolean
   /**
-   * Opt this surface into live collaborative editing. Set only by the Files page —
-   * the dedicated editing surface, which never streams agent output. The agent/Chat
-   * surface leaves it off, so collaboration and agent-streaming are disjoint by
-   * construction (they cannot both drive one editor and corrupt the shared doc).
+   * Opt this surface into live collaborative editing (Files page + the embedded chat file preview).
+   * Collaboration can coexist with agent streaming: while streaming, the growing content is applied to
+   * the shared Y.Doc as minimal CRDT diffs (see {@link applyStreamedMarkdownToLiveDoc}) rather than a
+   * full-document `setContent`, so the stream stays smooth and every peer sees it live.
    */
   collaborative?: boolean
   /**
@@ -257,9 +258,11 @@ export function LoadedRichMarkdownEditor({
   /**
    * Collaboration is decided once at mount from synchronously-available inputs
    * (`settledRef` is set just above) via `useState`-init, and never changes — TipTap
-   * fixes the extension set at editor creation, so it cannot turn on later. Enabled
-   * only on a `collaborative` surface (the Files page, which never streams) for an
-   * editable, round-trip-safe, non-streaming workspace document with a known user.
+   * fixes the extension set at editor creation, so it cannot turn on later. Enabled on a
+   * `collaborative` surface (the Files page or the embedded chat file preview) for an editable,
+   * round-trip-safe workspace document with a known user, as long as it is not ALREADY streaming at
+   * mount (`!streamingAtMountRef.current`). An agent stream that begins AFTER mount is applied as CRDT
+   * diffs into the live doc, so collaboration and streaming coexist (see the streaming effect below).
    */
   const [collaborationEnabled] = useState(
     () =>
@@ -751,9 +754,10 @@ export function LoadedRichMarkdownEditor({
   }, [collaboration, editor, onCollabReadyChange, setCollabReady])
 
   /**
-   * Owns editability for the collaborative lifecycle: `useEditor`'s `editable` is only
-   * the initial value, and the streaming/settle effect stays inert in collab mode — so
-   * re-apply here whenever collaboration readiness (synced + seeded) flips `isEditable`.
+   * Owns editability for the collaborative lifecycle: `useEditor`'s `editable` is only the initial
+   * value, and the streaming/settle effect only moves content in collab mode (never toggles
+   * editability) — so re-apply here whenever collaboration readiness (synced + seeded) or an agent
+   * stream flips `isEditable`.
    */
   useEffect(() => {
     if (!editor || !collaborationEnabled) return
@@ -800,13 +804,6 @@ export function LoadedRichMarkdownEditor({
   const pendingCollapseRef = useRef(false)
   useEffect(() => {
     if (!editor) return
-    // Collaboration and agent-streaming are disjoint surfaces: collaboration is enabled
-    // only on the Files page, which never streams agent output, so in collab mode this
-    // reconcile loop stays fully inert. It must not run even defensively — its
-    // `setContent` would sync a full-document replace into the shared Y.Doc (the
-    // ySyncPlugin writes it regardless of `emitUpdate: false`), wiping peers' edits.
-    // Editability is owned by the reactive effect above.
-    if (collaborationEnabled) return
     const syncEditorBody = (body: string) => {
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
@@ -830,6 +827,80 @@ export function LoadedRichMarkdownEditor({
         if (runSeq !== settleRunSeqRef.current || editor.isDestroyed) return
         mutate()
       })
+    }
+    // Collaborative surface: stream by applying a minimal CRDT diff into the live Y.Doc each frame
+    // (never `setContent`, which would replace the shared doc and wipe peers). Each diff renders
+    // locally and broadcasts to every peer, so the stream is smooth here and on other clients (e.g.
+    // the standalone Files page) alike. This branch moves content only — editability for the collab
+    // lifecycle is owned by the reactive effect above.
+    if (collaborationEnabled) {
+      if (isStreaming) {
+        wasStreamingRef.current = true
+        // Apply streamed diffs only after the shared doc has SEEDED (synced + seed flag, i.e.
+        // `collabReady`). Applying onto an unseeded (empty) doc would let the later seed CRDT-merge into
+        // it — transient garble. In the common case the doc is long seeded before an agent edit begins;
+        // in the rare stream-before-seed race we wait, and since `collabReady` is an effect dep this
+        // re-runs and applies once it lands (the read-only placeholder shows the base content meanwhile —
+        // see `showPlaceholder`).
+        if (!collabReady) return
+        const body = splitFrontmatter(content).body
+        if (body === lastSyncedBodyRef.current) return
+        pendingStreamBodyRef.current = body
+        if (streamRafRef.current !== null) return
+        const tick = () => {
+          const pending = pendingStreamBodyRef.current
+          if (pending === null || pending === lastSyncedBodyRef.current) {
+            streamRafRef.current = null
+            return
+          }
+          const shownBody = lastSyncedBodyRef.current
+          const extendsShown = shownBody === null || pending.startsWith(shownBody)
+          if (!streamIsIncrementalRef.current && !extendsShown) {
+            streamRafRef.current = null
+            return
+          }
+          if (
+            pending.length > STREAM_REPARSE_THROTTLE_THRESHOLD &&
+            performance.now() - lastStreamParseAtRef.current < STREAM_REPARSE_THROTTLE_MS
+          ) {
+            streamRafRef.current = requestAnimationFrame(tick)
+            return
+          }
+          const el = containerRef.current
+          const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
+          // Defensive: a ready collab editor always has a ySync binding, so this applies; if one is
+          // somehow absent, bail this frame without advancing rather than looping.
+          if (!applyStreamedMarkdownToLiveDoc(editor, pending)) {
+            streamRafRef.current = null
+            return
+          }
+          streamRafRef.current = null
+          lastSyncedBodyRef.current = pending
+          lastStreamParseAtRef.current = performance.now()
+          if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
+        }
+        streamRafRef.current = requestAnimationFrame(tick)
+        return
+      }
+      if (streamRafRef.current !== null) {
+        cancelAnimationFrame(streamRafRef.current)
+        streamRafRef.current = null
+      }
+      // Settle: once seeded, apply the final body once (the last streaming frame may have been throttled)
+      // so the Y.Doc exactly equals the streamed result; the durable server write then lands as a noop
+      // diff. If the seed has not arrived, keep `wasStreamingRef` set so the post-seed re-run applies.
+      if (wasStreamingRef.current && collabReady) {
+        wasStreamingRef.current = false
+        const finalBody = splitFrontmatter(content).body
+        if (finalBody !== lastSyncedBodyRef.current) {
+          runOffRender(() => {
+            if (applyStreamedMarkdownToLiveDoc(editor, finalBody)) {
+              lastSyncedBodyRef.current = finalBody
+            }
+          })
+        }
+      }
+      return
     }
     if (isStreaming) {
       wasStreamingRef.current = true
@@ -935,10 +1006,11 @@ export function LoadedRichMarkdownEditor({
     []
   )
 
-  // Show the read-only placeholder only for a plain cold open — never during an agent stream. A stream
-  // that begins before the doc has seeded fills the (hidden) editor via Yjs, so gating the placeholder
-  // off while streaming lets that live content show through instead of hiding it behind stale markdown.
-  const showPlaceholder = collaborationEnabled && !collabReady && !isStreaming
+  // Show the read-only placeholder (the already-fetched markdown) whenever a collaborative doc has not yet
+  // seeded — including during an agent stream that begins before the seed lands. Streamed diffs are held
+  // until `collabReady` (see the streaming effect), so before then the editor is empty; the placeholder
+  // shows the base content until the seed swaps it in, avoiding both a blank frame and a garbled merge.
+  const showPlaceholder = collaborationEnabled && !collabReady
 
   return (
     <div
