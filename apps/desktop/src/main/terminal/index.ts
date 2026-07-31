@@ -17,7 +17,6 @@ import {
   isTerminalControlKey,
   MAX_INPUT_KEYS,
   MAX_RUN_WAIT_MS,
-  MAX_TERMINALS,
   MAX_TOOL_OUTPUT_CHARS,
   type TerminalCommandEvent,
   type TerminalControlKey,
@@ -74,6 +73,9 @@ const INPUT_SCREEN_LINES = 60
  * it, slow enough that the lookup is nowhere near a hot path.
  */
 const CWD_POLL_MS = 1_000
+
+/** Cmd-Shift-T history; independent of how many terminals may be open. */
+const MAX_RECENTLY_CLOSED_TERMINALS = 10
 
 /** Pause between keys sent to a tmux pane, matching the pty keystroke gap. */
 const TMUX_KEY_GAP_MS = 150
@@ -258,12 +260,6 @@ export class TerminalService {
 
   /** Opens an additional terminal and makes it active. */
   openTerminal(cwd?: string): TerminalTabsState {
-    if (this.sessions.size >= MAX_TERMINALS) {
-      throw new TerminalError(
-        'TOO_MANY_TERMINALS',
-        `Up to ${MAX_TERMINALS} terminals can be open at once. Close one first.`
-      )
-    }
     const active = this.activeId ? this.sessions.get(this.activeId) : null
     const size = active ? { cols: active.cols, rows: active.rows } : { cols: 80, rows: 24 }
     // A new terminal opens where the current one is: the user is almost always
@@ -375,9 +371,7 @@ export class TerminalService {
    */
   reopenClosedTerminal(ownerWindow: BrowserWindow | null): boolean {
     if (!this.ownsInteraction(ownerWindow)) return false
-    // Peeked, not shifted: at the cap there is nothing to reopen into, and
-    // consuming the entry here would drop that directory on the floor.
-    if (this.recentlyClosedCwds.length === 0 || this.sessions.size >= MAX_TERMINALS) return false
+    if (this.recentlyClosedCwds.length === 0) return false
     const cwd = this.recentlyClosedCwds.shift()
     this.openTerminal(cwd || undefined)
     return true
@@ -458,8 +452,8 @@ export class TerminalService {
 
   private rememberClosed(cwd: string | null): void {
     this.recentlyClosedCwds.unshift(cwd ?? '')
-    if (this.recentlyClosedCwds.length > MAX_TERMINALS) {
-      this.recentlyClosedCwds.length = MAX_TERMINALS
+    if (this.recentlyClosedCwds.length > MAX_RECENTLY_CLOSED_TERMINALS) {
+      this.recentlyClosedCwds.length = MAX_RECENTLY_CLOSED_TERMINALS
     }
   }
 

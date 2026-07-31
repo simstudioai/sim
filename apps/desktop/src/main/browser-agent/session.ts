@@ -1,14 +1,13 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { join } from 'node:path'
-import {
-  type BrowserDataKind,
-  type BrowserFindRequest,
-  type BrowserFindResult,
-  type BrowserOmniboxFocusMode,
-  type BrowserTabState,
-  type BrowserTabsState,
-  type BrowserTheme,
-  MAX_BROWSER_TABS,
+import type {
+  BrowserDataKind,
+  BrowserFindRequest,
+  BrowserFindResult,
+  BrowserOmniboxFocusMode,
+  BrowserTabState,
+  BrowserTabsState,
+  BrowserTheme,
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -580,7 +579,6 @@ function sanitizePinnedTabUrls(value: unknown): string[] {
   for (const candidate of value) {
     const url = sanitizeRestorableUrl(candidate)
     if (url !== null) urls.push(url)
-    if (urls.length >= MAX_BROWSER_TABS) break
   }
   return urls
 }
@@ -605,7 +603,6 @@ function sanitizeBrowserSessionSnapshot(value: unknown): BrowserSessionSnapshotV
     const url = sanitizeRestorableUrl(entry.url)
     if (url === null) continue
     restoredTabs.push({ url, pinned: entry.pinned === true })
-    if (restoredTabs.length >= MAX_BROWSER_TABS) break
   }
 
   const requestedIndex =
@@ -1023,10 +1020,8 @@ function createTabView(): WebContentsView {
         return
       }
       if (shortcut === 'new-tab') {
-        if (listTabs().length < MAX_BROWSER_TABS) {
-          addTab()
-          focusRendererOmnibox('clear')
-        }
+        addTab()
+        focusRendererOmnibox('clear')
         return
       }
 
@@ -1217,9 +1212,6 @@ function addTabInternal({
   activate = true,
   notify = true,
 }: AddTabOptions = {}): AgentTab {
-  if (tabs.filter((tab) => !tab.view.webContents.isDestroyed()).length >= MAX_BROWSER_TABS) {
-    throw new SessionError(`The browser supports up to ${MAX_BROWSER_TABS} open tabs.`)
-  }
   const transferBrowserFocus =
     activate &&
     (currentScope.focusedBrowserTabId !== null ||
@@ -1340,7 +1332,6 @@ export function addTab(): AgentTab {
 /** Restores the most recently closed regular tab for the current app session. */
 export function reopenClosedTab(): AgentTab | null {
   restoreBrowserSession()
-  if (listTabs().length >= MAX_BROWSER_TABS) return null
   const url = recentlyClosedTabUrls.shift()
   if (!url) return null
 
@@ -1364,7 +1355,7 @@ export function reopenClosedTab(): AgentTab | null {
 export function duplicateTab(tabId: string): AgentTab | null {
   restoreBrowserSession()
   const source = tabs.find((entry) => entry.id === tabId)
-  if (!source || listTabs().length >= MAX_BROWSER_TABS) return null
+  if (!source) return null
 
   const url = sanitizeRestorableUrl(source.view.webContents.getURL())
   const tab = addTabInternal()

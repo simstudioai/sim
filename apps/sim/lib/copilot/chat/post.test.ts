@@ -274,6 +274,34 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('accepts and forwards more than eight open terminal hints', async () => {
+    const terminals = Array.from({ length: 12 }, (_, index) => ({
+      id: String(index + 1),
+      cwd: `/tmp/project-${index}`,
+      active: index === 11,
+    }))
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Inspect every open shell',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          desktopCapabilities: { terminal: true, terminals },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalCapable: true,
+        terminals,
+      }),
+      { selectedModel: '' }
+    )
+  })
+
   it('accepts tagged skill contexts and forwards them to context resolution', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

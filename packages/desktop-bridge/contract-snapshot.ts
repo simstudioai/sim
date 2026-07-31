@@ -58,9 +58,6 @@ export const BROWSER_TOOL_NAMES = [
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
-/** Hard cap shared by the desktop browser session and its renderer chrome. */
-export const MAX_BROWSER_TABS = 8
-
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
 /** Sim appearance preference mirrored into browser-tab media queries. */
@@ -134,6 +131,11 @@ export interface BrowserPanelAnchor {
 export interface BrowserPanelSnapshot {
   dataUrl: string
   tabId: string
+  /**
+   * Renderer-to-desktop scope that owns the captured tab. Optional for
+   * compatibility with desktop builds that predate chat isolation.
+   */
+  scopeId?: string
 }
 
 /**
@@ -165,6 +167,8 @@ export interface BrowserPanelAction {
 export interface BrowserPageState {
   /** Present on desktop versions with multi-tab UI support. */
   tabId?: string
+  /** Chat scope that owns this page, when reported by a scoped desktop build. */
+  scopeId?: string
   url: string
   title: string
   loading: boolean
@@ -222,6 +226,8 @@ export interface BrowserTabState {
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** Chat scope that owns this tab set, when reported by a scoped desktop build. */
+  scopeId?: string
 }
 
 /**
@@ -272,9 +278,10 @@ export function isBrowserDataKind(value: unknown): value is BrowserDataKind {
  * The user and the agent share the same shells, so `cd`, exported variables,
  * and scrollback are common to both.
  *
- * Several terminals can be open at once, each its own shell with its own
- * working directory and scrollback, exactly like tabs in a terminal app. One is
- * active at a time; agent tools act on the active one unless they name another.
+ * Terminal tabs have no fixed app-level limit. Each is its own shell with its
+ * own working directory and scrollback, exactly like tabs in a terminal app.
+ * One is active at a time; agent tools act on the active one unless they name
+ * another.
  *
  * Tool names and parameter shapes mirror the mothership tool catalog
  * (`copilot/internal/tools/catalog/terminal` in the mothership repo) — that
@@ -338,13 +345,6 @@ export function isTerminalOperation(value: unknown): value is TerminalOperation 
 export function isTerminalToolName(name: string): boolean {
   return name === TERMINAL_TOOL_NAME
 }
-
-/**
- * Ceiling on concurrently open terminals. Each is a live shell process with its
- * own emulator and scrollback, so the cap bounds both memory and the number of
- * things the user has to keep track of.
- */
-export const MAX_TERMINALS = 8
 
 /**
  * Largest command output handed back to the model, in characters. Output past
@@ -602,6 +602,12 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
+  /**
+   * Renderer-to-desktop scope that owns these terminals. New desktop builds
+   * set this on pushed state; it remains optional for compatibility with
+   * installed builds that predate chat isolation.
+   */
+  scopeId?: string
 }
 
 /** The result of one terminal tool invocation, as returned over the bridge. */
@@ -609,7 +615,8 @@ export interface TerminalToolResponse {
   ok: boolean
   result?: unknown
   error?: string
-  code?: TerminalErrorCode
+  /** Error codes are open-ended across independently updated desktop shells. */
+  code?: string
 }
 
 export type TerminalErrorCode =
@@ -625,8 +632,6 @@ export type TerminalErrorCode =
   | 'SPAWN_FAILED'
   /** No terminal with that id — the ids come from terminal_list. */
   | 'NO_SUCH_TERMINAL'
-  /** Already at {@link MAX_TERMINALS}. */
-  | 'TOO_MANY_TERMINALS'
   /** The operation needs tmux, and this terminal has no tmux attached. */
   | 'NO_TMUX'
   /** No pane with that target — the targets come from the `panes` operation. */
@@ -653,6 +658,8 @@ export interface TerminalCommandEvent {
   terminalId: string
   phase: 'start' | 'end'
   command: string
+  /** Chat scope that owns the terminal, when reported by a scoped desktop build. */
+  scopeId?: string
   /** Set when the agent initiated this command rather than the user. */
   toolCallId?: string
   exitCode?: number
@@ -665,9 +672,6 @@ export interface TerminalCommandEvent {
  * forwards keystrokes back. Several terminals can be open at once, each its own
  * shell, and the user and the agent share them — so working directory and
  * environment stay consistent between the two.
- */
-/**
- * The agent-terminal surface of the preload bridge.
  *
  * Members added after this surface first shipped are `optional?`, matching the
  * browser-agent surface beside it and the "feature-detect, never assume" rule
@@ -679,7 +683,7 @@ export interface TerminalCommandEvent {
  */
 export interface SimDesktopTerminalApi {
   /** Open the first terminal, or adopt the ones already running. */
-  start(options: TerminalStartOptions): Promise<TerminalTabsState>
+  start(options: TerminalStartOptions, scopeId?: string): Promise<TerminalTabsState>
   /**
    * Execute one terminal operation. Resolves with the outcome; never rejects
    * for tool-level failures (those ride `ok: false`).
@@ -687,40 +691,64 @@ export interface SimDesktopTerminalApi {
   executeTool(
     toolCallId: string,
     operation: TerminalOperation,
-    args: TerminalToolArgs
+    args: TerminalToolArgs,
+    scopeId?: string
   ): Promise<TerminalToolResponse>
   /** Forward the user's keystrokes to one terminal's PTY. */
-  write(terminalId: string, data: string): void
-  resize(terminalId: string, cols: number, rows: number): void
+  write(terminalId: string, data: string, scopeId?: string): void
+  /**
+   * Paste the system clipboard into one terminal's PTY.
+   *
+   * The text is read in the main process rather than handed over by the caller:
+   * Electron removed the `clipboard` module from renderers precisely so page
+   * content cannot reach the clipboard, and it means a compromised renderer can
+   * only replay what the user already copied instead of choosing the bytes.
+   * Resolves false when the clipboard held nothing to paste.
+   *
+   * Optional: shells that predate it fall back to reading the clipboard in the
+   * renderer.
+   */
+  paste?(terminalId: string, scopeId?: string): Promise<boolean>
+  resize(terminalId: string, cols: number, rows: number, scopeId?: string): void
   /** Open an additional terminal and make it active. */
-  openTerminal(cwd?: string): Promise<TerminalTabsState>
-  switchTerminal(terminalId: string): Promise<TerminalTabsState>
-  closeTerminal(terminalId: string): Promise<TerminalTabsState>
-  getTabs?(): Promise<TerminalTabsState>
+  openTerminal(cwd?: string, scopeId?: string): Promise<TerminalTabsState>
+  switchTerminal(terminalId: string, scopeId?: string): Promise<TerminalTabsState>
+  closeTerminal(terminalId: string, scopeId?: string): Promise<TerminalTabsState>
+  getTabs?(scopeId?: string): Promise<TerminalTabsState>
+  /** Makes a chat's terminal group the renderer-visible group. */
+  activateScope?(scopeId: string): Promise<TerminalTabsState>
+  /** Moves a pending new-chat terminal group onto its assigned chat id. */
+  migrateScope?(fromScopeId: string, toScopeId: string): Promise<TerminalTabsState>
+  /** Abandons a provisional new-chat terminal group and its fresh shells. */
+  disposeScope?(scopeId: string): Promise<boolean>
+  /** Stops a soft-deleted chat's shells while retaining its restart descriptor. */
+  suspendScope?(scopeId: string): Promise<boolean>
   /** End every shell. A new one starts on the next `start`. */
   dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
-  onData?(callback: (terminalId: string, data: string) => void): () => void
+  onData?(callback: (terminalId: string, data: string, scopeId?: string) => void): () => void
   /**
    * Everything already on a terminal's screen, for a new view to paint itself
    * from. Pulled per view so the repaint cannot be aimed at the wrong set of
    * subscribers, or at none at all.
    */
-  getScrollback(terminalId: string): Promise<string>
+  getScrollback(terminalId: string, scopeId?: string): Promise<string>
   /**
    * Reports whether the terminal panel owns keyboard focus, so global menu
    * accelerators can tell a Cmd-W meant for a terminal from one meant for the
    * window.
    */
-  setFocused?(focused: boolean): void
+  setFocused?(focused: boolean, scopeId?: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
-  finishHandoff?(terminalId: string): void
+  finishHandoff?(terminalId: string, scopeId?: string): void
   /** Subscribe to the open-terminal list and which one is active. */
   onTabs?(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
   onCommand?(callback: (event: TerminalCommandEvent) => void): () => void
+  /** Subscribe when a task's live PTYs are stopped but its restart descriptor is retained. */
+  onScopeSuspended?(callback: (scopeId: string) => void): () => void
 }
 
 /**
@@ -737,20 +765,31 @@ export interface SimDesktopBrowserAgentApi {
   executeTool(
     toolCallId: string,
     tool: BrowserToolName,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    scopeId?: string
   ): Promise<BrowserToolResponse>
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
-  panelAction(action: BrowserPanelAction): void
+  panelAction(action: BrowserPanelAction, scopeId?: string): void
+  /** Makes a chat's browser tab set the renderer-visible set. */
+  activateScope?(scopeId: string): Promise<BrowserTabsState>
+  /** Materializes a lazily activated chat's persisted tabs without showing its panel. */
+  restoreScope?(scopeId: string): Promise<BrowserTabsState>
+  /** Moves a pending new-chat browser set onto its assigned chat id. */
+  migrateScope?(fromScopeId: string, toScopeId: string): Promise<BrowserTabsState>
+  /** Abandons a provisional new-chat browser set and its local descriptor. */
+  disposeScope?(scopeId: string): Promise<boolean>
+  /** Closes a soft-deleted chat's live pages while retaining its restart descriptor. */
+  suspendScope?(scopeId: string): Promise<boolean>
   /**
    * Pin or unpin a live browser tab. Optional for compatibility with desktop
    * builds predating durable pinned tabs.
    */
-  setTabPinned?(tabId: string, pinned: boolean): void
+  setTabPinned?(tabId: string, pinned: boolean, scopeId?: string): void
   /**
    * Move a live tab to a final list index. Optional for compatibility with
    * desktop builds predating tab reordering.
    */
-  reorderTab?(tabId: string, targetIndex: number): void
+  reorderTab?(tabId: string, targetIndex: number, scopeId?: string): void
   /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
@@ -761,17 +800,21 @@ export interface SimDesktopBrowserAgentApi {
    * shell falls back to the measured rect alone. Shells predating it ignore the
    * argument.
    */
-  setPanelBounds(bounds: BrowserPanelBounds | null, anchor?: BrowserPanelAnchor | null): void
+  setPanelBounds(
+    bounds: BrowserPanelBounds | null,
+    anchor?: BrowserPanelAnchor | null,
+    scopeId?: string
+  ): void
   /**
    * Report whether renderer-owned browser chrome currently owns the user's
    * interaction context. Optional for compatibility with older desktop builds.
    */
-  setPanelFocused?(focused: boolean): void
+  setPanelFocused?(focused: boolean, scopeId?: string): void
   /**
    * Hide or reveal the native browser surface without detaching it. Optional
    * so newer web deployments remain compatible with older desktop builds.
    */
-  setPanelOccluded?(occluded: boolean): void
+  setPanelOccluded?(occluded: boolean, scopeId?: string): void
   /**
    * Mirror Sim's light/dark/system preference into the embedded pages.
    * Optional for compatibility with desktop builds predating theme sync.
@@ -781,32 +824,32 @@ export interface SimDesktopBrowserAgentApi {
    * Focus requests emitted by native tabs for browser-level keyboard
    * shortcuts such as Mod+L and Mod+T.
    */
-  onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode) => void): () => void
+  onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode, scopeId?: string) => void): () => void
   /**
    * Run Chromium's find-in-page against the active tab. Results do not come
    * back from this call — they stream through {@link onFindResult}. Optional
    * for compatibility with desktop builds predating find-in-page.
    */
-  find?(request: BrowserFindRequest): void
+  find?(request: BrowserFindRequest, scopeId?: string): void
   /**
    * Stop the running find and clear its highlights. `focusPage` hands keyboard
    * focus back to the page, for the user dismissing the bar; omit it when the
    * bar is going away because the panel is.
    */
-  stopFind?(focusPage?: boolean): void
+  stopFind?(focusPage?: boolean, scopeId?: string): void
   /**
    * Mod+F pressed while the embedded page had focus, which the renderer never
    * sees as a key event. Opening the find bar is the renderer's job either
    * way, so both entry paths land on the same handler.
    */
-  onOpenFind?(callback: () => void): () => void
+  onOpenFind?(callback: (scopeId?: string) => void): () => void
   /**
    * The shell dismissing the find bar — the active tab navigated away from the
    * document the find was run against, or the user switched tabs.
    */
-  onCloseFind?(callback: () => void): () => void
+  onCloseFind?(callback: (scopeId?: string) => void): () => void
   /** Match counts for the running find, as Chromium resolves them. */
-  onFindResult?(callback: (result: BrowserFindResult) => void): () => void
+  onFindResult?(callback: (result: BrowserFindResult, scopeId?: string) => void): () => void
   /**
    * Subscribe to captured browser frames used beneath renderer overlays.
    * Optional for compatibility with desktop builds predating occlusion.
@@ -818,7 +861,7 @@ export interface SimDesktopBrowserAgentApi {
    * Read the current live tab list. Optional so a newer web deployment remains
    * compatible with installed desktop versions that only support one visible tab.
    */
-  getTabsState?(): Promise<BrowserTabsState>
+  getTabsState?(scopeId?: string): Promise<BrowserTabsState>
   /**
    * Read a privacy-preserving hint of websites that may have a usable session
    * in the dedicated profile. Optional for compatibility with older shells.
@@ -841,7 +884,9 @@ export interface SimDesktopBrowserAgentApi {
    * Subscribe to session liveness changes (false when the browser session
    * ends). Returns an unsubscribe function.
    */
-  onSessionStatus(callback: (alive: boolean) => void): () => void
+  onSessionStatus(callback: (alive: boolean, scopeId?: string) => void): () => void
+  /** Subscribe when a task's live pages close but its restart descriptor is retained. */
+  onScopeSuspended?(callback: (scopeId: string) => void): () => void
 }
 
 /**

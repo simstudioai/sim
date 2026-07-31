@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { type BrowserTabState, MAX_BROWSER_TABS } from '@sim/browser-protocol'
+import type { BrowserTabState } from '@sim/browser-protocol'
 import { TabStrip, type TabStripItem } from '@sim/emcn'
 import { Link, Loader } from '@sim/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -138,7 +138,6 @@ export function BrowserTabStrip({
       onNew={onNewTab}
       onTabContextMenu={openTabContextMenu}
       onTabDragStart={startTabDrag}
-      maxTabs={MAX_BROWSER_TABS}
       {...(reorderingSupported ? { onReorder: onReorderTab } : {})}
     >
       <ContextMenu
@@ -161,7 +160,6 @@ export function BrowserTabStrip({
         isPinned={Boolean(contextTab?.pinned)}
         showRename={false}
         showDuplicate={Boolean(contextTab)}
-        disableDuplicate={tabs.length >= MAX_BROWSER_TABS}
         showDelete={false}
       />
     </TabStrip>

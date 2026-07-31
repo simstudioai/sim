@@ -194,11 +194,14 @@ describe('TerminalRegistry', () => {
   })
 
   it('restores saved tab directories lazily as fresh shells', () => {
+    const persistedTabs = Array.from({ length: 12 }, (_, index) => ({
+      cwd: index % 2 === 0 ? tmpdir() : process.cwd(),
+    }))
     const persistence: TerminalScopePersistence = {
       load: vi.fn(() => ({
         v: 1 as const,
-        tabs: [{ cwd: '/tmp' }, { cwd: '/private/tmp' }],
-        activeIndex: 1,
+        tabs: persistedTabs,
+        activeIndex: 11,
       })),
       save: vi.fn(),
       migrate: vi.fn(),
@@ -214,18 +217,18 @@ describe('TerminalRegistry', () => {
 
     const restored = terminals.start('chat-A', { cols: 120, rows: 40 })
 
-    expect(stubSessions.map(({ cwd }) => cwd)).toEqual(['/tmp', '/private/tmp'])
+    expect(stubSessions.map(({ cwd }) => cwd)).toEqual(persistedTabs.map(({ cwd }) => cwd))
     expect(restored).toMatchObject({
-      activeTerminalId: '2',
-      tabs: [
-        { terminalId: '1', cwd: '/tmp' },
-        { terminalId: '2', cwd: '/private/tmp' },
-      ],
+      activeTerminalId: '12',
+      tabs: persistedTabs.map(({ cwd }, index) => ({
+        terminalId: String(index + 1),
+        cwd,
+      })),
     })
     expect(persistence.save).toHaveBeenLastCalledWith('chat-A', {
       v: 1,
-      tabs: [{ cwd: '/tmp' }, { cwd: '/private/tmp' }],
-      activeIndex: 1,
+      tabs: persistedTabs,
+      activeIndex: 11,
     })
 
     terminals.dispose()

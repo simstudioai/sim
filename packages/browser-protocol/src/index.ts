@@ -43,9 +43,6 @@ export const BROWSER_TOOL_NAMES = [
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
-/** Hard cap shared by the desktop browser session and its renderer chrome. */
-export const MAX_BROWSER_TABS = 8
-
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
 /** Sim appearance preference mirrored into browser-tab media queries. */

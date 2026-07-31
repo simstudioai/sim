@@ -220,7 +220,6 @@ const ChatMessageSchema = z.object({
             active: z.boolean().optional(),
           })
         )
-        .max(8)
         .optional(),
       browserSessions: z
         .array(

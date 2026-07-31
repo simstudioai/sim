@@ -20,11 +20,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
-import {
-  MAX_TERMINALS,
-  type TerminalTabState,
-  type TerminalTabsState,
-} from '@sim/terminal-protocol'
+import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
@@ -775,7 +771,6 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
           onNew={handleNew}
           onTabContextMenu={openTabContextMenu}
           onTabDragStart={startTabDrag}
-          maxTabs={MAX_TERMINALS}
           newTabLabel='New terminal'
           onClose={handleClose}
         >
@@ -791,7 +786,6 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
             onDelete={() => {}}
             showRename={false}
             showDuplicate={Boolean(contextTab)}
-            disableDuplicate={tabs.length >= MAX_TERMINALS}
             showDelete={false}
           />
         </TabStrip>

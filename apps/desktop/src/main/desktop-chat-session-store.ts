@@ -5,7 +5,6 @@ import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 const STORE_VERSION = 1
 const SNAPSHOT_VERSION = 1
 const MAX_DURABLE_ENTRIES = 100
-const MAX_TABS = 8
 const MAX_ORIGIN_LENGTH = 2_048
 const MAX_SCOPE_LENGTH = 512
 const MAX_URL_LENGTH = 8_192
@@ -134,7 +133,6 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
 
   const tabs: BrowserSessionSnapshot['tabs'] = []
   for (const candidate of value.tabs) {
-    if (tabs.length === MAX_TABS) break
     if (!isRecord(candidate) || typeof candidate.pinned !== 'boolean') continue
     const url = normalizeBrowserUrl(candidate.url)
     if (url === null) continue
@@ -153,7 +151,6 @@ function normalizeTerminalSnapshot(value: unknown): TerminalSessionSnapshot | nu
 
   const tabs: TerminalSessionSnapshot['tabs'] = []
   for (const candidate of value.tabs) {
-    if (tabs.length === MAX_TABS) break
     if (!isRecord(candidate) || typeof candidate.cwd !== 'string') continue
     if (
       candidate.cwd.trim().length === 0 ||

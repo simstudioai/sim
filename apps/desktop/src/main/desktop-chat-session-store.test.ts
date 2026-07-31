@@ -214,8 +214,9 @@ describe('DesktopChatSessionStore', () => {
     )
   })
 
-  it('caps each snapshot at eight tabs and clamps its active index', () => {
-    const store = open()
+  it('preserves every browser and terminal tab while clamping active indexes', () => {
+    const provider = encryption()
+    const store = open(provider)
     store.setBrowser(ORIGIN, 'chat-a', {
       v: 1,
       tabs: Array.from({ length: 12 }, (_, index) => ({
@@ -227,15 +228,17 @@ describe('DesktopChatSessionStore', () => {
     store.setTerminal(ORIGIN, 'chat-a', {
       v: 1,
       tabs: Array.from({ length: 12 }, (_, index) => ({ cwd: `/tmp/tab-${index}` })),
-      activeIndex: -4,
+      activeIndex: 99,
     })
 
-    const browser = store.getBrowser(ORIGIN, 'chat-a')
-    const terminal = store.getTerminal(ORIGIN, 'chat-a')
-    expect(browser?.tabs).toHaveLength(8)
-    expect(browser?.activeIndex).toBe(7)
-    expect(terminal?.tabs).toHaveLength(8)
-    expect(terminal?.activeIndex).toBe(0)
+    expect(store.flush()).toBe(true)
+    const restarted = open(provider)
+    const browser = restarted.getBrowser(ORIGIN, 'chat-a')
+    const terminal = restarted.getTerminal(ORIGIN, 'chat-a')
+    expect(browser?.tabs).toHaveLength(12)
+    expect(browser?.activeIndex).toBe(11)
+    expect(terminal?.tabs).toHaveLength(12)
+    expect(terminal?.activeIndex).toBe(11)
   })
 
   it('filters unsafe or malformed values while loading an encrypted payload', () => {

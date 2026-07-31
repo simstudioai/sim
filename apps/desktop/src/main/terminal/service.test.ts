@@ -1,7 +1,6 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MAX_TERMINALS } from '@sim/terminal-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 
@@ -272,7 +271,7 @@ describe('focus-gated shortcuts', () => {
     expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
   })
 
-  it('does not consume the reopen history when already at the terminal cap', () => {
+  it('opens and reopens more than eight terminals', () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
     const renderer = rendererStub()
@@ -280,20 +279,14 @@ describe('focus-gated shortcuts', () => {
 
     const closed = terminal.openTerminal('/alpha')
     terminal.closeTerminal(closed.activeTerminalId as string)
-    while (terminal.getTabs().tabs.length < MAX_TERMINALS) terminal.openTerminal()
+    while (terminal.getTabs().tabs.length < 12) terminal.openTerminal()
 
-    // Refused, and without opening anything.
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
-    expect(terminal.getTabs().tabs).toHaveLength(MAX_TERMINALS)
-
-    // NOTE: that the '/alpha' entry SURVIVES the refusal is the actual point of
-    // the guard, and it is not observable from out here — every close prepends
-    // one history entry and frees exactly one slot, so a reopen can never walk
-    // back past the entries created by the closes that made room for it. The
-    // ordering in reopenClosedTerminal (check the cap, then shift) is what
-    // carries it; this test only pins the refusal itself.
-    terminal.closeTerminal(terminal.getTabs().activeTerminalId as string)
     expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
+    const reopened = terminal.getTabs()
+    expect(reopened.tabs).toHaveLength(13)
+    expect(
+      reopened.tabs.find(({ terminalId }) => terminalId === reopened.activeTerminalId)?.cwd
+    ).toBe('/alpha')
   })
 
   it('ignores a blur reported by a renderer that does not hold the claim', () => {

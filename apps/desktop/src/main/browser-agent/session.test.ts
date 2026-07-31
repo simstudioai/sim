@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { MAX_BROWSER_TABS } from '@sim/browser-protocol'
 import { sleep } from '@sim/utils/helpers'
 import { BrowserWindow, session as electronSession } from 'electron'
 import * as panel from '@/main/browser-agent/panel'
@@ -304,6 +303,33 @@ describe('browser-agent session', () => {
     expect(session.withBrowserScope('chat-a', () => session.activeTab()?.view)).not.toBe(
       second.view
     )
+  })
+
+  it('restores more than eight persisted tabs', () => {
+    const tabs = Array.from({ length: 12 }, (_, index) => ({
+      url: `https://tab-${index}.example/`,
+      pinned: index < 2,
+    }))
+    const { persistence } = memoryBrowserPersistence({
+      'chat-many-tabs': {
+        v: 1,
+        tabs,
+        activeIndex: tabs.length - 1,
+      },
+    })
+    session = freshSession(win, {}, undefined, persistence)
+
+    const restored = session.withBrowserScope('chat-many-tabs', () => {
+      session.restoreBrowserSession()
+      return session.getTabsState()
+    })
+
+    expect(restored.tabs).toHaveLength(12)
+    expect(restored.activeTabId).toBe('12')
+    expect(restored.tabs.at(-1)).toMatchObject({
+      url: 'https://tab-11.example/',
+      active: true,
+    })
   })
 
   it('quiesces live scopes without publishing session closure', () => {
@@ -1034,16 +1060,22 @@ describe('browser-agent session', () => {
     ])
   })
 
-  it('limits the browser session to the shared tab cap', () => {
-    session.ensureTab()
-    for (let index = 1; index < MAX_BROWSER_TABS; index++) {
+  it('allows creation, duplication, and reopening beyond eight browser tabs', () => {
+    const first = session.ensureTab()
+    for (let index = 1; index < 12; index++) {
       session.addTab()
     }
 
-    expect(session.listTabs()).toHaveLength(MAX_BROWSER_TABS)
-    expect(() => session.addTab()).toThrow(
-      `The browser supports up to ${MAX_BROWSER_TABS} open tabs.`
-    )
+    expect(session.listTabs()).toHaveLength(12)
+    const duplicate = session.duplicateTab(first.id)
+    expect(duplicate).not.toBeNull()
+    expect(session.listTabs()).toHaveLength(13)
+    if (!duplicate) throw new Error('expected the tab to be duplicated')
+
+    session.closeTab(duplicate.id)
+    expect(session.listTabs()).toHaveLength(12)
+    expect(session.reopenClosedTab()).not.toBeNull()
+    expect(session.listTabs()).toHaveLength(13)
   })
 
   it('embeds the active view in the MAIN window only while panel bounds are reported', () => {
