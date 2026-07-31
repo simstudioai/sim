@@ -150,7 +150,10 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
-    res.writeHead(404, { 'Content-Type': 'application/json' })
+    res.writeHead(404, {
+      'Content-Type': 'application/json',
+      'X-Robots-Tag': 'noindex, nofollow',
+    })
     res.end(JSON.stringify({ error: 'Not found' }))
   }
 }
