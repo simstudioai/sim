@@ -1271,6 +1271,27 @@ export async function executeTool(
     // tool registry never pulls in the executor/db dependency graph (a static or
     // dynamic executor import in the tool descriptor itself would break the client
     // build — and with it `getTool('workflow_executor')`).
+    // Workflow-as-agent-tool runs in-process through WorkflowBlockHandler —
+    // the same invocation boundary canvas child workflows use. Replaces the
+    // historical HTTP hop to /api/workflows/{id}/execute (double admission
+    // slot + duplicate top-level log row); billing/observability now match the
+    // canvas workflow block.
+    if (normalizedToolId === 'workflow_executor') {
+      logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
+      const { runWorkflowTool } = await import('@/executor/handlers/workflow/workflow-tool-runner')
+      const result = await runWorkflowTool(contextParams)
+      const endTime = new Date()
+      return {
+        ...result,
+        output: postProcessToolOutput(normalizedToolId, result.output ?? {}),
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTime.toISOString(),
+          duration: endTime.getTime() - startTime.getTime(),
+        },
+      }
+    }
+
     if (normalizedToolId === 'deployed_block_executor') {
       logger.info(`[${requestId}] Running custom block tool ${toolId}`)
       const { runCustomBlockTool } = await import(

@@ -1,0 +1,93 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import {
+  buildCustomBlockExecutionContext,
+  type CustomBlockExecutorContext,
+} from '@/executor/handlers/workflow/custom-block-tool-runner'
+import {
+  aggregateChildCost,
+  WorkflowBlockHandler,
+} from '@/executor/handlers/workflow/workflow-handler'
+import { classifyExecutionError } from '@/executor/utils/errors'
+import { parseJSON } from '@/executor/utils/json'
+import type { SerializedBlock } from '@/serializer/types'
+import type { ToolResponse } from '@/tools/types'
+
+const logger = createLogger('WorkflowToolRunner')
+
+interface WorkflowToolParams {
+  workflowId?: string
+  inputMapping?: Record<string, unknown> | string
+  _context?: CustomBlockExecutorContext
+}
+
+/**
+ * Runs a workflow selected as an Agent tool (`workflow_executor`) in-process
+ * via `WorkflowBlockHandler` — the same invocation boundary canvas child
+ * workflows use — replacing the historical HTTP hop to the execute endpoint.
+ * One admission slot, one top-level log row, cost rolled into the parent
+ * trace, and the workspace assert / call-chain depth / deployment checks the
+ * handler already enforces.
+ *
+ * On failure the result carries the structured error + the child executionId
+ * in `output` so parent workflows can route on `error.code` and report a
+ * reproducible handle to the workflow's provider.
+ */
+export async function runWorkflowTool(params: WorkflowToolParams): Promise<ToolResponse> {
+  if (!params.workflowId) {
+    return { success: false, output: {}, error: 'Missing workflowId' }
+  }
+
+  const ctx = buildCustomBlockExecutionContext(params._context ?? {})
+  const block: SerializedBlock = {
+    id: generateId(),
+    position: { x: 0, y: 0 },
+    config: { tool: 'workflow_executor', params: {} },
+    inputs: {},
+    outputs: {},
+    metadata: { id: 'workflow_input' },
+    enabled: true,
+  }
+
+  let inputMapping = params.inputMapping ?? {}
+  if (typeof inputMapping === 'string') {
+    inputMapping = parseJSON(inputMapping, {}) as Record<string, unknown>
+  }
+
+  try {
+    const output = await new WorkflowBlockHandler().execute(ctx, block, {
+      workflowId: params.workflowId,
+      inputMapping,
+    })
+    const normalized: Record<string, unknown> =
+      output && typeof output === 'object' && !Array.isArray(output)
+        ? (output as Record<string, unknown>)
+        : { result: output }
+    return { success: true, output: normalized }
+  } catch (error) {
+    const message = getErrorMessage(error, 'Workflow execution failed')
+    const isChildError = ChildWorkflowError.isChildWorkflowError(error)
+    const failedChildSpans = isChildError ? error.childTraceSpans : []
+    const childCost = aggregateChildCost(failedChildSpans)
+    const executionResult = isChildError ? error.executionResult : undefined
+    const structured = classifyExecutionError(error, executionResult)
+    const childExecutionId = executionResult?.metadata?.executionId
+
+    logger.info('Workflow tool execution failed', {
+      workflowId: params.workflowId,
+      message,
+      code: structured.code,
+    })
+    return {
+      success: false,
+      output: {
+        ...(childCost > 0 ? { cost: { total: childCost } } : {}),
+        ...(childExecutionId ? { executionId: childExecutionId } : {}),
+        error: structured,
+      },
+      error: message,
+    }
+  }
+}

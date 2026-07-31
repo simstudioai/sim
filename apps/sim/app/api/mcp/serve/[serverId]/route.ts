@@ -35,34 +35,29 @@ import {
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
-import { generateInternalToken } from '@/lib/auth/internal'
 import {
   assertBillingAttributionSnapshot,
-  BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
-  serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { generateRequestId } from '@/lib/core/utils/request'
 import {
   assertContentLengthWithinLimit,
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
-  readResponseTextWithLimit,
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import {
   MAX_MCP_PARAMETER_SCHEMA_BYTES,
   MAX_MCP_TOOLS_LIST_RESPONSE_BYTES,
   MAX_MCP_TOOLS_PER_SERVER,
   MAX_MCP_WORKFLOW_RESPONSE_BYTES,
-  MCP_TOOL_BRIDGE_ACTOR_HEADER,
-  MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
+import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -279,21 +274,6 @@ async function getDuplicateToolName(serverId: string): Promise<string | null> {
     .limit(1)
 
   return duplicate?.toolName ?? null
-}
-
-async function readWorkflowExecutionResult(
-  response: Response,
-  signal: AbortSignal
-): Promise<unknown> {
-  const text = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_MCP_WORKFLOW_RESPONSE_BYTES,
-    label: 'MCP workflow execution response',
-    signal,
-  })
-  const parsed = parseJsonValue(text)
-  if (parsed.success) return parsed.value
-  if (!response.ok) return { error: response.statusText || 'Workflow execution failed' }
-  throw new Error('Invalid workflow execution response')
 }
 
 async function getServer(serverId: string) {
@@ -809,83 +789,113 @@ async function handleToolsCall(
       wf.workspaceId
     )
 
-    const executeUrl = `${getInternalApiBaseUrl()}/api/workflows/${tool.workflowId}/execute`
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),
-      [MCP_TOOL_BRIDGE_HEADER]: 'true',
-    }
-
     const abortedBeforeExecute = callerAbortedJsonRpcResponse(id, abortSignal)
     if (abortedBeforeExecute) return abortedBeforeExecute
 
-    const internalToken = await generateInternalToken(actorUserId)
-    headers.Authorization = `Bearer ${internalToken}`
-    if (executeAuthContext?.useAuthenticatedUserAsActor) {
-      headers[MCP_TOOL_BRIDGE_ACTOR_HEADER] = 'authenticated-user'
-    }
+    logger.info(`Executing workflow ${tool.workflowId} via MCP tool ${params.name} (in-process)`)
 
-    if (simViaHeader) {
-      headers[SIM_VIA_HEADER] = simViaHeader
-    }
-
-    logger.info(`Executing workflow ${tool.workflowId} via MCP tool ${params.name}`)
-
-    const workflowRequestBody = JSON.stringify({
-      input: params.arguments || {},
-      triggerType: 'mcp',
-      includeFileBase64: false,
-      ...(wf.deploymentVersionId ? { deploymentVersionId: wf.deploymentVersionId } : {}),
-    })
+    const workflowInput = params.arguments || {}
     assertKnownSizeWithinLimit(
-      Buffer.byteLength(workflowRequestBody, 'utf-8'),
+      Buffer.byteLength(JSON.stringify(workflowInput), 'utf-8'),
       MAX_MCP_WORKFLOW_REQUEST_BYTES,
       'MCP workflow execution request body'
     )
-    const response = await fetch(executeUrl, {
-      method: 'POST',
-      headers,
-      body: workflowRequestBody,
-      signal: abortSignal.signal,
+
+    /**
+     * In-process execution replaces the historical HTTP hop to the execute
+     * endpoint: the bridge's special needs — deployment-version pinning, MCP
+     * response-size rejection, actor override — are typed options instead of
+     * header sniffing, and billing attribution is passed as the immutable
+     * upstream snapshot exactly as the header carried it.
+     */
+    const serviceResult = await executeWorkflowService({
+      workflowId: tool.workflowId,
+      userId: actorUserId,
+      input: workflowInput,
+      triggerType: 'mcp',
+      requestId: generateRequestId(),
+      useAuthenticatedUserAsActor: executeAuthContext?.useAuthenticatedUserAsActor ?? false,
+      upstreamBillingAttribution: billingAttribution,
+      deploymentVersionId: wf.deploymentVersionId,
+      includeFileBase64: false,
+      rejectLargeInlineOutput: true,
+      callChain: simViaHeader ? parseCallChain(simViaHeader) : undefined,
+      abortSignal: abortSignal.signal,
     })
 
-    const executeResult = await readWorkflowExecutionResult(response, abortSignal.signal)
-    const executeResultObject = isJsonObject(executeResult) ? executeResult : null
-
-    if (!response.ok) {
-      const errorMessage =
-        typeof executeResultObject?.error === 'string'
-          ? executeResultObject.error
-          : 'Workflow execution failed'
-      const status = getWorkflowErrorStatus(response.status)
+    if (!serviceResult.ok) {
+      const failure = serviceResult.failure
+      const status = getWorkflowErrorStatus(failure.statusCode)
       const responseHeaders: Record<string, string> = {}
-      const retryAfter = response.headers.get('retry-after')
-      if (retryAfter) responseHeaders['Retry-After'] = retryAfter
+      if (failure.retryAfterMs !== undefined) {
+        responseHeaders['Retry-After'] = Math.max(
+          1,
+          Math.ceil(failure.retryAfterMs / 1000)
+        ).toString()
+      }
       return NextResponse.json(
         createError(
           id,
-          getWorkflowErrorCode(response.status, executeResultObject ?? {}),
-          errorMessage,
+          getWorkflowErrorCode(failure.statusCode, { code: failure.code }),
+          failure.message,
           {
-            httpStatus: response.status,
-            retryable: [408, 429, 503].includes(response.status),
-            code:
-              typeof executeResultObject?.code === 'string' ? executeResultObject.code : undefined,
+            httpStatus: failure.statusCode,
+            retryable: [408, 429, 503].includes(failure.statusCode),
+            code: failure.code,
+            ...(failure.executionId ? { executionId: failure.executionId } : {}),
           }
         ),
         { status, headers: responseHeaders }
       )
     }
 
-    const toolOutput =
-      executeResultObject?.success === false
-        ? executeResult
-        : executeResultObject && hasResponseField(executeResultObject, 'output')
-          ? executeResultObject.output
-          : executeResult
+    if ('queued' in serviceResult || 'stream' in serviceResult) {
+      // The bridge never requests async or stream modes.
+      throw new Error('Unexpected execution mode result for MCP tool call')
+    }
+
+    if (serviceResult.aborted === 'client') {
+      return NextResponse.json(
+        createError(id, ErrorCode.ConnectionClosed, 'Client cancelled request', {
+          httpStatus: 499,
+          retryable: false,
+          executionId: serviceResult.executionId,
+        }),
+        { status: 499 }
+      )
+    }
+
+    if (serviceResult.aborted === 'timeout') {
+      return NextResponse.json(
+        createError(
+          id,
+          ErrorCode.InternalError,
+          serviceResult.error?.message ?? 'Execution timed out',
+          {
+            httpStatus: 408,
+            retryable: true,
+            code: 'TIMEOUT',
+            executionId: serviceResult.executionId,
+          }
+        ),
+        { status: 408 }
+      )
+    }
+
+    const isError = serviceResult.status !== 'completed'
+    const toolOutput = isError
+      ? {
+          success: false,
+          executionId: serviceResult.executionId,
+          output: serviceResult.output ?? {},
+          // Structured error: parents/clients route on `code` and hand the
+          // provider the executionId to reproduce the failure.
+          error: serviceResult.error,
+        }
+      : (serviceResult.output ?? {})
     const result: CallToolResult = {
       content: [{ type: 'text', text: serializeToolText(toolOutput) }],
-      isError: executeResultObject?.success === false,
+      isError,
     }
 
     return createJsonRpcResponseWithLimit(
