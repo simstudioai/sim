@@ -90,6 +90,16 @@ export const REDIS_ORIGIN = Symbol('file-doc-redis')
  */
 export const REDIS_SNAPSHOT_ORIGIN = Symbol('file-doc-redis-snapshot')
 
+/**
+ * Origin for an AGENT-STREAMED frame applied from the stream (a copilot output token relayed via
+ * {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}). A peer task tails these to stay live mid-stream, but
+ * they are transient preview content the copilot's durable `edit_content` write reconciles — so the
+ * relay's edit-tracker must NOT mark the doc edited on them (a startup-race duplicate between two stream
+ * leaders would otherwise become eligible for a peer task's persist). Behaves like {@link REDIS_ORIGIN}
+ * otherwise (already in the stream — never re-published).
+ */
+export const REDIS_AGENT_ORIGIN = Symbol('file-doc-redis-agent')
+
 const STREAM_PREFIX = 'filedoc:stream:'
 /** Cluster-wide "durable version the live doc is synced to" (the persist If-Match token). */
 const SYNC_VERSION_PREFIX = 'filedoc:syncver:'
@@ -103,6 +113,9 @@ const UPDATE_FIELD = 'u'
 /** Marks a stream entry as a compaction SNAPSHOT (folds seed + edits), so the tailer applies it with
  * {@link REDIS_SNAPSHOT_ORIGIN}. Present only on snapshot entries. */
 const SNAPSHOT_FIELD = 's'
+/** Marks a stream entry as an AGENT-STREAMED preview frame, so the tailer applies it with
+ * {@link REDIS_AGENT_ORIGIN} (never marks the doc edited). Present only on agent-frame entries. */
+const AGENT_FIELD = 'a'
 
 /** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
  * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
@@ -264,12 +277,14 @@ export class FileDocStore {
    * an edit from the shared log. Only the `xAdd` is retried; the TTL refresh + compaction check are
    * post-write best-effort and never re-trigger the append. Throws if the append ultimately fails.
    */
-  private async appendUpdate(name: string, update: Uint8Array): Promise<void> {
+  private async appendUpdate(name: string, update: Uint8Array, agent = false): Promise<void> {
     if (!this.write) return
     const encoded = Buffer.from(update).toString('base64')
+    const fields: Record<string, string> = { [UPDATE_FIELD]: encoded }
+    if (agent) fields[AGENT_FIELD] = '1'
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
-        await this.write.xAdd(streamKey(name), '*', { [UPDATE_FIELD]: encoded })
+        await this.write.xAdd(streamKey(name), '*', fields)
         break
       } catch (error) {
         if (attempt === PUBLISH_MAX_RETRIES) {
@@ -288,11 +303,12 @@ export class FileDocStore {
 
   /**
    * Fire-and-forget append for the hot keystroke path (`doc.on('update')`): converges peers without
-   * blocking the relay. Retries internally; never throws. No-op when disabled.
+   * blocking the relay. Retries internally; never throws. No-op when disabled. Pass `agent: true` for
+   * a copilot preview frame so peer tasks tail it as {@link REDIS_AGENT_ORIGIN} and never persist it.
    */
-  publish(name: string, update: Uint8Array): void {
+  publish(name: string, update: Uint8Array, agent = false): void {
     if (!this.enabled || !this.write) return
-    void this.appendUpdate(name, update).catch(() => {}) // already logged inside appendUpdate
+    void this.appendUpdate(name, update, agent).catch(() => {}) // already logged inside appendUpdate
   }
 
   /**
@@ -515,8 +531,13 @@ export class FileDocStore {
   private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
     room.lastId = id
     // A compaction snapshot folds seed + edits into one frame; stamp it so the relay's edit-tracker
-    // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated).
-    const origin = message[SNAPSHOT_FIELD] ? REDIS_SNAPSHOT_ORIGIN : REDIS_ORIGIN
+    // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated). An
+    // agent-streamed preview frame is stamped separately so the tracker NEVER marks it edited.
+    const origin = message[SNAPSHOT_FIELD]
+      ? REDIS_SNAPSHOT_ORIGIN
+      : message[AGENT_FIELD]
+        ? REDIS_AGENT_ORIGIN
+        : REDIS_ORIGIN
     applyEntryToDoc(room.doc, id, message, origin)
   }
 

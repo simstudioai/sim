@@ -45,7 +45,12 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
 import { fetchFileDocMerge, fetchFileDocPersist, fetchFileDocSeed } from '@/handlers/file-doc-app'
-import { getFileDocStore, REDIS_ORIGIN, REDIS_SNAPSHOT_ORIGIN } from '@/handlers/file-doc-store'
+import {
+  getFileDocStore,
+  REDIS_AGENT_ORIGIN,
+  REDIS_ORIGIN,
+  REDIS_SNAPSHOT_ORIGIN,
+} from '@/handlers/file-doc-store'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
@@ -708,23 +713,29 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
       origin === AGENT_SYNC_ORIGIN ? null : originSocketId(origin)
     )
     // Share every locally-originated update to the stream so peers converge. Skip updates that already
-    // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN) and SEED_ORIGIN — the seed is published
-    // EXPLICITLY and AWAITED under the seed lock (so it lands before the lock releases), which a
-    // fire-and-forget publish here couldn't guarantee.
-    if (origin !== REDIS_ORIGIN && origin !== REDIS_SNAPSHOT_ORIGIN && origin !== SEED_ORIGIN)
-      getFileDocStore().publish(name, update)
+    // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN / REDIS_AGENT_ORIGIN) and SEED_ORIGIN —
+    // the seed is published EXPLICITLY and AWAITED under the seed lock (so it lands before the lock
+    // releases), which a fire-and-forget publish here couldn't guarantee. An agent-streamed frame
+    // (AGENT_SYNC_ORIGIN) is published WITH the agent marker so peer tasks tail it as REDIS_AGENT_ORIGIN
+    // and never mark the doc edited on it (see the edit-tracker below).
+    if (
+      origin !== REDIS_ORIGIN &&
+      origin !== REDIS_SNAPSHOT_ORIGIN &&
+      origin !== REDIS_AGENT_ORIGIN &&
+      origin !== SEED_ORIGIN
+    )
+      getFileDocStore().publish(name, update, origin === AGENT_SYNC_ORIGIN)
     // Edit tracking for persistence. Mark the doc dirty on any update applied AFTER it was seeded — a
     // local user edit (socket origin) OR a peer's edit relayed via the tailer (REDIS_ORIGIN) — so
     // whichever task is last to leave persists real edits, even one that only tailed them. A compaction
     // snapshot on catch-up (REDIS_SNAPSHOT_ORIGIN) also counts: it folds real edits into one frame, so a
     // fresh task catching up purely from it must not treat the doc as unedited. The seed transition
-    // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. NOTE:
-    // an agent-streamed frame ({@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}) is not counted on the
-    // ORIGINATING task (it applies under {@link AGENT_SYNC_ORIGIN} — see the handler), but in the multi-replica
-    // path it is published to the stream and PEER tasks apply it as REDIS_ORIGIN, indistinguishable from a
-    // peer edit, so it marks `edited` there. That only ever causes an extra idempotent persist of content
-    // the copilot's final `edit_content` write persists durably anyway (safe over-persist, never a lost
-    // edit); fully suppressing it would require tagging the stream entry as no-persist across replicas.
+    // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. An
+    // agent-streamed frame ({@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}) is never counted anywhere: on
+    // the ORIGINATING task it applies under {@link AGENT_SYNC_ORIGIN}, and across replicas it is published
+    // WITH the agent marker so PEER tasks tail it as REDIS_AGENT_ORIGIN — neither is in the edited set
+    // below. So a transient startup-race duplicate between two stream leaders is never eligible for
+    // persistence; the copilot's durable `edit_content` write remains the sole authority over file bytes.
     const seededBefore = room.seededObserved
     if (isDocSeeded(room.doc)) room.seededObserved = true
     if (

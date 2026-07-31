@@ -100,7 +100,7 @@ function makeClient(): any {
 
 vi.mock('redis', () => ({ createClient: () => makeClient() }))
 
-import { FileDocStore } from '@/handlers/file-doc-store'
+import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
 
 const REDIS_URL = 'redis://fake'
 const NAME = 'workspace-file-doc:file-1'
@@ -237,6 +237,31 @@ describe('FileDocStore', () => {
     // edited content (not a bare seed) and persists on last-disconnect.
     const stream = state.backing!.streams.get(streamKey)!
     expect(stream[stream.length - 1].message.s).toBe('1')
+  })
+
+  it('tags an agent-streamed frame so a peer tailer applies it as REDIS_AGENT_ORIGIN (never persisted)', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const a = await newStore()
+    const b = await newStore()
+    const bDoc = new Y.Doc()
+    // Capture the origin the tailer stamps each applied entry with — the persistence gate keys off it.
+    const origins: unknown[] = []
+    bDoc.on('update', (_u: Uint8Array, origin: unknown) => origins.push(origin))
+    await b.attachRoom(NAME, bDoc)
+
+    // A normal edit tails as REDIS_ORIGIN (a peer edit that CAN be persisted).
+    a.publish(NAME, updateFor('user edit'))
+    await vi.waitFor(() => expect(origins).toContain(REDIS_ORIGIN), { timeout: 2000 })
+
+    // An agent-streamed frame is published WITH the agent flag: the stream entry carries the marker, and
+    // the peer tailer applies it as REDIS_AGENT_ORIGIN — excluded from the relay's edited/persist gate.
+    a.publish(NAME, updateFor('agent frame'), true)
+    await vi.waitFor(() => expect(origins).toContain(REDIS_AGENT_ORIGIN), { timeout: 2000 })
+    const stream = state.backing!.streams.get(streamKey)!
+    expect(stream.some((e) => e.message.a === '1')).toBe(true)
+    // The normal edit's entry carries no agent marker.
+    expect(stream.filter((e) => e.message.a === '1')).toHaveLength(1)
+    bDoc.destroy()
   })
 
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {
