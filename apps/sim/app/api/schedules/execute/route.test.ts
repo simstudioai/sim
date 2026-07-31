@@ -30,6 +30,8 @@ const {
   mockShouldExecuteInline,
   mockResolveSystemBillingAttribution,
   mockAssertBillingAttributionSnapshot,
+  mockApplyScheduleFailureUpdate,
+  mockNotifyScheduleAutoDisabled,
 } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +46,8 @@ const {
   mockShouldExecuteInline: vi.fn().mockReturnValue(false),
   mockResolveSystemBillingAttribution: vi.fn(),
   mockAssertBillingAttributionSnapshot: vi.fn(),
+  mockApplyScheduleFailureUpdate: vi.fn().mockResolvedValue({ updated: true, disabled: false }),
+  mockNotifyScheduleAutoDisabled: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -59,15 +63,11 @@ vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
   executeJobInline: mockExecuteJobInline,
   releaseScheduleLock: mockReleaseScheduleLock,
-  buildScheduleFailureUpdate: (now: Date, nextRunAt: Date | null) => ({
-    updatedAt: now,
-    lastQueuedAt: null,
-    nextRunAt,
-    failedCount: { type: 'sql' },
-    lastFailedAt: now,
-    status: { type: 'sql' },
-    infraRetryCount: 0,
-  }),
+  applyScheduleFailureUpdate: mockApplyScheduleFailureUpdate,
+}))
+
+vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
+  notifyScheduleAutoDisabled: mockNotifyScheduleAutoDisabled,
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
@@ -730,11 +730,11 @@ describe('Scheduled Workflow Execution API Route', () => {
         error: expect.stringContaining('exhausted retry attempts'),
       })
     )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastQueuedAt: null,
-        lastFailedAt: expect.any(Date),
-        nextRunAt: expect.any(Date),
+        scheduleId: 'schedule-1',
+        expectedLastQueuedAt: claimedAt,
+        executor: expect.anything(),
       })
     )
   })
@@ -779,12 +779,11 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastQueuedAt: null,
-        lastFailedAt: expect.any(Date),
+        scheduleId: schedule.id,
+        expectedLastQueuedAt: claimedAt,
         nextRunAt: expect.any(Date),
-        infraRetryCount: 0,
       })
     )
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
@@ -792,6 +791,44 @@ describe('Scheduled Workflow Execution API Route', () => {
         infraRetryCount: 1,
       })
     )
+  })
+
+  it('emails the schedule owners when a non-retryable setup failure disables the schedule', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: true })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockNotifyScheduleAutoDisabled).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: schedule.id, reason: 'consecutive_failures' })
+    )
+  })
+
+  it('does not email when the failure update leaves the schedule active', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: false })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockNotifyScheduleAutoDisabled).not.toHaveBeenCalled()
   })
 
   it('uses one backend mode decision for slot accounting and schedule processing', async () => {
