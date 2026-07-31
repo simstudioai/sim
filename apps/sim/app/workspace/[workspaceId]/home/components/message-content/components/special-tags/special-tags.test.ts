@@ -247,7 +247,7 @@ describe('parseSpecialTags with <question>', () => {
 
   it('does not rescan the interior of a body that carried no markers', () => {
     // Pins WHY the two literal reasons resume at different offsets. A
-    // never-a-payload body resumes past the CLOSE; resuming past the opener
+    // not-viable-json body resumes past the CLOSE; resuming past the opener
     // instead would rescan the interior, and since the marker scan runs on the
     // blanked body, a tag quoted inside a JSON string is invisible to it and
     // would be re-parsed as a real tag on the second pass — then dropped,
@@ -320,6 +320,60 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
   })
 
+  it('drops a payload one typo away from valid instead of showing raw JSON', () => {
+    // The first three are verbatim from production screenshots (2026-07-31): an
+    // extra `}` before the array close, a missing opening quote on a key, and a
+    // stray `]}` after the map closes; the fourth adds a trailing comma. Each
+    // fails JSON.parse, so the old was-it-ever-JSON test called them prose and
+    // rendered the whole payload verbatim — the markdown layer then swallowed
+    // the tag markers and the reader saw a wall of raw JSON. They open `{"` or
+    // `[{`, which marks them as attempted payloads: droppable, like any other
+    // broken emission.
+    const cases = [
+      'Prose before. <question>{"type": "single_select", "prompt": "How should I proceed?", "options": [{"id": "a", "label": "Confirm the id"}}]}</question>',
+      'Prose before. <question>{"type":"multi_select","prompt":"What should I build now?",options": [{"id":"lib","label":"Pattern library"}]}</question>',
+      'Prose before. <options>{"1": {"title": "Define the criteria", "description": "Populate"}}]}</options>',
+      'Prose before. <options>[{"title":"Ship it","description":"Open the PR"},]</options>',
+    ]
+    for (const raw of cases) {
+      const { segments, hasPendingTag } = parseSpecialTags(raw, false)
+      expect(hasPendingTag, raw).toBe(false)
+      expect(renderedText(segments), raw).toBe('Prose before. ')
+      expect(
+        segments.every((segment) => segment.type === 'text'),
+        raw
+      ).toBe(true)
+    }
+  })
+
+  it('drops a broken inline payload rather than dumping it mid-sentence', () => {
+    // Same treatment for the inline tag: a `{"`-opening body with a syntax
+    // error reads as an attempted chip, and the sentence survives around the
+    // hole exactly as it does for a wrong-shape payload today.
+    const raw =
+      'I saved <workspace_resource>{"type":"file",path:"a.md"}</workspace_resource> for you.'
+    expect(renderedText(parseSpecialTags(raw, false).segments)).toBe('I saved  for you.')
+  })
+
+  it('renders nothing for a message that is only an unparsable payload', () => {
+    // The discardedTag guard must cover the new class too: with every segment
+    // discarded, the raw-content fallback would otherwise resurrect the exact
+    // JSON the discard removed.
+    const { segments } = parseSpecialTags(
+      '<options>{"1": {"title": "a", "description": "b"}}]}</options>',
+      false
+    )
+    expect(segments).toHaveLength(0)
+  })
+
+  it('still shows an unparsable body that never opened like a payload', () => {
+    // The other side of the attempted-payload line: a bare scalar opens with
+    // its own first character, not `{"`/`[{`, so it reads as prose in quotes
+    // and must render — same as the brace-wrapped prose cases above.
+    const raw = 'see <options>"just a phrase"</options> end'
+    expect(renderedText(parseSpecialTags(raw, false).segments)).toBe(raw)
+  })
+
   it('does not flash the payload while the closing tag is still arriving', () => {
     // Each frame below is a real mid-stream state: the JSON value has closed, so
     // without tolerating an arriving close the trailing `</opt` reads as stray
@@ -363,7 +417,7 @@ describe('parseSpecialTags with <question>', () => {
   it('finds a nested tag an unbalanced quote hid from the blanked scan', () => {
     // One stray `"` is enough to make blankJsonStringLiterals treat the REST of
     // the body as a string literal, hiding the real `<options>` marker from the
-    // scan. The verdict then degrades from `foreign-markers` to `never-a-payload`
+    // scan. The verdict then degrades from `foreign-markers` to `not-viable-json`
     // and resumes past the close, flattening both nested tags into one literal
     // span — so a card already on screen un-renders when the close arrives.
     //
@@ -901,8 +955,13 @@ describe('parser properties', () => {
   /**
    * Fragments that must survive verbatim. Every one is a shape the parser has to
    * reject: prose mentions, malformed closes, bodies that never were payloads.
-   * None is a valid tag and none is a well-formed payload, so nothing here is
-   * eligible for `discard` — which makes "output equals input" a legal assertion.
+   * Nothing here is eligible for `discard` — which makes "output equals input" a
+   * legal assertion. That takes two properties, not one: no fragment is a
+   * well-formed payload (`wrong-shape`), and the `{"`-opening bodies never land
+   * in a marker-free matched pair (`not-parsable`) — their own close is
+   * misspelled, truncated, or absent, so any close they borrow from a later
+   * fragment drags that fragment's own opener into the body, and the
+   * nested-marker rule settles the span before the attempted-payload test runs.
    */
   const LOSSLESS_FRAGMENTS = [
     'Plain prose with no markup at all. ',
