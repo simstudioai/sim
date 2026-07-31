@@ -3244,13 +3244,21 @@ export const auth = betterAuth({
               }),
               signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
             })
+            if (!response.ok) {
+              await readResponseTextWithLimit(response, {
+                maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+                label: 'QuickBooks OAuth token error response',
+              }).catch(() => {})
+              throw new Error(`QuickBooks OAuth token exchange failed with HTTP ${response.status}`)
+            }
+
             const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
               maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
               label: 'QuickBooks OAuth token response',
             })
 
-            if (!response.ok || !data || typeof data !== 'object' || Array.isArray(data)) {
-              throw new Error(`QuickBooks OAuth token exchange failed with HTTP ${response.status}`)
+            if (!data || typeof data !== 'object' || Array.isArray(data)) {
+              throw new Error('QuickBooks OAuth token exchange returned an invalid response')
             }
 
             const tokens = getOAuth2Tokens(data)
