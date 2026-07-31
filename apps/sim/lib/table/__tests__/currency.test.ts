@@ -178,11 +178,18 @@ describe('parseCurrencyInput', () => {
     // currencies produce `1.235 ¥`. And a three-decimal currency's trailing
     // three digits are decimals however the value arrived, which matters for
     // CSV import, where nothing carries a marker.
+    // A dot stays the decimal point: typing `1.234` in a USD cell means 1.234,
+    // which the display rounds to $1.23 exactly as a spreadsheet does. Reading
+    // it as 1,234 would be a thousandfold surprise.
+    expect(parseCurrencyInput('$1.234', 'USD')).toBe(1.234)
+    expect(parseCurrencyInput('1.234')).toBe(1.234)
+    // Except where the currency has no decimals — the one lone-separator form
+    // a formatter actually emits.
     expect(parseCurrencyInput('1.235 ¥', 'JPY')).toBe(1235)
+    // A comma is grouping by convention, except for three-decimal currencies.
+    expect(parseCurrencyInput('1,500', 'USD')).toBe(1500)
     expect(parseCurrencyInput('0,500', 'KWD')).toBe(0.5)
     expect(parseCurrencyInput('12,000', 'TND')).toBe(12)
-    expect(parseCurrencyInput('1,500', 'USD')).toBe(1500)
-    expect(parseCurrencyInput('1.234')).toBe(1.234)
   })
 
   it('refuses a scale suffix rather than shrinking the value', () => {

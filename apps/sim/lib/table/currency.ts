@@ -245,10 +245,6 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
   // rejected below.
   const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, '$1')
   const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, '')
-  // Whether a marker was present at all. A marked string came from a
-  // formatter; a bare one was typed by a person. That distinguishes the two
-  // readings of a lone separator followed by three digits, below.
-  const hadMarker = withoutMarkers !== body
   const cleaned = withoutMarkers.replace(/[\s\u00a0\u202f\u2019']/gu, '')
   // What remains must be ONLY digits and separators. Anything else — a
   // US-format date, leftover prose — is not an amount.
@@ -270,8 +266,7 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
     normalized = `${integerPart.split(groupSeparator).join('')}.${decimalParts[0]}`
   } else if (lastComma !== -1) {
     const repeated = digitsAndSeps.indexOf(',') !== lastComma
-    const grouping =
-      repeated || loneSeparatorIsGrouping(digitsAndSeps, ',', hadMarker, currencyCode)
+    const grouping = repeated || loneSeparatorIsGrouping(digitsAndSeps, ',', currencyCode)
     if (grouping) {
       if (!hasValidGrouping(digitsAndSeps, ',')) return null
       normalized = digitsAndSeps.split(',').join('')
@@ -280,8 +275,7 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
     }
   } else if (lastDot !== -1) {
     const repeated = digitsAndSeps.indexOf('.') !== lastDot
-    const grouping =
-      repeated || loneSeparatorIsGrouping(digitsAndSeps, '.', hadMarker, currencyCode)
+    const grouping = repeated || loneSeparatorIsGrouping(digitsAndSeps, '.', currencyCode)
     if (grouping) {
       if (!hasValidGrouping(digitsAndSeps, '.')) return null
       normalized = digitsAndSeps.split('.').join('')
@@ -299,30 +293,32 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
 
 /**
  * Whether a lone separator followed by exactly three digits is grouping rather
- * than a decimal point — `1.235 ¥` is one thousand two hundred thirty-five yen,
- * while a typed `1.235` is one and a bit.
+ * than a decimal point.
  *
- * Two signals resolve it. A marker means the string came from a formatter, and
- * formatters group; a bare string was typed by a person, who meant decimals.
- * And a currency with three decimal places (KWD, TND) legitimately ends in
- * three digits after its separator, so for those the reading is always decimal.
+ * The separator decides, tempered by what the currency can express:
+ *
+ * - A **dot** is the decimal point in the notation most people type, so it
+ *   stays a decimal — typing `1.234` in a USD cell means 1.234, which the
+ *   display then rounds to `$1.23`, exactly as a spreadsheet does. Reading it
+ *   as 1,234 would be a thousandfold surprise. The exception is a currency with
+ *   no decimal places at all: `1.235 ¥` cannot be a fraction of a yen, and is
+ *   the one lone-separator form a formatter actually emits.
+ * - A **comma** is grouping by convention — `1,500` is fifteen hundred, not one
+ *   and a half. The exception mirrors the first: a currency with three decimal
+ *   places (KWD, TND) legitimately ends in three digits after its separator,
+ *   so `0,500` is a half.
+ *
+ * A currency with one or two decimal places always formats with BOTH
+ * separators, so no formatter output is decided here.
  */
 function loneSeparatorIsGrouping(
   digitsAndSeps: string,
   separator: string,
-  hadMarker: boolean,
   currencyCode: string | undefined
 ): boolean {
   if (!new RegExp(`\\${separator}\\d{3}$`).test(digitsAndSeps)) return false
-  // A currency with three decimal places (KWD, TND) legitimately ends in three
-  // digits after its separator, so for those the reading is always decimal —
-  // regardless of how the value arrived, since a CSV import carries no marker.
-  if (currencyFractionDigits(currencyCode) === 3) return false
-  // A comma tail of exactly three digits is grouping by convention (`1,500`).
-  if (separator === ',') return true
-  // A dot is the decimal point in the notation most users type, so it only
-  // reads as grouping when a marker shows a formatter produced the string.
-  return hadMarker
+  const fractionDigits = currencyFractionDigits(currencyCode)
+  return separator === ',' ? fractionDigits !== 3 : fractionDigits === 0
 }
 
 /** A currency's conventional decimal places, defaulting to 2 when unknown. */
