@@ -33,6 +33,7 @@ import {
   type RateLimitResult,
   resolveWorkspaceScope,
 } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   decodeCursor,
   encodeCursor,
@@ -49,7 +50,6 @@ import {
   v2RowValidationError,
   v2RowWriteError,
   v2TableAccessError,
-  v2TablesGateError,
 } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableRowsAPI')
@@ -80,9 +80,6 @@ async function handleBatchInsert(
   if (validated.workspaceId !== table.workspaceId) {
     return v2Error('NOT_FOUND', 'Table not found')
   }
-
-  const gateError = await v2TablesGateError(userId, validated.workspaceId)
-  if (gateError) return gateError
 
   // External callers key row data by column name; storage keys by id.
   const idByName = buildIdByName(table.schema as TableSchema)
@@ -133,6 +130,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2ListTableRowsContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -152,9 +153,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     if (validated.workspaceId !== table.workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
-
-    const gateError = await v2TablesGateError(userId, validated.workspaceId)
-    if (gateError) return gateError
 
     const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
 
@@ -206,6 +204,10 @@ export const POST = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2CreateTableRowsContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })
@@ -231,9 +233,6 @@ export const POST = withRouteHandler(
       if (validated.workspaceId !== table.workspaceId) {
         return v2Error('NOT_FOUND', 'Table not found')
       }
-
-      const gateError = await v2TablesGateError(userId, validated.workspaceId)
-      if (gateError) return gateError
 
       const idByName = buildIdByName(table.schema as TableSchema)
       const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
@@ -276,6 +275,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2UpdateRowsByFilterContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -294,9 +297,6 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     if (validated.workspaceId !== table.workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
-
-    const gateError = await v2TablesGateError(userId, validated.workspaceId)
-    if (gateError) return gateError
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const patchData = rowDataNameToId(validated.data as RowData, idByName)
@@ -347,6 +347,10 @@ export const DELETE = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2DeleteTableRowsContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })
@@ -365,9 +369,6 @@ export const DELETE = withRouteHandler(
       if (validated.workspaceId !== table.workspaceId) {
         return v2Error('NOT_FOUND', 'Table not found')
       }
-
-      const gateError = await v2TablesGateError(userId, validated.workspaceId)
-      if (gateError) return gateError
 
       // id-based and filter-based deletes share one envelope; `requestedCount`/
       // `missingRowIds` are populated only for the id-based delete (which has a

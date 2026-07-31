@@ -255,6 +255,17 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/api/v2/workflows/:id/execute',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
+          {
+            key: 'Content-Security-Policy',
+            value: getWorkflowExecutionCSPPolicy(),
+          },
+        ],
+      },
+      {
         // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker
         // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
         source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',

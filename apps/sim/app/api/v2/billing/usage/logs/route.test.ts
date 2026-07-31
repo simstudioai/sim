@@ -20,6 +20,10 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getUsageCreditsByLogId: mockGetUsageCreditsByLogId,
 }))
 
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
 import { GET } from '@/app/api/v2/billing/usage/logs/route'
 
 const RATE_LIMIT_OK = {

@@ -14,6 +14,7 @@ import {
   queryAuditLogs,
 } from '@/app/api/v1/audit-logs/query'
 import { checkRateLimit } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CursorList,
   v2Error,
@@ -43,6 +44,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
 
     const authResult = await resolveEnterpriseAuditAccess(userId)
     if (!authResult.success) return v2Error('FORBIDDEN', authResult.message)

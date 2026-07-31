@@ -12,6 +12,7 @@ import { resolveEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
 import { checkRateLimit } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2AuditLogDetailAPI')
@@ -37,6 +38,9 @@ export const GET = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
 
       const authResult = await resolveEnterpriseAuditAccess(userId)
       if (!authResult.success) return v2Error('FORBIDDEN', authResult.message)

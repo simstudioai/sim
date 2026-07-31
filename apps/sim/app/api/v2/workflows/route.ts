@@ -9,6 +9,7 @@ import { type V2WorkflowListItem, v2ListWorkflowsContract } from '@/lib/api/cont
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   decodeCursor,
   encodeCursor,
@@ -39,6 +40,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2ListWorkflowsContract,
       request,

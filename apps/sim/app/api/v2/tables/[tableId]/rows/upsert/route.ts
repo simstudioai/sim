@@ -10,6 +10,7 @@ import { buildIdByName, rowDataNameToId, upsertRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
   v2Error,
@@ -17,7 +18,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError, v2TablesGateError } from '@/app/api/v2/tables/utils'
+import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableUpsertAPI')
 
@@ -37,6 +38,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2UpsertTableRowContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -55,9 +60,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     if (table.workspaceId !== validated.workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
-
-    const gateError = await v2TablesGateError(userId, validated.workspaceId)
-    if (gateError) return gateError
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)

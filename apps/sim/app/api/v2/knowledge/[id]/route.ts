@@ -14,6 +14,7 @@ import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/servic
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { formatKnowledgeBase, resolveKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2KnowledgeDetailAPI')
@@ -57,6 +58,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2GetKnowledgeBaseContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -90,6 +95,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2UpdateKnowledgeBaseContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -154,6 +163,10 @@ export const DELETE = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2DeleteKnowledgeBaseContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })

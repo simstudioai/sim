@@ -9,6 +9,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createTable, getWorkspaceTableLimits, listTables, type TableSchema } from '@/lib/table'
 import { normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CursorList,
   v2Data,
@@ -17,7 +18,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiTable, v2TablesGateError } from '@/app/api/v2/tables/utils'
+import { toApiTable } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TablesAPI')
 
@@ -33,6 +34,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2ListTablesContract,
       request,
@@ -47,9 +52,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
-
-    const gateError = await v2TablesGateError(userId, workspaceId)
-    if (gateError) return gateError
 
     const tables = await listTables(workspaceId)
     const items = tables.map(toApiTable)
@@ -73,6 +75,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2CreateTableContract,
       request,
@@ -87,9 +93,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
-
-    const gateError = await v2TablesGateError(userId, params.workspaceId)
-    if (gateError) return gateError
 
     const planLimits = await getWorkspaceTableLimits(params.workspaceId)
 

@@ -20,8 +20,6 @@ import {
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
-import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -69,6 +67,7 @@ import {
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
@@ -105,7 +104,6 @@ import {
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
@@ -127,8 +125,6 @@ import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/
 const logger = createLogger('WorkflowExecuteAPI')
 const MAX_WORKFLOW_EXECUTE_BODY_BYTES = 10 * 1024 * 1024
 const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
-const ASYNC_ENQUEUE_ATTEMPTS = 2
-const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -338,159 +334,27 @@ function requirePreprocessedExecutionContext(
 }
 
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<AsyncExecutionResult> {
-  const {
-    requestId,
-    workflowId,
-    userId,
-    billingAttribution,
-    workspaceId,
-    input,
-    triggerType,
-    executionId,
-    callChain,
-  } = params
-  const asyncLogger = logger.withMetadata({
-    requestId,
-    workflowId,
-    workspaceId,
-    userId,
-    executionId,
-  })
+  const enqueue = await enqueueWorkflowExecution(params)
 
-  const correlation = {
-    executionId,
-    requestId,
-    source: 'workflow' as const,
-    workflowId,
-    triggerType,
-  }
-
-  const payload: WorkflowExecutionPayload = {
-    workflowId,
-    userId,
-    billingAttribution,
-    workspaceId,
-    input,
-    triggerType,
-    executionId,
-    requestId,
-    correlation,
-    callChain,
-    executionMode: 'async',
-    admissionCompleted: true,
-  }
-
-  let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
-  try {
-    jobQueue = await getJobQueue()
-  } catch (error) {
-    asyncLogger.error('Failed to initialize async execution queue', {
-      error: toError(error).message,
-    })
-    await releaseExecutionSlot(executionId)
+  if (enqueue.outcome === 'rejected') {
     return {
       response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
       retainExecutionClaim: false,
     }
   }
 
-  const deterministicJobId = `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`
-  const enqueueOptions = {
-    jobId: deterministicJobId,
-    metadata: { workflowId, workspaceId, userId, correlation },
-  }
-  let jobId: string | undefined
-  let enqueueError: unknown
-  let acceptanceCouldBeUnknown = false
-
-  for (let attempt = 1; attempt <= ASYNC_ENQUEUE_ATTEMPTS; attempt++) {
-    try {
-      jobId = await jobQueue.enqueue('workflow-execution', payload, enqueueOptions)
-      enqueueError = undefined
-      break
-    } catch (error) {
-      enqueueError = error
-      const classifiedError = isAsyncJobEnqueueError(error) ? error : undefined
-      const attemptAcceptance = classifiedError?.acceptance ?? 'unknown'
-      acceptanceCouldBeUnknown ||= attemptAcceptance === 'unknown'
-      asyncLogger.warn('Async workflow enqueue attempt failed', {
-        acceptance: attemptAcceptance,
-        attempt,
-        error: toError(error).message,
-        jobId: deterministicJobId,
-      })
-      if (classifiedError?.retryable === false || attempt === ASYNC_ENQUEUE_ATTEMPTS) {
-        break
-      }
-    }
-  }
-
-  if (!jobId) {
-    const acceptance = acceptanceCouldBeUnknown
-      ? 'unknown'
-      : isAsyncJobEnqueueError(enqueueError)
-        ? enqueueError.acceptance
-        : 'unknown'
-    asyncLogger.error('Failed to queue async execution', {
-      acceptance,
-      error: toError(enqueueError).message,
-      jobId: deterministicJobId,
-    })
-
-    if (acceptance === 'rejected') {
-      await releaseExecutionSlot(executionId)
-      return {
-        response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
-        retainExecutionClaim: false,
-      }
-    }
-
+  if (enqueue.outcome === 'ambiguous') {
     return {
       response: NextResponse.json(
         {
           error: 'Async execution queue acceptance could not be confirmed',
           code: 'ASYNC_ENQUEUE_AMBIGUOUS',
-          executionId,
+          executionId: enqueue.executionId,
         },
-        { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: executionId } }
+        { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: enqueue.executionId } }
       ),
       retainExecutionClaim: true,
     }
-  }
-
-  asyncLogger.info('Queued async workflow execution', { jobId })
-
-  if (shouldExecuteInline()) {
-    void (async () => {
-      let workerOwnsReservation = false
-      try {
-        await jobQueue.startJob(jobId)
-        workerOwnsReservation = true
-        const output = await executeWorkflowJob(payload)
-        await jobQueue.completeJob(jobId, output)
-      } catch (error) {
-        const errorMessage = toError(error).message
-        asyncLogger.error('Async workflow execution failed', {
-          jobId,
-          error: errorMessage,
-        })
-        /**
-         * Before worker ownership transfers, no LoggingSession exists to
-         * release the route's reservation.
-         */
-        if (!workerOwnsReservation) {
-          await releaseExecutionSlot(executionId)
-        }
-        try {
-          await jobQueue.markJobFailed(jobId, errorMessage)
-        } catch (markFailedError) {
-          asyncLogger.error('Failed to mark job as failed', {
-            jobId,
-            error: toError(markFailedError).message,
-          })
-        }
-      }
-    })()
   }
 
   return {
@@ -498,10 +362,10 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
       {
         success: true,
         async: true,
-        jobId,
-        executionId,
+        jobId: enqueue.jobId,
+        executionId: enqueue.executionId,
         message: 'Workflow execution queued',
-        statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
+        statusUrl: `${getBaseUrl()}/api/jobs/${enqueue.jobId}`,
       },
       { status: 202 }
     ),
@@ -726,6 +590,24 @@ async function handleExecutePost(
     if (isPublicApiAccess && isClientSession) {
       return NextResponse.json(
         { error: 'Public API callers cannot set isClientSession' },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * External callers may not override the trigger type: `manual`/`chat` turn
+     * rate limiting off entirely (`preprocessExecution` defaults `checkRateLimit`
+     * from the trigger type), so a caller-supplied value is a quota bypass.
+     * `'api'` (the value they would get anyway) stays accepted for compatibility
+     * with callers that send it redundantly.
+     */
+    if (
+      (auth.authType === AuthType.API_KEY || isPublicApiAccess) &&
+      body.triggerType !== undefined &&
+      body.triggerType !== 'api'
+    ) {
+      return NextResponse.json(
+        { error: 'External callers cannot override triggerType' },
         { status: 400 }
       )
     }

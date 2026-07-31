@@ -334,7 +334,9 @@
                     "isDeployed": true,
                     "deployedAt": "2026-06-12T10:30:00.000Z",
                     "version": 4,
-                    "warnings": []
+                    "warnings": [],
+                    "activeDeployment": null,
+                    "latestDeploymentAttempt": null
                   }
                 }
               }
@@ -411,7 +413,9 @@
                     "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                     "isDeployed": false,
                     "deployedAt": null,
-                    "warnings": []
+                    "warnings": [],
+                    "activeDeployment": null,
+                    "latestDeploymentAttempt": null
                   }
                 }
               }
@@ -508,7 +512,9 @@
                     "isDeployed": true,
                     "deployedAt": "2026-06-12T10:30:00.000Z",
                     "version": 3,
-                    "warnings": []
+                    "warnings": [],
+                    "activeDeployment": null,
+                    "latestDeploymentAttempt": null
                   }
                 }
               }
@@ -675,6 +681,558 @@
           },
           "423": {
             "$ref": "#/components/responses/Locked"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/execute": {
+      "post": {
+        "operationId": "executeWorkflowV2",
+        "summary": "Execute a workflow",
+        "description": "Executes a deployed workflow. Auth: `X-API-Key`, or no key at all for workflows deployed with public API access (sync/stream only). Modes are body-selected — there are no mode headers on v2: `\"async\": true` queues the run and returns a 202 receipt whose `statusUrl` is the executions resource; `\"stream\": true` returns Server-Sent Events (no `{data}` envelope on frames; `includeThinking`/`includeToolCalls` additionally require the `X-Sim-Stream-Protocol: agent-events-v1` header). Sync runs return the execution resource: a failed run is HTTP 200 with `status: \"failed\"` and the structured error (the sync timeout is `status:\"failed\"` + `error.code:\"TIMEOUT\"`). A Response block's declared payload stays inside `output` — workflow authors never control response status or headers. Optional `X-Execution-Id` request header (keyed callers only) makes the run idempotent; a reused id returns 409. Rate limiting uses the workflow execution buckets (async runs debit the larger async bucket) and 429s carry `Retry-After`; execute responses do not carry `X-RateLimit-*` headers.",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Bodies over 10 MB are rejected with 413. Unknown keys are rejected (strict schema).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Workflow input, keyed by the deployed API trigger's input fields."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Queue the run; poll the returned statusUrl. Not combinable with stream/output options; requires an API key."
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Stream block outputs as Server-Sent Events."
+                  },
+                  "selectedOutputs": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": "Restrict streamed outputs to specific `BlockName.path` refs."
+                  },
+                  "includeThinking": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "includeToolCalls": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "includeFileBase64": {
+                    "type": "boolean"
+                  },
+                  "base64MaxBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10485760
+                  }
+                }
+              },
+              "example": {
+                "input": {
+                  "key": "value"
+                }
+              },
+              "examples": {
+                "sync": {
+                  "summary": "Synchronous run",
+                  "value": {
+                    "input": {
+                      "key": "value"
+                    }
+                  }
+                },
+                "async": {
+                  "summary": "Queued run",
+                  "value": {
+                    "input": {
+                      "key": "value"
+                    },
+                    "async": true
+                  }
+                },
+                "stream": {
+                  "summary": "SSE stream",
+                  "value": {
+                    "input": {
+                      "key": "value"
+                    },
+                    "stream": true,
+                    "selectedOutputs": ["Agent.content"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The execution resource. Served with `Cache-Control: private, no-store` and the `X-Execution-Id` header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExecutionResource"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "executionId": "8f14e45f-ceea-467f-a",
+                    "workflowId": "wf_123",
+                    "status": "completed",
+                    "output": {
+                      "result": "done"
+                    },
+                    "error": null,
+                    "startedAt": "2026-07-31T00:00:00.000Z",
+                    "endedAt": "2026-07-31T00:00:01.000Z",
+                    "durationMs": 1000
+                  }
+                },
+                "examples": {
+                  "completed": {
+                    "summary": "Completed run",
+                    "value": {
+                      "data": {
+                        "executionId": "exec_1",
+                        "workflowId": "wf_123",
+                        "status": "completed",
+                        "output": {
+                          "result": "done"
+                        },
+                        "error": null,
+                        "durationMs": 1000
+                      }
+                    }
+                  },
+                  "failed": {
+                    "summary": "Failed run (still HTTP 200)",
+                    "value": {
+                      "data": {
+                        "executionId": "exec_2",
+                        "workflowId": "wf_123",
+                        "status": "failed",
+                        "output": {
+                          "partial": true
+                        },
+                        "error": {
+                          "message": "Invalid credentials",
+                          "code": "BLOCK_EXECUTION_FAILED",
+                          "blockId": "b_9",
+                          "blockName": "Send Email",
+                          "blockType": "gmail"
+                        },
+                        "durationMs": 310
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Queued (async). Poll `statusUrl` until `status` is terminal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["executionId", "statusUrl"],
+                      "properties": {
+                        "executionId": {
+                          "type": "string"
+                        },
+                        "statusUrl": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "executionId": "exec_1",
+                    "statusUrl": "https://www.sim.ai/api/v2/workflows/wf_123/executions/exec_1"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "The `X-Execution-Id` was already used.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the 10 MB limit."
+          },
+          "503": {
+            "description": "Execution infrastructure temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/executions/{executionId}": {
+      "get": {
+        "operationId": "getWorkflowExecutionV2",
+        "summary": "Get execution status",
+        "description": "The single status URL for sync and async runs. Freshly queued async runs report `queued` (backfilled from the job queue before the durable record exists), then `running`, then a terminal status. Failed runs carry the structured error. `includeOutput=true` adds the final output on completed runs; `selectedOutputs` extracts specific block outputs.",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "includeOutput",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": ["true", "false"]
+            }
+          },
+          {
+            "name": "selectedOutputs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated `blockId.path` selectors."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The execution status resource.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "executionId",
+                        "workflowId",
+                        "status",
+                        "trigger",
+                        "startedAt",
+                        "endedAt",
+                        "durationMs",
+                        "paused",
+                        "cost",
+                        "error",
+                        "output",
+                        "blockOutputs"
+                      ],
+                      "properties": {
+                        "executionId": {
+                          "type": "string"
+                        },
+                        "workflowId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "queued",
+                            "pending",
+                            "running",
+                            "completed",
+                            "failed",
+                            "cancelled",
+                            "paused"
+                          ]
+                        },
+                        "trigger": {
+                          "type": ["string", "null"]
+                        },
+                        "startedAt": {
+                          "type": ["string", "null"]
+                        },
+                        "endedAt": {
+                          "type": ["string", "null"]
+                        },
+                        "durationMs": {
+                          "type": ["number", "null"]
+                        },
+                        "paused": {
+                          "type": ["object", "null"],
+                          "description": "Pause detail for human-in-the-loop runs."
+                        },
+                        "cost": {
+                          "type": ["object", "null"],
+                          "properties": {
+                            "total": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "error": {
+                          "oneOf": [
+                            {
+                              "$ref": "#/components/schemas/ExecutionError"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "output": {
+                          "description": "Final output; only with `includeOutput=true` on completed runs."
+                        },
+                        "blockOutputs": {
+                          "type": ["object", "null"]
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "executionId": "exec_1",
+                    "workflowId": "wf_123",
+                    "status": "completed",
+                    "trigger": "api",
+                    "startedAt": "2026-07-31T00:00:00.000Z",
+                    "endedAt": "2026-07-31T00:00:01.000Z",
+                    "durationMs": 1000,
+                    "paused": null,
+                    "cost": {
+                      "total": 0.02
+                    },
+                    "error": null,
+                    "output": null,
+                    "blockOutputs": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/executions/{executionId}/cancel": {
+      "post": {
+        "operationId": "cancelExecutionV2",
+        "summary": "Cancel an execution",
+        "description": "Cancels a running or paused execution. `reason` explains how the cancellation was recorded.",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancellation outcome.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "success",
+                        "executionId",
+                        "redisAvailable",
+                        "durablyRecorded",
+                        "locallyAborted",
+                        "pausedCancelled"
+                      ],
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        },
+                        "executionId": {
+                          "type": "string"
+                        },
+                        "redisAvailable": {
+                          "type": "boolean"
+                        },
+                        "durablyRecorded": {
+                          "type": "boolean"
+                        },
+                        "locallyAborted": {
+                          "type": "boolean"
+                        },
+                        "pausedCancelled": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "enum": [
+                            "recorded",
+                            "redis_unavailable",
+                            "redis_write_failed",
+                            "paused_event_publish_failed",
+                            "paused_database_cancel_failed"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "success": true,
+                    "executionId": "exec_1",
+                    "redisAvailable": true,
+                    "durablyRecorded": true,
+                    "locallyAborted": false,
+                    "pausedCancelled": false,
+                    "reason": "recorded"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
@@ -931,7 +1489,14 @@
       "DeploymentState": {
         "type": "object",
         "description": "Base deployment state shared by deploy, undeploy, and rollback results.",
-        "required": ["id", "isDeployed", "deployedAt", "warnings"],
+        "required": [
+          "id",
+          "isDeployed",
+          "deployedAt",
+          "warnings",
+          "activeDeployment",
+          "latestDeploymentAttempt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -955,6 +1520,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "activeDeployment": {
+            "type": ["object", "null"],
+            "description": "Summary of the currently live deployment version, or null when none is active."
+          },
+          "latestDeploymentAttempt": {
+            "type": ["object", "null"],
+            "description": "Lifecycle status of the most recent deploy attempt (preparing/activating/active/failed/superseded) — poll this to a terminal state; deploys admit asynchronously, so HTTP success only means the attempt was accepted."
           }
         }
       },
@@ -1117,6 +1690,77 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ExecutionError": {
+        "type": "object",
+        "required": ["message", "code"],
+        "description": "Structured execution error. Route on `code` (append-only enum) instead of matching message text. Block fields identify the failing block when attributable — with the executionId they form the reproducible handle to hand a shared workflow's provider.",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "TIMEOUT",
+              "CANCELLED",
+              "USAGE_LIMIT_EXCEEDED",
+              "INVALID_INPUT",
+              "BLOCK_EXECUTION_FAILED",
+              "CHILD_WORKFLOW_FAILED",
+              "OUTPUT_TOO_LARGE",
+              "EXECUTION_FAILED"
+            ]
+          },
+          "blockId": {
+            "type": "string"
+          },
+          "blockName": {
+            "type": "string"
+          },
+          "blockType": {
+            "type": "string"
+          }
+        }
+      },
+      "ExecutionResource": {
+        "type": "object",
+        "required": ["executionId", "workflowId", "status", "output", "error"],
+        "description": "The execution result resource. An executionId always means 200/202 with data; only pre-execution failures use the error envelope. In-band run failures are status 'failed' with the structured error — never an HTTP error status.",
+        "properties": {
+          "executionId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": ["completed", "failed", "paused", "cancelled"]
+          },
+          "output": {
+            "description": "Workflow output (partial output is preserved on failures)."
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "type": "number"
           }
         }
       }

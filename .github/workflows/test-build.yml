@@ -123,6 +123,9 @@ jobs:
       - name: API contract boundary audit
         run: bun run check:api-validation:strict
 
+      - name: OpenAPI spec validation
+        run: bun run check:openapi
+
       - name: Desktop bridge contract audit
         run: bun run check:desktop-bridge
 

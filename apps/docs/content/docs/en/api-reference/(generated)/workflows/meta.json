@@ -6,6 +6,9 @@
     "importWorkflow",
     "deployWorkflow",
     "undeployWorkflow",
-    "rollbackWorkflow"
+    "rollbackWorkflow",
+    "executeWorkflowV2",
+    "getWorkflowExecutionV2",
+    "cancelExecutionV2"
   ]
 }

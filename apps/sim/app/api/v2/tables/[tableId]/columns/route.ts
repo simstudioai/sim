@@ -19,6 +19,7 @@ import {
 } from '@/lib/table'
 import { checkAccess, normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
   v2Error,
@@ -26,7 +27,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { v2TableAccessError, v2TablesGateError } from '@/app/api/v2/tables/utils'
+import { v2TableAccessError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableColumnsAPI')
 
@@ -46,6 +47,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2AddTableColumnContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -64,9 +69,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     if (table.workspaceId !== validated.workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
-
-    const gateError = await v2TablesGateError(userId, validated.workspaceId)
-    if (gateError) return gateError
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
 
@@ -111,6 +113,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(v2UpdateTableColumnContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
@@ -129,9 +135,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (table.workspaceId !== validated.workspaceId) {
       return v2Error('NOT_FOUND', 'Table not found')
     }
-
-    const gateError = await v2TablesGateError(userId, validated.workspaceId)
-    if (gateError) return gateError
 
     const { updates } = validated
     let updatedTable = null
@@ -217,6 +220,10 @@ export const DELETE = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2DeleteTableColumnContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })
@@ -235,9 +242,6 @@ export const DELETE = withRouteHandler(
       if (table.workspaceId !== validated.workspaceId) {
         return v2Error('NOT_FOUND', 'Table not found')
       }
-
-      const gateError = await v2TablesGateError(userId, validated.workspaceId)
-      if (gateError) return gateError
 
       const updatedTable = await deleteColumn(
         { tableId, columnName: validated.columnName },

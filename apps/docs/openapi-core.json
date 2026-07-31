@@ -1109,16 +1109,16 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "$ref": "#/components/responses/V2BadRequest"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/V2Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "$ref": "#/components/responses/V2Forbidden"
           },
           "429": {
-            "$ref": "#/components/responses/RateLimited"
+            "$ref": "#/components/responses/V2RateLimited"
           }
         }
       }
@@ -1260,16 +1260,16 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "$ref": "#/components/responses/V2BadRequest"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/V2Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "$ref": "#/components/responses/V2Forbidden"
           },
           "429": {
-            "$ref": "#/components/responses/RateLimited"
+            "$ref": "#/components/responses/V2RateLimited"
           }
         }
       }
@@ -1316,306 +1316,6 @@
       }
     },
     "schemas": {
-      "ColumnDefinition": {
-        "type": "object",
-        "description": "Definition of a table column including its type and constraints.",
-        "required": ["name", "type"],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Column name. Must start with a letter or underscore.",
-            "example": "email",
-            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["string", "number", "boolean", "date", "json"],
-            "description": "Data type of the column."
-          },
-          "required": {
-            "type": "boolean",
-            "description": "Whether the column requires a value on insert.",
-            "default": false
-          },
-          "unique": {
-            "type": "boolean",
-            "description": "Whether values in this column must be unique across all rows.",
-            "default": false
-          }
-        }
-      },
-      "Table": {
-        "type": "object",
-        "description": "A user-defined table with a typed schema.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique table identifier.",
-            "example": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14"
-          },
-          "name": {
-            "type": "string",
-            "description": "Table name.",
-            "example": "contacts"
-          },
-          "description": {
-            "type": "string",
-            "description": "Optional description of the table.",
-            "example": "Customer contact records"
-          },
-          "schema": {
-            "type": "object",
-            "description": "Table schema definition.",
-            "properties": {
-              "columns": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ColumnDefinition"
-                },
-                "description": "Array of column definitions for the table."
-              }
-            }
-          },
-          "rowCount": {
-            "type": "integer",
-            "description": "Current number of rows in the table."
-          },
-          "maxRows": {
-            "type": "integer",
-            "description": "Maximum rows allowed by the current billing plan."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the table was created."
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the table was last modified."
-          }
-        }
-      },
-      "TableRow": {
-        "type": "object",
-        "description": "A single row in a table.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique row identifier.",
-            "example": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07"
-          },
-          "data": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "Row data as key-value pairs matching the table schema."
-          },
-          "position": {
-            "type": "integer",
-            "description": "Row's position/order in the table."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the row was created."
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the row was last modified."
-          }
-        }
-      },
-      "WorkflowSummary": {
-        "type": "object",
-        "description": "Summary representation of a workflow returned in list operations.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique workflow identifier.",
-            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-          },
-          "name": {
-            "type": "string",
-            "description": "Human-readable workflow name.",
-            "example": "Customer Support Agent"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "description": "Optional description of what the workflow does.",
-            "example": "Routes incoming support tickets and drafts responses"
-          },
-          "folderId": {
-            "type": "string",
-            "nullable": true,
-            "description": "The folder this workflow belongs to. null if at the workspace root.",
-            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
-          },
-          "workspaceId": {
-            "type": "string",
-            "description": "The workspace this workflow belongs to.",
-            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-          },
-          "isDeployed": {
-            "type": "boolean",
-            "description": "Whether the workflow is currently deployed and available for API execution.",
-            "example": true
-          },
-          "deployedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "ISO 8601 timestamp of the most recent deployment. null if never deployed.",
-            "example": "2025-06-15T10:30:00Z"
-          },
-          "runCount": {
-            "type": "integer",
-            "description": "Total number of times this workflow has been executed.",
-            "example": 142
-          },
-          "lastRunAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "ISO 8601 timestamp of the most recent execution. null if never run.",
-            "example": "2025-06-20T14:15:22Z"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the workflow was created.",
-            "example": "2025-01-10T09:00:00Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the workflow was last modified.",
-            "example": "2025-06-18T16:45:00Z"
-          }
-        }
-      },
-      "WorkflowDetail": {
-        "type": "object",
-        "description": "Full workflow representation including input field definitions and configuration.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique workflow identifier.",
-            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-          },
-          "name": {
-            "type": "string",
-            "description": "Human-readable workflow name.",
-            "example": "Customer Support Agent"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "description": "Optional description of what the workflow does.",
-            "example": "Routes incoming support tickets and drafts responses"
-          },
-          "folderId": {
-            "type": "string",
-            "nullable": true,
-            "description": "The folder this workflow belongs to. null if at the workspace root.",
-            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
-          },
-          "workspaceId": {
-            "type": "string",
-            "description": "The workspace this workflow belongs to.",
-            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-          },
-          "isDeployed": {
-            "type": "boolean",
-            "description": "Whether the workflow is currently deployed and available for API execution.",
-            "example": true
-          },
-          "deployedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "ISO 8601 timestamp of the most recent deployment. null if never deployed.",
-            "example": "2025-06-15T10:30:00Z"
-          },
-          "runCount": {
-            "type": "integer",
-            "description": "Total number of times this workflow has been executed.",
-            "example": 142
-          },
-          "lastRunAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "ISO 8601 timestamp of the most recent execution. null if never run.",
-            "example": "2025-06-20T14:15:22Z"
-          },
-          "variables": {
-            "type": "object",
-            "description": "Workflow-level variables and their current values.",
-            "example": {}
-          },
-          "inputs": {
-            "type": "object",
-            "description": "The workflow's input field definitions. Use these to construct the input object when executing the workflow.",
-            "properties": {
-              "fields": {
-                "type": "object",
-                "description": "Map of field names to their type definitions and configuration.",
-                "additionalProperties": true,
-                "example": {}
-              }
-            }
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the workflow was created.",
-            "example": "2025-01-10T09:00:00Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the workflow was last modified.",
-            "example": "2025-06-18T16:45:00Z"
-          }
-        }
-      },
-      "WorkflowDeployment": {
-        "type": "object",
-        "description": "Deployment state of a workflow after a deploy, undeploy, or rollback operation.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique workflow identifier.",
-            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-          },
-          "isDeployed": {
-            "type": "boolean",
-            "description": "Whether the workflow is deployed and available for API execution after the operation.",
-            "example": true
-          },
-          "deployedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "ISO 8601 timestamp of the active deployment. null after an undeploy.",
-            "example": "2026-06-12T10:30:00Z"
-          },
-          "version": {
-            "type": "integer",
-            "description": "The deployment version that is now active. Omitted for undeploy.",
-            "example": 4
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Non-fatal warnings. Present when trigger, schedule, or MCP side-effect sync is still in progress or needs a redeploy."
-          }
-        }
-      },
       "ExecutionResult": {
         "type": "object",
         "description": "Result of a synchronous workflow execution.",
@@ -1703,230 +1403,6 @@
             "format": "uri",
             "description": "URL to poll for execution status and results. Returns the full execution result once complete.",
             "example": "https://www.sim.ai/api/jobs/job_4a3b2c1d0e"
-          }
-        }
-      },
-      "LogEntry": {
-        "type": "object",
-        "description": "Summary of a single workflow execution log entry.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique log entry identifier.",
-            "example": "log_7x8y9z0a1b"
-          },
-          "workflowId": {
-            "type": "string",
-            "description": "The workflow that was executed.",
-            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-          },
-          "executionId": {
-            "type": "string",
-            "description": "Unique execution identifier for this run.",
-            "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
-          },
-          "level": {
-            "type": "string",
-            "description": "Log severity. info for successful executions, error for failures.",
-            "example": "info"
-          },
-          "trigger": {
-            "type": "string",
-            "description": "How the execution was triggered (e.g., api, manual, webhook, schedule, chat).",
-            "example": "api"
-          },
-          "startedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when execution started.",
-            "example": "2025-06-20T14:15:22Z"
-          },
-          "endedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when execution completed.",
-            "example": "2025-06-20T14:15:23Z"
-          },
-          "totalDurationMs": {
-            "type": "integer",
-            "description": "Total execution duration in milliseconds.",
-            "example": 1250
-          },
-          "cost": {
-            "type": "object",
-            "description": "Cost summary for this execution.",
-            "properties": {
-              "total": {
-                "type": "number",
-                "description": "Total cost of this execution in USD.",
-                "example": 0.0032
-              }
-            }
-          },
-          "files": {
-            "type": "object",
-            "nullable": true,
-            "description": "File outputs produced during execution. null if no files were generated.",
-            "example": null
-          }
-        }
-      },
-      "LogDetail": {
-        "type": "object",
-        "description": "Detailed log entry with full execution data, workflow metadata, and cost breakdown.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique log entry identifier.",
-            "example": "log_7x8y9z0a1b"
-          },
-          "workflowId": {
-            "type": "string",
-            "description": "The workflow that was executed.",
-            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-          },
-          "executionId": {
-            "type": "string",
-            "description": "Unique execution identifier for this run.",
-            "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
-          },
-          "level": {
-            "type": "string",
-            "description": "Log severity. info for successful executions, error for failures.",
-            "example": "info"
-          },
-          "trigger": {
-            "type": "string",
-            "description": "How the execution was triggered (e.g., api, manual, webhook, schedule, chat).",
-            "example": "api"
-          },
-          "startedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when execution started.",
-            "example": "2025-06-20T14:15:22Z"
-          },
-          "endedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when execution completed.",
-            "example": "2025-06-20T14:15:23Z"
-          },
-          "totalDurationMs": {
-            "type": "integer",
-            "description": "Total execution duration in milliseconds.",
-            "example": 1250
-          },
-          "workflow": {
-            "type": "object",
-            "description": "Summary metadata about the workflow at the time of execution.",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique workflow identifier.",
-                "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-              },
-              "name": {
-                "type": "string",
-                "description": "Workflow name at the time of execution.",
-                "example": "Customer Support Agent"
-              },
-              "description": {
-                "type": "string",
-                "nullable": true,
-                "description": "Workflow description at the time of execution.",
-                "example": "Routes incoming support tickets and drafts responses"
-              }
-            }
-          },
-          "executionData": {
-            "type": "object",
-            "description": "Detailed execution data including block-level traces and final output.",
-            "properties": {
-              "traceSpans": {
-                "type": "array",
-                "description": "Block-level execution traces with timing, inputs, and outputs for each block that ran.",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "finalOutput": {
-                "type": "object",
-                "description": "The workflow's final output after all blocks completed."
-              }
-            }
-          },
-          "cost": {
-            "type": "object",
-            "description": "Detailed cost breakdown for this execution.",
-            "properties": {
-              "total": {
-                "type": "number",
-                "description": "Total cost of this execution in USD.",
-                "example": 0.0032
-              },
-              "tokens": {
-                "type": "object",
-                "description": "Aggregate token usage across all AI model calls in this execution.",
-                "properties": {
-                  "prompt": {
-                    "type": "integer",
-                    "description": "Total prompt (input) tokens consumed.",
-                    "example": 450
-                  },
-                  "completion": {
-                    "type": "integer",
-                    "description": "Total completion (output) tokens generated.",
-                    "example": 120
-                  },
-                  "total": {
-                    "type": "integer",
-                    "description": "Total tokens (prompt + completion).",
-                    "example": 570
-                  }
-                }
-              },
-              "models": {
-                "type": "object",
-                "description": "Per-model cost and token breakdown. Keys are model identifiers (e.g., gpt-4o, claude-sonnet-4-20250514).",
-                "additionalProperties": {
-                  "type": "object",
-                  "description": "Cost and token details for a specific model.",
-                  "properties": {
-                    "input": {
-                      "type": "number",
-                      "description": "Cost of prompt tokens for this model in USD."
-                    },
-                    "output": {
-                      "type": "number",
-                      "description": "Cost of completion tokens for this model in USD."
-                    },
-                    "total": {
-                      "type": "number",
-                      "description": "Total cost for this model in USD."
-                    },
-                    "tokens": {
-                      "type": "object",
-                      "description": "Token usage for this specific model.",
-                      "properties": {
-                        "prompt": {
-                          "type": "integer",
-                          "description": "Prompt tokens consumed by this model."
-                        },
-                        "completion": {
-                          "type": "integer",
-                          "description": "Completion tokens generated by this model."
-                        },
-                        "total": {
-                          "type": "integer",
-                          "description": "Total tokens for this model."
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
           }
         }
       },
@@ -2127,81 +1603,6 @@
           }
         }
       },
-      "AuditLogEntry": {
-        "type": "object",
-        "description": "An enterprise audit log entry recording an action taken in the workspace.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique identifier for the audit log entry.",
-            "example": "audit_2c3d4e5f6g"
-          },
-          "workspaceId": {
-            "type": "string",
-            "nullable": true,
-            "description": "The workspace where the action occurred.",
-            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-          },
-          "actorId": {
-            "type": "string",
-            "nullable": true,
-            "description": "The user ID of the person who performed the action.",
-            "example": "user_abc123"
-          },
-          "actorName": {
-            "type": "string",
-            "nullable": true,
-            "description": "Display name of the person who performed the action.",
-            "example": "Jane Smith"
-          },
-          "actorEmail": {
-            "type": "string",
-            "nullable": true,
-            "description": "Email address of the person who performed the action.",
-            "example": "jane@example.com"
-          },
-          "action": {
-            "type": "string",
-            "description": "The action that was performed (e.g., workflow.created, member.invited).",
-            "example": "workflow.deployed"
-          },
-          "resourceType": {
-            "type": "string",
-            "description": "The type of resource affected (e.g., workflow, workspace, member).",
-            "example": "workflow"
-          },
-          "resourceId": {
-            "type": "string",
-            "nullable": true,
-            "description": "The unique identifier of the affected resource.",
-            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
-          },
-          "resourceName": {
-            "type": "string",
-            "nullable": true,
-            "description": "Display name of the affected resource.",
-            "example": "Customer Support Agent"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "description": "Human-readable description of the action.",
-            "example": "Deployed workflow Customer Support Agent"
-          },
-          "metadata": {
-            "type": "object",
-            "nullable": true,
-            "description": "Additional context about the action.",
-            "example": null
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the action occurred.",
-            "example": "2025-06-20T14:15:22Z"
-          }
-        }
-      },
       "UsageLimits": {
         "type": "object",
         "description": "Current usage and storage information for the authenticated user.",
@@ -2245,347 +1646,6 @@
                 "description": "Percentage of storage used (0-100)."
               }
             }
-          }
-        }
-      },
-      "FileMetadata": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique file identifier.",
-            "example": "wf_V1StGXR8z5jdHi6BmyT91"
-          },
-          "name": {
-            "type": "string",
-            "description": "Original filename.",
-            "example": "data.csv"
-          },
-          "size": {
-            "type": "integer",
-            "description": "File size in bytes.",
-            "example": 1024
-          },
-          "type": {
-            "type": "string",
-            "description": "MIME type of the file.",
-            "example": "text/csv"
-          },
-          "key": {
-            "type": "string",
-            "description": "Storage key for the file.",
-            "example": "workspace/abc-123/1709571234-xyz-data.csv"
-          },
-          "uploadedBy": {
-            "type": "string",
-            "description": "User ID of the uploader."
-          },
-          "uploadedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp of when the file was uploaded."
-          }
-        }
-      },
-      "KnowledgeBase": {
-        "type": "object",
-        "description": "A knowledge base for storing and searching document embeddings.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique knowledge base identifier."
-          },
-          "name": {
-            "type": "string",
-            "description": "Knowledge base name."
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "description": "Optional description."
-          },
-          "tokenCount": {
-            "type": "integer",
-            "description": "Total token count across all documents."
-          },
-          "embeddingModel": {
-            "type": "string",
-            "description": "Embedding model used (e.g. text-embedding-3-small)."
-          },
-          "embeddingDimension": {
-            "type": "integer",
-            "description": "Embedding vector dimension."
-          },
-          "chunkingConfig": {
-            "$ref": "#/components/schemas/ChunkingConfig"
-          },
-          "docCount": {
-            "type": "integer",
-            "description": "Number of documents in the knowledge base."
-          },
-          "connectorTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Types of connectors attached to this knowledge base."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the knowledge base was created."
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the knowledge base was last modified."
-          }
-        }
-      },
-      "ChunkingConfig": {
-        "type": "object",
-        "description": "Configuration for how documents are split into chunks for embedding.",
-        "properties": {
-          "maxSize": {
-            "type": "integer",
-            "minimum": 100,
-            "maximum": 4000,
-            "default": 1024,
-            "description": "Maximum chunk size in tokens."
-          },
-          "minSize": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 2000,
-            "default": 100,
-            "description": "Minimum chunk size in characters."
-          },
-          "overlap": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 500,
-            "default": 200,
-            "description": "Overlap between chunks in tokens."
-          }
-        }
-      },
-      "KnowledgeDocument": {
-        "type": "object",
-        "description": "A document in a knowledge base.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique document identifier."
-          },
-          "knowledgeBaseId": {
-            "type": "string",
-            "description": "Knowledge base this document belongs to."
-          },
-          "filename": {
-            "type": "string",
-            "description": "Original filename."
-          },
-          "fileSize": {
-            "type": "integer",
-            "description": "File size in bytes."
-          },
-          "mimeType": {
-            "type": "string",
-            "description": "MIME type of the file."
-          },
-          "processingStatus": {
-            "type": "string",
-            "enum": ["pending", "processing", "completed", "failed"],
-            "description": "Current processing status."
-          },
-          "chunkCount": {
-            "type": "integer",
-            "description": "Number of chunks created from this document."
-          },
-          "tokenCount": {
-            "type": "integer",
-            "description": "Total token count."
-          },
-          "characterCount": {
-            "type": "integer",
-            "description": "Total character count."
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "Whether the document is enabled for search."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the document was uploaded."
-          }
-        }
-      },
-      "KnowledgeDocumentDetail": {
-        "type": "object",
-        "description": "Detailed document information including processing and connector details.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique document identifier."
-          },
-          "knowledgeBaseId": {
-            "type": "string",
-            "description": "Knowledge base this document belongs to."
-          },
-          "filename": {
-            "type": "string",
-            "description": "Original filename."
-          },
-          "fileSize": {
-            "type": "integer",
-            "description": "File size in bytes."
-          },
-          "mimeType": {
-            "type": "string",
-            "description": "MIME type of the file."
-          },
-          "processingStatus": {
-            "type": "string",
-            "enum": ["pending", "processing", "completed", "failed"],
-            "description": "Current processing status."
-          },
-          "processingError": {
-            "type": "string",
-            "nullable": true,
-            "description": "Error message if processing failed."
-          },
-          "processingStartedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "When processing started."
-          },
-          "processingCompletedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "When processing completed."
-          },
-          "chunkCount": {
-            "type": "integer",
-            "description": "Number of chunks created."
-          },
-          "tokenCount": {
-            "type": "integer",
-            "description": "Total token count."
-          },
-          "characterCount": {
-            "type": "integer",
-            "description": "Total character count."
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "Whether the document is enabled for search."
-          },
-          "connectorId": {
-            "type": "string",
-            "nullable": true,
-            "description": "Connector ID if sourced from an external connector."
-          },
-          "connectorType": {
-            "type": "string",
-            "nullable": true,
-            "description": "Connector type (e.g. google-drive, notion)."
-          },
-          "sourceUrl": {
-            "type": "string",
-            "nullable": true,
-            "description": "Original source URL for connector-sourced documents."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "ISO 8601 timestamp when the document was uploaded."
-          }
-        }
-      },
-      "SearchResult": {
-        "type": "object",
-        "description": "A single search result from knowledge base vector search.",
-        "properties": {
-          "documentId": {
-            "type": "string",
-            "description": "ID of the source document."
-          },
-          "documentName": {
-            "type": "string",
-            "description": "Filename of the source document."
-          },
-          "sourceUrl": {
-            "type": "string",
-            "nullable": true,
-            "description": "URL to the original source document for connector-synced documents (e.g., a Confluence page, Google Doc, or Notion page). Null for documents without an external source."
-          },
-          "content": {
-            "type": "string",
-            "description": "The matched chunk content."
-          },
-          "chunkIndex": {
-            "type": "integer",
-            "description": "Index of the chunk within the document."
-          },
-          "metadata": {
-            "type": "object",
-            "description": "Tag metadata associated with the chunk (display names mapped to values)."
-          },
-          "similarity": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1,
-            "description": "Similarity score (0-1, where 1 is most similar)."
-          }
-        }
-      },
-      "TagFilter": {
-        "type": "object",
-        "description": "A tag-based filter for knowledge base search.",
-        "required": ["tagName", "value"],
-        "properties": {
-          "tagName": {
-            "type": "string",
-            "description": "Display name of the tag to filter by."
-          },
-          "fieldType": {
-            "type": "string",
-            "enum": ["text", "number", "date", "boolean"],
-            "default": "text",
-            "description": "Data type of the tag field."
-          },
-          "operator": {
-            "type": "string",
-            "default": "eq",
-            "description": "Comparison operator (e.g. eq, neq, gt, lt, gte, lte, contains, between)."
-          },
-          "value": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              }
-            ],
-            "description": "Value to filter by."
-          },
-          "valueTo": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "description": "Upper bound value for 'between' operator."
           }
         }
       },
@@ -2928,6 +1988,28 @@
             }
           }
         }
+      },
+      "V2Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. `BAD_REQUEST`, `FORBIDDEN`, `RATE_LIMITED`."
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "description": "Optional structured context (e.g. per-field validation issues)."
+              }
+            }
+          }
+        }
       }
     },
     "responses": {
@@ -3070,6 +2152,46 @@
                   "row_2a4c6e8d0b1f4d3e917c5b7d9f1a3c85"
                 ]
               }
+            }
+          }
+        }
+      },
+      "V2BadRequest": {
+        "description": "Invalid request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2Unauthorized": {
+        "description": "Missing or invalid API key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2Forbidden": {
+        "description": "The credential is not authorized for the requested resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2RateLimited": {
+        "description": "Rate limit exceeded; retry after the window resets.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
             }
           }
         }

@@ -551,7 +551,7 @@ const workflowExecutionStatusEnum = z.enum([
   'cancelled',
 ])
 
-const workflowExecutionPausedDetailSchema = z.object({
+export const workflowExecutionPausedDetailSchema = z.object({
   pausedAt: z.string(),
   resumeAt: z.string().nullable(),
   pauseKind: z.enum(['time', 'human']).nullable(),
@@ -580,7 +580,7 @@ const workflowExecutionStatusResponseSchema = z.object({
 
 export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
 
-const workflowExecutionStatusQuerySchema = z.object({
+export const workflowExecutionStatusQuerySchema = z.object({
   includeOutput: z
     .enum(['true', 'false'])
     .optional()
@@ -598,6 +598,21 @@ const workflowExecutionStatusQuerySchema = z.object({
     ),
 })
 
+/**
+ * Full cancellation-outcome vocabulary — mirrors
+ * `CancelWorkflowExecutionReason` in `lib/execution/cancel-workflow-execution`
+ * (contracts stay import-clean of server modules). The paused-HITL path emits
+ * the two `paused_*` values; a narrower copy of this enum previously lived in
+ * `contracts/logs.ts` and made the client reject those responses.
+ */
+export const cancelWorkflowExecutionReasonSchema = z.enum([
+  'recorded',
+  'redis_unavailable',
+  'redis_write_failed',
+  'paused_event_publish_failed',
+  'paused_database_cancel_failed',
+])
+
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
@@ -605,7 +620,7 @@ const cancelWorkflowExecutionResponseSchema = z.object({
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
-  reason: z.string().optional(),
+  reason: cancelWorkflowExecutionReasonSchema.optional(),
 })
 
 const resumeWorkflowExecutionContextResponseSchema = z

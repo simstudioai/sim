@@ -17,6 +17,7 @@ import { deleteDocument } from '@/lib/knowledge/documents/service'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2KnowledgeDocumentDetailAPI')
@@ -59,6 +60,10 @@ export const GET = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2GetKnowledgeDocumentContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })
@@ -151,6 +156,10 @@ export const DELETE = withRouteHandler(
       if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
       const userId = rateLimit.userId!
+
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+
       const parsed = await parseRequest(v2DeleteKnowledgeDocumentContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { cancelWorkflowExecutionReasonSchema } from '@/lib/api/contracts/workflows'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
 
@@ -327,7 +328,7 @@ export const cancelWorkflowExecutionResponseSchema = z.object({
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
-  reason: z.enum(['recorded', 'redis_unavailable', 'redis_write_failed']),
+  reason: cancelWorkflowExecutionReasonSchema,
 })
 
 export type SegmentStats = z.output<typeof segmentStatsSchema>

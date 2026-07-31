@@ -11,6 +11,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import { v2BillingWorkspaceFilter } from '@/app/api/v2/billing/utils'
+import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2BillingUsageAPI')
@@ -32,6 +33,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
     const parsed = await parseRequest(
       v2GetUsageSummaryContract,
       request,

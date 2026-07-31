@@ -1,5 +1,4 @@
 import type { NextResponse } from 'next/server'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
@@ -8,7 +7,6 @@ import {
 } from '@/lib/table/query-builder/validate'
 import { predicateToStorage } from '@/lib/table/select-values'
 import type { Filter } from '@/lib/table/types'
-import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 import { normalizeColumn, rootErrorMessage, rowWriteErrorResponse } from '@/app/api/table/utils'
 import { v2Error } from '@/app/api/v2/lib/response'
 
@@ -23,23 +21,6 @@ import { v2Error } from '@/app/api/v2/lib/response'
 /** ISO-serializes a `Date | string` timestamp from the table service layer. */
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value)
-}
-
-/**
- * Rollout gate for the whole v2 tables surface (`tables-v2-api` flag).
- *
- * **Call this AFTER the authz check, never before.** Ahead of authz it does a
- * primary-DB read keyed on a caller-supplied `workspaceId`, and the 404-vs-403
- * split tells an unauthorized caller whether that workspace's org is in the
- * rollout cohort.
- */
-export async function v2TablesGateError(
-  userId: string,
-  workspaceId: string
-): Promise<NextResponse | null> {
-  const orgId = await getWorkspaceOrganizationId(workspaceId)
-  if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
-  return v2Error('NOT_FOUND', 'Not found')
 }
 
 /**

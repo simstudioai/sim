@@ -23,6 +23,9 @@ const DEFAULT_API_ALLOWED_HEADERS =
 const WORKFLOW_EXECUTE_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id'
 
+/** v2 execute: async is body-selected (no X-Execution-Mode) and streaming negotiates X-Sim-Stream-Protocol. */
+const WORKFLOW_EXECUTE_V2_HEADERS = `${WORKFLOW_EXECUTE_HEADERS}, X-Sim-Stream-Protocol`
+
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
 
@@ -80,6 +83,18 @@ const CORS_RULES: readonly CorsRule[] = [
       credentials: false,
       methods: 'GET,POST,OPTIONS,PUT',
       headers: WORKFLOW_EXECUTE_HEADERS,
+    }),
+  },
+  {
+    // Mirrors the v1 rule: public execute endpoints are wildcard-origin and
+    // credential-free — the default credentialed policy would both block
+    // browser API-key calls and open a cookie-bearing CSRF surface.
+    match: (p) => /^\/api\/v2\/workflows\/[^/]+\/execute$/.test(p),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'POST,OPTIONS',
+      headers: WORKFLOW_EXECUTE_V2_HEADERS,
     }),
   },
 ]

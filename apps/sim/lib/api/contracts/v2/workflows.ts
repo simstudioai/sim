@@ -9,7 +9,13 @@ import {
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
-import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
+import {
+  cancelWorkflowExecutionReasonSchema,
+  workflowExecutionParamsSchema,
+  workflowExecutionPausedDetailSchema,
+  workflowExecutionStatusQuerySchema,
+  workflowIdParamsSchema,
+} from '@/lib/api/contracts/workflows'
 
 /**
  * v2 workflows contracts. Request shapes are reused verbatim from v1 (the list
@@ -111,6 +117,148 @@ export const v2RollbackWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v1RollbackWorkflowDataSchema),
+  },
+})
+
+/**
+ * Structured execution error — mirrors `WorkflowExecutionErrorCode` in
+ * `@/executor/utils/errors` (duplicated literally: contracts are
+ * client-importable and must not pull executor modules). APPEND-ONLY: callers
+ * route on these instead of substring-matching messages.
+ */
+export const v2ExecutionErrorSchema = z.object({
+  message: z.string(),
+  code: z.enum([
+    'TIMEOUT',
+    'CANCELLED',
+    'USAGE_LIMIT_EXCEEDED',
+    'INVALID_INPUT',
+    'BLOCK_EXECUTION_FAILED',
+    'CHILD_WORKFLOW_FAILED',
+    'OUTPUT_TOO_LARGE',
+    'EXECUTION_FAILED',
+  ]),
+  /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the executionId + block context is the reproducible handle a caller hands the workflow provider. */
+  blockId: z.string().optional(),
+  blockName: z.string().optional(),
+  blockType: z.string().optional(),
+})
+export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
+
+/**
+ * Strict public execute body. Async is body-selected (`async: true`) — v2 has
+ * no `X-Execution-Mode`/`X-Stream-Response` headers. Internal caller facts
+ * (triggerType, draft state, deployment pinning) are NEVER wire fields; they
+ * are typed options on the execution service.
+ */
+export const v2ExecuteWorkflowBodySchema = z
+  .object({
+    input: z.record(z.string(), z.unknown()).optional(),
+    async: z.boolean().optional().default(false),
+    stream: z.boolean().optional().default(false),
+    selectedOutputs: z.array(z.string().min(1)).max(100).optional(),
+    includeThinking: z.boolean().optional().default(false),
+    includeToolCalls: z.boolean().optional().default(false),
+    includeFileBase64: z.boolean().optional(),
+    /** Caps inline base64 file hydration; bounded (v1 leaves it unbounded). */
+    base64MaxBytes: z
+      .number()
+      .int()
+      .positive()
+      .max(10 * 1024 * 1024)
+      .optional(),
+  })
+  .strict()
+export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>
+
+/**
+ * The execution result resource. In-band run failures are `status: 'failed'`
+ * with a structured `error` — never an HTTP error: **an `executionId` means
+ * 200/202 + `data`; no `executionId` means the `v2Error` envelope.** The sync
+ * timeout is `status:'failed'` + `error.code:'TIMEOUT'` (v1 returned 408).
+ */
+export const v2ExecuteWorkflowDataSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: z.enum(['completed', 'failed', 'paused', 'cancelled']),
+  output: z.unknown(),
+  error: v2ExecutionErrorSchema.nullable(),
+  startedAt: z.string().optional(),
+  endedAt: z.string().optional(),
+  durationMs: z.number().optional(),
+})
+export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
+
+/** 202 receipt for `async: true` — poll `statusUrl` (the v2 executions resource). */
+export const v2ExecuteWorkflowQueuedSchema = z.object({
+  executionId: z.string(),
+  statusUrl: z.string(),
+})
+export type V2ExecuteWorkflowQueued = z.output<typeof v2ExecuteWorkflowQueuedSchema>
+
+export const v2ExecuteWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/execute',
+  params: workflowIdParamsSchema,
+  body: v2ExecuteWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ExecuteWorkflowDataSchema),
+  },
+})
+
+/**
+ * The polled execution resource. `queued` is backfilled from the async job
+ * queue before the worker writes the durable log row — v1's jobs endpoint 404
+ * window doesn't exist here. `error` is the same structured object the execute
+ * response carries.
+ */
+export const v2WorkflowExecutionStatusSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: z.enum(['queued', 'pending', 'running', 'completed', 'failed', 'cancelled', 'paused']),
+  trigger: z.string().nullable(),
+  startedAt: z.string().nullable(),
+  endedAt: z.string().nullable(),
+  durationMs: z.number().nullable(),
+  paused: workflowExecutionPausedDetailSchema.nullable(),
+  cost: z.object({ total: z.number() }).nullable(),
+  error: v2ExecutionErrorSchema.nullable(),
+  /** Populated only with `includeOutput=true` on completed runs. */
+  output: z.unknown().nullable(),
+  blockOutputs: z.record(z.string(), z.unknown()).nullable(),
+})
+export type V2WorkflowExecutionStatus = z.output<typeof v2WorkflowExecutionStatusSchema>
+
+export const v2GetWorkflowExecutionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/executions/[executionId]',
+  params: workflowExecutionParamsSchema,
+  query: workflowExecutionStatusQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowExecutionStatusSchema),
+  },
+})
+
+export const v2CancelWorkflowExecutionDataSchema = z.object({
+  success: z.boolean(),
+  executionId: z.string(),
+  redisAvailable: z.boolean(),
+  durablyRecorded: z.boolean(),
+  locallyAborted: z.boolean(),
+  pausedCancelled: z.boolean(),
+  reason: cancelWorkflowExecutionReasonSchema.optional(),
+})
+export type V2CancelWorkflowExecutionData = z.output<typeof v2CancelWorkflowExecutionDataSchema>
+
+export const v2CancelWorkflowExecutionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/executions/[executionId]/cancel',
+  params: workflowExecutionParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CancelWorkflowExecutionDataSchema),
   },
 })
 

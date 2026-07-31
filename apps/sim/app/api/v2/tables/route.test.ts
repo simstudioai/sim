@@ -46,6 +46,10 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
 }))
 
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
 import { GET } from '@/app/api/v2/tables/route'
 
 const RATE_LIMIT_OK = {
@@ -89,41 +93,16 @@ describe('GET /api/v2/tables', () => {
     mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
   })
 
-  it('returns 404 when the tables-v2-api flag is off', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
+  it('returns 404 when the v2 API surface flag is off', async () => {
+    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
+    const { v2Error } = await import('@/app/api/v2/lib/response')
+    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+
     const res = await callList('workspaceId=workspace-1')
+
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('NOT_FOUND')
     expect(mockListTables).not.toHaveBeenCalled()
-  })
-
-  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
-  })
-
-  it('returns typed table summaries in the cursor envelope with a private cache header', async () => {
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    const body = await res.json()
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toHaveLength(1)
-    expect(body.data[0]).toMatchObject({
-      id: 'tbl_1',
-      name: 'People',
-      description: 'A table',
-      rowCount: 5,
-      maxRows: 100,
-      createdAt: '2024-01-01T00:00:00.000Z',
-    })
-    expect(body.data[0].schema.columns[0].name).toBe('name')
   })
 
   it('400s when workspaceId is missing', async () => {

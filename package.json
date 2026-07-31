@@ -28,6 +28,7 @@
     "check": "turbo run format:check",
     "check:boundaries": "bun run scripts/check-monorepo-boundaries.ts",
     "check:api-validation": "bun run scripts/check-api-validation-contracts.ts --check",
+    "check:openapi": "bun run scripts/check-openapi-specs.ts",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",

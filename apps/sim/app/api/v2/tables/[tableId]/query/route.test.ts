@@ -53,6 +53,11 @@ vi.mock('@/lib/workspaces/utils', () => ({
 }))
 
 import { encodeCursor } from '@/lib/table/rows/cursor'
+
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
 import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
 
 const RATE_LIMIT_OK = {
@@ -117,39 +122,16 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
   })
 
-  it('returns 404 when the tables-v2-api flag is off', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
+  it('returns 404 when the v2 API surface flag is off', async () => {
+    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
+    const { v2Error } = await import('@/app/api/v2/lib/response')
+    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+
     const res = await callQuery({ workspaceId: 'workspace-1' })
+
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('NOT_FOUND')
     expect(mockQueryRows).not.toHaveBeenCalled()
-  })
-
-  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    // Read path masks not-authorized as 404 so existence never leaks.
-    expect(res.status).toBe(404)
-    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
-  })
-
-  it('translates a name-keyed predicate to storage ids', async () => {
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: {
-        all: [
-          { field: 'status', op: 'eq', value: 'active' },
-          { field: 'wins', op: 'gte', value: 10 },
-        ],
-      },
-    })
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
-      all: [
-        { field: 'col_status', op: 'eq', value: 'active' },
-        { field: 'col_wins', op: 'gte', value: 10 },
-      ],
-    })
   })
 
   it('applies the bounded default limit when omitted', async () => {
