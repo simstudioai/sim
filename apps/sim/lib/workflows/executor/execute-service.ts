@@ -1,10 +1,11 @@
 import type { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { validateCallChain } from '@/lib/execution/call-chain'
 import { processInputFileFields } from '@/lib/execution/files'
@@ -15,6 +16,8 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
   claimExecutionId,
@@ -27,8 +30,14 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
 } from '@/lib/workflows/persistence/utils'
+import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
+import {
+  agentStreamProtocolResponseHeaders,
+  createStreamingResponse,
+} from '@/lib/workflows/streaming/streaming'
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
+import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -81,6 +90,17 @@ export interface ExecuteWorkflowServiceParams {
   rateLimitCounter?: 'sync' | 'async'
   /** Outer request signal; aborting cancels the run (client disconnect). */
   abortSignal?: AbortSignal
+  /**
+   * `sync` (default): run to completion and return the result resource.
+   * `async`: enqueue and return the queue receipt.
+   * `stream`: return an SSE Response (agent-stream protocol negotiated from
+   * `requestHeaders`).
+   */
+  mode?: 'sync' | 'async' | 'stream'
+  /** Original request headers — stream-protocol negotiation only. */
+  requestHeaders?: Headers
+  includeThinking?: boolean
+  includeToolCalls?: boolean
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -108,8 +128,23 @@ export interface ExecuteWorkflowServiceRun {
   durationMs?: number
 }
 
+export interface ExecuteWorkflowServiceQueued {
+  ok: true
+  queued: true
+  executionId: string
+  jobId: string
+}
+
+export interface ExecuteWorkflowServiceStream {
+  ok: true
+  stream: Response
+  executionId: string
+}
+
 export type ExecuteWorkflowServiceResult =
   | ExecuteWorkflowServiceRun
+  | ExecuteWorkflowServiceQueued
+  | ExecuteWorkflowServiceStream
   | { ok: false; failure: ExecuteWorkflowServiceFailure }
 
 function failure(f: ExecuteWorkflowServiceFailure): ExecuteWorkflowServiceResult {
@@ -170,6 +205,10 @@ export async function executeWorkflowService(
     rejectLargeInlineOutput = false,
     rateLimitCounter = 'sync',
     abortSignal,
+    mode = 'sync',
+    requestHeaders,
+    includeThinking = false,
+    includeToolCalls = false,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -276,8 +315,41 @@ export async function executeWorkflowService(
     }
     reqLogger = reqLogger.withMetadata({ workspaceId, userId: actorUserId })
 
+    if (mode === 'async') {
+      const enqueue = await enqueueWorkflowExecution({
+        requestId,
+        workflowId,
+        userId: actorUserId,
+        billingAttribution,
+        workspaceId,
+        input,
+        triggerType,
+        executionId,
+        callChain,
+      })
+      executionIdClaimCommitted = enqueue.retainExecutionClaim
+      if (enqueue.outcome === 'rejected') {
+        return failure({
+          kind: 'infra',
+          message: 'Failed to queue async execution',
+          statusCode: 500,
+        })
+      }
+      if (enqueue.outcome === 'ambiguous') {
+        return failure({
+          kind: 'infra',
+          message: 'Async execution queue acceptance could not be confirmed',
+          statusCode: 503,
+          code: 'ASYNC_ENQUEUE_AMBIGUOUS',
+          executionId,
+        })
+      }
+      return { ok: true, queued: true, executionId, jobId: enqueue.jobId }
+    }
+
     let processedInput = input
     let workflowVariables: Record<string, unknown> = {}
+    let workflowBlocks: Record<string, unknown> = {}
     try {
       const workflowData = deploymentVersionId
         ? await loadWorkflowDeploymentVersionState(workflowId, deploymentVersionId, workspaceId)
@@ -289,6 +361,7 @@ export async function executeWorkflowService(
       }
 
       if (workflowData) {
+        workflowBlocks = workflowData.blocks
         workflowVariables =
           ('variables' in workflowData
             ? (workflowData.variables as Record<string, unknown> | undefined)
@@ -339,6 +412,88 @@ export async function executeWorkflowService(
         message: `File processing failed: ${getErrorMessage(fileError, 'Unable to process input files')}`,
         statusCode: 400,
       })
+    }
+
+    if (mode === 'stream') {
+      const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, workflowBlocks)
+      const streamWorkflow = {
+        id: workflow.id,
+        userId: actorUserId,
+        workspaceId,
+        isDeployed: workflow.isDeployed,
+        variables: workflowVariables,
+      }
+      const headers = requestHeaders ?? new Headers()
+      const agentEvents = shouldEmitAgentStreamEvents({
+        includeThinking,
+        includeToolCalls,
+        requestHeaders: headers,
+      })
+
+      const stream = await createStreamingResponse({
+        requestId,
+        streamConfig: {
+          selectedOutputs: resolvedSelectedOutputs,
+          isSecureMode: false,
+          workflowTriggerType: 'api',
+          includeFileBase64,
+          base64MaxBytes,
+          timeoutMs: preprocessResult.executionTimeout?.sync,
+          includeThinking,
+          includeToolCalls,
+        },
+        executionId,
+        largeValueExecutionIds: [executionId],
+        largeValueKeys: [],
+        fileKeys: [],
+        workspaceId,
+        workflowId,
+        userId: actorUserId,
+        allowLargeValueWorkflowScope: false,
+        requestSignal: abortSignal,
+        requestHeaders: headers,
+        executeFn: async ({ onStream, onBlockComplete, abortSignal: streamAbortSignal }) =>
+          executeWorkflow(
+            streamWorkflow,
+            requestId,
+            processedInput,
+            actorUserId,
+            {
+              enabled: true,
+              selectedOutputs: resolvedSelectedOutputs,
+              isSecureMode: false,
+              workflowTriggerType: 'api',
+              onStream,
+              onBlockComplete,
+              skipLoggingComplete: true,
+              includeFileBase64,
+              base64MaxBytes,
+              abortSignal: streamAbortSignal,
+              executionMode: 'stream',
+              billingAttribution,
+              largeValueKeys: [],
+              fileKeys: [],
+              includeThinking,
+              includeToolCalls,
+              agentEvents,
+            },
+            executionId
+          ),
+      })
+
+      executionIdClaimCommitted = true
+      return {
+        ok: true,
+        executionId,
+        stream: new Response(stream, {
+          status: 200,
+          headers: {
+            ...SSE_HEADERS,
+            // Echo the negotiated stream protocol (same as the chat and v1 routes).
+            ...agentStreamProtocolResponseHeaders({ requestHeaders: headers }),
+          },
+        }),
+      }
     }
 
     const metadata: ExecutionMetadata = {
@@ -591,4 +746,62 @@ export async function executeWorkflowService(
       }
     }
   }
+}
+
+/**
+ * Resolves caller-facing `selectedOutputs` refs (`BlockName.path` or
+ * `<uuid>.path`) to internal `<blockId>_<path>` ids — same normalization the
+ * v1 streaming path applies.
+ */
+export function resolveOutputIds(
+  selectedOutputs: string[] | undefined,
+  blocks: Record<string, unknown>
+): string[] | undefined {
+  if (!selectedOutputs || selectedOutputs.length === 0) {
+    return selectedOutputs
+  }
+
+  return selectedOutputs.map((outputId) => {
+    const underscoreIndex = outputId.indexOf('_')
+    const dotIndex = outputId.indexOf('.')
+    if (underscoreIndex > 0) {
+      const maybeUuid = outputId.substring(0, underscoreIndex)
+      if (isValidUuid(maybeUuid)) {
+        return outputId
+      }
+    }
+
+    if (dotIndex > 0) {
+      const maybeUuid = outputId.substring(0, dotIndex)
+      if (isValidUuid(maybeUuid)) {
+        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
+      }
+    }
+
+    if (isValidUuid(outputId)) {
+      return outputId
+    }
+
+    if (dotIndex === -1) {
+      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
+      return outputId
+    }
+
+    const blockName = outputId.substring(0, dotIndex)
+    const path = outputId.substring(dotIndex + 1)
+
+    const normalizedBlockName = normalizeName(blockName)
+    const block = Object.values(blocks).find((candidate) => {
+      const record = candidate as { name?: string }
+      return normalizeName(record.name || '') === normalizedBlockName
+    })
+
+    if (!block) {
+      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
+      return outputId
+    }
+
+    const resolvedId = `${(block as { id: string }).id}_${path}`
+    return resolvedId
+  })
 }
