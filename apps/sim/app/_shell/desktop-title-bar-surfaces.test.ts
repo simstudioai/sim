@@ -36,6 +36,7 @@ const workspaceChrome = read(
 const sidebar = read('../workspace/[workspaceId]/w/components/sidebar/sidebar.tsx')
 const globalStyles = read('../_styles/globals.css')
 const desktopTitleBar = read('../_shell/desktop-title-bar.tsx')
+const logoShell = read('../(landing)/components/logo-shell/logo-shell.tsx')
 const pageHeaderBar = read('../../components/page-header-bar.ts')
 const resourceHeader = read(
   '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
@@ -55,6 +56,16 @@ describe('desktop title-bar surface audit', () => {
     expect(authShell).not.toContain('reserveDesktopTitleBar')
     expect(authShell).not.toContain('min-h-screen')
     expect(authLayout).toContain('<AuthShell>')
+  })
+
+  it('keeps the lane on the shell the non-auth desktop surfaces wear', () => {
+    // `LogoShell` backs not-found, the interfaces shell (chat, resume), the desktop handoff
+    // and the public-file gates. It needs its own assertion rather than relying on the
+    // enumeration: it sits under the `app/(landing)/` prefix allowlist, and stripping its
+    // reservation would also strip its last viewport token, so the sweep would fall silent
+    // on the very shell those surfaces depend on.
+    expect(logoShell).toContain('desktop-title-bar-page')
+    expect(logoShell).toContain('<DesktopTitleBarLane />')
   })
 
   it('mounts a real drag surface across login and workspace title-bar lanes', () => {
