@@ -33,13 +33,14 @@ export function SubBlockRowView({ title, displayValue, isMonospace }: SubBlockRo
         className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
       />
       {displayValue !== undefined && (
-        <OverflowSpan
-          value={displayValue}
+        <span
           className={cn(
             'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
-        />
+        >
+          {displayValue}
+        </span>
       )}
     </div>
   )
