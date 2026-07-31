@@ -733,12 +733,14 @@ export const Sidebar = memo(function Sidebar({
   const topNavItems = useMemo(
     () =>
       [
+        // Same slot either way: the primary "start something new" action. With
+        // Chat off that is a workflow, since there is no composer to open.
         {
           id: 'home',
-          label: 'New chat',
-          icon: Home,
-          href: `/workspace/${workspaceId}/home`,
-          hidden: !isChatEnabled,
+          label: isChatEnabled ? 'New chat' : 'New workflow',
+          icon: isChatEnabled ? Home : Plus,
+          href: isChatEnabled ? `/workspace/${workspaceId}/home` : undefined,
+          onClick: isChatEnabled ? undefined : createWorkflow,
         },
         {
           id: 'search',
@@ -755,7 +757,7 @@ export const Sidebar = memo(function Sidebar({
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, openSearchModal, permissionConfig.hideIntegrationsTab]
+    [workspaceId, openSearchModal, createWorkflow, permissionConfig.hideIntegrationsTab]
   )
 
   const workspaceNavItems = useMemo(
