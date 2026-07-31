@@ -24,6 +24,12 @@ const BIDI_MARKS = /[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g
 /** Minus-sign characters `Intl` emits in place of the ASCII hyphen. */
 const UNICODE_MINUS = /[\u2212\u2012\u2013\uFE63\uFF0D]/g
 
+/**
+ * A magnitude suffix (`1.2 M`, `5 K`, `3.4 bn`). Not a currency marker, and
+ * stripping it would silently shrink the value by orders of magnitude.
+ */
+const SCALE_SUFFIX = /\d\s*(?:k|m|b|t|bn|mn|tn|mm|mil|bil)\.?\s*$/i
+
 /** A letter directly adjacent to a digit: an identifier, not an amount. */
 const LETTER_TOUCHING_DIGIT = /\p{L}\d|\d\p{L}/u
 
@@ -171,15 +177,23 @@ export function getCurrencyOptions(): readonly CurrencyOption[] {
  * therefore read as fifteen hundred — a known ambiguity that resolves in favor
  * of the far more common reading.
  *
- * Reads ASCII digits only. Locales that format with their own numeral systems
- * (Arabic-Indic `١٢٣`, for instance) are rejected rather than misread —
- * supporting them is a wider decision than this type, since it would also
- * touch `number`, display, and sorting.
+ * Two input families are deliberately refused rather than guessed at, because
+ * both would otherwise be misread as an amount rather than rejected:
+ *
+ * - Markers written flush against the digits (`Rp12,00`). A letter touching a
+ *   digit is the only thing separating a currency marker from a part number,
+ *   and reading `SKU400` as 400 invents a value where refusing merely
+ *   inconveniences. Markers separated by a space or a symbol all work.
+ * - Locales formatting with their own numeral systems (Arabic-Indic `١٢٣`).
+ *   Supporting them is a wider decision than this type, since it would also
+ *   touch `number`, display, and sorting.
+ *
+ * Both fail closed — `null`, never a wrong number.
  *
  * Returns `null` when no amount can be read, so callers can distinguish
  * "unparseable" from a legitimate `0`.
  */
-export function parseCurrencyInput(raw: unknown): number | null {
+export function parseCurrencyInput(raw: unknown, currencyCode?: string): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
   if (typeof raw !== 'string') return null
 
@@ -219,14 +233,23 @@ export function parseCurrencyInput(raw: unknown): number | null {
   // by a space or a symbol, so this distinguishes them without a symbol list.
   if (LETTER_TOUCHING_DIGIT.test(body)) return null
 
+  // A scale suffix is not a currency marker, and dropping it loses orders of
+  // magnitude: `1.2 M` would read as 1.2, so a column of `1.2 M` / `3.4 M`
+  // would convert cleanly and rewrite every cell a millionfold too small.
+  // Refuse rather than guess what the writer meant.
+  if (SCALE_SUFFIX.test(body)) return null
+
   // Strip the currency marker: up to three letters (an ISO code, `kr`, `zł`)
   // optionally joined to a symbol (`R$`, `CHF`), at either end. Bounded at
   // three so prose does not qualify — `Revenue 5` keeps its letters and is
   // rejected below.
-  const cleaned = body
-    .replace(CURRENCY_MARKER_PREFIX, '$1')
-    .replace(CURRENCY_MARKER_SUFFIX, '')
-    .replace(/[\s\u00a0\u202f\u2019']/gu, '')
+  const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, '$1')
+  const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, '')
+  // Whether a marker was present at all. A marked string came from a
+  // formatter; a bare one was typed by a person. That distinguishes the two
+  // readings of a lone separator followed by three digits, below.
+  const hadMarker = withoutMarkers !== body
+  const cleaned = withoutMarkers.replace(/[\s\u00a0\u202f\u2019']/gu, '')
   // What remains must be ONLY digits and separators. Anything else — a
   // US-format date, leftover prose — is not an amount.
   if (!AMOUNT_SHAPE.test(cleaned)) return null
@@ -246,19 +269,25 @@ export function parseCurrencyInput(raw: unknown): number | null {
     if (decimalParts.length > 1 || !hasValidGrouping(integerPart, groupSeparator)) return null
     normalized = `${integerPart.split(groupSeparator).join('')}.${decimalParts[0]}`
   } else if (lastComma !== -1) {
-    // A single comma followed by exactly three digits is grouping (`1,500`);
-    // anything else is a decimal comma (`1,50`).
-    const grouping = digitsAndSeps.indexOf(',') !== lastComma || /,\d{3}$/.test(digitsAndSeps)
+    const repeated = digitsAndSeps.indexOf(',') !== lastComma
+    const grouping =
+      repeated || loneSeparatorIsGrouping(digitsAndSeps, ',', hadMarker, currencyCode)
     if (grouping) {
       if (!hasValidGrouping(digitsAndSeps, ',')) return null
       normalized = digitsAndSeps.split(',').join('')
     } else {
       normalized = digitsAndSeps.replace(',', '.')
     }
-  } else if (lastDot !== -1 && digitsAndSeps.indexOf('.') !== lastDot) {
-    // More than one dot can only be grouping: `1.234.567`.
-    if (!hasValidGrouping(digitsAndSeps, '.')) return null
-    normalized = digitsAndSeps.split('.').join('')
+  } else if (lastDot !== -1) {
+    const repeated = digitsAndSeps.indexOf('.') !== lastDot
+    const grouping =
+      repeated || loneSeparatorIsGrouping(digitsAndSeps, '.', hadMarker, currencyCode)
+    if (grouping) {
+      if (!hasValidGrouping(digitsAndSeps, '.')) return null
+      normalized = digitsAndSeps.split('.').join('')
+    } else {
+      normalized = digitsAndSeps
+    }
   } else {
     normalized = digitsAndSeps
   }
@@ -266,6 +295,35 @@ export function parseCurrencyInput(raw: unknown): number | null {
   const parsed = Number(normalized)
   if (!Number.isFinite(parsed)) return null
   return negative ? -parsed : parsed
+}
+
+/**
+ * Whether a lone separator followed by exactly three digits is grouping rather
+ * than a decimal point — `1.235 ¥` is one thousand two hundred thirty-five yen,
+ * while a typed `1.235` is one and a bit.
+ *
+ * Two signals resolve it. A marker means the string came from a formatter, and
+ * formatters group; a bare string was typed by a person, who meant decimals.
+ * And a currency with three decimal places (KWD, TND) legitimately ends in
+ * three digits after its separator, so for those the reading is always decimal.
+ */
+function loneSeparatorIsGrouping(
+  digitsAndSeps: string,
+  separator: string,
+  hadMarker: boolean,
+  currencyCode: string | undefined
+): boolean {
+  if (!new RegExp(`\\${separator}\\d{3}$`).test(digitsAndSeps)) return false
+  if (separator === ',' && !hadMarker) return true
+  if (!hadMarker) return false
+  return currencyFractionDigits(currencyCode) !== 3
+}
+
+/** A currency's conventional decimal places, defaulting to 2 when unknown. */
+function currencyFractionDigits(currencyCode: string | undefined): number {
+  if (!currencyCode) return 2
+  const formatter = currencyFormatter(resolveCurrencyCode(currencyCode), undefined)
+  return formatter?.resolvedOptions().maximumFractionDigits ?? 2
 }
 
 /**
