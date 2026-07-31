@@ -185,14 +185,23 @@ export interface QuickBooksTransaction {
   DocNumber?: string
   TxnDate?: string
   DueDate?: string
+  ExpirationDate?: string
+  CustomerRef?: QuickBooksReference
+  CustomerMemo?: { value?: string }
   VendorRef?: QuickBooksReference
   APAccountRef?: QuickBooksReference
+  DepositToAccountRef?: QuickBooksReference
+  PaymentMethodRef?: QuickBooksReference
+  PaymentRefNum?: string
   CurrencyRef?: QuickBooksReference
   ExchangeRate?: number
   Line?: Array<Record<string, unknown>>
+  LinkedTxn?: Array<{ TxnId?: string; TxnType?: string }>
   TotalAmt?: number
   Balance?: number
+  UnappliedAmt?: number
   PrivateNote?: string
+  TxnStatus?: string
   TxnTaxDetail?: Record<string, unknown>
   MetaData?: QuickBooksMetaData
   sparse?: boolean
@@ -201,6 +210,7 @@ export interface QuickBooksTransaction {
 
 export type QuickBooksPurchaseOrder = QuickBooksTransaction
 export type QuickBooksBill = QuickBooksTransaction
+export type QuickBooksSalesTransaction = QuickBooksTransaction
 
 export interface QuickBooksAuthParams {
   accessToken: string
@@ -229,6 +239,123 @@ export interface QuickBooksReadMasterDataParams extends QuickBooksAuthParams {
   recordId?: string
   startPosition?: number
   maxResults?: number
+}
+
+export type QuickBooksSalesTransactionType =
+  | 'estimate'
+  | 'invoice'
+  | 'sales_receipt'
+  | 'payment'
+  | 'credit_memo'
+  | 'refund_receipt'
+
+export interface QuickBooksReadSalesTransactionsParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksSalesTransactionType
+  readMode: QuickBooksMasterDataReadMode
+  transactionId?: string
+  startPosition?: number
+  maxResults?: number
+}
+
+export type QuickBooksSalesLineType = 'item' | 'description'
+
+export interface QuickBooksSalesLineInput {
+  lineType: QuickBooksSalesLineType
+  amount?: number
+  itemId?: string
+  description?: string
+  quantity?: number
+  unitPrice?: number
+  serviceDate?: string
+}
+
+export interface QuickBooksCreateSalesDocumentParams extends QuickBooksAuthParams {
+  customerId: string
+  lines: QuickBooksSalesLineInput[]
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+  customerMemo?: string
+  dueDate?: string
+  expirationDate?: string
+  paymentMethodId?: string
+  paymentReferenceNumber?: string
+  depositAccountId?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateSalesDocumentParams
+  extends Omit<QuickBooksCreateSalesDocumentParams, 'customerId' | 'lines' | 'requestId'> {
+  transactionId: string
+  syncToken: string
+  customerId?: string
+  lines?: QuickBooksSalesLineInput[]
+}
+
+type QuickBooksNonReceiptCreateParams = Omit<
+  QuickBooksCreateSalesDocumentParams,
+  'paymentMethodId' | 'paymentReferenceNumber' | 'depositAccountId'
+>
+type QuickBooksNonReceiptUpdateParams = Omit<
+  QuickBooksUpdateSalesDocumentParams,
+  'paymentMethodId' | 'paymentReferenceNumber' | 'depositAccountId'
+>
+
+export type QuickBooksCreateEstimateParams = Omit<QuickBooksNonReceiptCreateParams, 'dueDate'>
+export type QuickBooksUpdateEstimateParams = Omit<QuickBooksNonReceiptUpdateParams, 'dueDate'>
+export type QuickBooksCreateInvoiceParams = Omit<QuickBooksNonReceiptCreateParams, 'expirationDate'>
+export type QuickBooksUpdateInvoiceParams = Omit<QuickBooksNonReceiptUpdateParams, 'expirationDate'>
+export type QuickBooksCreateSalesReceiptParams = Omit<
+  QuickBooksCreateSalesDocumentParams,
+  'dueDate' | 'expirationDate'
+>
+export type QuickBooksUpdateSalesReceiptParams = Omit<
+  QuickBooksUpdateSalesDocumentParams,
+  'dueDate' | 'expirationDate'
+>
+export type QuickBooksCreateCreditMemoParams = Omit<
+  QuickBooksNonReceiptCreateParams,
+  'dueDate' | 'expirationDate'
+>
+export type QuickBooksUpdateCreditMemoParams = Omit<
+  QuickBooksNonReceiptUpdateParams,
+  'dueDate' | 'expirationDate'
+>
+export type QuickBooksCreateRefundReceiptParams = Omit<
+  QuickBooksCreateSalesReceiptParams,
+  'depositAccountId'
+> & { depositAccountId: string }
+export type QuickBooksUpdateRefundReceiptParams = QuickBooksUpdateSalesReceiptParams
+
+export interface QuickBooksInvoiceAllocationInput {
+  invoiceId: string
+  amount: number
+}
+
+export interface QuickBooksCreateCustomerPaymentParams extends QuickBooksAuthParams {
+  customerId: string
+  totalAmount: number
+  transactionDate?: string
+  privateNote?: string
+  paymentReferenceNumber?: string
+  paymentMethodId?: string
+  depositAccountId?: string
+  invoiceAllocations?: QuickBooksInvoiceAllocationInput[]
+  requestId?: string
+}
+
+export interface QuickBooksUpdateCustomerPaymentParams
+  extends Omit<QuickBooksCreateCustomerPaymentParams, 'customerId' | 'totalAmount' | 'requestId'> {
+  paymentId: string
+  syncToken: string
+  customerId?: string
+  totalAmount?: number
+}
+
+export interface QuickBooksVoidTransactionParams extends QuickBooksAuthParams {
+  transactionId: string
+  syncToken: string
+  confirmVoid: boolean
 }
 
 export type QuickBooksActiveStatus = 'unchanged' | 'active' | 'inactive'
@@ -328,7 +455,20 @@ export interface QuickBooksReadMasterDataResponse extends ToolResponse {
   }
 }
 
-export interface QuickBooksMutationResponse<T extends QuickBooksMasterDataRecord>
+export interface QuickBooksReadSalesTransactionsResponse extends ToolResponse {
+  output: {
+    transactionType: QuickBooksSalesTransactionType
+    item?: QuickBooksSalesTransaction
+    items?: QuickBooksSalesTransaction[]
+    startPosition?: number
+    maxResults?: number
+    nextStartPosition?: number
+    hasMore?: boolean
+    time: string | null
+  }
+}
+
+export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: string }>
   extends ToolResponse {
   output: {
     record: T
@@ -338,11 +478,24 @@ export interface QuickBooksMutationResponse<T extends QuickBooksMasterDataRecord
   }
 }
 
+export interface QuickBooksVoidResponse extends ToolResponse {
+  output: {
+    record: QuickBooksSalesTransaction
+    recordId: string
+    syncToken: string
+    voided: true
+    time: string | null
+  }
+}
+
 export type QuickBooksResponse =
   | QuickBooksCompanyInfoResponse
   | QuickBooksListResponse<QuickBooksPurchaseOrder | QuickBooksBill>
   | QuickBooksReadMasterDataResponse
+  | QuickBooksReadSalesTransactionsResponse
   | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
+  | QuickBooksMutationResponse<QuickBooksSalesTransaction>
+  | QuickBooksVoidResponse
 
 export const QUICKBOOKS_REFERENCE_PROPERTIES: Record<string, OutputProperty> = {
   value: { type: 'string', description: 'QuickBooks entity ID', optional: true },
@@ -621,6 +774,69 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
   ...QUICKBOOKS_EMPLOYEE_PROPERTIES,
 }
 
+export const QUICKBOOKS_SALES_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks sales transaction ID' },
+  SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
+  DocNumber: { type: 'string', description: 'Transaction document number', optional: true },
+  TxnDate: { type: 'string', description: 'Transaction date', optional: true },
+  DueDate: { type: 'string', description: 'Invoice due date', optional: true },
+  ExpirationDate: { type: 'string', description: 'Estimate expiration date', optional: true },
+  CustomerRef: {
+    type: 'json',
+    description: 'Customer reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  CustomerMemo: { type: 'json', description: 'Customer-facing memo', optional: true },
+  DepositToAccountRef: {
+    type: 'json',
+    description: 'Deposit account reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  PaymentMethodRef: {
+    type: 'json',
+    description: 'Payment method reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  PaymentRefNum: {
+    type: 'string',
+    description: 'Customer payment reference number',
+    optional: true,
+  },
+  CurrencyRef: {
+    type: 'json',
+    description: 'Transaction currency reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  Line: {
+    type: 'array',
+    description: 'Native QuickBooks transaction lines',
+    optional: true,
+    items: { type: 'json' },
+  },
+  LinkedTxn: {
+    type: 'array',
+    description: 'Transactions linked by QuickBooks',
+    optional: true,
+    items: { type: 'json' },
+  },
+  TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
+  Balance: { type: 'number', description: 'Remaining transaction balance', optional: true },
+  UnappliedAmt: { type: 'number', description: 'Unapplied payment amount', optional: true },
+  PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
+  TxnStatus: { type: 'string', description: 'Transaction status', optional: true },
+  TxnTaxDetail: { type: 'json', description: 'Calculated tax details', optional: true },
+  MetaData: {
+    type: 'json',
+    description: 'Transaction creation and update timestamps',
+    optional: true,
+    properties: QUICKBOOKS_METADATA_PROPERTIES,
+  },
+}
+
 export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
   recordId: { type: 'string', description: 'ID of the created or updated QuickBooks entity' },
   syncToken: {
@@ -633,4 +849,9 @@ export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
     optional: true,
     nullable: true,
   },
+}
+
+export const QUICKBOOKS_VOID_OUTPUTS: Record<string, OutputProperty> = {
+  ...QUICKBOOKS_MUTATION_OUTPUTS,
+  voided: { type: 'boolean', description: 'Whether QuickBooks voided the transaction' },
 }

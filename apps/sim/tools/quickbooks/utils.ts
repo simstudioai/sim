@@ -12,11 +12,11 @@ import type {
   QuickBooksAddress,
   QuickBooksCustomer,
   QuickBooksListResponse,
-  QuickBooksMasterDataRecord,
   QuickBooksMasterDataRecordType,
   QuickBooksMutationResponse,
   QuickBooksPaginationParams,
   QuickBooksReference,
+  QuickBooksSalesTransactionType,
   QuickBooksVendor,
   QuickBooksWritableItemType,
 } from '@/tools/quickbooks/types'
@@ -24,10 +24,16 @@ import type {
 export type QuickBooksQueryEntity =
   | 'Account'
   | 'Bill'
+  | 'CreditMemo'
   | 'Customer'
   | 'Employee'
+  | 'Estimate'
+  | 'Invoice'
   | 'Item'
+  | 'Payment'
   | 'PurchaseOrder'
+  | 'RefundReceipt'
+  | 'SalesReceipt'
   | 'Vendor'
 
 interface QuickBooksQueryResponse<T> {
@@ -46,6 +52,18 @@ export const QUICKBOOKS_MASTER_DATA_ENTITIES = {
   vendor: { entity: 'Vendor', resource: 'vendor' },
 } as const satisfies Record<
   QuickBooksMasterDataRecordType,
+  { entity: QuickBooksQueryEntity; resource: string }
+>
+
+export const QUICKBOOKS_SALES_ENTITIES = {
+  credit_memo: { entity: 'CreditMemo', resource: 'creditmemo' },
+  estimate: { entity: 'Estimate', resource: 'estimate' },
+  invoice: { entity: 'Invoice', resource: 'invoice' },
+  payment: { entity: 'Payment', resource: 'payment' },
+  refund_receipt: { entity: 'RefundReceipt', resource: 'refundreceipt' },
+  sales_receipt: { entity: 'SalesReceipt', resource: 'salesreceipt' },
+} as const satisfies Record<
+  QuickBooksSalesTransactionType,
   { entity: QuickBooksQueryEntity; resource: string }
 >
 
@@ -81,6 +99,14 @@ export function getQuickBooksMasterDataEntity(recordType: QuickBooksMasterDataRe
   const config = QUICKBOOKS_MASTER_DATA_ENTITIES[recordType]
   if (!config) {
     throw new Error(`Unsupported QuickBooks master data record type: ${String(recordType)}`)
+  }
+  return config
+}
+
+export function getQuickBooksSalesEntity(transactionType: QuickBooksSalesTransactionType) {
+  const config = QUICKBOOKS_SALES_ENTITIES[transactionType]
+  if (!config) {
+    throw new Error(`Unsupported QuickBooks sales transaction type: ${String(transactionType)}`)
   }
   return config
 }
@@ -168,10 +194,9 @@ export async function transformQuickBooksListResponse<T>(
   }
 }
 
-export async function transformQuickBooksEntityResponse<T extends QuickBooksMasterDataRecord>(
-  response: Response,
-  entity: QuickBooksQueryEntity
-): Promise<{ item: T; time: string | null }> {
+export async function transformQuickBooksEntityResponse<
+  T extends { Id: string; SyncToken?: string },
+>(response: Response, entity: QuickBooksQueryEntity): Promise<{ item: T; time: string | null }> {
   const data = await parseQuickBooksJson<Record<string, unknown> & { time?: string }>(
     response,
     `QuickBooks ${entity} response`
@@ -186,7 +211,9 @@ export async function transformQuickBooksEntityResponse<T extends QuickBooksMast
   }
 }
 
-export async function transformQuickBooksMutationResponse<T extends QuickBooksMasterDataRecord>(
+export async function transformQuickBooksMutationResponse<
+  T extends { Id: string; SyncToken?: string },
+>(
   response: Response,
   entity: QuickBooksQueryEntity,
   sanitize: (item: T) => T = (item) => item
