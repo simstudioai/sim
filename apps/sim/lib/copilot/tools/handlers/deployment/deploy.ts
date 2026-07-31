@@ -30,7 +30,7 @@ import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 
 function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
-  return `${baseUrl}/api/workflows/${workflowId}/execute`
+  return `${baseUrl}/api/v2/workflows/${workflowId}/execute`
 }
 
 function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
@@ -57,9 +57,8 @@ function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
         method: 'POST',
         transport: 'json',
         stream: false,
-        headers: { 'X-Execution-Mode': 'async' },
-        body: { input: { key: 'value' } },
-        jobStatusEndpointTemplate: `${baseUrl}/api/jobs/{jobId}`,
+        body: { async: true, input: { key: 'value' } },
+        jobStatusEndpointTemplate: `${baseUrl}/api/v2/workflows/{workflowId}/executions/{executionId}`,
       },
     },
   }
@@ -78,9 +77,8 @@ function buildWorkflowApiExamples(baseUrl: string, apiEndpoint: string) {
     async: `curl -X POST "${apiEndpoint}" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: YOUR_API_KEY" \\
-  -H "X-Execution-Mode: async" \\
-  -d '{"input":{"key":"value"}}'`,
-    poll: `curl "${baseUrl}/api/jobs/JOB_ID" \\
+  -d '{"async":true,"input":{"key":"value"}}'`,
+    poll: `curl "${baseUrl}/api/v2/workflows/WORKFLOW_ID/executions/EXECUTION_ID" \\
   -H "X-API-Key: YOUR_API_KEY"`,
   }
 }

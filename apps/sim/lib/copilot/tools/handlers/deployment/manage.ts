@@ -82,7 +82,7 @@ export async function executeCheckDeploymentStatus(
     const apiDetails = {
       isDeployed: isApiDeployed,
       deployedAt: apiDeploy[0]?.deployedAt || null,
-      endpoint: isApiDeployed ? `/api/workflows/${workflowId}/execute` : null,
+      endpoint: isApiDeployed ? `/api/v2/workflows/${workflowId}/execute` : null,
       apiKey: workflowRecord.workspaceId ? 'Workspace API keys' : 'Personal API keys',
       needsRedeployment,
       activeDeployment: deploymentSummary.activeDeployment,

@@ -77,7 +77,6 @@ interface WorkflowDeploymentInfoUI {
   deployedAt?: string
   apiKey: string
   endpoint: string
-  exampleCommand: string
   needsRedeployment: boolean
   isPublicApi: boolean
 }
@@ -234,7 +233,7 @@ export function DeployModal({
       return null
     }
 
-    const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
+    const endpoint = `${getBaseUrl()}/api/v2/workflows/${workflowId}/execute`
     const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
     const placeholderKey = getApiHeaderPlaceholder()
 
@@ -243,7 +242,6 @@ export function DeployModal({
       deployedAt: deploymentInfoData.deployedAt ?? undefined,
       apiKey: getApiKeyLabel(deploymentInfoData.apiKey),
       endpoint,
-      exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
       needsRedeployment: deploymentInfoData.needsRedeployment,
       isPublicApi: isPublicApiDisabled ? false : (deploymentInfoData.isPublicApi ?? false),
     }
