@@ -33,7 +33,7 @@
  * @module
  */
 import { createLogger } from '@sim/logger'
-import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -90,6 +90,16 @@ export const REDIS_ORIGIN = Symbol('file-doc-redis')
  */
 export const REDIS_SNAPSHOT_ORIGIN = Symbol('file-doc-redis-snapshot')
 
+/**
+ * Origin for an AGENT-STREAMED frame applied from the stream (a copilot output token relayed via
+ * {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}). A peer task tails these to stay live mid-stream, but
+ * they are transient preview content the copilot's durable `edit_content` write reconciles — so the
+ * relay's edit-tracker must NOT mark the doc edited on them (a startup-race duplicate between two stream
+ * leaders would otherwise become eligible for a peer task's persist). Behaves like {@link REDIS_ORIGIN}
+ * otherwise (already in the stream — never re-published).
+ */
+export const REDIS_AGENT_ORIGIN = Symbol('file-doc-redis-agent')
+
 const STREAM_PREFIX = 'filedoc:stream:'
 /** Cluster-wide "durable version the live doc is synced to" (the persist If-Match token). */
 const SYNC_VERSION_PREFIX = 'filedoc:syncver:'
@@ -103,6 +113,9 @@ const UPDATE_FIELD = 'u'
 /** Marks a stream entry as a compaction SNAPSHOT (folds seed + edits), so the tailer applies it with
  * {@link REDIS_SNAPSHOT_ORIGIN}. Present only on snapshot entries. */
 const SNAPSHOT_FIELD = 's'
+/** Marks a stream entry as an AGENT-STREAMED preview frame, so the tailer applies it with
+ * {@link REDIS_AGENT_ORIGIN} (never marks the doc edited). Present only on agent-frame entries. */
+const AGENT_FIELD = 'a'
 
 /** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
  * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
@@ -167,6 +180,12 @@ function applyEntryToDoc(
   }
 }
 
+/** Whether a doc carries the seed flag (mirrors the relay's `isDocSeeded`), so the store can tell the
+ * one-time seed transition from a real post-seed edit without re-implementing the check divergently. */
+function isDocSeeded(doc: Y.Doc): boolean {
+  return doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) === true
+}
+
 /** One locally-open room the store tracks: its doc and the last stream id applied to it. */
 interface StoreRoom {
   doc: Y.Doc
@@ -174,6 +193,14 @@ interface StoreRoom {
   lastId: string
   /** Local publish count, to pace compaction checks. */
   publishes: number
+  /** Set once the doc has been observed seeded, so the seed transition itself is never mistaken for an
+   * edit (mirrors the relay's `seededObserved`). */
+  seededObserved: boolean
+  /** Whether the doc has integrated any REAL (non-agent, non-seed) edit. Compaction stamps its snapshot
+   * as an AGENT snapshot ({@link REDIS_AGENT_ORIGIN}, never persisted) until this is true, so a long
+   * agent-only stream that crosses the compaction threshold can't fold its preview content into a
+   * snapshot that marks peers edited. */
+  realEdited: boolean
 }
 
 /**
@@ -237,7 +264,13 @@ export class FileDocStore {
     if (!this.enabled || !this.write) return
     // Register BEFORE the async read so a concurrent publish/tailer for this room can't be missed —
     // the tailer resumes from `lastId`, which the catch-up advances.
-    const room: StoreRoom = { doc, lastId: '0', publishes: 0 }
+    const room: StoreRoom = {
+      doc,
+      lastId: '0',
+      publishes: 0,
+      seededObserved: false,
+      realEdited: false,
+    }
     this.rooms.set(name, room)
     try {
       const entries = await this.write.xRange(streamKey(name), '-', '+')
@@ -264,12 +297,25 @@ export class FileDocStore {
    * an edit from the shared log. Only the `xAdd` is retried; the TTL refresh + compaction check are
    * post-write best-effort and never re-trigger the append. Throws if the append ultimately fails.
    */
-  private async appendUpdate(name: string, update: Uint8Array): Promise<void> {
+  private async appendUpdate(name: string, update: Uint8Array, agent = false): Promise<void> {
     if (!this.write) return
+    // Latch realEdited SYNCHRONOUSLY — before the first await — for a real (non-agent) publish. The edit
+    // already sits in room.doc (applied in doc.on('update') before publish was called), so if this set
+    // were deferred past the xAdd/expire awaits a CONCURRENT agent-frame-triggered maybeCompact could read
+    // realEdited=false, snapshot the doc (which already holds this real edit), and stamp it an agent
+    // (no-persist) snapshot — a lost edit. Setting it in the same synchronous tick as the doc mutation
+    // makes "room.doc holds a real edit ⇒ realEdited" hold before any compaction (always async) can run.
+    // Monotonic latch, so an eager set is safe; the seed never flows through here (it uses seedIfEmpty).
+    if (!agent) {
+      const editedRoom = this.rooms.get(name)
+      if (editedRoom) editedRoom.realEdited = true
+    }
     const encoded = Buffer.from(update).toString('base64')
+    const fields: Record<string, string> = { [UPDATE_FIELD]: encoded }
+    if (agent) fields[AGENT_FIELD] = '1'
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
-        await this.write.xAdd(streamKey(name), '*', { [UPDATE_FIELD]: encoded })
+        await this.write.xAdd(streamKey(name), '*', fields)
         break
       } catch (error) {
         if (attempt === PUBLISH_MAX_RETRIES) {
@@ -288,11 +334,12 @@ export class FileDocStore {
 
   /**
    * Fire-and-forget append for the hot keystroke path (`doc.on('update')`): converges peers without
-   * blocking the relay. Retries internally; never throws. No-op when disabled.
+   * blocking the relay. Retries internally; never throws. No-op when disabled. Pass `agent: true` for
+   * a copilot preview frame so peer tasks tail it as {@link REDIS_AGENT_ORIGIN} and never persist it.
    */
-  publish(name: string, update: Uint8Array): void {
+  publish(name: string, update: Uint8Array, agent = false): void {
     if (!this.enabled || !this.write) return
-    void this.appendUpdate(name, update).catch(() => {}) // already logged inside appendUpdate
+    void this.appendUpdate(name, update, agent).catch(() => {}) // already logged inside appendUpdate
   }
 
   /**
@@ -515,9 +562,23 @@ export class FileDocStore {
   private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
     room.lastId = id
     // A compaction snapshot folds seed + edits into one frame; stamp it so the relay's edit-tracker
-    // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated).
-    const origin = message[SNAPSHOT_FIELD] ? REDIS_SNAPSHOT_ORIGIN : REDIS_ORIGIN
+    // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated). An
+    // agent-streamed preview frame is stamped separately so the tracker NEVER marks it edited.
+    const origin = message[SNAPSHOT_FIELD]
+      ? REDIS_SNAPSHOT_ORIGIN
+      : message[AGENT_FIELD]
+        ? REDIS_AGENT_ORIGIN
+        : REDIS_ORIGIN
+    const seededBefore = room.seededObserved
     applyEntryToDoc(room.doc, id, message, origin)
+    if (isDocSeeded(room.doc)) room.seededObserved = true
+    // Track a real edit integrated from the stream so compaction knows whether its snapshot represents
+    // real content or agent-only preview: a real snapshot (folds real edits), or a markerless edit
+    // applied AFTER the doc was already seeded (the seed transition itself never counts). Agent frames
+    // and agent snapshots (REDIS_AGENT_ORIGIN) never count.
+    if (origin === REDIS_SNAPSHOT_ORIGIN || (origin === REDIS_ORIGIN && seededBefore)) {
+      room.realEdited = true
+    }
   }
 
   /**
@@ -578,10 +639,14 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
-        // Mark it a snapshot so a fresh catch-up task treats it as edited content, not a bare seed.
+        // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
+        // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
+        // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
+        // the no-persist guarantee even when a long copilot stream alone crosses the compaction threshold.
+        const marker = room.realEdited ? SNAPSHOT_FIELD : AGENT_FIELD
         await this.write.xAdd(streamKey(name), '*', {
           [UPDATE_FIELD]: snapshot,
-          [SNAPSHOT_FIELD]: '1',
+          [marker]: '1',
         })
         // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.

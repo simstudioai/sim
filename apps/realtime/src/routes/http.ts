@@ -203,22 +203,22 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
-    // Merge a copilot edit into a file's LIVE collaborative document so it streams into open editors
-    // (Stage C). Returns `{ applied }`: when false, no seeded live room exists and the caller writes
-    // the file directly instead. Any live user edits are preserved — the app builds a minimal CRDT diff.
+    // Merge a durable file write into a file's LIVE collaborative document so open editors reconcile to
+    // it (Stage C) — this is the stream-end/durable reconcile, not token-by-token streaming (that is now
+    // applied client-side by the open editor). Returns `{ applied }`: when false, no seeded live room
+    // exists and the caller writes the file directly instead. Live user edits are preserved — the app
+    // builds a minimal CRDT diff.
     if (req.method === 'POST' && req.url === '/api/file-doc/apply-edit') {
       try {
         const body = await readRequestBody(req)
-        const { fileId, markdown, version, baseVersion } = JSON.parse(body)
+        const { fileId, markdown, version } = JSON.parse(body)
         if (!isNonEmptyString(fileId) || typeof markdown !== 'string') {
           return sendError(res, 'Invalid fileId or markdown', 400)
         }
         // `version` (the durable updatedAt this markdown was written with) records that the live doc now
         // incorporates that durable version, so the persist If-Match guard won't flag it as a conflict.
-        // `baseVersion` is a streaming snapshot's causal base: dropped if a newer durable write landed.
         const result = await applyMarkdownToLiveFileDoc(fileId, markdown, {
           version: typeof version === 'number' ? version : undefined,
-          baseVersion: typeof baseVersion === 'number' ? baseVersion : undefined,
         })
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ applied: result === 'applied' }))

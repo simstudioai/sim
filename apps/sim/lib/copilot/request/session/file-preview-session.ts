@@ -78,7 +78,6 @@ export function createFilePreviewSession(input: {
   operation?: string
   edit?: Record<string, unknown>
   baseContent?: string
-  baseVersion?: number
   previewText?: string
   previewVersion?: number
   status?: FilePreviewStatus
@@ -97,7 +96,6 @@ export function createFilePreviewSession(input: {
     ...(input.operation ? { operation: input.operation } : {}),
     ...(input.edit ? { edit: input.edit } : {}),
     ...(typeof input.baseContent === 'string' ? { baseContent: input.baseContent } : {}),
-    ...(typeof input.baseVersion === 'number' ? { baseVersion: input.baseVersion } : {}),
     previewText: input.previewText ?? '',
     previewVersion: input.previewVersion ?? 0,
     updatedAt: input.updatedAt ?? new Date().toISOString(),
