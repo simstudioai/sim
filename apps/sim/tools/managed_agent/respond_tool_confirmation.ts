@@ -45,7 +45,7 @@ export const managedAgentRespondToolConfirmationTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Blocking tool-use EVENT ids, from Get Session pendingTools[].id (not toolu_ ids).',
+        "Blocking tool-use EVENT ids, from Get Session pendingTools[].id where kind is 'confirmation' (not toolu_ ids).",
     },
     decision: {
       type: 'string',

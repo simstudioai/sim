@@ -125,7 +125,7 @@ Read a Managed Agent session: status, stop reason, token usage, metadata, and an
 | `status` | string | Session status — 'idle', 'running', 'rescheduling', or 'terminated'. |
 | `stopReason` | string | Why the session last stopped, e.g. 'end_turn' or 'requires_action'. |
 | `requiresAction` | boolean | True when the session is waiting on a tool confirmation or custom tool result. |
-| `pendingTools` | json | Tool calls awaiting approval — \[\{id, eventType, name, input\}\]. Pass each id to Respond To Tool Confirmation. |
+| `pendingTools` | json | Blocking tool calls — \[\{id, eventType, kind, name, input\}\]. Route by kind: 'confirmation' ids go to Respond To Tool Confirmation, 'custom_tool_result' ids go to Respond To Custom Tool. |
 | `metadata` | json | Session metadata. |
 | `title` | string | Session title. |
 | `inputTokens` | number | Cumulative input tokens. |
@@ -140,7 +140,7 @@ Read a Managed Agent session's event history and the agent's reply text.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `eventTypes` | array | No | Optional event-type filter, e.g. \['agent.message'\]. Omit to return every event. |
-| `limit` | number | No | Maximum events to return \(default $\{DEFAULT_EVENT_LIMIT\}\). |
+| `limit` | number | No | Maximum events to return, keeping the most recent \(default 500\). |
 
 #### Output
 
@@ -150,6 +150,7 @@ Read a Managed Agent session's event history and the agent's reply text.
 | `events` | json | Session events, oldest first. |
 | `count` | number | Number of events returned. |
 | `assistantText` | string | Concatenated text of every persisted agent.message, in order. |
+| `truncated` | boolean | True when the limit was hit and older events were dropped. |
 
 ### `managed_agent_update_session`
 
@@ -195,7 +196,7 @@ Allow or deny the tool calls a Managed Agent session is waiting on before it can
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `toolUseIds` | array | Yes | Blocking tool-use EVENT ids, from Get Session pendingTools\[\].id \(not toolu_ ids\). |
+| `toolUseIds` | array | Yes | Blocking tool-use EVENT ids, from Get Session pendingTools\[\].id where kind is 'confirmation' \(not toolu_ ids\). |
 | `decision` | string | Yes | 'allow' to let the tools run, or 'deny' to reject them. |
 | `denyMessage` | string | No | Reason surfaced to the agent. Only sent when the decision is deny. |
 
@@ -206,6 +207,25 @@ Allow or deny the tool calls a Managed Agent session is waiting on before it can
 | `sessionId` | string | The session that was answered. |
 | `decision` | string | The decision applied — 'allow' or 'deny'. |
 | `confirmedToolUseIds` | json | The tool-use event ids that were answered. |
+
+### `managed_agent_respond_custom_tool`
+
+Return the result of a custom tool a Managed Agent session is waiting on so it can continue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customToolUseIds` | array | Yes | Custom tool-use EVENT ids, from Get Session pendingTools\[\].id where kind is 'custom_tool_result'. |
+| `result` | string | Yes | The tool's output, returned to the agent as text. |
+| `isError` | boolean | No | Mark the result as a failure so the agent can adjust its approach. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | The session that was answered. |
+| `answeredToolUseIds` | json | The custom tool-use event ids that were answered. |
 
 ### `managed_agent_archive_session`
 

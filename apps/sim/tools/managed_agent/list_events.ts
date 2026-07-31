@@ -56,14 +56,23 @@ export const managedAgentListEventsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: `Maximum events to return (default ${DEFAULT_EVENT_LIMIT}).`,
+      // Written out rather than interpolated: the docs generator extracts this
+      // string statically, so a template literal ships as a raw `${...}` to
+      // readers. `DEFAULT_EVENT_LIMIT` is asserted against this in tests.
+      description: 'Maximum events to return, keeping the most recent (default 500).',
     },
   },
 
   request: UNUSED_REQUEST,
 
   directExecution: async (params, signal): Promise<ManagedAgentListEventsResponse> => {
-    const emptyOutput = { sessionId: '', events: [] as unknown[], count: 0, assistantText: '' }
+    const emptyOutput = {
+      sessionId: '',
+      events: [] as unknown[],
+      count: 0,
+      assistantText: '',
+      truncated: false,
+    }
     const target = resolveSessionTarget(params)
     if (!target.ok) {
       return { success: false, output: emptyOutput, error: target.error }
@@ -102,6 +111,9 @@ export const managedAgentListEventsTool: ToolConfig<
           events,
           count: events.length,
           assistantText,
+          // Signals that older events were dropped, so a caller reading history
+          // knows this is a tail rather than the whole session.
+          truncated: events.length >= maxItems,
         },
       }
     } catch (error) {
@@ -120,6 +132,10 @@ export const managedAgentListEventsTool: ToolConfig<
     assistantText: {
       type: 'string',
       description: 'Concatenated text of every persisted agent.message, in order.',
+    },
+    truncated: {
+      type: 'boolean',
+      description: 'True when the limit was hit and older events were dropped.',
     },
   },
 }

@@ -9,6 +9,7 @@ import {
   listSessionEvents,
   parseSessionSnapshot,
   resolvePendingToolGates,
+  sendCustomToolResults,
   sendToolConfirmations,
   updateSession,
 } from '@/lib/managed-agents/session-client'
@@ -402,10 +403,17 @@ describe('resolvePendingToolGates', () => {
     })
 
     expect(gates).toEqual([
-      { id: 'sevt_1', eventType: 'agent.tool_use', name: 'bash', input: { command: 'ls' } },
+      {
+        id: 'sevt_1',
+        eventType: 'agent.tool_use',
+        kind: 'confirmation',
+        name: 'bash',
+        input: { command: 'ls' },
+      },
       {
         id: 'sevt_2',
         eventType: 'agent.mcp_tool_use',
+        kind: 'confirmation',
         name: 'create_issue',
         input: { title: 'x' },
       },
@@ -442,6 +450,36 @@ describe('resolvePendingToolGates', () => {
     expect(gates).toEqual([{ id: 'sevt_1' }, { id: 'sevt_2' }])
   })
 
+  it('labels a custom-tool gate as needing a custom tool result, not a confirmation', async () => {
+    // A confirmation cannot unblock a custom tool — the agent is waiting on the
+    // tool's actual output — so the kind must route callers to the right op.
+    global.fetch = vi.fn(async () =>
+      Response.json({
+        data: [{ id: 'sevt_9', type: 'agent.custom_tool_use', name: 'lookup_order' }],
+        next_page: null,
+      })
+    ) as unknown as typeof fetch
+
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['sevt_9'],
+    })
+    expect(gates[0]?.kind).toBe('custom_tool_result')
+  })
+
+  it('omits kind when the event could not be resolved', async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error('network down')
+    }) as unknown as typeof fetch
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['sevt_1'],
+    })
+    expect(gates[0]).toEqual({ id: 'sevt_1' })
+  })
+
   it('short-circuits with no ids', async () => {
     const spy = vi.fn() as unknown as typeof fetch
     global.fetch = spy
@@ -458,28 +496,51 @@ describe('listSessionEvents — bounded reads', () => {
     global.fetch = originalFetch
   })
 
-  const pagedFetch = () =>
-    vi.fn(async () =>
-      Response.json({
+  /** Emits `pages` pages of 100 chronologically-increasing events. */
+  const pagedFetch = (pages: number) => {
+    let page = 0
+    return vi.fn(async () => {
+      const offset = page * 100
+      page += 1
+      return Response.json({
         data: Array.from({ length: 100 }, (_, i) => ({
-          id: `e${i}`,
+          id: `e${offset + i}`,
           type: 'agent.message',
-          processed_at: '2026-01-01T00:00:00Z',
+          processed_at: new Date(Date.UTC(2026, 0, 1) + (offset + i) * 1000).toISOString(),
         })),
-        next_page: 'cursor',
+        next_page: page < pages ? `cursor-${page}` : null,
       })
-    ) as unknown as typeof fetch
+    }) as unknown as typeof fetch
+  }
 
-  it('stops paging once maxItems is reached', async () => {
-    const spy = pagedFetch()
-    global.fetch = spy
+  it('returns exactly maxItems, never a whole extra page', async () => {
+    global.fetch = pagedFetch(3)
     const events = await listSessionEvents({
       apiKey: 'sk-ant-fake',
       sessionId: 'sesn_1',
       maxItems: 250,
     })
-    // 3 pages of 100 covers 250; a 4th would exceed the cap.
-    expect((spy as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3)
+    expect(events).toHaveLength(250)
+  })
+
+  it('keeps the NEWEST events when capping, not the oldest', async () => {
+    // Ascending history: e0 (oldest) .. e249 (newest). A cap of 10 must return
+    // the last ten — capping the fetch instead would return e0..e9 and silently
+    // drop the agent's most recent reply, which is what callers read this for.
+    global.fetch = pagedFetch(3)
+    const events = await listSessionEvents({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: 10,
+    })
+    expect(events).toHaveLength(10)
+    expect(events[0]?.id).toBe('e290')
+    expect(events.at(-1)?.id).toBe('e299')
+  })
+
+  it('returns the whole history when uncapped', async () => {
+    global.fetch = pagedFetch(3)
+    const events = await listSessionEvents({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })
     expect(events).toHaveLength(300)
   })
 
@@ -495,5 +556,56 @@ describe('listSessionEvents — bounded reads', () => {
     })
     const [url] = (spy as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
     expect(new URL(url).searchParams.getAll('types[]')).toEqual(['agent.message', 'agent.tool_use'])
+  })
+})
+
+describe('sendCustomToolResults', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it('sends a user.custom_tool_result per pending call', async () => {
+    const spy = vi.fn(async () => Response.json({})) as unknown as typeof fetch
+    global.fetch = spy
+    await sendCustomToolResults({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      results: [{ customToolUseId: 'sevt_9', content: 'order #42 shipped', isError: false }],
+    })
+    const [, init] = (spy as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
+    expect(JSON.parse(init.body as string)).toEqual({
+      events: [
+        {
+          type: 'user.custom_tool_result',
+          custom_tool_use_id: 'sevt_9',
+          content: [{ type: 'text', text: 'order #42 shipped' }],
+          is_error: false,
+        },
+      ],
+    })
+  })
+
+  it('defaults is_error to false and honors an explicit failure', async () => {
+    const spy = vi.fn(async () => Response.json({})) as unknown as typeof fetch
+    global.fetch = spy
+    await sendCustomToolResults({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      results: [
+        { customToolUseId: 'a', content: 'ok' },
+        { customToolUseId: 'b', content: 'lookup failed', isError: true },
+      ],
+    })
+    const [, init] = (spy as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
+    const events = JSON.parse(init.body as string).events
+    expect(events[0].is_error).toBe(false)
+    expect(events[1].is_error).toBe(true)
   })
 })

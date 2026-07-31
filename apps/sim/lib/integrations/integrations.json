@@ -2939,6 +2939,10 @@
           "description": "Allow or deny the tool calls a Managed Agent session is waiting on before it can continue."
         },
         {
+          "name": "Respond to custom tool",
+          "description": "Return the result of a custom tool a Managed Agent session is waiting on so it can continue."
+        },
+        {
           "name": "Archive session",
           "description": "Archive a Managed Agent session, preserving its history. Not reversible."
         },
@@ -2947,7 +2951,7 @@
           "description": "Permanently delete a Managed Agent session, its events, and its sandbox. Not reversible."
         }
       ],
-      "operationCount": 10,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

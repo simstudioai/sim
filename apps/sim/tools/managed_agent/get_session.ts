@@ -124,7 +124,7 @@ export const managedAgentGetSessionTool: ToolConfig<
     pendingTools: {
       type: 'json',
       description:
-        'Tool calls awaiting approval — [{id, eventType, name, input}]. Pass each id to Respond To Tool Confirmation.',
+        "Blocking tool calls — [{id, eventType, kind, name, input}]. Route by kind: 'confirmation' ids go to Respond To Tool Confirmation, 'custom_tool_result' ids go to Respond To Custom Tool.",
     },
     metadata: { type: 'json', description: 'Session metadata.', optional: true },
     title: { type: 'string', description: 'Session title.', optional: true },

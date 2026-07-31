@@ -14,6 +14,13 @@ import type {
 import type { ToolConfig } from '@/tools/types'
 
 /**
+ * Upper bound on the interrupt request itself. Interrupting is the prerequisite
+ * for archiving or deleting a running session, so it must fail fast and visibly
+ * rather than hang on a stalled connection.
+ */
+const INTERRUPT_TIMEOUT_MS = 15_000
+
+/**
  * Stops a running session at its next safe boundary.
  *
  * The interrupt jumps ahead of any queued user events, and the session stays
@@ -49,7 +56,12 @@ export const managedAgentInterruptSessionTool: ToolConfig<
         apiKey: target.apiKey,
         sessionId: target.sessionId,
         events: [{ type: 'user.interrupt' }],
-        ...(signal ? { signal } : {}),
+        // Bounded so a stalled connection can't hang the operation. The
+        // workflow's own signal still cancels earlier when present; `any`
+        // resolves on whichever fires first.
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(INTERRUPT_TIMEOUT_MS)])
+          : AbortSignal.timeout(INTERRUPT_TIMEOUT_MS),
       })
       return { success: true, output: { sessionId: target.sessionId, interrupted: true } }
     } catch (error) {

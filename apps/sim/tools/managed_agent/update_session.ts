@@ -60,7 +60,11 @@ export const managedAgentUpdateSessionTool: ToolConfig<
       return { success: false, output: { sessionId: '', updated: false }, error: target.error }
     }
 
-    const title = params.title?.trim()
+    // A whitespace-only title is treated as "not provided", not as a request to
+    // blank the session's title — otherwise a stray space in the field would
+    // both slip past the guard below and silently clear an existing title.
+    const trimmedTitle = params.title?.trim()
+    const title = trimmedTitle ? trimmedTitle : undefined
     const metadata = normalizeSessionParameters(params.sessionParameters)
     if (title === undefined && metadata === undefined) {
       return {

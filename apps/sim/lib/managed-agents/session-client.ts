@@ -345,14 +345,34 @@ export async function sendToolConfirmations(
   })
 }
 
-/** A tool call blocking an `always_ask` session, resolved to its name/input. */
+/**
+ * How a blocking gate must be answered.
+ *
+ * `confirmation` — an `always_ask` permission gate on a server-executed tool;
+ * answered with `user.tool_confirmation` (allow/deny).
+ * `custom_tool_result` — a client-side custom tool the agent invoked; answered
+ * with `user.custom_tool_result` carrying the tool's actual output. Sending a
+ * confirmation for one of these does NOT unblock the session.
+ */
+export type PendingToolGateKind = 'confirmation' | 'custom_tool_result'
+
+/** A tool call blocking a session, resolved to its name/input. */
 export interface PendingToolGate {
-  /** Event id — pass this as `tool_use_id` on the confirmation. */
+  /** Event id — pass this as `tool_use_id` / `custom_tool_use_id` when answering. */
   id: string
   /** `agent.tool_use`, `agent.mcp_tool_use`, or `agent.custom_tool_use`. */
   eventType?: string
+  /** Which reply event unblocks this gate. Absent when the event could not be resolved. */
+  kind?: PendingToolGateKind
   name?: string
   input?: unknown
+}
+
+/** Maps a tool-use event type onto the reply event that unblocks it. */
+function gateKindFor(eventType: string | undefined): PendingToolGateKind | undefined {
+  if (eventType === 'agent.custom_tool_use') return 'custom_tool_result'
+  if (eventType === 'agent.tool_use' || eventType === 'agent.mcp_tool_use') return 'confirmation'
+  return undefined
 }
 
 /** Upper bound on tool-use events scanned when naming pending gates. */
@@ -400,12 +420,42 @@ export async function resolvePendingToolGates(
   // Preserve the API's `event_ids` order so the caller's prompts are stable.
   return input.eventIds.map((id) => {
     const event = byId.get(id)
+    const kind = gateKindFor(event?.type)
     return {
       id,
       ...(event?.type ? { eventType: event.type } : {}),
+      ...(kind ? { kind } : {}),
       ...(event?.name ? { name: event.name } : {}),
       ...(event?.input !== undefined ? { input: event.input } : {}),
     }
+  })
+}
+
+/**
+ * POST /v1/sessions/{id}/events with one `user.custom_tool_result` per pending
+ * custom-tool call.
+ *
+ * Custom tools are executed by the caller, not Anthropic, so a permission
+ * confirmation cannot unblock them — the agent is waiting for the tool's actual
+ * output (or an error).
+ */
+export async function sendCustomToolResults(
+  input: SessionAuth & {
+    sessionId: string
+    results: Array<{ customToolUseId: string; content: string; isError?: boolean }>
+  }
+): Promise<void> {
+  const events: OutboundSessionEvent[] = input.results.map((result) => ({
+    type: 'user.custom_tool_result',
+    custom_tool_use_id: result.customToolUseId,
+    content: [{ type: 'text', text: result.content }],
+    is_error: result.isError ?? false,
+  }))
+  await sendSessionEvents({
+    apiKey: input.apiKey,
+    ...(input.signal ? { signal: input.signal } : {}),
+    sessionId: input.sessionId,
+    events,
   })
 }
 
@@ -475,7 +525,10 @@ async function listPaginated<T>(
     if (!body.next_page || items.length === 0) break
     page = body.next_page
   }
-  return collected
+  // Pages arrive whole, so the last one can overshoot `maxItems` — trim to the
+  // exact cap the caller asked for. (`slice(0, Infinity)` is a no-op, so the
+  // unbounded default is unaffected.)
+  return collected.length > maxItems ? collected.slice(0, maxItems) : collected
 }
 
 /**
@@ -490,10 +543,15 @@ export async function listSessionEvents(
     sessionId: string
     types?: string[]
     /**
-     * Caps how many events are pulled into memory. Defaults to unbounded, which
-     * is what the run loop's catch-up needs — it must reach the tail to see the
-     * terminal event. Callers that surface events to a workflow should pass an
-     * explicit bound instead: a long session's history can be very large.
+     * Caps how many events are RETURNED. Defaults to unbounded, which is what
+     * the run loop's catch-up needs — it must reach the tail to see the terminal
+     * event.
+     *
+     * The cap keeps the MOST RECENT events, not the first ones the API happens
+     * to hand back. Capping the fetch instead would return the oldest slice of a
+     * long session and silently omit the agent's latest reply — the exact thing
+     * most callers are reading events for. Paging is therefore still exhaustive;
+     * the bound applies to the returned array.
      */
     maxItems?: number
   }
@@ -506,14 +564,20 @@ export async function listSessionEvents(
     ...(types.length > 0
       ? { searchParams: types.map((type): [string, string] => ['types[]', type.trim()]) }
       : {}),
-    maxItems: input.maxItems ?? Number.POSITIVE_INFINITY,
+    maxItems: Number.POSITIVE_INFINITY,
   })
   // The list endpoint's page order is not guaranteed chronological, so order by
   // the server-side `processed_at` timestamp before returning. The catch-up
   // loop depends on ascending order both to accumulate assistant text in order
   // and to read the latest lifecycle event. Still-queued events (null
   // `processed_at`) are processed after everything else, so they sort last.
-  return events.sort((a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at))
+  const ordered = events.sort(
+    (a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at)
+  )
+  const maxItems = input.maxItems
+  // Slice AFTER ordering so the cap is "the newest N", independent of the order
+  // the API returned pages in.
+  return maxItems !== undefined && ordered.length > maxItems ? ordered.slice(-maxItems) : ordered
 }
 
 /** Epoch millis for a `processed_at`, or +Infinity when absent/queued/unparseable (sorts last). */

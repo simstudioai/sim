@@ -85,6 +85,7 @@ describe('Managed Agent block — operation routing', () => {
     ['update_session', 'managed_agent_update_session'],
     ['interrupt_session', 'managed_agent_interrupt_session'],
     ['respond_tool_confirmation', 'managed_agent_respond_tool_confirmation'],
+    ['respond_custom_tool', 'managed_agent_respond_custom_tool'],
     ['archive_session', 'managed_agent_archive_session'],
     ['delete_session', 'managed_agent_delete_session'],
   ])('maps %s to %s', (operation, toolId) => {
@@ -112,6 +113,7 @@ describe('Managed Agent block — per-operation field visibility', () => {
       'update_session',
       'interrupt_session',
       'respond_tool_confirmation',
+      'respond_custom_tool',
       'archive_session',
       'delete_session',
     ]) {
@@ -151,6 +153,17 @@ describe('Managed Agent block — per-operation field visibility', () => {
       isVisible('denyMessage', { operation: 'respond_tool_confirmation', decision: 'allow' })
     ).toBe(false)
     expect(isVisible('denyMessage', { operation: 'send_message', decision: 'deny' })).toBe(false)
+  })
+
+  it('separates confirmation fields from custom-tool-result fields', () => {
+    // A confirmation cannot unblock a custom tool, so the two operations must
+    // not share inputs — otherwise a workflow can silently answer the wrong way.
+    expect(isVisible('toolUseIds', { operation: 'respond_tool_confirmation' })).toBe(true)
+    expect(isVisible('toolUseIds', { operation: 'respond_custom_tool' })).toBe(false)
+    expect(isVisible('customToolUseIds', { operation: 'respond_custom_tool' })).toBe(true)
+    expect(isVisible('customToolUseIds', { operation: 'respond_tool_confirmation' })).toBe(false)
+    expect(isVisible('result', { operation: 'respond_custom_tool' })).toBe(true)
+    expect(isVisible('decision', { operation: 'respond_custom_tool' })).toBe(false)
   })
 
   it('shows metadata for update session but not the agent config fields', () => {

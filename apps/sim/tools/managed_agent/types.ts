@@ -68,10 +68,15 @@ export interface ManagedAgentSendMessageResponse extends ToolResponse {
 
 export interface ManagedAgentGetSessionParams extends ManagedAgentSessionOpParams {}
 
-/** One tool call blocking an `always_ask` session. */
+/** One tool call blocking a session. */
 export interface ManagedAgentPendingTool {
   id: string
   eventType?: string
+  /**
+   * Which operation unblocks this gate: `confirmation` (Respond To Tool
+   * Confirmation) or `custom_tool_result` (Respond To Custom Tool).
+   */
+  kind?: 'confirmation' | 'custom_tool_result'
   name?: string
   input?: unknown
 }
@@ -107,6 +112,8 @@ export interface ManagedAgentListEventsResponse extends ToolResponse {
     count: number
     /** Concatenated text of every `agent.message`, in order — the usual thing callers want. */
     assistantText: string
+    /** True when `limit` was reached and older events were dropped. */
+    truncated: boolean
   }
 }
 
@@ -136,6 +143,19 @@ export interface ManagedAgentToolConfirmationParams extends ManagedAgentSessionO
 
 export interface ManagedAgentToolConfirmationResponse extends ToolResponse {
   output: { sessionId: string; decision: string; confirmedToolUseIds: string[] }
+}
+
+export interface ManagedAgentCustomToolResultParams extends ManagedAgentSessionOpParams {
+  /** Blocking custom tool-use EVENT ids (array, JSON string, or comma list). */
+  customToolUseIds?: unknown
+  /** The tool's output, returned to the agent. */
+  result?: string
+  /** Marks the result as a failure. */
+  isError?: boolean | string
+}
+
+export interface ManagedAgentCustomToolResultResponse extends ToolResponse {
+  output: { sessionId: string; answeredToolUseIds: string[] }
 }
 
 export interface ManagedAgentArchiveSessionParams extends ManagedAgentSessionOpParams {}
