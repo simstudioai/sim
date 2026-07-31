@@ -182,10 +182,15 @@ export function buildFilePreviewText({
   }
 
   if (operation === 'append') {
-    if (existingContent !== undefined) {
-      return buildAppendPreview(existingContent, streamedContent)
+    // Fail closed (like `patch`/`update` below) when the base file content has not loaded yet: a base-less
+    // `append` preview is just the streamed fragment, and a collaborative editor applying it as the full
+    // body would reconcile the seeded doc down to that fragment (a wipe). Skipping the preview until the
+    // base is available costs only a brief render delay; the final durable `edit_content` write is
+    // authoritative. An empty file has `existingContent === ''` (defined), so it is unaffected.
+    if (existingContent === undefined) {
+      return undefined
     }
-    return streamedContent
+    return buildAppendPreview(existingContent, streamedContent)
   }
 
   if (existingContent === undefined) {
