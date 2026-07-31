@@ -1891,7 +1891,8 @@ export async function refreshOAuthToken(
         : typeof expiresInCandidate === 'string' && expiresInCandidate.trim()
           ? Number(expiresInCandidate)
           : Number.NaN
-    const expiresIn = Number.isFinite(parsedExpiresIn) ? parsedExpiresIn : 3600
+    const expiresIn =
+      Number.isFinite(parsedExpiresIn) && parsedExpiresIn > 0 ? parsedExpiresIn : 3600
 
     if (!accessToken) {
       logger.warn('No access token found in refresh response', {
