@@ -7,6 +7,11 @@ import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  createMonacoFindController,
+  FIND_PRIORITY,
+  useRegisterFindController,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/find'
 import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
@@ -394,6 +399,18 @@ export const TextEditor = memo(function TextEditor({
   })
   contentRef.current = content
 
+  const isEditorReadOnly = isStreamInteractionLocked || !canEdit
+
+  useRegisterFindController(
+    (report) =>
+      createMonacoFindController({
+        getEditor: () => monacoEditorRef.current,
+        report,
+        priority: FIND_PRIORITY.editor,
+      }),
+    []
+  )
+
   useEffect(() => {
     const editor = monacoEditorRef.current
     if (!editor) return
@@ -500,6 +517,12 @@ export const TextEditor = memo(function TextEditor({
       saveImmediately()
     })
 
+    // Suppress Monaco's native find/replace widgets so Cmd+F is handled solely by the shared find
+    // bar's global command (which owns open / retarget / toggle-close). These are no-ops, not opens:
+    // a Monaco keybinding that reopened the bar is exactly what broke the Cmd+F close-toggle.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {})
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {})
+
     const model = editor.getModel()
     const currentContent = contentRef.current
     if (model && currentContent && model.getValue() !== currentContent) {
@@ -532,7 +555,6 @@ export const TextEditor = memo(function TextEditor({
   )
 
   const isStreaming = isStreamInteractionLocked
-  const isEditorReadOnly = isStreamInteractionLocked || !canEdit
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'

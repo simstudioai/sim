@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useDomFindController } from '@/app/workspace/[workspaceId]/files/components/file-viewer/find'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
@@ -36,6 +37,11 @@ export const XlsxPreview = memo(function XlsxPreview({
   const [currentSheet, setCurrentSheet] = useState<XlsxSheet | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
   const workbookRef = useRef<WorkBook | null>(null)
+  const tableContainerRef = useRef<HTMLDivElement>(null)
+  useDomFindController(tableContainerRef, {
+    truncated: currentSheet?.truncated ?? false,
+    deps: [currentSheet],
+  })
 
   useEffect(() => {
     if (!fileData) return
@@ -128,7 +134,7 @@ export const XlsxPreview = memo(function XlsxPreview({
           ))}
         </div>
       </div>
-      <div className='flex-1 overflow-auto p-6'>
+      <div ref={tableContainerRef} className='flex-1 overflow-auto p-6'>
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>

@@ -1,7 +1,8 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useRef } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useDomFindController } from '@/app/workspace/[workspaceId]/files/components/file-viewer/find'
 import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -27,6 +28,9 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   } = useWorkspaceCsvPreview(workspaceId, file.id, file.key, version)
   useCsvTruncationImport(workspaceId, file, data?.truncated ?? false)
 
+  const containerRef = useRef<HTMLDivElement>(null)
+  useDomFindController(containerRef, { truncated: data?.truncated ?? false, deps: [data] })
+
   const error = resolvePreviewError((fetchError as Error | null) ?? null, null)
   if (error) return <PreviewError label='CSV' error={error} />
   if (isLoading || !data) {
@@ -42,7 +46,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   }
 
   return (
-    <div className='flex flex-1 flex-col overflow-auto p-6'>
+    <div ref={containerRef} className='flex flex-1 flex-col overflow-auto p-6'>
       <DataTable headers={data.headers} rows={data.rows} />
     </div>
   )
