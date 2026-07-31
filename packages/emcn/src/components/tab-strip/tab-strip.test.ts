@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { isTabTitleTruncated, type TabStripItem, tabDropIndex } from './tab-strip'
 
@@ -76,5 +77,25 @@ describe('tab tooltips', () => {
     const tab: TabStripItem = { id: '1', title: 'GitHub', pinned: true }
 
     expect(tooltipFor(tab, false)).toBe('GitHub')
+  })
+})
+
+describe('tab strip vertical overflow', () => {
+  const source = readFileSync(new URL('./tab-strip.tsx', import.meta.url), 'utf8')
+  /** Declarations only — the comments here discuss the class they removed. */
+  const markup = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+  it('keeps the one-pixel overlap off the horizontally scrolling row', () => {
+    // The active tab must extend a pixel past the strip to cover its bottom border. While
+    // that pixel came from the tab it overflowed the scroll container, and `overflow-x:
+    // auto` computes the visible `overflow-y` to `auto` too — so the strip scrolled
+    // vertically by exactly one pixel. Measured in a real renderer: the row was
+    // scrollHeight 30 against clientHeight 29, and is now 30 against 30.
+    const scrollRow = markup.match(/className='([^']*overflow-x-auto[^']*)'/)?.[1] ?? ''
+    expect(scrollRow).toContain('-mb-px')
+
+    const tabButton = markup.match(/className=\{cn\(\s*'(h-\[30px\][^']*)'/)?.[1] ?? ''
+    expect(tabButton).not.toBe('')
+    expect(tabButton).not.toContain('-mb-px')
   })
 })
