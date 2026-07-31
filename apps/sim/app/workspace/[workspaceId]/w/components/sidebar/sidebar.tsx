@@ -92,6 +92,7 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
@@ -116,6 +117,13 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+/**
+ * Stable identity for the chat list's "no data" case. With Chat disabled the
+ * query never runs, so a `= []` default would mint a new array every render and
+ * invalidate every memo downstream of it.
+ */
+const EMPTY_CHATS: MothershipChatMetadata[] = []
 
 const SLACK_COMMUNITY_URL =
   'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
@@ -733,8 +741,6 @@ export const Sidebar = memo(function Sidebar({
   const topNavItems = useMemo(
     () =>
       [
-        // Same slot either way: the primary "start something new" action. With
-        // Chat off that is a workflow, since there is no composer to open.
         {
           id: 'home',
           label: isChatEnabled ? 'New chat' : 'New workflow',
@@ -824,24 +830,23 @@ export const Sidebar = memo(function Sidebar({
     [navigateToSettings, getSettingsHref, setSidebarWidth]
   )
 
-  const { data: fetchedChats = [], isLoading: chatsLoading } = useMothershipChats(workspaceId, {
-    enabled: isChatEnabled,
-  })
+  const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
+    workspaceId,
+    { enabled: isChatEnabled }
+  )
 
   useMothershipChatEvents(workspaceId)
 
   /**
-   * Empty when Chat is disabled, which also drops the command palette's Chats
-   * group — `SearchGroups` renders nothing for an empty list.
+   * Stays empty when Chat is disabled, which also drops the command palette's
+   * Chats group — `SearchGroups` renders nothing for an empty list.
    */
   const chats = useMemo(
     () =>
-      isChatEnabled && fetchedChats
-        ? fetchedChats.map((t) => ({
-            ...t,
-            href: `/workspace/${workspaceId}/chat/${t.id}`,
-          }))
-        : [],
+      fetchedChats.map((t) => ({
+        ...t,
+        href: `/workspace/${workspaceId}/chat/${t.id}`,
+      })),
     [fetchedChats, workspaceId]
   )
 
@@ -1406,7 +1411,7 @@ export const Sidebar = memo(function Sidebar({
                           >
                             {chatsLoading ? (
                               <DropdownMenuItem disabled>
-                                <Loader className='h-[14px] w-[14px]' animate />
+                                <Loader className='size-[14px]' animate />
                                 Loading...
                               </DropdownMenuItem>
                             ) : chats.length === 0 ? (

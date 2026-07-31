@@ -2,9 +2,8 @@ import { redirect } from 'next/navigation'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 
 /**
- * Resolves the workspace landing route. With Chat enabled that is the chat
- * composer; otherwise `/w`, which selects the first workflow from the workflow
- * list the layout already prefetched.
+ * Resolves the workspace landing route: the chat composer, or `/w`, which
+ * selects the first workflow from the list the layout already prefetched.
  *
  * Deliberately does no work of its own. Resolving the workflow here would mean
  * a session lookup, an access check, and a query before anything renders — and

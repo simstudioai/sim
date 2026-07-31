@@ -67,10 +67,9 @@ export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PRO
  * This governs presentation only. Whether Chat can actually reach the mothership
  * is a separate question answered by `COPILOT_API_KEY`, which gates the paths
  * that need it (the Sim Chat block, prompt-job claims, inbox execution). Keeping
- * them separate is what lets this be a single variable: the key is a secret and
- * could never be read in the browser, but `NEXT_PUBLIC_CHAT_DISABLED` is not, so
- * `getEnv` resolves the same value from `process.env` on the server and
- * `window.__ENV` on the client — no twin to keep in sync.
+ * them separate is what lets this be a single variable: the secret key could
+ * never be read in the browser, but `NEXT_PUBLIC_CHAT_DISABLED` can — no twin to
+ * keep in sync.
  *
  * Read at module scope or inline during render only. Resolving it through
  * `useState`/`useEffect` would render chat surfaces before removing them.

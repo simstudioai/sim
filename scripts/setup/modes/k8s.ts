@@ -282,7 +282,6 @@ interface ReleaseValues {
   postgresql?: { auth?: { password?: string } }
 }
 
-/** Values of the installed release, or `null` when there is no release yet. */
 function existingReleaseValues(context: string): ReleaseValues | null {
   const scope = ['--kube-context', context, '-n', NAMESPACE]
   const status = spawnSync('helm', ['status', RELEASE, ...scope], { stdio: 'ignore' })

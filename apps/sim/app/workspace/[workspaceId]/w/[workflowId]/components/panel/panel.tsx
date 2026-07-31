@@ -294,7 +294,10 @@ export const Panel = memo(function Panel() {
   // chat was deleted in another tab).
   const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
   useEffect(() => {
-    if (!activeWorkflowId) return
+    // The list query is skipped when the tab is unavailable, so an empty list
+    // there means "not fetched", not "deleted elsewhere" — clearing on it would
+    // discard the selection and latch the ref against ever restoring it.
+    if (!activeWorkflowId || !isCopilotTabAvailable) return
 
     if (copilotChatId && !copilotChatList.find((c) => c.id === copilotChatId)) {
       setCopilotChatId(undefined)
@@ -306,7 +309,7 @@ export const Panel = memo(function Panel() {
     if (copilotChatList.length === 0) return
     autoSelectAttemptedForRef.current.add(activeWorkflowId)
     setCopilotChatId(copilotChatList[0].id)
-  }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
+  }, [copilotChatList, copilotChatId, activeWorkflowId, isCopilotTabAvailable, setCopilotChatId])
 
   useEffect(() => {
     posthogRef.current = posthog

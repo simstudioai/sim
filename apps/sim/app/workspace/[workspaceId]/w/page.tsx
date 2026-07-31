@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
@@ -17,7 +17,7 @@ function Spinner() {
       className='size-[18px] animate-spin rounded-full'
       style={{
         background:
-          'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+          'conic-gradient(from 0deg, var(--text-icon) 0deg 120deg, transparent 120deg 180deg, var(--text-icon) 180deg 300deg, transparent 300deg 360deg)',
         mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
         WebkitMask:
           'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
@@ -34,10 +34,10 @@ export default function WorkflowsPage() {
   const { data: workflows = [], isLoading, isError, isPlaceholderData } = useWorkflows(workspaceId)
   const { handleCreateWorkflow, isCreatingWorkflow } = useWorkflowOperations({ workspaceId })
 
-  const workspaceWorkflows = useMemo(
-    () => workflows.filter((w) => w.workspaceId === workspaceId),
-    [workflows, workspaceId]
-  )
+  // An id rather than the filtered array: `data` defaults to a fresh `[]` while
+  // the query has no data, so an array dependency would re-fire this on every
+  // render — exactly during the load this page exists to cover.
+  const firstWorkflowId = workflows.find((w) => w.workspaceId === workspaceId)?.id
   const isResolving = isLoading || isPlaceholderData
 
   useEffect(() => {
@@ -48,10 +48,10 @@ export default function WorkflowsPage() {
       return
     }
 
-    if (workspaceWorkflows.length > 0) {
-      router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0].id}`)
+    if (firstWorkflowId) {
+      router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
     }
-  }, [isResolving, isError, workspaceWorkflows, workspaceId, router])
+  }, [isResolving, isError, firstWorkflowId, workspaceId, router])
 
   /**
    * A workspace can legitimately reach zero workflows — deleting the last one,
@@ -59,19 +59,31 @@ export default function WorkflowsPage() {
    * is the terminal state for those paths now that the chat composer is no
    * longer a landing option, so it has to offer a way out rather than spin.
    */
-  const isEmpty = !isResolving && !isError && workspaceWorkflows.length === 0
+  const isEmpty = !isResolving && !isError && !firstWorkflowId
 
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
         <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
-          {isEmpty ? (
+          {isError ? (
+            // This is the landing route now, so a failed list fetch would
+            // otherwise spin forever with nothing but a log line.
+            <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
+              <div>
+                <p className='font-medium text-small'>Couldn't load workflows</p>
+                <p className='mt-1 text-caption'>Check your connection and try again.</p>
+              </div>
+              <Chip variant='primary' onClick={() => router.refresh()}>
+                Retry
+              </Chip>
+            </div>
+          ) : isEmpty ? (
             <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
               <div>
                 <p className='font-medium text-small'>No workflows yet</p>
                 <p className='mt-1 text-caption'>Create one to start building.</p>
               </div>
-              <Chip onClick={handleCreateWorkflow} disabled={isCreatingWorkflow}>
+              <Chip variant='primary' onClick={handleCreateWorkflow} disabled={isCreatingWorkflow}>
                 {isCreatingWorkflow ? 'Creating…' : 'Create workflow'}
               </Chip>
             </div>
