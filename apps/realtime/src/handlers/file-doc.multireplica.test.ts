@@ -31,6 +31,8 @@ const fakeStore = {
   setSyncedVersion: vi.fn(async (name: string, version: number) => {
     fakeStore.versions.set(name, Math.max(fakeStore.versions.get(name) ?? 0, version))
   }),
+  markAgentStreaming: vi.fn(async () => {}),
+  isAgentStreaming: vi.fn(async () => false),
 }
 
 vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: vi.fn() }))
@@ -82,5 +84,27 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 150)
     // setSyncedVersion fired only for the two applied durable writes, never for the stale one.
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledTimes(2)
+  })
+
+  it('defers the content merge cluster-wide when a client is streaming (records version, no diff)', async () => {
+    // The cluster-wide counterpart of the single-replica deferral: while the shared `isAgentStreaming`
+    // flag is set (a client on ANY replica is streaming this agent edit), the durable merge must record
+    // the version but skip the content diff — the streaming client owns the bytes, so a whole-document
+    // merge here would double-write them.
+    fakeStore.isAgentStreaming.mockResolvedValue(true)
+
+    expect(
+      await applyMarkdownToLiveFileDoc('file-1', '# streamed by a client', { version: 100 })
+    ).toBe('applied')
+    expect(mockFetchFileDocMerge).not.toHaveBeenCalled() // content deferred to the client
+    expect(fakeStore.publishAndWait).not.toHaveBeenCalled()
+    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100) // version still recorded
+
+    // Once streaming stops the flag clears and the (now near-noop) durable merge resumes normally.
+    fakeStore.isAgentStreaming.mockResolvedValue(false)
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# final durable', { version: 150 })).toBe(
+      'applied'
+    )
+    expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1)
   })
 })

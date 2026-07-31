@@ -568,6 +568,39 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
   })
 
+  it('defers the content merge to an actively-streaming client (records version, no double-write)', async () => {
+    // Two-writer duplication guard: while a client is streaming an agent edit into the shared doc
+    // (agent frames flowing), a durable apply-edit merge must NOT also publish the same content — the
+    // client's private shadow never observes this merge and would re-insert it. The merge still records
+    // the durable version; once streaming stops it resumes and lands as a near-noop.
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    // A client streams an agent frame → the room is now "actively streaming".
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'agent streaming this live')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
+    // The durable merge lands mid-stream: it must defer (record version) and skip the content diff.
+    const result = await applyMarkdownToLiveFileDoc('file-1', '# Rewritten by copilot', {
+      version: 100,
+    })
+    expect(result).toBe('applied')
+    expect(mockFetchFileDocMerge).not.toHaveBeenCalled() // content deferred to the client
+
+    // The recorded version is honored: a later stale merge is still rejected on it.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older', { version: 50 })).toBe('stale')
+  })
+
   it('reports no-live-room (and does not call the app) when the file has no seeded room', async () => {
     const result = await applyMarkdownToLiveFileDoc('file-1', '# anything')
     expect(result).toBe('no-live-room')

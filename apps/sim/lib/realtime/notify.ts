@@ -113,7 +113,7 @@ export async function notifyFolderResourceChanged(
  * How a durable live-doc merge is positioned on the file's monotonic version line. Omit `version` to
  * apply the merge without ordering it (legacy).
  */
-export interface LiveFileDocMergeOrder {
+interface LiveFileDocMergeOrder {
   /** A durable write's `contentUpdatedAt` (epoch ms): applied only if newer than the version the doc
    *  already incorporates, AND recorded as the synced version (the persist If-Match guard). */
   version?: number

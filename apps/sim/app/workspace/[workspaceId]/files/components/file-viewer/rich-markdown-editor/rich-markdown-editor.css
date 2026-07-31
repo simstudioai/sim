@@ -472,17 +472,24 @@
  * cell is not hidden behind adjacent cells.
  */
 .rich-markdown-prose .collaboration-carets__caret {
+  /* Zero inline footprint: a positioned anchor with NO width/border/margin, so inserting or moving this
+   * inline widget never reflows the surrounding text. The visible bar, dormant cap (::before), name label,
+   * and hover slop (::after) are all positioned relative to this anchor and are out of the inline flow. */
   position: relative;
-  margin-left: -1px;
-  margin-right: -1px;
-  border-left-width: 1px;
-  border-left-style: solid;
-  border-left-color: var(--caret-color);
-  border-right-width: 1px;
-  border-right-style: solid;
-  border-right-color: var(--caret-color);
   word-break: normal;
   z-index: 20;
+}
+
+/* The visible caret bar — absolutely positioned so it draws over the text without occupying inline
+ * width. `left: -1px` centers the 2px bar on the cursor position; top/bottom span the line box height. */
+.rich-markdown-prose .collaboration-carets__bar {
+  position: absolute;
+  top: -0.1em;
+  bottom: -0.1em;
+  left: -1px;
+  width: 2px;
+  background-color: var(--caret-color);
+  pointer-events: none;
 }
 
 /* Dormant affordance: a small cap at the top of the caret in the collaborator's color,
@@ -493,10 +500,9 @@
 .rich-markdown-prose .collaboration-carets__caret::before {
   content: "";
   position: absolute;
-  /* Seat the cap's square bottom-left corner on the pole's top-left, flush like a flag on its
-   * pole. `left: -1px` backs out the caret's 1px left border (the abs-positioning origin is the
-   * padding box, inside that border) so the cap's left edge lines up with the pole's left edge;
-   * `top` overlaps the pole's top a hair so the notch reads as continuous, no gap. */
+  /* Seat the cap's square bottom-left corner on the pole's top-left, flush like a flag on its pole.
+   * `left: -1px` matches the bar's `left: -1px` so the cap's left edge lines up with the bar's left edge;
+   * `top` overlaps the bar's top a hair so the notch reads as continuous, no gap. */
   top: -2px;
   left: -1px;
   width: 8px;

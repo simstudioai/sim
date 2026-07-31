@@ -84,6 +84,13 @@ export function renderCaret(user: Record<string, unknown>): HTMLElement {
   // One inline var drives the caret bar, the dormant cap, and the name tag (all in CSS).
   caret.style.setProperty('--caret-color', color)
   if (clientId !== undefined) caret.dataset.caretClientId = String(clientId)
+  // The visible caret bar is a SEPARATE, absolutely-positioned child — never an inline border on the
+  // caret span. The caret is a ProseMirror inline widget inserted between characters; an in-flow bar
+  // (border + width) reflows the surrounding text by ~1px each time a peer's caret appears or moves.
+  // An out-of-flow bar has zero layout footprint, so peer carets never nudge the document.
+  const bar = document.createElement('span')
+  bar.className = 'collaboration-carets__bar'
+  caret.appendChild(bar)
   const label = document.createElement('div')
   label.className = 'collaboration-carets__label'
   label.textContent = name

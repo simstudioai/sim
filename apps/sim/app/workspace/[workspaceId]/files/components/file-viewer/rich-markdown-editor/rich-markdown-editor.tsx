@@ -31,6 +31,7 @@ import {
   beginAgentStream,
   endAgentStream,
 } from './collaboration/apply-streamed-markdown'
+import { nextCollabReadiness } from './collaboration/readiness'
 import { useFileDocCollaboration } from './collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
@@ -727,8 +728,14 @@ export function LoadedRichMarkdownEditor({
     }
     const config = doc.getMap(FILE_DOC_SEED.configMap)
 
+    // Readiness LATCHES so a post-seed `synced` flap can't re-gate a new file's agent stream — see
+    // {@link nextCollabReadiness} for the full rationale. `offlineSeed` marks a local (read-only) seed.
+    let syncedOnce = false
+    let offlineSeed = false
+
     const seedFromLoaded = () => {
       if (config.get(FILE_DOC_SEED.flag) === true) return
+      offlineSeed = true
       doc.transact(() => {
         editor.commands.setContent(
           parseMarkdownToDoc(splitFrontmatter(seedContentRef.current).body),
@@ -743,11 +750,13 @@ export function LoadedRichMarkdownEditor({
       return
     }
 
-    // The server seeds the document (content + the `initialContentLoaded` flag), so readiness is
-    // simply "synced AND seeded" — no client-side seed import on the happy path. `seedFromLoaded`
-    // remains only for the offline fallback below (a non-retryable join error / readiness timeout),
-    // where it locally renders the file read-only since the server can't be reached.
-    const report = () => setReady(provider.synced && config.get(FILE_DOC_SEED.flag) === true)
+    const report = () => {
+      const synced = provider.synced
+      const seeded = config.get(FILE_DOC_SEED.flag) === true
+      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed })
+      syncedOnce = next.syncedOnce
+      setReady(next.ready)
+    }
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable === false) seedFromLoaded()
     }

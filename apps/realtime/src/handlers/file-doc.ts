@@ -90,6 +90,15 @@ const MERGE_LOCK_RETRIES = Math.ceil(
   (MERGE_LOCK_TTL_MS + FILE_DOC_TIMEOUTS.mergeRequestMs) / MERGE_LOCK_RETRY_MS
 )
 
+/**
+ * How long after the last agent frame a client is still treated as "actively streaming" (so a durable
+ * merge defers to it). Comfortably longer than the gap between agent frames (per-rAF to the client's
+ * reparse throttle) so brief throttle pauses don't flip it off mid-stream, yet short enough that the
+ * final durable merge — which lands as a near-noop once the client has streamed everything — isn't
+ * deferred for long after the stream ends.
+ */
+const AGENT_STREAM_FLAG_TTL_MS = 10_000
+
 /** One presence ownership within a room: a (socket, clientID) pair. */
 interface FileDocOwner {
   /**
@@ -149,6 +158,15 @@ interface FileDocRoom {
    * edit the live doc hasn't incorporated. `null` before the first seed (persist writes unconditionally).
    */
   syncedVersion: number | null
+  /**
+   * Epoch ms until which a client is treated as actively streaming an agent edit into this doc —
+   * refreshed on every agent frame ({@link AGENT_SYNC_ORIGIN}/{@link REDIS_AGENT_ORIGIN}). While it is in
+   * the future, a durable {@link applyMarkdownToLiveFileDoc} merge DEFERS its content diff to that client
+   * (which applies the same content into the shared doc), preventing the two-writer duplication; the merge
+   * still records the durable version. The single-replica counterpart of the cluster-wide
+   * {@link FileDocStore.isAgentStreaming} flag. `0` when no agent stream is active.
+   */
+  agentStreamingUntil: number
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
@@ -645,6 +663,15 @@ async function mergeMarkdownIntoRoom(
       const shared = await store.getSyncedVersion(name)
       const current = Math.max(shared ?? 0, fileDocRooms.get(name)?.syncedVersion ?? 0)
       if (isStale(current)) return 'stale'
+      // Defer to an actively-streaming client: it is applying this SAME agent edit into the shared doc
+      // frame-by-frame, so also publishing a whole-document merge here would double-write the content (the
+      // client's private shadow never observes this merge, so it re-inserts what we added → duplication).
+      // Still record the durable version so the persist If-Match stays correct; the client owns the bytes,
+      // and once streaming stops the flag clears and the final durable merge lands as a near-noop.
+      if (await store.isAgentStreaming(name)) {
+        await recordVersion()
+        return 'applied'
+      }
       // Compute the diff against the committed SHARED state and PUBLISH it — every task with the doc
       // live (including this one, via its own tailer) applies it and fans it out to its clients, so the
       // merge reaches the live doc no matter which task the apply-edit call landed on. An empty stream
@@ -665,6 +692,12 @@ async function mergeMarkdownIntoRoom(
   const room = fileDocRooms.get(name)
   if (!room || room.owners.size === 0 || !isDocSeeded(room.doc)) return 'no-live-room'
   if (isStale(room.syncedVersion ?? 0)) return 'stale'
+  // Defer to an actively-streaming client (see the multi-replica branch above) — it applies this agent
+  // edit itself, so merging it here too would double-write. Record the version; skip the content merge.
+  if (room.agentStreamingUntil > Date.now()) {
+    await recordVersion()
+    return 'applied'
+  }
   const update = await fetchFileDocMerge(fileId, Y.encodeStateAsUpdate(room.doc), markdown)
   // The room may have been dropped while the diff was being built; never touch a destroyed doc.
   if (fileDocRooms.get(name) !== room) return 'no-live-room'
@@ -702,6 +735,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     persistTimer: null,
     persistDeadline: null,
     syncedVersion: null,
+    agentStreamingUntil: 0,
   }
   // Register synchronously BEFORE the async catch-up so a concurrent join sees this room, not a second.
   fileDocRooms.set(name, room)
@@ -735,6 +769,17 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
       origin !== SEED_ORIGIN
     )
       getFileDocStore().publish(name, update, origin === AGENT_SYNC_ORIGIN)
+    // A locally-originated agent frame (this task's stream leader) means a client is applying this agent
+    // edit itself. Refresh the "actively streaming" markers so a durable `applyMarkdownToLiveFileDoc`
+    // merge defers to that client instead of double-writing the same content (the two-writer
+    // duplication). Both are TTL'd, so they self-clear once frames stop and the final durable merge then
+    // lands as a near-noop. Only AGENT_SYNC_ORIGIN is handled: the in-memory marker is read solely by the
+    // single-replica merge branch (where every agent frame is AGENT_SYNC_ORIGIN), and the cluster flag is
+    // read cluster-wide, so a peer task tailing REDIS_AGENT_ORIGIN never needs to set either.
+    if (origin === AGENT_SYNC_ORIGIN) {
+      room.agentStreamingUntil = Date.now() + AGENT_STREAM_FLAG_TTL_MS
+      void getFileDocStore().markAgentStreaming(name, AGENT_STREAM_FLAG_TTL_MS)
+    }
     // Edit tracking for persistence. Mark the doc dirty on any update applied AFTER it was seeded — a
     // local user edit (socket origin) OR a peer's edit relayed via the tailer (REDIS_ORIGIN) — so
     // whichever task is last to leave persists real edits, even one that only tailed them. A compaction

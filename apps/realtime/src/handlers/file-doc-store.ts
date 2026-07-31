@@ -107,6 +107,11 @@ const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
 const COMPACT_LOCK_PREFIX = 'filedoc:compactlock:'
 const PERSIST_LOCK_PREFIX = 'filedoc:persistlock:'
 const MERGE_LOCK_PREFIX = 'filedoc:mergelock:'
+/** Cluster-wide "a client is actively streaming an agent edit into this live doc" flag — set (refreshed)
+ *  on every agent frame so a durable {@link applyMarkdownToLiveFileDoc} merge defers to that client
+ *  (which is applying the same content) instead of double-writing it. Short-TTL'd so it self-clears the
+ *  moment streaming stops, after which the final durable merge lands as a near-noop. */
+const AGENT_STREAM_PREFIX = 'filedoc:agentstream:'
 
 /** The field each stream entry carries — a base64 Yjs update. */
 const UPDATE_FIELD = 'u'
@@ -552,6 +557,34 @@ export class FileDocStore {
         }
         await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
       }
+    }
+  }
+
+  /** Mark (or refresh) that a client is actively streaming an agent edit into this live doc — a plain
+   *  `SET key "1" PX ttl`, so it self-clears when streaming stops. Best-effort; no-op when disabled. */
+  async markAgentStreaming(name: string, ttlMs: number): Promise<void> {
+    if (!this.enabled || !this.write) return
+    try {
+      await this.write.set(`${AGENT_STREAM_PREFIX}${name}`, '1', { PX: ttlMs })
+    } catch (error) {
+      logger.warn(`FileDocStore markAgentStreaming failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+    }
+  }
+
+  /** Whether a client is currently streaming an agent edit into this live doc (see
+   *  {@link markAgentStreaming}). Best-effort; treats an error/disabled store as "not streaming" so a
+   *  merge never blocks on this check. */
+  async isAgentStreaming(name: string): Promise<boolean> {
+    if (!this.enabled || !this.write) return false
+    try {
+      return (await this.write.exists(`${AGENT_STREAM_PREFIX}${name}`)) === 1
+    } catch (error) {
+      logger.warn(`FileDocStore isAgentStreaming failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+      return false
     }
   }
 

@@ -53,8 +53,6 @@ export const FILE_DOC_MESSAGE_TYPE = {
   SYNC_NO_PERSIST: 2,
 } as const
 
-export type FileDocMessageType = (typeof FILE_DOC_MESSAGE_TYPE)[keyof typeof FILE_DOC_MESSAGE_TYPE]
-
 /**
  * Where "the document's initial content has been seeded" is recorded, stored inside the Yjs
  * document as `doc.getMap(configMap).get(flag) === true`. It lives in the CRDT so it merges across
