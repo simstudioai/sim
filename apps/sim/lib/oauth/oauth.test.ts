@@ -483,6 +483,26 @@ describe('OAuth Token Refresh', () => {
       }
     )
 
+    it.concurrent('should preserve numeric string token expiry values', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        Response.json({
+          access_token: 'new_access_token',
+          expires_in: '7200',
+        })
+      )
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('google', 'old_refresh_token')
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'new_access_token',
+        expiresIn: 7200,
+        refreshToken: 'old_refresh_token',
+      })
+    })
+
     it.concurrent('should handle providers that return new refresh tokens', async () => {
       const refreshToken = 'old_refresh_token'
       const newRefreshToken = 'new_refresh_token'

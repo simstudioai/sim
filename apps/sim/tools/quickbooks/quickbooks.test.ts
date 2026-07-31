@@ -340,7 +340,8 @@ describe('QuickBooks tool boundaries', () => {
           CompanyInfo: { Id: '123456789', CompanyName: 'Sanitized Company' },
           time: 'test-time',
         })
-      )
+      ),
+      authParams
     )
     expect(result.output).toEqual({
       company: { Id: '123456789', CompanyName: 'Sanitized Company' },
@@ -351,9 +352,23 @@ describe('QuickBooks tool boundaries', () => {
   it('rejects an empty CompanyInfo wrapper', async () => {
     await expect(
       quickbooksGetCompanyInfoTool.transformResponse!(
-        new Response(JSON.stringify({ time: 'test-time' }))
+        new Response(JSON.stringify({ time: 'test-time' })),
+        authParams
       )
     ).rejects.toThrow('missing CompanyInfo')
+  })
+
+  it('rejects CompanyInfo for a different realm', async () => {
+    await expect(
+      quickbooksGetCompanyInfoTool.transformResponse!(
+        new Response(
+          JSON.stringify({
+            CompanyInfo: { Id: '999', CompanyName: 'Different Sanitized Company' },
+          })
+        ),
+        authParams
+      )
+    ).rejects.toThrow('different company')
   })
 
   it('recognizes a QuickBooks Fault in an HTTP 200 CompanyInfo response', async () => {
@@ -372,7 +387,8 @@ describe('QuickBooks tool boundaries', () => {
             },
           }),
           { status: 200 }
-        )
+        ),
+        authParams
       )
     ).rejects.toThrow(
       'QuickBooks request failed with HTTP 200. 3200: Authentication failed: Sanitized fault detail'
