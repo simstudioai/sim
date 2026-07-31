@@ -20,7 +20,12 @@ import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
-import { applyStreamedMarkdownToLiveDoc } from './collaboration/apply-streamed-markdown'
+import {
+  type AgentStreamSession,
+  applyAgentStreamFrame,
+  beginAgentStream,
+  endAgentStream,
+} from './collaboration/apply-streamed-markdown'
 import { useFileDocCollaboration } from './collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
@@ -79,6 +84,13 @@ interface RichMarkdownEditorProps {
    * applied live; a rebuild is only revealed while it extends what's shown (see the streaming tick).
    */
   streamIsIncremental?: boolean
+  /**
+   * The agent edit operation driving the stream, when known (`create`/`append`/`update`/`patch`). Used
+   * only to relax the "must extend" gate for `patch` (which legitimately replaces a mid-document region):
+   * every other operation's snapshot must extend what's shown, so a base-less `append` fragment can't
+   * reconcile the live doc to a wipe.
+   */
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
   /** Disable the `@` tag-insertion menu (existing tags still render). Defaults off — the file editor keeps tagging. */
@@ -86,7 +98,7 @@ interface RichMarkdownEditorProps {
   /**
    * Opt this surface into live collaborative editing (Files page + the embedded chat file preview).
    * Collaboration can coexist with agent streaming: while streaming, the growing content is applied to
-   * the shared Y.Doc as minimal CRDT diffs (see {@link applyStreamedMarkdownToLiveDoc}) rather than a
+   * the shared Y.Doc as minimal CRDT diffs (see {@link applyAgentStreamFrame}) rather than a
    * full-document `setContent`, so the stream stays smooth and every peer sees it live.
    */
   collaborative?: boolean
@@ -111,6 +123,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll = false,
   previewContextKey,
   disableTagging,
@@ -181,6 +194,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       userName={userName}
       autoFocus={autoFocus}
       streamIsIncremental={streamIsIncremental}
+      streamOperation={streamOperation}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
       disableTagging={disableTagging}
       collaborative={collaborative}
@@ -206,6 +220,8 @@ interface LoadedRichMarkdownEditorProps {
   autoFocus?: boolean
   /** See {@link RichMarkdownEditorProps.streamIsIncremental}. */
   streamIsIncremental?: boolean
+  /** See {@link RichMarkdownEditorProps.streamOperation}. */
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   disableTagging?: boolean
   /** See {@link RichMarkdownEditorProps.collaborative}. */
@@ -239,6 +255,7 @@ export function LoadedRichMarkdownEditor({
   userName,
   autoFocus,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll,
   disableTagging,
   collaborative = false,
@@ -356,6 +373,10 @@ export function LoadedRichMarkdownEditor({
    */
   const streamIsIncrementalRef = useRef(streamIsIncremental)
   streamIsIncrementalRef.current = streamIsIncremental
+  const streamOperationRef = useRef(streamOperation)
+  streamOperationRef.current = streamOperation
+  /** The live agent-stream shadow replica, held for the current stream and freed on settle/unmount. */
+  const agentStreamSessionRef = useRef<AgentStreamSession | null>(null)
   const router = useRouter()
   const routerRef = useRef(router)
   routerRef.current = router
@@ -855,7 +876,11 @@ export function LoadedRichMarkdownEditor({
           }
           const shownBody = lastSyncedBodyRef.current
           const extendsShown = shownBody === null || pending.startsWith(shownBody)
-          if (!streamIsIncrementalRef.current && !extendsShown) {
+          // Every snapshot except a mid-document `patch` must EXTEND what's shown: a from-scratch rebuild
+          // (`create`/`update`) is only revealed as it grows, and an `append` snapshot that doesn't extend
+          // the base is a base-less fragment (the server emits one before the base loads) which would
+          // reconcile the seeded doc down to a wipe. Only `patch` legitimately replaces a mid-region.
+          if (!extendsShown && streamOperationRef.current !== 'patch') {
             streamRafRef.current = null
             return
           }
@@ -868,9 +893,11 @@ export function LoadedRichMarkdownEditor({
           }
           const el = containerRef.current
           const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
+          agentStreamSessionRef.current ??= beginAgentStream(editor)
+          const session = agentStreamSessionRef.current
           // Defensive: a ready collab editor always has a ySync binding, so this applies; if one is
           // somehow absent, bail this frame without advancing rather than looping.
-          if (!applyStreamedMarkdownToLiveDoc(editor, pending)) {
+          if (!session || !applyAgentStreamFrame(editor, session, pending)) {
             streamRafRef.current = null
             return
           }
@@ -892,13 +919,15 @@ export function LoadedRichMarkdownEditor({
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
         const finalBody = splitFrontmatter(content).body
-        if (finalBody !== lastSyncedBodyRef.current) {
-          runOffRender(() => {
-            if (applyStreamedMarkdownToLiveDoc(editor, finalBody)) {
+        const session = agentStreamSessionRef.current
+        agentStreamSessionRef.current = null
+        runOffRender(() => {
+          if (session && finalBody !== lastSyncedBodyRef.current) {
+            if (applyAgentStreamFrame(editor, session, finalBody))
               lastSyncedBodyRef.current = finalBody
-            }
-          })
-        }
+          }
+          if (session) endAgentStream(session)
+        })
       }
       return
     }
@@ -1002,6 +1031,10 @@ export function LoadedRichMarkdownEditor({
   useEffect(
     () => () => {
       if (streamRafRef.current !== null) cancelAnimationFrame(streamRafRef.current)
+      if (agentStreamSessionRef.current) {
+        endAgentStream(agentStreamSessionRef.current)
+        agentStreamSessionRef.current = null
+      }
     },
     []
   )

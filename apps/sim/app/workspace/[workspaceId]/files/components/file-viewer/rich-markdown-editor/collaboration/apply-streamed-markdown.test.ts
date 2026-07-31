@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { createMarkdownEditorExtensions } from '../editor-extensions'
-import { applyStreamedMarkdownToLiveDoc } from './apply-streamed-markdown'
+import { applyAgentStreamFrame, beginAgentStream, endAgentStream } from './apply-streamed-markdown'
 
 beforeAll(() => {
   // jsdom does not implement elementFromPoint; the Placeholder extension's viewport tracking calls it
@@ -48,11 +48,13 @@ function track(t: { editor: Editor; doc: Y.Doc; awareness: Awareness }) {
   return t
 }
 
-describe('applyStreamedMarkdownToLiveDoc', () => {
+describe('agent-stream applier', () => {
   it('streams agent content into the live collaborative doc and broadcasts it as Yjs ops', () => {
     const { editor, doc } = track(makeCollabEditor())
 
-    expect(applyStreamedMarkdownToLiveDoc(editor, '# Title\n\nHello world.')).toBe(true)
+    const session = beginAgentStream(editor)
+    expect(session).not.toBeNull()
+    expect(applyAgentStreamFrame(editor, session!, '# Title\n\nHello world.')).toBe(true)
     expect(editor.getText()).toContain('Hello world')
 
     // The write lands as ops on the shared doc, so any peer receives it (this is what makes a
@@ -61,25 +63,27 @@ describe('applyStreamedMarkdownToLiveDoc', () => {
     Y.applyUpdate(peer, Y.encodeStateAsUpdate(doc))
     expect(peer.getXmlFragment('default').toString()).toContain('Hello world')
     peer.destroy()
+    endAgentStream(session!)
   })
 
-  it('returns false when the doc is not yet bound (no ySync binding)', () => {
-    // A plain editor with no collaboration has no ySync binding, so the applier reports "not ready"
-    // rather than throwing — the streaming tick re-arms until the doc is seeded.
+  it('beginAgentStream returns null when the editor has no ySync binding', () => {
+    // A plain editor with no collaboration has no ySync binding, so a stream cannot start against it.
     const editor = new Editor({
       extensions: createMarkdownEditorExtensions({ placeholder: '' }),
       content: '',
     })
     teardown.push(() => editor.destroy())
-    expect(applyStreamedMarkdownToLiveDoc(editor, '# Nope')).toBe(false)
+    expect(beginAgentStream(editor)).toBeNull()
   })
 
   it('keeps agent-streamed ops out of the undo stack while user edits stay undoable', () => {
     const { editor } = track(makeCollabEditor())
 
-    applyStreamedMarkdownToLiveDoc(editor, '# Streamed\n\nAgent wrote this.')
-    // The streamed op used AGENT_STREAM_ORIGIN, which the Collaboration UndoManager does not track —
-    // so there is nothing to undo, and an undo must not revert the agent's content.
+    const session = beginAgentStream(editor)!
+    applyAgentStreamFrame(editor, session, '# Streamed\n\nAgent wrote this.')
+    endAgentStream(session)
+    // The streamed op relayed under a non-`ySyncPluginKey` origin, which the Collaboration UndoManager
+    // does not track — so there is nothing to undo, and an undo must not revert the agent's content.
     expect(editor.can().undo()).toBe(false)
     editor.commands.undo()
     expect(editor.getText()).toContain('Agent wrote this')
@@ -95,31 +99,38 @@ describe('applyStreamedMarkdownToLiveDoc', () => {
     expect(editor.getText()).toContain('Agent wrote this')
   })
 
-  it('merges an agent write with a concurrent peer edit (minimal diff, no clobber)', () => {
+  it('preserves a concurrent peer edit to a region the agent snapshot does not include', () => {
+    // This is the core "AI as a CRDT peer" guarantee: the agent relays only its OWN delta (computed
+    // against a private shadow), never a whole-document reconcile that would revert a peer's edit.
     const { editor, doc } = track(makeCollabEditor())
-    applyStreamedMarkdownToLiveDoc(editor, 'Alpha paragraph.\n\nBeta paragraph.')
 
-    // A peer forks the current state and edits the FIRST paragraph directly on the shared type…
-    const remote = new Y.Doc()
-    Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc))
-    const remoteFrag = remote.getXmlFragment('default')
-    remote.transact(() => {
-      const firstPara = remoteFrag.get(0) as Y.XmlElement
+    const session = beginAgentStream(editor)!
+    applyAgentStreamFrame(editor, session, 'Alpha paragraph.\n\nBeta paragraph.')
+
+    // A peer edits the FIRST paragraph directly on the shared doc — the agent's later snapshot still
+    // carries the ORIGINAL first paragraph (it was built from the base, before this edit).
+    const peer = new Y.Doc()
+    Y.applyUpdate(peer, Y.encodeStateAsUpdate(doc))
+    const peerFrag = peer.getXmlFragment('default')
+    peer.transact(() => {
+      const firstPara = peerFrag.get(0) as Y.XmlElement
       const textNode = firstPara.get(0) as Y.XmlText
       textNode.insert(textNode.toString().length, ' EDITED')
     })
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(peer, Y.encodeStateVector(doc)))
+    peer.destroy()
 
-    // …while the agent rewrites the SECOND paragraph through the live editor binding.
-    applyStreamedMarkdownToLiveDoc(editor, 'Alpha paragraph.\n\nBeta paragraph, expanded.')
+    // The agent appends a third paragraph. Its snapshot's first paragraph is the stale original, but the
+    // shadow-relayed delta only inserts the new paragraph — so the peer's " EDITED" must survive.
+    applyAgentStreamFrame(
+      editor,
+      session,
+      'Alpha paragraph.\n\nBeta paragraph.\n\nGamma paragraph.'
+    )
+    endAgentStream(session)
 
-    // Exchange updates both ways (as the relay would); a full-document replace would have clobbered
-    // the peer's concurrent edit — a minimal `updateYFragment` diff preserves both.
-    Y.applyUpdate(doc, Y.encodeStateAsUpdate(remote, Y.encodeStateVector(doc)))
-    Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc, Y.encodeStateVector(remote)))
-
-    const merged = doc.getXmlFragment('default').toString()
-    expect(merged).toContain('EDITED')
-    expect(merged).toContain('expanded')
-    remote.destroy()
+    const live = doc.getXmlFragment('default').toString()
+    expect(live).toContain('EDITED')
+    expect(live).toContain('Gamma paragraph')
   })
 })
