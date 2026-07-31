@@ -516,6 +516,15 @@ function emptySeedUpdate(): Uint8Array {
 const fileDocMergeChains = new Map<string, Promise<unknown>>()
 
 /**
+ * How a merge is positioned on the file's version line — mirrors the sim-side `LiveFileDocMergeOrder`
+ * wire fields. A durable `version` is checked AND recorded; a streaming `streamedAt` is checked only.
+ */
+interface MergeOrder {
+  version?: number
+  streamedAt?: number
+}
+
+/**
  * Apply new markdown into a file's LIVE collaborative document (Stage C — copilot writing into an open
  * doc). Ships the document's current state to the app to build a minimal Yjs diff, applies it — which
  * fires `doc.on('update')` and relays the merge to every connected editor, reconciled with any
@@ -540,15 +549,12 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
 export function applyMarkdownToLiveFileDoc(
   fileId: string,
   markdown: string,
-  version?: number,
-  streamedAt?: number
+  order: MergeOrder = {}
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const name = roomName(fileDocRoom(fileId))
   const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
   // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
-  const run = prior
-    .catch(() => {})
-    .then(() => mergeMarkdownIntoRoom(name, fileId, markdown, version, streamedAt))
+  const run = prior.catch(() => {}).then(() => mergeMarkdownIntoRoom(name, fileId, markdown, order))
   fileDocMergeChains.set(
     name,
     run.finally(() => {
@@ -562,8 +568,7 @@ async function mergeMarkdownIntoRoom(
   name: string,
   fileId: string,
   markdown: string,
-  version?: number,
-  streamedAt?: number
+  { version, streamedAt }: MergeOrder
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const store = getFileDocStore()
 
@@ -590,6 +595,11 @@ async function mergeMarkdownIntoRoom(
   // monotonic token stays high, so a later persist could write that stale content back over the durable
   // file. Skip it. This is what stops a delayed streaming snapshot from clobbering a newer durable merge
   // across processes (the per-process caller chain cannot). A merge with neither key is never stale.
+  //
+  // Only durable `version` (DB-monotonic `contentUpdatedAt`) is ever recorded, so the durable line is
+  // immune to clock skew. `streamedAt` is best-effort wall-clock used ONLY to order transient streaming
+  // snapshots; correctness never depends on it — a skewed clock at worst drops or briefly regresses the
+  // live preview, which the next durable write reconciles.
   const orderingVersion = version ?? streamedAt
   const isStale = (current: number): boolean =>
     orderingVersion !== undefined && orderingVersion <= current

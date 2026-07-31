@@ -553,15 +553,19 @@ describe('setupWorkspaceFileDocHandlers', () => {
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
 
     // A newer durable version lands and is recorded as the synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', 100)).toBe('applied')
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', { version: 100 })).toBe('applied')
     mockFetchFileDocMerge.mockClear()
 
     // An older durable version arriving out of order (e.g. a concurrent write on another process) is
     // stale: skipped before any diff is computed, so the live doc never regresses to older content and
     // no diff is published that a later persist could write back.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', 50)).toBe('stale')
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', { version: 50 })).toBe(
+      'stale'
+    )
     // The same version is idempotent — also skipped.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', 100)).toBe('stale')
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', { version: 100 })).toBe(
+      'stale'
+    )
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
@@ -575,22 +579,25 @@ describe('setupWorkspaceFileDocHandlers', () => {
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
 
     // A newer durable version lands and is recorded as the synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', 100)).toBe('applied')
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', { version: 100 })).toBe(
+      'applied'
+    )
 
     // A delayed streaming snapshot OLDER than that durable version — e.g. a throttled copilot snapshot
     // from another process arriving late — is stale, so it can't regress the doc back toward its content.
-    // (`version` omitted, `streamedAt` passed as the 4th arg.)
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# older stream', undefined, 50)).toBe(
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older stream', { streamedAt: 50 })).toBe(
       'stale'
     )
 
     // A streaming snapshot NEWER than the durable version applies (it advances the live view)...
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer stream', undefined, 200)).toBe(
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer stream', { streamedAt: 200 })).toBe(
       'applied'
     )
     // ...but it is never RECORDED as the synced version: a durable write between the two (150) still
     // applies. Had the streaming 200 been recorded, 150 would have been rejected as stale.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', 150)).toBe('applied')
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', { version: 150 })).toBe(
+      'applied'
+    )
   })
 
   it('serializes concurrent merges for the same file (second waits for the first)', async () => {

@@ -216,12 +216,10 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
         // `version` (the durable updatedAt this markdown was written with) records that the live doc now
         // incorporates that durable version, so the persist If-Match guard won't flag it as a conflict.
         // `streamedAt` orders a streaming snapshot on the same version line without recording it.
-        const result = await applyMarkdownToLiveFileDoc(
-          fileId,
-          markdown,
-          typeof version === 'number' ? version : undefined,
-          typeof streamedAt === 'number' ? streamedAt : undefined
-        )
+        const result = await applyMarkdownToLiveFileDoc(fileId, markdown, {
+          version: typeof version === 'number' ? version : undefined,
+          streamedAt: typeof streamedAt === 'number' ? streamedAt : undefined,
+        })
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ applied: result === 'applied' }))
       } catch (error) {
