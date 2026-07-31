@@ -6,10 +6,6 @@ import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/to
 
 describe('copilotToolCanWrite', () => {
   it('fails closed when the permission is absent', () => {
-    // The regression this exists for: the previous `perm && perm !== 'write' &&
-    // perm !== 'admin'` ladders skipped the check entirely for these values,
-    // letting an ungated write through. userPermission is optional on the
-    // execution context, so every one of these is reachable.
     expect(copilotToolCanWrite(undefined)).toBe(false)
     expect(copilotToolCanWrite(null)).toBe(false)
     expect(copilotToolCanWrite('')).toBe(false)

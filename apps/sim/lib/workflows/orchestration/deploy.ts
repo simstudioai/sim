@@ -119,6 +119,10 @@ export async function performFullDeploy(
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
+  // Backstop for every caller — routes may assert first to render their own 423,
+  // but the copilot deploy tools call this directly.
+  await assertWorkflowMutable(workflowId)
+
   const [workflowRecord] = await db
     .select()
     .from(workflowTable)
@@ -458,6 +462,8 @@ export async function performFullUndeploy(
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
+  await assertWorkflowMutable(workflowId)
+
   const [workflowRecord] = await db
     .select()
     .from(workflowTable)
@@ -567,6 +573,8 @@ export async function performActivateVersion(
   const { workflowId, version, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+
+  await assertWorkflowMutable(workflowId)
 
   const [versionRow] = await db
     .select({

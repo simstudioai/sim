@@ -1,15 +1,9 @@
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 
 /**
- * Whether a copilot tool call may perform a write, given the workspace
- * permission resolved for the request.
- *
- * **Fails closed.** `ExecutionContext.userPermission` is optional, so an absent
- * value must deny — the hand-written `perm && perm !== 'write' && perm !==
- * 'admin'` ladders this replaces skipped the check entirely when the field was
- * undefined, letting a write through unguarded. Shared by the server-tool
- * router and the handler-map tools so the two copilot execution paths cannot
- * disagree about what "write access" means.
+ * Whether a copilot tool call may write. Fails closed: `userPermission` is
+ * optional on the execution context, and absent must deny. Shared by the
+ * server-tool router and the handler-map tools.
  */
 export function copilotToolCanWrite(userPermission: string | null | undefined): boolean {
   return permissionSatisfies((userPermission ?? null) as PermissionType | null, 'write')
