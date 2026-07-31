@@ -10,6 +10,12 @@ import {
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 
+/**
+ * Uses the real tool registry: these assertions are about tool registration and
+ * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
+ */
+vi.unmock('@/tools/registry')
+
 describe('indexWorkflowSearchMatches', () => {
   it('finds plain text matches across nested subblock values', () => {
     const workflow = createSearchReplaceWorkflowFixture()
