@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { readStatusCode } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -93,6 +94,10 @@ export class GenericBlockHandler implements BlockHandler {
           blockName: block.metadata?.name || 'Unnamed Block',
           output: result.output || {},
           timestamp: new Date().toISOString(),
+          // `executeTool` flattens a thrown error into a result, so Sim's own
+          // status (hosted-key 429/503) would be lost here. Carry it onto the
+          // error so `getExecutionErrorStatus` can still reach the API caller.
+          ...(typeof result.statusCode === 'number' ? { statusCode: result.statusCode } : {}),
         })
 
         throw error
@@ -107,8 +112,9 @@ export class GenericBlockHandler implements BlockHandler {
           errorMessage += `: ${block.metadata.name}`
         }
 
-        if (error.status) {
-          errorMessage += ` (Status: ${error.status})`
+        const statusCode = readStatusCode(error)
+        if (statusCode !== undefined) {
+          errorMessage += ` (Status: ${statusCode})`
         }
 
         error.message = errorMessage

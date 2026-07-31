@@ -1475,6 +1475,8 @@ export function prepareToolExecution(
     isDeployedContext?: boolean
     callChain?: string[]
     billingAttribution?: BillingAttributionSnapshot
+    /** Invoking run's execution id — see `ProviderRequest.executionId`. */
+    executionId?: string
   }
 ): {
   toolParams: Record<string, any>
@@ -1512,6 +1514,7 @@ export function prepareToolExecution(
               ? { isDeployedContext: request.isDeployedContext }
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
+            ...(request.executionId ? { executionId: request.executionId } : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),
