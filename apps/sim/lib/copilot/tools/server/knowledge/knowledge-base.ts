@@ -221,7 +221,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          if (!args.query) {
+          if (!args.query?.trim()) {
             return {
               success: false,
               message: 'Query text is required for query operation',
