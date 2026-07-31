@@ -90,6 +90,29 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.headers).toContain('X-Execution-Id')
   })
 
+  it('serves v2 workflow execute with wildcard origin and the stream-protocol header', () => {
+    const policy = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/execute', 'https://other.example')
+    )
+    expect(policy.origin).toBe('*')
+    expect(policy.credentials).toBe(false)
+    expect(policy.headers).toContain('X-Execution-Id')
+    expect(policy.headers).toContain('X-Sim-Stream-Protocol')
+    // Async is body-selected on v2 — the mode header is deliberately absent.
+    expect(policy.headers).not.toContain('X-Execution-Mode')
+  })
+
+  it('does not match the v2 execute rule for nested or executions paths', () => {
+    const nested = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/execute/extra', 'https://other.example')
+    )
+    expect(nested.origin).toBe('https://app.sim.test')
+    const executions = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/executions/e-1', 'https://other.example')
+    )
+    expect(executions.origin).toBe('https://app.sim.test')
+  })
+
   it('does not match the workflow execute rule for nested paths', () => {
     const policy = resolveApiCorsPolicy(
       makeRequest('/api/workflows/workflow-123/execute/extra', 'https://other.example')
@@ -113,6 +136,7 @@ describe('resolveApiCorsPolicy', () => {
       '/api/mcp/copilot',
       '/api/chat/abc',
       '/api/workflows/wf/execute',
+      '/api/v2/workflows/wf/execute',
       '/api/files/upload',
     ]
     for (const path of paths) {
