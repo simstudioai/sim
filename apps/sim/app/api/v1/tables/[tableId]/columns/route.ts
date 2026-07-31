@@ -368,7 +368,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
         msg.includes('incompatible') ||
         msg.includes('duplicate') ||
         msg.includes('option') ||
-        msg.includes('currency')
+        msg.includes('currency') ||
+        msg.includes('is already type')
       ) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }

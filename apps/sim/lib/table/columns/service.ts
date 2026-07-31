@@ -749,15 +749,14 @@ export async function updateColumnType(
     // once the column is text/number/etc. Check compatibility against the option
     // NAME — that's what the cell will actually become (migrated below).
     const convertingAwayFromSelect = column.type === 'select' && !isSelectType
-    // The constraint the column ends up with, which may be arriving in this same
-    // request. `updateColumnConstraints` runs as its own transaction afterwards,
-    // so validating against the column's CURRENT flag would let the conversion
-    // commit and only then fail the constraint.
+    // The constraint the column ends up with, which may be arriving in this
+    // same request — this write applies it, so the scan below has to judge
+    // against the target value rather than the current one.
     const targetRequired = !!(data.required ?? column.required)
 
     // Rows missing the key (or holding null/`[]`) are filtered out of `rows`
     // entirely, so the loop below can never see them — they have to be counted
-    // separately, through the same predicate the constraint write will use.
+    // separately, through the same predicate `applyConstraints` uses.
     if (targetRequired) {
       const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
       if (emptyCount > 0) {

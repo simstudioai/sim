@@ -160,6 +160,29 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('CHF 1’234.56')).toBe(1234.56)
   })
 
+  it('resolves a lone separator using the marker and the currency', () => {
+    // `1.235 ¥` is 1235 yen; a typed `1.235` is one-and-a-bit. A marker means a
+    // formatter produced it, and formatters group — except for the currencies
+    // that genuinely carry three decimals.
+    expect(parseCurrencyInput('1.235 ¥', 'JPY')).toBe(1235)
+    expect(parseCurrencyInput('0,500 KWD', 'KWD')).toBe(0.5)
+    expect(parseCurrencyInput('12,000 TND', 'TND')).toBe(12)
+    // Bare input keeps the typed reading.
+    expect(parseCurrencyInput('1.234')).toBe(1.234)
+    expect(parseCurrencyInput('1,500')).toBe(1500)
+  })
+
+  it('refuses a scale suffix rather than shrinking the value', () => {
+    // `1.2 M` read as 1.2 would rewrite a column of millions a millionfold too
+    // small — the same invented-value failure as an identifier, inverted.
+    expect(parseCurrencyInput('1.2 M')).toBeNull()
+    expect(parseCurrencyInput('5 K')).toBeNull()
+    expect(parseCurrencyInput('3.4 bn')).toBeNull()
+    expect(parseCurrencyInput('10 B')).toBeNull()
+    // `kr` is a currency marker, not a scale suffix, despite starting with k.
+    expect(parseCurrencyInput('1 234,56 kr')).toBe(1234.56)
+  })
+
   it('rejects an identifier whose letters touch its digits', () => {
     // The distinguishing rule: a currency marker is always separated from the
     // number by a space or a symbol, so letters touching digits mean this is a
