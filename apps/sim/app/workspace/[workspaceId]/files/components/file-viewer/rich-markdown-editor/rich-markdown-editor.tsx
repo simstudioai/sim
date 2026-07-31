@@ -39,6 +39,7 @@ import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@sim/emcn/components/code/code.css'
+import '../document-table.css'
 import './rich-markdown-editor.css'
 
 const EXTENSIONS = createMarkdownEditorExtensions({
