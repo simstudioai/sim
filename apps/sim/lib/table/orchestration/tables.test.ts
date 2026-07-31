@@ -4,13 +4,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockDeleteTable, mockDeleteRow, mockCaptureServerEvent } = vi.hoisted(() => ({
-  mockDeleteTable: vi.fn(),
-  mockDeleteRow: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
+const { mockDeleteTable, mockDeleteRow, mockCaptureServerEvent, mockRecordAudit } = vi.hoisted(
+  () => ({
+    mockDeleteTable: vi.fn(),
+    mockDeleteRow: vi.fn(),
+    mockCaptureServerEvent: vi.fn(),
+    mockRecordAudit: vi.fn(),
+  })
+)
+
+vi.mock('@sim/audit', () => ({
+  AuditAction: { TABLE_DELETED: 'table.deleted', TABLE_UPDATED: 'table.updated' },
+  AuditResourceType: { TABLE: 'table' },
+  recordAudit: mockRecordAudit,
 }))
 
-vi.mock('@/lib/table/service', () => ({ deleteTable: mockDeleteTable }))
+vi.mock('@/lib/table/service', () => ({
+  deleteTable: mockDeleteTable,
+  moveTableToFolder: vi.fn(),
+  renameTable: vi.fn(),
+  updateTableLocks: vi.fn(),
+}))
 vi.mock('@/lib/table/rows/service', () => ({ deleteRow: mockDeleteRow }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 
@@ -22,22 +36,33 @@ const TABLE = { id: 'table-1', name: 'Tasks', workspaceId: 'ws-1' } as unknown a
 describe('performDeleteTable', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('hands the actor to the service so it owns the audit', async () => {
-    // deleteTable audits only when a row was actually archived AND an actor is
-    // given. Callers that omitted the actor and audited themselves emitted
-    // TABLE_DELETED for a no-op delete of an already-archived table.
-    mockDeleteTable.mockResolvedValue(undefined)
+  it('audits a genuine archive against the acting user', async () => {
+    mockDeleteTable.mockResolvedValue({ archived: { name: 'Tasks', workspaceId: 'ws-1' } })
 
     const result = await performDeleteTable({ table: TABLE, userId: 'user-1', requestId: 'req-1' })
 
     expect(result.success).toBe(true)
-    expect(mockDeleteTable).toHaveBeenCalledWith('table-1', 'req-1', 'user-1')
+    // The service no longer takes an actor — auditing follows from a user
+    // performing the operation, not from which function the caller reached for.
+    expect(mockDeleteTable).toHaveBeenCalledWith('table-1', 'req-1')
+    expect(mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: 'user-1', resourceId: 'table-1' })
+    )
     expect(mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'table_deleted',
       expect.objectContaining({ table_id: 'table-1' }),
       expect.anything()
     )
+  })
+
+  it('does not audit a repeat delete of an already-archived table', async () => {
+    mockDeleteTable.mockResolvedValue({ archived: null })
+
+    const result = await performDeleteTable({ table: TABLE, userId: 'user-1' })
+
+    expect(result.success).toBe(true)
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('classifies a delete lock as locked and emits no telemetry', async () => {

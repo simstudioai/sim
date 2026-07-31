@@ -40,7 +40,11 @@ import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
-import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import {
+  performDeleteTable,
+  performRenameTable,
+  performUpdateTableColumn,
+} from '@/lib/table/orchestration'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
@@ -59,7 +63,7 @@ import {
 } from '@/lib/table/rows/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import { predicateToStorage } from '@/lib/table/select-values'
-import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
+import { createTable, deleteTable, getTableById } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
@@ -490,7 +494,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
             const requestId = generateId().slice(0, 8)
             assertNotAborted()
-            await deleteTable(tableId, requestId, context.userId)
+            const deleteOutcome = await performDeleteTable({
+              table,
+              userId: context.userId,
+              requestId,
+            })
+            if (!deleteOutcome.success) {
+              return { success: false, message: deleteOutcome.error ?? 'Failed to delete table' }
+            }
             captureServerEvent(
               context.userId,
               'table_deleted',
@@ -1703,12 +1714,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const renamed = await renameTable(args.tableId, newName, requestId, context.userId)
+          const renameOutcome = await performRenameTable({
+            table,
+            newName,
+            userId: context.userId,
+            requestId,
+          })
+          if (!renameOutcome.success) {
+            return { success: false, message: renameOutcome.error ?? 'Failed to rename table' }
+          }
 
           return {
             success: true,
-            message: `Renamed table to "${renamed.name}"`,
-            data: { table: { id: renamed.id, name: renamed.name } },
+            message: `Renamed table to "${newName}"`,
+            data: { table: { id: args.tableId, name: newName } },
           }
         }
 

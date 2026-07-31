@@ -9,16 +9,14 @@ import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
-import {
-  getTableById,
-  moveTableToFolder,
-  renameTable,
-  TableConflictError,
-  type TableSchema,
-  updateTableLocks,
-} from '@/lib/table'
+import { getTableById, TableConflictError, type TableSchema } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
-import { performDeleteTable } from '@/lib/table/orchestration'
+import {
+  performDeleteTable,
+  performMoveTableToFolder,
+  performRenameTable,
+  performUpdateTableLocks,
+} from '@/lib/table/orchestration'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
@@ -180,11 +178,34 @@ export const PATCH = withRouteHandler(
             { status: 403 }
           )
         }
-        await updateTableLocks(tableId, validated.locks, authResult.userId, requestId, request)
+        const lockOutcome = await performUpdateTableLocks({
+          tableId,
+          partial: validated.locks,
+          userId: authResult.userId,
+          requestId,
+          request,
+        })
+        if (!lockOutcome.success) {
+          return NextResponse.json(
+            { error: lockOutcome.error ?? 'Failed to update table locks' },
+            { status: statusForOrchestrationError(lockOutcome.errorCode) }
+          )
+        }
       }
 
       if (validated.name !== undefined) {
-        await renameTable(tableId, validated.name, requestId, authResult.userId)
+        const renameOutcome = await performRenameTable({
+          table,
+          newName: validated.name,
+          userId: authResult.userId,
+          requestId,
+        })
+        if (!renameOutcome.success) {
+          return NextResponse.json(
+            { error: renameOutcome.error ?? 'Failed to rename table' },
+            { status: statusForOrchestrationError(renameOutcome.errorCode) }
+          )
+        }
       }
 
       if (validated.folderId !== undefined) {
@@ -196,21 +217,21 @@ export const PATCH = withRouteHandler(
         ) {
           return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
         }
-        try {
-          await moveTableToFolder(
-            tableId,
-            table.workspaceId,
-            validated.folderId,
-            requestId,
-            authResult.userId
+        // The move re-asserts workspace and active state, so a miss means the table was
+        // archived between `checkAccess` and the write. That is a 404, not a server fault.
+        const moveOutcome = await performMoveTableToFolder({
+          table,
+          folderId: validated.folderId,
+          userId: authResult.userId,
+          requestId,
+        })
+        if (!moveOutcome.success) {
+          return NextResponse.json(
+            {
+              error: moveOutcome.errorCode === 'not_found' ? 'Table not found' : moveOutcome.error,
+            },
+            { status: statusForOrchestrationError(moveOutcome.errorCode) }
           )
-        } catch (moveError) {
-          // The move re-asserts workspace and active state, so a miss means the table was
-          // archived between `checkAccess` and the write. That is a 404, not a server fault.
-          if (moveError instanceof Error && moveError.message.endsWith('not found')) {
-            return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-          }
-          throw moveError
         }
       }
 

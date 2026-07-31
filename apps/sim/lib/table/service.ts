@@ -28,8 +28,6 @@ import type { DbTransaction } from '@/lib/table/planner'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
-  TABLE_LOCK_FLAGS,
-  TABLE_LOCK_KINDS,
   type TableDefinition,
   type TableLocks,
   type TableMetadata,
@@ -572,8 +570,7 @@ export function auditTableColumnsAdded(
 export async function renameTable(
   tableId: string,
   newName: string,
-  requestId: string,
-  actingUserId?: string
+  requestId: string
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
@@ -586,29 +583,10 @@ export async function renameTable(
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
       .where(eq(userTableDefinitions.id, tableId))
-      .returning({
-        id: userTableDefinitions.id,
-        createdBy: userTableDefinitions.createdBy,
-        workspaceId: userTableDefinitions.workspaceId,
-      })
+      .returning({ id: userTableDefinitions.id })
 
     if (result.length === 0) {
       throw new Error(`Table ${tableId} not found`)
-    }
-
-    const { createdBy, workspaceId } = result[0]
-    const renameActorId = actingUserId ?? createdBy
-    if (renameActorId) {
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: renameActorId,
-        action: AuditAction.TABLE_UPDATED,
-        resourceType: AuditResourceType.TABLE,
-        resourceId: tableId,
-        resourceName: newName,
-        description: `Renamed table to "${newName}"`,
-        metadata: { op: 'rename' },
-      })
     }
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
@@ -636,9 +614,8 @@ export async function moveTableToFolder(
   tableId: string,
   workspaceId: string,
   folderId: string | null,
-  requestId: string,
-  actingUserId?: string
-): Promise<void> {
+  requestId: string
+): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
     updatedAt: new Date(),
@@ -669,24 +646,10 @@ export async function moveTableToFolder(
     throw new Error(`Table ${tableId} not found`)
   }
 
-  const { name, createdBy } = result[0]
-  const actorId = actingUserId ?? createdBy
-  if (actorId) {
-    recordAudit({
-      workspaceId,
-      actorId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: name,
-      description: folderId
-        ? `Moved table "${name}" into a folder`
-        : `Moved table "${name}" to the workspace root`,
-      metadata: { op: 'move', folderId },
-    })
-  }
+  const { name } = result[0]
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+  return { name }
 }
 
 /**
@@ -703,11 +666,8 @@ export async function moveTableToFolder(
 export async function updateTableLocks(
   tableId: string,
   partial: Partial<TableLocks>,
-  actingUserId: string,
-  requestId: string,
-  /** Forwarded to the audit record for IP / user-agent capture. */
-  request?: { headers: { get(name: string): string | null } }
-): Promise<TableDefinition> {
+  requestId: string
+): Promise<{ table: TableDefinition; previousLocks: TableLocks }> {
   let previousLocks: TableLocks = UNLOCKED_TABLE_LOCKS
   const updated = await withLockedTable(tableId, async (table, trx) => {
     previousLocks = table.locks
@@ -720,36 +680,12 @@ export async function updateTableLocks(
     return { ...table, locks: nextLocks, updatedAt: now }
   })
 
-  // Name the transitions in the description so the audit list is readable
-  // without expanding metadata — "who locked my production table" is the
-  // question this feature exists to answer.
-  const flipped = TABLE_LOCK_KINDS.filter(
-    (kind) => previousLocks[TABLE_LOCK_FLAGS[kind]] !== updated.locks[TABLE_LOCK_FLAGS[kind]]
-  )
-  const description = flipped.length
-    ? `Table locks changed: ${flipped
-        .map((kind) => `${kind} ${updated.locks[TABLE_LOCK_FLAGS[kind]] ? 'locked' : 'unlocked'}`)
-        .join(', ')}`
-    : 'Updated table locks (no change)'
-
-  recordAudit({
-    workspaceId: updated.workspaceId,
-    actorId: actingUserId,
-    action: AuditAction.TABLE_UPDATED,
-    resourceType: AuditResourceType.TABLE,
-    resourceId: tableId,
-    resourceName: updated.name,
-    description,
-    metadata: { op: 'update_locks', before: previousLocks, after: updated.locks },
-    ...(request ? { request } : {}),
-  })
-
   await appendTableEvent({ kind: 'definition', tableId, reason: 'locks' }).catch((error) => {
     logger.warn(`[${requestId}] Failed to emit lock-change event for table ${tableId}`, { error })
   })
 
   logger.info(`[${requestId}] Updated locks for table ${tableId}`)
-  return updated
+  return { table: updated, previousLocks }
 }
 
 /**
@@ -830,9 +766,8 @@ export async function updateTableMetadata(
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  actingUserId?: string,
   options?: { archivedAt?: Date }
-): Promise<void> {
+): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
   // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
@@ -874,21 +809,10 @@ export async function deleteTable(
     }
     // Otherwise the table is missing or already archived — a silent no-op, as before.
   }
-  // Audit only genuine user deletes — rollback callers omit `actingUserId`. The
-  // caller emits the `table_deleted` PostHog event, so it is not duplicated here.
-  if (deleted && actingUserId) {
-    recordAudit({
-      workspaceId: deleted.workspaceId ?? null,
-      actorId: actingUserId,
-      action: AuditAction.TABLE_DELETED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: deleted.name,
-      description: `Archived table "${deleted.name}"`,
-    })
-  }
-
   logger.info(`[${requestId}] Archived table ${tableId}`)
+  // Null when the table was missing or already archived — a silent no-op. The
+  // caller audits only a genuine archive, so a repeat delete logs nothing.
+  return { archived: deleted ? { name: deleted.name, workspaceId: deleted.workspaceId } : null }
 }
 
 /**
