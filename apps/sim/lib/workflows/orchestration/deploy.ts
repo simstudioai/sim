@@ -7,6 +7,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -26,7 +27,6 @@ import {
   notifySocketDeploymentChanged,
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import {
   getWorkflowDeploymentStatus,
   prepareWorkflowDeployment,
