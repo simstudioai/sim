@@ -15,6 +15,20 @@ export const DEFAULT_CURRENCY_CODE = 'USD'
 /** A bare numeric literal in exponent form, e.g. `1e+21` or `-1.5e-3`. */
 const EXPONENT_LITERAL = /^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/
 
+/** A letter directly adjacent to a digit: an identifier, not an amount. */
+const LETTER_TOUCHING_DIGIT = /\p{L}\d|\d\p{L}/u
+
+/**
+ * A leading currency marker: up to three letters and/or a symbol, optionally
+ * behind a sign. The sign is captured so `-$12.50` keeps it.
+ */
+const CURRENCY_MARKER_PREFIX =
+  /^[\s\u00a0\u202f]*([+-]?)[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|\p{L}{1,3}\p{Sc}?)[\s\u00a0\u202f]*/u
+
+/** The same, trailing. */
+const CURRENCY_MARKER_SUFFIX =
+  /[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|\p{L}{1,3}\p{Sc}?)\.?[\s\u00a0\u202f]*$/u
+
 /** Only digits and separators, with at least one digit. */
 const AMOUNT_SHAPE = /^[+-]?[\d.,]*\d[\d.,]*$/
 
@@ -26,7 +40,17 @@ const AMOUNT_SHAPE = /^[+-]?[\d.,]*\d[\d.,]*$/
 function hasValidGrouping(text: string, separator: string): boolean {
   const groups = text.split(separator)
   if (groups.length === 1) return true
-  return /^\d{1,3}$/.test(groups[0]) && groups.slice(1).every((group) => /^\d{3}$/.test(group))
+  if (!/^\d{1,3}$/.test(groups[0])) return false
+  const rest = groups.slice(1)
+  // Western: every later group is exactly three.
+  if (rest.every((group) => /^\d{3}$/.test(group))) return true
+  // Indian: the final group is three and the ones before it are two —
+  // `12,34,567`. Still rejects `1,000,00`, whose final group is two.
+  return (
+    rest.length > 1 &&
+    /^\d{3}$/.test(rest[rest.length - 1]) &&
+    rest.slice(0, -1).every((group) => /^\d{2}$/.test(group))
+  )
 }
 
 /** A decimal/grouping separator followed by whitespace — a list, not an amount. */
@@ -173,13 +197,21 @@ export function parseCurrencyInput(raw: unknown): number | null {
   // is what distinguishes this from the `E` inside an ISO code like `12 EUR`.
   if (INTERIOR_EXPONENT.test(body)) return null
 
-  // What remains once currency symbols, spacing, and an ISO code are removed
-  // must be ONLY digits and separators. Scraping digits out of anything else
-  // invents a value: a US-format date, a SKU, or a room number would all parse.
+  // A letter touching a digit means this is an identifier, not an amount —
+  // `SKU400`, `ABC1234`. Currency markers are always separated from the number
+  // by a space or a symbol, so this distinguishes them without a symbol list.
+  if (LETTER_TOUCHING_DIGIT.test(body)) return null
+
+  // Strip the currency marker: up to three letters (an ISO code, `kr`, `zł`)
+  // optionally joined to a symbol (`R$`, `CHF`), at either end. Bounded at
+  // three so prose does not qualify — `Revenue 5` keeps its letters and is
+  // rejected below.
   const cleaned = body
-    .replace(/\p{Sc}/gu, '')
-    .replace(/\s/g, '')
-    .replace(/^[A-Za-z]{3}|[A-Za-z]{3}$/g, '')
+    .replace(CURRENCY_MARKER_PREFIX, '$1')
+    .replace(CURRENCY_MARKER_SUFFIX, '')
+    .replace(/[\s\u00a0\u202f\u2019']/gu, '')
+  // What remains must be ONLY digits and separators. Anything else — a
+  // US-format date, leftover prose — is not an amount.
   if (!AMOUNT_SHAPE.test(cleaned)) return null
 
   const signed = /^[+-]/.test(cleaned)

@@ -701,8 +701,23 @@ export async function updateColumnType(
 
     const column = schema.columns[columnIndex]
     if (column.type === data.newType) {
-      // The type is unchanged, but a rename folded into this same request still
-      // has to land — returning here unconditionally would drop it silently.
+      // Callers gate on the type actually changing, but they compute that from
+      // a schema read taken before this transaction took the lock — so a
+      // concurrent change can land us here with real work still to do. Only a
+      // rename can be honoured without a conversion; anything else would be
+      // silently discarded, and answering success for a change that never
+      // happened is the worst outcome available.
+      const carriesOtherWork =
+        data.required !== undefined ||
+        data.unique !== undefined ||
+        data.options !== undefined ||
+        data.multiple !== undefined ||
+        data.currencyCode !== undefined
+      if (carriesOtherWork) {
+        throw new Error(
+          `Column "${column.name}" is already type "${data.newType}"; re-issue the request without a type change.`
+        )
+      }
       const renamed = applyPendingRename(schema.columns, columnIndex, data.newName)
       if (renamed === column) return table
       return persistColumns(
@@ -925,41 +940,8 @@ export async function updateColumnConstraints(
 
     const column = schema.columns[columnIndex]
     const columnKey = getColumnId(column)
-    if (column.workflowGroupId) {
-      throw new Error(
-        `Cannot change constraints on workflow-output column "${column.name}". Constraints aren't applicable to columns whose values come from workflow execution.`
-      )
-    }
-    if (data.required === true && !column.required) {
-      const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
-      if (emptyCount > 0) {
-        throw new Error(
-          `Cannot set column "${column.name}" as required: ${emptyCount} row(s) have null, missing, or empty values`
-        )
-      }
-    }
-
-    if (data.unique === true && column.type === 'select') {
-      throw new Error(
-        `Cannot set column "${column.name}" as unique: select columns compare stored option ids, which would allow only one row per option.`
-      )
-    }
-
-    if (data.unique === true && !column.unique) {
-      if (await hasDuplicateValues(trx, data.tableId, columnKey)) {
-        throw new Error(`Cannot set column "${column.name}" as unique: duplicate values exist`)
-      }
-    }
-
-    const withConstraints = schema.columns.map((c, i) =>
-      i === columnIndex
-        ? {
-            ...c,
-            ...(data.required !== undefined ? { required: data.required } : {}),
-            ...(data.unique !== undefined ? { unique: data.unique } : {}),
-          }
-        : c
-    )
+    const constrained = await applyConstraints(trx, data.tableId, column, columnKey, data)
+    const withConstraints = schema.columns.map((c, i) => (i === columnIndex ? constrained : c))
     const updatedColumns = withConstraints.map((c, i) =>
       i === columnIndex ? applyPendingRename(withConstraints, columnIndex, data.newName) : c
     )

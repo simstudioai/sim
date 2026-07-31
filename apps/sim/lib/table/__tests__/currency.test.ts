@@ -103,6 +103,31 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('-$12.50')).toBe(-12.5)
   })
 
+  it('parses the locale formats of the currencies the picker pins', () => {
+    // These are exactly what `Intl.NumberFormat` emits, i.e. what a user pastes
+    // from a spreadsheet. Rejecting them would make the pinned currencies
+    // unusable in their own conventional notation.
+    expect(parseCurrencyInput('R$ 1.234,56')).toBe(1234.56)
+    expect(parseCurrencyInput('₹12,34,567.89')).toBe(1234567.89)
+    expect(parseCurrencyInput('1 234,56 kr')).toBe(1234.56)
+    expect(parseCurrencyInput('1.234,56 kr.')).toBe(1234.56)
+    expect(parseCurrencyInput('1234,56 zł')).toBe(1234.56)
+    expect(parseCurrencyInput('CHF 1’234.56')).toBe(1234.56)
+  })
+
+  it('rejects an identifier whose letters touch its digits', () => {
+    // The distinguishing rule: a currency marker is always separated from the
+    // number by a space or a symbol, so letters touching digits mean this is a
+    // part number, not an amount. Without it, converting a column of SKUs to
+    // currency rewrote every cell with an invented value.
+    expect(parseCurrencyInput('SKU400')).toBeNull()
+    expect(parseCurrencyInput('ABC1234')).toBeNull()
+    expect(parseCurrencyInput('A1B2')).toBeNull()
+    // A marker separated properly still parses.
+    expect(parseCurrencyInput('USD 400')).toBe(400)
+    expect(parseCurrencyInput('$400')).toBe(400)
+  })
+
   it('rejects text that merely contains digits', () => {
     // Scraping digits out of arbitrary text invents a value. A string column of
     // SKUs, phone numbers, or US-format dates converting to currency would
@@ -110,7 +135,6 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('01/02/2024')).toBeNull()
     expect(parseCurrencyInput('Room 101')).toBeNull()
     expect(parseCurrencyInput('Invoice 2024')).toBeNull()
-    expect(parseCurrencyInput('A1B2')).toBeNull()
     expect(parseCurrencyInput('1_000')).toBeNull()
   })
 
@@ -121,9 +145,10 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('1,,2')).toBeNull()
     expect(parseCurrencyInput('0.1.2')).toBeNull()
     expect(parseCurrencyInput('1,000,00')).toBeNull()
-    // Valid grouping still works.
+    // Valid grouping still works, western and Indian.
     expect(parseCurrencyInput('1.234.567')).toBe(1234567)
     expect(parseCurrencyInput('1,234,567.89')).toBe(1234567.89)
+    expect(parseCurrencyInput('12,34,567')).toBe(1234567)
   })
 
   it('rejects values carrying no amount', () => {

@@ -136,6 +136,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     // The constraints write below is a separate, unconditional step, so it is
     // the last one whenever it runs — that is the write the rename rides on.
     const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
+    if (!currentColumn) {
+      return NextResponse.json(
+        { error: `Column "${validated.columnName}" not found` },
+        { status: 404 }
+      )
+    }
+
     // A retype applies and validates the constraints itself, so the separate
     // constraint write only runs when the type is unchanged. The rename rides
     // whichever write actually runs last.

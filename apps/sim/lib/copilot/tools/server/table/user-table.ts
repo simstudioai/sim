@@ -1728,6 +1728,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 options,
                 multiple,
                 ...(currencyCode !== undefined ? { currencyCode } : {}),
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
             )
@@ -1742,7 +1743,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
             assertNotAborted()
             result = await updateColumnCurrency(
-              { tableId: args.tableId, columnName: colName, currencyCode },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                currencyCode,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
               requestId
             )
           } else if (options !== undefined || multiple !== undefined) {
@@ -1759,11 +1765,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
             assertNotAborted()
             result = await updateColumnOptions(
-              { tableId: args.tableId, columnName: colName, options: nextOptions, multiple },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                options: nextOptions,
+                multiple,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
               requestId
             )
           }
-          if (uniqFlag !== undefined) {
+          // Skipped when a typed write ran: that write already applied and
+          // validated the constraint, in one transaction with the change it
+          // accompanies. Mirrors the HTTP columns routes.
+          if (uniqFlag !== undefined && result === undefined) {
             assertNotAborted()
             result = await updateColumnConstraints(
               { tableId: args.tableId, columnName: colName, unique: uniqFlag },

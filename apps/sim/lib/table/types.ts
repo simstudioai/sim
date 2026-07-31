@@ -800,10 +800,8 @@ export interface UpdateColumnTypeData {
    */
   unique?: boolean
   /**
-   * The `required` value the same request is about to set, when it changes type
-   * and constraints together. Those are separate transactions, so the
-   * conversion has to validate against the constraint the column will END UP
-   * with — otherwise it commits and the constraint write then fails.
+   * The `required` value the same request is about to set. Applied by this
+   * write, in the same transaction as the change it accompanies.
    */
   required?: boolean
 }
@@ -822,10 +820,8 @@ export interface UpdateColumnOptionsData {
   /** Toggle single/multi selection alongside the options update. */
   multiple?: boolean
   /**
-   * The `required` value the same request is about to set. The constraint write
-   * is a separate transaction, so the options update has to validate against
-   * the constraint the column will END UP with — otherwise it clears cells and
-   * the constraint write then fails, leaving the removal committed.
+   * The `required` value the same request is about to set. Applied by this
+   * write, in the same transaction as the options change.
    */
   required?: boolean
 }
@@ -845,6 +841,7 @@ export interface UpdateColumnCurrencyData {
   newName?: string
   /** Constraints to apply in the SAME transaction as this write. */
   unique?: boolean
+  required?: boolean
   currencyCode: string
 }
 
