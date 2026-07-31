@@ -294,12 +294,19 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
   // that actually NAMES a currency is stripped — a magnitude word like `1.2 M`
   // or `3,4 mrd` is left in place, so it fails the amount-shape check below
   // instead of silently reading as 1.2, orders of magnitude too small.
-  const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, (match, sign, letters, symbol) =>
-    isStrippableMarker(letters, symbol) ? sign : match
-  )
-  const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, (match, letters, symbol) =>
-    isStrippableMarker(letters, symbol) ? '' : match
-  )
+  // Whether a marker was actually stripped decides one ambiguous case below —
+  // see {@link loneSeparatorIsGrouping}.
+  let hadMarker = false
+  const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, (match, sign, letters, symbol) => {
+    if (!isStrippableMarker(letters, symbol)) return match
+    hadMarker = true
+    return sign
+  })
+  const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, (match, letters, symbol) => {
+    if (!isStrippableMarker(letters, symbol)) return match
+    hadMarker = true
+    return ''
+  })
   const cleaned = withoutMarkers.replace(/[\s\u00a0\u202f\u2019']/gu, '')
   // What remains must be ONLY digits and separators. Anything else — a
   // US-format date, leftover prose — is not an amount.
@@ -321,7 +328,8 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
     normalized = `${integerPart.split(groupSeparator).join('')}.${decimalParts[0]}`
   } else if (lastComma !== -1) {
     const repeated = digitsAndSeps.indexOf(',') !== lastComma
-    const grouping = repeated || loneSeparatorIsGrouping(digitsAndSeps, ',', currencyCode)
+    const grouping =
+      repeated || loneSeparatorIsGrouping(digitsAndSeps, ',', currencyCode, hadMarker)
     if (grouping) {
       if (!hasValidGrouping(digitsAndSeps, ',')) return null
       normalized = digitsAndSeps.split(',').join('')
@@ -330,7 +338,8 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
     }
   } else if (lastDot !== -1) {
     const repeated = digitsAndSeps.indexOf('.') !== lastDot
-    const grouping = repeated || loneSeparatorIsGrouping(digitsAndSeps, '.', currencyCode)
+    const grouping =
+      repeated || loneSeparatorIsGrouping(digitsAndSeps, '.', currencyCode, hadMarker)
     if (grouping) {
       if (!hasValidGrouping(digitsAndSeps, '.')) return null
       normalized = digitsAndSeps.split('.').join('')
@@ -355,25 +364,31 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
  * - A **dot** is the decimal point in the notation most people type, so it
  *   stays a decimal — typing `1.234` in a USD cell means 1.234, which the
  *   display then rounds to `$1.23`, exactly as a spreadsheet does. Reading it
- *   as 1,234 would be a thousandfold surprise. The exception is a currency with
- *   no decimal places at all: `1.235 ¥` cannot be a fraction of a yen, and is
- *   the one lone-separator form a formatter actually emits.
+ *   as 1,234 would be a thousandfold surprise.
  * - A **comma** is grouping by convention — `1,500` is fifteen hundred, not one
- *   and a half. The exception mirrors the first: a currency with three decimal
- *   places (KWD, TND) legitimately ends in three digits after its separator,
- *   so `0,500` is a half.
+ *   and a half. The exception: a currency with three decimal places (KWD, TND)
+ *   legitimately ends in three digits after its separator, so `0,500` is a half.
  *
- * A currency with one or two decimal places always formats with BOTH
- * separators, so no formatter output is decided here.
+ * The one case where a dot groups is a currency with NO decimal places, and
+ * only when a currency marker came with it. `1.235 ¥` cannot be a fraction of a
+ * yen, and is the single lone-separator form a formatter emits — but a formatter
+ * always emits its marker too. A bare `1.235` is someone typing, and inflating
+ * that to 1235 is a silent thousandfold error, where reading it literally stores
+ * 1.235 and displays `¥1` — wrong in a way the writer can see and correct.
+ *
+ * The marker carries no information for any other currency: one with one or two
+ * decimal places always formats with BOTH separators, so a lone separator there
+ * never came from a formatter in the first place.
  */
 function loneSeparatorIsGrouping(
   digitsAndSeps: string,
   separator: string,
-  currencyCode: string | undefined
+  currencyCode: string | undefined,
+  hadMarker: boolean
 ): boolean {
   if (!new RegExp(`\\${separator}\\d{3}$`).test(digitsAndSeps)) return false
   const fractionDigits = currencyFractionDigits(currencyCode)
-  return separator === ',' ? fractionDigits !== 3 : fractionDigits === 0
+  return separator === ',' ? fractionDigits !== 3 : fractionDigits === 0 && hadMarker
 }
 
 /** A currency's conventional decimal places, defaulting to 2 when unknown. */

@@ -160,36 +160,37 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('CHF 1’234.56')).toBe(1234.56)
   })
 
-  it('resolves a lone separator using the marker and the currency', () => {
-    // `1.235 ¥` is 1235 yen; a typed `1.235` is one-and-a-bit. A marker means a
-    // formatter produced it, and formatters group — except for the currencies
-    // that genuinely carry three decimals.
-    expect(parseCurrencyInput('1.235 ¥', 'JPY')).toBe(1235)
-    expect(parseCurrencyInput('0,500 KWD', 'KWD')).toBe(0.5)
-    expect(parseCurrencyInput('12,000 TND', 'TND')).toBe(12)
-    // Bare input keeps the typed reading.
-    expect(parseCurrencyInput('1.234')).toBe(1.234)
-    expect(parseCurrencyInput('1,500')).toBe(1500)
-  })
-
-  it('reads a lone separator against the currency, not just the marker', () => {
-    // A currency with decimals always formats with BOTH separators, so a lone
-    // one never comes from a formatter for those — only zero-decimal
-    // currencies produce `1.235 ¥`. And a three-decimal currency's trailing
-    // three digits are decimals however the value arrived, which matters for
-    // CSV import, where nothing carries a marker.
-    // A dot stays the decimal point: typing `1.234` in a USD cell means 1.234,
-    // which the display rounds to $1.23 exactly as a spreadsheet does. Reading
-    // it as 1,234 would be a thousandfold surprise.
+  it('reads a lone dot as the decimal point people type', () => {
+    // Typing `1.234` in a USD cell means 1.234, which the display rounds to
+    // $1.23 exactly as a spreadsheet does. Reading it as 1,234 would be a
+    // thousandfold surprise, marker or no marker.
     expect(parseCurrencyInput('$1.234', 'USD')).toBe(1.234)
     expect(parseCurrencyInput('1.234')).toBe(1.234)
-    // Except where the currency has no decimals — the one lone-separator form
-    // a formatter actually emits.
+    expect(parseCurrencyInput('1.234', 'EUR')).toBe(1.234)
+  })
+
+  it('groups a lone dot only for a zero-decimal currency that came formatted', () => {
+    // `1.235 ¥` cannot be a fraction of a yen, and is the single lone-separator
+    // form a formatter emits — but a formatter always emits its marker too.
     expect(parseCurrencyInput('1.235 ¥', 'JPY')).toBe(1235)
-    // A comma is grouping by convention, except for three-decimal currencies.
+    expect(parseCurrencyInput('JPY 1.235', 'JPY')).toBe(1235)
+    // Bare, it is someone typing. Inflating that to 1235 would be a silent
+    // thousandfold error; read literally it stores 1.235 and displays ¥1 —
+    // wrong in a way the writer can see and fix.
+    expect(parseCurrencyInput('1.235', 'JPY')).toBe(1.235)
+    expect(parseCurrencyInput('1.235', 'CLP')).toBe(1.235)
+  })
+
+  it('reads a lone comma as grouping, except where the currency has three decimals', () => {
+    // `1,500` is fifteen hundred by convention. A three-decimal currency's
+    // trailing three digits are decimals however the value arrived — which
+    // matters most for CSV import, where nothing carries a marker.
     expect(parseCurrencyInput('1,500', 'USD')).toBe(1500)
+    expect(parseCurrencyInput('1,500')).toBe(1500)
     expect(parseCurrencyInput('0,500', 'KWD')).toBe(0.5)
+    expect(parseCurrencyInput('0,500 KWD', 'KWD')).toBe(0.5)
     expect(parseCurrencyInput('12,000', 'TND')).toBe(12)
+    expect(parseCurrencyInput('12,000 TND', 'TND')).toBe(12)
   })
 
   it('refuses a scale suffix rather than shrinking the value', () => {
