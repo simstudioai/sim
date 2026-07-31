@@ -68,10 +68,12 @@ function requiredPositiveNumber(value: unknown, fieldName: string): number {
   return parsed
 }
 
-function optionalFiniteNumber(value: unknown, fieldName: string): number | undefined {
+function optionalPositiveNumber(value: unknown, fieldName: string): number | undefined {
   if (value == null || value === '') return undefined
   const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) throw new Error(`${fieldName} must be a finite number`)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${fieldName} must be a positive finite number`)
+  }
   return parsed
 }
 
@@ -126,13 +128,23 @@ export function parseQuickBooksSalesLines(
     }
     assertAllowedKeys(line, ITEM_LINE_KEYS, itemName)
     const description = optionalStringValue(line.description, `${itemName}.description`)
+    const amount = requiredPositiveNumber(line.amount, `${itemName}.amount`)
+    const quantity = optionalPositiveNumber(line.quantity, `${itemName}.quantity`)
+    const unitPrice = optionalPositiveNumber(line.unitPrice, `${itemName}.unitPrice`)
+    if (
+      quantity !== undefined &&
+      unitPrice !== undefined &&
+      !new Decimal(quantity).times(unitPrice).toDecimalPlaces(2).equals(new Decimal(amount))
+    ) {
+      throw new Error(`${itemName}.amount must equal quantity multiplied by unitPrice`)
+    }
     return {
       lineType: 'item',
-      amount: requiredPositiveNumber(line.amount, `${itemName}.amount`),
+      amount,
       itemId: requiredStringValue(line.itemId, `${itemName}.itemId`),
       description,
-      quantity: optionalFiniteNumber(line.quantity, `${itemName}.quantity`),
-      unitPrice: optionalFiniteNumber(line.unitPrice, `${itemName}.unitPrice`),
+      quantity,
+      unitPrice,
       serviceDate: validateQuickBooksDate(
         optionalStringValue(line.serviceDate, `${itemName}.serviceDate`),
         `${itemName}.serviceDate`

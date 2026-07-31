@@ -192,6 +192,32 @@ describe('QuickBooks sales document validation and bodies', () => {
       'itemId must be a string'
     )
     expect(() =>
+      parseQuickBooksSalesLines('[{"lineType":"item","amount":10,"itemId":"7","quantity":0}]')
+    ).toThrow('quantity must be a positive finite number')
+    expect(() =>
+      parseQuickBooksSalesLines('[{"lineType":"item","amount":10,"itemId":"7","unitPrice":-1}]')
+    ).toThrow('unitPrice must be a positive finite number')
+    expect(() =>
+      parseQuickBooksSalesLines(
+        '[{"lineType":"item","amount":10,"itemId":"7","quantity":2,"unitPrice":6}]'
+      )
+    ).toThrow('amount must equal quantity multiplied by unitPrice')
+    expect(
+      parseQuickBooksSalesLines(
+        '[{"lineType":"item","amount":0.02,"itemId":"7","quantity":0.1,"unitPrice":0.2}]'
+      )
+    ).toEqual([
+      {
+        lineType: 'item',
+        amount: 0.02,
+        itemId: '7',
+        description: undefined,
+        quantity: 0.1,
+        unitPrice: 0.2,
+        serviceDate: undefined,
+      },
+    ])
+    expect(() =>
       parseQuickBooksSalesLines(
         '[{"lineType":"item","amount":1,"itemId":"7","serviceDate":"2026-02-30"}]'
       )

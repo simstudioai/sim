@@ -188,8 +188,8 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
-| `startPosition` | number | One-based position of the first item in this response |
-| `maxResults` | number | Actual number of items reported for this response |
+| `startPosition` | number | One-based position of the first record in this page |
+| `maxResults` | number | Actual number of records returned in this page |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
@@ -449,7 +449,7 @@ Create a Service or Non-inventory item in QuickBooks Online
 
 ### `quickbooks_update_item`
 
-Sparse-update a Service or Non-inventory item in QuickBooks Online
+Sparse-update supported fields on an item without changing its type
 
 #### Input
 
@@ -457,7 +457,6 @@ Sparse-update a Service or Non-inventory item in QuickBooks Online
 | --------- | ---- | -------- | ----------- |
 | `itemId` | string | Yes | ID of the item to update |
 | `syncToken` | string | Yes | Current item sync token |
-| `itemType` | string | Yes | Current item type: service or non_inventory |
 | `name` | string | No | Replacement item name |
 | `incomeAccountId` | string | No | Replacement income account ID |
 | `description` | string | No | Replacement sales description |

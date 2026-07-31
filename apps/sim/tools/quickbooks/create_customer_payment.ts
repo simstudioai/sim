@@ -1,9 +1,6 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
-import {
-  addQuickBooksRequestId,
-  buildQuickBooksCreatePaymentBody,
-} from '@/tools/quickbooks/sales_utils'
+import { buildQuickBooksCreatePaymentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksCreateCustomerPaymentParams,
   QuickBooksMutationResponse,
@@ -14,6 +11,7 @@ import {
   QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
 } from '@/tools/quickbooks/types'
 import {
+  addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
   transformQuickBooksMutationResponse,
