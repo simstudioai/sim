@@ -100,7 +100,7 @@ function makeClient(): any {
 
 vi.mock('redis', () => ({ createClient: () => makeClient() }))
 
-import { FileDocStore } from '@/handlers/file-doc-store'
+import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
 
 const REDIS_URL = 'redis://fake'
 const NAME = 'workspace-file-doc:file-1'
@@ -223,8 +223,14 @@ describe('FileDocStore', () => {
 
     const a = await newStore()
     // This task has integrated only up to entry 400 (all no-ops) — its local doc is empty and lags the
-    // two peer entries. Inject that lagging room directly.
-    ;(a as any).rooms.set(NAME, { doc: new Y.Doc(), lastId: '400-0', publishes: 0 })
+    // two peer entries. Inject that lagging room directly (a real edit was integrated → realEdited).
+    ;(a as any).rooms.set(NAME, {
+      doc: new Y.Doc(),
+      lastId: '400-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: true,
+    })
     await (a as any).maybeCompact(NAME)
 
     // A fresh catch-up must still reconstruct the peer content — compaction must not have trimmed 401/402.
@@ -237,6 +243,84 @@ describe('FileDocStore', () => {
     // edited content (not a bare seed) and persists on last-disconnect.
     const stream = state.backing!.streams.get(streamKey)!
     expect(stream[stream.length - 1].message.s).toBe('1')
+  })
+
+  it('tags an agent-streamed frame so a peer tailer applies it as REDIS_AGENT_ORIGIN (never persisted)', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const a = await newStore()
+    const b = await newStore()
+    const bDoc = new Y.Doc()
+    // Capture the origin the tailer stamps each applied entry with — the persistence gate keys off it.
+    const origins: unknown[] = []
+    bDoc.on('update', (_u: Uint8Array, origin: unknown) => origins.push(origin))
+    await b.attachRoom(NAME, bDoc)
+
+    // A normal edit tails as REDIS_ORIGIN (a peer edit that CAN be persisted).
+    a.publish(NAME, updateFor('user edit'))
+    await vi.waitFor(() => expect(origins).toContain(REDIS_ORIGIN), { timeout: 2000 })
+
+    // An agent-streamed frame is published WITH the agent flag: the stream entry carries the marker, and
+    // the peer tailer applies it as REDIS_AGENT_ORIGIN — excluded from the relay's edited/persist gate.
+    a.publish(NAME, updateFor('agent frame'), true)
+    await vi.waitFor(() => expect(origins).toContain(REDIS_AGENT_ORIGIN), { timeout: 2000 })
+    const stream = state.backing!.streams.get(streamKey)!
+    expect(stream.some((e) => e.message.a === '1')).toBe(true)
+    // The normal edit's entry carries no agent marker.
+    expect(stream.filter((e) => e.message.a === '1')).toHaveLength(1)
+    bDoc.destroy()
+  })
+
+  it('latches realEdited synchronously so a concurrent compaction can never mislabel a real edit', async () => {
+    // The data-loss race: a real edit sits in room.doc synchronously, but if realEdited were set only
+    // AFTER appendUpdate's awaits, a concurrent agent-triggered compaction could snapshot that content and
+    // stamp it an agent (no-persist) frame — losing the edit. The latch must be set in the same tick.
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = (a as any).rooms.get(NAME)
+    expect(room.realEdited).toBe(false)
+    // Kick off a real (non-agent) append but do NOT await it: realEdited must already be true before the
+    // xAdd/expire awaits resolve, so any compaction racing on the awaits sees the real edit.
+    const pending = (a as any).appendUpdate(NAME, updateFor('real user edit'))
+    expect(room.realEdited).toBe(true)
+    await pending
+    doc.destroy()
+  })
+
+  it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')
+    // A doc whose content is purely agent preview (no real edit integrated) — realEdited stays false.
+    const agentDoc = docWithText('agent-only preview body')
+    const entries = Array.from({ length: 400 }, (_, i) => ({
+      id: `${i + 1}-0`,
+      message: { u: noop },
+    }))
+    state.backing!.streams.set(streamKey, entries)
+    state.backing!.seq = 400
+
+    const a = await newStore()
+    ;(a as any).rooms.set(NAME, {
+      doc: agentDoc,
+      lastId: '400-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: false,
+    })
+    await (a as any).maybeCompact(NAME)
+
+    // The snapshot must carry the AGENT marker, NOT the snapshot marker, so a peer catch-up applies it as
+    // REDIS_AGENT_ORIGIN and never marks the doc edited — the no-persist guarantee survives compaction.
+    const stream = state.backing!.streams.get(streamKey)!
+    const last = stream[stream.length - 1].message
+    expect(last.a).toBe('1')
+    expect(last.s).toBeUndefined()
+    // Content is still fully reconstructable from the compacted stream.
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
+    expect(doc.getText('body').toString()).toBe('agent-only preview body')
+    doc.destroy()
+    agentDoc.destroy()
   })
 
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {
@@ -382,8 +466,20 @@ describe('FileDocStore', () => {
     const b = await newStore()
     const docA = new Y.Doc()
     Y.applyUpdate(docA, peerUpdates[0]) // A integrated up to 401
-    ;(a as any).rooms.set(NAME, { doc: docA, lastId: '401-0', publishes: 0 })
-    ;(b as any).rooms.set(NAME, { doc: new Y.Doc(), lastId: '400-0', publishes: 0 })
+    ;(a as any).rooms.set(NAME, {
+      doc: docA,
+      lastId: '401-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: true,
+    })
+    ;(b as any).rooms.set(NAME, {
+      doc: new Y.Doc(),
+      lastId: '400-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: true,
+    })
     await Promise.all([(a as any).maybeCompact(NAME), (b as any).maybeCompact(NAME)])
 
     const doc = new Y.Doc()

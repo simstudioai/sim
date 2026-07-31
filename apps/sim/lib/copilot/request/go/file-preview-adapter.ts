@@ -25,9 +25,7 @@ import {
   loadWorkspaceFileTextForPreview,
   type WorkspaceFilePreviewBase,
 } from '@/lib/copilot/tools/server/files/file-preview'
-import { isLiveDocMergeInFlight, mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -43,8 +41,6 @@ type FilePreviewStreamState = {
   session: FilePreviewSession
   lastEmittedPreviewText: string
   lastSnapshotAt: number
-  /** Epoch ms of the last merge of the growing content into the file's live collaborative Y.Doc. */
-  lastLiveMergeAt: number
 }
 
 type ParsedWorkspaceFileArgs = {
@@ -57,12 +53,6 @@ type ParsedWorkspaceFileArgs = {
 
 const PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS = 80
 const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
-/**
- * Throttle for merging the growing copilot content into the file's live collaborative Y.Doc as it
- * streams. ~4 merges/sec reads as live while keeping CRDT diff churn and relay load bounded
- * regardless of token rate; the final durable `edit_content` write is the stream-end flush.
- */
-const LIVE_DOC_MERGE_THROTTLE_MS = 250
 
 function asJsonRecord(value: unknown): JsonRecord | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -273,7 +263,6 @@ function buildPreviewSessionFromIntent(
     operation: intent.operation,
     ...(intent.edit ? { edit: intent.edit } : {}),
     ...(typeof current?.baseContent === 'string' ? { baseContent: current.baseContent } : {}),
-    ...(typeof current?.baseVersion === 'number' ? { baseVersion: current.baseVersion } : {}),
     previewText: current?.previewText ?? '',
     previewVersion: current?.previewVersion ?? 0,
     status: current?.status ?? 'pending',
@@ -412,16 +401,12 @@ export async function processFilePreviewStreamEvent(input: {
           session = {
             ...session,
             baseContent: previewBase.text,
-            ...(previewBase.baseVersion !== undefined
-              ? { baseVersion: previewBase.baseVersion }
-              : {}),
           }
         }
         filePreviewState.set(toolCallId, {
           session,
           lastEmittedPreviewText: '',
           lastSnapshotAt: 0,
-          lastLiveMergeAt: 0,
         })
         await persistFilePreviewSession(session)
 
@@ -487,16 +472,12 @@ export async function processFilePreviewStreamEvent(input: {
         session = {
           ...session,
           baseContent: previewBase.text,
-          ...(previewBase.baseVersion !== undefined
-            ? { baseVersion: previewBase.baseVersion }
-            : {}),
         }
       }
       filePreviewState.set(intent.toolCallId, {
         session,
         lastEmittedPreviewText: '',
         lastSnapshotAt: 0,
-        lastLiveMergeAt: 0,
       })
       await persistFilePreviewSession(session)
 
@@ -566,7 +547,6 @@ export async function processFilePreviewStreamEvent(input: {
         session: nextSession,
         lastEmittedPreviewText: previewText,
         lastSnapshotAt: Date.now(),
-        lastLiveMergeAt: 0,
       })
       await persistFilePreviewSession(nextSession)
       await emitPreviewEvent(streamEvent, options, {
@@ -600,7 +580,6 @@ export async function processFilePreviewStreamEvent(input: {
           session: buildPreviewSessionFromIntent(streamId, editIntent),
           lastEmittedPreviewText: '',
           lastSnapshotAt: 0,
-          lastLiveMergeAt: 0,
         }
 
         if (
@@ -619,15 +598,9 @@ export async function processFilePreviewStreamEvent(input: {
             }
           )
           if (typeof intentBase?.existingContent === 'string') {
-            // Same version line as the seed/persist (`contentUpdatedAt ?? updatedAt`), so the stream's
-            // base is comparable to the relay's synced version even when the file has no content version.
-            const baseVersion = (
-              intentBase.fileRecord?.contentUpdatedAt ?? intentBase.fileRecord?.updatedAt
-            )?.getTime()
             const seededSession: FilePreviewSession = {
               ...currentPreview.session,
               baseContent: intentBase.existingContent,
-              ...(baseVersion !== undefined ? { baseVersion } : {}),
               ...(intentBase.edit ? { edit: intentBase.edit } : {}),
             }
             currentPreview = {
@@ -665,41 +638,12 @@ export async function processFilePreviewStreamEvent(input: {
 
           await persistFilePreviewSession(nextSession)
 
-          // Stream the growing content into the file's LIVE collaborative Y.Doc (when a room is open)
-          // so collaborators watching the file see the copilot write stream in via Yjs — the AI as a
-          // CRDT peer, applied by the relay as a minimal `updateYFragment` diff. Fire-and-forget so a
-          // slow relay never stalls the stream. Pass `baseVersion` (the durable version this snapshot is
-          // built from) so the relay drops it if a NEWER durable write has landed since — e.g. a
-          // concurrent human save — rather than diffing the live doc back toward stale content and
-          // clobbering that edit (which a later persist would then write over the durable file). It is
-          // never recorded as a checkpoint; the final `edit_content` write carries the real version and
-          // reconciles the durable file. No-op for `create` (never streams here) and for a file with no
-          // open room (the relay reports `applied: false`).
-          //
-          // Gates: markdown only (non-markdown has no collaborative room). Only `append`/`patch` stream
-          // — they build on the existing content, so they need the base loaded (a base-less snapshot
-          // would diff to a delete-everything wipe of the seeded doc). `update` is a from-scratch
-          // rewrite: streaming its partial content would diff the full doc toward a fragment and blank
-          // it mid-stream, so it applies atomically at the final durable write instead. Skip while a
-          // merge is in flight for this file — one at a time, and don't advance the throttle on a
-          // no-op — so a slow relay can't backlog stale snapshots or make the doc lag the stream.
-          // Require a numeric `baseVersion`: without it the relay can't order the snapshot and would
-          // treat it as unordered (never stale), so a rare base with no version (no file record) is
-          // fail-closed — skip the live merge rather than risk clobbering a concurrent durable write.
-          const dueForLiveMerge =
-            nextSession.fileId !== undefined &&
-            isMarkdownFile({ type: editIntent.contentType, name: nextSession.fileName ?? '' }) &&
-            (editIntent.operation === 'append' || editIntent.operation === 'patch') &&
-            currentPreview.session.baseContent !== undefined &&
-            nextSession.baseVersion !== undefined &&
-            !isLiveDocMergeInFlight(nextSession.fileId) &&
-            now - currentPreview.lastLiveMergeAt >= LIVE_DOC_MERGE_THROTTLE_MS
-          const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt
-          if (dueForLiveMerge && nextSession.fileId) {
-            void mergeEditIntoLiveFileDoc(nextSession.fileId, nextSession.previewText, {
-              baseVersion: nextSession.baseVersion,
-            })
-          }
+          // The growing content is NOT merged into the live collaborative Y.Doc from here. When a
+          // collaborative editor for this file is open, that client applies the stream to the shared
+          // doc as minimal CRDT diffs (see `applyStreamedMarkdownToLiveDoc` in the editor), which
+          // renders smoothly locally AND broadcasts to every peer — so a server-side streaming merge
+          // would double-write the shared doc. The final `edit_content` durable write still reconciles
+          // the file and seeds any late joiner.
 
           if (
             nextSession.operation === 'patch' &&
@@ -709,7 +653,6 @@ export async function processFilePreviewStreamEvent(input: {
               session: nextSession,
               lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
               lastSnapshotAt: currentPreview.lastSnapshotAt,
-              lastLiveMergeAt: nextLiveMergeAt,
             })
           } else {
             const previewUpdate = buildPreviewContentUpdate(
@@ -724,7 +667,6 @@ export async function processFilePreviewStreamEvent(input: {
               session: nextSession,
               lastEmittedPreviewText: nextSession.previewText,
               lastSnapshotAt: previewUpdate.lastSnapshotAt,
-              lastLiveMergeAt: nextLiveMergeAt,
             })
 
             await emitPreviewEvent(streamEvent, options, {
@@ -746,7 +688,6 @@ export async function processFilePreviewStreamEvent(input: {
             session: currentPreview.session,
             lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
             lastSnapshotAt: currentPreview.lastSnapshotAt,
-            lastLiveMergeAt: currentPreview.lastLiveMergeAt,
           })
         }
       }
@@ -780,7 +721,6 @@ export async function processFilePreviewStreamEvent(input: {
         session: currentPreview.session,
         lastEmittedPreviewText: currentPreview.session.previewText,
         lastSnapshotAt: Date.now(),
-        lastLiveMergeAt: currentPreview.lastLiveMergeAt,
       })
       await emitPreviewEvent(streamEvent, options, {
         toolCallId: currentPreview.session.toolCallId,
@@ -812,7 +752,6 @@ export async function processFilePreviewStreamEvent(input: {
         session: completedSession,
         lastEmittedPreviewText: completedSession.previewText,
         lastSnapshotAt: Date.now(),
-        lastLiveMergeAt: currentPreview.lastLiveMergeAt,
       })
       await persistFilePreviewSession(completedSession)
     }

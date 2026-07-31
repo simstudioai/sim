@@ -16,10 +16,6 @@ export interface FilePreviewSession {
   operation?: string
   edit?: Record<string, unknown>
   baseContent?: string
-  /** The durable version (`contentUpdatedAt`, epoch ms) `baseContent` is at — the stream's causal base,
-   *  passed to the relay so a snapshot is dropped if a newer durable write landed. Undefined for a
-   *  legacy file with no recorded version, or a session with no loaded base. */
-  baseVersion?: number
   previewText: string
   previewVersion: number
   updatedAt: string

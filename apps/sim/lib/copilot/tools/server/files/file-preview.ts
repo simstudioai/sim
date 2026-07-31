@@ -141,16 +141,9 @@ function buildAppendPreview(existingContent: string, incomingContent: string): s
  * before Redis holds `existingContent`, which would make append previews look like
  * full-file replacement until the intent landed.
  */
-/**
- * The base content a copilot edit is computed against, plus the durable version (epoch ms) that content
- * is at. The version is the stream's causal base: the relay drops a streaming snapshot if a NEWER durable
- * write landed than this, so a concurrent human edit is never clobbered. Derived as
- * `contentUpdatedAt ?? updatedAt` — the SAME version line the seed/persist use — so it is directly
- * comparable to the relay's recorded synced version.
- */
+/** The base content a copilot append/patch edit is computed against, to compose the streamed preview. */
 export interface WorkspaceFilePreviewBase {
   text: string
-  baseVersion: number
 }
 
 export async function loadWorkspaceFileTextForPreview(
@@ -163,7 +156,6 @@ export async function loadWorkspaceFileTextForPreview(
     const buffer = await fetchWorkspaceFileBuffer(record)
     return {
       text: buffer.toString('utf-8'),
-      baseVersion: (record.contentUpdatedAt ?? record.updatedAt).getTime(),
     }
   } catch (error) {
     logger.warn('Failed to load workspace file text for preview', {
@@ -190,10 +182,15 @@ export function buildFilePreviewText({
   }
 
   if (operation === 'append') {
-    if (existingContent !== undefined) {
-      return buildAppendPreview(existingContent, streamedContent)
+    // Fail closed (like `patch`/`update` below) when the base file content has not loaded yet: a base-less
+    // `append` preview is just the streamed fragment, and a collaborative editor applying it as the full
+    // body would reconcile the seeded doc down to that fragment (a wipe). Skipping the preview until the
+    // base is available costs only a brief render delay; the final durable `edit_content` write is
+    // authoritative. An empty file has `existingContent === ''` (defined), so it is unaffected.
+    if (existingContent === undefined) {
+      return undefined
     }
-    return streamedContent
+    return buildAppendPreview(existingContent, streamedContent)
   }
 
   if (existingContent === undefined) {

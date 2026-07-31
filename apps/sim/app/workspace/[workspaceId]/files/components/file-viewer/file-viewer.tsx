@@ -112,6 +112,7 @@ interface FileViewerProps {
   streamingContent?: string
   isAgentEditing?: boolean
   streamIsIncremental?: boolean
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
   /**
@@ -156,6 +157,7 @@ function FileViewerContent({
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll = false,
   previewContextKey,
   collaborative,
@@ -202,6 +204,7 @@ function FileViewerContent({
           streamingContent={streamingContent}
           isAgentEditing={isAgentEditing}
           streamIsIncremental={streamIsIncremental}
+          streamOperation={streamOperation}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
           collaborative={collaborative}

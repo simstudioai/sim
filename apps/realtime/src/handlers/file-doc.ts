@@ -45,7 +45,12 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
 import { fetchFileDocMerge, fetchFileDocPersist, fetchFileDocSeed } from '@/handlers/file-doc-app'
-import { getFileDocStore, REDIS_ORIGIN, REDIS_SNAPSHOT_ORIGIN } from '@/handlers/file-doc-store'
+import {
+  getFileDocStore,
+  REDIS_AGENT_ORIGIN,
+  REDIS_ORIGIN,
+  REDIS_SNAPSHOT_ORIGIN,
+} from '@/handlers/file-doc-store'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import type { IRoomManager } from '@/rooms'
@@ -85,12 +90,16 @@ const MERGE_LOCK_RETRIES = Math.ceil(
   (MERGE_LOCK_TTL_MS + FILE_DOC_TIMEOUTS.mergeRequestMs) / MERGE_LOCK_RETRY_MS
 )
 
-/** A socket's presence ownership within a room. */
+/** One presence ownership within a room: a (socket, clientID) pair. */
 interface FileDocOwner {
   /**
-   * The awareness clientID the socket declared at join. It owns exactly this one
-   * and may only publish/remove awareness for it, so an authenticated peer cannot
-   * forge or clear another collaborator's presence.
+   * An awareness clientID this socket declared at join. The socket may only publish/remove awareness
+   * for a clientID it owns, so an authenticated peer cannot forge or clear another collaborator's
+   * presence. A single socket can own SEVERAL clientIDs at once — the shared workspace socket hosts one
+   * provider per mounted collaborative view, so e.g. the chat file preview and the standalone Files
+   * editor for the same file each bind their own Yjs clientID over the one socket. The election that
+   * picks a single agent-stream writer depends on every such provider's awareness propagating, so
+   * ownership is tracked per clientID, not one-per-socket (which would drop the later joiner's frames).
    */
   clientId: number
   /** The owning user — used to tell a reconnect (same user reusing its Yjs client
@@ -107,8 +116,9 @@ interface FileDocRoom {
   fileId: string
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
-  /** socketId → its presence ownership. */
-  owners: Map<string, FileDocOwner>
+  /** socketId → (clientId → its presence ownership). A socket owns one entry per collaborative provider
+   * it mounted for this file (see {@link FileDocOwner}); an empty inner map is never kept. */
+  owners: Map<string, Map<number, FileDocOwner>>
   /** True once the server-side seed fetch has started, so concurrent joins don't each fetch.
    * Reset on a fetch FAILURE so a later join can retry (a genuinely empty file stays empty). */
   serverSeedStarted: boolean
@@ -176,6 +186,17 @@ const fileDocRoom = (fileId: string): RoomRef => ({
 function originSocketId(origin: unknown): string | null {
   return typeof origin === 'string' ? origin : null
 }
+
+/**
+ * The transaction origin stamped on an agent-streamed frame (a {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}
+ * apply). A non-string sentinel, so `originSocketId` returns `null` for it and the update never triggers
+ * `edited`/`schedulePersist` (the copilot's final `edit_content` write is the durable persist). Unlike a
+ * client edit, an agent frame is broadcast to the WHOLE room (its originating socket is NOT excluded), so a
+ * second {@link FileDocProvider} on the same socket — e.g. the chat preview alongside the Files editor —
+ * also receives the mid-stream ops. The emitting provider no-ops on its own echo (the ops are already
+ * applied locally), so broadcasting back to the sender is harmless.
+ */
+const AGENT_SYNC_ORIGIN = Symbol('file-doc-agent-sync')
 
 /**
  * Broadcast an AWARENESS frame to the room ACROSS tasks via the Socket.IO Redis adapter. Awareness
@@ -349,7 +370,12 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
  */
 function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
   const users: FileDocPresenceUser[] = []
-  for (const [socketId, owner] of room.owners) {
+  // One entry PER SOCKET (session), not per clientID: a socket's several providers are the same
+  // authenticated user, so any of its owners carries the identity; the client dedupes per user for the
+  // avatar stack (see the roster comment above). An empty inner map is never stored, so `owner` exists.
+  for (const [socketId, clientMap] of room.owners) {
+    const owner = clientMap.values().next().value
+    if (!owner) continue
     users.push({
       socketId,
       userId: owner.userId,
@@ -517,12 +543,11 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
 
 /**
  * How a merge is positioned on the file's version line — mirrors the sim-side `LiveFileDocMergeOrder`
- * wire fields. A durable `version` is checked AND recorded; a streaming `baseVersion` (the durable version
- * the snapshot was built from) is checked only — dropped if a newer durable write has since landed.
+ * wire field. A durable `version` is checked (applied only if newer than the doc's current version) AND
+ * recorded as the synced version.
  */
 interface MergeOrder {
   version?: number
-  baseVersion?: number
 }
 
 /**
@@ -569,16 +594,14 @@ async function mergeMarkdownIntoRoom(
   name: string,
   fileId: string,
   markdown: string,
-  { version, baseVersion }: MergeOrder
+  { version }: MergeOrder
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const store = getFileDocStore()
 
   // The durable version this merge carries is now incorporated in the live doc — record it (cluster-wide
   // in Redis for multi-task, plus this task's room) so the persist If-Match guard treats this write as
   // synced rather than an out-of-band conflict. AWAITED so the version is durable before the merge lock
-  // releases, so the next lock holder's staleness check (below) reads a consistent value. Only a durable
-  // `version` is recorded — a streaming `baseVersion` orders the merge (below) but is never a checkpoint,
-  // so the synced version stays pinned to the last durable write.
+  // releases, so the next lock holder's staleness check (below) reads a consistent value.
   const recordVersion = async () => {
     if (version === undefined) return
     const room = fileDocRooms.get(name)
@@ -590,29 +613,13 @@ async function mergeMarkdownIntoRoom(
   }
 
   // Order this merge on the file's version line, where `current` is the durable version the doc already
-  // incorporates. Both keys are DB-monotonic `contentUpdatedAt` values (no wall-clock), so ordering is
-  // immune to clock skew:
-  //   - A durable `version` is stale if it is NOT strictly newer than `current` — a newer durable write
-  //     already landed (possibly on another process, out of dispatch order); applying its older markdown
-  //     would regress the doc while the monotonic token stays high.
-  //   - A streaming `baseVersion` (the durable version the snapshot was built from) is stale if `current`
-  //     has moved PAST it — a newer durable write landed since the snapshot's base, so diffing the live
-  //     doc back toward the snapshot would clobber that write's content (which a later persist, still
-  //     holding the current If-Match token, would then write over the durable file). This is what stops a
-  //     concurrent human edit from being silently lost; the per-process caller chain cannot see it.
-  // A merge with neither key is never stale (legacy, unordered). Only a durable `version` is recorded,
-  // so a streaming snapshot never advances the synced version — the final `edit_content` write does.
-  //
-  // Known, accepted limitation: two INDEPENDENT copilot streams editing the SAME file at once share one
-  // base version, so neither is stale relative to the other and their snapshots can interleave in the live
-  // doc. This is transient only — each stream's final durable write is version-ordered and reconciles the
-  // doc, so the steady state is deterministic (last durable wins) and the durable file is never corrupted.
-  // Ordering two independent snapshot streams would need a shared sequence they don't have; the fully
-  // robust form (a per-file streaming lease, or embedding the version in each stream entry) is a scoped
-  // follow-up, not a durability fix owed here.
+  // incorporates. `version` is a DB-monotonic `contentUpdatedAt` value (no wall-clock), so ordering is
+  // immune to clock skew: a durable `version` is stale if it is NOT strictly newer than `current` — a
+  // newer durable write already landed (possibly on another process, out of dispatch order); applying its
+  // older markdown would regress the doc while the monotonic token stays high. A merge with no `version`
+  // is never stale (legacy, unordered).
   const isStale = (current: number): boolean => {
     if (version !== undefined) return version <= current
-    if (baseVersion !== undefined) return current > baseVersion
     return false
   }
 
@@ -703,25 +710,42 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
-    // Fan out to THIS task's clients only (excluding the origin socket if local). Cross-task delivery
-    // rides the shared stream — every task's tailer applies + runs its own local fan-out.
-    broadcastLocal(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
+    // Fan out to THIS task's clients only (excluding the origin socket if local — a user edit OR an
+    // agent-streamed frame). Cross-task delivery rides the shared stream — every task's tailer applies +
+    // runs its own local fan-out.
+    // A client edit excludes its own sender socket (echo suppression). An agent frame broadcasts to the
+    // WHOLE room — no socket excluded — so a same-socket sibling provider (chat preview + Files editor)
+    // stays live mid-stream; the emitting provider no-ops on its own echo.
+    broadcastLocal(
+      io,
+      name,
+      encoding.toUint8Array(encoder),
+      origin === AGENT_SYNC_ORIGIN ? null : originSocketId(origin)
+    )
     // Share every locally-originated update to the stream so peers converge. Skip updates that already
-    // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN) and SEED_ORIGIN — the seed is published
-    // EXPLICITLY and AWAITED under the seed lock (so it lands before the lock releases), which a
-    // fire-and-forget publish here couldn't guarantee.
-    if (origin !== REDIS_ORIGIN && origin !== REDIS_SNAPSHOT_ORIGIN && origin !== SEED_ORIGIN)
-      getFileDocStore().publish(name, update)
+    // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN / REDIS_AGENT_ORIGIN) and SEED_ORIGIN —
+    // the seed is published EXPLICITLY and AWAITED under the seed lock (so it lands before the lock
+    // releases), which a fire-and-forget publish here couldn't guarantee. An agent-streamed frame
+    // (AGENT_SYNC_ORIGIN) is published WITH the agent marker so peer tasks tail it as REDIS_AGENT_ORIGIN
+    // and never mark the doc edited on it (see the edit-tracker below).
+    if (
+      origin !== REDIS_ORIGIN &&
+      origin !== REDIS_SNAPSHOT_ORIGIN &&
+      origin !== REDIS_AGENT_ORIGIN &&
+      origin !== SEED_ORIGIN
+    )
+      getFileDocStore().publish(name, update, origin === AGENT_SYNC_ORIGIN)
     // Edit tracking for persistence. Mark the doc dirty on any update applied AFTER it was seeded — a
     // local user edit (socket origin) OR a peer's edit relayed via the tailer (REDIS_ORIGIN) — so
     // whichever task is last to leave persists real edits, even one that only tailed them. A compaction
     // snapshot on catch-up (REDIS_SNAPSHOT_ORIGIN) also counts: it folds real edits into one frame, so a
     // fresh task catching up purely from it must not treat the doc as unedited. The seed transition
-    // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. NOTE:
-    // in the multi-replica path a copilot merge is NOT excluded — it round-trips through the stream as
-    // REDIS_ORIGIN, indistinguishable from a peer edit, so it marks `edited`. That only ever causes an
-    // extra idempotent persist of content copilot already wrote directly (safe over-persist, never a lost
-    // edit); the single-replica path applies the merge locally with no origin and does not count it.
+    // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. An
+    // agent-streamed frame ({@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}) is never counted anywhere: on
+    // the ORIGINATING task it applies under {@link AGENT_SYNC_ORIGIN}, and across replicas it is published
+    // WITH the agent marker so PEER tasks tail it as REDIS_AGENT_ORIGIN — neither is in the edited set
+    // below. So a transient startup-race duplicate between two stream leaders is never eligible for
+    // persistence; the copilot's durable `edit_content` write remains the sole authority over file bytes.
     const seededBefore = room.seededObserved
     if (isDocSeeded(room.doc)) room.seededObserved = true
     if (
@@ -785,8 +809,9 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
 
     switch (messageType) {
       case FILE_DOC_MESSAGE_TYPE.SYNC: {
-        // Attribute a server-side persist of the resulting edit to the actual editor (blob metadata).
-        const editor = room.owners.get(socket.id)?.userId
+        // Attribute a server-side persist of the resulting edit to the actual editor (blob metadata). A
+        // socket's providers are all the same user, so any owner's userId identifies the editor.
+        const editor = room.owners.get(socket.id)?.values().next().value?.userId
         if (editor) room.lastEditorUserId = editor
         const encoder = encoding.createEncoder()
         encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
@@ -800,13 +825,29 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
         }
         break
       }
+      case FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST: {
+        // An agent-streamed frame: apply + fan out to the room (so a collaborator sees the stream live) but
+        // do NOT treat it as a durable user edit. Unlike SYNC, we do NOT set `lastEditorUserId`, and the
+        // apply uses {@link AGENT_SYNC_ORIGIN} (a non-string sentinel) so `originSocketId` is `null` in
+        // `doc.on('update')` — skipping `edited`/`schedulePersist`, and broadcasting to the WHOLE room
+        // (including the sender socket, so a same-socket sibling provider stays live). The copilot's final
+        // `edit_content` write remains the authoritative durable persist.
+        const encoder = encoding.createEncoder()
+        encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+        syncProtocol.readSyncMessage(decoder, encoder, room.doc, AGENT_SYNC_ORIGIN)
+        if (encoding.length(encoder) > 1) {
+          socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+        }
+        break
+      }
       case FILE_DOC_MESSAGE_TYPE.AWARENESS: {
         const update = decoding.readVarUint8Array(decoder)
-        // Enforce presence ownership: a socket may only publish/remove awareness
-        // for the clientID it bound at join, so a peer cannot spoof or clear
-        // another collaborator's caret.
-        const owned = room.owners.get(socket.id)?.clientId
-        if (owned === undefined || awarenessUpdateClientIds(update).some((id) => id !== owned)) {
+        // Enforce presence ownership: a socket may only publish/remove awareness for a clientID it bound
+        // at join, so a peer cannot spoof or clear another collaborator's caret. A socket can own SEVERAL
+        // clientIDs (one per mounted provider), so the frame is accepted only if EVERY id it carries is
+        // owned by this socket.
+        const owned = room.owners.get(socket.id)
+        if (owned === undefined || awarenessUpdateClientIds(update).some((id) => !owned.has(id))) {
           logger.warn('Dropping awareness frame for an unowned client id', { socketId: socket.id })
           return
         }
@@ -844,12 +885,16 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
   const room = fileDocRooms.get(name)
   if (!room) return
 
-  const owner = room.owners.get(socketId)
+  // The socket may own several clientIDs (one per provider it mounted for this file); drop them ALL.
+  // The client only emits LEAVE / disconnects once its LAST provider for the file tears down, so a
+  // per-socket cleanup here is correct — an earlier single-provider unmount already cleared its own
+  // caret via its awareness removal.
+  const clientMap = room.owners.get(socketId)
   room.owners.delete(socketId)
-  if (owner !== undefined) {
-    // Fires the awareness `update` handler with a non-socket origin → the removal
-    // is broadcast to every remaining client, so the departed caret vanishes.
-    awarenessProtocol.removeAwarenessStates(room.awareness, [owner.clientId], null)
+  if (clientMap !== undefined && clientMap.size > 0) {
+    // Fires the awareness `update` handler with a non-socket origin → the removals
+    // are broadcast to every remaining client, so the departed carets vanish.
+    awarenessProtocol.removeAwarenessStates(room.awareness, [...clientMap.keys()], null)
     // Refresh the roster for whoever remains (server-authenticated identity).
     broadcastFileDocPresence(io, name, room)
   }
@@ -951,20 +996,27 @@ export function setupWorkspaceFileDocHandlers(
       // rejected. This runs BEFORE any teardown of the socket's current binding below, so a
       // rejected rebind — even during a document switch — leaves the socket's existing document
       // and caret untouched.
-      for (const [otherSid, owner] of entry.owners) {
-        if (owner.clientId !== clientId || otherSid === socket.id) continue
+      for (const [otherSid, clientMap] of entry.owners) {
+        if (otherSid === socket.id) continue
+        const owner = clientMap.get(clientId)
+        if (owner === undefined) continue
         if (owner.userId !== userId) {
           emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
           return
         }
-        // Fully evict the stale prior socket of the same user — owner + caret AND its room
-        // mapping + Socket.IO membership — so it can no longer send document (sync) frames:
-        // handleMessage's SYNC path gates on socketToRoomName, not owners. Done inline rather
-        // than via cleanupFileDocForSocket, which could destroyRoomIfIdle the room we're joining.
-        entry.owners.delete(otherSid)
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
-        socketToRoomName.delete(otherSid)
-        io.in(otherSid).socketsLeave(name)
+        // Same user reclaiming its client id on a stale prior socket: evict just THAT clientID's binding
+        // + caret from the old socket. If that leaves the old socket with no providers, also drop its
+        // room mapping + Socket.IO membership so it can no longer send document (sync) frames
+        // (handleMessage's SYNC path gates on socketToRoomName, not owners); an old socket that still
+        // hosts OTHER providers keeps them. Done inline rather than via cleanupFileDocForSocket, which
+        // could destroyRoomIfIdle the room we're joining.
+        clientMap.delete(clientId)
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [clientId], null)
+        if (clientMap.size === 0) {
+          entry.owners.delete(otherSid)
+          socketToRoomName.delete(otherSid)
+          io.in(otherSid).socketsLeave(name)
+        }
       }
 
       // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
@@ -976,14 +1028,18 @@ export function setupWorkspaceFileDocHandlers(
         cleanupFileDocForSocket(socket.id, io)
       }
 
-      // Accepted: a same socket rebinding to a NEW client id clears its old caret
-      // so it doesn't linger as a ghost after the binding is overwritten.
-      const previous = entry.owners.get(socket.id)
-      if (previous !== undefined && previous.clientId !== clientId) {
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
+      // ADD this provider's clientID to the socket's ownership set (do NOT overwrite a sibling provider
+      // on the same socket — that lone-owner overwrite is exactly what dropped the chat preview's
+      // awareness when the Files editor co-mounted). A re-JOIN of the same clientID is idempotent. A
+      // single provider that later unmounts clears its own caret via its awareness removal; the whole
+      // set is dropped on the socket's LEAVE/disconnect (client emits LEAVE only after its LAST provider
+      // for the file tears down).
+      let clientMap = entry.owners.get(socket.id)
+      if (clientMap === undefined) {
+        clientMap = new Map<number, FileDocOwner>()
+        entry.owners.set(socket.id, clientMap)
       }
-
-      entry.owners.set(socket.id, { clientId, userId, userName, avatarUrl })
+      clientMap.set(clientId, { clientId, userId, userName, avatarUrl })
       socketToRoomName.set(socket.id, name)
       socket.join(name)
 

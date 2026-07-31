@@ -14,6 +14,7 @@ import type { Socket } from 'socket.io-client'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import type * as Y from 'yjs'
+import { AGENT_STREAM_ORIGIN } from './apply-streamed-markdown'
 
 /**
  * Events emitted by {@link FileDocProvider}.
@@ -276,8 +277,15 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (this.fatal) return
     // Updates we applied from the server carry `this` as origin — don't echo them.
     if (origin === this) return
+    // Agent-streamed frames must reach peers (so a collaborator sees the stream live) but must NOT be
+    // treated by the server as a durable user edit — the copilot's final `edit_content` write is the
+    // authoritative persist. Tag them so the relay applies + fans out but skips persist bookkeeping.
+    const messageType =
+      origin === AGENT_STREAM_ORIGIN
+        ? FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST
+        : FILE_DOC_MESSAGE_TYPE.SYNC
     const encoder = encoding.createEncoder()
-    encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+    encoding.writeVarUint(encoder, messageType)
     syncProtocol.writeUpdate(encoder, update)
     this.socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
   }
