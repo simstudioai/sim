@@ -188,8 +188,8 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
-| `startPosition` | number | One-based position of the first record in this page |
-| `maxResults` | number | Actual number of records returned in this page |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
@@ -211,6 +211,7 @@ Create a customer in the connected QuickBooks Online company
 | `billingAddress` | json | No | Customer billing address |
 | `shippingAddress` | json | No | Customer shipping address |
 | `taxable` | boolean | No | Whether sales to this customer are taxable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
 
@@ -307,6 +308,7 @@ Create a vendor in the connected QuickBooks Online company
 | `printOnCheckName` | string | No | Name to print on checks |
 | `accountNumber` | string | No | Vendor account number |
 | `vendor1099` | boolean | No | Whether the vendor is tracked for 1099 reporting |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
 
@@ -405,6 +407,7 @@ Create a Service or Non-inventory item in QuickBooks Online
 | `purchaseCost` | number | No | Purchase cost per unit |
 | `expenseAccountId` | string | No | Expense account ID used when the item is purchased |
 | `taxable` | boolean | No | Whether the item is taxable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
 
@@ -446,7 +449,7 @@ Create a Service or Non-inventory item in QuickBooks Online
 
 ### `quickbooks_update_item`
 
-Sparse-update supported fields on an item without changing its type
+Sparse-update a Service or Non-inventory item in QuickBooks Online
 
 #### Input
 
@@ -454,6 +457,7 @@ Sparse-update supported fields on an item without changing its type
 | --------- | ---- | -------- | ----------- |
 | `itemId` | string | Yes | ID of the item to update |
 | `syncToken` | string | Yes | Current item sync token |
+| `itemType` | string | Yes | Current item type: service or non_inventory |
 | `name` | string | No | Replacement item name |
 | `incomeAccountId` | string | No | Replacement income account ID |
 | `description` | string | No | Replacement sales description |
@@ -590,7 +594,6 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-
 ### `quickbooks_create_estimate`
 
 Create an estimate with bounded item and description lines

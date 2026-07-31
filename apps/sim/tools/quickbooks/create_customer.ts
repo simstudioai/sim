@@ -11,6 +11,7 @@ import {
   QUICKBOOKS_MUTATION_OUTPUTS,
 } from '@/tools/quickbooks/types'
 import {
+  addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
   optionalQuickBooksString,
@@ -98,6 +99,12 @@ export const quickbooksCreateCustomerTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Whether sales to this customer are taxable',
     },
+    requestId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional Intuit idempotency request ID, up to 50 characters',
+    },
   },
   oauth: {
     required: true,
@@ -106,7 +113,11 @@ export const quickbooksCreateCustomerTool: ToolConfig<
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'customer').toString(),
+    url: (params) =>
+      addQuickBooksRequestId(
+        buildQuickBooksEntityUrl(params.realmId, 'customer'),
+        params.requestId
+      ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) =>

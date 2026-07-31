@@ -14,6 +14,11 @@ const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
 const CUSTOMER_OPERATIONS = ['quickbooks_create_customer', 'quickbooks_update_customer'] as const
 const VENDOR_OPERATIONS = ['quickbooks_create_vendor', 'quickbooks_update_vendor'] as const
 const ITEM_OPERATIONS = ['quickbooks_create_item', 'quickbooks_update_item'] as const
+const MASTER_DATA_CREATE_OPERATIONS = [
+  'quickbooks_create_customer',
+  'quickbooks_create_item',
+  'quickbooks_create_vendor',
+] as const
 const SALES_DOCUMENT_CREATE_OPERATIONS = [
   'quickbooks_create_estimate',
   'quickbooks_create_invoice',
@@ -40,6 +45,7 @@ const SALES_CREATE_OPERATIONS = [
   ...SALES_DOCUMENT_CREATE_OPERATIONS,
   'quickbooks_create_customer_payment',
 ] as const
+const CREATE_OPERATIONS = [...MASTER_DATA_CREATE_OPERATIONS, ...SALES_CREATE_OPERATIONS] as const
 const SALES_UPDATE_OPERATIONS = [
   ...SALES_DOCUMENT_UPDATE_OPERATIONS,
   'quickbooks_update_customer_payment',
@@ -705,7 +711,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'Request ID',
       type: 'short-input',
       placeholder: 'Optional idempotency key (max 50 characters)',
-      condition: { field: 'operation', value: [...SALES_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...CREATE_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -871,6 +877,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           operation === 'quickbooks_create_customer' ||
           operation === 'quickbooks_update_customer'
         ) {
+          const isCreate = operation === 'quickbooks_create_customer'
           return {
             credential: oauthCredentialValue,
             customerId: optionalValue(params.customerId),
@@ -885,9 +892,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             shippingAddress: parseQuickBooksAddress(params.shippingAddress, 'shippingAddress'),
             taxable: parseTriStateBoolean(params.taxable, 'taxable'),
             activeStatus: params.activeStatus ?? 'unchanged',
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
         if (operation === 'quickbooks_create_vendor' || operation === 'quickbooks_update_vendor') {
+          const isCreate = operation === 'quickbooks_create_vendor'
           return {
             credential: oauthCredentialValue,
             vendorId: optionalValue(params.vendorId),
@@ -903,9 +912,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             accountNumber: optionalValue(params.accountNumber),
             vendor1099: parseTriStateBoolean(params.vendor1099, 'vendor1099'),
             activeStatus: params.activeStatus ?? 'unchanged',
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
         if (operation === 'quickbooks_create_item' || operation === 'quickbooks_update_item') {
+          const isCreate = operation === 'quickbooks_create_item'
           return {
             credential: oauthCredentialValue,
             itemId: optionalValue(params.itemId),
@@ -921,6 +932,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             expenseAccountId: optionalValue(params.expenseAccountId),
             taxable: parseTriStateBoolean(params.taxable, 'taxable'),
             activeStatus: params.activeStatus ?? 'unchanged',
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
         return { credential: oauthCredentialValue }

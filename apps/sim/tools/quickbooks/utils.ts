@@ -141,6 +141,14 @@ export function buildQuickBooksEntityUrl(
   )
 }
 
+export function addQuickBooksRequestId(url: URL, requestId?: string): URL {
+  const normalized = optionalQuickBooksString(requestId)
+  if (!normalized) return url
+  if (normalized.length > 50) throw new Error('requestId cannot exceed 50 characters')
+  url.searchParams.set('requestid', normalized)
+  return url
+}
+
 export async function parseQuickBooksJson<T>(response: Response, label: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`QuickBooks request failed with HTTP ${response.status}`)

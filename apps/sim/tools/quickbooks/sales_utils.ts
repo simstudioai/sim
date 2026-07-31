@@ -204,14 +204,6 @@ function buildPaymentLines(
   }))
 }
 
-export function addQuickBooksRequestId(url: URL, requestId?: string): URL {
-  const normalized = optionalQuickBooksString(requestId)
-  if (!normalized) return url
-  if (normalized.length > 50) throw new Error('requestId cannot exceed 50 characters')
-  url.searchParams.set('requestid', normalized)
-  return url
-}
-
 export function buildQuickBooksCreateSalesDocumentBody(
   params: QuickBooksCreateSalesDocumentParams,
   options: { requireDepositAccount?: boolean } = {}

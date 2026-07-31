@@ -362,6 +362,7 @@ export type QuickBooksActiveStatus = 'unchanged' | 'active' | 'inactive'
 
 export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
   displayName: string
+  requestId?: string
   companyName?: string
   givenName?: string
   familyName?: string
@@ -382,6 +383,7 @@ export interface QuickBooksUpdateCustomerParams
 
 export interface QuickBooksCreateVendorParams extends QuickBooksAuthParams {
   displayName: string
+  requestId?: string
   companyName?: string
   givenName?: string
   familyName?: string
@@ -407,6 +409,7 @@ export interface QuickBooksCreateItemParams extends QuickBooksAuthParams {
   name: string
   itemType: QuickBooksWritableItemType
   incomeAccountId: string
+  requestId?: string
   description?: string
   unitPrice?: number
   purchaseDescription?: string

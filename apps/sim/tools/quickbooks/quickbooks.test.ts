@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { evaluateOutputCondition } from '@/lib/workflows/blocks/block-outputs'
@@ -150,6 +151,37 @@ describe('QuickBooks response contracts', () => {
     } finally {
       global.fetch = originalFetch
     }
+  })
+
+  it.each([
+    [{}, 'company Id'],
+    [[], 'valid CompanyInfo object'],
+    [{ Id: '' }, 'company Id'],
+    [{ Id: '   ' }, 'company Id'],
+  ])('rejects malformed CompanyInfo during OAuth validation', async (companyInfo, message) => {
+    const originalFetch = global.fetch
+    global.fetch = async () => Response.json({ CompanyInfo: companyInfo })
+
+    try {
+      await expect(
+        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
+      ).rejects.toThrow(message)
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
+
+  it.each([
+    [{}, 'company Id'],
+    [[], 'valid CompanyInfo object'],
+    [{ Id: '' }, 'company Id'],
+  ])('rejects malformed CompanyInfo tool responses', async (companyInfo, message) => {
+    await expect(
+      quickbooksGetCompanyInfoTool.transformResponse!(
+        Response.json({ CompanyInfo: companyInfo }),
+        authParams
+      )
+    ).rejects.toThrow(message)
   })
 
   it('preserves sanitized fault guidance for failed company validation', async () => {
@@ -503,6 +535,44 @@ describe('QuickBooks customer and vendor mutations', () => {
       ShipAddr: address,
       Taxable: false,
     })
+  })
+
+  it('adds bounded idempotency request IDs to all master-data creates', () => {
+    const customerUrl = quickbooksCreateCustomerTool.request.url as (
+      params: QuickBooksCreateCustomerParams
+    ) => string
+    const vendorUrl = quickbooksCreateVendorTool.request.url as (
+      params: QuickBooksCreateVendorParams
+    ) => string
+    const itemUrl = quickbooksCreateItemTool.request.url as (
+      params: QuickBooksCreateItemParams
+    ) => string
+
+    expect(
+      new URL(
+        customerUrl({ ...authParams, displayName: 'Customer', requestId: 'customer-request' })
+      ).searchParams.get('requestid')
+    ).toBe('customer-request')
+    expect(
+      new URL(
+        vendorUrl({ ...authParams, displayName: 'Vendor', requestId: 'vendor-request' })
+      ).searchParams.get('requestid')
+    ).toBe('vendor-request')
+    expect(
+      new URL(
+        itemUrl({
+          ...authParams,
+          name: 'Item',
+          itemType: 'service',
+          incomeAccountId: '79',
+          requestId: 'item-request',
+        })
+      ).searchParams.get('requestid')
+    ).toBe('item-request')
+
+    expect(() =>
+      customerUrl({ ...authParams, displayName: 'Customer', requestId: 'x'.repeat(51) })
+    ).toThrow('cannot exceed 50 characters')
   })
 
   it('builds sparse customer updates and rejects an empty update', () => {
@@ -910,12 +980,14 @@ describe('QuickBooks tool and block boundaries', () => {
         displayName: 'Sanitized Customer',
         billingAddress: '{"line1":"123 Main St"}',
         taxable: 'no',
+        requestId: 'customer-request',
       })
     ).toMatchObject({
       credential: 'credential-id',
       displayName: 'Sanitized Customer',
       billingAddress: { Line1: '123 Main St' },
       taxable: false,
+      requestId: 'customer-request',
     })
 
     expect(
@@ -1063,5 +1135,40 @@ describe('QuickBooks tool and block boundaries', () => {
       field: 'operation',
       value: 'quickbooks_create_item',
     })
+    expect(
+      evaluateSubBlockCondition(subBlocks.requestId.condition, {
+        operation: 'quickbooks_create_customer',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(subBlocks.requestId.condition, {
+        operation: 'quickbooks_update_customer',
+      })
+    ).toBe(false)
+  })
+
+  it('documents master-data identity, sync, pagination, and time outputs', () => {
+    const docs = readFileSync(
+      new URL('../../../docs/content/docs/en/integrations/quickbooks.mdx', import.meta.url),
+      'utf8'
+    )
+    const section = docs
+      .split('### `quickbooks_read_master_data`')[1]
+      ?.split('### `quickbooks_create_customer`')[0]
+
+    expect(section).toBeDefined()
+    for (const output of [
+      'Id',
+      'SyncToken',
+      'Active',
+      'MetaData',
+      'startPosition',
+      'maxResults',
+      'nextStartPosition',
+      'hasMore',
+      'time',
+    ]) {
+      expect(section).toContain(`\`${output}\``)
+    }
   })
 })

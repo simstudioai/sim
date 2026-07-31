@@ -77,6 +77,17 @@ export interface QuickBooksCompanyInfoEnvelope {
   time?: string
 }
 
+export function assertQuickBooksCompanyInfo<T extends { Id?: unknown }>(candidate: unknown): T {
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    throw new Error('QuickBooks CompanyInfo response is missing a valid CompanyInfo object')
+  }
+  const id = (candidate as { Id?: unknown }).Id
+  if (typeof id !== 'string' || !id.trim()) {
+    throw new Error('QuickBooks CompanyInfo response is missing a valid company Id')
+  }
+  return candidate as T
+}
+
 function getQuickBooksTrackingId(headers: Headers): string | null {
   return (
     headers.get('intuit_tid') ?? headers.get('intuit-tid') ?? headers.get('x-request-id') ?? null
@@ -167,9 +178,7 @@ export async function fetchValidatedQuickBooksCompanyInfo(
     )
   }
 
-  if (!data.CompanyInfo || typeof data.CompanyInfo !== 'object') {
-    throw new Error('QuickBooks company validation response is missing CompanyInfo')
-  }
+  assertQuickBooksCompanyInfo(data.CompanyInfo)
 
   return data
 }

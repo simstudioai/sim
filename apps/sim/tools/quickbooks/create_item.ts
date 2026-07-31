@@ -8,6 +8,7 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_ITEM_PROPERTIES, QUICKBOOKS_MUTATION_OUTPUTS } from '@/tools/quickbooks/types'
 import {
+  addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
   optionalQuickBooksString,
@@ -94,6 +95,12 @@ export const quickbooksCreateItemTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Whether the item is taxable',
     },
+    requestId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional Intuit idempotency request ID, up to 50 characters',
+    },
   },
   oauth: {
     required: true,
@@ -102,7 +109,11 @@ export const quickbooksCreateItemTool: ToolConfig<
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'item').toString(),
+    url: (params) =>
+      addQuickBooksRequestId(
+        buildQuickBooksEntityUrl(params.realmId, 'item'),
+        params.requestId
+      ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
