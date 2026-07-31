@@ -105,25 +105,14 @@ export function upsertEnv(content: string, key: string, value: string): string {
   return lines.join('\n')
 }
 
-/**
- * Writes values into an env file, seeding a missing file from its `.env.example`.
- *
- * `seedFromExample: false` creates a missing file holding only `values` instead.
- * Used when mirroring one flag into a target the user did not choose, where
- * materializing a whole example for a stack they are not running would be
- * surprising.
- */
-export function writeEnvValues(
-  target: EnvTarget,
-  values: Record<string, string>,
-  { seedFromExample = true }: { seedFromExample?: boolean } = {}
-): void {
+/** Writes values into an env file, seeding a missing file from its .env.example. */
+export function writeEnvValues(target: EnvTarget, values: Record<string, string>): void {
   const filePath = ENV_PATHS[target]
   let content: string
   if (existsSync(filePath)) {
     content = readFileSync(filePath, 'utf8')
   } else {
-    const example = seedFromExample ? EXAMPLE_PATHS[target] : undefined
+    const example = EXAMPLE_PATHS[target]
     content = example && existsSync(example) ? readFileSync(example, 'utf8') : ''
   }
   for (const [key, value] of Object.entries(values)) {

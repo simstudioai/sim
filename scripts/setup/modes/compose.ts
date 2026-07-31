@@ -17,7 +17,6 @@ import {
   promptSignInProviders,
   promptStorage,
   promptUnlocks,
-  writeAppBehaviorValues,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
 
@@ -114,7 +113,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(root.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
-  writeAppBehaviorValues('root', chatFlagValues(copilotKey))
+  Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
   if (!quick) {
     const storage = await promptStorage(root.vars, true)

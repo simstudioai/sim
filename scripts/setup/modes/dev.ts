@@ -19,7 +19,6 @@ import {
   promptSignInProviders,
   promptStorage,
   promptUnlocks,
-  writeAppBehaviorValues,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
 
@@ -126,7 +125,7 @@ export async function runDevMode(
   Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(simAfter.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
-  writeAppBehaviorValues('sim', chatFlagValues(copilotKey))
+  Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
 
   // Redis is set up in every mode, quick included. Storage falls back to

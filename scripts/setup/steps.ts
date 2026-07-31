@@ -2,14 +2,12 @@ import { browserKeyFlow } from './cli-auth.ts'
 import type { Detection } from './detect.ts'
 import {
   type EnvFile,
-  type EnvTarget,
   generateSecret,
   isPlaceholder,
   isTruthy,
   isUsableSecret,
   SECRET_KEYS,
   secretRequirement,
-  writeEnvValues,
 } from './env-files.ts'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
@@ -80,32 +78,6 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
  */
 export function chatFlagValues(copilotKey: string | null): Record<string, string> {
   return { NEXT_PUBLIC_CHAT_DISABLED: copilotKey ? 'false' : 'true' }
-}
-
-/**
- * Env files the app reads its own configuration from: `apps/sim/.env` when
- * started with `bun run dev`, the root `.env` when started through
- * docker-compose.
- */
-const APP_ENV_TARGETS = ['sim', 'root'] as const satisfies readonly EnvTarget[]
-
-/**
- * Writes values that change how the app behaves — as opposed to where it
- * connects — to every env file the app might be started from, so the outcome
- * follows what the user answered rather than which command they later use to
- * launch Sim. Connection settings must NOT go through this: `DATABASE_URL` and
- * friends legitimately differ between the compose stack and a local dev run.
- *
- * Mirrored targets are written even when absent, because the file being missing
- * is precisely the case that strands the flag — but without seeding from
- * `.env.example`, so a compose run leaves behind a one-line `apps/sim/.env`
- * rather than a full example for a stack the user is not running.
- */
-export function writeAppBehaviorValues(primary: EnvTarget, values: Record<string, string>): void {
-  writeEnvValues(primary, values)
-  for (const target of APP_ENV_TARGETS) {
-    if (target !== primary) writeEnvValues(target, values, { seedFromExample: false })
-  }
 }
 
 /**
