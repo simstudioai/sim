@@ -43,6 +43,7 @@ import type {
   QuickBooksUpdateItemParams,
   QuickBooksUpdateVendorParams,
 } from '@/tools/quickbooks/types'
+import { QUICKBOOKS_MASTER_DATA_PROPERTIES } from '@/tools/quickbooks/types'
 import { quickbooksUpdateCustomerTool } from '@/tools/quickbooks/update_customer'
 import { quickbooksUpdateItemTool } from '@/tools/quickbooks/update_item'
 import { quickbooksUpdateVendorTool } from '@/tools/quickbooks/update_vendor'
@@ -1169,6 +1170,25 @@ describe('QuickBooks tool and block boundaries', () => {
       'time',
     ]) {
       expect(section).toContain(`\`${output}\``)
+    }
+
+    const neutralDescriptions = {
+      Name: 'Account or item name',
+      ParentRef: 'Parent account, item, or category reference',
+      FullyQualifiedName: 'Hierarchical qualified account or item name',
+      CurrencyRef: 'Account, customer, or vendor currency reference',
+      DisplayName: 'Customer, vendor, or employee display name',
+      CompanyName: 'Customer or vendor company name',
+      Taxable: 'Taxable status for the customer or item',
+      PrimaryEmailAddr: 'Customer, vendor, or employee primary email address',
+      PrimaryPhone: 'Customer, vendor, or employee primary phone number',
+      BillAddr: 'Customer or vendor billing address',
+      Balance: 'Customer or vendor balance',
+    } as const
+
+    for (const [field, description] of Object.entries(neutralDescriptions)) {
+      expect(QUICKBOOKS_MASTER_DATA_PROPERTIES[field]?.description).toBe(description)
+      expect(section).toContain(description)
     }
   })
 })

@@ -775,6 +775,59 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
   ...QUICKBOOKS_VENDOR_PROPERTIES,
   ...QUICKBOOKS_ITEM_PROPERTIES,
   ...QUICKBOOKS_EMPLOYEE_PROPERTIES,
+  Name: { type: 'string', description: 'Account or item name', optional: true },
+  ParentRef: {
+    type: 'json',
+    description: 'Parent account, item, or category reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  FullyQualifiedName: {
+    type: 'string',
+    description: 'Hierarchical qualified account or item name',
+    optional: true,
+  },
+  CurrencyRef: {
+    type: 'json',
+    description: 'Account, customer, or vendor currency reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  DisplayName: {
+    type: 'string',
+    description: 'Customer, vendor, or employee display name',
+    optional: true,
+  },
+  CompanyName: {
+    type: 'string',
+    description: 'Customer or vendor company name',
+    optional: true,
+  },
+  Taxable: {
+    type: 'boolean',
+    description: 'Taxable status for the customer or item',
+    optional: true,
+  },
+  PrimaryEmailAddr: {
+    type: 'json',
+    description: 'Customer, vendor, or employee primary email address',
+    optional: true,
+  },
+  PrimaryPhone: {
+    type: 'json',
+    description: 'Customer, vendor, or employee primary phone number',
+    optional: true,
+  },
+  BillAddr: {
+    type: 'json',
+    description: 'Customer or vendor billing address',
+    optional: true,
+  },
+  Balance: {
+    type: 'number',
+    description: 'Customer or vendor balance',
+    optional: true,
+  },
 }
 
 export const QUICKBOOKS_SALES_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {

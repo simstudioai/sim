@@ -91,29 +91,29 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `MetaData` | json | Entity creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-|   ↳ `Name` | string | Item name |
+|   ↳ `Name` | string | Account or item name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
-|   ↳ `ParentRef` | json | Parent item or category reference |
+|   ↳ `ParentRef` | json | Parent account, item, or category reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account or item name |
 |   ↳ `Classification` | string | Account classification |
 |   ↳ `AccountType` | string | Account type |
 |   ↳ `AccountSubType` | string | Account subtype |
 |   ↳ `CurrentBalance` | number | Account current balance |
-|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|   ↳ `CurrencyRef` | json | Account, customer, or vendor currency reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `DisplayName` | string | Employee display name |
-|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `DisplayName` | string | Customer, vendor, or employee display name |
+|   ↳ `CompanyName` | string | Customer or vendor company name |
 |   ↳ `GivenName` | string | Given name |
 |   ↳ `FamilyName` | string | Family name |
-|   ↳ `Taxable` | boolean | Whether the item is taxable |
-|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
-|   ↳ `PrimaryPhone` | json | Employee primary phone number |
-|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `Taxable` | boolean | Taxable status for the customer or item |
+|   ↳ `PrimaryEmailAddr` | json | Customer, vendor, or employee primary email address |
+|   ↳ `PrimaryPhone` | json | Customer, vendor, or employee primary phone number |
+|   ↳ `BillAddr` | json | Customer or vendor billing address |
 |   ↳ `ShipAddr` | json | Customer shipping address |
-|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `Balance` | number | Customer or vendor balance |
 |   ↳ `PrintOnCheckName` | string | Name printed on checks |
 |   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
 |   ↳ `AcctNum` | string | Vendor account number |
@@ -143,29 +143,29 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `MetaData` | json | Entity creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-|   ↳ `Name` | string | Item name |
+|   ↳ `Name` | string | Account or item name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
-|   ↳ `ParentRef` | json | Parent item or category reference |
+|   ↳ `ParentRef` | json | Parent account, item, or category reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account or item name |
 |   ↳ `Classification` | string | Account classification |
 |   ↳ `AccountType` | string | Account type |
 |   ↳ `AccountSubType` | string | Account subtype |
 |   ↳ `CurrentBalance` | number | Account current balance |
-|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|   ↳ `CurrencyRef` | json | Account, customer, or vendor currency reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `DisplayName` | string | Employee display name |
-|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `DisplayName` | string | Customer, vendor, or employee display name |
+|   ↳ `CompanyName` | string | Customer or vendor company name |
 |   ↳ `GivenName` | string | Given name |
 |   ↳ `FamilyName` | string | Family name |
-|   ↳ `Taxable` | boolean | Whether the item is taxable |
-|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
-|   ↳ `PrimaryPhone` | json | Employee primary phone number |
-|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `Taxable` | boolean | Taxable status for the customer or item |
+|   ↳ `PrimaryEmailAddr` | json | Customer, vendor, or employee primary email address |
+|   ↳ `PrimaryPhone` | json | Customer, vendor, or employee primary phone number |
+|   ↳ `BillAddr` | json | Customer or vendor billing address |
 |   ↳ `ShipAddr` | json | Customer shipping address |
-|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `Balance` | number | Customer or vendor balance |
 |   ↳ `PrintOnCheckName` | string | Name printed on checks |
 |   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
 |   ↳ `AcctNum` | string | Vendor account number |
