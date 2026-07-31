@@ -87,6 +87,7 @@ import {
 } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -113,7 +114,6 @@ import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
-import { QUICKBOOKS_MAX_USER_INFO_BYTES } from '@/lib/quickbooks/client'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
@@ -3242,7 +3242,7 @@ export const auth = betterAuth({
               }),
             })
             const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
-              maxBytes: QUICKBOOKS_MAX_USER_INFO_BYTES,
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
               label: 'QuickBooks OAuth token response',
             })
 
