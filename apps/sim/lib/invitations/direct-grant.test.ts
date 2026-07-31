@@ -74,7 +74,6 @@ vi.mock('@/lib/posthog/server', () => ({
 import {
   DirectGrantContextChangedError,
   grantWorkspaceAccessDirectly,
-  isSameOrgMember,
 } from '@/lib/invitations/direct-grant'
 
 const baseInput = {
@@ -244,32 +243,5 @@ describe('grantWorkspaceAccessDirectly', () => {
       mockGetWorkspaceWithOwner.mock.invocationCallOrder[0]
     )
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-})
-
-describe('isSameOrgMember', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('returns false when the workspace has no organization', async () => {
-    expect(await isSameOrgMember('user-2', null)).toBe(false)
-    expect(mockGetUserOrganization).not.toHaveBeenCalled()
-  })
-
-  it('returns false when the user belongs to no organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce(null)
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(false)
-  })
-
-  it('returns true when the user belongs to the workspace organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(true)
-  })
-
-  it('returns false when the user belongs to a different organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(false)
   })
 })

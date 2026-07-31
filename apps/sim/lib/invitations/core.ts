@@ -1746,25 +1746,8 @@ export async function revokeInvitationAsAdmin(input: {
  * admin of one workspace has no authority over the others. Removing the final
  * grant would otherwise strand a pending invitation that grants nothing, so
  * that case cancels it instead.
- */
-export async function revokeInvitationWorkspaceGrant({
-  invitationId,
-  workspaceId,
-}: {
-  invitationId: string
-  workspaceId: string
-}): Promise<{ revoked: boolean; invitationCancelled: boolean }> {
-  return db.transaction(async (tx) => {
-    await acquireInvitationMutationLocks(tx, {
-      invitationIds: [invitationId],
-      workspaceIds: [workspaceId],
-    })
-    return revokeInvitationWorkspaceGrantTx(tx, { invitationId, workspaceId })
-  })
-}
-
-/**
- * Transaction-local form used by callers that already hold the canonical
+ *
+ * Transaction-local: callers must already hold the canonical
  * invitation/workspace advisory lock set. Keeping the grant deletion and
  * final-grant cancellation in one implementation prevents direct grants,
  * scoped revocation, and future callers from drifting on multi-workspace

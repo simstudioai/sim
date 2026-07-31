@@ -24,7 +24,7 @@ export interface WorkspaceMembership {
  * Credential-admin status is derived from workspace role at access time, so
  * members are seeded only for use access (the owner plus permission holders).
  */
-export async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
+async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
   const [workspaceRows, permissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })

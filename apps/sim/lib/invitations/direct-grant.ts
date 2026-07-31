@@ -67,20 +67,6 @@ export interface GrantWorkspaceAccessDirectlyInput {
   notify?: boolean
 }
 
-/**
- * Returns whether the given user is already a member of the workspace's
- * organization. Only same-org members are eligible for direct (no-acceptance)
- * workspace access.
- */
-export async function isSameOrgMember(
-  userId: string,
-  workspaceOrganizationId: string | null
-): Promise<boolean> {
-  if (!workspaceOrganizationId) return false
-  const membership = await getUserOrganization(userId)
-  return !!membership && membership.organizationId === workspaceOrganizationId
-}
-
 async function getPendingWorkspaceInvitationIds(
   executor: DbOrTx,
   workspaceId: string,

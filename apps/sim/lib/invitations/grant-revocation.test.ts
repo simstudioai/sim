@@ -1,45 +1,37 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { invitation, invitationWorkspaceGrant } from '@sim/db/schema'
 import { auditMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcquireInvitationMutationLocks } = vi.hoisted(() => ({
-  mockAcquireInvitationMutationLocks: vi.fn(),
-}))
-
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/invitations/locks', () => ({
-  acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
+  acquireInvitationMutationLocks: vi.fn(),
 }))
 
-import { revokeInvitationWorkspaceGrant } from '@/lib/invitations/core'
+import { revokeInvitationWorkspaceGrantTx } from '@/lib/invitations/core'
 
-describe('revokeInvitationWorkspaceGrant', () => {
+describe('revokeInvitationWorkspaceGrantTx', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockAcquireInvitationMutationLocks.mockResolvedValue(undefined)
   })
 
-  it('uses the shared lock fence and preserves sibling workspace grants', async () => {
+  it('preserves sibling workspace grants', async () => {
     queueTableRows(invitation, [{ id: 'inv-1' }])
     queueTableRows(invitationWorkspaceGrant, [{ value: 1 }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'grant-1' }])
 
     await expect(
-      revokeInvitationWorkspaceGrant({
+      revokeInvitationWorkspaceGrantTx(db, {
         invitationId: 'inv-1',
         workspaceId: 'ws-1',
       })
     ).resolves.toEqual({ revoked: true, invitationCancelled: false })
 
-    expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledWith(expect.anything(), {
-      invitationIds: ['inv-1'],
-      workspaceIds: ['ws-1'],
-    })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: 'cancelled' })
     )
@@ -51,7 +43,7 @@ describe('revokeInvitationWorkspaceGrant', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'grant-1' }])
 
     await expect(
-      revokeInvitationWorkspaceGrant({
+      revokeInvitationWorkspaceGrantTx(db, {
         invitationId: 'inv-1',
         workspaceId: 'ws-1',
       })
