@@ -1,6 +1,6 @@
 import '@sim/testing/mocks/executor'
 
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
@@ -115,8 +115,8 @@ describe('MothershipBlockHandler', () => {
     mockIsRedisCancellationEnabled.mockReset()
     mockIsRedisCancellationEnabled.mockReturnValue(false)
     mockReadUserFileContent.mockReset()
-    // The handler refuses to run without Chat; the shared mock defaults it off.
-    setEnvFlags({ isChatEnabled: true })
+    // The handler refuses to run without the mothership credential.
+    setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
 
     block = {
       id: 'mothership-block-1',
@@ -149,7 +149,7 @@ describe('MothershipBlockHandler', () => {
     vi.useRealTimers()
     vi.clearAllMocks()
     vi.unstubAllGlobals()
-    resetEnvFlagsMock()
+    resetEnvMock()
   })
 
   function createNdjsonResponse(events: unknown[]): Response {
@@ -226,12 +226,12 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
-  it('rejects execution before the internal request when Chat is disabled', async () => {
-    setEnvFlags({ isChatEnabled: false })
+  it('rejects execution before the internal request when COPILOT_API_KEY is unset', async () => {
+    setEnv({ COPILOT_API_KEY: undefined })
 
     await expect(
       handler.execute(context, block, { prompt: 'Hello from workflow' })
-    ).rejects.toThrow('Chat is disabled on this deployment')
+    ).rejects.toThrow('COPILOT_API_KEY is not configured')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

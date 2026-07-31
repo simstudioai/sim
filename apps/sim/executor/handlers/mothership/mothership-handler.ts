@@ -5,7 +5,7 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import {
@@ -338,10 +338,10 @@ export class MothershipBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
-    // Reaches the same backend as the Chat module, so with Chat off the request
-    // can only come back 401. Fail with something the workflow author can act on.
-    if (!isChatEnabled) {
-      throw new Error('Chat is disabled on this deployment, so the Sim Chat block cannot run')
+    // Without the key the mothership rejects every request, so fail with
+    // something the workflow author can act on instead of a bare 401.
+    if (!env.COPILOT_API_KEY) {
+      throw new Error('COPILOT_API_KEY is not configured, so the Sim Chat block cannot run')
     }
 
     const prompt = inputs.prompt

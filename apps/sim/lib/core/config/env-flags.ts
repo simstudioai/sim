@@ -60,21 +60,22 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
- * Is the Chat module exposed.
+ * Are the Chat module's surfaces shown. On by default, so a deployment that
+ * already has `COPILOT_API_KEY` keeps Chat without setting anything; the setup
+ * wizard writes the opt-out when you skip the key.
  *
- * Server code reads `CHAT_ENABLED`; client evaluation reads the
- * `NEXT_PUBLIC_CHAT_ENABLED` twin via `window.__ENV`, so deployments must set
- * both together (the setup wizard writes the pair). Chat needs
- * `COPILOT_API_KEY` to reach the mothership at all — `bootstrap.ts` throws when
- * this flag is on without it, so the two can never disagree at runtime.
+ * This governs presentation only. Whether Chat can actually reach the mothership
+ * is a separate question answered by `COPILOT_API_KEY`, which gates the paths
+ * that need it (the Sim Chat block, prompt-job claims, inbox execution). Keeping
+ * them separate is what lets this be a single variable: the key is a secret and
+ * could never be read in the browser, but `NEXT_PUBLIC_CHAT_DISABLED` is not, so
+ * `getEnv` resolves the same value from `process.env` on the server and
+ * `window.__ENV` on the client — no twin to keep in sync.
  *
  * Read at module scope or inline during render only. Resolving it through
  * `useState`/`useEffect` would render chat surfaces before removing them.
  */
-export const isChatEnabled =
-  typeof window === 'undefined'
-    ? isTruthy(env.CHAT_ENABLED)
-    : isTruthy(getEnv('NEXT_PUBLIC_CHAT_ENABLED'))
+export const isChatEnabled = !isTruthy(getEnv('NEXT_PUBLIC_CHAT_DISABLED'))
 
 /**
  * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
@@ -303,13 +304,12 @@ export const isOrganizationsEnabled =
 
 /**
  * Is inbox (Sim Mailer) enabled
- *
- * Requires Chat: an inbound message is executed by the mothership and answered
- * with a link to the resulting chat, so with Chat off every inbox task fails and
- * mails the recipient a dead link.
  */
-export const isInboxEnabled =
-  enterpriseFeatureEnabled('inbox', env.INBOX_ENABLED, 'NEXT_PUBLIC_INBOX_ENABLED') && isChatEnabled
+export const isInboxEnabled = enterpriseFeatureEnabled(
+  'inbox',
+  env.INBOX_ENABLED,
+  'NEXT_PUBLIC_INBOX_ENABLED'
+)
 
 /**
  * Are custom sandboxes (workspace dependency sets for Function blocks) enabled.

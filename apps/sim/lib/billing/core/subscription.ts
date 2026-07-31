@@ -24,10 +24,10 @@ import {
   hasUsableSubscriptionAccess,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { env } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
   isBillingEnabled,
-  isChatEnabled,
   isHosted,
   isInboxEnabled,
   isSandboxesEnabled,
@@ -623,10 +623,11 @@ async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> 
  * the workspace's organization, or its billed account for personal workspaces,
  * is on a Max or enterprise plan.
  *
- * Always false when Chat is disabled — inbox tasks run through the mothership
- * and answer with a link to the resulting chat, so neither half works without it.
- * That check comes first because the `!isBillingEnabled` shortcut below would
- * otherwise hand every self-hosted deployment a broken Inbox.
+ * Always false without `COPILOT_API_KEY` — inbox tasks are executed by the
+ * mothership and answered with a link to the resulting chat, so neither half
+ * works without it. That check comes first because the `!isBillingEnabled`
+ * shortcut below would otherwise hand every self-hosted deployment a broken
+ * Inbox.
  *
  * Otherwise returns true if:
  * - INBOX_ENABLED env var is set (self-hosted override), OR
@@ -636,7 +637,7 @@ async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> 
  */
 export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<boolean> {
   try {
-    if (!isChatEnabled) return false
+    if (!env.COPILOT_API_KEY) return false
     if (isInboxEnabled) return true
     if (!isBillingEnabled) return true
     return await hasMaxTierWorkspaceAccess(workspaceId)

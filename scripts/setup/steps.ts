@@ -69,14 +69,15 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
 }
 
 /**
- * The `CHAT_ENABLED` twin pair, derived from whether a chat key was obtained.
- * Written on every run so removing the key also flips the flag off, rather than
- * leaving a stale `true` that would surface a Chat UI with no backend.
+ * Hides the Chat module when the user skipped the chat key, so a fresh install
+ * gets no Chat surfaces rather than ones that reject every message. Written in
+ * both directions on every run, so obtaining a key later un-hides it.
+ *
+ * Only the wizard writes this. Chat is on by default everywhere else, which is
+ * what keeps existing deployments unaffected.
  */
 export function chatFlagValues(copilotKey: string | null): Record<string, string> {
-  const enabled = copilotKey ? 'true' : 'false'
-  const twin = FLAG_TWINS.find((pair) => pair.server === 'CHAT_ENABLED')
-  return twin ? { [twin.server]: enabled, [twin.client]: enabled } : {}
+  return { NEXT_PUBLIC_CHAT_DISABLED: copilotKey ? 'false' : 'true' }
 }
 
 /**
