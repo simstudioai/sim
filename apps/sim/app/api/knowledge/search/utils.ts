@@ -604,6 +604,14 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
  * Rank fusion is used rather than score normalization because cosine distance
  * and `ts_rank_cd` are on incomparable scales with no corpus-independent
  * mapping between them. Rows are deduped by chunk id, first occurrence wins.
+ *
+ * Equal scores are common and must not be broken by list order: rank *n* in one
+ * leg always ties rank *n* in every other leg, so sorting alone would let the
+ * first list monopolize the head of the output and starve the others entirely
+ * at small `topK`. Selection therefore drains the legs round-robin among tied
+ * candidates, and a candidate from a leg that has contributed fewer rows so far
+ * wins the tie. A total tie goes to the earliest list, so callers put the leg
+ * whose hits the other leg cannot produce first.
  */
 export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number): SearchResult[] {
   const scores = new Map<string, number>()
@@ -618,9 +626,56 @@ export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number
     })
   }
 
-  return [...rowById.values()]
-    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
-    .slice(0, topK)
+  /** Leg each row is attributed to for interleaving: where it ranked best, earliest leg wins. */
+  const legOfRow = new Map<string, number>()
+  const bestRankOfRow = new Map<string, number>()
+  rankedLists.forEach((list, leg) => {
+    list.forEach((row, index) => {
+      const currentBest = bestRankOfRow.get(row.id)
+      if (currentBest === undefined || index < currentBest) {
+        bestRankOfRow.set(row.id, index)
+        legOfRow.set(row.id, leg)
+      }
+    })
+  })
+
+  // Stable sort keeps rowById insertion order (earliest leg first) inside each tie group.
+  const ordered = [...rowById.values()].sort(
+    (a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0)
+  )
+
+  const contributed = rankedLists.map(() => 0)
+  const fused: SearchResult[] = []
+  let groupStart = 0
+
+  while (groupStart < ordered.length && fused.length < topK) {
+    const groupScore = scores.get(ordered[groupStart].id) ?? 0
+    let groupEnd = groupStart
+    while (groupEnd < ordered.length && (scores.get(ordered[groupEnd].id) ?? 0) === groupScore) {
+      groupEnd++
+    }
+
+    // Drain this tie group round-robin, always taking from the leg that has contributed least.
+    const group = ordered.slice(groupStart, groupEnd)
+    while (group.length > 0 && fused.length < topK) {
+      let pick = 0
+      for (let i = 1; i < group.length; i++) {
+        if (
+          contributed[legOfRow.get(group[i].id) ?? 0] <
+          contributed[legOfRow.get(group[pick].id) ?? 0]
+        ) {
+          pick = i
+        }
+      }
+      const [row] = group.splice(pick, 1)
+      fused.push(row)
+      contributed[legOfRow.get(row.id) ?? 0]++
+    }
+
+    groupStart = groupEnd
+  }
+
+  return fused
 }
 
 export async function handleTagAndVectorSearch(params: SearchParams): Promise<SearchResult[]> {
@@ -725,5 +780,11 @@ export async function executeKnowledgeSearch(
 
   const [vectorResults, keywordResults] = await Promise.all([vectorSearch, keywordSearch])
 
-  return fuseByReciprocalRank([vectorResults, keywordResults], topK)
+  /**
+   * Lexical leg first: on a total tie it wins, which is the behavior this mode
+   * exists for — an exact-token chunk the vector leg ranked below its distance
+   * threshold is precisely what a caller opted into hybrid to recover, and at
+   * `topK: 1` something has to win.
+   */
+  return fuseByReciprocalRank([keywordResults, vectorResults], topK)
 }

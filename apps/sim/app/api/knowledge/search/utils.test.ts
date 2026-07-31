@@ -237,7 +237,10 @@ describe('Knowledge Search Utils', () => {
         10
       )
 
-      expect(fused.map((r) => r.id)).toEqual(['shared', 'vector-only', 'keyword-only'])
+      expect(fused[0].id).toBe('shared')
+      // The two single-leg rows tie; `shared` was already credited to leg 0, so
+      // the round-robin owes leg 1 the next slot.
+      expect(fused.map((r) => r.id)).toEqual(['shared', 'keyword-only', 'vector-only'])
     })
 
     it('dedupes by chunk id, keeping the first occurrence', () => {
@@ -278,6 +281,48 @@ describe('Knowledge Search Utils', () => {
       )
 
       expect(fused[0].id).toBe('deep-shared')
+    })
+
+    it('does not let the first leg starve the second at small topK', () => {
+      const lexicalOnly = makeResult('lexical-only')
+      const vectorOnly = makeResult('vector-only')
+
+      /**
+       * Rank 1 in each leg scores identically. Ordering by score alone would
+       * always emit the first list's row, so a `topK: 1` hybrid search would
+       * return exactly what vector-only search already returned.
+       */
+      expect(fuseByReciprocalRank([[lexicalOnly], [vectorOnly]], 1).map((r) => r.id)).toEqual([
+        'lexical-only',
+      ])
+      expect(fuseByReciprocalRank([[lexicalOnly], [vectorOnly]], 2).map((r) => r.id)).toEqual([
+        'lexical-only',
+        'vector-only',
+      ])
+    })
+
+    it('interleaves tied ranks so neither leg monopolizes the head', () => {
+      const legA = [makeResult('a1'), makeResult('a2'), makeResult('a3')]
+      const legB = [makeResult('b1'), makeResult('b2'), makeResult('b3')]
+
+      expect(fuseByReciprocalRank([legA, legB], 6).map((r) => r.id)).toEqual([
+        'a1',
+        'b1',
+        'a2',
+        'b2',
+        'a3',
+        'b3',
+      ])
+    })
+
+    it('still floats a row found by both legs above every single-leg row', () => {
+      const shared = makeResult('shared')
+      const legA = [makeResult('a1'), shared]
+      const legB = [makeResult('b1'), shared]
+
+      // shared is rank 2 in both legs (2/62) and outscores either rank-1 row (1/61);
+      // it is credited to leg A, so tied `a1`/`b1` resolve in leg B's favor.
+      expect(fuseByReciprocalRank([legA, legB], 3).map((r) => r.id)).toEqual(['shared', 'b1', 'a1'])
     })
 
     it('trims the fused list to topK', () => {
