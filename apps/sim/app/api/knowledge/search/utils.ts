@@ -608,33 +608,32 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
  * Equal scores are common and must not be broken by list order: rank *n* in one
  * leg always ties rank *n* in every other leg, so sorting alone would let the
  * first list monopolize the head of the output and starve the others entirely
- * at small `topK`. Selection therefore drains the legs round-robin among tied
- * candidates, and a candidate from a leg that has contributed fewer rows so far
- * wins the tie. A total tie goes to the earliest list, so callers put the leg
- * whose hits the other leg cannot produce first.
+ * at small `topK`. Selection therefore drains each tie group round-robin,
+ * preferring the candidate whose least-served leg has been served least.
+ *
+ * A row is credited to *every* leg that returned it, not to one chosen leg: it
+ * satisfied all of them, and charging a shared hit to a single leg would leave
+ * the round-robin owing the other one a slot it has already been served —
+ * which at small `topK` evicts a row only the shared hit's leg could produce.
+ * A total tie goes to the earliest list, so callers put the leg whose hits the
+ * other leg cannot produce first.
  */
 export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number): SearchResult[] {
   const scores = new Map<string, number>()
   const rowById = new Map<string, SearchResult>()
+  const legsOfRow = new Map<string, number[]>()
 
-  for (const list of rankedLists) {
+  rankedLists.forEach((list, leg) => {
     list.forEach((row, index) => {
       scores.set(row.id, (scores.get(row.id) ?? 0) + 1 / (RRF_K + index + 1))
       if (!rowById.has(row.id)) {
         rowById.set(row.id, row)
       }
-    })
-  }
-
-  /** Leg each row is attributed to for interleaving: where it ranked best, earliest leg wins. */
-  const legOfRow = new Map<string, number>()
-  const bestRankOfRow = new Map<string, number>()
-  rankedLists.forEach((list, leg) => {
-    list.forEach((row, index) => {
-      const currentBest = bestRankOfRow.get(row.id)
-      if (currentBest === undefined || index < currentBest) {
-        bestRankOfRow.set(row.id, index)
-        legOfRow.set(row.id, leg)
+      const legs = legsOfRow.get(row.id)
+      if (legs) {
+        if (!legs.includes(leg)) legs.push(leg)
+      } else {
+        legsOfRow.set(row.id, [leg])
       }
     })
   })
@@ -645,6 +644,10 @@ export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number
   )
 
   const contributed = rankedLists.map(() => 0)
+  /** How starved a candidate's most-neglected leg is; lower wins the tie. */
+  const starvation = (id: string) =>
+    Math.min(...(legsOfRow.get(id) ?? [0]).map((leg) => contributed[leg]))
+
   const fused: SearchResult[] = []
   let groupStart = 0
 
@@ -655,21 +658,19 @@ export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number
       groupEnd++
     }
 
-    // Drain this tie group round-robin, always taking from the leg that has contributed least.
     const group = ordered.slice(groupStart, groupEnd)
     while (group.length > 0 && fused.length < topK) {
       let pick = 0
       for (let i = 1; i < group.length; i++) {
-        if (
-          contributed[legOfRow.get(group[i].id) ?? 0] <
-          contributed[legOfRow.get(group[pick].id) ?? 0]
-        ) {
+        if (starvation(group[i].id) < starvation(group[pick].id)) {
           pick = i
         }
       }
       const [row] = group.splice(pick, 1)
       fused.push(row)
-      contributed[legOfRow.get(row.id) ?? 0]++
+      for (const leg of legsOfRow.get(row.id) ?? []) {
+        contributed[leg]++
+      }
     }
 
     groupStart = groupEnd

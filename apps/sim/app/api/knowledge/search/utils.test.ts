@@ -238,9 +238,9 @@ describe('Knowledge Search Utils', () => {
       )
 
       expect(fused[0].id).toBe('shared')
-      // The two single-leg rows tie; `shared` was already credited to leg 0, so
-      // the round-robin owes leg 1 the next slot.
-      expect(fused.map((r) => r.id)).toEqual(['shared', 'keyword-only', 'vector-only'])
+      // `shared` is credited to both legs, so the following tie is even and
+      // resolves to the earliest list.
+      expect(fused.map((r) => r.id)).toEqual(['shared', 'vector-only', 'keyword-only'])
     })
 
     it('dedupes by chunk id, keeping the first occurrence', () => {
@@ -320,9 +320,29 @@ describe('Knowledge Search Utils', () => {
       const legA = [makeResult('a1'), shared]
       const legB = [makeResult('b1'), shared]
 
-      // shared is rank 2 in both legs (2/62) and outscores either rank-1 row (1/61);
-      // it is credited to leg A, so tied `a1`/`b1` resolve in leg B's favor.
-      expect(fuseByReciprocalRank([legA, legB], 3).map((r) => r.id)).toEqual(['shared', 'b1', 'a1'])
+      // shared is rank 2 in both legs (2/62) and outscores either rank-1 row (1/61).
+      expect(fuseByReciprocalRank([legA, legB], 3).map((r) => r.id)).toEqual(['shared', 'a1', 'b1'])
+    })
+
+    it('does not let a shared top hit evict the lexical-only row at topK 2', () => {
+      const shared = makeResult('shared')
+      const lexicalOnly = makeResult('lexical-only')
+      const vectorOnly = makeResult('vector-only')
+
+      /**
+       * `shared` is rank 1 in both legs. Crediting it to only one leg would
+       * leave the round-robin owing the other leg the remaining slot, evicting
+       * the row that only the shared hit's leg could produce.
+       */
+      const fused = fuseByReciprocalRank(
+        [
+          [shared, lexicalOnly],
+          [shared, vectorOnly],
+        ],
+        2
+      )
+
+      expect(fused.map((r) => r.id)).toEqual(['shared', 'lexical-only'])
     })
 
     it('trims the fused list to topK', () => {
