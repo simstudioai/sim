@@ -7,7 +7,19 @@ import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file
 export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
-const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+/**
+ * Token-named fields that carry workflow state rather than authorization.
+ *
+ * Keep this allowlist semantic and narrow: unknown `*token` fields remain
+ * redacted by default, while pagination cursors, synchronization versions, and
+ * idempotency keys stay visible so users can pass them into subsequent steps.
+ */
+const NON_SENSITIVE_TOKEN_KEY_PATTERNS: RegExp[] = [
+  /(?:page|pagination|continuation|cursor|scroll|sync)[_-]?token$/i,
+  /^(?:next|previous|after|before)[_-]?token$/i,
+  /^(?:client[_-]?request|idempotency)[_-]?token$/i,
+  /^subjectFromWebIdentityToken$/i,
+]
 
 /** Keys that contain large binary/encoded data that should be truncated in logs */
 const LARGE_DATA_KEYS = new Set(['base64'])
@@ -74,7 +86,7 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
 ]
 
 export function isSensitiveKey(key: string): boolean {
-  if (BYPASS_REDACTION_KEYS.has(key)) {
+  if (NON_SENSITIVE_TOKEN_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
     return false
   }
   const lowerKey = key.toLowerCase()

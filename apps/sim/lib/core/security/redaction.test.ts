@@ -53,6 +53,10 @@ describe('isSensitiveKey', () => {
       expect(isSensitiveKey('refresh_token')).toBe(true)
       expect(isSensitiveKey('auth_token')).toBe(true)
       expect(isSensitiveKey('accessToken')).toBe(true)
+      expect(isSensitiveKey('sessionToken')).toBe(true)
+      expect(isSensitiveKey('webIdentityToken')).toBe(true)
+      expect(isSensitiveKey('verificationToken')).toBe(true)
+      expect(isSensitiveKey('githubToken')).toBe(true)
     })
 
     it.concurrent('should match secret variations', () => {
@@ -110,6 +114,22 @@ describe('isSensitiveKey', () => {
   })
 
   describe('non-sensitive keys (no false positives)', () => {
+    it.concurrent('should preserve workflow-state tokens that do not grant access', () => {
+      expect(isSensitiveKey('syncToken')).toBe(false)
+      expect(isSensitiveKey('SyncToken')).toBe(false)
+      expect(isSensitiveKey('nextSyncToken')).toBe(false)
+      expect(isSensitiveKey('pageToken')).toBe(false)
+      expect(isSensitiveKey('nextPageToken')).toBe(false)
+      expect(isSensitiveKey('scroll_token')).toBe(false)
+      expect(isSensitiveKey('continuationToken')).toBe(false)
+      expect(isSensitiveKey('nextContinuationToken')).toBe(false)
+      expect(isSensitiveKey('cursorToken')).toBe(false)
+      expect(isSensitiveKey('nextToken')).toBe(false)
+      expect(isSensitiveKey('clientRequestToken')).toBe(false)
+      expect(isSensitiveKey('idempotencyToken')).toBe(false)
+      expect(isSensitiveKey('subjectFromWebIdentityToken')).toBe(false)
+    })
+
     it.concurrent('should not match keys with sensitive words as prefix only', () => {
       expect(isSensitiveKey('tokenCount')).toBe(false)
       expect(isSensitiveKey('tokenizer')).toBe(false)
@@ -228,6 +248,32 @@ describe('redactApiKeys', () => {
 
       expect(result.config.apiKey).toBe('[REDACTED]')
       expect(result.config.normalField).toBe('normal-value')
+    })
+
+    it.concurrent('should preserve non-secret token fields while redacting credentials', () => {
+      const result = redactApiKeys({
+        syncToken: '3',
+        nextPageToken: 'page-2',
+        nextToken: 'next-page',
+        continuationToken: 'continue-page',
+        clientRequestToken: 'idempotency-key',
+        record: { Id: '42', SyncToken: '3' },
+        accessToken: 'access-secret',
+        sessionToken: 'session-secret',
+        verificationToken: 'verification-secret',
+      })
+
+      expect(result).toEqual({
+        syncToken: '3',
+        nextPageToken: 'page-2',
+        nextToken: 'next-page',
+        continuationToken: 'continue-page',
+        clientRequestToken: 'idempotency-key',
+        record: { Id: '42', SyncToken: '3' },
+        accessToken: REDACTED_MARKER,
+        sessionToken: REDACTED_MARKER,
+        verificationToken: REDACTED_MARKER,
+      })
     })
 
     it.concurrent('should redact sensitive keys in arrays', () => {
