@@ -71,6 +71,11 @@ export function badRequestResponse(message: string, details?: unknown): NextResp
   return errorResponse('BAD_REQUEST', message, 400, details)
 }
 
+/** The request is well-formed but conflicts with the resource's current state. */
+export function conflictResponse(message: string, details?: unknown): NextResponse {
+  return errorResponse('CONFLICT', message, 409, details)
+}
+
 export function adminValidationErrorResponse(error: z.ZodError): NextResponse {
   return badRequestResponse(
     getValidationErrorMessage(error, 'Invalid request body'),

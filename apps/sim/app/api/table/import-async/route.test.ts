@@ -11,6 +11,7 @@ const {
   mockListTables,
   mockRunTableImport,
   mockRunDetached,
+  mockFindActiveFolder,
   MockTableConflictError,
 } = vi.hoisted(() => ({
   mockCreateTable: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockListTables: vi.fn(),
   mockRunTableImport: vi.fn(),
   mockRunDetached: vi.fn(),
+  mockFindActiveFolder: vi.fn(),
   MockTableConflictError: class extends Error {
     readonly code = 'TABLE_EXISTS' as const
   },
@@ -37,6 +39,7 @@ vi.mock('@/lib/table', () => ({
   TableConflictError: MockTableConflictError,
 }))
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: mockRunTableImport }))
+vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
 vi.mock('@/lib/core/utils/background', () => ({
   runDetached: mockRunDetached.mockImplementation(
     (_label: string, work: () => Promise<unknown>) => {
@@ -75,6 +78,36 @@ describe('POST /api/table/import-async', () => {
     mockListTables.mockResolvedValue([])
     mockCreateTable.mockResolvedValue({ id: 'tbl_async', name: 'data' })
     mockRunTableImport.mockResolvedValue(undefined)
+    mockFindActiveFolder.mockResolvedValue({ id: 'folder-1' })
+  })
+
+  it('imports into the workspace root when no folder is given', async () => {
+    await POST(makeRequest(validBody))
+
+    expect(mockFindActiveFolder).not.toHaveBeenCalled()
+    expect(mockCreateTable).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: undefined }),
+      expect.any(String)
+    )
+  })
+
+  it('creates the imported table inside the requested folder', async () => {
+    await POST(makeRequest({ ...validBody, folderId: 'folder-1' }))
+
+    expect(mockFindActiveFolder).toHaveBeenCalledWith('folder-1', 'workspace-1', 'table')
+    expect(mockCreateTable).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'folder-1' }),
+      expect.any(String)
+    )
+  })
+
+  it('rejects a folder from another workspace or resource tree', async () => {
+    mockFindActiveFolder.mockResolvedValue(null)
+
+    const response = await POST(makeRequest({ ...validBody, folderId: 'kb-folder' }))
+
+    expect(response.status).toBe(404)
+    expect(mockCreateTable).not.toHaveBeenCalled()
   })
 
   it('creates an importing table and kicks off the background import', async () => {

@@ -17,7 +17,15 @@ import {
   workflowAuthzMock,
 } from '@sim/testing'
 import { afterAll, vi } from 'vitest'
-import '@testing-library/jest-dom/vitest'
+
+/**
+ * jest-dom only registers DOM matchers (`toBeVisible`, `toHaveTextContent`, …),
+ * so it is dead weight in a `node` environment — which is 985 of the 1,219 test
+ * files here. Loading it unconditionally made every one of them pay for it.
+ */
+if (typeof document !== 'undefined') {
+  await import('@testing-library/jest-dom/vitest')
+}
 
 setupGlobalFetchMock()
 setupGlobalStorageMocks()

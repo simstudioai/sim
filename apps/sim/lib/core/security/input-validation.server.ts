@@ -1,10 +1,12 @@
+import dns from 'node:dns/promises'
 import { Readable } from 'node:stream'
 import zlib from 'node:zlib'
-import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
+import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
@@ -29,49 +31,6 @@ const logger = createLogger('InputValidation')
 export interface AsyncValidationResult extends ValidationResult {
   resolvedIP?: string
   originalHostname?: string
-}
-
-/**
- * Checks if an IP address is private or reserved (not routable on the public internet)
- * Uses ipaddr.js for robust handling of all IP formats including:
- * - Octal notation (0177.0.0.1)
- * - Hex notation (0x7f000001)
- * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
- * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
- * - Various edge cases that regex patterns miss
- */
-export function isPrivateOrReservedIP(ip: string): boolean {
-  try {
-    if (!ipaddr.isValid(ip)) {
-      return true
-    }
-
-    const addr = ipaddr.process(ip)
-    const range = addr.range()
-
-    if (range !== 'unicast') {
-      return true
-    }
-
-    if (addr.kind() === 'ipv6') {
-      const v6 = addr as ipaddr.IPv6
-      const parts = v6.parts
-      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
-      if (firstSixZero) {
-        const embedded = ipaddr.fromByteArray([
-          (parts[6] >> 8) & 0xff,
-          parts[6] & 0xff,
-          (parts[7] >> 8) & 0xff,
-          parts[7] & 0xff,
-        ])
-        return embedded.range() !== 'unicast'
-      }
-    }
-
-    return false
-  } catch {
-    return true
-  }
 }
 
 /**
@@ -101,38 +60,27 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   const hostnameLower = hostname.toLowerCase()
-  const cleanHostname =
-    hostnameLower.startsWith('[') && hostnameLower.endsWith(']')
-      ? hostnameLower.slice(1, -1)
-      : hostnameLower
+  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
 
-  let isLocalhost = cleanHostname === 'localhost'
-  if (ipaddr.isValid(cleanHostname)) {
-    const processedIP = ipaddr.process(cleanHostname).toString()
-    if (processedIP === '127.0.0.1' || processedIP === '::1') {
-      isLocalhost = true
-    }
-  }
+  // Whole loopback range — see the matching note in input-validation.ts.
+  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways) — still-pinned consumers (providers, SSO,
-    // A2A) depend on this ordering.
-    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    // Refused records are filtered rather than failing the whole host, matching
+    // createSsrfGuardedLookup below. Pinning to a surviving public address is
+    // just as safe as refusing outright, and rejecting the host would break a
+    // split-horizon resolver that answers with a private record alongside the
+    // public one — with no operator opt-out on this path.
+    const { addresses } = await resolveHostAddresses(cleanHostname)
+    const usable = addresses.filter(
+      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
+    )
 
-    const resolvedIsLoopback =
-      ipaddr.isValid(address) &&
-      (() => {
-        const ip = ipaddr.process(address).toString()
-        return ip === '127.0.0.1' || ip === '::1'
-      })()
-
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (usable.length === 0) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: address,
+        resolvedIP: addresses.find((address) => isPrivateIp(address)),
       })
       return {
         isValid: false,
@@ -142,7 +90,9 @@ export async function validateUrlWithDNS(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      // Re-preferred over the surviving set so the pin is never an address the
+      // filter above just refused.
+      resolvedIP: preferIpv4(usable as [string, ...string[]]),
       originalHostname: hostname,
     }
   } catch (error) {
@@ -213,7 +163,7 @@ export async function validateAndPinProxyUrl(
 
   // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
   // egress, so loopback/private proxy hosts stay blocked unconditionally.
-  if (isPrivateOrReservedIP(resolvedIP)) {
+  if (isPrivateIp(resolvedIP)) {
     return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
   }
 
@@ -250,33 +200,27 @@ export async function validateDatabaseHost(
     return { isValid: false, error: `${paramName} is required` }
   }
 
-  const lowerHost = host.toLowerCase()
-  const cleanHost =
-    lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
+  const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
   if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (
-    ipaddr.isValid(cleanHost) &&
-    isPrivateOrReservedIP(cleanHost) &&
-    !isPrivateDatabaseHostsAllowed
-  ) {
+  if (isPrivateIpHost(cleanHost) && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways).
-    const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
+    const blockedAddress = isPrivateDatabaseHostsAllowed
+      ? undefined
+      : addresses.find((candidate) => isPrivateIp(candidate))
 
-    if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
+    if (blockedAddress !== undefined) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
-        resolvedIP: address,
+        resolvedIP: blockedAddress,
       })
       return {
         isValid: false,
@@ -286,7 +230,7 @@ export async function validateDatabaseHost(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      resolvedIP: preferred,
       originalHostname: host,
     }
   } catch (error) {
@@ -519,7 +463,7 @@ export function createSsrfGuardedLookup(): LookupFunction {
     dns
       .lookup(hostname, { all: true, verbatim: false })
       .then((addresses) => {
-        const usable = addresses.filter((entry) => !isPrivateOrReservedIP(entry.address))
+        const usable = addresses.filter((entry) => !isPrivateIp(entry.address))
         if (usable.length === 0) {
           callback(
             new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
@@ -548,11 +492,8 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
   }
-  const host =
-    url.hostname.startsWith('[') && url.hostname.endsWith(']')
-      ? url.hostname.slice(1, -1)
-      : url.hostname
-  if (ipaddr.isValid(host) && isPrivateOrReservedIP(host)) {
+  const host = unwrapIpv6Brackets(url.hostname)
+  if (ipaddr.isValid(host) && isPrivateIp(host)) {
     // The pinned-private carve-out permits exactly its own validated IP as a target (a
     // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
     // else private (a redirect to e.g. the cloud metadata IP is still blocked).

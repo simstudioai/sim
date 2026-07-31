@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, inArray, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, inArray, isNotNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 const logger = createLogger('BatchDelete')
@@ -81,6 +81,17 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
   selectChunk: (chunkIds: string[], limit: number) => Promise<TRow[]>
   /** Runs between SELECT and DELETE; receives the just-selected rows. */
   onBatch?: (rows: TRow[]) => Promise<void>
+  /**
+   * Re-asserted on the DELETE alongside the id list. A soft-delete sweep whose `onBatch` does
+   * real work before the DELETE should pass the same predicate it selected on: a row restored
+   * in that window would otherwise be hard-deleted — taking the children a folder restore had
+   * just brought back with it. Rows that no longer match are simply not deleted and are
+   * counted as failed, so the next run re-evaluates them.
+   *
+   * Optional because a sweep with no `onBatch` closes a far smaller window; the hand-rolled
+   * targets in `cleanup-soft-deletes.ts` re-check inside their own DELETE instead.
+   */
+  deleteFilter?: SQL
   batchSize?: number
   /** Max batches per workspace chunk. */
   maxBatches?: number
@@ -112,6 +123,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   tableName,
   selectChunk,
   onBatch,
+  deleteFilter,
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
   totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
@@ -161,7 +173,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
         const ids = rows.map((r) => r.id)
         const deleted = await dbClient
           .delete(tableDef)
-          .where(inArray(sql`id`, ids))
+          .where(deleteFilter ? and(inArray(sql`id`, ids), deleteFilter) : inArray(sql`id`, ids))
           .returning({ id: sql`id` })
 
         result.deleted += deleted.length
@@ -196,6 +208,18 @@ export interface BatchDeleteOptions {
   tableName: string
   /** When true, also requires `timestampCol IS NOT NULL` (soft-delete semantics). */
   requireTimestampNotNull?: boolean
+  /**
+   * Extra predicate ANDed into the row selection. Needed for tables shared by several
+   * resource kinds (e.g. `folder`, which holds workflow/file/knowledge_base/table rows)
+   * so a cleanup pass only ever removes the kind it owns.
+   */
+  additionalPredicate?: SQL
+  /**
+   * Runs on each selected batch before its DELETE, for side effects that must observe exactly
+   * the rows about to be removed. Forwarded to `chunkedBatchDelete`; see `deleteFilter` there
+   * for the restore-race window this opens.
+   */
+  onBatch?: (rows: { id: string }[]) => Promise<void>
   batchSize?: number
   maxBatches?: number
   workspaceChunkSize?: number
@@ -216,21 +240,32 @@ export async function batchDeleteByWorkspaceAndTimestamp({
   retentionDate,
   tableName,
   requireTimestampNotNull = false,
+  additionalPredicate,
   dbClient = db,
   ...rest
 }: BatchDeleteOptions): Promise<TableCleanupResult> {
+  /**
+   * Re-asserted on the DELETE, not just the SELECT. Every row here is soft-deleted and past
+   * retention, so a restore committing between the two statements is exactly the case that must
+   * not be hard-deleted — and for `folder` that would take the placement of the children the
+   * restore had just brought back with it. Rebuilt rather than reused from `selectChunk` because
+   * the id list already scopes the statement; only the eligibility half is re-checked.
+   */
+  const eligibility = [lt(timestampCol, retentionDate)]
+  if (requireTimestampNotNull) eligibility.push(isNotNull(timestampCol))
+  if (additionalPredicate) eligibility.push(additionalPredicate)
+
   return chunkedBatchDelete({
     tableDef,
     workspaceIds,
     tableName,
     dbClient,
+    deleteFilter: and(...eligibility),
     selectChunk: (chunkIds, limit) => {
-      const predicates = [inArray(workspaceIdCol, chunkIds), lt(timestampCol, retentionDate)]
-      if (requireTimestampNotNull) predicates.push(isNotNull(timestampCol))
       return dbClient
         .select({ id: sql<string>`id` })
         .from(tableDef)
-        .where(and(...predicates))
+        .where(and(inArray(workspaceIdCol, chunkIds), ...eligibility))
         .limit(limit)
     },
     ...rest,

@@ -17,6 +17,12 @@
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderInWorkspace,
+  assertFolderMutable,
+  FolderLockedError,
+  FolderNotFoundError,
+} from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -62,6 +68,23 @@ export const POST = withRouteHandler(
       if (!workspaceData) {
         return notFoundResponse('Workspace')
       }
+
+      /**
+       * Migration 0272 dropped the FK on `workflow.folder_id`, so nothing but this check
+       * stands between the caller and a folder in another workspace — or one from another
+       * resource's tree. A workflow filed under an unreachable folder still executes and
+       * bills, escapes the folder delete cascade, and never counts toward
+       * `guardLastWorkflows`.
+       *
+       * Ownership before lock state, mirroring `v1/workflows/import`: `assertFolderMutable`
+       * walks the ancestor chain without filtering on workspace, so checking it first would
+       * let a caller distinguish a locked folder in someone else's workspace (423) from a
+       * nonexistent one (404).
+       */
+      if (folderId) {
+        await assertFolderInWorkspace(folderId, workspaceId)
+      }
+      await assertFolderMutable(folderId ?? null)
 
       const workflowContent =
         typeof body.workflow === 'string' ? body.workflow : JSON.stringify(body.workflow)
@@ -148,6 +171,12 @@ export const POST = withRouteHandler(
 
       return NextResponse.json(response)
     } catch (error) {
+      if (error instanceof FolderNotFoundError) {
+        return badRequestResponse(error.message)
+      }
+      if (error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       logger.error('Admin API: Failed to import workflow', { error })
       return internalErrorResponse('Failed to import workflow')
     }

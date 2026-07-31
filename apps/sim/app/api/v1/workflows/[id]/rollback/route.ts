@@ -6,14 +6,18 @@ import {
   v1RollbackWorkflowBodySchema,
   v1RollbackWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
-import { parseOptionalJsonBody, parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { parseOptionalJsonBody, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
 
 const logger = createLogger('V1WorkflowRollbackAPI')
@@ -45,7 +49,7 @@ export const POST = withRouteHandler(
       if (!rawBody.success) return rawBody.response
       const body = v1RollbackWorkflowBodySchema.safeParse(rawBody.data ?? {})
       if (!body.success) {
-        return validationErrorResponse(body.error)
+        return v1ValidationErrorResponse(body.error)
       }
 
       const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)

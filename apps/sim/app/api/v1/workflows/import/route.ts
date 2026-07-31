@@ -19,7 +19,7 @@ import {
   v1ImportWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
-import { getValidationErrorMessage, parseRequest, serializeZodIssues } from '@/lib/api/server'
+import { parseRequest, serializeZodIssues } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
@@ -31,6 +31,7 @@ import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
   createRateLimitResponse,
+  v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -160,13 +161,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       {
         maxBodyBytes: MAX_IMPORT_BODY_BYTES,
         validationErrorResponse: (error) =>
-          NextResponse.json(
-            {
-              error: getValidationErrorMessage(error, 'Invalid request body'),
-              details: error.issues,
-            },
-            { status: 400 }
-          ),
+          v1ValidationErrorResponse(error, 'Invalid request body'),
       }
     )
     if (!parsed.success) return parsed.response

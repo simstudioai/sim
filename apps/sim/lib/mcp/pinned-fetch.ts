@@ -1,10 +1,10 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
+import { isPrivateIp } from '@sim/security/ssrf'
 import type { Agent } from 'undici'
 import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
-  isPrivateOrReservedIP,
 } from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
@@ -292,7 +292,7 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
       const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
       logger.info('OAuth guarded fetch: requesting', { host, guarded: Boolean(resolvedIP) })
       let response: Response
-      if (resolvedIP && isPrivateOrReservedIP(resolvedIP)) {
+      if (resolvedIP && isPrivateIp(resolvedIP)) {
         // Self-hosted private/loopback resolution (policy-permitted): the guarded lookup
         // would filter the address, and an unguarded fallback would reopen rebinding —
         // keep the legacy pin to the validated address for exactly this case.

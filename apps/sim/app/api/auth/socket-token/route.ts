@@ -23,8 +23,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const hdrs = await headers()
+    // Force a DB-backed session read. With the cookie cache enabled, the
+    // session middleware can mint a token off a cached session whose row is
+    // already gone (the window right after a sign-out), which succeeds here
+    // and then fails in the realtime server with "Session not found" — the
+    // socket retries that forever. A fresh read turns that into a clean 401
+    // the client can re-authenticate from.
     const response = await auth.api.generateOneTimeToken({
       headers: hdrs,
+      query: { disableCookieCache: true },
     })
 
     if (!response?.token) {

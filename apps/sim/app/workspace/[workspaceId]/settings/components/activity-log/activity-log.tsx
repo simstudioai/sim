@@ -32,6 +32,8 @@ const EVENT_COLUMN_WIDTH_CLASS = {
 
 type EventColumnWidth = keyof typeof EVENT_COLUMN_WIDTH_CLASS
 
+const ROW_CLASS = 'flex w-full items-center gap-3 px-3 py-2 text-left'
+
 function ActivityLogRow({
   entry,
   eventColumn,
@@ -42,6 +44,39 @@ function ActivityLogRow({
   const [expanded, setExpanded] = useState(false)
   const expandable = entry.details != null
 
+  const cells = (
+    <>
+      <span className='w-[160px] flex-shrink-0 text-[var(--text-secondary)] text-small'>
+        {entry.timestamp}
+      </span>
+      <span className={cn(EVENT_COLUMN_WIDTH_CLASS[eventColumn], 'flex-shrink-0')}>
+        {entry.event}
+      </span>
+      <span className='min-w-0 flex-1 text-[var(--text-primary)] text-small'>
+        {typeof entry.description === 'string' ? (
+          <FloatingOverflowText label={entry.description} className='block truncate' />
+        ) : (
+          entry.description
+        )}
+      </span>
+      <span className='flex w-[160px] flex-shrink-0 items-center justify-end gap-1.5 text-[var(--text-secondary)] text-small'>
+        {typeof entry.actor === 'string' ? (
+          <FloatingOverflowText label={entry.actor} className='block min-w-0 truncate' />
+        ) : (
+          <span className='min-w-0 truncate'>{entry.actor}</span>
+        )}
+        {expandable && (
+          <ChevronDown
+            className={cn(
+              'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+              expanded && 'rotate-180'
+            )}
+          />
+        )}
+      </span>
+    </>
+  )
+
   return (
     <div
       className={cn(
@@ -50,42 +85,21 @@ function ActivityLogRow({
         expanded && 'bg-[var(--surface-2)]'
       )}
     >
-      <button
-        type='button'
-        aria-expanded={expandable ? expanded : undefined}
-        className='flex w-full items-center gap-3 px-3 py-2 text-left'
-        onClick={() => expandable && setExpanded(!expanded)}
-        disabled={!expandable}
-      >
-        <span className='w-[160px] flex-shrink-0 text-[var(--text-secondary)] text-small'>
-          {entry.timestamp}
-        </span>
-        <span className={cn(EVENT_COLUMN_WIDTH_CLASS[eventColumn], 'flex-shrink-0')}>
-          {entry.event}
-        </span>
-        <span className='min-w-0 flex-1 text-[var(--text-primary)] text-small'>
-          {typeof entry.description === 'string' ? (
-            <FloatingOverflowText label={entry.description} className='block truncate' />
-          ) : (
-            entry.description
-          )}
-        </span>
-        <span className='flex w-[160px] flex-shrink-0 items-center justify-end gap-1.5 text-[var(--text-secondary)] text-small'>
-          {typeof entry.actor === 'string' ? (
-            <FloatingOverflowText label={entry.actor} className='block min-w-0 truncate' />
-          ) : (
-            <span className='min-w-0 truncate'>{entry.actor}</span>
-          )}
-          {expandable && (
-            <ChevronDown
-              className={cn(
-                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-                expanded && 'rotate-180'
-              )}
-            />
-          )}
-        </span>
-      </button>
+      {expandable ? (
+        <button
+          type='button'
+          aria-expanded={expanded}
+          className={ROW_CLASS}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {cells}
+        </button>
+      ) : (
+        // A row with nothing to expand is inert content, not a disabled control:
+        // browsers suppress pointer events over a disabled button AND its
+        // descendants, which would swallow the hover tooltips inside the cells.
+        <div className={ROW_CLASS}>{cells}</div>
+      )}
       {expandable && expanded && (
         <div className='px-3 pb-2'>
           <div className='flex flex-col gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)] p-3 text-small'>

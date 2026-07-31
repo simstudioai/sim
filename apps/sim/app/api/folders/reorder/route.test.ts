@@ -66,6 +66,33 @@ describe('PUT /api/folders/reorder', () => {
     expect(data).toMatchObject({ success: true, updated: 1 })
   })
 
+  it('maps a sibling-name collision from a reparent to a 409', async () => {
+    mockWhere
+      .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
+      .mockReturnValueOnce([{ id: 'parent-1', workspaceId: 'workspace-123', archivedAt: null }])
+      .mockReturnValueOnce([
+        { id: 'folder-1', parentId: null },
+        { id: 'parent-1', parentId: null },
+      ])
+
+    const uniqueViolation = Object.assign(new Error('duplicate key value'), { code: '23505' })
+    mockDb.transaction.mockImplementationOnce(async () => {
+      throw uniqueViolation
+    })
+
+    const req = createMockRequest('PUT', {
+      workspaceId: 'workspace-123',
+      resourceType: 'knowledge_base',
+      updates: [{ id: 'folder-1', sortOrder: 0, parentId: 'parent-1' }],
+    })
+
+    const response = await PUT(req)
+
+    expect(response.status).toBe(409)
+    const data = await response.json()
+    expect(data.error).toBe('A folder with this name already exists in this location')
+  })
+
   it('rejects a parentId that belongs to another workspace', async () => {
     mockWhere
       .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])

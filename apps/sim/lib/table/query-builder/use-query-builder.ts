@@ -8,7 +8,7 @@ import {
   COMPARISON_OPERATORS,
   type FilterRule,
   LOGICAL_OPERATORS,
-  SORT_DIRECTIONS,
+  SORT_DIRECTION_OPTIONS,
   type SortRule,
 } from '@/lib/table/query-builder/constants'
 import type { ColumnOption } from '@/lib/table/types'
@@ -23,7 +23,7 @@ const logicalOptions: ColumnOption[] = LOGICAL_OPERATORS.map((op) => ({
   label: op.label,
 }))
 
-const sortDirectionOptions: ColumnOption[] = SORT_DIRECTIONS.map((d) => ({
+const sortDirectionOptions: ColumnOption[] = SORT_DIRECTION_OPTIONS.map((d) => ({
   value: d.value,
   label: d.label,
 }))

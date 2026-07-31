@@ -2,6 +2,7 @@
   "title": "Enterprise",
   "pages": [
     "index",
+    "self-hosted",
     "sso",
     "verified-domains",
     "session-policies",

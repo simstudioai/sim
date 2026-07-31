@@ -3,12 +3,14 @@ import { db } from '@sim/db'
 import {
   type CopilotAsyncToolStatus,
   type CopilotRunStatus,
+  type CopilotToolPermissionDecision,
   copilotAsyncToolCalls,
   copilotRunCheckpoints,
   copilotRuns,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
+import { sanitizeValueForJsonb } from '@sim/utils/string'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -187,7 +189,13 @@ export async function getRunSegment(runId: string) {
     { [TraceAttr.RunId]: runId },
     async () => {
       const [run] = await db
-        .select({ id: copilotRuns.id, userId: copilotRuns.userId })
+        .select({
+          id: copilotRuns.id,
+          userId: copilotRuns.userId,
+          status: copilotRuns.status,
+          // Needed to scope an "allow for this chat" decision to its chat.
+          chatId: copilotRuns.chatId,
+        })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
         .limit(1)
@@ -273,6 +281,7 @@ export async function upsertAsyncToolCall(input: {
       }
 
       const now = new Date()
+      const args = sanitizeValueForJsonb(input.args ?? {})
       const [row] = await db
         .insert(copilotAsyncToolCalls)
         .values({
@@ -280,7 +289,7 @@ export async function upsertAsyncToolCall(input: {
           checkpointId: input.checkpointId ?? null,
           toolCallId: input.toolCallId,
           toolName: input.toolName,
-          args: input.args ?? {},
+          args,
           status: incomingStatus,
           updatedAt: now,
         })
@@ -290,7 +299,7 @@ export async function upsertAsyncToolCall(input: {
             runId: effectiveRunId,
             checkpointId: input.checkpointId ?? null,
             toolName: input.toolName,
-            args: input.args ?? {},
+            args,
             status: incomingStatus,
             updatedAt: now,
           },
@@ -354,7 +363,9 @@ async function markAsyncToolStatus(
           status,
           claimedBy: updates.claimedBy,
           claimedAt,
-          result: updates.result,
+          // Results carry client/page-derived text; lone UTF-16 surrogates or
+          // NULs in it would make the jsonb write throw (invalid JSON input).
+          result: sanitizeValueForJsonb(updates.result),
           error: updates.error,
           completedAt: updates.completedAt,
           updatedAt: new Date(),
@@ -369,6 +380,43 @@ async function markAsyncToolStatus(
 
 export async function markAsyncToolRunning(toolCallId: string, claimedBy: string) {
   return markAsyncToolStatus(toolCallId, 'running', { claimedBy })
+}
+
+/**
+ * Atomically claims a pending client tool exactly once. Native browser actions
+ * use this before crossing the Electron boundary so a replayed renderer event
+ * cannot click, type, submit, or navigate twice.
+ */
+export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: string) {
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: ASYNC_TOOL_STATUS.running,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: ASYNC_TOOL_STATUS.running,
+          claimedBy,
+          claimedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
 }
 
 export async function completeAsyncToolCall(input: {
@@ -398,6 +446,47 @@ export async function completeAsyncToolCall(input: {
     error: input.error ?? null,
     completedAt: new Date(),
   })
+}
+
+/**
+ * Records the user's answer to a tool permission prompt, exactly once.
+ *
+ * The `IS NULL` guard is what makes a decision final: two tabs (or a click
+ * plus an "allow all") racing on the same prompt resolve to whichever write
+ * lands first, and the loser gets `null` back rather than overwriting an
+ * answer the orchestrator may already have acted on.
+ */
+export async function recordToolPermissionDecision(
+  toolCallId: string,
+  decision: CopilotToolPermissionDecision
+) {
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolPermissionDecision]: decision,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          permissionDecision: decision,
+          permissionDecidedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            isNull(copilotAsyncToolCalls.permissionDecision)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
 }
 
 export async function markAsyncToolDelivered(toolCallId: string) {

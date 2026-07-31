@@ -16,6 +16,12 @@ import {
 } from '@sim/emcn'
 import { Folder, Plus, Workflow } from '@sim/emcn/icons'
 import { truncate } from '@sim/utils/string'
+import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import {
+  BROWSER_SESSION_RESOURCE_ID,
+  TERMINAL_SESSION_RESOURCE_ID,
+} from '@/lib/copilot/resources/types'
+import { isTerminalAvailable } from '@/lib/terminal/transport'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -228,6 +234,32 @@ export function useAvailableResources(
         }),
       },
     ]
+    // The live browser panel — desktop app only (needs the agent-browser
+    // bridge). A singleton: opening it again just activates the existing tab.
+    if (isBrowserAgentAvailable()) {
+      groups.push({
+        type: 'browser' as const,
+        items: [
+          {
+            id: BROWSER_SESSION_RESOURCE_ID,
+            name: 'Browser',
+          },
+        ],
+      })
+    }
+    // The live terminal — desktop app only (needs the PTY bridge), and a
+    // singleton like the browser.
+    if (isTerminalAvailable()) {
+      groups.push({
+        type: 'terminal' as const,
+        items: [
+          {
+            id: TERMINAL_SESSION_RESOURCE_ID,
+            name: 'Terminal',
+          },
+        ],
+      })
+    }
     return groups.filter((g) => !excluded.has(g.type))
   }, [
     enabled,
@@ -583,6 +615,20 @@ export function AddResourceDropdown({
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon
+                // The browser and terminal panels are singletons — flat
+                // items, not one-entry submenus.
+                if (type === 'browser' || type === 'terminal') {
+                  const item = items[0]
+                  return (
+                    <DropdownMenuItem
+                      key={type}
+                      onClick={() => select({ type, id: item.id, title: item.name })}
+                    >
+                      <Icon className='size-[14px]' />
+                      <span>{config.label}</span>
+                    </DropdownMenuItem>
+                  )
+                }
                 return (
                   <DropdownMenuSub key={type}>
                     <DropdownMenuSubTrigger>

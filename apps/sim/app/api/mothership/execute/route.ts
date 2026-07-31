@@ -50,14 +50,26 @@ function encodeNdjson(value: unknown): Uint8Array {
   return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
-function buildExecuteResponsePayload(
+/**
+ * Server-owned tools whose invocation the CALLER must see, even though they are
+ * not client/integration tools. The scheduled-task runner branches on whether
+ * the agent called complete_scheduled_task; filtering it out of the response
+ * made that check permanently false, so a completed job was rescheduled by the
+ * runner's own post-run bookkeeping.
+ */
+export const CALLER_VISIBLE_SERVER_TOOLS = new Set(['complete_scheduled_task'])
+
+export function buildExecuteResponsePayload(
   result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
   effectiveChatId: string,
   integrationTools: Array<{ name: string }>
 ) {
   const clientToolNames = new Set(integrationTools.map((t) => t.name))
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    (tc: { name: string }) =>
+      clientToolNames.has(tc.name) ||
+      tc.name.startsWith('mcp-') ||
+      CALLER_VISIBLE_SERVER_TOOLS.has(tc.name)
   )
 
   return {
@@ -204,9 +216,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     {
                       type: 'mcp',
                       content: [
-                        'The following MCP tools are explicitly enabled for this request.',
-                        'Load one with load_custom_tool({ type: "mcp", name: "<exact name>" }) before calling it.',
-                        'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+                        'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
+                        'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
                         ...mothershipTools.map(
                           (tool) => `- ${tool.name}: ${tool.description || tool.name}`
                         ),

@@ -55,6 +55,19 @@ Open [http://localhost:3000](http://localhost:3000)
   </Card>
 </Cards>
 
+## Enterprise Features
+
+Organizations, SSO, permission groups, audit logs, whitelabeling, session policies, data retention, and data drains all run on a self-hosted deployment — no billing or subscription required. One switch turns on the set:
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+```
+
+Most of these features read their settings from the organization that owns a workspace, so enabling the flags is only half of it — your deployment also needs an organization model. Set `INSTANCE_ORG_NAME` to put every user in one shared organization automatically, or provision organizations yourself through the Admin API.
+
+See the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for both patterns, the per-feature flags, and troubleshooting.
+
 ## Architecture
 
 | Component | Port | Description |

@@ -24,10 +24,6 @@ export const workflowsUtilsMockFns = {
   mockUpdateWorkflowRecord: vi.fn(),
   mockDeleteWorkflowRecord: vi.fn(),
   mockSetWorkflowVariables: vi.fn(),
-  mockCreateFolderRecord: vi.fn(),
-  mockUpdateFolderRecord: vi.fn(),
-  mockDeleteFolderRecord: vi.fn(),
-  mockCheckForCircularReference: vi.fn(),
   mockListFolders: vi.fn(),
 }
 
@@ -61,9 +57,5 @@ export const workflowsUtilsMock = {
   updateWorkflowRecord: workflowsUtilsMockFns.mockUpdateWorkflowRecord,
   deleteWorkflowRecord: workflowsUtilsMockFns.mockDeleteWorkflowRecord,
   setWorkflowVariables: workflowsUtilsMockFns.mockSetWorkflowVariables,
-  createFolderRecord: workflowsUtilsMockFns.mockCreateFolderRecord,
-  updateFolderRecord: workflowsUtilsMockFns.mockUpdateFolderRecord,
-  deleteFolderRecord: workflowsUtilsMockFns.mockDeleteFolderRecord,
-  checkForCircularReference: workflowsUtilsMockFns.mockCheckForCircularReference,
   listFolders: workflowsUtilsMockFns.mockListFolders,
 }

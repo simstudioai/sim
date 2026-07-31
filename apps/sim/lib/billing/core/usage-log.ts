@@ -207,6 +207,40 @@ export async function getBillingPeriodUsageCost(
   return Number.parseFloat(row?.cost ?? '0')
 }
 
+/**
+ * Period total plus the portion attributable to `source`, in a single scan.
+ *
+ * Two separate aggregates over the identical row set double the work and, because
+ * they are separate statements, can observe different snapshots — which makes the
+ * subset exceeding the total representable. One statement rules that out.
+ */
+export async function getBillingPeriodUsageCostWithSourceSubset(
+  billingEntity: BillingEntity,
+  billingPeriod: { start: Date; end: Date },
+  source: UsageLogSource[],
+  executor: DbClient = db
+): Promise<{ total: number; subset: number }> {
+  const [row] = await executor
+    .select({
+      total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      subset: sql<string>`COALESCE(SUM(${usageLog.cost}) FILTER (WHERE ${inArray(usageLog.source, source)}), 0)`,
+    })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        eq(usageLog.billingPeriodStart, billingPeriod.start),
+        eq(usageLog.billingPeriodEnd, billingPeriod.end)
+      )
+    )
+
+  return {
+    total: Number.parseFloat(row?.total ?? '0'),
+    subset: Number.parseFloat(row?.subset ?? '0'),
+  }
+}
+
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },

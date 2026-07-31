@@ -6,12 +6,13 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListWorkflowsContract } from '@/lib/api/contracts/v1/workflows'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
   createRateLimitResponse,
+  v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
@@ -53,14 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       request,
       {},
       {
-        validationErrorResponse: (error) =>
-          NextResponse.json(
-            {
-              error: getValidationErrorMessage(error, 'Invalid parameters'),
-              details: error.issues,
-            },
-            { status: 400 }
-          ),
+        validationErrorResponse: (error) => v1ValidationErrorResponse(error, 'Invalid parameters'),
       }
     )
     if (!parsed.success) return parsed.response

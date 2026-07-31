@@ -6,14 +6,16 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockCheckAccess, mockFindRowMatches } = vi.hoisted(() => ({
+const { mockCheckAccess, mockFindRowMatches, mockTableFilterError } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockFindRowMatches: vi.fn(),
+  mockTableFilterError: vi.fn(),
 }))
 
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
   return {
+    tableFilterError: mockTableFilterError,
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) =>
       NextResponse.json(
@@ -67,6 +69,7 @@ describe('GET /api/table/[tableId]/rows/find', () => {
       authType: 'session',
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockTableFilterError.mockReturnValue(null)
     mockFindRowMatches.mockResolvedValue({
       matches: [{ ordinal: 4, rowId: 'row_4', column: 'name' }],
       truncated: false,
@@ -120,8 +123,23 @@ describe('GET /api/table/[tableId]/rows/find', () => {
     )
   })
 
+  it('short-circuits with the filter gate response before searching', async () => {
+    const { NextResponse } = await import('next/server')
+    mockTableFilterError.mockReturnValueOnce(
+      NextResponse.json({ error: 'Unknown filter column "nope"' }, { status: 400 })
+    )
+    const res = await callGet({
+      workspaceId: 'workspace-1',
+      q: 'foo',
+      filter: JSON.stringify({ all: [{ field: 'nope', op: 'eq', value: 1 }] }),
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/Unknown filter column/)
+    expect(mockFindRowMatches).not.toHaveBeenCalled()
+  })
+
   it('maps a TableQueryValidationError to 400', async () => {
-    const { TableQueryValidationError } = await import('@/lib/table/sql')
+    const { TableQueryValidationError } = await import('@/lib/table/errors')
     mockFindRowMatches.mockRejectedValueOnce(new TableQueryValidationError('Invalid field name'))
     const res = await callGet({ workspaceId: 'workspace-1', q: 'foo' })
     expect(res.status).toBe(400)

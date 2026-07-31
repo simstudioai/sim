@@ -218,6 +218,34 @@ describe('organization workspace helpers', () => {
     expect(dbChainMockFns.update).toHaveBeenCalled()
   })
 
+  it('attaches an archived workspace without joining its collaborators', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-archived' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-archived' }])
+    queueTableRows(schemaMock.workspace, [
+      {
+        id: 'ws-archived',
+        billedAccountUserId: 'user-1',
+        organizationId: null,
+        archivedAt: new Date(),
+      },
+    ])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-archived' }])
+
+    const result = await attachOwnedWorkspacesToOrganization({
+      ownerUserId: 'user-1',
+      organizationId: 'org-1',
+      externalMemberPolicy: 'keep-external',
+      includeArchived: true,
+    })
+
+    // Purview: the archived workspace still moves into the organization…
+    expect(result.attachedWorkspaceIds).toEqual(['ws-archived'])
+    // …but nobody is joined (and no seat consumed) off the back of it.
+    expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+    expect(result.addedMemberIds).toEqual([])
+  })
+
   it('rolls back membership work when a concurrent move wins before the locked re-read', async () => {
     queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
     queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])

@@ -32,6 +32,8 @@ export interface AttachOwnedWorkspacesToOrganizationTxResult
 export interface DetachOrganizationWorkspacesResult {
   detachedWorkspaceIds: string[]
   billedAccountUserId: string | null
+  /** Emit with `recordAuditBatch` once the surrounding transaction has committed. */
+  auditEntries: Parameters<typeof recordAuditBatch>[0]
 }
 
 export class WorkspaceOrganizationMembershipConflictError extends Error {
@@ -47,14 +49,49 @@ export class WorkspaceOrganizationMembershipConflictError extends Error {
 }
 
 /**
- * How to treat workspace members that already belong to a *different*
+ * How to treat workspace collaborators that are not members of the target
  * organization when attaching workspaces:
- *   - `reject` (default): throw a conflict — used by manual org creation.
- *   - `keep-external`: skip them (they stay external workspace members) and
- *     attach anyway — used by the Pro→Team conversion, which must not abort
- *     just because a personal workspace already has an external collaborator.
+ *   - `reject` (default): throw a conflict when any collaborator belongs to a
+ *     *different* organization — used by manual org creation.
+ *   - `keep-external`: collaborators in a *different* organization stay
+ *     external workspace members and the attach proceeds; org-less
+ *     collaborators are joined into the organization — used by the Pro→Team
+ *     conversion, which must not abort just because a personal workspace
+ *     already has an external collaborator.
+ *   - `external-all`: nobody joins the organization as a side effect — every
+ *     collaborator who is not already a member stays an external workspace
+ *     member. Used when a joining member's owned workspaces follow them into
+ *     the organization: membership (and its seat) only ever comes from an
+ *     invitation the person accepted or an explicit admin action.
  */
-type ExternalMemberPolicy = 'reject' | 'keep-external'
+type ExternalMemberPolicy = 'reject' | 'keep-external' | 'external-all'
+
+/**
+ * The single definition of "a workspace that follows this user into an
+ * organization": owned (or billed) by them, not yet organization-owned, and —
+ * unless `includeArchived` — not archived. Every site that selects, locks, or
+ * previews attachable workspaces must build its WHERE from this so the
+ * acceptance lock plan, the attach queries, and the accept-screen preview can
+ * never drift apart.
+ */
+export function ownedAttachableWorkspacesWhere({
+  userId,
+  ownerMatch = 'owner',
+  includeArchived = false,
+}: {
+  userId: string
+  ownerMatch?: 'owner' | 'billing-account'
+  includeArchived?: boolean
+}) {
+  return and(
+    ownerMatch === 'owner'
+      ? eq(workspace.ownerId, userId)
+      : eq(workspace.billedAccountUserId, userId),
+    isNull(workspace.organizationId),
+    ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
+    ...(includeArchived ? [] : [isNull(workspace.archivedAt)])
+  )
+}
 
 /**
  * Locks workspace rows before any membership billing path can lock user or
@@ -74,24 +111,23 @@ interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
   externalMemberPolicy?: ExternalMemberPolicy
+  /**
+   * Also attach archived workspaces. Join-attach sweeps them so unarchiving
+   * later can never resurface a personal workspace outside the organization.
+   */
+  includeArchived?: boolean
 }
 
 export async function attachOwnedWorkspacesToOrganization({
   ownerUserId,
   organizationId,
   externalMemberPolicy = 'reject',
+  includeArchived = false,
 }: AttachOwnedWorkspacesToOrganizationParams): Promise<AttachOwnedWorkspacesToOrganizationResult> {
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
     .from(workspace)
-    .where(
-      and(
-        eq(workspace.ownerId, ownerUserId),
-        isNull(workspace.organizationId),
-        ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
-        isNull(workspace.archivedAt)
-      )
-    )
+    .where(ownedAttachableWorkspacesWhere({ userId: ownerUserId, includeArchived }))
   const ownedWorkspaceIds = ownedWorkspaces.map((ownedWorkspace) => ownedWorkspace.id)
   if (ownedWorkspaceIds.length === 0) {
     return { attachedWorkspaceIds: [], addedMemberIds: [], skippedMembers: [] }
@@ -113,6 +149,7 @@ export async function attachOwnedWorkspacesToOrganization({
       workspaceIds: ownedWorkspaceIds,
       externalMemberPolicy,
       ownerMatch: 'owner',
+      includeArchived,
     })
   })
 
@@ -165,12 +202,14 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     workspaceIds,
     externalMemberPolicy = 'keep-external',
     ownerMatch = 'billing-account',
+    includeArchived = false,
   }: {
     ownerUserId: string
     organizationId: string
     workspaceIds: string[]
     externalMemberPolicy?: ExternalMemberPolicy
     ownerMatch?: 'owner' | 'billing-account'
+    includeArchived?: boolean
   }
 ): Promise<AttachOwnedWorkspacesToOrganizationTxResult> {
   if (workspaceIds.length === 0) {
@@ -190,17 +229,13 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       id: workspace.id,
       billedAccountUserId: workspace.billedAccountUserId,
       organizationId: workspace.organizationId,
+      archivedAt: workspace.archivedAt,
     })
     .from(workspace)
     .where(
       and(
-        ownerMatch === 'owner'
-          ? eq(workspace.ownerId, ownerUserId)
-          : eq(workspace.billedAccountUserId, ownerUserId),
-        inArray(workspace.id, workspaceIds),
-        isNull(workspace.organizationId),
-        ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
-        isNull(workspace.archivedAt)
+        ownedAttachableWorkspacesWhere({ userId: ownerUserId, ownerMatch, includeArchived }),
+        inArray(workspace.id, workspaceIds)
       )
     )
     .orderBy(asc(workspace.id))
@@ -225,12 +260,27 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   }
 
   const ownedWorkspaceIds = ownedWorkspaces.map((row) => row.id)
-  const permissionRows = await tx
-    .select({ userId: permissions.userId })
-    .from(permissions)
-    .where(
-      and(eq(permissions.entityType, 'workspace'), inArray(permissions.entityId, ownedWorkspaceIds))
-    )
+  /**
+   * Collaborators are enumerated from ACTIVE workspaces only. Archived
+   * workspaces still attach (so unarchiving can never dodge the organization),
+   * but sweeping them must not change who becomes a member: a forgotten
+   * collaborator on an archived workspace would otherwise be joined — and
+   * billed as a seat — by an upgrade they had nothing to do with. Anyone
+   * reachable only through an archived workspace stays an external member.
+   */
+  const activeWorkspaceIds = ownedWorkspaces.filter((row) => !row.archivedAt).map((row) => row.id)
+  const permissionRows =
+    activeWorkspaceIds.length > 0
+      ? await tx
+          .select({ userId: permissions.userId })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.entityType, 'workspace'),
+              inArray(permissions.entityId, activeWorkspaceIds)
+            )
+          )
+      : []
   const workspaceMemberIds = [...new Set(permissionRows.map((row) => row.userId))].sort()
   const memberships =
     workspaceMemberIds.length > 0
@@ -240,22 +290,33 @@ export async function attachOwnedWorkspacesToOrganizationTx(
           .where(inArray(member.userId, workspaceMemberIds))
       : []
   const membershipByUser = new Map(memberships.map((row) => [row.userId, row.organizationId]))
-  const skippedMembers = workspaceMemberIds
-    .filter((userId) => {
-      const currentOrganizationId = membershipByUser.get(userId)
-      return currentOrganizationId !== undefined && currentOrganizationId !== organizationId
-    })
-    .map((userId) => ({
-      userId,
-      reason: 'Already a member of another organization; kept as external workspace member',
-    }))
-  if (externalMemberPolicy === 'reject' && skippedMembers.length > 0) {
+  const differentOrgMembers = workspaceMemberIds.filter((userId) => {
+    const currentOrganizationId = membershipByUser.get(userId)
+    return currentOrganizationId !== undefined && currentOrganizationId !== organizationId
+  })
+  if (externalMemberPolicy === 'reject' && differentOrgMembers.length > 0) {
     throw new WorkspaceOrganizationMembershipConflictError(
-      skippedMembers.map(({ userId }) => ({
+      differentOrgMembers.map((userId) => ({
         userId,
         organizationId: membershipByUser.get(userId) as string,
       }))
     )
+  }
+  const skippedMembers: Array<{ userId: string; reason: string }> = differentOrgMembers.map(
+    (userId) => ({
+      userId,
+      reason: 'Already a member of another organization; kept as external workspace member',
+    })
+  )
+  if (externalMemberPolicy === 'external-all') {
+    for (const userId of workspaceMemberIds) {
+      if (membershipByUser.get(userId) === undefined) {
+        skippedMembers.push({
+          userId,
+          reason: 'Not an organization member; kept as external workspace member',
+        })
+      }
+    }
   }
   const skippedUserIds = new Set(skippedMembers.map((row) => row.userId))
   const joinableUserIds = workspaceMemberIds.filter((userId) => !skippedUserIds.has(userId))
@@ -336,6 +397,26 @@ export async function attachOwnedWorkspacesToOrganizationTx(
 export async function detachOrganizationWorkspaces(
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
+  const result = await db.transaction((tx) => detachOrganizationWorkspacesTx(tx, organizationId))
+  recordAuditBatch(result.auditEntries)
+  return result
+}
+
+/**
+ * Transaction-enlisted detach, for callers that must commit the detach together
+ * with something else — deleting the organization, for instance, where a
+ * detach that committed on its own would leave workspaces re-billed while the
+ * organization it was meant to empty still exists.
+ *
+ * Returns its audit rows in `auditEntries` rather than writing them. Callers
+ * pass them to `recordAuditBatch` only after their transaction commits: the
+ * write is fire-and-forget, so emitting it here would leave audit history
+ * describing detachments that a later rollback undid.
+ */
+export async function detachOrganizationWorkspacesTx(
+  tx: DbOrTx,
+  organizationId: string
+): Promise<DetachOrganizationWorkspacesResult> {
   const organizationOwnerId = await getOrganizationOwnerId(organizationId)
   if (!organizationOwnerId) {
     logger.warn(
@@ -344,7 +425,7 @@ export async function detachOrganizationWorkspaces(
     )
   }
 
-  const organizationWorkspaces = await db
+  const organizationWorkspaces = await tx
     .select({
       id: workspace.id,
       ownerId: workspace.ownerId,
@@ -358,7 +439,7 @@ export async function detachOrganizationWorkspaces(
       )
     )
 
-  const detachedWorkspaceIds = await db.transaction(async (tx) => {
+  const detachedWorkspaceIds = await (async () => {
     const now = new Date()
     const workspaceIds = organizationWorkspaces
       .map((organizationWorkspace) => organizationWorkspace.id)
@@ -409,6 +490,12 @@ export async function detachOrganizationWorkspaces(
       })
 
     return [...workspaceIds].sort()
+  })()
+
+  logger.info('Detached organization workspaces', {
+    organizationId,
+    detachedWorkspaceCount: detachedWorkspaceIds.length,
+    billedAccountUserId: organizationOwnerId,
   })
 
   const workspacesById = new Map(
@@ -417,8 +504,11 @@ export async function detachOrganizationWorkspaces(
       organizationWorkspace,
     ])
   )
-  recordAuditBatch(
-    detachedWorkspaceIds.map((detachedWorkspaceId) => {
+
+  return {
+    detachedWorkspaceIds,
+    billedAccountUserId: organizationOwnerId,
+    auditEntries: detachedWorkspaceIds.map((detachedWorkspaceId) => {
       const detachedWorkspace = workspacesById.get(detachedWorkspaceId)
       return {
         workspaceId: detachedWorkspaceId,
@@ -434,17 +524,6 @@ export async function detachOrganizationWorkspaces(
           newBilledAccountUserId: organizationOwnerId ?? detachedWorkspace?.ownerId ?? null,
         },
       }
-    })
-  )
-
-  logger.info('Detached organization workspaces', {
-    organizationId,
-    detachedWorkspaceCount: detachedWorkspaceIds.length,
-    billedAccountUserId: organizationOwnerId,
-  })
-
-  return {
-    detachedWorkspaceIds,
-    billedAccountUserId: organizationOwnerId,
+    }),
   }
 }

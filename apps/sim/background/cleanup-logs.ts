@@ -256,7 +256,7 @@ async function cleanupLegacyLargeExecutionValues(
                       SELECT 1
                       FROM ${pausedExecutions} AS ref_pe
                       WHERE ref_pe.execution_id = ref.execution_id
-                        AND ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                        AND ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                     )
                   )
                 )
@@ -279,7 +279,7 @@ async function cleanupLegacyLargeExecutionValues(
                     SELECT 1
                     FROM ${pausedExecutions} AS parent_owner_pe
                     WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
-                      AND parent_owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                      AND parent_owner_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                   )
                   OR EXISTS (
                     SELECT 1
@@ -300,7 +300,7 @@ async function cleanupLegacyLargeExecutionValues(
                             SELECT 1
                             FROM ${pausedExecutions} AS parent_ref_pe
                             WHERE parent_ref_pe.execution_id = parent_ref.execution_id
-                              AND parent_ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                              AND parent_ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
                           )
                         )
                       )
@@ -316,7 +316,7 @@ async function cleanupLegacyLargeExecutionValues(
               SELECT 1
               FROM ${pausedExecutions} AS pe
               WHERE pe.execution_id = split_part(${workspaceFiles.key}, '/', 4)
-                AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
             )`
           )
         )

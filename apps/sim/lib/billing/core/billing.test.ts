@@ -8,6 +8,7 @@ const {
   mockComputeDailyRefreshConsumed,
   mockEnsureUserStatsExists,
   mockGetBillingPeriodUsageCost,
+  mockGetBillingPeriodUsageCostWithSourceSubset,
   mockGetHighestPriorityPersonalSubscription,
   mockGetHighestPrioritySubscription,
   mockResolveBillingInterval,
@@ -15,6 +16,7 @@ const {
   mockComputeDailyRefreshConsumed: vi.fn(),
   mockEnsureUserStatsExists: vi.fn(),
   mockGetBillingPeriodUsageCost: vi.fn(),
+  mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
   mockResolveBillingInterval: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock('@/lib/billing/core/usage', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({
   COPILOT_USAGE_SOURCES: ['copilot'],
   getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
+  getBillingPeriodUsageCostWithSourceSubset: mockGetBillingPeriodUsageCostWithSourceSubset,
 }))
 
 vi.mock('@/lib/billing/credits/daily-refresh', () => ({
@@ -50,7 +53,7 @@ describe('getPersonalBillingSummary', () => {
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
     mockComputeDailyRefreshConsumed.mockResolvedValue(3)
-    mockGetBillingPeriodUsageCost.mockResolvedValueOnce(2).mockResolvedValueOnce(1)
+    mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 2, subset: 1 })
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
       id: 'personal-sub',
       referenceId: 'viewer-a',

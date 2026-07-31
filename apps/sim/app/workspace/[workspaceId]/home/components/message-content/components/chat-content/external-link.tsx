@@ -1,6 +1,7 @@
 'use client'
 
 import { Tooltip } from '@sim/emcn'
+import { openInBrowserPanel, shouldOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { useLinkPreview } from '@/hooks/queries/link-preview'
 
@@ -37,6 +38,19 @@ interface ExternalLinkProps {
  * are https-only — plain-http links keep the URL tooltip, since fetching them
  * server-side would reach the URL validator's self-host loopback exception.
  */
+/**
+ * In the desktop app, a plain click diverts into the embedded Sim browser
+ * panel; modified clicks (Cmd/Ctrl/Shift/middle) keep the default behavior,
+ * which the shell routes to the system browser. In a web browser this is a
+ * no-op and the link opens a new tab as usual.
+ */
+function handleLinkClick(event: React.MouseEvent<HTMLAnchorElement>, href: string): void {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
+  if (!shouldOpenInBrowserPanel(href)) return
+  event.preventDefault()
+  openInBrowserPanel(href)
+}
+
 export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
   const { data } = useLinkPreview(href.startsWith('https://') ? href : undefined)
   const preview = data?.preview
@@ -49,6 +63,7 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
           className='not-prose group text-[var(--text-primary)] no-underline'
           target='_blank'
           rel='noopener noreferrer'
+          onClick={(event) => handleLinkClick(event, href)}
         >
           <img
             src={faviconUrl(hostname, 32)}

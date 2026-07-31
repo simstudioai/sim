@@ -95,7 +95,7 @@ describe('Workflows API Route - POST ordering', () => {
   it('uses top insertion against mixed siblings (folders + workflows)', async () => {
     queueTableRows(schemaMock.workflow, [])
     queueTableRows(schemaMock.workflow, [{ minOrder: 5 }])
-    queueTableRows(schemaMock.workflowFolder, [{ minOrder: 2 }])
+    queueTableRows(schemaMock.folder, [{ minOrder: 2 }])
 
     const req = createMockRequest('POST', {
       name: 'New Workflow',

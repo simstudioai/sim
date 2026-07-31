@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus } from '@sim/emcn'
-import { Database } from '@sim/emcn/icons'
+import { Database, FolderPlus } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -17,7 +17,10 @@ const COLUMNS = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
-const ACTIONS: ChromeActionSpec[] = [{ text: 'New base', icon: Plus, variant: 'primary' }]
+const ACTIONS: ChromeActionSpec[] = [
+  { text: 'New folder', icon: FolderPlus },
+  { text: 'New base', icon: Plus, variant: 'primary' },
+]
 
 export default function KnowledgeLoading() {
   return (

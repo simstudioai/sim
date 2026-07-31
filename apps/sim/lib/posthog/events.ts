@@ -632,10 +632,12 @@ export interface PostHogEventMap {
 
   folder_created: {
     workspace_id: string
+    resource_type?: string
   }
 
   folder_deleted: {
     workspace_id: string
+    resource_type?: string
   }
 
   folder_renamed: {
@@ -657,6 +659,7 @@ export interface PostHogEventMap {
   folder_restored: {
     folder_id: string
     workspace_id: string
+    resource_type?: string
   }
 
   logs_filter_applied: {

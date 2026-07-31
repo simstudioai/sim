@@ -29,6 +29,11 @@ const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').th
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
+const Sandboxes = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes').then(
+    (m) => m.Sandboxes
+  )
+)
 const CustomTools = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
     (m) => m.CustomTools
@@ -91,6 +96,17 @@ const DataRetentionSettings = dynamic(() =>
 const DataDrainsSettings = dynamic(() =>
   import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
 )
+const Desktop = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then((m) => m.Desktop)
+)
+const Browser = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/browser/browser').then((m) => m.Browser)
+)
+const Terminal = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal').then(
+    (m) => m.Terminal
+  )
+)
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
@@ -133,6 +149,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
   return (
     <SettingsSectionProvider section={effectiveSection} meta={meta ?? undefined}>
       {effectiveSection === 'general' && <General />}
+      {effectiveSection === 'desktop' && <Desktop />}
+      {effectiveSection === 'browser' && <Browser />}
+      {effectiveSection === 'terminal' && <Terminal />}
       {effectiveSection === 'secrets' && <Secrets />}
       {effectiveSection === 'access-control' && organizationId && (
         <AccessControl
@@ -173,6 +192,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <WhitelabelingSettings organizationId={organizationId} />
       )}
       {effectiveSection === 'byok' && <BYOK />}
+      {effectiveSection === 'sandboxes' && <Sandboxes />}
       {effectiveSection === 'mcp' && <MCP />}
       {effectiveSection === 'forks' && <Forks />}
       {effectiveSection === 'custom-tools' && <CustomTools />}

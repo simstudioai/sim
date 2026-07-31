@@ -137,6 +137,7 @@ const ModalOverlay = React.forwardRef<
       )}
       style={style}
       {...props}
+      data-native-surface-overlay=''
     />
   )
 })

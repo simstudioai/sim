@@ -23,8 +23,8 @@ export interface ChatLoadResult {
 
 /**
  * Minimal column set needed to perform workflow/workspace authorization for a
- * copilot chat. Heavy TOAST-able columns (messages, planArtifact, previewYaml,
- * config, resources) are intentionally excluded — callers that only need to
+ * copilot chat. Heavy TOAST-able columns (messages, previewYaml, config,
+ * resources) are intentionally excluded — callers that only need to
  * verify ownership should not pay the detoast cost for those fields.
  */
 const copilotChatAuthColumns = {
@@ -40,9 +40,8 @@ const copilotChatAuthColumns = {
  * transcript is no longer selected from `copilot_chats.messages` (JSONB) —
  * reads now source it from the normalized `copilot_messages` table via
  * `loadCopilotChatMessages`, which avoids detoasting the large messages blob on
- * every load. The copilot-only TOAST-able fields (`previewYaml`,
- * `planArtifact`, `config`) and unused metadata (`model`, `pinned`,
- * `lastSeenAt`) remain excluded.
+ * every load. The copilot-only TOAST-able fields (`previewYaml`, `config`)
+ * and unused metadata (`model`, `pinned`, `lastSeenAt`) remain excluded.
  */
 const copilotChatDetailColumns = {
   ...copilotChatAuthColumns,
@@ -55,14 +54,13 @@ const copilotChatDetailColumns = {
 
 /**
  * Column set for the legacy copilot chat detail endpoint. Extends
- * `copilotChatDetailColumns` with `model`, `planArtifact`, and `config` — the
+ * `copilotChatDetailColumns` with `model` and `config` — the
  * fields the legacy `transformChat` response shape includes. Still drops
  * `previewYaml` (JSONB), `pinned`, and `lastSeenAt`.
  */
 const copilotChatLegacyDetailColumns = {
   ...copilotChatDetailColumns,
   model: copilotChats.model,
-  planArtifact: copilotChats.planArtifact,
   config: copilotChats.config,
 } as const
 
@@ -123,7 +121,7 @@ export type CopilotChatDetailRow = Pick<
 }
 
 export type CopilotChatLegacyDetailRow = CopilotChatDetailRow &
-  Pick<typeof copilotChats.$inferSelect, 'model' | 'planArtifact' | 'config'>
+  Pick<typeof copilotChats.$inferSelect, 'model' | 'config'>
 
 async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
   chat: T | undefined,
@@ -185,7 +183,7 @@ export async function getAccessibleCopilotChatAuth(
 
 /**
  * Load a copilot chat row for the legacy chat detail endpoint, including the
- * transcript plus `model`, `planArtifact`, and `config`. Drops `previewYaml`
+ * transcript plus `model` and `config`. Drops `previewYaml`
  * (JSONB), `pinned`, and `lastSeenAt` — none of which the endpoint returns.
  */
 export async function getAccessibleCopilotChat(
@@ -208,8 +206,7 @@ export async function getAccessibleCopilotChat(
 /**
  * Load a copilot chat with the conversation transcript and resources after
  * authorization, omitting copilot-only TOAST-able fields (`previewYaml`,
- * `planArtifact`, `config`) and unused metadata (`model`, `pinned`,
- * `lastSeenAt`). Use this for the mothership chat detail endpoint and the
+ * `config`) and unused metadata (`model`, `pinned`, `lastSeenAt`). Use this for the mothership chat detail endpoint and the
  * shared `resolveOrCreateChat` path — every column read here is consumed
  * downstream, and dropping the others avoids per-request detoast overhead.
  */

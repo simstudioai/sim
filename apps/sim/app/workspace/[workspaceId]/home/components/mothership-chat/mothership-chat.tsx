@@ -110,7 +110,7 @@ const UNSCROLLED = Symbol('unscrolled')
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
-      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
+      'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
     sizer: 'relative mx-auto w-full max-w-[48rem]',
     rowGap: 'pb-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
@@ -530,6 +530,12 @@ export function MothershipChat({
     overscan: OVERSCAN,
     getItemKey: (index) => rowKeyByIndex[index] ?? index,
     rangeExtractor,
+    // Measure in a rAF instead of synchronously inside ResizeObserver delivery.
+    // A window resize re-wraps every row once the chat column falls under the
+    // 48rem cap — which is exactly what happens while the resource panel is
+    // open — and each synchronous re-measure writes scrollTop and copies the
+    // size cache mid-callback, so the frame re-lays-out once per visible row.
+    useAnimationFrameWithResizeObserver: true,
   })
 
   /**

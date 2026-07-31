@@ -27,7 +27,7 @@ import { useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
-type WorkspaceFileQueryScope = 'active' | 'archived' | 'all'
+type WorkspaceFileQueryScope = 'active' | 'archived'
 
 /**
  * Query key factories for workspace files

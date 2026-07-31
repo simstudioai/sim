@@ -11,7 +11,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocument } from '@/lib/knowledge/documents/service'
 import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest } from '@/app/api/v1/middleware'
+import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,7 +28,9 @@ export const GET = withRouteHandler(
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const parsed = await parseRequest(v1GetKnowledgeDocumentContract, request, context)
+      const parsed = await parseRequest(v1GetKnowledgeDocumentContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { id: knowledgeBaseId, documentId } = parsed.data.params
 
@@ -117,7 +119,9 @@ export const DELETE = withRouteHandler(
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const parsed = await parseRequest(v1DeleteKnowledgeDocumentContract, request, context)
+      const parsed = await parseRequest(v1DeleteKnowledgeDocumentContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { id: knowledgeBaseId, documentId } = parsed.data.params
 

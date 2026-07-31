@@ -6,7 +6,8 @@ import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { client, useSession } from '@/lib/auth/auth-client'
-import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
@@ -360,7 +361,7 @@ function SignupFormContent({
     }
   }
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  const ssoEnabled = isSsoEnabled
   const emailEnabled =
     !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
@@ -489,7 +490,9 @@ export default function SignupPage({
   emailSignupEnabled,
 }: SignupFormProps) {
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
+    <Suspense
+      fallback={<div className='flex min-h-[320px] items-center justify-center'>Loading…</div>}
+    >
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

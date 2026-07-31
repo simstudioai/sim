@@ -3,7 +3,13 @@ import { inlineFileRefQuerySchema } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
+/**
+ * Client-reachable listing scopes. `all` is deliberately excluded: it drops the
+ * `deleted_at` predicate, so it cannot use the partial index that serves the
+ * other two and degrades to a full workspace scan. No client requests it, and
+ * server-side callers reach that scope directly rather than over the wire.
+ */
+export const workspaceFileScopeSchema = z.enum(['active', 'archived'])
 
 export const workspaceFilesParamsSchema = z.object({
   id: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),

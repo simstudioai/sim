@@ -218,7 +218,7 @@ describe('useTable – ensureAllRowsLoaded', () => {
   })
 
   it('encodes queryOptions.filter into the queryKey passed to getQueryData', async () => {
-    const filter = { column: 'name', operator: 'eq', value: 'Alice' } as never
+    const filter = { all: [{ field: 'name', op: 'eq' as const, value: 'Alice' }] }
     mockGetQueryData.mockReturnValue({ pages: makePages([3], 3) })
     const { ensureAllRowsLoaded } = makeHook({ filter, sort: null })
     await ensureAllRowsLoaded()

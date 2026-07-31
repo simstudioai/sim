@@ -114,7 +114,10 @@ export async function generateFolderName(workspaceId: string): Promise<string> {
 /**
  * Generates the next subfolder name for a parent folder
  */
-async function generateSubfolderName(workspaceId: string, parentFolderId: string): Promise<string> {
+export async function generateSubfolderName(
+  workspaceId: string,
+  parentFolderId: string
+): Promise<string> {
   const folders = await fetchWorkspaceFolders(workspaceId)
 
   const subfolders = folders.filter((folder) => folder.parentId === parentFolderId)

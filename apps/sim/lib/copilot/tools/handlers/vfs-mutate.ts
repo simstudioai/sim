@@ -16,10 +16,13 @@ import {
   decodeVfsPathSegments,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import { isWorkflowAliasBackingPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getKnowledgeBases, updateKnowledgeBase } from '@/lib/knowledge/service'
-import { listTables, renameTable } from '@/lib/table/service'
+import {
+  deleteKnowledgeBase,
+  getKnowledgeBases,
+  updateKnowledgeBase,
+} from '@/lib/knowledge/service'
+import { deleteTable, listTables, renameTable } from '@/lib/table/service'
 import {
   ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath,
@@ -27,16 +30,20 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   getWorkspaceFileByName,
+  resolveWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   performCreateFolder,
+  performDeleteFolder,
+  performDeleteWorkflow,
   performUpdateFolder,
   performUpdateWorkflow,
 } from '@/lib/workflows/orchestration'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
 import {
+  performDeleteWorkspaceFileItems,
   performMoveRenameWorkspaceFile,
   performUpdateWorkspaceFileFolder,
 } from '@/lib/workspace-files/orchestration'
@@ -57,6 +64,17 @@ const CATEGORY_REJECTIONS: Record<string, string> = {
     'recently-deleted/ items cannot be moved or copied. Restore them with restore_resource first.',
 }
 
+/**
+ * Same categories as CATEGORY_REJECTIONS, but the advice differs for a delete:
+ * an upload needs no cleanup and a recently-deleted item is already gone.
+ */
+const RM_CATEGORY_REJECTIONS: Record<string, string> = {
+  uploads:
+    'uploads/ files are chat-scoped and disappear with the chat — there is nothing to delete.',
+  'recently-deleted':
+    'recently-deleted/ items are already deleted. Use restore_resource to bring one back.',
+}
+
 interface VfsMutateOutcome {
   from: string
   to?: string
@@ -70,13 +88,17 @@ function topLevelSegment(path: string): string {
   return path.trim().replace(/^\/+/, '').split('/')[0] ?? ''
 }
 
-function classifyCategory(path: string): { category: MutateCategory } | { error: string } {
+function classifyCategory(
+  path: string,
+  rejections: Record<string, string> = CATEGORY_REJECTIONS,
+  verbNoun = 'movable'
+): { category: MutateCategory } | { error: string } {
   const top = topLevelSegment(path)
   if (MUTATE_CATEGORIES.has(top)) return { category: top as MutateCategory }
-  const rejection = CATEGORY_REJECTIONS[top]
+  const rejection = rejections[top]
   if (rejection) return { error: rejection }
   return {
-    error: `"${path}" is not a movable resource. Only files/, workflows/, tables/, and knowledgebases/ paths are supported.`,
+    error: `"${path}" is not a ${verbNoun} resource. Only files/, workflows/, tables/, and knowledgebases/ paths are supported.`,
   }
 }
 
@@ -96,7 +118,10 @@ function assertMutationNotAborted(context: ExecutionContext): void {
   }
 }
 
-function buildResult(verb: MutateVerb | 'mkdir', outcomes: VfsMutateOutcome[]): ToolCallResult {
+function buildResult(
+  verb: MutateVerb | 'mkdir' | 'rm',
+  outcomes: VfsMutateOutcome[]
+): ToolCallResult {
   const failed = outcomes.filter((o) => o.error)
   if (failed.length === outcomes.length) {
     return {
@@ -161,11 +186,6 @@ export async function executeVfsMkdir(
         outcomes.push({ from: path, kind, error: 'Path must include at least one folder segment' })
         continue
       }
-      if (top === 'files' && isWorkflowAliasBackingPath(path)) {
-        outcomes.push({ from: path, kind, error: `Reserved system path: ${path}` })
-        continue
-      }
-
       try {
         assertMutationNotAborted(context)
         let folderId: string | null
@@ -348,15 +368,6 @@ async function mutateWorkspaceFiles(
       error: 'Workspace files cannot be copied — cp only duplicates workflows.',
     }
   }
-  for (const path of [...sources, destination]) {
-    if (isWorkflowAliasBackingPath(path)) {
-      return {
-        success: false,
-        error: `Reserved system paths cannot be moved or renamed: ${path}`,
-      }
-    }
-  }
-
   const dest = await planDestination({
     destination,
     sourceCount: sources.length,
@@ -508,6 +519,36 @@ function makeWorkflowFolderEnsurer(
   }
 }
 
+interface WorkflowRow {
+  id: string
+  name: string
+  folderId: string | null
+}
+
+/**
+ * Every workflow in the workspace keyed by its canonical VFS directory, so a
+ * path resolves without a query per path. Shared by mv/cp and rm, which ask the
+ * same question of a workflows/ path: is this a workflow or a folder?
+ */
+async function loadWorkflowsByVfsPath(
+  workspaceId: string,
+  folderPathById: Map<string, string>
+): Promise<Map<string, WorkflowRow>> {
+  const rows = await db
+    .select({ id: workflowTable.id, name: workflowTable.name, folderId: workflowTable.folderId })
+    .from(workflowTable)
+    .where(eq(workflowTable.workspaceId, workspaceId))
+  const byPath = new Map<string, WorkflowRow>()
+  for (const row of rows) {
+    const dir = canonicalWorkflowVfsDir({
+      name: row.name,
+      folderPath: row.folderId ? folderPathById.get(row.folderId) : null,
+    })
+    if (!byPath.has(dir)) byPath.set(dir, row)
+  }
+  return byPath
+}
+
 async function mutateWorkflows(
   verb: MutateVerb,
   sources: string[],
@@ -518,22 +559,7 @@ async function mutateWorkflows(
   const index = await loadWorkflowFolderIndex(workspaceId)
   const { folderPathById, folderIdByPath } = index
 
-  const workflowRows = await db
-    .select({
-      id: workflowTable.id,
-      name: workflowTable.name,
-      folderId: workflowTable.folderId,
-    })
-    .from(workflowTable)
-    .where(eq(workflowTable.workspaceId, workspaceId))
-  const workflowByPath = new Map<string, (typeof workflowRows)[number]>()
-  for (const row of workflowRows) {
-    const dir = canonicalWorkflowVfsDir({
-      name: row.name,
-      folderPath: row.folderId ? folderPathById.get(row.folderId) : null,
-    })
-    if (!workflowByPath.has(dir)) workflowByPath.set(dir, row)
-  }
+  const workflowByPath = await loadWorkflowsByVfsPath(workspaceId, folderPathById)
 
   const ensureWorkflowFolderPath = makeWorkflowFolderEnsurer(workspaceId, context.userId, index)
 
@@ -550,7 +576,7 @@ async function mutateWorkflows(
 
   // Resolve every source against the in-memory maps before mutating anything.
   type SourceRef =
-    | { source: string; workflow: (typeof workflowRows)[number] }
+    | { source: string; workflow: WorkflowRow }
     | { source: string; folderId: string }
     | { source: string; error: string }
   const refs: SourceRef[] = []
@@ -765,4 +791,276 @@ async function renameFlatResource(
   return buildResult(verb, [
     { from: sources[0], to: `knowledgebases/${normalizeVfsSegment(newName)}`, kind, id: match.id },
   ])
+}
+
+/**
+ * rm over the VFS: deletes the resource each path names. Every delete here is
+ * SOFT — the resource lands in recently-deleted/ and restore_resource brings it
+ * back — so this is the product's delete, not a purge.
+ *
+ * Scope is deliberately "things with a path". Removing something INSIDE a
+ * resource (a table row, a KB document, a workflow block) is an edit to that
+ * resource and stays with its owning tool.
+ */
+export async function executeVfsRm(
+  params: Record<string, unknown>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const paths = normalizeSources(params.paths)
+    if (paths.length === 0) {
+      return { success: false, error: 'paths is required (an array of VFS paths to delete)' }
+    }
+
+    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    assertMutationNotAborted(context)
+
+    // Loaded at most once, and only when a workflows/ path in this call needs it.
+    let workflowIndex: Promise<WorkflowRemoveIndex> | undefined
+    const getWorkflowIndex = () => (workflowIndex ??= loadWorkflowRemoveIndex(workspaceId))
+
+    const outcomes: VfsMutateOutcome[] = []
+    for (const path of paths) {
+      const classified = classifyCategory(path, RM_CATEGORY_REJECTIONS, 'deletable')
+      if ('error' in classified) {
+        outcomes.push({ from: path, kind: defaultKindFor(path), error: classified.error })
+        continue
+      }
+      try {
+        assertMutationNotAborted(context)
+        outcomes.push(
+          await removeOne(classified.category, path, context, workspaceId, getWorkflowIndex)
+        )
+      } catch (error) {
+        outcomes.push({ from: path, kind: defaultKindFor(path), error: toError(error).message })
+      }
+    }
+
+    return buildResult('rm', outcomes)
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+}
+
+/** Best-effort kind for an outcome that failed before the resource was identified. */
+function defaultKindFor(path: string): VfsMutateOutcome['kind'] {
+  switch (topLevelSegment(path)) {
+    case 'workflows':
+      return 'workflow'
+    case 'tables':
+      return 'table'
+    case 'knowledgebases':
+      return 'knowledge_base'
+    default:
+      return 'file'
+  }
+}
+
+function removeOne(
+  category: MutateCategory,
+  path: string,
+  context: ExecutionContext,
+  workspaceId: string,
+  getWorkflowIndex: () => Promise<WorkflowRemoveIndex>
+): Promise<VfsMutateOutcome> {
+  switch (category) {
+    case 'files':
+      return removeWorkspaceFilePath(path, context, workspaceId)
+    case 'workflows':
+      return removeWorkflowPath(path, context, workspaceId, getWorkflowIndex)
+    case 'tables':
+      return removeTablePath(path, context, workspaceId)
+    case 'knowledgebases':
+      return removeKnowledgeBasePath(path, context, workspaceId)
+  }
+}
+
+/**
+ * A files/ path is either a leaf file or a folder, and the two cannot collide,
+ * so resolving the file first and falling back to the folder is unambiguous.
+ * Both go through performDeleteWorkspaceFileItems — deleting a folder archives
+ * the files and subfolders inside it.
+ */
+async function removeWorkspaceFilePath(
+  path: string,
+  context: ExecutionContext,
+  workspaceId: string
+): Promise<VfsMutateOutcome> {
+  const file = await resolveWorkspaceFileReference(workspaceId, path)
+  if (file) {
+    const result = await performDeleteWorkspaceFileItems({
+      workspaceId,
+      userId: context.userId,
+      fileIds: [file.id],
+    })
+    if (!result.success) {
+      return { from: path, kind: 'file', id: file.id, error: result.error || 'Failed to delete' }
+    }
+    logger.info('Deleted workspace file via rm', { fileId: file.id, workspaceId })
+    return { from: path, kind: 'file', id: file.id }
+  }
+
+  const segments = decodeVfsPathSegments(path).slice(1)
+  if (segments.length === 0) {
+    return { from: path, kind: 'file', error: 'Path must name a file or folder under files/' }
+  }
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments)
+  if (!folderId) return { from: path, kind: 'file', error: `Not found: ${path}` }
+
+  const result = await performDeleteWorkspaceFileItems({
+    workspaceId,
+    userId: context.userId,
+    folderIds: [folderId],
+  })
+  if (!result.success) {
+    return {
+      from: path,
+      kind: 'file_folder',
+      id: folderId,
+      error: result.error || 'Failed to delete',
+    }
+  }
+  logger.info('Deleted file folder via rm', { folderId, workspaceId })
+  return { from: path, kind: 'file_folder', id: folderId }
+}
+
+interface WorkflowRemoveIndex {
+  workflowByPath: Map<string, WorkflowRow>
+  folderIdByPath: Map<string, string>
+}
+
+async function loadWorkflowRemoveIndex(workspaceId: string): Promise<WorkflowRemoveIndex> {
+  const { folderPathById, folderIdByPath } = await loadWorkflowFolderIndex(workspaceId)
+  return {
+    workflowByPath: await loadWorkflowsByVfsPath(workspaceId, folderPathById),
+    folderIdByPath,
+  }
+}
+
+/**
+ * Workflow first, then folder — the same resolution order mv uses. The lock
+ * assertions are what make a locked workflow (or one inside a locked folder)
+ * fail here rather than silently archiving.
+ */
+async function removeWorkflowPath(
+  path: string,
+  context: ExecutionContext,
+  workspaceId: string,
+  getWorkflowIndex: () => Promise<WorkflowRemoveIndex>
+): Promise<VfsMutateOutcome> {
+  const segments = decodeVfsPathSegments(path).slice(1)
+  if (segments.length === 0) {
+    return {
+      from: path,
+      kind: 'workflow',
+      error: 'Path must name a workflow or folder under workflows/',
+    }
+  }
+  const encoded = encodeVfsPathSegments(segments)
+  const { workflowByPath, folderIdByPath } = await getWorkflowIndex()
+
+  const workflow = workflowByPath.get(`workflows/${encoded}`)
+  if (workflow) {
+    await assertWorkflowMutable(workflow.id)
+    const result = await performDeleteWorkflow({ workflowId: workflow.id, userId: context.userId })
+    if (!result.success) {
+      return {
+        from: path,
+        kind: 'workflow',
+        id: workflow.id,
+        error: result.error || 'Failed to delete workflow',
+      }
+    }
+    logger.info('Deleted workflow via rm', { workflowId: workflow.id, workspaceId })
+    return { from: path, kind: 'workflow', id: workflow.id }
+  }
+
+  const folderId = folderIdByPath.get(encoded)
+  if (!folderId) return { from: path, kind: 'workflow', error: `Not found: ${path}` }
+
+  await assertFolderMutable(folderId)
+  const result = await performDeleteFolder({ folderId, workspaceId, userId: context.userId })
+  if (!result.success) {
+    return {
+      from: path,
+      kind: 'workflow_folder',
+      id: folderId,
+      error: result.error || 'Failed to delete folder',
+    }
+  }
+  logger.info('Deleted workflow folder via rm', { folderId, workspaceId })
+  return { from: path, kind: 'workflow_folder', id: folderId }
+}
+
+/** Resolves a flat tables/{name} or knowledgebases/{name} path to its single segment. */
+function flatResourceName(path: string, category: 'tables' | 'knowledgebases'): string | null {
+  const segments = decodeVfsPathSegments(path).slice(1)
+  if (segments.length !== 1) return null
+  return normalizeVfsSegment(segments[0])
+}
+
+async function removeTablePath(
+  path: string,
+  context: ExecutionContext,
+  workspaceId: string
+): Promise<VfsMutateOutcome> {
+  const canonical = flatResourceName(path, 'tables')
+  if (!canonical) {
+    return {
+      from: path,
+      kind: 'table',
+      error: 'tables/ is a flat namespace — rm takes a single name, e.g. rm(["tables/Leads"]).',
+    }
+  }
+  const match = (await listTables(workspaceId)).find(
+    (table) => normalizeVfsSegment(table.name) === canonical
+  )
+  if (!match) return { from: path, kind: 'table', error: `Table not found at ${path}` }
+
+  await deleteTable(match.id, generateRequestId(), context.userId)
+  logger.info('Archived table via rm', { tableId: match.id, workspaceId })
+  return { from: path, kind: 'table', id: match.id }
+}
+
+async function removeKnowledgeBasePath(
+  path: string,
+  context: ExecutionContext,
+  workspaceId: string
+): Promise<VfsMutateOutcome> {
+  const canonical = flatResourceName(path, 'knowledgebases')
+  if (!canonical) {
+    return {
+      from: path,
+      kind: 'knowledge_base',
+      error:
+        'knowledgebases/ is a flat namespace — rm takes a single name, e.g. rm(["knowledgebases/support-docs"]).',
+    }
+  }
+  if (canonical === normalizeVfsSegment('connectors')) {
+    return {
+      from: path,
+      kind: 'knowledge_base',
+      error: '"knowledgebases/connectors" is a reserved path, not a knowledge base.',
+    }
+  }
+  const match = (await getKnowledgeBases(context.userId, workspaceId)).find(
+    (kb) => normalizeVfsSegment(kb.name) === canonical
+  )
+  if (!match)
+    return { from: path, kind: 'knowledge_base', error: `Knowledge base not found at ${path}` }
+
+  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId)
+  if (!access.hasAccess) {
+    return {
+      from: path,
+      kind: 'knowledge_base',
+      id: match.id,
+      error: `Write access required to delete knowledge base "${match.name}"`,
+    }
+  }
+
+  await deleteKnowledgeBase(match.id, generateRequestId())
+  logger.info('Deleted knowledge base via rm', { knowledgeBaseId: match.id, workspaceId })
+  return { from: path, kind: 'knowledge_base', id: match.id }
 }

@@ -41,6 +41,7 @@ const mockPush = vi.fn()
 const mockPatchRedoRowId = vi.fn()
 const mockPatchUndoRowId = vi.fn()
 const mockClear = vi.fn()
+const mockPruneLayoutActions = vi.fn()
 
 const storeState = {
   stacks: {},
@@ -50,6 +51,7 @@ const storeState = {
   patchRedoRowId: mockPatchRedoRowId,
   patchUndoRowId: mockPatchUndoRowId,
   clear: mockClear,
+  pruneLayoutActions: mockPruneLayoutActions,
 }
 
 vi.mock('@/stores/table/store', () => ({

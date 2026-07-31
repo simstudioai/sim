@@ -1,0 +1,11 @@
+{
+  "extends": "@sim/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*", "scripts/**/*", "e2e/**/*", "playwright.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "release"]
+}

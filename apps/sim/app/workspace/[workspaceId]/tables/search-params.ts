@@ -32,6 +32,12 @@ export const tablesSortParams = createSortParams(TABLE_SORT_COLUMNS, {
  * Selecting a table navigates to the `tables/[tableId]` route (via `router`),
  * so the active table is route state, not query state, and is intentionally not
  * represented here.
+ *
+ * The open folder is `?folderId=`, declared once for every foldered surface in
+ * `components/folders/search-params.ts` and read through `useFolderNavigation`.
+ * It is deliberately not part of this map: folder navigation is a destination
+ * (`history: 'push'`), while everything here is a filter write that must not
+ * churn the back stack.
  */
 export const tablesParsers = {
   search: parseAsString.withDefault(''),

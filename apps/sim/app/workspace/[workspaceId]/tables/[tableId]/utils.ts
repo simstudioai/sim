@@ -1,12 +1,7 @@
-import type { ColumnDefinition } from '@/lib/table'
-import {
-  formatDateCellDisplay,
-  getWallClockParts,
-  normalizeDateCellValue,
-  storedDateToEditable,
-} from '@/lib/table/dates'
-
-type BadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
+import type { ColumnDefinition, JsonValue } from '@/lib/table'
+import type { ColumnType } from '@/lib/table/column-types'
+import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
+import { formatDateCellDisplay, getWallClockParts, normalizeDateCellValue } from '@/lib/table/dates'
 
 /**
  * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by
@@ -24,26 +19,6 @@ export function generateColumnName(columns: ReadonlyArray<{ name: string }>): st
 }
 
 /**
- * Returns the appropriate badge color variant for a column type
- */
-export function getTypeBadgeVariant(type: string): BadgeVariant {
-  switch (type) {
-    case 'string':
-      return 'green'
-    case 'number':
-      return 'blue'
-    case 'boolean':
-      return 'purple'
-    case 'json':
-      return 'orange'
-    case 'date':
-      return 'teal'
-    default:
-      return 'gray'
-  }
-}
-
-/**
  * Coerce a raw input value to the appropriate type for a column.
  * Throws on invalid JSON.
  */
@@ -52,11 +27,9 @@ export function cleanCellValue(
   column: ColumnDefinition,
   timeZone?: string
 ): unknown {
-  if (column.type === 'number') {
-    if (value === '') return null
-    const num = Number(value)
-    return Number.isNaN(num) ? null : num
-  }
+  // These three read the browser's own context (the viewer's timezone, a JSON
+  // draft that must throw so the editor can show a parse error, a checkbox's
+  // truthiness) so they cannot come from the shared coercion.
   if (column.type === 'json') {
     if (typeof value === 'string') {
       if (value === '') return null
@@ -64,56 +37,17 @@ export function cleanCellValue(
     }
     return value
   }
-  if (column.type === 'boolean') {
-    return Boolean(value)
-  }
+  if (column.type === 'boolean') return Boolean(value)
   if (column.type === 'date') {
     if (value === '' || value === null || value === undefined) return null
     return displayToStorage(String(value), timeZone)
   }
-  if (column.type === 'select') {
-    return cleanSelectValue(value, column)
-  }
-  return value || null
-}
+  if (value === '' || value === null || value === undefined) return null
 
-/**
- * Client-side mirror of the server's `select` coercion: a cell stores option
- * ids, but pasted or imported text carries names. Resolving here — not only on
- * the server — is what keeps the optimistic cache holding ids, so the pasted
- * cell renders its pill immediately instead of blanking until the refetch.
- */
-function cleanSelectValue(value: unknown, column: ColumnDefinition): unknown {
-  const options = column.options ?? []
-  const resolve = (raw: unknown): string | null => {
-    if (typeof raw !== 'string') return null
-    const match =
-      options.find((o) => o.id === raw) ??
-      options.find((o) => o.name === raw) ??
-      options.find((o) => o.name.toLowerCase() === raw.toLowerCase())
-    return match ? match.id : null
-  }
-
-  if (column.multiple) {
-    // Comma-delimited is the multi cell's own clipboard/CSV format, so a paste
-    // of one round-trips. Option names containing commas are a known ambiguity.
-    const raw = Array.isArray(value)
-      ? value
-      : typeof value === 'string'
-        ? value
-            .split(',')
-            .map((part) => part.trim())
-            .filter((part) => part !== '')
-        : []
-    const ids: string[] = []
-    for (const entry of raw) {
-      const id = resolve(entry)
-      if (id !== null && !ids.includes(id)) ids.push(id)
-    }
-    return ids
-  }
-
-  return resolve(Array.isArray(value) ? value[0] : value)
+  // Everything else runs the SAME coercion the server will run, so the
+  // optimistic cache holds exactly the value that gets persisted.
+  const coerced = columnTypeOf(column).coerce(value as JsonValue, column)
+  return coerced.ok ? coerced.value : null
 }
 
 /**
@@ -125,14 +59,15 @@ function cleanSelectValue(value: unknown, column: ColumnDefinition): unknown {
  */
 export function formatValueForInput(value: unknown, type: string): string {
   if (value === null || value === undefined) return ''
-  if (type === 'json') {
-    return typeof value === 'string' ? value : JSON.stringify(value)
+  const definition = columnTypeById(type)
+  // Shape-drift guard, kept ahead of the registry: a column whose declared type
+  // lags its actual data (a workflow column mid-remap, where the schema cache
+  // hasn't refetched but row data already holds the new mapping's value) would
+  // otherwise render `[object Object]` through a scalar type's formatter.
+  if (typeof value === 'object' && !definition.storesOpaqueIds && type !== 'json') {
+    return JSON.stringify(value)
   }
-  if (type === 'date' && value) {
-    return storedDateToEditable(String(value))
-  }
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
+  return definition.formatForInput(value, { name: '', type: type as ColumnType })
 }
 
 /** A canonical date-cell value split into its wall-clock editing parts. */

@@ -1,6 +1,18 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+
+/**
+ * Shared cap for the disclosure token: the preview's id list and the accept
+ * body's echo of it must agree, or a large owned-workspace set would produce a
+ * preview the accept endpoint rejects as over-long.
+ */
+export const DISCLOSED_WORKSPACE_ID_LIMIT = 500
+
+/** One invitation authorizes and stamps each workspace, so the fan-out is bounded. */
+export const MAX_INVITE_WORKSPACES = 50
+export const MAX_INVITE_EMAILS = 100
 
 export const invitationParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
@@ -37,27 +49,46 @@ export const pendingWorkspaceInvitationSchema = z
   })
   .passthrough()
 
+/**
+ * What the invitee becomes in the workspaces' organization. `member` and
+ * `admin` are organization roles that consume a seat; `external` grants the
+ * workspaces only and is restricted to invitees already on a paid plan.
+ */
+export const invitationMembershipSchema = z.enum(['member', 'admin', 'external'])
+
 export const batchWorkspaceInvitationBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  invitations: z
-    .array(
-      z.object({
-        email: z.string().trim().min(1, 'Invitation email is required'),
-        permission: workspacePermissionSchema.optional(),
-      })
-    )
-    .min(1, 'At least one invitation is required'),
+  workspaceIds: z
+    .array(workspaceIdSchema)
+    .min(1, 'Select at least one workspace')
+    .max(MAX_INVITE_WORKSPACES, `Select at most ${MAX_INVITE_WORKSPACES} workspaces`),
+  emails: z
+    .array(z.string().trim().min(1, 'Invitation email is required'))
+    .min(1, 'At least one invitation is required')
+    .max(MAX_INVITE_EMAILS, `Invite at most ${MAX_INVITE_EMAILS} people at a time`),
+  /** Workspace access level applied to every selected workspace. */
+  permission: workspacePermissionSchema.optional(),
+  membership: invitationMembershipSchema.optional(),
 })
 
-export const batchInvitationResultSchema = z
-  .object({
-    success: z.boolean(),
-    successful: z.array(z.string()),
-    added: z.array(z.string()).optional(),
-    failed: z.array(z.object({ email: z.string(), error: z.string() })),
-    invitations: z.array(z.record(z.string(), z.unknown())),
-  })
-  .passthrough()
+export const batchInvitationResultSchema = z.object({
+  success: z.boolean(),
+  /** Emails that received a pending invitation. */
+  successful: z.array(z.string()),
+  /** Emails that were existing organization members and got access immediately. */
+  added: z.array(z.string()),
+  failed: z.array(z.object({ email: z.string(), error: z.string() })),
+  invitations: z.array(
+    z.object({
+      id: z.string(),
+      email: z.string(),
+      workspaceIds: z.array(z.string()),
+      permission: workspacePermissionSchema,
+      membershipIntent: z.enum(['internal', 'external']),
+      instantAdd: z.boolean().optional(),
+      outcome: z.enum(['added', 'unchanged']).optional(),
+    })
+  ),
+})
 
 export const removeWorkspaceMemberBodySchema = z.object({
   workspaceId: z.string().uuid(),
@@ -67,8 +98,39 @@ export const invitationActionParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
 })
 
+/**
+ * What accepting an invitation will actually do. Four outcomes rather than a
+ * boolean, because each needs different disclosure: `will-join` takes a seat,
+ * `already-member` changes nothing but workspace access, `external` never takes
+ * a seat, and `blocked` means acceptance fails so nothing is promised.
+ */
+export const invitationJoinOutcomeSchema = z.enum([
+  'will-join',
+  'already-member',
+  'external',
+  'blocked',
+])
+
+export type InvitationJoinOutcome = z.output<typeof invitationJoinOutcomeSchema>
+
 export const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
+  /**
+   * The workspace ids the accept screen disclosed as moving (from the join
+   * preview). When present, acceptance fails with `disclosure-outdated` if
+   * the set it would actually sweep differs — consent is only valid for the
+   * set the user saw.
+   */
+  disclosedWorkspaceIds: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT).optional(),
+  /**
+   * The outcome the accept screen disclosed. The workspace-id list alone cannot
+   * express it — a no-join preview and a will-join preview for someone who owns
+   * nothing both disclose `[]` — so consent to becoming a seat-consuming member
+   * is carried explicitly. Sending `blocked` tells acceptance the screen already
+   * said this would fail, so it should surface the real cause rather than a
+   * consent mismatch.
+   */
+  disclosedOutcome: invitationJoinOutcomeSchema.optional(),
 })
 
 export const invitationDetailsSchema = z.object({
@@ -91,6 +153,21 @@ export const invitationDetailsSchema = z.object({
       permission: workspacePermissionSchema,
     })
   ),
+})
+
+export const invitationJoinPreviewSchema = z.object({
+  outcome: invitationJoinOutcomeSchema,
+  /** Name of the organization acceptance will actually join. */
+  organizationName: z.string().nullable(),
+  workspacesToMove: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT),
+  /**
+   * Stable ids behind `workspacesToMove`, echoed back on accept as the
+   * disclosure token: acceptance rejects when the set it would sweep no
+   * longer matches what this preview disclosed. Capped at the same limit as
+   * the accept body's echo so a large owned set can never render an invite
+   * permanently un-acceptable.
+   */
+  workspaceIdsToMove: z.array(z.string()).max(DISCLOSED_WORKSPACE_ID_LIMIT),
 })
 
 export const acceptInvitationResponseSchema = z.object({
@@ -151,6 +228,40 @@ export const getInvitationContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       invitation: invitationDetailsSchema,
+      /** Invitee-only preview of what accepting will do; null for other viewers. */
+      joinPreview: invitationJoinPreviewSchema.nullable(),
+      /**
+       * True when the preview could not be computed for a pending
+       * invitee-viewed invitation. Accepting may still move owned workspaces,
+       * so the client must fall back to a generic migration notice rather
+       * than treating the missing preview as "nothing moves".
+       */
+      joinPreviewUnavailable: z.boolean().optional(),
+    }),
+  },
+})
+
+/**
+ * A pending invitation plus what accepting it will actually do. The preview
+ * rides along so the in-app list can disclose the workspace migration and echo
+ * `disclosedWorkspaceIds` on accept, exactly like the emailed `/invite` page —
+ * an accept surface without it would sweep workspaces without consent. `null`
+ * when the preview could not be computed; the client then shows the generic
+ * notice rather than treating it as "nothing moves".
+ */
+export const myInvitationSchema = invitationDetailsSchema.extend({
+  joinPreview: invitationJoinPreviewSchema.nullable(),
+})
+
+export type MyInvitation = z.output<typeof myInvitationSchema>
+
+export const listMyInvitationsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/invitations',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      invitations: z.array(myInvitationSchema),
     }),
   },
 })
@@ -177,13 +288,29 @@ export const rejectInvitationContract = defineRouteContract({
   },
 })
 
+/**
+ * `workspaceId` scopes the revocation to one granted workspace, which is all a
+ * workspace-level member list can authorize. Omitting it revokes the entire
+ * invitation and requires authority over all of it — see the route.
+ */
+export const cancelInvitationQuerySchema = z.object({
+  workspaceId: workspaceIdSchema.optional(),
+})
+
 export const cancelInvitationContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/invitations/[id]',
   params: invitationParamsSchema,
+  query: cancelInvitationQuerySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema,
+    schema: successResponseSchema.extend({
+      /**
+       * False when only one workspace's grant was removed and the invitation is
+       * still pending for its remaining workspaces.
+       */
+      invitationCancelled: z.boolean(),
+    }),
   },
 })
 
@@ -211,3 +338,4 @@ export const removeWorkspaceMemberContract = defineRouteContract({
 export type PendingInvitationRow = z.infer<typeof pendingWorkspaceInvitationSchema>
 export type BatchInvitationResult = z.infer<typeof batchInvitationResultSchema>
 export type InvitationDetails = z.infer<typeof invitationDetailsSchema>
+export type InvitationJoinPreview = z.infer<typeof invitationJoinPreviewSchema>

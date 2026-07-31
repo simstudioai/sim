@@ -1292,7 +1292,16 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
       type: 'object',
     },
     MothershipStreamV1ToolStatus: {
-      enum: ['generating', 'executing', 'success', 'error', 'cancelled', 'skipped', 'rejected'],
+      enum: [
+        'generating',
+        'awaiting_approval',
+        'executing',
+        'success',
+        'error',
+        'cancelled',
+        'skipped',
+        'rejected',
+      ],
       type: 'string',
     },
     MothershipStreamV1ToolUI: {

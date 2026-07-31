@@ -30,6 +30,7 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   interrupted: ToolCallStatus.interrupted,
   pending: ToolCallStatus.executing,
   executing: ToolCallStatus.executing,
+  awaiting_approval: ToolCallStatus.awaiting_approval,
 }
 
 function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined {

@@ -93,6 +93,13 @@ export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
+  /**
+   * HTTP status owned by SIM itself (e.g. hosted-key rate limiting or
+   * exhaustion), carried so it survives the throw → `ToolResponse` flattening
+   * and can reach the API caller. Deliberately NOT the upstream provider's
+   * status — a provider's 404 must never become the workflow API's status.
+   */
+  statusCode?: number
   resources?: MothershipResource[] // Resources to auto-open/show in UI
   largeValueKeys?: string[]
   fileKeys?: string[]
@@ -170,6 +177,13 @@ export interface ToolConfig<P = any, R = any> {
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
     retry?: ToolRetryConfig
+    /**
+     * Drop the `Authorization` header when following a redirect. Set this on any
+     * tool whose endpoint redirects to a different origin carrying its own
+     * signed URL — GitHub's Actions log and artifact downloads are the canonical
+     * case — so the API credential is never sent to the storage host.
+     */
+    stripAuthOnRedirect?: boolean
   }
 
   // Post-processing (optional) - allows additional processing after the initial request

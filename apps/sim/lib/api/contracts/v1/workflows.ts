@@ -9,7 +9,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema, workflowStateSchema } from '@/lib/api/contracts/workflows'
 
 export const v1ListWorkflowsQuerySchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: workspaceIdSchema,
   folderId: z.string().optional(),
   deployedOnly: booleanQueryFlagSchema.optional().default(false),
   limit: z.coerce.number().min(1).max(100).optional().default(50),

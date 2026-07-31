@@ -10,8 +10,7 @@ import {
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
-import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isOrganizationsEnabled, isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getBrowserOrigin } from '@/lib/core/utils/urls'
 import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 
@@ -34,7 +33,7 @@ export const client = createAuthClient({
         ]
       : []),
     ...(isOrganizationsEnabled ? [organizationClient()] : []),
-    ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient()] : []),
+    ...(isSsoEnabled ? [ssoClient()] : []),
   ],
 })
 

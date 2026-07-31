@@ -26,7 +26,7 @@ import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/typ
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest } from '@/app/api/v1/middleware'
+import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -44,7 +44,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1ListKnowledgeDocumentsContract, request, context)
+    const parsed = await parseRequest(v1ListKnowledgeDocumentsContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { workspaceId, limit, offset, search, enabledFilter, sortBy, sortOrder } =
@@ -99,7 +101,9 @@ export const POST = withRouteHandler(
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const parsed = await parseRequest(v1UploadKnowledgeDocumentContract, request, context)
+      const parsed = await parseRequest(v1UploadKnowledgeDocumentContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
       const { id: knowledgeBaseId } = parsed.data.params
 

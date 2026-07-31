@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  updateOrganizationDataRetentionBodySchema,
+  updateOrganizationSessionPolicyBodySchema,
+  updateOrganizationWhitelabelBodySchema,
+} from '@/lib/api/contracts/organization'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   adminV1BooleanQuerySchema,
@@ -152,6 +157,32 @@ const adminV1RemoveOrganizationMemberResultSchema = z.object({
 const adminV1OrganizationBillingUpdateResultSchema = z.object({
   success: z.literal(true),
   orgUsageLimit: z.string().nullable(),
+})
+
+/**
+ * Deleting an organization cascades to its members, invitations, permission
+ * groups, and settings, and detaches its workspaces (`organization_id` is
+ * `ON DELETE SET NULL`). Requiring the caller to echo the slug makes that
+ * irreversible scope an explicit act rather than a mistyped id.
+ */
+export const adminV1DeleteOrganizationQuerySchema = z.object({
+  confirmSlug: z
+    .string({ error: 'confirmSlug is required and must match the organization slug' })
+    .min(1, { error: 'confirmSlug is required and must match the organization slug' }),
+})
+
+const adminV1DeleteOrganizationResultSchema = z.object({
+  success: z.literal(true),
+  organizationId: z.string(),
+  slug: z.string(),
+  membersRemoved: z.number(),
+  workspacesDetached: z.number(),
+})
+
+/** Shared result for the org-settings PATCH endpoints. */
+const adminV1OrganizationSettingsResultSchema = z.object({
+  success: z.literal(true),
+  organizationId: z.string(),
 })
 
 const adminV1TransferOwnershipResultSchema = z.object({
@@ -337,6 +368,62 @@ export type AdminV1UpdateOrganizationBillingResponse = ContractJsonResponse<
 export type AdminV1GetOrganizationSeatsResponse = ContractJsonResponse<
   typeof adminV1GetOrganizationSeatsContract
 >
+export const adminV1DeleteOrganizationContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v1/admin/organizations/[id]',
+  params: adminV1IdParamsSchema,
+  query: adminV1DeleteOrganizationQuerySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminV1DeleteOrganizationResultSchema),
+  },
+})
+
+export const adminV1UpdateOrganizationWhitelabelContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v1/admin/organizations/[id]/whitelabel',
+  params: adminV1IdParamsSchema,
+  body: updateOrganizationWhitelabelBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminV1OrganizationSettingsResultSchema),
+  },
+})
+
+export const adminV1UpdateOrganizationDataRetentionContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v1/admin/organizations/[id]/data-retention',
+  params: adminV1IdParamsSchema,
+  body: updateOrganizationDataRetentionBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminV1OrganizationSettingsResultSchema),
+  },
+})
+
+export const adminV1UpdateOrganizationSessionPolicyContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v1/admin/organizations/[id]/session-policy',
+  params: adminV1IdParamsSchema,
+  body: updateOrganizationSessionPolicyBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminV1OrganizationSettingsResultSchema),
+  },
+})
+
 export type AdminV1TransferOwnershipResponse = ContractJsonResponse<
   typeof adminV1TransferOwnershipContract
+>
+export type AdminV1DeleteOrganizationResponse = ContractJsonResponse<
+  typeof adminV1DeleteOrganizationContract
+>
+export type AdminV1UpdateOrganizationWhitelabelResponse = ContractJsonResponse<
+  typeof adminV1UpdateOrganizationWhitelabelContract
+>
+export type AdminV1UpdateOrganizationDataRetentionResponse = ContractJsonResponse<
+  typeof adminV1UpdateOrganizationDataRetentionContract
+>
+export type AdminV1UpdateOrganizationSessionPolicyResponse = ContractJsonResponse<
+  typeof adminV1UpdateOrganizationSessionPolicyContract
 >

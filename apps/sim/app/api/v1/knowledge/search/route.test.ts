@@ -78,6 +78,8 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 vi.mock('@/app/api/v1/middleware', () => ({
   authenticateRequest: mockAuthenticateRequest,
   validateWorkspaceAccess: mockValidateWorkspaceAccess,
+  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
+    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
 }))
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({

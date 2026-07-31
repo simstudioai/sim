@@ -18,7 +18,7 @@ import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isAccessControlEnabled } from '@/lib/core/config/env-flags'
 import {
   groupIdParam,
   groupIdUrlKeys,
@@ -73,9 +73,14 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
   const { data: organizationWorkspaces = [], isPending: workspacesLoading } =
     useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
-  const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
+  /**
+   * Must be the resolved flag, not the raw `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`
+   * read. The settings nav decides visibility from the same resolver, so
+   * reading the bare var here let a deployment with only `ENTERPRISE_ENABLED`
+   * set show the section and then refuse to manage it.
+   */
   const isEntitled =
-    accessControlEnabledLocally ||
+    isAccessControlEnabled ||
     !!userPermissionConfig?.entitled ||
     isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId

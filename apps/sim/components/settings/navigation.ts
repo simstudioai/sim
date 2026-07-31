@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
+  Cursor,
   Database,
   HexSimple,
   Key,
@@ -9,6 +10,7 @@ import {
   Lock,
   LogIn,
   Palette,
+  PanelLeft,
   Send,
   Server,
   Settings,
@@ -22,9 +24,20 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
-import { McpIcon } from '@/components/icons'
+import { CodeIcon, McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  isAccessControlEnabled,
+  isAuditLogsEnabled,
+  isDataDrainsEnabled,
+  isDataRetentionEnabled,
+  isHosted,
+  isInboxEnabled,
+  isSandboxesEnabled,
+  isSessionPoliciesEnabled,
+  isSsoEnabled,
+  isWhitelabelingEnabled,
+} from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
 
@@ -51,6 +64,7 @@ export type WorkspaceSettingsSection =
   | 'teammates'
   | 'secrets'
   | 'byok'
+  | 'sandboxes'
   | 'custom-tools'
   | 'mcp'
   | 'workflow-mcp-servers'
@@ -79,6 +93,9 @@ export interface SettingsNavigationItem<Section extends string = string> {
 
 export type UnifiedSettingsSection =
   | 'general'
+  | 'desktop'
+  | 'browser'
+  | 'terminal'
   | 'secrets'
   | 'access-control'
   | 'custom-blocks'
@@ -95,6 +112,7 @@ export type UnifiedSettingsSection =
   | 'custom-tools'
   | 'workflow-mcp-servers'
   | 'inbox'
+  | 'sandboxes'
   | 'admin'
   | 'sessions'
   | 'data-retention'
@@ -107,8 +125,16 @@ export type UnifiedNavigationSection =
   | 'subscription'
   | 'tools'
   | 'system'
+  | 'desktop'
   | 'enterprise'
   | 'superuser'
+
+/**
+ * A bridge surface the desktop shell must expose for a section to be worth
+ * showing. Gated on the surface, never on the user's device toggle — the
+ * Browser and Terminal pages are where that toggle is flipped back on.
+ */
+export type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
 export interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
@@ -124,6 +150,7 @@ export interface UnifiedSettingsNavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  requiresDesktopSurface?: DesktopSettingsSurface
   allowNonOrgAdmin?: boolean
   showWhenLocked?: boolean
   hideForEnterprise?: boolean
@@ -166,17 +193,48 @@ export interface SettingsSectionRegistryEntry {
   planes?: SettingsPlaneProjections
 }
 
+/**
+ * Which enterprise sections a self-hosted deployment may show.
+ *
+ * These read the same resolved flags the server gates use, so a section is
+ * visible exactly when its API would accept the request. Reading the raw
+ * `NEXT_PUBLIC_*` vars here instead is what previously let nav and server
+ * disagree — a feature could be reachable but hidden, or listed but rejected.
+ *
+ * `customBlocks` stays on its own var because its server gate runs through the
+ * AppConfig-backed feature-flag service rather than the entitlement resolver.
+ */
 const SETTINGS_SELF_HOSTED_OVERRIDES = {
-  accessControl: isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED')),
-  auditLogs: isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED')),
+  accessControl: isAccessControlEnabled,
+  auditLogs: isAuditLogsEnabled,
   customBlocks: isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED')),
-  dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
-  dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
-  inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
-  sessionPolicies: isTruthy(getEnv('NEXT_PUBLIC_SESSION_POLICIES_ENABLED')),
-  sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
-  whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
+  dataDrains: isDataDrainsEnabled,
+  dataRetention: isDataRetentionEnabled,
+  inbox: isInboxEnabled,
+  sandboxes: isSandboxesEnabled,
+  sessionPolicies: isSessionPoliciesEnabled,
+  sso: isSsoEnabled,
+  whitelabeling: isWhitelabelingEnabled,
 } as const
+
+/**
+ * Whether this deployment can run remote sandboxes at all.
+ *
+ * Entitlement decides whether a workspace may *author* sandboxes; this decides
+ * whether anything could ever *run* one. Without a provider the tab is a dead
+ * end — you can define a dependency set that nothing will build and no Function
+ * block can select, because the picker is gated on this same pair of vars.
+ *
+ * It reads those browser twins rather than the server's `isRemoteSandboxEnabled`
+ * precisely so the two agree: that flag reads non-public vars, and this module
+ * renders on both sides. `NEXT_PUBLIC_E2B_ENABLED` is the pre-Daytona fallback,
+ * matching the picker's `showWhenEnvSet` order.
+ */
+function isSandboxExecutionAvailable(): boolean {
+  return (
+    isTruthy(getEnv('NEXT_PUBLIC_SANDBOX_ENABLED')) || isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
+  )
+}
 
 export const SETTINGS_NAVIGATION_BILLING_ENABLED = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -333,6 +391,36 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'Desktop',
+    icon: PanelLeft,
+    unified: {
+      id: 'desktop',
+      description: 'Manage notifications, startup, local folders, and updates.',
+      group: 'desktop',
+      requiresDesktopSurface: 'settings',
+    },
+  },
+  {
+    label: 'Browser',
+    icon: Cursor,
+    unified: {
+      id: 'browser',
+      description: 'Control the browser Chat drives and the data it keeps.',
+      group: 'desktop',
+      requiresDesktopSurface: 'browser',
+    },
+  },
+  {
+    label: 'Terminal',
+    icon: TerminalWindow,
+    unified: {
+      id: 'terminal',
+      description: 'Control the shells Chat runs commands in.',
+      group: 'desktop',
+      requiresDesktopSurface: 'terminal',
+    },
+  },
+  {
     label: 'Access control',
     icon: ShieldCheck,
     docsLink: 'https://docs.sim.ai/platform/enterprise/access-control',
@@ -374,7 +462,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'enterprise',
     },
     planes: {
-      workspace: { id: 'forks', group: 'enterprise', order: 9 },
+      workspace: { id: 'forks', group: 'enterprise', order: 10 },
     },
   },
   {
@@ -461,7 +549,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'tools',
     },
     planes: {
-      workspace: { id: 'custom-tools', group: 'tools', order: 3 },
+      workspace: { id: 'custom-tools', group: 'tools', order: 4 },
     },
   },
   {
@@ -473,7 +561,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'tools',
     },
     planes: {
-      workspace: { id: 'mcp', group: 'tools', order: 4 },
+      workspace: { id: 'mcp', group: 'tools', order: 5 },
     },
   },
   {
@@ -495,7 +583,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
         id: 'api-keys',
         description: 'Manage workspace API keys and personal-key policy.',
         group: 'system',
-        order: 6,
+        order: 7,
       },
     },
   },
@@ -508,7 +596,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'system',
     },
     planes: {
-      workspace: { id: 'workflow-mcp-servers', group: 'tools', order: 5 },
+      workspace: { id: 'workflow-mcp-servers', group: 'tools', order: 6 },
     },
   },
   {
@@ -522,6 +610,22 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
     planes: {
       workspace: { id: 'byok', group: 'workspace', order: 2 },
+    },
+  },
+  {
+    label: 'Sandboxes',
+    icon: CodeIcon,
+    docsLink: 'https://docs.sim.ai/workflows/blocks/function',
+    unified: {
+      id: 'sandboxes',
+      description: 'Install Python or npm packages for Function blocks to import.',
+      group: 'system',
+      requiresMax: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sandboxes,
+      showWhenLocked: true,
+    },
+    planes: {
+      workspace: { id: 'sandboxes', group: 'workspace', order: 3 },
     },
   },
   {
@@ -549,7 +653,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       showWhenLocked: true,
     },
     planes: {
-      workspace: { id: 'inbox', group: 'system', order: 7 },
+      workspace: { id: 'inbox', group: 'system', order: 8 },
     },
   },
   {
@@ -561,7 +665,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'system',
     },
     planes: {
-      workspace: { id: 'recently-deleted', group: 'system', order: 8 },
+      workspace: { id: 'recently-deleted', group: 'system', order: 9 },
     },
   },
   {
@@ -659,7 +763,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.customBlocks,
     },
     planes: {
-      workspace: { id: 'custom-blocks', group: 'enterprise', order: 10 },
+      workspace: { id: 'custom-blocks', group: 'enterprise', order: 11 },
     },
   },
   {
@@ -693,6 +797,10 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
 export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[] {
   return SETTINGS_SECTION_REGISTRY.flatMap(({ label, icon, docsLink, unified }) => {
     if (!unified) return []
+    // Dropped here rather than in each consumer's filter: the sidebar's
+    // `selfHostedOverride` short-circuit would otherwise reveal the tab on a
+    // deployment that has the entitlement but no provider to run what it builds.
+    if (unified.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
     const { group, ...item } = unified
     return [
       {
@@ -827,6 +935,20 @@ export interface WorkspaceSettingsEntitlements {
   customBlocks: boolean
   forks: boolean
   inbox: boolean
+  sandboxes: boolean
+}
+
+/**
+ * Sections that stay visible without their entitlement, rendering a locked
+ * upgrade prompt instead of disappearing from the nav. Keyed by the entitlement
+ * that unlocks them, so adding a gated section is one entry rather than another
+ * hardcoded id check in {@link resolveWorkspaceNavigation}.
+ */
+const LOCKABLE_WORKSPACE_SECTIONS: Partial<
+  Record<WorkspaceSettingsSection, keyof WorkspaceSettingsEntitlements>
+> = {
+  inbox: 'inbox',
+  sandboxes: 'sandboxes',
 }
 
 interface ResolveWorkspaceNavigationOptions {
@@ -845,6 +967,7 @@ const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, Permission
   teammates: 'admin',
   secrets: 'write',
   byok: 'admin',
+  sandboxes: 'admin',
   'custom-tools': 'write',
   mcp: 'write',
   'workflow-mcp-servers': 'write',
@@ -883,8 +1006,11 @@ export function resolveWorkspaceNavigation({
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
     if (item.id === 'byok' && !entitlements.byok) return []
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
+    // Removed, not locked: a missing provider is not something an upgrade fixes.
+    if (item.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
 
-    const locked = item.id === 'inbox' && !entitlements.inbox
+    const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]
+    const locked = lockedBy !== undefined && !entitlements[lockedBy]
     const canMutate =
       !locked &&
       canMutateWorkspaceSettingsSection(item.id, {

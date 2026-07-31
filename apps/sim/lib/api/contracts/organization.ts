@@ -9,14 +9,6 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 
-const booleanQueryParamSchema = z
-  .preprocess((value) => {
-    if (value === 'true') return true
-    if (value === 'false') return false
-    return value
-  }, z.boolean())
-  .optional()
-
 const numericResponseSchema = z.preprocess((value) => {
   if (typeof value !== 'string') return value
   const parsed = Number.parseFloat(value)
@@ -41,11 +33,6 @@ export const organizationMemberQuerySchema = z
   })
   .passthrough()
 
-export const workspaceGrantSchema = z.object({
-  workspaceId: z.string().min(1),
-  permission: workspacePermissionSchema,
-})
-
 export const createOrganizationBodySchema = z
   .object({
     name: z.string().optional(),
@@ -67,32 +54,9 @@ export const updateOrganizationBodySchema = z.object({
   logo: z.string().nullable().optional(),
 })
 
-export const createOrganizationInvitationBodySchema = z
-  .object({
-    email: z.string().optional(),
-    emails: z.array(z.string()).optional(),
-    role: z.enum(['member', 'admin'], { error: 'Invalid role' }).optional(),
-    workspaceInvitations: z.array(workspaceGrantSchema).optional(),
-  })
-  .passthrough()
-
-export const organizationInvitationsQuerySchema = z
-  .object({
-    validate: booleanQueryParamSchema,
-    batch: booleanQueryParamSchema,
-  })
-  .passthrough()
-
 export const updateOrganizationMemberRoleBodySchema = z.object({
   role: organizationRoleSchema,
 })
-
-export const inviteOrganizationMemberBodySchema = z
-  .object({
-    email: z.string({ error: 'Email is required' }).min(1, 'Email is required'),
-    role: z.enum(['admin', 'member'], { error: 'Invalid role' }).optional(),
-  })
-  .passthrough()
 
 const organizationDataRetentionHoursSchema = z
   .number()
@@ -361,15 +325,6 @@ const successResponseSchema = z
   })
   .passthrough()
 
-const organizationInvitationValidationResponseSchema = z
-  .object({
-    success: z.literal(true),
-    data: z.unknown(),
-    validatedBy: z.string(),
-    validatedAt: z.string(),
-  })
-  .passthrough()
-
 export const getOrganizationRosterContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/roster',
@@ -383,6 +338,38 @@ export const getOrganizationRosterContract = defineRouteContract({
   },
 })
 
+export const removalImpactCredentialSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  type: z.string(),
+  workspaceId: z.string(),
+})
+
+export const memberRemovalImpactQuerySchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+})
+
+/**
+ * Identity-bound credentials (OAuth accounts, personal env keys) the user owns
+ * in organization workspaces. These stop working when the user's workspace
+ * access is revoked and must be reconnected by a remaining member — removal is
+ * never blocked, only disclosed.
+ */
+export const getMemberRemovalImpactContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/removal-impact',
+  params: organizationParamsSchema,
+  query: memberRemovalImpactQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      credentials: z.array(removalImpactCredentialSchema),
+    }),
+  },
+})
+
+export type RemovalImpactCredential = z.infer<typeof removalImpactCredentialSchema>
+
 export const listOrganizationMembersContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/members',
@@ -391,65 +378,6 @@ export const listOrganizationMembersContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: listOrganizationMembersResponseSchema,
-  },
-})
-
-export const inviteOrganizationMemberContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/organizations/[id]/members',
-  params: organizationParamsSchema,
-  body: inviteOrganizationMemberBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema.extend({
-      data: z
-        .object({
-          invitationId: z.string(),
-          email: z.string(),
-          role: organizationRoleSchema,
-        })
-        .passthrough()
-        .optional(),
-    }),
-  },
-})
-
-export const inviteOrganizationMembersContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/organizations/[id]/invitations',
-  params: organizationParamsSchema,
-  query: organizationInvitationsQuerySchema,
-  body: createOrganizationInvitationBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.union([
-      organizationInvitationValidationResponseSchema,
-      successResponseSchema.extend({
-        error: z.string().optional(),
-        data: z
-          .object({
-            invitationsSent: z.number(),
-            invitedEmails: z.array(z.string()),
-            directlyAdded: z.array(z.string()).optional(),
-            directlyAddedCount: z.number().optional(),
-            failedInvitations: z.array(z.object({ email: z.string(), error: z.string() })),
-            existingMembers: z.array(z.string()),
-            pendingInvitations: z.array(z.string()),
-            invalidEmails: z.array(z.string()),
-            workspaceGrantsPerInvite: z.number(),
-            seatInfo: z
-              .object({
-                seatsUsed: z.number(),
-                maxSeats: z.number(),
-                availableSeats: z.number(),
-              })
-              .passthrough()
-              .optional(),
-          })
-          .passthrough()
-          .optional(),
-      }),
-    ]),
   },
 })
 

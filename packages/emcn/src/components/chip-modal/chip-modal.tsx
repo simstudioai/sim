@@ -549,9 +549,28 @@ export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
   placeholder?: string
 }
 
+/**
+ * ARIA the field derives from its own state and renders elsewhere in the row —
+ * the `hint`/`error` paragraph ids, plus `required`/`invalid` flags.
+ */
+export interface ChipModalFieldAria {
+  'aria-required'?: boolean
+  'aria-invalid'?: boolean
+  'aria-describedby'?: string
+}
+
 interface ChipModalCustomFieldProps extends ChipModalFieldBaseProps {
   type: 'custom'
-  children: React.ReactNode
+  /**
+   * Arbitrary JSX, or a function receiving the field's {@link ChipModalFieldAria}.
+   *
+   * The owned control types wire this ARIA themselves, but a custom field can
+   * hold anything — a bare input, or a wrapper several levels above one — so
+   * the field cannot know which element should carry it. Use the function form
+   * whenever the child renders a focusable control, or its `hint`/`error` text
+   * is rendered but never announced.
+   */
+  children: React.ReactNode | ((aria: ChipModalFieldAria) => React.ReactNode)
 }
 
 export type ChipModalFieldProps =
@@ -718,7 +737,7 @@ function renderChipModalControl(
     case 'emails':
       return <ChipModalEmailsControl {...props} id={id} errorId={errorId} />
     case 'custom':
-      return props.children
+      return typeof props.children === 'function' ? props.children(aria) : props.children
   }
 }
 

@@ -37,7 +37,7 @@ function queueDuplicateFixtures(options: {
 }) {
   queueTableRows(schemaMock.workflow, [options.sourceWorkflow])
   queueTableRows(schemaMock.workflow, options.workflowMin ?? [])
-  queueTableRows(schemaMock.workflowFolder, options.folderMin ?? [])
+  queueTableRows(schemaMock.folder, options.folderMin ?? [])
   queueTableRows(schemaMock.workflowBlocks, options.blocks ?? [])
   queueTableRows(schemaMock.workflowEdges, options.edges ?? [])
   queueTableRows(schemaMock.workflowSubflows, options.subflows ?? [])

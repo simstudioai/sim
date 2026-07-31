@@ -13,18 +13,22 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
+import { Cursor, TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { getDesktopBridge } from '@/lib/desktop'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
 } from '@/lib/integrations/oauth-service'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
@@ -88,6 +92,9 @@ export const CREDENTIAL_TAG_TYPES = [
   'credential_id',
   'link',
   'secret_input',
+  'folder_access',
+  'browser_takeover',
+  'terminal_handoff',
   'service_account',
 ] as const
 
@@ -102,8 +109,9 @@ export interface CredentialTagData {
   type: CredentialTagType
   provider?: string
   /**
-   * Env-var key name to save the pasted secret under (secret_input only),
-   * e.g. "OPENAI_API_KEY".
+   * Env-var key name to save the pasted secret under (secret_input), e.g.
+   * "OPENAI_API_KEY"; the folder hint for folder_access; the takeover reason
+   * for browser_takeover; what the user needs to do for terminal_handoff.
    */
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
@@ -196,7 +204,12 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'question',
 ] as const
 
-const SPECIAL_TAG_NAMES = [
+/**
+ * Every tag the parser resolves. Exported so tests can assert their fixtures
+ * cover all of them rather than hand-picking a subset that silently drifts —
+ * the same treatment the sibling `*_TYPES` unions above already get.
+ */
+export const SPECIAL_TAG_NAMES = [
   'thinking',
   'options',
   'usage_upgrade',
@@ -250,6 +263,16 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
+  // folder_access, browser_takeover and terminal_handoff are value-less action
+  // chips (optional `name` carries the folder hint / reason).
+  if (
+    value.type === 'folder_access' ||
+    value.type === 'browser_takeover' ||
+    value.type === 'terminal_handoff'
+  ) {
+    return value.name === undefined || typeof value.name === 'string'
+  }
+
   // A service_account tag is a control, not a value: it names the provider
   // whose setup form to open, and the user types the secret into that form —
   // so it never carries a `value`, but it is useless without a provider. An
@@ -359,6 +382,28 @@ export function parseLastQuestionTag(content: string): QuestionTagData | null {
   return parseQuestionTagBody(last.slice('<question>'.length, -'</question>'.length))
 }
 
+/**
+ * Recovers the question text from a `<question>` body that failed validation.
+ * A well-formed tag with an invalid body renders as nothing, which silently
+ * drops the question the assistant was blocking on and leaves the message
+ * looking truncated. The prompts are still answerable in the chat input, so
+ * surfacing them as plain text degrades to a prose question instead of losing
+ * it. A body that is not even parseable JSON has nothing to recover.
+ */
+function recoverQuestionPrompts(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    const prompts = items
+      .filter(isRecord)
+      .map((item) => (typeof item.prompt === 'string' ? item.prompt.trim() : ''))
+      .filter((prompt) => prompt.length > 0)
+    return prompts.length > 0 ? prompts.join('\n\n') : null
+  } catch {
+    return null
+  }
+}
+
 export function parseQuestionTagBody(body: string): QuestionTagData | null {
   try {
     const parsed = JSON.parse(body) as unknown
@@ -392,6 +437,25 @@ export function parseTextTagBody(body: string): string | null {
   return body.trim() ? body : null
 }
 
+/**
+ * Whether `body` is syntactically valid JSON, regardless of its shape.
+ *
+ * Separates "the agent formed a payload that failed its shape guard" from "this
+ * was never JSON" — the line that decides whether a failed body may be dropped
+ * or must be shown (see {@link classifyBody}). Costs a second parse of a body
+ * that already failed one, which is the rare path; the common cases never reach
+ * it, since a valid payload returns earlier and prose is rejected by the cheaper
+ * viability rule before this runs.
+ */
+function isParseableJson(body: string): boolean {
+  try {
+    JSON.parse(body)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function parseTagAttributes(openTag: string): Record<string, string> {
   const attributes: Record<string, string> = {}
   const attributePattern = /([A-Za-z_:][A-Za-z0-9_:-]*)="([^"]*)"/g
@@ -418,6 +482,7 @@ function parseSpecialTagData(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
   body: string
 ):
+  | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
   | { type: 'options'; data: OptionsTagData }
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
@@ -458,42 +523,591 @@ function parseSpecialTagData(
 
   if (tagName === 'question') {
     const data = parseQuestionTagBody(body)
-    return data ? { type: 'question', data } : null
+    if (data) return { type: 'question', data }
+    const recovered = recoverQuestionPrompts(body)
+    return recovered ? { type: 'text', content: recovered } : null
   }
 
   return null
 }
 
 /**
- * Parses inline special tags (`<options>`, `<usage_upgrade>`, `<workspace_resource>`) from streamed
- * text content. Complete tags are extracted into typed segments; incomplete
- * tags (still streaming) are suppressed from display and flagged via
- * `hasPendingTag` so the caller can show a loading indicator.
+ * Any tag-shaped marker, including names that are not special tags at all — the
+ * model inventing `</workflow_resource>` is exactly the case that matters.
+ */
+const TAG_SHAPED_MARKER = /<\/?[a-zA-Z][\w-]*>/
+
+/**
+ * The one tag whose body is prose rather than JSON (see {@link parseTextTagBody}),
+ * so a non-JSON body there says nothing about whether a close is still coming.
+ */
+const PROSE_BODY_TAG_NAME: (typeof SPECIAL_TAG_NAMES)[number] = 'thinking'
+
+/**
+ * Tags whose body must be JSON.
  *
- * Trailing partial opening tags (e.g. `<opt`, `<usage_`) are also stripped
- * during streaming to prevent flashing raw markup.
+ * Derived from {@link SPECIAL_TAG_NAMES} rather than hand-listed: a new tag is
+ * JSON-bodied by default, so forgetting to update this set cannot silently
+ * downgrade it to the weaker prose heuristics. Opting a tag out is an explicit
+ * edit to {@link PROSE_BODY_TAG_NAME}.
+ */
+const JSON_BODY_TAG_NAMES: ReadonlySet<(typeof SPECIAL_TAG_NAMES)[number]> = new Set(
+  SPECIAL_TAG_NAMES.filter((name) => name !== PROSE_BODY_TAG_NAME)
+)
+
+/**
+ * How much of a body to inspect per parse, on both the unclosed and matched-pair
+ * paths.
+ *
+ * The rules in {@link unclosedTagCannotResolve} and {@link literalTextReason}
+ * decide on their FIRST piece of evidence — the first foreign marker, or the
+ * first character that breaks JSON viability — so a bounded window reaches the
+ * same verdict as the full remainder for any payload a tag actually carries.
+ * Unbounded, the check is O(body length) and runs once per opener inside a parse
+ * that re-runs for every streamed chunk. A long reply repeatedly mentioning a
+ * tag name, or one whose misspelled early close stretches a single body across
+ * most of the message, is then quadratic in the length of the reply.
+ *
+ * The window's one blind spot, and why it is accepted: a JSON body whose
+ * top-level value closes BEYOND the window, followed by prose and no closing tag,
+ * still reads as a viable prefix, so the remainder stays hidden until the stream
+ * ends rather than settling mid-stream. It is lossless — the completed parse
+ * renders every character — and it needs a payload several times larger than any
+ * tag emits (a `<workspace_resource>` runs ~100 characters, a `<question>` card
+ * under ~1500). A mention in prose settles at its first character at any length,
+ * because prose does not open with `{`. Widening or removing the window to close
+ * that gap would trade a measured, reachable main-thread freeze for a
+ * hypothetical one.
+ */
+const MAX_UNCLOSED_BODY_SCAN = 4096
+
+/**
+ * Length of the longest marker the scans can match.
+ *
+ * Derived from {@link SPECIAL_TAG_NAMES} rather than hand-counted, so adding a
+ * longer tag name cannot silently shrink the rewind in {@link resumeForClass}.
+ * Closing markers are the longer of the two forms, so they set the bound.
+ */
+const LONGEST_TAG_MARKER = Math.max(...SPECIAL_TAG_NAMES.map((name) => `</${name}>`.length))
+
+/**
+ * Strip the contents of JSON string literals from `body`, replacing them with
+ * spaces so every other index is preserved.
+ *
+ * A JSON tag body can legitimately quote tag syntax — a `<question>` asking
+ * which tag to use, or a `<workspace_resource>` whose title mentions one. Those
+ * markers live inside a string and say nothing about whether the tag will
+ * close, so the nesting rule must not see them. Tracks escapes so a `\"` inside
+ * a string does not end it early. Handles an unterminated trailing string, which
+ * is the normal state mid-stream.
+ *
+ * Index preservation is load-bearing, not decorative: {@link resumeForClass} takes an
+ * offset found in the blanked copy and applies it to the RAW body. Iteration is by
+ * code point, so a blanked astral character must emit `char.length` spaces —
+ * emitting one would shrink the output and shift every later offset left.
+ */
+function blankJsonStringLiterals(body: string): string {
+  // With no quote there is no string literal, so the loop below would copy the
+  // body to itself character by character. Both callers reach here on bodies
+  // that are usually plain prose, and this runs per opener per streamed chunk.
+  if (!body.includes('"')) return body
+
+  let out = ''
+  let inString = false
+  let escaped = false
+
+  for (const char of body) {
+    if (escaped) {
+      escaped = false
+      out += ' '.repeat(char.length)
+      continue
+    }
+    if (char === '\\' && inString) {
+      escaped = true
+      out += ' '
+      continue
+    }
+    if (char === '"') {
+      inString = !inString
+      out += '"'
+      continue
+    }
+    out += inString ? ' '.repeat(char.length) : char
+  }
+
+  return out
+}
+
+/**
+ * True while `scannable` could still grow into a single valid JSON value.
+ *
+ * Checking only the first character is not enough: a body like
+ * `{"type":"file"}</workspac and then prose...` opens with `{` and looks fine,
+ * but the value CLOSES at the `}` and everything after it is fatal. Tracking
+ * depth catches that the moment the stray character arrives, instead of waiting
+ * for a close tag that is never coming.
+ *
+ * Takes a body whose string literals are ALREADY blanked by
+ * {@link blankJsonStringLiterals}, so braces and brackets inside JSON strings do
+ * not affect the depth count. Both callers blank the body for their own marker
+ * scan first, so taking the blanked form avoids a second pass over the same text.
+ */
+function isViableJsonPrefixOf(scannable: string): boolean {
+  if (scannable.trim() === '') return true
+
+  const firstChar = scannable.trimStart().charAt(0)
+  if (firstChar !== '{' && firstChar !== '[') return false
+
+  let depth = 0
+  for (let i = 0; i < scannable.length; i++) {
+    const char = scannable[i]
+    if (char === '{' || char === '[') {
+      depth++
+    } else if (char === '}' || char === ']') {
+      depth--
+      if (depth < 0) return false
+      // The top-level value just closed: only trailing whitespace may follow.
+      if (depth === 0) return scannable.slice(i + 1).trim() === ''
+    }
+  }
+
+  return true
+}
+
+/**
+ * Whether `text` contains a marker for one of the tags this parser knows.
+ *
+ * Deliberately the tag NAMES rather than anything tag-shaped. A prose body may
+ * legitimately contain `<div>` or `Promise<void>`; only a marker the parser
+ * would itself act on proves the enclosing opener was text. Shared so the
+ * streaming and matched-pair paths cannot answer the same question differently
+ * — them disagreeing is what let a late close swallow content already on screen.
+ *
+ * The match is by substring, so a generic is safe only when its parameter is not
+ * itself a tag name: `Promise<void>` does not match, `Promise<options>` does. The
+ * narrowing is not worth its cost — it needs a `<thinking>` body, which the agent
+ * no longer emits (reasoning arrives as structured thinking blocks), discussing a
+ * type named exactly after a tag; and the boundary check that would fix it wants a
+ * lookbehind, unavailable on the Safari versions this app still supports.
+ */
+function hasSpecialTagMarker(text: string): boolean {
+  return SPECIAL_TAG_NAMES.some((name) => text.includes(`</${name}>`) || text.includes(`<${name}>`))
+}
+
+/**
+ * True when an opening tag with no close yet can NEVER resolve, so the text
+ * after it should be shown immediately instead of held back until the stream
+ * ends. Without it, a message that merely mentions a tag in prose goes blank
+ * from that point on until streaming stops.
+ *
+ * One rule decides it, chosen by body kind:
+ *
+ * - **JSON-bodied tags** must stay a viable JSON prefix. Depth is tracked rather
+ *   than testing the first character alone, so a body whose top-level value has
+ *   already closed is caught the moment stray content follows it — a mention in
+ *   prose (no `{` at all), a misspelled close like `</workflow_resource>`, a
+ *   truncated `</workspac`, or no close whatsoever.
+ * - **The prose-bodied tag** has no JSON to test, so the only evidence available
+ *   is that tags never nest: a marker for another special tag in the body means
+ *   this opener was literal text.
+ *
+ * Nested markers are NOT scanned for on a JSON body. A marker outside a string
+ * literal is content the viability rule already rejects, and one inside is
+ * legitimate quoted syntax that must not count as evidence — so the scan cost a
+ * pass per tag name, open and close, to catch nothing.
+ *
+ * Both rules are conservative: they fire only on content that could not have
+ * parsed. A false positive merely shows text early that a later chunk resolves
+ * into a tag, and the end-of-stream parse still renders correctly.
+ */
+function unclosedTagCannotResolve(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string
+): boolean {
+  const pending = dropArrivingClose(body, `</${tagName}>`)
+
+  if (!JSON_BODY_TAG_NAMES.has(tagName)) return hasSpecialTagMarker(pending)
+
+  // Cheap rejection before the expensive one. isViableJsonPrefixOf decides on
+  // the first non-whitespace character when it is not `{` or `[` — which is the
+  // common case, a tag name mentioned in prose — so testing it here avoids
+  // blanking up to a full window of text only to throw the copy away.
+  const firstChar = pending.trimStart().charAt(0)
+  if (firstChar !== '' && firstChar !== '{' && firstChar !== '[') return true
+
+  // Blank string literals first so braces and brackets inside JSON strings do
+  // not throw off the depth count.
+  return !isViableJsonPrefixOf(blankJsonStringLiterals(pending))
+}
+
+/**
+ * Drop a trailing fragment that could still grow into `closeTag`.
+ *
+ * Mid-stream the closing marker arrives a character at a time, so a body sits at
+ * `]</opt` for several frames before `</options>` completes. That fragment is an
+ * arriving close, not stray content — counting it as fatal is what made a
+ * perfectly valid tag show its raw payload as text until the final `>` landed.
+ *
+ * Only a fragment at the very END is dropped, so evidence that the close is
+ * genuinely wrong still lands immediately: a misspelled `</workflow_resource>`
+ * is not a prefix of `</workspace_resource>`, and a truncated `</workspac`
+ * followed by prose stops being one the moment the prose arrives.
+ */
+function dropArrivingClose(body: string, closeTag: string): string {
+  for (let n = Math.min(closeTag.length - 1, body.length); n > 0; n--) {
+    if (body.endsWith(closeTag.slice(0, n))) return body.slice(0, -n)
+  }
+  return body
+}
+
+/**
+ * How one opening tag resolved. Naming the four outcomes is the point: the
+ * parser previously decided each case inline, which is how "drop it" quietly
+ * became the fallback for situations that were never malformed payloads.
+ */
+type TagResolution =
+  /** Body parsed; emit the typed segment and resume after the closing tag. */
+  | { outcome: 'segment'; segment: ContentSegment; resumeAt: number }
+  /** Provably not a tag; render the span verbatim and resume after it. */
+  | { outcome: 'literal'; resumeAt: number }
+  /** A well-formed payload that failed its shape guard — dropped deliberately. */
+  | { outcome: 'discard'; resumeAt: number }
+  /** Still streaming and a close remains plausible; suppress the remainder. */
+  | { outcome: 'pending' }
+
+/**
+ * Why a failed body was never an attempted payload — so the markers were literal
+ * text and the span must be shown rather than swallowed. `null` means the body
+ * really was a payload that failed its shape guard.
+ *
+ * The two reasons resume differently, which is why they are distinguished
+ * rather than collapsed into a boolean (see {@link resumeForClass}).
+ */
+type LiteralTextVerdict =
+  /**
+   * The body carries a tag marker at `markerOffset` (an index into the body), so
+   * the close we matched belongs to a different opener.
+   */
+  | { reason: 'foreign-markers'; markerOffset: number }
+  /** The tag wrapped prose that was never JSON to begin with. */
+  | { reason: 'never-a-payload' }
+
+function literalTextReason(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string
+): LiteralTextVerdict | null {
+  const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
+  // Markers inside a JSON string are content, not evidence — a `<question>` may
+  // legitimately quote tag syntax in its prompt. Scanning the raw body here
+  // would classify a broken payload as literal text and render it as raw JSON,
+  // which is exactly what `discard` exists to prevent. Mirrors the same blanking
+  // in unclosedTagCannotResolve, which judges the same body mid-stream.
+  const scannable = isJsonBodied ? blankJsonStringLiterals(body) : body
+  const marker = TAG_SHAPED_MARKER.exec(scannable)
+  if (marker) return { reason: 'foreign-markers', markerOffset: marker.index }
+  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return { reason: 'never-a-payload' }
+  return null
+}
+
+/** One memoized `indexOf` result, with the `from` it was computed at. */
+interface IndexOfCacheEntry {
+  /** Result of `content.indexOf(needle, from)`, or -1 when absent from that point on. */
+  idx: number
+  /** The offset the search started at. The entry says nothing about content before it. */
+  from: number
+}
+
+export type IndexOfCache = Map<string, IndexOfCacheEntry>
+
+/**
+ * `content.indexOf(needle, from)` memoized per needle.
+ *
+ * The opener scan and the close lookup search the same handful of markers over
+ * and over as the cursor advances. A needle absent from the message resolves to
+ * -1 once and is never searched again; a present one is re-searched only when
+ * the cursor passes its last hit. Unmemoized, each lookup rescans to the end of
+ * the buffer for every opener, which is quadratic on a message that mentions a
+ * tag name many times — and this parse re-runs for every streamed chunk.
+ *
+ * A cached result is only valid from the offset it was searched at, so the entry
+ * carries that offset and is reused only when the new `from` is at or beyond it:
+ *
+ * - `idx === -1` means no hit at or after `entry.from`, so there is none at or
+ *   after any later `from` either.
+ * - `idx >= from` means the first hit at or after `entry.from` is still ahead of
+ *   `from`, so nothing lies between them and it is still the first hit.
+ *
+ * Storing `from` is what makes this correct for ANY call order rather than only
+ * for a monotonically advancing cursor. The cursor is monotonic today — every
+ * non-pending outcome resumes strictly past its opener — but that is a property
+ * of {@link resolveTagAt}'s resume points, and one of them deliberately resumes
+ * back inside a span it already examined. A future adjustment that let the cursor
+ * regress would, without this check, return a stale index and silently mis-parse
+ * rather than fail loudly. With it, the worst case is a redundant scan.
+ */
+export function memoizedIndexOf(
+  cache: IndexOfCache,
+  content: string,
+  needle: string,
+  from: number
+): number {
+  const entry = cache.get(needle)
+  if (entry && from >= entry.from && (entry.idx === -1 || entry.idx >= from)) return entry.idx
+  const idx = content.indexOf(needle, from)
+  cache.set(needle, { idx, from })
+  return idx
+}
+
+/**
+ * How much of a body may be inspected, and whether that is all of it.
+ *
+ * The read budget, isolated from what the body turns out to BE. Both the
+ * unclosed and matched-pair paths spend it through this one function, so they
+ * cannot drift out of agreement about how much of a body may be read.
+ */
+interface InspectedBody {
+  /** The prefix actually examined. */
+  text: string
+  /** True when `text` is only a prefix, so no verdict drawn from it covers the rest. */
+  truncated: boolean
+}
+
+function inspectWithin(source: string, start = 0): InspectedBody {
+  const end = start + MAX_UNCLOSED_BODY_SCAN
+  return end < source.length
+    ? { text: source.slice(start, end), truncated: true }
+    : { text: start === 0 ? source : source.slice(start), truncated: false }
+}
+
+/**
+ * What a matched body turned out to BE — independent of what the parser does
+ * about it, and of where it resumes.
+ *
+ * A closed set, and that is the whole point: {@link resolveMatchedPair} and
+ * {@link resumeForClass} each switch over it exhaustively, so adding a case
+ * fails to compile until BOTH questions are answered for it. Every regression
+ * review found on this parser was one of those two answers changing without the
+ * other, which is a mistake this shape makes unrepresentable.
+ */
+type BodyClass =
+  /** Parsed, and matched its shape guard. */
+  | { kind: 'payload'; segment: ContentSegment }
+  /** A tag marker at `offsetInBody` proves the close we matched belongs elsewhere. */
+  | { kind: 'nested-marker'; offsetInBody: number }
+  /**
+   * The same proof, in a PROSE body. Separate because it resumes differently: a
+   * prose body is never blanked, so nothing is hidden from the scan and rescanning
+   * from the opener is safe, and these bodies are small enough that the extra pass
+   * is free. Resuming at the marker instead would also be correct and would emit
+   * one text segment rather than two — display-identical, since the renderer
+   * concatenates them — but it is a behaviour change and does not belong in a
+   * refactor.
+   */
+  | { kind: 'prose-nested-marker' }
+  /** Only a prefix was read, and it settled nothing. Says nothing about the rest. */
+  | { kind: 'unexamined' }
+  /** Not a payload at all — never JSON, or JSON that will not parse. */
+  | { kind: 'never-json' }
+  /** Parsed as JSON, then failed its shape guard. The only droppable class. */
+  | { kind: 'broken-payload' }
+
+/**
+ * Classify a complete body. Pure: no positions, no outcome, no resume.
+ *
+ * Order is behavioural, not stylistic. The prose-nesting rule precedes the parse
+ * because a prose body has no shape to fail — any non-empty text qualifies — so a
+ * late close would otherwise swallow whatever the streaming path already showed.
+ * The budget precedes the remaining rules so an unread remainder is never
+ * mistaken for evidence.
+ */
+function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string): BodyClass {
+  const isJsonBodied = JSON_BODY_TAG_NAMES.has(tagName)
+
+  if (!isJsonBodied) {
+    // The same predicate the streaming path uses, so the two cannot disagree
+    // about whether this body was ever a tag. Tag NAMES, not anything
+    // tag-shaped: reasoning that mentions `<div>` or `Promise<void>` is still
+    // reasoning, and releasing it as prose would put the model's thinking on
+    // screen for an incidental angle bracket.
+    if (hasSpecialTagMarker(body)) return { kind: 'prose-nested-marker' }
+  }
+
+  const parsed = parseSpecialTagData(tagName, body)
+  if (parsed) return { kind: 'payload', segment: parsed }
+
+  const inspected = inspectWithin(body)
+  const verdict = literalTextReason(tagName, inspected.text)
+
+  if (verdict?.reason === 'foreign-markers') {
+    return { kind: 'nested-marker', offsetInBody: verdict.markerOffset }
+  }
+  if (inspected.truncated) return { kind: 'unexamined' }
+
+  // Dropping text is only defensible for a payload the agent actually FORMED.
+  // `{the Q4 report}` is prose in braces and `{type: "file"}` is an ordinary
+  // model slip; bracket depth cannot tell either from a real payload, only a
+  // parse can. Both routes to that answer are funnelled through one place so the
+  // rescan below cannot be added to one and forgotten on the other.
+  const neverJson =
+    verdict?.reason === 'never-a-payload' || (isJsonBodied && !isParseableJson(body))
+
+  if (neverJson) {
+    // literalTextReason blanked this body's quoted regions on the assumption it
+    // was JSON. It never was, so that assumption is void — and a body with an
+    // odd number of `"` blanks the WRONG regions, which can hide a real marker
+    // and turn what should be `nested-marker` into `never-json`. The difference
+    // is not academic: `never-json` resumes past the close, flattening a genuine
+    // tag inside the span, so a card already on screen un-renders when the close
+    // finally arrives. With the JSON premise gone, the raw text is the honest
+    // evidence, and a marker in it means the close we matched belongs elsewhere.
+    const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
+    if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
+    return { kind: 'never-json' }
+  }
+
+  return { kind: 'broken-payload' }
+}
+
+/**
+ * Where scanning continues, given what the body was. The third concern, kept
+ * apart from the other two so a change to one cannot silently alter another.
+ *
+ * Every branch is strictly greater than the opener, which is what guarantees the
+ * cursor advances and {@link memoizedIndexOf}'s cache stays coherent.
+ */
+function resumeForClass(cls: BodyClass, bodyStart: number, pastClose: number): number {
+  switch (cls.kind) {
+    case 'payload':
+    case 'broken-payload':
+    case 'never-json':
+      // The whole span was read and accounted for; continue after it.
+      return pastClose
+    case 'nested-marker':
+      // Resume AT the marker, not past the borrowed close and not at the opener.
+      // Past the close would skip a genuine tag after it; the opener would rescan
+      // a region the blanked scan could not see into, re-parsing tag syntax
+      // quoted inside a JSON string and dropping it.
+      return bodyStart + cls.offsetInBody
+    case 'prose-nested-marker':
+      // Rescan the whole body: nothing was blanked, so no marker is hidden.
+      return bodyStart
+    case 'unexamined':
+      // Resume just short of the first character NOT read: the last marker's
+      // worth of the window is held back rather than emitted as text, so it is
+      // re-scanned on the next pass instead of being flattened. Nothing is lost
+      // — the caller emits up to wherever this resumes. It still advances nearly
+      // a full window per step, so a long body costs a bounded number of
+      // re-entries.
+      //
+      // The rewind is load-bearing: the window edge is an arbitrary cut, so an
+      // opener can straddle it. Resuming exactly at the edge leaves that opener's
+      // `<` behind the cursor, and the opener scan only looks FORWARD — so the tag
+      // is never found and renders as raw payload text, on a completed message.
+      // Backing off by the longest marker guarantees any straddling opener is
+      // re-scanned from its `<`.
+      return bodyStart + MAX_UNCLOSED_BODY_SCAN - (LONGEST_TAG_MARKER - 1)
+  }
+}
+
+function resolveMatchedPair(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string,
+  bodyStart: number,
+  pastClose: number
+): TagResolution {
+  const cls = classifyBody(tagName, body)
+  const resumeAt = resumeForClass(cls, bodyStart, pastClose)
+
+  switch (cls.kind) {
+    case 'payload':
+      return { outcome: 'segment', segment: cls.segment, resumeAt }
+    case 'broken-payload':
+      // Well-formed but the wrong shape — a broken emission. Showing the reader
+      // raw JSON is worse than showing nothing.
+      return { outcome: 'discard', resumeAt }
+    case 'nested-marker':
+    case 'prose-nested-marker':
+    case 'unexamined':
+    case 'never-json':
+      return { outcome: 'literal', resumeAt }
+  }
+}
+
+function resolveTagAt(
+  content: string,
+  openIndex: number,
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  isStreaming: boolean,
+  closeCache: IndexOfCache
+): TagResolution {
+  const openTag = `<${tagName}>`
+  const closeTag = `</${tagName}>`
+  const bodyStart = openIndex + openTag.length
+  const closeIdx = memoizedIndexOf(closeCache, content, closeTag, bodyStart)
+
+  if (closeIdx === -1) {
+    const inspected = inspectWithin(content, bodyStart)
+    if (isStreaming && !unclosedTagCannotResolve(tagName, inspected.text)) {
+      return { outcome: 'pending' }
+    }
+    // Nothing can close it, so only the opener itself is literal. Resuming just
+    // past it (rather than abandoning the message) keeps a genuinely valid tag
+    // later in the same reply parseable.
+    return { outcome: 'literal', resumeAt: bodyStart }
+  }
+
+  return resolveMatchedPair(
+    tagName,
+    content.slice(bodyStart, closeIdx),
+    bodyStart,
+    closeIdx + closeTag.length
+  )
+}
+
+/**
+ * Splits streamed text into renderable segments, extracting complete special
+ * tags and deciding what to do with the ones that never resolve. Incomplete
+ * tags are suppressed and flagged via `hasPendingTag` so the caller can show a
+ * loading indicator, and a trailing partial opening marker (`<opt`, `<usage_`)
+ * is stripped during streaming so it never flashes as raw markup.
  */
 export function parseSpecialTags(content: string, isStreaming: boolean): ParsedSpecialContent {
   const segments: ContentSegment[] = []
   let hasPendingTag = false
   let cursor = 0
 
+  // Whitespace-only spans are kept, not trimmed away: the literal path emits a
+  // rejected span in several pieces, and a `\n\n` between two of them is a
+  // markdown paragraph break. Dropping it silently merges two paragraphs, because
+  // the renderer concatenates adjacent text segments into one markdown string.
+  const pushText = (text: string) => {
+    if (text) segments.push({ type: 'text', content: text })
+  }
+
+  const openerCache: IndexOfCache = new Map()
+  const closeCache: IndexOfCache = new Map()
+  let discardedTag = false
+
   while (cursor < content.length) {
     let nearestStart = -1
     let nearestTagName: (typeof SPECIAL_TAG_NAMES)[number] | '' = ''
 
     for (const name of SPECIAL_TAG_NAMES) {
-      const idx = content.indexOf(`<${name}>`, cursor)
+      const idx = memoizedIndexOf(openerCache, content, `<${name}>`, cursor)
       if (idx !== -1 && (nearestStart === -1 || idx < nearestStart)) {
         nearestStart = idx
         nearestTagName = name
       }
     }
 
-    if (nearestStart === -1) {
+    // Only the name is tested: the two are assigned together above, so an empty
+    // name and a -1 start are the same state — and the name is the one that
+    // needs narrowing before resolveTagAt below.
+    if (nearestTagName === '') {
       let remaining = content.slice(cursor)
 
       if (isStreaming) {
+        // Hide a half-arrived opening marker so it does not flash as text.
         const partial = remaining.match(/<[a-z_-]*$/i)
         if (partial) {
           const fragment = partial[0].slice(1)
@@ -507,44 +1121,37 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
         }
       }
 
-      if (remaining.trim()) {
-        segments.push({ type: 'text', content: remaining })
-      }
+      pushText(remaining)
       break
     }
 
-    if (nearestStart > cursor) {
-      const text = content.slice(cursor, nearestStart)
-      if (text.trim()) {
-        segments.push({ type: 'text', content: text })
-      }
-    }
+    pushText(content.slice(cursor, nearestStart))
 
-    const openTag = `<${nearestTagName}>`
-    const closeTag = `</${nearestTagName}>`
-    const bodyStart = nearestStart + openTag.length
-    const closeIdx = content.indexOf(closeTag, bodyStart)
+    const resolution = resolveTagAt(content, nearestStart, nearestTagName, isStreaming, closeCache)
 
-    if (closeIdx === -1) {
+    if (resolution.outcome === 'pending') {
       hasPendingTag = true
-      cursor = content.length
       break
     }
 
-    const body = content.slice(bodyStart, closeIdx)
-    if (!nearestTagName) {
-      cursor = closeIdx + closeTag.length
-      continue
-    }
-    const parsedTag = parseSpecialTagData(nearestTagName, body)
-    if (parsedTag) {
-      segments.push(parsedTag)
+    if (resolution.outcome === 'segment') {
+      segments.push(resolution.segment)
+    } else if (resolution.outcome === 'literal') {
+      pushText(content.slice(nearestStart, resolution.resumeAt))
+    } else {
+      // `discard` deliberately emits nothing. Remembering that it happened is
+      // what keeps the fallback below from undoing it.
+      discardedTag = true
     }
 
-    cursor = closeIdx + closeTag.length
+    cursor = resolution.resumeAt
   }
 
-  if (segments.length === 0 && !hasPendingTag) {
+  // A message with no segments is normally a message with nothing in it, and
+  // emitting the raw content is the right floor. But a discard produces no
+  // segment BY DESIGN, so without this guard a message that is only a broken
+  // payload falls through and renders the exact raw JSON the discard removed.
+  if (segments.length === 0 && !hasPendingTag && !discardedTag) {
     segments.push({ type: 'text', content })
   }
 
@@ -910,6 +1517,118 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
 }
 
 /**
+ * Folder icon for the local-folder grant chip (matches the credential chip
+ * icon sizing).
+ */
+const FolderGrantIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <path
+      d='M1.5 4.5A1.5 1.5 0 0 1 3 3h3.2l1.6 1.8H13A1.5 1.5 0 0 1 14.5 6.3v5.2A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-7z'
+      stroke='currentColor'
+      strokeWidth='1.2'
+      strokeLinejoin='round'
+    />
+  </svg>
+)
+
+/**
+ * Inline grant chip rendered for
+ * `<credential>{"type":"folder_access","name":"Desktop"}</credential>`.
+ * Clicking opens the desktop app's native folder picker (read-only grant,
+ * same flow as the Desktop settings folder picker). Renders nothing outside the
+ * desktop app — there is no local filesystem bridge to grant against.
+ */
+function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
+  const [picking, setPicking] = useState(false)
+  const [grantedName, setGrantedName] = useState<string | null>(null)
+
+  const bridge = getDesktopBridge()
+  if (!bridge?.localFilesystem) return null
+
+  const hint = (data.name ?? '').trim()
+  const label = grantedName
+    ? `Access granted — ${grantedName}`
+    : hint
+      ? `Grant access to ${hint}`
+      : 'Grant access to a local folder'
+
+  const handleClick = async () => {
+    if (picking || grantedName) return
+    setPicking(true)
+    try {
+      const response = await bridge.localFilesystem({ operation: 'mount_directory' })
+      if (response.ok && 'mount' in response.data && response.data.mount) {
+        setGrantedName(response.data.mount.name)
+        toast.success(`Granted access to ${response.data.mount.name}`)
+      }
+    } catch {
+      toast.error("Couldn't open the folder picker. Please try again.")
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={() => void handleClick()}
+      disabled={picking || grantedName !== null}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        grantedName === null && !picking && 'hover-hover:bg-[var(--surface-5)]',
+        picking && 'opacity-60'
+      )}
+    >
+      <FolderGrantIcon className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>
+        {picking ? 'Choose a folder…' : label}
+      </span>
+      {grantedName === null && (
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
+    </button>
+  )
+}
+
+/**
+ * Inline hand-back chip rendered while `browser_request_takeover` waits on
+ * the user (`{"type":"browser_takeover","name":"Please sign in to LinkedIn"}`).
+ * Same chip as the other credential actions; clicking hands control of the
+ * agent browser back to Sim. Renders nothing outside the desktop app — there
+ * is no agent browser to hand back.
+ */
+function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isBrowserAgentAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Take over in the browser, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        sendBrowserPanelAction('takeover-done')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <Cursor className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
+/**
  * Inline "set up a service account" control rendered for
  * `<credential>{"type":"service_account","provider":"slack"}</credential>`.
  *
@@ -1005,11 +1724,35 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
     : `Connect ${integrationName}`
+
+  /**
+   * Desktop app: OAuth cannot run in an embedded window — not in the app
+   * window (better-auth binds the flow's state to the initiating browser's
+   * cookies) and not in the Sim browser panel (its partition isn't signed in
+   * to Sim, and Google/Microsoft reject embedded user agents outright). So
+   * the chip hands the whole flow to the system browser via the connect
+   * handoff, carrying the workspace/credential scope from the authorize URL;
+   * completion returns through the app's loopback and refreshes credentials.
+   */
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const bridge = getDesktopBridge()
+    if (!bridge?.beginOAuthConnect || !data.value) return
+    event.preventDefault()
+    const url = new URL(data.value)
+    const providerId = url.searchParams.get('providerId') ?? data.provider
+    if (!providerId) return
+    void bridge.beginOAuthConnect(providerId, {
+      workspaceId: url.searchParams.get('workspaceId') ?? undefined,
+      credentialId: url.searchParams.get('credentialId') ?? undefined,
+    })
+  }
+
   return (
     <a
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
+      onClick={handleClick}
       className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'size-[16px] shrink-0' })}
@@ -1019,9 +1762,60 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialDisplay({ data }: { data: CredentialTagData }) {
+/**
+ * Inline hand-back chip rendered while a terminal handoff waits on the user —
+ * a command sitting on a prompt only they can answer. Without it the tool row
+ * just spins: the command is blocked in a panel the user may not even be
+ * looking at, with nothing saying it wants them. Clicking tells the waiting
+ * handoff they are done; the terminal id rides in `value` so the click reaches
+ * the right shell. Renders nothing outside the desktop app.
+ */
+function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isTerminalAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Finish in the terminal, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        finishTerminalHandoff(data.value ?? '')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <TerminalWindow className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
+export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
+  }
+
+  if (data.type === 'folder_access') {
+    return <FolderAccessDisplay data={data} />
+  }
+
+  if (data.type === 'browser_takeover') {
+    return <BrowserTakeoverDisplay data={data} />
+  }
+
+  if (data.type === 'terminal_handoff') {
+    return <TerminalHandoffDisplay data={data} />
   }
 
   if (data.type === 'link') {

@@ -22,7 +22,8 @@ const {
   mockGetMothershipSourceEnvHeaders,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
-  mockToolWatchdogTimeoutMs,
+  mockPendingToolWaitBudgetMs,
+  mockGetAutoAllowedTools,
   mockUpdateRunStatus,
   mockEnv,
 } = vi.hoisted(() => ({
@@ -32,7 +33,8 @@ const {
   mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
-  mockToolWatchdogTimeoutMs: vi.fn(() => 60_000),
+  mockPendingToolWaitBudgetMs: vi.fn(() => 60_000),
+  mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
@@ -65,9 +67,24 @@ vi.mock('@/lib/copilot/request/go/stream', () => {
     }
   }
 
+  const STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE =
+    'The assistant stopped before finishing this turn. The work it already completed has been saved — send a message to continue from there.'
+
+  class StreamEndedWithoutTerminalError extends Error {
+    path: string
+
+    constructor(path: string) {
+      super(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+      this.name = 'StreamEndedWithoutTerminalError'
+      this.path = path
+    }
+  }
+
   return {
     BillingLimitError,
     CopilotBackendError,
+    STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
+    StreamEndedWithoutTerminalError,
     runStreamLoop: mockRunStreamLoop,
   }
 })
@@ -84,6 +101,12 @@ vi.mock('@/lib/core/config/env', () => ({
   isFalsy: vi.fn((value: string | undefined) => value === 'false'),
 }))
 
+vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
+  getAutoAllowedTools: mockGetAutoAllowedTools,
+  addAutoAllowedTool: vi.fn(),
+  addChatAutoAllowedTool: vi.fn(),
+}))
+
 vi.mock('@/lib/copilot/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
@@ -95,11 +118,18 @@ vi.mock('@/lib/copilot/request/tools/billing', () => ({
 vi.mock('@/lib/copilot/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
   forceFailHungToolCall: mockForceFailHungToolCall,
-  toolWatchdogTimeoutMs: mockToolWatchdogTimeoutMs,
+  pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
 }))
 
-import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
-import { CopilotBackendError } from '@/lib/copilot/request/go/stream'
+import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1ToolOutcome,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  CopilotBackendError,
+  STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
+  StreamEndedWithoutTerminalError,
+} from '@/lib/copilot/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 
 afterAll(resetEnvFlagsMock)
@@ -108,10 +138,94 @@ describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEnv.COPILOT_API_KEY = undefined
-    setEnvFlags({ isHosted: false })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
+    setEnvFlags({
+      isHosted: false,
+      isCopilotBillingAttributionV1Enabled: false,
+      isCopilotToolPermissionsEnabled: false,
+    })
+    mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+  })
+
+  describe('tool permission feature flag', () => {
+    const runMothershipTurn = () =>
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-flag' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          goRoute: '/api/mothership',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+            decryptedEnvVars: {},
+          },
+        }
+      )
+
+    it('stays entirely inert while the flag is off', async () => {
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(false)
+      // Never even reads the preference tables when disabled.
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
+    it('arms the gate and loads the allow list once the flag is on', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
+      expect(mockGetAutoAllowedTools).toHaveBeenCalledWith('user-1', 'chat-1')
+    })
+
+    it('stays off for the workflow-scoped copilot even with the flag on', async () => {
+      // That panel has no permission card, so gating there would hang the turn
+      // on a prompt nothing draws.
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-flag-2' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          goRoute: '/api/copilot',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+            decryptedEnvVars: {},
+          },
+        }
+      )
+
+      expect(captured?.toolPermissions.enabled).toBe(false)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
   })
 
   it('runs cancelled completion persistence when a stream throws after abort', async () => {
@@ -646,18 +760,16 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    // 2) First resume leg dies mid-stream like a transient provider error:
-    //    it records an error AND throws a retryable 5xx.
+    // 2) First resume leg is refused before the backend takes it: it records an
+    //    error AND throws a retryable 5xx, which releases the claim in Go.
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
         _fetchOptions: RequestInit,
         context: StreamingContext
       ): Promise<void> => {
-        context.errors.push(
-          'Copilot backend stream ended before a terminal event on /api/tools/resume'
-        )
-        throw new CopilotBackendError('backend stream ended before a terminal event', {
+        context.errors.push('Copilot backend error (503): service unavailable')
+        throw new CopilotBackendError('Copilot backend error (503): service unavailable', {
           status: 503,
         })
       }
@@ -699,7 +811,7 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
-  it('marks resume legs willRetryOnStreamError except the final attempt', async () => {
+  it('does not promise Go a transparent stream-error retry it will not perform', async () => {
     const bodies: Record<string, unknown>[] = []
     const executionContext: ExecutionContext = {
       userId: 'user-1',
@@ -740,8 +852,8 @@ describe('runCopilotLifecycle', () => {
           context: StreamingContext
         ): Promise<void> => {
           bodies.push(JSON.parse(String(fetchOptions.body)))
-          context.errors.push('Copilot backend stream ended before a terminal event')
-          throw new CopilotBackendError('backend stream ended before a terminal event', {
+          context.errors.push('Copilot backend error (503): service unavailable')
+          throw new CopilotBackendError('Copilot backend error (503): service unavailable', {
             status: 503,
           })
         }
@@ -760,15 +872,175 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    // Initial + 3 resume attempts.
+    // Initial + 3 resume attempts: a 5xx is still transient, so the bounded
+    // retry budget is unchanged.
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
-    // Initial leg is never retried by this loop → no flag.
-    expect(bodies[0].willRetryOnStreamError).toBeUndefined()
-    // Resume attempts 0 and 1 will be retried on a stream error → flagged.
-    expect(bodies[1].willRetryOnStreamError).toBe(true)
-    expect(bodies[2].willRetryOnStreamError).toBe(true)
-    // Final attempt (2) is terminal → not flagged, so Go bills + surfaces it.
-    expect(bodies[3].willRetryOnStreamError).toBeUndefined()
+    // No leg claims a transparent retry. The flag made Go swallow the error tag
+    // that explains the failure, and a stream error is never retried now.
+    for (const body of bodies) {
+      expect(body.willRetryOnStreamError).toBeUndefined()
+    }
+  })
+
+  it('does not retry a resume leg the backend already claimed and ended early', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    // The resume leg is answered with 200 and then ends without a terminal
+    // event — the backend has claimed the checkpoint and reported its outcome,
+    // so re-posting it would only reproduce and re-bill the same failure.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'Moved the files and updated the workflow.'
+        context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+        throw new StreamEndedWithoutTerminalError('/api/tools/resume')
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(false)
+    expect(result.error).toBe(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+    // Everything that streamed before the leg died is still the user's answer.
+    expect(result.content).toBe('Moved the files and updated the workflow.')
+  })
+
+  it('resolves the turn normally when the backend completes it after an in-band failure', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.errors.push('Subagent build failed: workflow validation error')
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'The build step failed; here is what I changed anyway.'
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        cancelled: false,
+        content: 'The build step failed; here is what I changed anyway.',
+        errors: undefined,
+      })
+    )
+  })
+
+  it('keeps the request failed when the backend terminates the turn as an error', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.errors.push('The provider is overloaded')
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.errors).toEqual(['The provider is overloaded'])
   })
 
   it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {

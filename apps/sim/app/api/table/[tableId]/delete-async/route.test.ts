@@ -208,4 +208,25 @@ describe('POST /api/table/[tableId]/delete-async', () => {
     expect(mockReleaseJobClaim).toHaveBeenCalledWith('tbl_1', 'job-id-xyz')
     expect(mockRunTableDelete).not.toHaveBeenCalled()
   })
+
+  /**
+   * PR #6067 review finding (greptile P1 / bugbot High): a hybrid filter — group
+   * key AND leaf keys on one node — passes the dual-grammar union via the
+   * non-stripping legacy branch, and the downgrade used to convert group-first,
+   * silently dropping the leaf and WIDENING an async select-all delete.
+   */
+  it('rejects a hybrid group+leaf filter with 400 instead of widening the delete', async () => {
+    const response = await makeRequest({
+      workspaceId: 'workspace-1',
+      filter: {
+        all: [{ field: 'tenant_id', op: 'eq', value: 'acme' }],
+        field: 'status',
+        op: 'eq',
+        value: 'archived',
+      },
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toMatch(/not both/)
+  })
 })

@@ -7,10 +7,12 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { findActiveFolder } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   deleteTable,
   getTableById,
+  moveTableToFolder,
   renameTable,
   TableConflictError,
   type TableSchema,
@@ -80,6 +82,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
           metadata: table.metadata ?? null,
           rowCount: table.rowCount,
           maxRows: maxRowsPerTable,
+          folderId: table.folderId ?? null,
           locks: table.locks,
           createdAt:
             table.createdAt instanceof Date
@@ -182,6 +185,33 @@ export const PATCH = withRouteHandler(
 
       if (validated.name !== undefined) {
         await renameTable(tableId, validated.name, requestId, authResult.userId)
+      }
+
+      if (validated.folderId !== undefined) {
+        // Scoped to `resourceType: 'table'` so a folder id from another resource's
+        // tree can't be used to file the table somewhere Tables never lists.
+        if (
+          validated.folderId !== null &&
+          !(await findActiveFolder(validated.folderId, table.workspaceId, 'table'))
+        ) {
+          return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
+        }
+        try {
+          await moveTableToFolder(
+            tableId,
+            table.workspaceId,
+            validated.folderId,
+            requestId,
+            authResult.userId
+          )
+        } catch (moveError) {
+          // The move re-asserts workspace and active state, so a miss means the table was
+          // archived between `checkAccess` and the write. That is a 404, not a server fault.
+          if (moveError instanceof Error && moveError.message.endsWith('not found')) {
+            return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+          }
+          throw moveError
+        }
       }
 
       // Re-read so the response reflects both a rename and a lock change.

@@ -38,6 +38,11 @@ export const workspaceCreationPolicySchema = z.object({
   maxWorkspaces: z.number().nullable(),
   currentWorkspaceCount: z.number(),
   reason: z.string().nullable(),
+  /**
+   * Machine-readable discriminant for blocked states whose correct user-facing
+   * copy the workspace mode alone cannot determine.
+   */
+  blockedReasonCode: z.literal('organization-subscription-inactive').optional(),
 })
 
 export type WorkspaceCreationPolicy = z.output<typeof workspaceCreationPolicySchema>
