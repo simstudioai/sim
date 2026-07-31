@@ -5,6 +5,7 @@ import { Chip } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -65,8 +66,9 @@ export function PublicFileView({
   )
 
   return (
-    <div className='light flex min-h-screen flex-col bg-[var(--bg)]'>
-      <header className='sticky top-0 z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
+    <div className='light desktop-title-bar-page flex flex-col bg-[var(--bg)]'>
+      <DesktopTitleBarLane />
+      <header className='sticky top-[var(--desktop-title-bar-height)] z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
         <div className='flex min-w-0 items-center gap-3'>
           {!brand.logoUrl && (
             <>

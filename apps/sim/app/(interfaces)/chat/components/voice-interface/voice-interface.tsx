@@ -14,6 +14,7 @@ import {
   MAX_CHAT_SESSION_MS,
   SAMPLE_RATE,
 } from '@/lib/speech/config'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 
 const ParticlesVisualization = dynamic(
   () =>
@@ -524,10 +525,11 @@ export function VoiceInterface({
   return (
     <div
       className={cn(
-        'light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
+        'light desktop-title-bar-page fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
         className
       )}
     >
+      <DesktopTitleBarLane />
       <div className='flex flex-1 flex-col items-center justify-center px-8'>
         <div className='relative mb-16'>
           <ParticlesVisualization
