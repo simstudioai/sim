@@ -5,6 +5,10 @@ import { Music } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  FileFindProvider,
+  useDomFindController,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/find'
 import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
 import {
   createWorkspaceFileContentSource,
@@ -132,7 +136,9 @@ export function FileViewer(props: FileViewerProps) {
   )
   return (
     <FileContentSourceProvider value={source}>
-      <FileViewerContent {...props} />
+      <FileFindProvider>
+        <FileViewerContent {...props} />
+      </FileFindProvider>
     </FileContentSourceProvider>
   )
 }
@@ -295,8 +301,23 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
     )
   }
 
+  return <ReadOnlyPlainTextPreview content={content} />
+})
+
+/** Plain-text/code read-only preview with find-only highlighting over its `<pre>`. */
+const ReadOnlyPlainTextPreview = memo(function ReadOnlyPlainTextPreview({
+  content,
+}: {
+  content: string
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  useDomFindController(containerRef, { deps: [content] })
+
   return (
-    <div className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'>
+    <div
+      ref={containerRef}
+      className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'
+    >
       <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
         {content}
       </pre>

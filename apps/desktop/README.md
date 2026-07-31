@@ -186,7 +186,7 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 - Microphone and camera are denied by design (the permission matrix grants only sanitized clipboard writes to the app origin).
 - Default Electron ships H.264/AAC/MP3 — do not swap in the codec-free ffmpeg build.
 - Third-party web analytics (GTM/GA) are blocked at the network layer by default (`blockThirdPartyAnalytics`); first-party PostHog `/ingest` is untouched.
-- `Cmd+F` find-in-page overlay is not implemented (Monaco and tables ship their own finds); revisit if users ask.
+- `Cmd+F` inside the Files viewer is handled by the web app's in-content find bar (see `apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/find`); it is scoped to the file viewer, so focus elsewhere falls through to the browser's native find. The desktop shell does not intercept `Cmd+F` in the main window and needs no native overlay for it — the browser-agent tabs keep their own Chromium `findInPage` bar (see `browser-agent/session.ts`).
 - Sign-in uses only the `127.0.0.1` loopback callback, which needs no OS registration — so it completes identically under `bun run dev` (unpackaged) and in a packaged build. There is no custom URL scheme.
 
 ## Electron upgrades

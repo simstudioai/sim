@@ -55,6 +55,7 @@ import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import { firstHeadingTitle } from './title-heading'
+import { useMarkdownFindController } from './use-markdown-find'
 import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
@@ -671,6 +672,8 @@ export function LoadedRichMarkdownEditor({
     },
   })
   editorInstanceRef.current = editor
+
+  useMarkdownFindController(editor)
 
   useEffect(
     () => () => {

@@ -15,6 +15,7 @@ import {
 } from './collaboration/caret-presence'
 import { LinkEmbed } from './embed/link-embed'
 import { createMarkdownContentExtensions } from './extensions'
+import { FileFindHighlight } from './find-plugin'
 import { ResizableImage } from './image'
 import { RichMarkdownKeymap } from './keymap'
 import { MarkdownPaste } from './markdown-paste'
@@ -94,6 +95,7 @@ export function createMarkdownEditorExtensions({
     BlockMover,
     MarkdownPaste,
     Placeholder.configure({ placeholder }),
+    FileFindHighlight,
     ...(embeds ? [LinkEmbed] : []),
   ]
 }

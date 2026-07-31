@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { useDomFindController } from '@/app/workspace/[workspaceId]/files/components/file-viewer/find'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
@@ -265,6 +266,9 @@ const CsvPreview = memo(function CsvPreview({
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated, readOnly)
 
+  const containerRef = useRef<HTMLDivElement>(null)
+  useDomFindController(containerRef, { truncated, deps: [headers, rows] })
+
   if (headers.length === 0) {
     return (
       <div className='flex h-full items-center justify-center p-6'>
@@ -274,7 +278,7 @@ const CsvPreview = memo(function CsvPreview({
   }
 
   return (
-    <div className='h-full overflow-auto p-6'>
+    <div ref={containerRef} className='h-full overflow-auto p-6'>
       <DataTable headers={headers} rows={rows} />
     </div>
   )
