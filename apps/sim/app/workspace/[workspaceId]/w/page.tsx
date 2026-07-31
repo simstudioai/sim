@@ -5,6 +5,7 @@ import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflowOperations } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -33,6 +34,7 @@ export default function WorkflowsPage() {
 
   const { data: workflows = [], isLoading, isError, isPlaceholderData } = useWorkflows(workspaceId)
   const { handleCreateWorkflow, isCreatingWorkflow } = useWorkflowOperations({ workspaceId })
+  const { canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
 
   // An id rather than the filtered array: `data` defaults to a fresh `[]` while
   // the query has no data, so an array dependency would re-fire this on every
@@ -60,6 +62,7 @@ export default function WorkflowsPage() {
    * longer a landing option, so it has to offer a way out rather than spin.
    */
   const isEmpty = !isResolving && !isError && !firstWorkflowId
+  const canCreate = !permissionsLoading && canEdit
 
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
@@ -81,11 +84,24 @@ export default function WorkflowsPage() {
             <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
               <div>
                 <p className='font-medium text-small'>No workflows yet</p>
-                <p className='mt-1 text-caption'>Create one to start building.</p>
+                <p className='mt-1 text-caption'>
+                  {canCreate
+                    ? 'Create one to start building.'
+                    : 'Ask a workspace admin to create one.'}
+                </p>
               </div>
-              <Chip variant='primary' onClick={handleCreateWorkflow} disabled={isCreatingWorkflow}>
-                {isCreatingWorkflow ? 'Creating…' : 'Create workflow'}
-              </Chip>
+              {/* The create mutation navigates optimistically, so offering it
+                  without write access would strand a read-only member on a
+                  workflow the server declined to create. */}
+              {canCreate && (
+                <Chip
+                  variant='primary'
+                  onClick={handleCreateWorkflow}
+                  disabled={isCreatingWorkflow}
+                >
+                  {isCreatingWorkflow ? 'Creating…' : 'Create workflow'}
+                </Chip>
+              )}
             </div>
           ) : (
             <Spinner />

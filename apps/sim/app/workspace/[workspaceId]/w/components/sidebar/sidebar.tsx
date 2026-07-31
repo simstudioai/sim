@@ -747,6 +747,9 @@ export const Sidebar = memo(function Sidebar({
           icon: isChatEnabled ? Home : Plus,
           href: isChatEnabled ? `/workspace/${workspaceId}/home` : undefined,
           onClick: isChatEnabled ? undefined : createWorkflow,
+          // Creation navigates optimistically, so a read-only member would land
+          // on a workflow the server declined to create.
+          hidden: !isChatEnabled && !permissionsLoading && !canEdit,
         },
         {
           id: 'search',
@@ -763,7 +766,14 @@ export const Sidebar = memo(function Sidebar({
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, openSearchModal, createWorkflow, permissionConfig.hideIntegrationsTab]
+    [
+      workspaceId,
+      openSearchModal,
+      createWorkflow,
+      canEdit,
+      permissionsLoading,
+      permissionConfig.hideIntegrationsTab,
+    ]
   )
 
   const workspaceNavItems = useMemo(
