@@ -22,16 +22,12 @@ import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal, Search } from 'lucide-react'
-import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import {
-  CreateWorkspaceModal,
-  type CreateWorkspaceTarget,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
 import { invitationKeys } from '@/hooks/queries/invitations'
@@ -249,7 +245,6 @@ function WorkspaceHeaderImpl({
     setIsMounted(true)
   }, [])
 
-  const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
   const queryClient = useQueryClient()
 
@@ -268,17 +263,6 @@ function WorkspaceHeaderImpl({
   const { userPermissions } = useWorkspacePermissionsContext()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
-  const createWorkspaceTarget: CreateWorkspaceTarget =
-    workspaceCreationPolicy?.workspaceMode === 'organization' &&
-    workspaceCreationPolicy.organizationId
-      ? {
-          type: 'organization',
-          organizationName:
-            viewerActiveOrganization?.id === workspaceCreationPolicy.organizationId
-              ? viewerActiveOrganization.name
-              : 'your organization',
-        }
-      : { type: 'personal' }
 
   /**
    * Save and exit edit mode when popover closes
@@ -902,7 +886,6 @@ function WorkspaceHeaderImpl({
           setIsCreateModalOpen(false)
         }}
         isCreating={isCreatingWorkspace}
-        target={createWorkspaceTarget}
       />
 
       <InviteModal
