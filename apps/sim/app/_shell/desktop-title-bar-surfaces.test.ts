@@ -270,6 +270,10 @@ const isExempt = (file: string) =>
  * tree, so its inherited coverage is real.
  */
 const SELF_RESERVE_REQUIRED = new Set([
+  // Both of its render paths bypass the chrome, so its own reservation is the only one:
+  // `layout.tsx` returns it before reaching `<WorkspaceChrome>`, and
+  // `WorkspaceHostProvider` — an ancestor of the chrome, not a descendant — returns it
+  // instead of its children on a client-side 403. Neither is a double reservation.
   'app/workspace/[workspaceId]/components/workspace-access-denied.tsx',
 ])
 
