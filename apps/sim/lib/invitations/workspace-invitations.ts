@@ -1,15 +1,22 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { type InvitationMembershipIntent, permissions, user } from '@sim/db/schema'
+import { type InvitationMembershipIntent, member, permissions, user } from '@sim/db/schema'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
-import { getUserOrganization } from '@/lib/billing/organizations/membership'
+import {
+  acquireOrganizationMutationLock,
+  acquireOrganizationUserMutationLocks,
+  getUserOrganization,
+} from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import type { DbOrTx } from '@/lib/db/types'
 import {
+  DirectGrantContextChangedError,
   type DirectGrantOutcome,
   grantWorkspaceAccessDirectly,
 } from '@/lib/invitations/direct-grant'
@@ -23,6 +30,7 @@ import {
 } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
+  getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
   type PermissionType,
@@ -197,6 +205,136 @@ async function inviteeCanBeExternal(userId: string | undefined): Promise<boolean
   return (await getInvitePlanCategoryForUser(userId)) !== 'free'
 }
 
+async function validateLockedWorkspaceInvitationContext({
+  tx,
+  context,
+  workspaceIds,
+  organizationId,
+  existingUserId,
+  observedInviteeOrganizationId,
+  requiresOrganizationAdmin,
+}: {
+  tx: DbOrTx
+  context: WorkspaceInvitationContext
+  workspaceIds: string[]
+  organizationId: string | null
+  existingUserId?: string
+  observedInviteeOrganizationId: string | null
+  requiresOrganizationAdmin: boolean
+}): Promise<void> {
+  /**
+   * Sending already holds the invitation/workspace advisory locks. Take the
+   * same organization → user → membership fence used by direct grants and
+   * organization transfers before re-reading any decision that could have
+   * gone stale.
+   */
+  if (existingUserId) {
+    await acquireOrganizationUserMutationLocks(tx, {
+      userId: existingUserId,
+      organizationIds: organizationId ? [organizationId] : [],
+    })
+  } else if (organizationId) {
+    await acquireOrganizationMutationLock(tx, organizationId)
+  }
+
+  if (organizationId !== context.organizationId) {
+    throw new WorkspaceInvitationError({
+      message: 'A selected workspace changed organizations. Review the selection and try again.',
+      status: 409,
+    })
+  }
+
+  if (organizationId) {
+    await tx
+      .select({ id: member.id, role: member.role })
+      .from(member)
+      .where(and(eq(member.userId, context.inviterId), eq(member.organizationId, organizationId)))
+      .for('update')
+  }
+
+  for (const workspaceId of [...new Set(workspaceIds)].sort()) {
+    const workspaceDetails = await getWorkspaceWithOwner(workspaceId, {
+      executor: tx,
+      forUpdate: true,
+    })
+    if (!workspaceDetails || workspaceDetails.organizationId !== organizationId) {
+      throw new WorkspaceInvitationError({
+        message: 'A selected workspace changed organizations. Review the selection and try again.',
+        status: 409,
+      })
+    }
+
+    /**
+     * Lock both possible authorization rows before resolving effective access.
+     * The explicit permission protects direct workspace admin standing; the
+     * exact member row protects inherited organization-admin standing from a
+     * concurrent role update that does not share invitation advisory locks.
+     */
+    await tx
+      .select({ id: permissions.id })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId),
+          eq(permissions.userId, context.inviterId)
+        )
+      )
+      .for('update')
+    if (
+      (await getEffectiveWorkspacePermission(context.inviterId, workspaceDetails, tx)) !== 'admin'
+    ) {
+      throw new WorkspaceInvitationError({
+        message: 'Your workspace permissions changed. Review the selection and try again.',
+        status: 409,
+      })
+    }
+  }
+
+  if (requiresOrganizationAdmin) {
+    const inviterMembership = await getUserOrganization(context.inviterId, tx)
+    if (
+      !organizationId ||
+      inviterMembership?.organizationId !== organizationId ||
+      !isOrgAdminRole(inviterMembership.role)
+    ) {
+      throw new WorkspaceInvitationError({
+        message: 'Your organization role changed. Review the invitation and try again.',
+        status: 409,
+      })
+    }
+  }
+
+  if (existingUserId) {
+    const currentInviteeMembership = await getUserOrganization(existingUserId, tx)
+    if ((currentInviteeMembership?.organizationId ?? null) !== observedInviteeOrganizationId) {
+      throw new WorkspaceInvitationError({
+        message: 'The invitee changed organizations. Review the invitation and try again.',
+        status: 409,
+      })
+    }
+
+    const [existingPermission] = await tx
+      .select({ id: permissions.id })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.userId, existingUserId),
+          inArray(permissions.entityId, workspaceIds)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (existingPermission) {
+      throw new WorkspaceInvitationError({
+        message: 'The invitee already gained access. Refresh and try again.',
+        status: 409,
+      })
+    }
+  }
+}
+
 /**
  * Invites one person to every workspace in the context they do not already
  * have (or already have a pending invitation for), as a single invitation with
@@ -240,8 +378,7 @@ export async function createWorkspaceInvitation({
     .where(sql`lower(${user.email}) = ${normalizedEmail}`)
     .then((rows) => rows[0])
 
-  const existingMembership =
-    existingUser && organizationId ? await getUserOrganization(existingUser.id) : null
+  const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
 
   let pendingTargets = context.targets
   if (existingUser) {
@@ -282,18 +419,31 @@ export async function createWorkspaceInvitation({
     if (organizationId && existingMembership?.organizationId === organizationId) {
       let outcome: DirectGrantOutcome['outcome'] = 'unchanged'
       for (const target of pendingTargets) {
-        const directGrant = await grantWorkspaceAccessDirectly({
-          userId: existingUser.id,
-          email: normalizedEmail,
-          workspaceId: target.workspaceId,
-          workspaceName: target.workspaceDetails.name,
-          permission: invitationPermission,
-          organizationId,
-          actorId: context.inviterId,
-          actorName: context.inviterName,
-          actorEmail: context.inviterEmail,
-          request,
-        })
+        let directGrant: DirectGrantOutcome
+        try {
+          directGrant = await grantWorkspaceAccessDirectly({
+            userId: existingUser.id,
+            email: normalizedEmail,
+            workspaceId: target.workspaceId,
+            workspaceName: target.workspaceDetails.name,
+            permission: invitationPermission,
+            organizationId,
+            actorId: context.inviterId,
+            actorName: context.inviterName,
+            actorEmail: context.inviterEmail,
+            request,
+          })
+        } catch (error) {
+          if (error instanceof DirectGrantContextChangedError) {
+            throw new WorkspaceInvitationError({
+              message:
+                'Workspace access or organization membership changed. Refresh and try again.',
+              status: 409,
+              email: normalizedEmail,
+            })
+          }
+          throw error
+        }
         if (directGrant.outcome === 'added') outcome = 'added'
       }
 
@@ -406,6 +556,16 @@ export async function createWorkspaceInvitation({
         workspaceId: target.workspaceId,
         permission: invitationPermission,
       })),
+      validateLockedContext: ({ tx, organizationId: lockedOrganizationId, workspaceIds }) =>
+        validateLockedWorkspaceInvitationContext({
+          tx,
+          context,
+          workspaceIds,
+          organizationId: lockedOrganizationId,
+          existingUserId: existingUser?.id,
+          observedInviteeOrganizationId: existingMembership?.organizationId ?? null,
+          requiresOrganizationAdmin: membershipIntent === 'internal' && membership === 'admin',
+        }),
     })
   } catch (error) {
     /**
@@ -471,11 +631,16 @@ export async function createWorkspaceInvitation({
 
   if (!emailResult.success) {
     if (invitationRecord.created) {
-      await cancelPendingInvitation(invitationRecord.invitationId)
+      await cancelPendingInvitation(invitationRecord.invitationId, {
+        expectedUpdatedAt: invitationRecord.mutationUpdatedAt,
+        expectedOrganizationId: invitationRecord.mutationOrganizationId,
+      })
     } else {
       await revertPendingInvitationGrants({
         invitationId: invitationRecord.invitationId,
         workspaceIds: invitationRecord.addedWorkspaceIds,
+        expectedUpdatedAt: invitationRecord.mutationUpdatedAt,
+        expectedOrganizationId: invitationRecord.mutationOrganizationId,
       })
     }
     throw new WorkspaceInvitationError({

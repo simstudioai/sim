@@ -1,8 +1,17 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import type { DbOrTx } from '@/lib/db/types'
+import {
+  getEffectiveWorkspacePermission,
+  hasWorkspaceAdminAccess,
+} from '@/lib/workspaces/permissions/utils'
+
+const PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
 
 export interface WorkspaceMembership {
   ownerId: string | null
@@ -15,7 +24,7 @@ export interface WorkspaceMembership {
  * Credential-admin status is derived from workspace role at access time, so
  * members are seeded only for use access (the owner plus permission holders).
  */
-export async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
+async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
   const [workspaceRows, permissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
@@ -35,6 +44,60 @@ export async function getWorkspaceMembership(workspaceId: string): Promise<Works
   }
 
   return { ownerId, memberUserIds: Array.from(memberUserIds) }
+}
+
+export interface CredentialCreationWorkspaceContext extends WorkspaceMembership {
+  organizationId: string | null
+  canWrite: boolean
+}
+
+/**
+ * Resolves every workspace fact used by credential creation through the
+ * caller's transaction. The route invokes this once to discover the
+ * organization lock scope and again after acquiring the shared organization /
+ * user locks; only the second result authorizes the insert and seeds
+ * credential memberships.
+ */
+export async function getCredentialCreationWorkspaceContext(params: {
+  executor: DbOrTx
+  workspaceId: string
+  userId: string
+  forUpdate?: boolean
+}): Promise<CredentialCreationWorkspaceContext | null> {
+  const workspaceQuery = params.executor
+    .select({
+      ownerId: workspace.ownerId,
+      organizationId: workspace.organizationId,
+    })
+    .from(workspace)
+    .where(and(eq(workspace.id, params.workspaceId), isNull(workspace.archivedAt)))
+  const [workspaceRow] = params.forUpdate
+    ? await workspaceQuery.for('update').limit(1)
+    : await workspaceQuery.limit(1)
+  if (!workspaceRow) return null
+
+  const permissionRows = await params.executor
+    .select({ userId: permissions.userId })
+    .from(permissions)
+    .where(
+      and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, params.workspaceId))
+    )
+
+  const effectivePermission = await getEffectiveWorkspacePermission(
+    params.userId,
+    { id: params.workspaceId, organizationId: workspaceRow.organizationId },
+    params.executor
+  )
+
+  const memberUserIds = new Set(permissionRows.map((row) => row.userId))
+  memberUserIds.add(workspaceRow.ownerId)
+
+  return {
+    ownerId: workspaceRow.ownerId,
+    organizationId: workspaceRow.organizationId,
+    memberUserIds: [...memberUserIds],
+    canWrite: permissionSatisfies(effectivePermission, 'write'),
+  }
 }
 
 export interface WorkspaceEnvKeyAdminAccess {
@@ -95,21 +158,22 @@ interface AccessibleEnvCredential {
   updatedAt: Date
 }
 
-export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
-  const [permissionRows, ownedWorkspaceRows] = await Promise.all([
-    db
-      .select({ workspaceId: workspace.id })
-      .from(permissions)
-      .innerJoin(
-        workspace,
-        and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
-      )
-      .where(and(eq(permissions.userId, userId), isNull(workspace.archivedAt))),
-    db
-      .select({ workspaceId: workspace.id })
-      .from(workspace)
-      .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt))),
-  ])
+export async function getUserWorkspaceIds(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<string[]> {
+  const permissionRows = await executor
+    .select({ workspaceId: workspace.id })
+    .from(permissions)
+    .innerJoin(
+      workspace,
+      and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
+    )
+    .where(and(eq(permissions.userId, userId), isNull(workspace.archivedAt)))
+  const ownedWorkspaceRows = await executor
+    .select({ workspaceId: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
   const workspaceIds = new Set<string>(permissionRows.map((row) => row.workspaceId))
   for (const row of ownedWorkspaceRows) {
@@ -337,94 +401,100 @@ export async function syncPersonalEnvCredentialsForUser(params: {
   envKeys: string[]
 }): Promise<void> {
   const { userId, envKeys } = params
-  const workspaceIds = await getUserWorkspaceIds(userId)
-  if (!workspaceIds.length) return
-
   const normalizedKeys = Array.from(new Set(envKeys.filter(Boolean)))
   const now = new Date()
 
-  await Promise.all(
-    workspaceIds.map(async (workspaceId) => {
-      if (normalizedKeys.length > 0) {
-        await db
-          .insert(credential)
-          .values(
-            normalizedKeys.map((envKey) => ({
-              id: generateId(),
-              workspaceId,
-              type: 'env_personal' as const,
-              displayName: envKey,
-              envKey,
-              envOwnerUserId: userId,
-              createdBy: userId,
-              createdAt: now,
-              updatedAt: now,
-            }))
-          )
-          .onConflictDoNothing()
+  await db.transaction(async (tx) => {
+    /**
+     * Cross-organization transfer takes this same user-identity fence before
+     * checking source-owned credentials. If this sync wins, transfer observes
+     * the new env_personal rows and blocks; if transfer wins, this post-lock
+     * workspace re-read cannot recreate credentials in the departed org.
+     */
+    await acquireUserBillingIdentityLock(tx, userId)
+    const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
+
+    if (workspaceIds.length === 0) return
+
+    if (normalizedKeys.length > 0) {
+      const credentialValues = workspaceIds.flatMap((workspaceId) =>
+        normalizedKeys.map((envKey) => ({
+          id: generateId(),
+          workspaceId,
+          type: 'env_personal' as const,
+          displayName: envKey,
+          envKey,
+          envOwnerUserId: userId,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
+      for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+        await tx.insert(credential).values(values).onConflictDoNothing()
       }
 
-      const currentCredentials =
-        normalizedKeys.length > 0
-          ? await db
-              .select({ id: credential.id })
-              .from(credential)
-              .where(
-                and(
-                  eq(credential.workspaceId, workspaceId),
-                  eq(credential.type, 'env_personal'),
-                  eq(credential.envOwnerUserId, userId),
-                  inArray(credential.envKey, normalizedKeys)
-                )
-              )
-          : []
+      const currentCredentials = await tx
+        .select({ id: credential.id })
+        .from(credential)
+        .where(
+          and(
+            inArray(credential.workspaceId, workspaceIds),
+            eq(credential.type, 'env_personal'),
+            eq(credential.envOwnerUserId, userId),
+            inArray(credential.envKey, normalizedKeys)
+          )
+        )
 
       if (currentCredentials.length > 0) {
-        await db
-          .insert(credentialMember)
-          .values(
-            currentCredentials.map(({ id: credentialId }) => ({
-              id: generateId(),
-              credentialId,
-              userId,
-              role: 'admin' as const,
-              status: 'active' as const,
-              joinedAt: now,
-              invitedBy: userId,
-              createdAt: now,
-              updatedAt: now,
-            }))
-          )
-          .onConflictDoUpdate({
-            target: [credentialMember.credentialId, credentialMember.userId],
-            set: { role: 'admin', status: 'active', updatedAt: now },
-          })
+        const membershipValues = currentCredentials.map(({ id: credentialId }) => ({
+          id: generateId(),
+          credentialId,
+          userId,
+          role: 'admin' as const,
+          status: 'active' as const,
+          joinedAt: now,
+          invitedBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+        for (const values of chunkArray(
+          membershipValues,
+          PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE
+        )) {
+          await tx
+            .insert(credentialMember)
+            .values(values)
+            .onConflictDoUpdate({
+              target: [credentialMember.credentialId, credentialMember.userId],
+              set: { role: 'admin', status: 'active', updatedAt: now },
+            })
+        }
       }
 
-      if (normalizedKeys.length > 0) {
-        await db
-          .delete(credential)
-          .where(
-            and(
-              eq(credential.workspaceId, workspaceId),
-              eq(credential.type, 'env_personal'),
-              eq(credential.envOwnerUserId, userId),
-              notInArray(credential.envKey, normalizedKeys)
-            )
+      await tx
+        .delete(credential)
+        .where(
+          and(
+            inArray(credential.workspaceId, workspaceIds),
+            eq(credential.type, 'env_personal'),
+            eq(credential.envOwnerUserId, userId),
+            notInArray(credential.envKey, normalizedKeys)
           )
-      } else {
-        await db
-          .delete(credential)
-          .where(
-            and(
-              eq(credential.workspaceId, workspaceId),
-              eq(credential.type, 'env_personal'),
-              eq(credential.envOwnerUserId, userId)
-            )
-          )
-      }
-    })
-  )
+        )
+      return
+    }
+
+    await tx
+      .delete(credential)
+      .where(
+        and(
+          inArray(credential.workspaceId, workspaceIds),
+          eq(credential.type, 'env_personal'),
+          eq(credential.envOwnerUserId, userId)
+        )
+      )
+  })
 }
 
 export async function getAccessibleEnvCredentials(

@@ -2,20 +2,30 @@
  * @vitest-environment node
  */
 import { member, workspace } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  dbChainMock,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbOrTx } from '@/lib/db/types'
 
 const {
+  mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
   mockGetOrganizationSubscription,
   mockGetHighestPrioritySubscription,
 } = vi.hoisted(() => ({
+  mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
   getUserOrganization: mockGetUserOrganization,
 }))
 
@@ -28,15 +38,117 @@ vi.mock('@/lib/billing/core/plan', () => ({
 }))
 
 import {
+  getOrganizationOwnerId,
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
+  lockWorkspaceCreationContext,
   WORKSPACE_MODE,
+  WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 
 afterAll(resetDbChainMock)
 
 afterAll(resetEnvFlagsMock)
+
+describe('getOrganizationOwnerId', () => {
+  it('uses the supplied transaction executor for the owner lookup', async () => {
+    const limit = vi.fn().mockResolvedValue([{ userId: 'owner-from-transaction' }])
+    const where = vi.fn().mockReturnValue({ limit })
+    const from = vi.fn().mockReturnValue({ where })
+    const select = vi.fn().mockReturnValue({ from })
+    const executor = { select } as unknown as DbOrTx
+
+    await expect(getOrganizationOwnerId('org-1', executor)).resolves.toBe('owner-from-transaction')
+    expect(select).toHaveBeenCalledWith({ userId: member.userId })
+    expect(from).toHaveBeenCalledWith(member)
+    expect(where).toHaveBeenCalledOnce()
+    expect(limit).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('lockWorkspaceCreationContext', () => {
+  it('locks the destination organization and user before rejecting a stale org-mode policy', async () => {
+    vi.clearAllMocks()
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue(null)
+    const tx = {} as DbOrTx
+
+    await expect(
+      lockWorkspaceCreationContext(tx, {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        observedOrganizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceCreationContextChangedError)
+
+    expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledWith(tx, {
+      userId: 'user-1',
+      organizationIds: ['org-1'],
+    })
+    expect(mockGetUserOrganization).toHaveBeenCalledWith('user-1', tx)
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetUserOrganization.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('uses the live owner after the org lock and row-locks the current entitlement', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'admin',
+    })
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-1',
+      referenceId: 'org-1',
+      plan: 'team_6000',
+      status: 'active',
+    })
+    queueTableRows(member, [{ userId: 'new-owner' }])
+    const tx = dbChainMock.db as unknown as DbOrTx
+
+    await expect(
+      lockWorkspaceCreationContext(tx, {
+        userId: 'creator-1',
+        organizationId: 'org-1',
+        observedOrganizationId: 'org-1',
+      })
+    ).resolves.toEqual({ billedAccountUserId: 'new-owner' })
+
+    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-1', {
+      executor: tx,
+      onError: 'throw',
+      forUpdate: true,
+    })
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetOrganizationSubscription.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('rejects when the paid org entitlement disappeared before insertion', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'owner',
+    })
+    mockGetOrganizationSubscription.mockResolvedValue(null)
+    const tx = dbChainMock.db as unknown as DbOrTx
+
+    await expect(
+      lockWorkspaceCreationContext(tx, {
+        userId: 'creator-1',
+        organizationId: 'org-1',
+        observedOrganizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceCreationContextChangedError)
+  })
+})
 
 describe('getWorkspaceCreationPolicy', () => {
   beforeEach(() => {
