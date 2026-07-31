@@ -56,6 +56,12 @@ export interface PreprocessExecutionOptions {
   requestId: string
 
   checkRateLimit?: boolean
+  /**
+   * Which execution token bucket the rate-limit gate debits. Ignored when
+   * `checkRateLimit` is false. Defaults to `'sync'` — the historical behavior
+   * for every surface, including async-queued v1 runs.
+   */
+  rateLimitCounter?: 'sync' | 'async'
   checkDeployment?: boolean
   skipUsageLimits?: boolean
   /**
@@ -91,6 +97,8 @@ export interface PreprocessExecutionError {
   statusCode: number
   code?: string
   retryable?: boolean
+  /** Populated on rate-limit denials so callers can emit `Retry-After`. */
+  retryAfterMs?: number
   cause?: Record<string, unknown>
 }
 
@@ -127,6 +135,7 @@ export async function preprocessExecution(
     reservationId = executionId,
     requestId,
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
+    rateLimitCounter = 'sync',
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
     skipConcurrencyReservation = false,
@@ -569,7 +578,7 @@ export async function preprocessExecution(
         actorUserId,
         actorSubscription,
         triggerType,
-        false
+        rateLimitCounter === 'async'
       )
 
       if (!info.allowed) {
@@ -585,6 +594,13 @@ export async function preprocessExecution(
             error: {
               message: `Rate limit exceeded. Please try again later.`,
               statusCode: 429,
+              /**
+               * Distinguishes quota exhaustion from the concurrency-slot 429
+               * (`EXECUTION_CONCURRENCY_LIMIT`, retryable in seconds) — the two
+               * need different caller behavior.
+               */
+              code: 'RATE_LIMIT_EXCEEDED',
+              retryAfterMs: info.retryAfterMs ?? Math.max(0, info.resetAt.getTime() - Date.now()),
             },
           },
           recordError: {
