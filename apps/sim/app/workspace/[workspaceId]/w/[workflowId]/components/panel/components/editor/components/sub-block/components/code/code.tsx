@@ -321,12 +321,14 @@ export const Code = memo(function Code({
   }, [wandConfig, languageValue])
 
   const [tableIdValue] = useSubBlockValue<string>(blockId, 'tableId')
+  const [sandboxIdValue] = useSubBlockValue<string>(blockId, 'sandboxId')
 
   const wandHook = useWand({
     wandConfig: dynamicWandConfig || { enabled: false, prompt: '' },
     currentValue: code,
     contextParams: {
       tableId: typeof tableIdValue === 'string' ? tableIdValue : null,
+      sandboxId: typeof sandboxIdValue === 'string' ? sandboxIdValue : null,
     },
     onStreamStart: () => handleStreamStartRef.current?.(),
     onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),

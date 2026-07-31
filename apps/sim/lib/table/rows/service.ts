@@ -24,6 +24,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
@@ -814,7 +815,7 @@ const FIND_MATCH_LIMIT = 1000
  * are trusted schema data, escaped and embedded literally; the row alias is `o`.
  */
 export function buildSelectFindNameExpr(columns: ColumnDefinition[]): string | null {
-  const selectColumns = columns.filter((c) => c.type === 'select')
+  const selectColumns = columns.filter((c) => columnTypeOf(c).storesOpaqueIds)
   if (selectColumns.length === 0) return null
   const esc = (s: string) => s.replace(/'/g, "''")
   const whens = selectColumns

@@ -2221,21 +2221,108 @@ export function EyeIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
+/**
+ * Corporate Atlassian mark, used for family-wide Atlassian credentials — one
+ * API token authenticates Jira, Jira Service Management, and Confluence, so no
+ * single product mark represents it. Individual products keep their own icons.
+ */
+export function AtlassianIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradientId = `atlassian_gradient_${id}`
+
   return (
     <svg
       {...props}
       width='24'
       height='24'
-      viewBox='0 3 21 24'
+      /*
+       * The mark's artwork spans ~66 units; the box is padded to 84.5 so it
+       * fills ~78% of its viewBox, matching the inset Atlassian ships on the
+       * Jira and Confluence marks (artwork 16→116 inside 128). Without the
+       * padding this renders ~30% heavier than its siblings in the same tile.
+       */
+      viewBox='-9.2 -8.9 84.5 84.5'
       focusable='false'
       fill='none'
       aria-hidden='true'
       xmlns='http://www.w3.org/2000/svg'
     >
+      <defs>
+        <linearGradient
+          id={gradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='28.536019'
+          y1='35.528544'
+          x2='11.406018'
+          y2='65.208544'
+        >
+          <stop offset='0' stopColor='#0052cc' />
+          <stop offset='0.92' stopColor='#2684ff' />
+        </linearGradient>
+      </defs>
       <path
-        fill='#1868DB'
-        d='M20.6 20.23c-6.58-3.18-8.51-3.66-11.28-3.66-3.25 0-6.03 1.36-8.51 5.16l-.407.62c-.333.51-.407.7-.407.92s.111.4.518.66l4.18 2.6c.221.15.406.22.59.22.22 0 .37-.11.59-.44l.666-1.02c1.03-1.57 1.96-2.09 3.14-2.09 1.03 0 2.26.293 3.77 1.02l4.37 2.05c.444.22.93.11 1.15-.403l2.07-4.54c.222-.512.07-.842-.444-1.1M1.41 12.22c6.58 3.18 8.51 3.66 11.28 3.66 3.26 0 6.03-1.35 8.51-5.16l.407-.622c.332-.512.41-.695.41-.915s-.11-.402-.518-.658L17.31 5.93c-.222-.147-.407-.22-.592-.22-.222 0-.37.11-.592.44l-.665 1.02c-1.04 1.57-1.96 2.09-3.14 2.09-1.04 0-2.26-.293-3.77-1.02L4.18 6.18c-.444-.22-.925-.11-1.15.402L.962 11.12c-.222.51-.74.84.444 1.1'
+        fill={`url(#${gradientId})`}
+        d='m 19.636018,30.518546 a 1.88,1.88 0 0 0 -3.2,0.35 l -16.2299998,32.46 a 1.94,1.94 0 0 0 1.73,2.81 H 24.536018 a 1.87,1.87 0 0 0 1.74,-1.1 c 4.87,-10 1.92,-25.37 -6.64,-34.52 z'
+      />
+      <path
+        fill='#2684ff'
+        d='m 31.546018,1.038546 a 42.81,42.81 0 0 0 -2.5,42.27 l 10.95,21.73 a 1.94,1.94 0 0 0 1.73,1.08 h 22.6 a 2,2 0 0 0 1.67,-2.79 l -31.15,-62.29 a 1.83,1.83 0 0 0 -3.3,0 z'
+      />
+    </svg>
+  )
+}
+
+export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const topGradientId = `confluence_top_${id}`
+  const bottomGradientId = `confluence_bottom_${id}`
+
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      viewBox='0 0 128 128'
+      focusable='false'
+      fill='none'
+      aria-hidden='true'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <defs>
+        <linearGradient
+          id={bottomGradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='26.791'
+          y1='28.467'
+          x2='11.792'
+          y2='19.855'
+          gradientTransform='scale(4)'
+        >
+          <stop offset='0' stopColor='#0052cc' />
+          <stop offset='0.918' stopColor='#2380fb' />
+          <stop offset='1' stopColor='#2684ff' />
+        </linearGradient>
+        <linearGradient
+          id={topGradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='5.209'
+          y1='2.523'
+          x2='20.208'
+          y2='11.136'
+          gradientTransform='scale(4)'
+        >
+          <stop offset='0' stopColor='#0052cc' />
+          <stop offset='0.918' stopColor='#2380fb' />
+          <stop offset='1' stopColor='#2684ff' />
+        </linearGradient>
+      </defs>
+      <path
+        fill={`url(#${bottomGradientId})`}
+        d='M19.492 86.227a249.047 249.047 0 00-3.047 4.933c-.867 1.45-.433 3.336 1.016 4.207l19.863 12.188c1.45.87 3.332.433 4.203-1.016a139.349 139.349 0 012.899-4.934c7.832-12.91 15.804-11.46 30.011-4.64l19.72 9.281c1.593.727 3.335 0 4.058-1.45l9.426-21.323c.722-1.453 0-3.336-1.454-4.063-4.203-1.887-12.464-5.805-19.714-9.43-26.82-12.914-49.586-12.043-66.98 16.247zm0 0'
+      />
+      <path
+        fill={`url(#${topGradientId})`}
+        d='M108.508 37.773a249.047 249.047 0 003.047-4.933c.87-1.45.433-3.336-1.016-4.207L90.676 16.445c-1.45-.87-3.332-.433-4.203 1.016a133.55 133.55 0 01-2.899 4.934c-7.832 12.91-15.804 11.46-30.011 4.64l-19.72-9.281c-1.593-.727-3.331 0-4.058 1.45l-9.422 21.323c-.726 1.453 0 3.34 1.45 4.063 4.203 1.887 12.468 5.805 19.714 9.43 26.825 12.77 49.586 12.042 66.98-16.247zm0 0'
       />
     </svg>
   )
@@ -2787,19 +2874,58 @@ export function LinkupIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function JiraIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const middleGradientId = `jira_middle_${id}`
+  const bottomGradientId = `jira_bottom_${id}`
+
   return (
     <svg
       {...props}
       xmlns='http://www.w3.org/2000/svg'
-      viewBox='0 0 30 30'
+      viewBox='0 0 128 128'
       width='24'
       height='24'
       focusable='false'
+      fill='none'
       aria-hidden='true'
     >
+      <defs>
+        <linearGradient
+          id={middleGradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='22.034'
+          y1='9.773'
+          x2='17.118'
+          y2='14.842'
+          gradientTransform='scale(4)'
+        >
+          <stop offset='0.176' stopColor='#0052cc' />
+          <stop offset='1' stopColor='#2684ff' />
+        </linearGradient>
+        <linearGradient
+          id={bottomGradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='16.641'
+          y1='15.564'
+          x2='10.957'
+          y2='21.094'
+          gradientTransform='scale(4)'
+        >
+          <stop offset='0.176' stopColor='#0052cc' />
+          <stop offset='1' stopColor='#2684ff' />
+        </linearGradient>
+      </defs>
       <path
-        fill='#1868DB'
-        d='M11.03 21.99h-2.22c-3.35 0-5.75-2.05-5.75-5.05h11.93c.619 0 1.02.44 1.02 1.06v12.01c-2.98 0-4.98-2.42-4.98-5.78zm5.89-5.97h-2.22c-3.35 0-5.75-2.01-5.75-5.01h11.93c.618 0 1.06.402 1.06 1.02V24.04c-2.98 0-5.02-2.42-5.02-5.78zm5.93-5.93h-2.22c-3.35 0-5.75-2.05-5.75-5.05h11.93c.618 0 1.02.439 1.02 1.02v12.01c-2.98 0-4.98-2.42-4.98-5.78z'
+        fill='#2684ff'
+        d='M108.023 16H61.805c0 11.52 9.324 20.848 20.847 20.848h8.5v8.226c0 11.52 9.328 20.848 20.848 20.848V19.977A3.98 3.98 0 00108.023 16zm0 0'
+      />
+      <path
+        fill={`url(#${middleGradientId})`}
+        d='M85.121 39.04H38.902c0 11.519 9.325 20.847 20.844 20.847h8.504v8.226c0 11.52 9.328 20.848 20.848 20.848V43.016a3.983 3.983 0 00-3.977-3.977zm0 0'
+      />
+      <path
+        fill={`url(#${bottomGradientId})`}
+        d='M62.219 62.078H16c0 11.524 9.324 20.848 20.848 20.848h8.5v8.23c0 11.52 9.328 20.844 20.847 20.844V66.059a3.984 3.984 0 00-3.976-3.98zm0 0'
       />
     </svg>
   )
@@ -7573,6 +7699,31 @@ export function SixtyfourIcon(props: SVGProps<SVGSVGElement>) {
         d='M125.68 12.99L94.84 30.76L63.99 12.99L32.4 31.19H32.39V68.86L0.8 87.05H0.79V124.72L31.64 142.48V140.73L2.31 123.84V89.67L31.64 106.56V140.73L32.4 141.17L33.15 140.73V106.56L62.48 89.67V123.84L33.15 140.73V142.48L63.24 125.16L93.33 142.48L93.53 142.6L94.09 142.92L94.64 142.6L94.84 142.48L125.69 124.72V87.05L126.24 86.74L126.44 86.61L157.28 68.86V31.19L125.68 12.99ZM63.23 84.86L33.9 67.98V33.8L63.23 50.7V84.86ZM64.75 50.7L94.08 33.8V67.98L64.75 84.86V50.7ZM124.17 123.84L94.84 140.73V106.56L94.09 107L93.33 106.56V140.73L64 123.84V89.67L93.33 106.56V105.61H94.84V106.56L124.17 89.67V123.84ZM124.92 84.86L95.59 67.98V33.8L124.92 50.69V84.86ZM155.77 67.98L126.44 84.86V50.7L155.77 33.8V67.98Z'
         fill='currentColor'
       />
+    </svg>
+  )
+}
+
+/**
+ * The "sim" brand wordmark (v1.0 brand guide simLogotype paths — the same mark
+ * the navbar/login header renders), inked with the theme-adaptive
+ * `--text-body`. Used as the icon for the Auto model option; the wide viewBox
+ * letterboxes itself inside square icon slots.
+ */
+export function SimAutoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 441 212'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <g fill='var(--text-body)'>
+        <path d='M0 160.9H29.51C29.51 169.08 32.46 175.61 38.37 180.48C44.27 185.12 52.25 187.44 62.31 187.44C73.24 187.44 81.65 185.34 87.56 181.14C93.46 176.71 96.41 170.85 96.41 163.55C96.41 158.24 94.77 153.82 91.49 150.28C88.43 146.74 82.75 143.86 74.44 141.65L46.24 135.01C32.03 131.47 21.42 126.05 14.43 118.75C7.65 111.45 4.26 101.83 4.26 89.88C4.26 79.93 6.78 71.3 11.81 64C17.05 56.7 24.16 51.06 33.12 47.08C42.3 43.09 52.8 41.1 64.6 41.1C76.41 41.1 86.57 43.2 95.1 47.41C103.84 51.61 110.62 57.47 115.43 64.99C120.46 72.52 123.08 81.48 123.3 91.87H93.79C93.57 83.47 90.84 76.94 85.59 72.3C80.34 67.65 73.02 65.33 63.62 65.33C54 65.33 46.57 67.43 41.32 71.63C36.07 75.83 33.45 81.59 33.45 88.89C33.45 99.73 41.32 107.14 57.06 111.12L85.26 118.09C98.81 121.19 108.98 126.28 115.76 133.35C122.53 140.21 125.92 149.61 125.92 161.56C125.92 171.74 123.19 180.7 117.73 188.44C112.26 195.96 104.72 201.82 95.1 206.03C85.7 210.01 74.55 212 61.65 212C42.85 212 27.87 207.35 16.72 198.06C5.57 188.77 0 176.38 0 160.9Z' />
+        <path d='M232.8 212H202.13L202.13 49.76H229.54V77.39C232.8 68.34 239.11 60.66 247.81 54.7C256.73 48.52 267.5 45.43 280.12 45.43C294.26 45.43 306.01 49.29 315.36 57.02C324.72 64.75 330.81 75.01 333.64 87.82H328.09C330.27 75.01 336.25 64.75 346.04 57.02C355.83 49.29 367.9 45.43 382.26 45.43C400.54 45.43 414.89 50.84 425.34 61.66C435.78 72.47 441 87.26 441 106.03V212H410.98V113.65C410.98 100.84 407.71 91.02 401.19 84.17C394.88 77.11 386.29 73.58 375.41 73.58C367.79 73.58 361.05 75.34 355.17 78.88C349.52 82.19 345.06 87.04 341.8 93.45C338.53 99.85 336.9 107.36 336.9 115.97V212H306.55V113.32C306.55 100.51 303.4 90.8 297.09 84.17C290.78 77.33 282.19 73.91 271.31 73.91C263.69 73.91 256.95 75.67 251.08 79.21C245.42 82.52 240.96 87.38 237.7 93.78C234.43 99.96 232.8 107.36 232.8 115.97V212Z' />
+        <path d='M184.83 20.55C184.83 31.9 175.64 41.1 164.29 41.1C152.95 41.1 143.76 31.9 143.76 20.55C143.76 9.2 152.95 0 164.29 0C175.64 0 184.83 9.2 184.83 20.55Z' />
+        <path d='M179.43 212H149.16V49.76C153.76 51.91 158.88 53.12 164.29 53.12C169.7 53.12 174.83 51.91 179.43 49.76V212Z' />
+      </g>
     </svg>
   )
 }

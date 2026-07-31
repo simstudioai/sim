@@ -49,6 +49,7 @@ import {
   pickLatestStartedMarker,
 } from '@/lib/logs/execution/progress-markers'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
+import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   externalizeExecutionData,
   stripSpanCosts,
@@ -775,19 +776,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
       providedActorUserId ??
       this.extractActorUserId(existingLog?.executionData)
 
-    // Determine if workflow failed by checking trace spans for unhandled errors
-    // Errors handled by error handler paths (errorHandled: true) don't count as workflow failures
-    // Use the override if provided (for cost-only fallback scenarios)
-    const hasErrors = traceSpans?.some((span: any) => {
-      const checkSpanForErrors = (s: any): boolean => {
-        if (s.status === 'error' && !s.errorHandled) return true
-        if (s.children && Array.isArray(s.children)) {
-          return s.children.some(checkSpanForErrors)
-        }
-        return false
-      }
-      return checkSpanForErrors(span)
-    })
+    // Determine if workflow failed by checking trace spans for unhandled errors.
+    // Errors handled by error handler paths (errorHandled: true) don't count as
+    // workflow failures. Use the override if provided (cost-only fallback).
+    const hasErrors = traceSpansIndicateFailure(traceSpans)
 
     const level = levelOverride ?? (hasErrors ? 'error' : 'info')
     const status = statusOverride ?? (hasErrors ? 'failed' : 'completed')

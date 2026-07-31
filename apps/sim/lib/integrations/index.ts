@@ -98,6 +98,10 @@ export function toIntegrationSummary(integration: Integration): IntegrationSumma
   }
 }
 
+export {
+  type CredentialDisplay,
+  resolveCredentialDisplay,
+} from '@/lib/integrations/credential-display'
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 export {
   type OAuthServiceMatch,

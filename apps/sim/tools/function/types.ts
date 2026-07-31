@@ -34,6 +34,15 @@ export interface CodeExecutionInput {
       mimeType?: string
     }>
   }
+  /** Workspace sandbox whose dependency set this execution runs against. */
+  sandboxId?: string
+  /**
+   * Which workspace secrets the code may read. Unset and `'all'` both mean every
+   * secret, resolved at execution so ones added later are included.
+   */
+  secretScope?: 'all' | 'selected'
+  /** Secret names visible to the code when {@link secretScope} is `'selected'`. */
+  mountedSecrets?: string[]
   envVars?: Record<string, string>
   workflowVariables?: Record<string, unknown>
   blockData?: Record<string, unknown>
