@@ -14564,30 +14564,54 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Read procurement data from QuickBooks Online",
-      "longDescription": "Connect one QuickBooks Online company and read its company profile, vendors, purchase orders, and bills. The connected company is selected during OAuth and cannot be overridden by workflow input.",
+      "description": "Read and manage QuickBooks Online company and master data",
+      "longDescription": "Connect one QuickBooks Online company to read company, master-data, purchase-order, and bill records and to create or update customers, vendors, and basic products or services.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
       "operations": [
         {
-          "name": "Get Company Info",
+          "name": "Company: Get Info",
           "description": "Get information about the connected QuickBooks Online company"
         },
         {
-          "name": "List Vendors",
-          "description": "List vendors in the connected QuickBooks Online company"
+          "name": "Master Data: Read",
+          "description": "List or read one account, customer, vendor, item, or employee"
         },
         {
-          "name": "List Purchase Orders",
+          "name": "Customers: Create",
+          "description": "Create a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Customers: Update",
+          "description": "Sparse-update a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Vendors: Create",
+          "description": "Create a vendor in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Vendors: Update",
+          "description": "Sparse-update a vendor in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Items: Create",
+          "description": "Create a Service or Non-inventory item in QuickBooks Online"
+        },
+        {
+          "name": "Items: Update",
+          "description": "Sparse-update a Service or Non-inventory item in QuickBooks Online"
+        },
+        {
+          "name": "Purchasing: List Purchase Orders",
           "description": "List purchase orders in the connected QuickBooks Online company"
         },
         {
-          "name": "List Bills",
+          "name": "Payables: List Bills",
           "description": "List bills in the connected QuickBooks Online company"
         }
       ],
-      "operationCount": 4,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

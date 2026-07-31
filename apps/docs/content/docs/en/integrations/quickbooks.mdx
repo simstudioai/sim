@@ -1,6 +1,6 @@
 ---
 title: QuickBooks
-description: Read procurement data from QuickBooks Online
+description: Read and manage QuickBooks Online company and master data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Connect one QuickBooks Online company and read its company profile, vendors, purchase orders, and bills. The connected company is selected during OAuth and cannot be overridden by workflow input.
+Connect one QuickBooks Online company to read company, master-data, purchase-order, and bill records and to create or update customers, vendors, and basic products or services.
 
 
 
@@ -51,6 +51,429 @@ Get information about the connected QuickBooks Online company
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 | `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_read_master_data`
+
+List or read one account, customer, vendor, item, or employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordType` | string | Yes | Master-data entity to read: account, customer, vendor, item, or employee |
+| `readMode` | string | Yes | Whether to list records or read one record by ID |
+| `recordId` | string | No | QuickBooks record ID, required for by-ID reads |
+| `startPosition` | number | No | One-based position of the first list record to return |
+| `maxResults` | number | No | Number of list records to request \(1–100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordType` | string | Master-data record type returned by this action |
+| `item` | json | Single QuickBooks master-data record returned by a by-ID read |
+|   ↳ `Name` | string | Item name |
+|   ↳ `SubAccount` | boolean | Whether this is a subaccount |
+|   ↳ `ParentRef` | json | Parent item or category reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `Classification` | string | Account classification |
+|   ↳ `AccountType` | string | Account type |
+|   ↳ `AccountSubType` | string | Account subtype |
+|   ↳ `CurrentBalance` | number | Account current balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Whether the item is taxable |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+| `items` | array | QuickBooks master-data records returned by a list read |
+|   ↳ `Name` | string | Item name |
+|   ↳ `SubAccount` | boolean | Whether this is a subaccount |
+|   ↳ `ParentRef` | json | Parent item or category reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `Classification` | string | Account classification |
+|   ↳ `AccountType` | string | Account type |
+|   ↳ `AccountSubType` | string | Account subtype |
+|   ↳ `CurrentBalance` | number | Account current balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Whether the item is taxable |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+
+### `quickbooks_create_customer`
+
+Create a customer in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Unique customer display name |
+| `companyName` | string | No | Customer company name |
+| `givenName` | string | No | Customer given name |
+| `familyName` | string | No | Customer family name |
+| `primaryEmail` | string | No | Customer primary email address |
+| `primaryPhone` | string | No | Customer primary phone number |
+| `billingAddress` | json | No | Customer billing address |
+| `shippingAddress` | json | No | Customer shipping address |
+| `taxable` | boolean | No | Whether sales to this customer are taxable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Customer record |
+|   ↳ `DisplayName` | string | Customer display name |
+|   ↳ `CompanyName` | string | Customer company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Whether the customer is taxable |
+|   ↳ `PrimaryEmailAddr` | json | Customer primary email address |
+|   ↳ `PrimaryPhone` | json | Customer primary phone number |
+|   ↳ `BillAddr` | json | Customer billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Customer balance |
+|   ↳ `CurrencyRef` | json | Customer currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_update_customer`
+
+Sparse-update a customer in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | ID of the customer to update |
+| `syncToken` | string | Yes | Current customer sync token |
+| `displayName` | string | No | Replacement customer display name |
+| `companyName` | string | No | Replacement customer company name |
+| `givenName` | string | No | Replacement customer given name |
+| `familyName` | string | No | Replacement customer family name |
+| `primaryEmail` | string | No | Replacement primary email address |
+| `primaryPhone` | string | No | Replacement primary phone number |
+| `billingAddress` | json | No | Replacement billing address |
+| `shippingAddress` | json | No | Replacement shipping address |
+| `taxable` | boolean | No | Whether sales to this customer are taxable |
+| `activeStatus` | string | Yes | Keep, activate, or deactivate the customer |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Customer record |
+|   ↳ `DisplayName` | string | Customer display name |
+|   ↳ `CompanyName` | string | Customer company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Whether the customer is taxable |
+|   ↳ `PrimaryEmailAddr` | json | Customer primary email address |
+|   ↳ `PrimaryPhone` | json | Customer primary phone number |
+|   ↳ `BillAddr` | json | Customer billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Customer balance |
+|   ↳ `CurrencyRef` | json | Customer currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_create_vendor`
+
+Create a vendor in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Unique vendor display name |
+| `companyName` | string | No | Vendor company name |
+| `givenName` | string | No | Vendor given name |
+| `familyName` | string | No | Vendor family name |
+| `primaryEmail` | string | No | Vendor primary email address |
+| `primaryPhone` | string | No | Vendor primary phone number |
+| `billingAddress` | json | No | Vendor billing address |
+| `printOnCheckName` | string | No | Name to print on checks |
+| `accountNumber` | string | No | Vendor account number |
+| `vendor1099` | boolean | No | Whether the vendor is tracked for 1099 reporting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Vendor record |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `PrimaryEmailAddr` | json | Vendor primary email address |
+|   ↳ `PrimaryPhone` | json | Vendor primary phone number |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_update_vendor`
+
+Sparse-update a vendor in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | ID of the vendor to update |
+| `syncToken` | string | Yes | Current vendor sync token |
+| `displayName` | string | No | Replacement vendor display name |
+| `companyName` | string | No | Replacement vendor company name |
+| `givenName` | string | No | Replacement vendor given name |
+| `familyName` | string | No | Replacement vendor family name |
+| `primaryEmail` | string | No | Replacement primary email address |
+| `primaryPhone` | string | No | Replacement primary phone number |
+| `billingAddress` | json | No | Replacement billing address |
+| `printOnCheckName` | string | No | Replacement name to print on checks |
+| `accountNumber` | string | No | Replacement vendor account number |
+| `vendor1099` | boolean | No | Whether the vendor is tracked for 1099 reporting |
+| `activeStatus` | string | Yes | Keep, activate, or deactivate the vendor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Vendor record |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `PrimaryEmailAddr` | json | Vendor primary email address |
+|   ↳ `PrimaryPhone` | json | Vendor primary phone number |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_create_item`
+
+Create a Service or Non-inventory item in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Unique item name |
+| `itemType` | string | Yes | Writable item type: service or non_inventory |
+| `incomeAccountId` | string | Yes | Income account ID used when the item is sold |
+| `description` | string | No | Sales description |
+| `unitPrice` | number | No | Sales price per unit |
+| `purchaseDescription` | string | No | Purchase description |
+| `purchaseCost` | number | No | Purchase cost per unit |
+| `expenseAccountId` | string | No | Expense account ID used when the item is purchased |
+| `taxable` | boolean | No | Whether the item is taxable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Item record |
+|   ↳ `Name` | string | Item name |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `Taxable` | boolean | Whether the item is taxable |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `ParentRef` | json | Parent item or category reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_update_item`
+
+Sparse-update a Service or Non-inventory item in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | ID of the item to update |
+| `syncToken` | string | Yes | Current item sync token |
+| `name` | string | No | Replacement item name |
+| `incomeAccountId` | string | No | Replacement income account ID |
+| `description` | string | No | Replacement sales description |
+| `unitPrice` | number | No | Replacement sales price per unit |
+| `purchaseDescription` | string | No | Replacement purchase description |
+| `purchaseCost` | number | No | Replacement purchase cost per unit |
+| `expenseAccountId` | string | No | Replacement expense account ID |
+| `taxable` | boolean | No | Whether the item is taxable |
+| `activeStatus` | string | Yes | Keep, activate, or deactivate the item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Item record |
+|   ↳ `Name` | string | Item name |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `Taxable` | boolean | Whether the item is taxable |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `ParentRef` | json | Parent item or category reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_list_purchase_orders`
+
+List purchase orders in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startPosition` | number | Yes | One-based position of the first purchase order to return |
+| `maxResults` | number | Yes | Number of purchase orders to request \(1–100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+| `items` | array | PurchaseOrder objects returned by QuickBooks |
+|   ↳ `Id` | string | Purchase order ID |
+|   ↳ `SyncToken` | string | Purchase order sync token |
+|   ↳ `DocNumber` | string | Purchase order number |
+|   ↳ `TxnDate` | string | Purchase order date |
+|   ↳ `VendorRef` | json | Purchase order vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CurrencyRef` | json | Purchase order currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExchangeRate` | number | Purchase order exchange rate |
+|   ↳ `Line` | array | Purchase order line items and their detail objects |
+|   ↳ `TotalAmt` | number | Purchase order total amount |
+|   ↳ `PrivateNote` | string | Private purchase order note |
+|   ↳ `MetaData` | json | Purchase order creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 
 ### `quickbooks_list_bills`
 
@@ -93,85 +516,5 @@ List bills in the connected QuickBooks Online company
 |   ↳ `Balance` | number | Unpaid bill balance |
 |   ↳ `PrivateNote` | string | Private bill note |
 |   ↳ `MetaData` | json | Bill creation and update timestamps |
-|     ↳ `CreateTime` | string | Entity creation timestamp |
-|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-
-### `quickbooks_list_purchase_orders`
-
-List purchase orders in the connected QuickBooks Online company
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `startPosition` | number | Yes | One-based position of the first purchase order to return |
-| `maxResults` | number | Yes | Number of purchase orders to request \(1–100\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `startPosition` | number | One-based position of the first item in this response |
-| `maxResults` | number | Actual number of items reported for this response |
-| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
-| `hasMore` | boolean | Conservative indication that another page may exist |
-| `time` | string | QuickBooks response timestamp |
-| `items` | array | PurchaseOrder objects returned by QuickBooks |
-|   ↳ `Id` | string | Purchase order ID |
-|   ↳ `SyncToken` | string | Purchase order sync token |
-|   ↳ `DocNumber` | string | Purchase order number |
-|   ↳ `TxnDate` | string | Purchase order date |
-|   ↳ `VendorRef` | json | Purchase order vendor reference |
-|     ↳ `value` | string | QuickBooks entity ID |
-|     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `CurrencyRef` | json | Purchase order currency reference |
-|     ↳ `value` | string | QuickBooks entity ID |
-|     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `ExchangeRate` | number | Purchase order exchange rate |
-|   ↳ `Line` | array | Purchase order line items and their detail objects |
-|   ↳ `TotalAmt` | number | Purchase order total amount |
-|   ↳ `PrivateNote` | string | Private purchase order note |
-|   ↳ `MetaData` | json | Purchase order creation and update timestamps |
-|     ↳ `CreateTime` | string | Entity creation timestamp |
-|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-
-### `quickbooks_list_vendors`
-
-List vendors in the connected QuickBooks Online company
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `startPosition` | number | Yes | One-based position of the first vendor to return |
-| `maxResults` | number | Yes | Number of vendors to request \(1–100\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `startPosition` | number | One-based position of the first item in this response |
-| `maxResults` | number | Actual number of items reported for this response |
-| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
-| `hasMore` | boolean | Conservative indication that another page may exist |
-| `time` | string | QuickBooks response timestamp |
-| `items` | array | Vendor objects returned by QuickBooks |
-|   ↳ `Id` | string | Vendor ID |
-|   ↳ `SyncToken` | string | Vendor sync token |
-|   ↳ `DisplayName` | string | Vendor display name |
-|   ↳ `CompanyName` | string | Vendor company name |
-|   ↳ `GivenName` | string | Vendor given name |
-|   ↳ `FamilyName` | string | Vendor family name |
-|   ↳ `PrintOnCheckName` | string | Name printed on checks |
-|   ↳ `Active` | boolean | Whether the vendor is active |
-|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
-|   ↳ `BillAddr` | json | Vendor billing address |
-|   ↳ `PrimaryPhone` | json | Vendor primary phone details |
-|   ↳ `PrimaryEmailAddr` | json | Vendor primary email details |
-|   ↳ `Balance` | number | Vendor balance |
-|   ↳ `CurrencyRef` | json | Vendor currency reference |
-|     ↳ `value` | string | QuickBooks entity ID |
-|     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `MetaData` | json | Vendor creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
