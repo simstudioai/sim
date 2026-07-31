@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { knowledgeSearchModeSchema } from '@/lib/api/contracts/knowledge/search'
 import {
   knowledgeBaseParamsSchema,
   knowledgeDocumentParamsSchema,
@@ -133,6 +134,11 @@ export const v1KnowledgeSearchBodySchema = z
     query: z.string().optional(),
     topK: z.number().min(1).max(100).default(10),
     tagFilters: z.array(v1SearchTagFilterSchema).optional(),
+    /**
+     * `vector` (default) is semantic-only retrieval; `hybrid` fuses a full-text
+     * leg with it by reciprocal rank.
+     */
+    searchMode: knowledgeSearchModeSchema,
   })
   .refine(
     (data) => {
