@@ -15,11 +15,36 @@ import { PERMISSION_RANK, type PermissionType } from '@sim/platform-authz/worksp
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, asc, count, eq, gt, ilike, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
-import { planHasFixedSeatCap, resolveSeatCapacity } from '@/lib/billing/validation/seat-management'
-import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  hasPaidSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
+import {
+  countPendingSeatInvitations,
+  planHasFixedSeatCap,
+  resolveSeatCapacity,
+} from '@/lib/billing/validation/seat-management'
+import {
+  enqueueOrReschedulePendingOutboxEvent,
+  type OutboxHandler,
+} from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -33,7 +58,6 @@ import {
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('AdminWorkspaceMove')
-const ENTITLED_STATUSES = ['active', 'past_due'] as const
 // A dashboard member add may move several grants from one invitation in
 // consecutive short transactions. Let that split/merge sequence settle before
 // the outbox resolves the live invitation and sends its final token.
@@ -96,6 +120,15 @@ interface InvitationMigrationEvent {
   invitationId: string
   outcome: 'migrated' | 'split' | 'merged'
   relatedInvitationId?: string
+}
+
+interface PendingWorkspaceInvitationSummary {
+  id: string
+  email: string
+  organizationId: string | null
+  membershipIntent: 'internal' | 'external'
+  permission: 'admin' | 'write' | 'read'
+  workspaceGrantCount: number
 }
 
 interface WorkspaceMoveDestination {
@@ -219,28 +252,30 @@ export async function getWorkspaceMovePreflight(
       .where(
         and(
           eq(subscription.referenceId, destinationOrganizationId),
-          inArray(subscription.status, [...ENTITLED_STATUSES])
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1),
   ])
 
-  const pendingInternalCount = invitationRows.filter(
-    (row) => row.membershipIntent === 'internal'
-  ).length
   const organizationSubscription = subscriptionRows[0]
   const seatCapacity =
     organizationSubscription &&
-    ENTITLED_STATUSES.includes(
-      organizationSubscription.status as (typeof ENTITLED_STATUSES)[number]
-    ) &&
+    hasPaidSubscriptionStatus(organizationSubscription.status) &&
     planHasFixedSeatCap(organizationSubscription.plan)
       ? await resolveSeatCapacity(organizationSubscription)
       : null
   const currentMembers = memberCountRows[0]?.value ?? 0
+  const projectedPendingInternalSeats =
+    seatCapacity === null
+      ? 0
+      : await getProjectedDestinationPendingSeatCount({
+          destinationOrganizationId,
+          movedWorkspaceInvitations: invitationRows,
+        })
   const warning =
-    seatCapacity !== null && currentMembers + pendingInternalCount > seatCapacity
-      ? `${pendingInternalCount} pending internal invitation${pendingInternalCount === 1 ? '' : 's'} could exceed the ${seatCapacity}-seat Enterprise capacity when accepted.`
+    seatCapacity !== null && currentMembers + projectedPendingInternalSeats > seatCapacity
+      ? `${currentMembers} current member${currentMembers === 1 ? '' : 's'} plus ${projectedPendingInternalSeats} pending internal invitation${projectedPendingInternalSeats === 1 ? '' : 's'} would exceed the ${seatCapacity}-seat Enterprise capacity if all are accepted.`
       : null
 
   return {
@@ -253,7 +288,7 @@ export async function getWorkspaceMovePreflight(
       permission: row.permission,
       organizationMember: row.memberId !== null,
     })),
-    invitations: invitationRows,
+    invitations: invitationRows.map(({ organizationId: _organizationId, ...row }) => row),
     warning,
   }
 }
@@ -352,11 +387,14 @@ export async function moveWorkspaceToOrganization(params: {
           now,
         })
         for (const invitationId of migration.invitationsToEmail) {
-          await enqueueOutboxEvent(
+          await enqueueOrReschedulePendingOutboxEvent(
             tx,
             MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
             { invitationId },
-            { availableAt: new Date(now.getTime() + MIGRATED_INVITATION_EMAIL_SETTLE_MS) }
+            {
+              availableAt: new Date(now.getTime() + MIGRATED_INVITATION_EMAIL_SETTLE_MS),
+              coalesceOn: { payloadKey: 'invitationId', payloadValue: invitationId },
+            }
           )
         }
 
@@ -560,6 +598,7 @@ async function getPendingInvitationSummaries(workspaceId: string, executor: DbOr
     .select({
       id: invitation.id,
       email: invitation.email,
+      organizationId: invitation.organizationId,
       membershipIntent: invitation.membershipIntent,
       permission: invitationWorkspaceGrant.permission,
     })
@@ -590,6 +629,107 @@ async function getPendingInvitationSummaries(workspaceId: string, executor: DbOr
     ...row,
     workspaceGrantCount: countById.get(row.id) ?? 1,
   }))
+}
+
+/**
+ * Projects the destination's live pending-seat count after this workspace's
+ * invitation grants are migrated.
+ *
+ * The canonical count already includes every live internal invitation stamped
+ * with the destination. The only additions are distinct internal invitees from
+ * another scope that are neither current members of any organization nor
+ * already represented by a destination-internal invitation. Multiple personal
+ * invitations for one email collapse into one destination invitation during
+ * migration, so the delta is email-distinct.
+ */
+export function projectDestinationPendingSeatCount(params: {
+  currentDestinationPendingSeats: number
+  destinationOrganizationId: string
+  movedWorkspaceInvitations: Array<{
+    email: string
+    organizationId: string | null
+    membershipIntent: 'internal' | 'external'
+  }>
+  existingDestinationInternalEmails: string[]
+  existingMemberEmails: string[]
+}): number {
+  const existingDestinationSeatEmails = new Set(
+    [...params.existingDestinationInternalEmails, ...params.existingMemberEmails].map(
+      normalizeEmail
+    )
+  )
+  const incomingInternalEmails = new Set(
+    params.movedWorkspaceInvitations
+      .filter(
+        (row) =>
+          row.membershipIntent === 'internal' &&
+          row.organizationId !== params.destinationOrganizationId
+      )
+      .map((row) => normalizeEmail(row.email))
+  )
+  const incomingSeatDelta = [...incomingInternalEmails].filter(
+    (email) => !existingDestinationSeatEmails.has(email)
+  ).length
+  return params.currentDestinationPendingSeats + incomingSeatDelta
+}
+
+async function getProjectedDestinationPendingSeatCount(params: {
+  destinationOrganizationId: string
+  movedWorkspaceInvitations: PendingWorkspaceInvitationSummary[]
+}): Promise<number> {
+  const currentDestinationPendingSeats = await countPendingSeatInvitations(
+    params.destinationOrganizationId
+  )
+  const incomingInternalEmails = [
+    ...new Set(
+      params.movedWorkspaceInvitations
+        .filter(
+          (row) =>
+            row.membershipIntent === 'internal' &&
+            row.organizationId !== params.destinationOrganizationId
+        )
+        .map((row) => normalizeEmail(row.email))
+    ),
+  ]
+  if (incomingInternalEmails.length === 0) return currentDestinationPendingSeats
+
+  const [existingDestinationRows, existingMembers] = await Promise.all([
+    db
+      .select({ email: invitation.email })
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.organizationId, params.destinationOrganizationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.membershipIntent, 'internal'),
+          gt(invitation.expiresAt, new Date()),
+          or(
+            ...incomingInternalEmails.map(
+              (email) => sql`lower(${invitation.email}) = ${normalizeEmail(email)}`
+            )
+          )
+        )
+      ),
+    db
+      .select({ email: user.email })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(
+        or(
+          ...incomingInternalEmails.map(
+            (email) => sql`lower(btrim(${user.email})) = ${normalizeEmail(email)}`
+          )
+        )
+      ),
+  ])
+
+  return projectDestinationPendingSeatCount({
+    currentDestinationPendingSeats,
+    destinationOrganizationId: params.destinationOrganizationId,
+    movedWorkspaceInvitations: params.movedWorkspaceInvitations,
+    existingDestinationInternalEmails: existingDestinationRows.map((row) => row.email),
+    existingMemberEmails: existingMembers.map((row) => row.email),
+  })
 }
 
 /**
@@ -624,7 +764,10 @@ async function findInvitationMigrationLockIds(
     .where(
       and(
         eq(invitation.status, 'pending'),
-        or(...emails.map((email) => sql`lower(${invitation.email}) = ${email}`))
+        or(...emails.map((email) => sql`lower(${invitation.email}) = ${email}`)),
+        // Null-org invitations never coalesce, so unrelated personal invites
+        // for the same email are not mutation targets and need no lock.
+        isNotNull(invitation.organizationId)
       )
     )
   return [
@@ -813,9 +956,20 @@ async function findPendingInvitationForScope(
     now: Date
   }
 ) {
+  /**
+   * Personal invitations are scoped to the inviter/billing owner, not merely to
+   * the email address. There is deliberately no uniqueness constraint for
+   * `organization_id IS NULL`, and send.ts never coalesces those invitations.
+   * Redistribution must preserve the same rule: create a sibling derived from
+   * this source rather than absorbing an unrelated inviter's personal invite.
+   */
+  if (!params.organizationId) return null
+
   // Membership intent is deliberately not part of destination identity. A
   // same-email invite for the same organization is one pending claim; merging
   // promotes internal intent and the strongest role via mergeInvitationIntent.
+  const condition = buildPendingInvitationMergeScopeCondition(params)
+  if (!condition) return null
   const [row] = await tx
     .select({
       id: invitation.id,
@@ -823,7 +977,7 @@ async function findPendingInvitationForScope(
       role: invitation.role,
     })
     .from(invitation)
-    .where(buildPendingInvitationMergeScopeCondition(params))
+    .where(condition)
     .orderBy(invitation.createdAt)
     .for('update')
     .limit(1)
@@ -836,15 +990,13 @@ export function buildPendingInvitationMergeScopeCondition(params: {
   excludeInvitationId: string
   now?: Date
 }) {
-  const scope = params.organizationId
-    ? eq(invitation.organizationId, params.organizationId)
-    : isNull(invitation.organizationId)
+  if (!params.organizationId) return undefined
   return and(
     sql`lower(${invitation.email}) = ${normalizeEmail(params.email)}`,
     eq(invitation.status, 'pending'),
     gt(invitation.expiresAt, params.now ?? new Date()),
     ne(invitation.id, params.excludeInvitationId),
-    scope
+    eq(invitation.organizationId, params.organizationId)
   )
 }
 
@@ -899,6 +1051,14 @@ async function mergeGrant(
   grant: { workspaceId: string; permission: 'admin' | 'write' | 'read' },
   now: Date
 ): Promise<void> {
+  // A surviving merge target may have an invitation email in flight. Touch the
+  // invitation even when this grant is already present so any stale failed-send
+  // compensation sees a later migration revision and leaves the target intact.
+  await tx
+    .update(invitation)
+    .set({ updatedAt: now })
+    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
+
   const [existing] = await tx
     .select({ id: invitationWorkspaceGrant.id, permission: invitationWorkspaceGrant.permission })
     .from(invitationWorkspaceGrant)
@@ -1014,7 +1174,9 @@ async function getMovedWorkspaceSummary(
       permission: row.permission,
       organizationMember: row.memberId !== null,
     })),
-    invitations: await getPendingInvitationSummaries(workspaceId, executor),
+    invitations: (await getPendingInvitationSummaries(workspaceId, executor)).map(
+      ({ organizationId: _organizationId, ...row }) => row
+    ),
     warning: null,
   }
 }

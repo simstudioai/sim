@@ -129,6 +129,9 @@ describe('organization workspace helpers', () => {
       'org-1'
     )
     expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.for.mock.invocationCallOrder[0]
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(

@@ -133,15 +133,15 @@ export async function attachOwnedWorkspacesToOrganization({
 
   const attached = await db.transaction(async (tx) => {
     // Match admin move and invitation acceptance: shared advisory scope first,
-    // then the workspace rows, then organization/membership locks. Reversing
-    // the first two can deadlock with an acceptance that already owns an
-    // invitation lock and is waiting to row-lock one of these workspaces.
+    // then the organization mutation lock, then workspace rows. Ownership
+    // transfer also takes organization before workspace rows; taking the row
+    // first here would create a row/org lock inversion with that path.
     await acquireInvitationMutationLocks(tx, {
       invitationIds: [],
       workspaceIds: ownedWorkspaceIds,
     })
-    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
     await acquireOrganizationMutationLock(tx, organizationId)
+    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
     return attachOwnedWorkspacesToOrganizationTx(tx, {
       ownerUserId,
       organizationId,
@@ -419,7 +419,7 @@ export async function detachOrganizationWorkspacesTx(
   tx: DbOrTx,
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
-  const organizationOwnerId = await getOrganizationOwnerId(organizationId)
+  const organizationOwnerId = await getOrganizationOwnerId(organizationId, tx)
   if (!organizationOwnerId) {
     logger.warn(
       'Detaching workspaces from an organization without an owner; using workspace owner as billed account',

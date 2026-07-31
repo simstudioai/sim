@@ -100,6 +100,31 @@ export async function acquireOrgMembershipLock(
   )
 }
 
+/**
+ * Acquires the canonical organization → user-billing-identity → membership
+ * lock sequence for a mutation whose validity depends on a user's standing in
+ * one or more organizations.
+ *
+ * Keeping this order in one helper lets organization access removal and
+ * credential creation share the same serialization fence. If credential
+ * creation wins, a later transfer sees the new source-owned credential and
+ * blocks. If transfer wins, credential creation re-reads access after the
+ * transfer and refuses the insert.
+ */
+export async function acquireOrganizationUserMutationLocks(
+  tx: DbOrTx,
+  params: { userId: string; organizationIds: string[] }
+): Promise<void> {
+  const organizationIds = [...new Set(params.organizationIds)].sort()
+  for (const organizationId of organizationIds) {
+    await acquireOrganizationMutationLock(tx, organizationId)
+  }
+  await acquireUserBillingIdentityLock(tx, params.userId)
+  for (const organizationId of organizationIds) {
+    await acquireOrgMembershipLock(tx, params.userId, organizationId)
+  }
+}
+
 export type BillingBlockReason = 'payment_failed' | 'dispute'
 
 /**
@@ -989,16 +1014,11 @@ export async function withInvitationSafeOrganizationAccessMutation<T>(
           invitationIds: candidate.invitationIds,
           workspaceIds: candidate.workspaceIds,
         })
-        const organizationIds = [
-          ...new Set([params.organizationId, ...(params.additionalOrganizationIds ?? [])]),
-        ].sort()
-        for (const organizationId of organizationIds) {
-          await acquireOrganizationMutationLock(tx, organizationId)
-        }
-        await acquireUserBillingIdentityLock(tx, params.userId)
-        for (const organizationId of organizationIds) {
-          await acquireOrgMembershipLock(tx, params.userId, organizationId)
-        }
+        const organizationIds = [params.organizationId, ...(params.additionalOrganizationIds ?? [])]
+        await acquireOrganizationUserMutationLocks(tx, {
+          userId: params.userId,
+          organizationIds,
+        })
 
         const current = await getInvitationRemovalLockSnapshot(tx, params)
         const candidateInvitations = new Set(candidate.invitationIds)
@@ -1635,6 +1655,8 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
           .limit(1)
         if (currentMember) throw new Error('User is an organization member')
+
+        await setOrgMemberUsageLimit(organizationId, userId, null, undefined, tx)
 
         const cancelledInvitations = invitationIds.length
           ? await tx

@@ -123,9 +123,10 @@ export async function getWorkspaceWithOwner(
  */
 export async function getEffectiveWorkspacePermission(
   userId: string,
-  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>
+  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>,
+  executor: DbOrTx = db
 ): Promise<PermissionType | null> {
-  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId)
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId, executor)
 }
 
 /**
@@ -464,9 +465,13 @@ export async function getWorkspacePermissionsForViewer(
  */
 export async function hasWorkspaceAdminAccess(
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  options?: { executor?: DbOrTx }
 ): Promise<boolean> {
-  return (await checkWorkspaceAccess(workspaceId, userId)).canAdmin
+  const executor = options?.executor ?? db
+  const ws = await getWorkspaceWithOwner(workspaceId, { executor })
+  if (!ws) return false
+  return (await getEffectiveWorkspacePermission(userId, ws, executor)) === 'admin'
 }
 
 /**
@@ -478,9 +483,10 @@ export async function hasWorkspaceAdminAccess(
  */
 export async function isOrganizationAdminOrOwner(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  executor: DbOrTx = db
 ): Promise<boolean> {
-  const [row] = await db
+  const [row] = await executor
     .select({ role: member.role })
     .from(member)
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))

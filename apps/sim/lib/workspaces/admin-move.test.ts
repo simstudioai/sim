@@ -11,6 +11,7 @@ import {
   invitationMigrationOutboxHandlers,
   MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
   moveWorkspaceToOrganization,
+  projectDestinationPendingSeatCount,
 } from '@/lib/workspaces/admin-move'
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
@@ -18,7 +19,7 @@ vi.unmock('drizzle-orm')
 
 const {
   recordAudit,
-  enqueueOutboxEvent,
+  enqueueOrReschedulePendingOutboxEvent,
   invalidateWorkspaceTableLimitsCache,
   changeWorkspaceStoragePayerInTx,
   acquireInvitationMutationLocks,
@@ -27,7 +28,7 @@ const {
   sendInvitationEmail,
 } = vi.hoisted(() => ({
   recordAudit: vi.fn(),
-  enqueueOutboxEvent: vi.fn(),
+  enqueueOrReschedulePendingOutboxEvent: vi.fn(),
   invalidateWorkspaceTableLimitsCache: vi.fn(),
   changeWorkspaceStoragePayerInTx: vi.fn(),
   acquireInvitationMutationLocks: vi.fn(),
@@ -45,7 +46,7 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
 }))
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({ changeWorkspaceStoragePayerInTx }))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent }))
+vi.mock('@/lib/core/outbox/service', () => ({ enqueueOrReschedulePendingOutboxEvent }))
 vi.mock('@/lib/invitations/core', () => ({
   getInvitationById,
   isInvitationExpired,
@@ -190,6 +191,107 @@ describe('pending invitation destination identity', () => {
     expect(query.params).not.toContain('internal')
     expect(query.params).not.toContain('external')
   })
+
+  it('never selects an unrelated personal invitation as a merge target', () => {
+    expect(
+      buildPendingInvitationMergeScopeCondition({
+        email: 'invitee@example.com',
+        organizationId: null,
+        excludeInvitationId: 'invite-source',
+      })
+    ).toBeUndefined()
+  })
+})
+
+describe('workspace-move pending seat projection', () => {
+  it('includes existing destination pending seats plus distinct incoming internal invitees', () => {
+    expect(
+      projectDestinationPendingSeatCount({
+        currentDestinationPendingSeats: 1,
+        destinationOrganizationId: 'org-1',
+        movedWorkspaceInvitations: [
+          {
+            email: 'new@example.com',
+            organizationId: null,
+            membershipIntent: 'internal',
+          },
+          {
+            email: 'NEW@example.com',
+            organizationId: 'org-source',
+            membershipIntent: 'internal',
+          },
+          {
+            email: 'external@example.com',
+            organizationId: null,
+            membershipIntent: 'external',
+          },
+        ],
+        existingDestinationInternalEmails: [],
+        existingMemberEmails: [],
+      })
+    ).toBe(2)
+  })
+
+  it('does not double-count internal invitees already pending in the destination', () => {
+    expect(
+      projectDestinationPendingSeatCount({
+        currentDestinationPendingSeats: 2,
+        destinationOrganizationId: 'org-1',
+        movedWorkspaceInvitations: [
+          {
+            email: 'already@example.com',
+            organizationId: null,
+            membershipIntent: 'internal',
+          },
+          {
+            email: 'stamped@example.com',
+            organizationId: 'org-1',
+            membershipIntent: 'internal',
+          },
+        ],
+        existingDestinationInternalEmails: ['ALREADY@example.com', 'stamped@example.com'],
+        existingMemberEmails: [],
+      })
+    ).toBe(2)
+  })
+
+  it('counts an incoming internal invite when the destination invite is only external', () => {
+    expect(
+      projectDestinationPendingSeatCount({
+        currentDestinationPendingSeats: 0,
+        destinationOrganizationId: 'org-1',
+        movedWorkspaceInvitations: [
+          {
+            email: 'upgrade@example.com',
+            organizationId: null,
+            membershipIntent: 'internal',
+          },
+        ],
+        // External destination invitations are deliberately absent from this
+        // set because migration promotes their intent to internal.
+        existingDestinationInternalEmails: [],
+        existingMemberEmails: [],
+      })
+    ).toBe(1)
+  })
+
+  it('does not count an incoming internal invitee who belongs to another organization', () => {
+    expect(
+      projectDestinationPendingSeatCount({
+        currentDestinationPendingSeats: 1,
+        destinationOrganizationId: 'org-1',
+        movedWorkspaceInvitations: [
+          {
+            email: 'member@example.com',
+            organizationId: null,
+            membershipIntent: 'internal',
+          },
+        ],
+        existingDestinationInternalEmails: [],
+        existingMemberEmails: ['MEMBER@example.com'],
+      })
+    ).toBe(1)
+  })
 })
 
 describe('migrated invitation email outbox', () => {
@@ -260,7 +362,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       organizationId: destination.id,
       workspaceMode: WORKSPACE_MODE.ORGANIZATION,
     })
-    expect(enqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(enqueueOrReschedulePendingOutboxEvent).not.toHaveBeenCalled()
     expect(recordAudit).not.toHaveBeenCalled()
     expect(invalidateWorkspaceTableLimitsCache).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
