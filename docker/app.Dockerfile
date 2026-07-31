@@ -1,14 +1,17 @@
 # ========================================
-# Base Stage: Debian-based Bun with Node.js 22
+# Base Stage: Debian-based Bun with Node.js 24
 # ========================================
 FROM oven/bun:1.3.13-slim AS base
 
-# Install Node.js 22 and common dependencies once in base stage
+# Install Node.js 24 (Active LTS) and common dependencies once in base stage.
+# Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);
+# the version is kept in lockstep with the `isolated-vm` pin in
+# apps/sim/package.json — Node 24 (ABI 137) requires isolated-vm 6.x.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv make g++ curl ca-certificates bash ffmpeg \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs
 
 # ========================================
@@ -95,7 +98,7 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
-# Node.js 22, Python, ffmpeg, etc. are already installed in base stage
+# Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
 # Create non-root user and group
