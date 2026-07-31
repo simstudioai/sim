@@ -11,8 +11,13 @@ import {
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 
 /**
- * Uses the real tool registry: these assertions are about tool registration and
- * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
+ * Uses the real tool registry. Nothing here imports it directly — the dependency
+ * is transitive: the search-replace planner resolves tool input params through
+ * real subblock configs, so the global `@/tools/registry` mock in
+ * vitest.setup.ts empties the data these assertions read.
+ *
+ * Not a no-op, despite the lack of a direct import. Dropping this opt-out fails
+ * 8 tests across this file and its sibling suite.
  */
 vi.unmock('@/tools/registry')
 
