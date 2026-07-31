@@ -63,9 +63,12 @@ export async function fetchWorkspaceSecretNameOptions(): Promise<SubBlockOption[
   ])
 
   // Personal variables shadow workspace ones at execution, so both are offered
-  // under one de-duplicated list of names.
+  // under one de-duplicated list of names. `workspace.workspace` is already the
+  // flat name->value record (see `workspaceEnvironmentDataSchema`); reaching for
+  // a `.variables` sub-key under it yields undefined and silently drops every
+  // workspace secret from the picker.
   const names = new Set<string>([
-    ...Object.keys(workspace?.workspace?.variables ?? {}),
+    ...Object.keys(workspace?.workspace ?? {}),
     ...Object.keys(personal ?? {}),
   ])
   return [...names].sort().map((name) => ({ id: name, label: name }))
