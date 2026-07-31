@@ -77,12 +77,18 @@ describe('markdown find plugin + controller', () => {
     expect(last().count).toBe(0)
   })
 
-  it('reports the true total even when the highlight cap drops later matches', () => {
-    const big = editorWith(`<p>${'x '.repeat(5001)}</p>`)
+  it('counts and reaches every match while capping ambient highlights', () => {
+    const big = editorWith(`<p>${'x '.repeat(6000)}</p>`)
     const { controller, last } = controllerFor(big)
     controller.search('x', flags())
-    expect(getFindState(big.state).matches.length).toBe(5000) // navigable/highlighted set is capped
-    expect(last().count).toBe(5001) // but the reported count is the accurate total
+    expect(getFindState(big.state).matches).toHaveLength(6000) // full navigation set, uncapped
+    expect(last().count).toBe(6000)
+    // Ambient highlight paint stays bounded (cap + at most one current) even as every match counts.
+    const spanCount = () => (big.view.dom.innerHTML.match(/file-find-match/g) ?? []).length
+    expect(spanCount()).toBeLessThanOrEqual(5001)
+    // The final match (index 5999, well past the ambient cap) is reachable by stepping back from 0.
+    controller.prev()
+    expect(last().currentIndex).toBe(5999)
   })
 
   it('recomputes matches when the document changes underneath an active find', () => {

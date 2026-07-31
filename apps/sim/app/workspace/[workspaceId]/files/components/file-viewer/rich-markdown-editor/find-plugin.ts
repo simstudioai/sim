@@ -4,12 +4,19 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
   buildFindRegex,
-  findMatches,
+  findRanges,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/find/find-matches'
 import type { FindFlags } from '@/app/workspace/[workspaceId]/files/components/file-viewer/find/types'
 
 const MATCH_CLASS = 'file-find-match'
 const CURRENT_MATCH_CLASS = 'file-find-match-current'
+
+/**
+ * Upper bound on ambient (non-current) match decorations. Every match is still counted and navigable —
+ * this caps only the yellow "all matches" paint so a pathological query on a multi-MB document never
+ * builds a decoration per match. The current match is always decorated on top, whatever its index.
+ */
+const AMBIENT_HIGHLIGHT_CAP = 5000
 
 export const findPluginKey = new PluginKey<FindPluginState>('fileFind')
 
@@ -22,9 +29,8 @@ export interface FindMatchRange {
 export interface FindPluginState {
   query: string
   flags: FindFlags
+  /** Every match, uncapped — the count and the navigation set. */
   matches: FindMatchRange[]
-  /** True match total; may exceed `matches.length` once the highlight cap drops later matches. */
-  total: number
   currentIndex: number
   truncated: boolean
   decorations: DecorationSet
@@ -36,7 +42,6 @@ const INITIAL_STATE: FindPluginState = {
   query: '',
   flags: EMPTY_FLAGS,
   matches: [],
-  total: 0,
   currentIndex: -1,
   truncated: false,
   decorations: DecorationSet.empty,
@@ -91,11 +96,21 @@ function buildDecorations(
   currentIndex: number
 ): DecorationSet {
   if (matches.length === 0) return DecorationSet.empty
-  const decorations = matches.map((match, index) =>
-    Decoration.inline(match.from, match.to, {
-      class: index === currentIndex ? CURRENT_MATCH_CLASS : MATCH_CLASS,
-    })
-  )
+  const ambient = Math.min(matches.length, AMBIENT_HIGHLIGHT_CAP)
+  const decorations: Decoration[] = []
+  for (let i = 0; i < ambient; i++) {
+    const match = matches[i]
+    decorations.push(
+      Decoration.inline(match.from, match.to, {
+        class: i === currentIndex ? CURRENT_MATCH_CLASS : MATCH_CLASS,
+      })
+    )
+  }
+  // The active match may sit beyond the ambient cap; always decorate it so stepping still highlights it.
+  const current = matches[currentIndex]
+  if (currentIndex >= ambient && current) {
+    decorations.push(Decoration.inline(current.from, current.to, { class: CURRENT_MATCH_CLASS }))
+  }
   return DecorationSet.create(doc, decorations)
 }
 
@@ -113,7 +128,6 @@ export function computeFindState(
       query,
       flags,
       matches: [],
-      total: 0,
       currentIndex: -1,
       truncated: false,
       decorations: DecorationSet.empty,
@@ -121,9 +135,8 @@ export function computeFindState(
   }
 
   const { text, map } = buildDocText(doc)
-  const { ranges, total } = findMatches(text, regex)
   const matches: FindMatchRange[] = []
-  for (const range of ranges) {
+  for (const range of findRanges(text, regex)) {
     const from = map[range.start]
     const to = map[range.end - 1]
     if (from === -1 || to === -1 || from === undefined || to === undefined) continue
@@ -140,10 +153,9 @@ export function computeFindState(
   return {
     query,
     flags,
+    // `matches` is the full match set, so the count and stepping cover every hit. The whole document
+    // is searched, so there is no partial content window — `truncated` (the bar's `+`) stays false.
     matches,
-    // `total` counts every match; `matches` is bounded by the highlight cap. The whole document is
-    // searched, so there is no partial content window — `truncated` (the bar's `+`) stays false.
-    total,
     currentIndex: nextIndex,
     truncated: false,
     decorations: buildDecorations(doc, matches, nextIndex),

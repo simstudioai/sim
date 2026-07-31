@@ -57,11 +57,11 @@ describe('computeDomMatches', () => {
     expect(matchTexts('<style>.x{color:red}</style><p>red apple</p>', 'red')).toEqual(['red'])
   })
 
-  it('reports the true total even when the highlight cap drops later ranges', () => {
+  it('materializes and counts every match so none is unreachable', () => {
     const root = container(`<p>${'x '.repeat(5001)}</p>`)
     const regex = buildFindRegex('x', flags())!
     const { ranges, total } = computeDomMatches(root, regex)
-    expect(ranges).toHaveLength(5000) // materialized (highlightable) ranges are capped
-    expect(total).toBe(5001) // but the reported total counts every match
+    expect(ranges).toHaveLength(5001) // every match gets a range — nothing dropped by a cap
+    expect(total).toBe(5001)
   })
 })

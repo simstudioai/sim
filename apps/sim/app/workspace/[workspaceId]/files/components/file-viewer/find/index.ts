@@ -4,7 +4,7 @@ export {
   useFileFind,
   useRegisterFindController,
 } from './find-context'
-export { buildFindRegex, escapeRegExp, findMatches, findRanges } from './find-matches'
+export { buildFindRegex, escapeRegExp, findRanges } from './find-matches'
 export { createMonacoFindController } from './monaco-find-controller'
 export {
   DEFAULT_FIND_FLAGS,

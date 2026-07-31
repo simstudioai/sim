@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { buildFindRegex, escapeRegExp, findMatches, findRanges } from './find-matches'
+import { buildFindRegex, escapeRegExp, findRanges } from './find-matches'
 import type { FindFlags } from './types'
 
 const flags = (overrides: Partial<FindFlags> = {}): FindFlags => ({
@@ -52,7 +52,7 @@ describe('buildFindRegex', () => {
   })
 })
 
-describe('findRanges / findMatches', () => {
+describe('findRanges', () => {
   it('reports correct offsets', () => {
     const regex = buildFindRegex('lo', flags())!
     const ranges = findRanges('hello world lo', regex)
@@ -68,15 +68,12 @@ describe('findRanges / findMatches', () => {
     expect(ranges.map((r) => [r.start, r.end])).toEqual([[1, 3]])
   })
 
-  it('caps highlighted ranges while counting the true total', () => {
+  it('enumerates every match so none is dropped by a cap', () => {
     const regex = buildFindRegex('a', flags())!
-    const result = findMatches('aaaaa', regex, 2)
-    expect(result.ranges).toHaveLength(2)
-    expect(result.total).toBe(5)
-    expect(result.capped).toBe(true)
+    expect(findRanges('aaaaa', regex)).toHaveLength(5)
   })
 
-  it('captures groups for replacement', () => {
+  it('captures groups', () => {
     const regex = buildFindRegex('(\\w+)@(\\w+)', flags({ regex: true }))!
     const [range] = findRanges('a@b', regex)
     expect(range.groups).toEqual(['a@b', 'a', 'b'])
