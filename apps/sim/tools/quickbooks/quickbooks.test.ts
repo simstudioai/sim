@@ -88,25 +88,96 @@ describe('QuickBooks request construction', () => {
 })
 
 describe('QuickBooks response contracts', () => {
-  it('validates CompanyInfo against the requested realm before accepting a connection', async () => {
+  it('validates the requested realm by successfully reading its CompanyInfo resource', async () => {
     const originalFetch = global.fetch
-    global.fetch = async () =>
-      new Response(
+    const requestedUrls: string[] = []
+    const requestSignals: Array<AbortSignal | null | undefined> = []
+    global.fetch = async (input, init) => {
+      requestedUrls.push(input.toString())
+      requestSignals.push(init?.signal)
+      return new Response(
         JSON.stringify({
-          CompanyInfo: { Id: '123456789', CompanyName: 'Sanitized Company' },
+          CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
           time: 'test-time',
         })
       )
+    }
 
     try {
       await expect(
         fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
       ).resolves.toMatchObject({
-        CompanyInfo: { Id: '123456789' },
+        CompanyInfo: { Id: '1' },
       })
-      await expect(fetchValidatedQuickBooksCompanyInfo('access-token', '999')).rejects.toThrow(
-        'different company'
+      expect(requestedUrls).toEqual([
+        'https://sandbox-quickbooks.api.intuit.com/v3/company/123456789/companyinfo/123456789?minorversion=75',
+      ])
+      expect(requestSignals[0]).toBeInstanceOf(AbortSignal)
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
+
+  it('preserves sanitized Intuit fault context for failed company validation', async () => {
+    const originalFetch = global.fetch
+    global.fetch = async () =>
+      Response.json(
+        {
+          Fault: {
+            Error: [
+              {
+                code: '3200',
+                Message: 'Authentication failed',
+                Detail: 'Token expired',
+                ignored: 'must not be surfaced',
+              },
+            ],
+          },
+        },
+        {
+          status: 401,
+          headers: { intuit_tid: 'tracking-id' },
+        }
       )
+
+    try {
+      await expect(
+        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
+      ).rejects.toThrow(
+        'QuickBooks company validation failed with HTTP 401. Reconnect the QuickBooks credential. 3200: Authentication failed: Token expired (Intuit tracking ID: tracking-id)'
+      )
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
+
+  it('preserves Retry-After without exposing a non-JSON company validation body', async () => {
+    const originalFetch = global.fetch
+    global.fetch = async () =>
+      new Response('<html>sensitive gateway response</html>', {
+        status: 429,
+        headers: { 'retry-after': '30' },
+      })
+
+    try {
+      await expect(
+        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
+      ).rejects.toThrow(
+        'QuickBooks company validation failed with HTTP 429. QuickBooks rate limit reached; retry after the indicated delay. (Retry-After: 30)'
+      )
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
+
+  it('rejects a successful response without a CompanyInfo wrapper', async () => {
+    const originalFetch = global.fetch
+    global.fetch = async () => new Response(JSON.stringify({ time: 'test-time' }))
+
+    try {
+      await expect(
+        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
+      ).rejects.toThrow('missing CompanyInfo')
     } finally {
       global.fetch = originalFetch
     }
@@ -337,14 +408,14 @@ describe('QuickBooks tool boundaries', () => {
     const result = await quickbooksGetCompanyInfoTool.transformResponse!(
       new Response(
         JSON.stringify({
-          CompanyInfo: { Id: '123456789', CompanyName: 'Sanitized Company' },
+          CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
           time: 'test-time',
         })
       ),
       authParams
     )
     expect(result.output).toEqual({
-      company: { Id: '123456789', CompanyName: 'Sanitized Company' },
+      company: { Id: '1', CompanyName: 'Sanitized Company' },
       time: 'test-time',
     })
   })
@@ -356,19 +427,6 @@ describe('QuickBooks tool boundaries', () => {
         authParams
       )
     ).rejects.toThrow('missing CompanyInfo')
-  })
-
-  it('rejects CompanyInfo for a different realm', async () => {
-    await expect(
-      quickbooksGetCompanyInfoTool.transformResponse!(
-        new Response(
-          JSON.stringify({
-            CompanyInfo: { Id: '999', CompanyName: 'Different Sanitized Company' },
-          })
-        ),
-        authParams
-      )
-    ).rejects.toThrow('different company')
   })
 
   it('recognizes a QuickBooks Fault in an HTTP 200 CompanyInfo response', async () => {

@@ -60,18 +60,13 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
-    const realmId = normalizeQuickBooksRealmId(params?.realmId ?? '')
+    normalizeQuickBooksRealmId(params?.realmId ?? '')
     const data = await parseQuickBooksJson<CompanyInfoEnvelope>(
       response,
       'QuickBooks CompanyInfo response'
     )
     if (!data.CompanyInfo || typeof data.CompanyInfo !== 'object') {
       throw new Error('QuickBooks CompanyInfo response is missing CompanyInfo')
-    }
-    if (String(data.CompanyInfo.Id ?? '').trim() !== realmId) {
-      throw new Error(
-        'QuickBooks CompanyInfo response returned a different company. Reconnect the QuickBooks credential.'
-      )
     }
     return {
       success: true,

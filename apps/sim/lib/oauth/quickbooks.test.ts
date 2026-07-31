@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createQuickBooksAccountId,
   fetchQuickBooksConnectionProfile,
+  getQuickBooksCallbackRealm,
+  normalizeQuickBooksRealmId,
   parseQuickBooksAccountId,
   QUICKBOOKS_AUTHORIZATION_URL,
   QUICKBOOKS_OIDC_CLAIMS,
   QUICKBOOKS_TOKEN_URL,
+  withQuickBooksCallbackRealm,
 } from '@/lib/oauth/quickbooks'
 import { QUICKBOOKS_MAX_USER_INFO_BYTES } from '@/lib/quickbooks/client'
 
@@ -51,6 +54,28 @@ describe('QuickBooks account identity', () => {
     expect(parseQuickBooksAccountId(second).realmId).toBe('222')
   })
 
+  it('keeps callback company identity isolated to the current async OAuth request', async () => {
+    expect(() => getQuickBooksCallbackRealm()).toThrow(/did not include a company identity/)
+
+    const realms = await Promise.all([
+      withQuickBooksCallbackRealm('111', async () => {
+        await Promise.resolve()
+        return getQuickBooksCallbackRealm()
+      }),
+      withQuickBooksCallbackRealm('222', async () => {
+        await Promise.resolve()
+        return getQuickBooksCallbackRealm()
+      }),
+    ])
+
+    expect(realms).toEqual(['111', '222'])
+    expect(() => getQuickBooksCallbackRealm()).toThrow(/did not include a company identity/)
+  })
+
+  it.each(['', '0', '-1', 'abc', '1:2'])('rejects an invalid callback realm: %s', (realmId) => {
+    expect(() => normalizeQuickBooksRealmId(realmId)).toThrow(/Reconnect the QuickBooks credential/)
+  })
+
   it.each([
     'quickbooks:123:subject',
     'quickbooks:not-numeric:subject-01234567-89ab-4def-8abc-0123456789ab',
@@ -80,13 +105,13 @@ describe('QuickBooks connection profile', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            CompanyInfo: { Id: '123456789', CompanyName: 'Sanitized Company' },
+            CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
           })
         )
       )
     global.fetch = fetchMock
 
-    const result = await fetchQuickBooksConnectionProfile('fresh-access-token')
+    const result = await fetchQuickBooksConnectionProfile('fresh-access-token', '123456789')
 
     expect(result).toMatchObject({
       realmId: '123456789',
@@ -100,16 +125,48 @@ describe('QuickBooks connection profile', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       'https://sandbox-accounts.platform.intuit.com/v1/openid_connect/userinfo'
     )
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal)
     expect(fetchMock.mock.calls[1][0].toString()).toContain(
       '/v3/company/123456789/companyinfo/123456789?minorversion=75'
     )
+    expect(fetchMock.mock.calls[1][1]?.signal).toBeInstanceOf(AbortSignal)
   })
 
-  it('rejects missing realmId without falling back to the callback or ID token', async () => {
+  it('binds the callback realm when UserInfo omits realmId', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            sub: 'intuit-subject',
+            email: 'verified@example.test',
+            emailVerified: true,
+            givenName: 'Sanitized',
+            familyName: 'User',
+          })
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
+          })
+        )
+      )
+    global.fetch = fetchMock
+
+    const result = await fetchQuickBooksConnectionProfile('fresh-access-token', '123456789')
+
+    expect(result.realmId).toBe('123456789')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects conflicting callback and UserInfo company identities', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
           sub: 'intuit-subject',
+          realmId: '987654321',
           email: 'verified@example.test',
           emailVerified: true,
           givenName: 'Sanitized',
@@ -119,9 +176,9 @@ describe('QuickBooks connection profile', () => {
     )
     global.fetch = fetchMock
 
-    await expect(fetchQuickBooksConnectionProfile('fresh-access-token')).rejects.toThrow(
-      'required user and company identity'
-    )
+    await expect(
+      fetchQuickBooksConnectionProfile('fresh-access-token', '123456789')
+    ).rejects.toThrow('different company identities')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -156,31 +213,41 @@ describe('QuickBooks connection profile', () => {
       )
     global.fetch = fetchMock
 
-    await expect(fetchQuickBooksConnectionProfile('fresh-access-token')).rejects.toThrow(
+    await expect(
+      fetchQuickBooksConnectionProfile('fresh-access-token', '123456789')
+    ).rejects.toThrow(
       /QuickBooks company validation failed.*3200.*Token expired or invalid.*Reconnect/
     )
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('requires Intuit to verify the returned email address', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          sub: 'intuit-subject',
-          realmId: '123456789',
-          email: 'unverified@example.test',
-          emailVerified: false,
-          givenName: 'Sanitized',
-          familyName: 'User',
-        })
+  it('preserves an unverified UserInfo email without treating it as a Sim login identity', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            sub: 'intuit-subject',
+            realmId: '123456789',
+            email: 'unverified@example.test',
+            givenName: 'Sanitized',
+            familyName: 'User',
+          })
+        )
       )
-    )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
+          })
+        )
+      )
     global.fetch = fetchMock
 
-    await expect(fetchQuickBooksConnectionProfile('fresh-access-token')).rejects.toThrow(
-      'verified email address'
-    )
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const result = await fetchQuickBooksConnectionProfile('fresh-access-token', '123456789')
+
+    expect(result.emailVerified).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('rejects UserInfo larger than 1 MiB before parsing or company validation', async () => {
@@ -195,9 +262,9 @@ describe('QuickBooks connection profile', () => {
     )
     global.fetch = fetchMock
 
-    await expect(fetchQuickBooksConnectionProfile('fresh-access-token')).rejects.toThrow(
-      /exceeds maximum size/
-    )
+    await expect(
+      fetchQuickBooksConnectionProfile('fresh-access-token', '123456789')
+    ).rejects.toThrow(/exceeds maximum size/)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

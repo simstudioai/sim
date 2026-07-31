@@ -30,6 +30,7 @@ vi.mock('@/lib/auth/anonymous', () => ({
   createAnonymousSession: handlerMocks.createAnonymousSession,
 }))
 
+import { getQuickBooksCallbackRealm } from '@/lib/oauth/quickbooks'
 import { GET, POST } from '@/app/api/auth/[...all]/route'
 
 afterAll(resetEnvFlagsMock)
@@ -130,5 +131,69 @@ describe('auth catch-all route organization mutations', () => {
 
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
     expect(json).toEqual({ data: { ok: true } })
+  })
+})
+
+describe('auth catch-all route QuickBooks callback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAuthDisabled: false })
+  })
+
+  it('binds the callback realm only while Better Auth processes the OAuth response', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthGET.mockImplementationOnce(async () => {
+      await Promise.resolve()
+      expect(getQuickBooksCallbackRealm()).toBe('123456789')
+      return new NextResponse(null, { status: 302 })
+    })
+
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/oauth2/callback/quickbooks?code=test&state=test&realmId=123456789'
+    )
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(302)
+    expect(handlerMocks.betterAuthGET).toHaveBeenCalledTimes(1)
+    expect(() => getQuickBooksCallbackRealm()).toThrow(/did not include a company identity/)
+  })
+
+  it('delegates a denied callback without requiring a realm', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthGET.mockImplementationOnce(async () => {
+      expect(() => getQuickBooksCallbackRealm()).toThrow(/did not include a company identity/)
+      return new NextResponse(null, { status: 302 })
+    })
+
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/oauth2/callback/quickbooks?error=access_denied&state=test'
+    )
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(302)
+    expect(handlerMocks.betterAuthGET).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['missing', 'http://localhost:3000/api/auth/oauth2/callback/quickbooks?code=test&state=test'],
+    [
+      'invalid',
+      'http://localhost:3000/api/auth/oauth2/callback/quickbooks?code=test&state=test&realmId=not-a-company',
+    ],
+  ])('rejects a %s callback realm before Better Auth exchanges the code', async (_, url) => {
+    const req = createMockRequest('GET', undefined, {}, url)
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(400)
+    expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
   })
 })

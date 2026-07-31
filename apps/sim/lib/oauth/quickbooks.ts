@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { generateId } from '@sim/utils/id'
 import {
   readResponseJsonWithLimit,
@@ -6,13 +7,15 @@ import {
 import {
   fetchValidatedQuickBooksCompanyInfo,
   getQuickBooksUserInfoUrl,
+  normalizeQuickBooksRealmId as normalizeRealmId,
   QUICKBOOKS_MAX_USER_INFO_BYTES,
+  QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS,
 } from '@/lib/quickbooks/client'
 
 const QUICKBOOKS_ACCOUNT_PREFIX = 'quickbooks:'
-const QUICKBOOKS_REALM_ID_PATTERN = /^[1-9]\d*$/
 const UUID_SUFFIX_PATTERN =
   /-([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
+const quickBooksCallbackRealmStorage = new AsyncLocalStorage<string>()
 
 export const QUICKBOOKS_AUTHORIZATION_URL = 'https://appcenter.intuit.com/connect/oauth2'
 export const QUICKBOOKS_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
@@ -30,15 +33,23 @@ export interface QuickBooksConnectionProfile extends QuickBooksAccountIdentity {
   accountId: string
   name: string
   email: string
-  emailVerified: true
+  emailVerified: boolean
 }
 
-function normalizeRealmId(realmId: string): string {
-  const normalized = realmId.trim()
-  if (!QUICKBOOKS_REALM_ID_PATTERN.test(normalized)) {
-    throw new Error('QuickBooks company identity is invalid. Reconnect the QuickBooks credential.')
+export const normalizeQuickBooksRealmId = normalizeRealmId
+
+export function withQuickBooksCallbackRealm<T>(realmId: string, callback: () => T): T {
+  return quickBooksCallbackRealmStorage.run(normalizeQuickBooksRealmId(realmId), callback)
+}
+
+export function getQuickBooksCallbackRealm(): string {
+  const realmId = quickBooksCallbackRealmStorage.getStore()
+  if (!realmId) {
+    throw new Error(
+      'QuickBooks callback did not include a company identity. Reconnect the QuickBooks credential.'
+    )
   }
-  return normalized
+  return realmId
 }
 
 function normalizeSubject(subject: string): string {
@@ -54,7 +65,7 @@ export function createQuickBooksAccountId(
   subject: string,
   uniqueId = generateId()
 ): string {
-  return `${QUICKBOOKS_ACCOUNT_PREFIX}${normalizeRealmId(realmId)}:${normalizeSubject(subject)}-${uniqueId}`
+  return `${QUICKBOOKS_ACCOUNT_PREFIX}${normalizeQuickBooksRealmId(realmId)}:${normalizeSubject(subject)}-${uniqueId}`
 }
 
 export function parseQuickBooksAccountId(accountId: string): QuickBooksAccountIdentity {
@@ -68,7 +79,7 @@ export function parseQuickBooksAccountId(accountId: string): QuickBooksAccountId
     throw new Error('QuickBooks company identity is invalid. Reconnect the QuickBooks credential.')
   }
 
-  const realmId = normalizeRealmId(value.slice(0, separatorIndex))
+  const realmId = normalizeQuickBooksRealmId(value.slice(0, separatorIndex))
   const subjectWithUuid = value.slice(separatorIndex + 1)
   const uuidMatch = subjectWithUuid.match(UUID_SUFFIX_PATTERN)
   if (!uuidMatch) {
@@ -80,10 +91,13 @@ export function parseQuickBooksAccountId(accountId: string): QuickBooksAccountId
 }
 
 export async function fetchQuickBooksConnectionProfile(
-  accessToken: string
+  accessToken: string,
+  callbackRealmId: string
 ): Promise<QuickBooksConnectionProfile> {
+  const realmId = normalizeQuickBooksRealmId(callbackRealmId)
   const response = await fetch(getQuickBooksUserInfoUrl(), {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     await readResponseTextWithLimit(response, {
@@ -111,28 +125,28 @@ export async function fetchQuickBooksConnectionProfile(
   })
 
   const subject = profile.sub?.trim()
-  const realmId = (profile.realmId ?? profile.realmid)?.trim()
+  const claimedRealmId = (profile.realmId ?? profile.realmid)?.trim()
   const email = profile.email?.trim()
   const givenName = (profile.givenName ?? profile.given_name)?.trim()
   const familyName = (profile.familyName ?? profile.family_name)?.trim()
   const name = profile.name?.trim() || [givenName, familyName].filter(Boolean).join(' ')
   const emailVerified = profile.emailVerified ?? profile.email_verified ?? false
 
-  if (!subject || !realmId || !email || !name) {
-    throw new Error('QuickBooks UserInfo did not return the required user and company identity')
+  if (!subject || !email || !name) {
+    throw new Error('QuickBooks UserInfo did not return the required user identity')
   }
-  if (!emailVerified) {
-    throw new Error('QuickBooks UserInfo did not return a verified email address')
+  if (claimedRealmId && normalizeQuickBooksRealmId(claimedRealmId) !== realmId) {
+    throw new Error('QuickBooks callback and UserInfo returned different company identities')
   }
 
   await fetchValidatedQuickBooksCompanyInfo(accessToken, realmId)
 
   return {
     accountId: createQuickBooksAccountId(realmId, subject),
-    realmId: normalizeRealmId(realmId),
+    realmId,
     subject: normalizeSubject(subject),
     name,
     email,
-    emailVerified: true,
+    emailVerified,
   }
 }

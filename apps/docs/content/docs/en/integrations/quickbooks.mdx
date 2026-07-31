@@ -32,7 +32,7 @@ Get information about the connected QuickBooks Online company
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `company` | json | Verified QuickBooks CompanyInfo object, including Id, CompanyName, LegalName, addresses, contact details, NameValue settings, and MetaData when populated |
-|   ↳ `Id` | string | Connected QuickBooks company ID |
+|   ↳ `Id` | string | QuickBooks CompanyInfo entity ID \(commonly "1"\); this is not the OAuth realmId |
 |   ↳ `SyncToken` | string | CompanyInfo sync token |
 |   ↳ `CompanyName` | string | Company display name |
 |   ↳ `LegalName` | string | Company legal name |

@@ -154,7 +154,10 @@ export const QUICKBOOKS_METADATA_PROPERTIES: Record<string, OutputProperty> = {
 }
 
 export const QUICKBOOKS_COMPANY_INFO_PROPERTIES: Record<string, OutputProperty> = {
-  Id: { type: 'string', description: 'Connected QuickBooks company ID' },
+  Id: {
+    type: 'string',
+    description: 'QuickBooks CompanyInfo entity ID (commonly "1"); this is not the OAuth realmId',
+  },
   SyncToken: { type: 'string', description: 'CompanyInfo sync token', optional: true },
   CompanyName: { type: 'string', description: 'Company display name', optional: true },
   LegalName: { type: 'string', description: 'Company legal name', optional: true },

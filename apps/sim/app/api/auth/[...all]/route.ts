@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { normalizeQuickBooksRealmId, withQuickBooksCallbackRealm } from '@/lib/oauth/quickbooks'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,32 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()
     return NextResponse.json(createAnonymousSession())
+  }
+
+  if (path === 'oauth2/callback/quickbooks') {
+    const authorizationCode = request.nextUrl.searchParams.get('code')
+    if (!authorizationCode) {
+      return betterAuthGET(request)
+    }
+
+    const realmId = request.nextUrl.searchParams.get('realmId')
+    if (!realmId) {
+      return NextResponse.json(
+        { error: 'QuickBooks callback did not include a company identity.' },
+        { status: 400 }
+      )
+    }
+
+    try {
+      normalizeQuickBooksRealmId(realmId)
+    } catch {
+      return NextResponse.json(
+        { error: 'QuickBooks callback included an invalid company identity.' },
+        { status: 400 }
+      )
+    }
+
+    return withQuickBooksCallbackRealm(realmId, () => betterAuthGET(request))
   }
 
   return betterAuthGET(request)

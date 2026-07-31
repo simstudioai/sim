@@ -8,6 +8,8 @@ import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/lib/
 export const QUICKBOOKS_MINOR_VERSION = '75'
 export const QUICKBOOKS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 export const QUICKBOOKS_MAX_USER_INFO_BYTES = 1024 * 1024
+export const QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS = 15_000
+const QUICKBOOKS_MAX_VALIDATION_ERROR_BYTES = 64 * 1024
 
 export type QuickBooksEnvironment = 'sandbox' | 'production'
 
@@ -75,6 +77,49 @@ export interface QuickBooksCompanyInfoEnvelope {
   time?: string
 }
 
+function getQuickBooksTrackingId(headers: Headers): string | null {
+  return (
+    headers.get('intuit_tid') ?? headers.get('intuit-tid') ?? headers.get('x-request-id') ?? null
+  )
+}
+
+function getQuickBooksCompanyValidationGuidance(status: number): string | null {
+  if (status === 401) return 'Reconnect the QuickBooks credential.'
+  if (status === 403) {
+    return 'Confirm the QuickBooks accounting scope and access to this company.'
+  }
+  if (status === 429) {
+    return 'QuickBooks rate limit reached; retry after the indicated delay.'
+  }
+  return null
+}
+
+function createQuickBooksCompanyValidationError(response: Response, responseText: string): Error {
+  let faultDetail = ''
+  if (responseText) {
+    try {
+      const fault = sanitizeQuickBooksFaultData(JSON.parse(responseText))
+      if (fault) faultDetail = formatQuickBooksFaultDetail(fault)
+    } catch {
+      // Intuit can return HTML or an empty response for gateway failures.
+    }
+  }
+
+  const trackingId = getQuickBooksTrackingId(response.headers)
+  const retryAfter = response.headers.get('retry-after')
+  return new Error(
+    [
+      `QuickBooks company validation failed with HTTP ${response.status}.`,
+      getQuickBooksCompanyValidationGuidance(response.status),
+      faultDetail,
+      trackingId ? `(Intuit tracking ID: ${trackingId})` : null,
+      response.status === 429 && retryAfter ? `(Retry-After: ${retryAfter})` : null,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  )
+}
+
 export async function fetchValidatedQuickBooksCompanyInfo(
   accessToken: string,
   realmId: string
@@ -88,15 +133,23 @@ export async function fetchValidatedQuickBooksCompanyInfo(
     {
       method: 'GET',
       headers: buildQuickBooksHeaders(accessToken),
+      signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
     }
   )
 
   if (!response.ok) {
-    await readResponseTextWithLimit(response, {
-      maxBytes: 64 * 1024,
-      label: 'QuickBooks CompanyInfo error response',
-    }).catch(() => {})
-    throw new Error(`QuickBooks company validation failed with HTTP ${response.status}`)
+    let responseText = ''
+    try {
+      responseText = await readResponseTextWithLimit(response, {
+        maxBytes: QUICKBOOKS_MAX_VALIDATION_ERROR_BYTES,
+        label: 'QuickBooks CompanyInfo error response',
+      })
+    } catch {
+      throw new Error(
+        `QuickBooks company validation failed with HTTP ${response.status}. The error response exceeded the safe size limit.`
+      )
+    }
+    throw createQuickBooksCompanyValidationError(response, responseText)
   }
 
   const data = await readResponseJsonWithLimit<QuickBooksCompanyInfoEnvelope>(response, {
@@ -114,10 +167,8 @@ export async function fetchValidatedQuickBooksCompanyInfo(
     )
   }
 
-  if (!data.CompanyInfo || String(data.CompanyInfo.Id ?? '').trim() !== normalizedRealmId) {
-    throw new Error(
-      'QuickBooks company validation returned a different company. Reconnect the QuickBooks credential.'
-    )
+  if (!data.CompanyInfo || typeof data.CompanyInfo !== 'object') {
+    throw new Error('QuickBooks company validation response is missing CompanyInfo')
   }
 
   return data

@@ -105,6 +105,7 @@ import {
 } from '@/lib/oauth/microsoft'
 import {
   fetchQuickBooksConnectionProfile,
+  getQuickBooksCallbackRealm,
   QUICKBOOKS_AUTHORIZATION_URL,
   QUICKBOOKS_OIDC_CLAIMS,
   QUICKBOOKS_TOKEN_URL,
@@ -114,6 +115,7 @@ import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
+import { QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS } from '@/lib/quickbooks/client'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
@@ -3240,6 +3242,7 @@ export const auth = betterAuth({
                 grant_type: 'authorization_code',
                 redirect_uri: redirectURI,
               }),
+              signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
             })
             const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
               maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -3266,7 +3269,10 @@ export const auth = betterAuth({
               throw new Error('QuickBooks OAuth did not issue an access token')
             }
 
-            const profile = await fetchQuickBooksConnectionProfile(tokens.accessToken)
+            const profile = await fetchQuickBooksConnectionProfile(
+              tokens.accessToken,
+              getQuickBooksCallbackRealm()
+            )
 
             const now = new Date()
             return {
