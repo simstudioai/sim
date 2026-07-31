@@ -27,11 +27,11 @@ export const currencyColumnType: ColumnTypeDefinition = {
   typeaheadPattern: /[\d.,\-\p{Sc}]/u,
   parseErrorMessage: 'Invalid amount',
 
-  coerce(value) {
+  coerce(value, column) {
     // Stored as a bare number, but accepts the formatted shapes an amount
     // arrives in — `$1,234.56`, `1 234,56 €`, `(12.00)` — so a paste, CSV
     // import, or tool write lands as a number rather than being nulled.
-    const parsed = parseCurrencyInput(value)
+    const parsed = parseCurrencyInput(value, column.currencyCode)
     return parsed === null ? { ok: false } : { ok: true, value: parsed }
   },
 
