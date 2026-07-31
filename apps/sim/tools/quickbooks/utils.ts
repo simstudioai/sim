@@ -6,20 +6,44 @@ import {
   QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
 import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
-import type { QuickBooksListResponse, QuickBooksPaginationParams } from '@/tools/quickbooks/types'
+import type {
+  QuickBooksActiveStatus,
+  QuickBooksAddress,
+  QuickBooksListResponse,
+  QuickBooksMasterDataRecord,
+  QuickBooksMasterDataRecordType,
+  QuickBooksMutationResponse,
+  QuickBooksPaginationParams,
+  QuickBooksReference,
+} from '@/tools/quickbooks/types'
 
-export type QuickBooksQueryEntity = 'Bill' | 'PurchaseOrder' | 'Vendor'
+export type QuickBooksQueryEntity =
+  | 'Account'
+  | 'Bill'
+  | 'Customer'
+  | 'Employee'
+  | 'Item'
+  | 'PurchaseOrder'
+  | 'Vendor'
 
 interface QuickBooksQueryResponse<T> {
-  QueryResponse?: {
-    Bill?: T[]
-    PurchaseOrder?: T[]
-    Vendor?: T[]
+  QueryResponse?: Partial<Record<QuickBooksQueryEntity, T[]>> & {
     startPosition?: number
     maxResults?: number
   }
   time?: string
 }
+
+export const QUICKBOOKS_MASTER_DATA_ENTITIES = {
+  account: { entity: 'Account', resource: 'account' },
+  customer: { entity: 'Customer', resource: 'customer' },
+  employee: { entity: 'Employee', resource: 'employee' },
+  item: { entity: 'Item', resource: 'item' },
+  vendor: { entity: 'Vendor', resource: 'vendor' },
+} as const satisfies Record<
+  QuickBooksMasterDataRecordType,
+  { entity: QuickBooksQueryEntity; resource: string }
+>
 
 export function validateQuickBooksPagination(
   startPosition: number,
@@ -47,6 +71,33 @@ export function buildQuickBooksQueryUrl(
     `SELECT * FROM ${entity} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
   )
   return url
+}
+
+export function getQuickBooksMasterDataEntity(recordType: QuickBooksMasterDataRecordType) {
+  const config = QUICKBOOKS_MASTER_DATA_ENTITIES[recordType]
+  if (!config) {
+    throw new Error(`Unsupported QuickBooks master data record type: ${String(recordType)}`)
+  }
+  return config
+}
+
+export function buildQuickBooksEntityUrl(
+  realmId: string,
+  resource: string,
+  recordId?: string
+): URL {
+  const normalizedResource = resource.trim()
+  if (!normalizedResource) throw new Error('QuickBooks resource is required')
+  const normalizedRecordId = recordId?.trim()
+  if (recordId !== undefined && !normalizedRecordId) {
+    throw new Error('QuickBooks record ID is required')
+  }
+  return buildQuickBooksCompanyUrl(
+    realmId,
+    normalizedRecordId
+      ? `${encodeURIComponent(normalizedResource)}/${encodeURIComponent(normalizedRecordId)}`
+      : encodeURIComponent(normalizedResource)
+  )
 }
 
 export async function parseQuickBooksJson<T>(response: Response, label: string): Promise<T> {
@@ -113,6 +164,137 @@ export async function transformQuickBooksListResponse<T>(
   }
 }
 
-export function getQuickBooksToolHeaders(accessToken: string): Record<string, string> {
-  return buildQuickBooksHeaders(accessToken)
+export async function transformQuickBooksEntityResponse<T extends QuickBooksMasterDataRecord>(
+  response: Response,
+  entity: QuickBooksQueryEntity
+): Promise<{ item: T; time: string | null }> {
+  const data = await parseQuickBooksJson<Record<string, unknown> & { time?: string }>(
+    response,
+    `QuickBooks ${entity} response`
+  )
+  const candidate = data[entity]
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    throw new Error(`QuickBooks ${entity} response is missing ${entity}`)
+  }
+  return {
+    item: candidate as T,
+    time: typeof data.time === 'string' ? data.time : null,
+  }
+}
+
+export async function transformQuickBooksMutationResponse<T extends QuickBooksMasterDataRecord>(
+  response: Response,
+  entity: QuickBooksQueryEntity
+): Promise<QuickBooksMutationResponse<T>> {
+  const { item, time } = await transformQuickBooksEntityResponse<T>(response, entity)
+  const recordId = typeof item.Id === 'string' ? item.Id.trim() : ''
+  const syncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''
+  if (!recordId || !syncToken) {
+    throw new Error(`QuickBooks ${entity} response is missing Id or SyncToken`)
+  }
+  return {
+    success: true,
+    output: { record: item, recordId, syncToken, time },
+  }
+}
+
+export function quickBooksReference(value: string, fieldName: string): QuickBooksReference {
+  return { value: requiredQuickBooksString(value, fieldName) }
+}
+
+export function requiredQuickBooksString(value: string, fieldName: string): string {
+  const normalized = value.trim()
+  if (!normalized) throw new Error(`${fieldName} is required`)
+  return normalized
+}
+
+export function optionalQuickBooksString(value?: string): string | undefined {
+  if (value === undefined) return undefined
+  const normalized = value.trim()
+  return normalized || undefined
+}
+
+export function quickBooksEmailAddress(value?: string): { Address: string } | undefined {
+  const normalized = optionalQuickBooksString(value)
+  return normalized ? { Address: normalized } : undefined
+}
+
+export function quickBooksPhoneNumber(value?: string): { FreeFormNumber: string } | undefined {
+  const normalized = optionalQuickBooksString(value)
+  return normalized ? { FreeFormNumber: normalized } : undefined
+}
+
+export function validateQuickBooksOptionalNumber(
+  value: number | undefined,
+  fieldName: string
+): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isFinite(value)) throw new Error(`${fieldName} must be a finite number`)
+  return value
+}
+
+const QUICKBOOKS_ADDRESS_FIELDS = {
+  line1: 'Line1',
+  line2: 'Line2',
+  city: 'City',
+  countrySubDivisionCode: 'CountrySubDivisionCode',
+  postalCode: 'PostalCode',
+  country: 'Country',
+} as const
+
+export function parseQuickBooksAddress(
+  value: unknown,
+  fieldName: string
+): QuickBooksAddress | undefined {
+  if (value == null || value === '') return undefined
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      throw new Error(`${fieldName} must be valid JSON`)
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${fieldName} must be a JSON object`)
+  }
+
+  const result: QuickBooksAddress = {}
+  for (const [key, fieldValue] of Object.entries(parsed)) {
+    const quickBooksKey = QUICKBOOKS_ADDRESS_FIELDS[key as keyof typeof QUICKBOOKS_ADDRESS_FIELDS]
+    if (!quickBooksKey) {
+      throw new Error(`${fieldName} contains unsupported field "${key}"`)
+    }
+    if (typeof fieldValue !== 'string') {
+      throw new Error(`${fieldName}.${key} must be a string`)
+    }
+    result[quickBooksKey] = fieldValue
+  }
+  return result
+}
+
+export function quickBooksActiveValue(activeStatus: QuickBooksActiveStatus): boolean | undefined {
+  if (activeStatus === 'unchanged') return undefined
+  if (activeStatus === 'active') return true
+  if (activeStatus === 'inactive') return false
+  throw new Error(`Unsupported QuickBooks active status: ${String(activeStatus)}`)
+}
+
+export function assertQuickBooksSparseUpdate(
+  body: Record<string, unknown>,
+  requiredFieldCount = 3
+): void {
+  if (Object.keys(body).length <= requiredFieldCount) {
+    throw new Error('Provide at least one field to update')
+  }
+}
+
+export function getQuickBooksToolHeaders(
+  accessToken: string,
+  contentType?: 'application/json'
+): Record<string, string> {
+  return {
+    ...buildQuickBooksHeaders(accessToken),
+    ...(contentType ? { 'Content-Type': contentType } : {}),
+  }
 }
