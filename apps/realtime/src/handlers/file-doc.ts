@@ -516,6 +516,16 @@ function emptySeedUpdate(): Uint8Array {
 const fileDocMergeChains = new Map<string, Promise<unknown>>()
 
 /**
+ * How a merge is positioned on the file's version line — mirrors the sim-side `LiveFileDocMergeOrder`
+ * wire fields. A durable `version` is checked AND recorded; a streaming `baseVersion` (the durable version
+ * the snapshot was built from) is checked only — dropped if a newer durable write has since landed.
+ */
+interface MergeOrder {
+  version?: number
+  baseVersion?: number
+}
+
+/**
  * Apply new markdown into a file's LIVE collaborative document (Stage C — copilot writing into an open
  * doc). Ships the document's current state to the app to build a minimal Yjs diff, applies it — which
  * fires `doc.on('update')` and relays the merge to every connected editor, reconciled with any
@@ -540,14 +550,12 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
 export function applyMarkdownToLiveFileDoc(
   fileId: string,
   markdown: string,
-  version?: number
-): Promise<'applied' | 'no-live-room' | 'merge-unavailable'> {
+  order: MergeOrder = {}
+): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const name = roomName(fileDocRoom(fileId))
   const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
   // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
-  const run = prior
-    .catch(() => {})
-    .then(() => mergeMarkdownIntoRoom(name, fileId, markdown, version))
+  const run = prior.catch(() => {}).then(() => mergeMarkdownIntoRoom(name, fileId, markdown, order))
   fileDocMergeChains.set(
     name,
     run.finally(() => {
@@ -561,21 +569,51 @@ async function mergeMarkdownIntoRoom(
   name: string,
   fileId: string,
   markdown: string,
-  version?: number
-): Promise<'applied' | 'no-live-room' | 'merge-unavailable'> {
+  { version, baseVersion }: MergeOrder
+): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const store = getFileDocStore()
 
   // The durable version this merge carries is now incorporated in the live doc — record it (cluster-wide
   // in Redis for multi-task, plus this task's room) so the persist If-Match guard treats this write as
-  // synced rather than an out-of-band conflict. Set on success below.
-  const recordVersion = () => {
+  // synced rather than an out-of-band conflict. AWAITED so the version is durable before the merge lock
+  // releases, so the next lock holder's staleness check (below) reads a consistent value. Only a durable
+  // `version` is recorded — a streaming `baseVersion` orders the merge (below) but is never a checkpoint,
+  // so the synced version stays pinned to the last durable write.
+  const recordVersion = async () => {
     if (version === undefined) return
     const room = fileDocRooms.get(name)
-    // Never regress the token: merges/seeds/persists all write it (locally and via fire-and-forget
-    // Redis), so a lower value arriving out of order must not shadow a higher one the doc already
-    // incorporates (the Redis side is guarded identically by SET_VERSION_IF_NEWER_SCRIPT).
+    // Never regress the token: merges/seeds/persists all write it, so a lower value arriving out of
+    // order must not shadow a higher one the doc already incorporates (the Redis side is guarded
+    // identically by SET_VERSION_IF_NEWER_SCRIPT).
     if (room) room.syncedVersion = Math.max(room.syncedVersion ?? 0, version)
-    void store.setSyncedVersion(name, version)
+    await store.setSyncedVersion(name, version)
+  }
+
+  // Order this merge on the file's version line, where `current` is the durable version the doc already
+  // incorporates. Both keys are DB-monotonic `contentUpdatedAt` values (no wall-clock), so ordering is
+  // immune to clock skew:
+  //   - A durable `version` is stale if it is NOT strictly newer than `current` — a newer durable write
+  //     already landed (possibly on another process, out of dispatch order); applying its older markdown
+  //     would regress the doc while the monotonic token stays high.
+  //   - A streaming `baseVersion` (the durable version the snapshot was built from) is stale if `current`
+  //     has moved PAST it — a newer durable write landed since the snapshot's base, so diffing the live
+  //     doc back toward the snapshot would clobber that write's content (which a later persist, still
+  //     holding the current If-Match token, would then write over the durable file). This is what stops a
+  //     concurrent human edit from being silently lost; the per-process caller chain cannot see it.
+  // A merge with neither key is never stale (legacy, unordered). Only a durable `version` is recorded,
+  // so a streaming snapshot never advances the synced version — the final `edit_content` write does.
+  //
+  // Known, accepted limitation: two INDEPENDENT copilot streams editing the SAME file at once share one
+  // base version, so neither is stale relative to the other and their snapshots can interleave in the live
+  // doc. This is transient only — each stream's final durable write is version-ordered and reconciles the
+  // doc, so the steady state is deterministic (last durable wins) and the durable file is never corrupted.
+  // Ordering two independent snapshot streams would need a shared sequence they don't have; the fully
+  // robust form (a per-file streaming lease, or embedding the version in each stream entry) is a scoped
+  // follow-up, not a durability fix owed here.
+  const isStale = (current: number): boolean => {
+    if (version !== undefined) return version <= current
+    if (baseVersion !== undefined) return current > baseVersion
+    return false
   }
 
   if (store.enabled) {
@@ -595,6 +633,11 @@ async function mergeMarkdownIntoRoom(
       return 'merge-unavailable'
     }
     try {
+      // Staleness is checked under the lock against the cluster-wide synced version, so a durable merge
+      // that lost the race to a newer one (on any process) is dropped rather than regressing the doc.
+      const shared = await store.getSyncedVersion(name)
+      const current = Math.max(shared ?? 0, fileDocRooms.get(name)?.syncedVersion ?? 0)
+      if (isStale(current)) return 'stale'
       // Compute the diff against the committed SHARED state and PUBLISH it — every task with the doc
       // live (including this one, via its own tailer) applies it and fans it out to its clients, so the
       // merge reaches the live doc no matter which task the apply-edit call landed on. An empty stream
@@ -604,7 +647,7 @@ async function mergeMarkdownIntoRoom(
       if (!base) return 'no-live-room'
       const diff = await fetchFileDocMerge(fileId, base, markdown)
       await store.publishAndWait(name, diff)
-      recordVersion()
+      await recordVersion()
       return 'applied'
     } finally {
       await store.releaseMergeSlot(name, token)
@@ -614,12 +657,13 @@ async function mergeMarkdownIntoRoom(
   // Single-replica fallback: apply straight to the local authoritative doc.
   const room = fileDocRooms.get(name)
   if (!room || room.owners.size === 0 || !isDocSeeded(room.doc)) return 'no-live-room'
+  if (isStale(room.syncedVersion ?? 0)) return 'stale'
   const update = await fetchFileDocMerge(fileId, Y.encodeStateAsUpdate(room.doc), markdown)
   // The room may have been dropped while the diff was being built; never touch a destroyed doc.
   if (fileDocRooms.get(name) !== room) return 'no-live-room'
   // No transaction origin → `doc.on('update')` relays to the WHOLE room (every editor sees copilot).
   Y.applyUpdate(room.doc, update)
-  recordVersion()
+  await recordVersion()
   return 'applied'
 }
 

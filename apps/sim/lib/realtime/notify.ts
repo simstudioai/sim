@@ -110,6 +110,20 @@ export async function notifyFolderResourceChanged(
 }
 
 /**
+ * How a live-doc merge is positioned on the file's monotonic version line. Pass one key or the other,
+ * never both; passing neither applies the merge without ordering it (legacy).
+ */
+export interface LiveFileDocMergeOrder {
+  /** A durable write's `contentUpdatedAt` (epoch ms): applied only if newer than the version the doc
+   *  already incorporates, AND recorded as the synced version. */
+  version?: number
+  /** A streaming snapshot's causal base — the durable `contentUpdatedAt` it was built from. The relay
+   *  drops the snapshot if a NEWER durable version was recorded than this (a concurrent write landed), and
+   *  never records it as a checkpoint. */
+  baseVersion?: number
+}
+
+/**
  * Best-effort: ask the realtime relay to merge a copilot edit into a file's LIVE collaborative
  * document, so open editors see it stream in as a CRDT merge (Stage C) rather than the file changing
  * underneath them. No-op when no doc is (or was recently) live (the relay reports `applied: false`).
@@ -121,21 +135,73 @@ export async function notifyFolderResourceChanged(
  * server-side), and the relay applies this merge THROUGH the shared Redis stream, so it reaches the
  * live doc on whichever task holds it and can't go stale relative to this direct write.
  *
- * Awaited (not fire-and-forget) so the fetch dispatches before the route handler returns; bounded to
- * {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency only when the socket pod is unreachable.
+ * A durable caller awaits this (so the fetch dispatches before the route handler returns); the copilot
+ * streaming caller fires and forgets it. Bounded to {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency
+ * only when the socket pod is unreachable.
+ *
+ * `order` ({@link LiveFileDocMergeOrder}) positions this merge so a stale write never regresses the doc.
+ * A durable `version` applies only if newer than the version the doc already incorporates, and is recorded
+ * as the synced version (the persist If-Match guard). A streaming `baseVersion` is the durable version the
+ * snapshot was built from: the relay drops the snapshot if a NEWER durable write has since landed — so a
+ * concurrent human edit is never clobbered (nor later persisted over the file) — and never records it, so
+ * the synced version stays pinned to the last durable write, which the copilot tool's final `edit_content`
+ * write carries, reconciling the durable file.
+ *
+ * Ordering is enforced at two scales. Within this process, merges for a file run on a single serialized
+ * chain — each chained after the current tail — so a durable write applies after any in-flight streaming
+ * merge and after every earlier durable write, never concurrently. Across processes, the per-process
+ * chain does not apply, so the relay orders merges by that monotonic version under a cluster-wide lock.
+ * The copilot streaming caller uses {@link isLiveDocMergeInFlight} to skip redundant snapshots while one
+ * is in flight, so a slow relay can't backlog stale snapshots.
  */
 export async function mergeEditIntoLiveFileDoc(
   fileId: string,
   markdown: string,
-  version: number
+  order: LiveFileDocMergeOrder = {}
+): Promise<void> {
+  const tail = liveDocMergeChain.get(fileId) ?? Promise.resolve()
+  const run = tail.then(() => applyLiveFileDocMerge(fileId, markdown, order))
+  liveDocMergeChain.set(fileId, run)
+  try {
+    await run
+  } finally {
+    if (liveDocMergeChain.get(fileId) === run) liveDocMergeChain.delete(fileId)
+  }
+}
+
+/** Per file, the tail of the serialized merge chain (each merge applies after it); never rejects
+ *  because {@link applyLiveFileDocMerge} never throws. Absent when the file's chain is idle. */
+const liveDocMergeChain = new Map<string, Promise<void>>()
+
+/**
+ * Whether a live-doc merge is currently running or queued for the file. The copilot streaming caller
+ * checks this to skip a redundant snapshot (and to not advance its send throttle) while a merge is in
+ * flight — bounding the stream to one live merge per file at a time without backlogging stale
+ * snapshots behind a slow relay.
+ */
+export function isLiveDocMergeInFlight(fileId: string): boolean {
+  return liveDocMergeChain.has(fileId)
+}
+
+/** POST the merge to the relay. Never throws (a live-doc merge is best-effort). */
+async function applyLiveFileDocMerge(
+  fileId: string,
+  markdown: string,
+  order: LiveFileDocMergeOrder
 ): Promise<void> {
   try {
     const response = await fetch(`${getSocketServerUrl()}/api/file-doc/apply-edit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-      // `version` is the durable `updatedAt` (epoch ms) this markdown was written with — the relay
-      // records it as the version its live doc now incorporates (see the persist If-Match guard).
-      body: JSON.stringify({ fileId, markdown, version }),
+      // `version` (durable `contentUpdatedAt`) records the synced version the live doc now incorporates
+      // (the persist If-Match guard); `baseVersion` is a streaming snapshot's causal base, checked (drop
+      // if a newer durable landed) but never recorded. JSON.stringify drops whichever is undefined.
+      body: JSON.stringify({
+        fileId,
+        markdown,
+        version: order.version,
+        baseVersion: order.baseVersion,
+      }),
       signal: AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS),
     })
     if (!response.ok) {

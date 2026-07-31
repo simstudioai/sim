@@ -1223,11 +1223,9 @@ export async function updateWorkspaceFileContent(
       // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
       // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
       // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
-      await mergeEditIntoLiveFileDoc(
-        fileId,
-        content.toString('utf-8'),
-        finalized.file.contentUpdatedAt.getTime()
-      )
+      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'), {
+        version: finalized.file.contentUpdatedAt.getTime(),
+      })
     }
 
     const pathPrefix = getServePathPrefix()

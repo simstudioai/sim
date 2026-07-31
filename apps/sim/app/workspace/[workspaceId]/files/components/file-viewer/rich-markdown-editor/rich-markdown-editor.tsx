@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
-import type { Extensions, JSONContent } from '@tiptap/core'
+import { type Extensions, generateHTML, type JSONContent } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
@@ -296,6 +296,18 @@ export function LoadedRichMarkdownEditor({
     streamingAtMountRef.current || collaborationEnabled
       ? ''
       : parseMarkdownToDoc(splitFrontmatter(content).body)
+  )
+  /**
+   * A read-only placeholder rendered from the already-fetched markdown while a collaborative doc waits
+   * for its server seed, so the pane shows content instantly instead of blocking blank on the socket
+   * round-trip (the seed IS the same markdown, so the swap on {@link collabReady} is seamless). Static
+   * HTML — it holds no editor, doc, or awareness, so it structurally cannot write to the Y.Doc, which
+   * is the invariant that keeps seeding out of the client (a client seed duplicates the doc).
+   */
+  const [placeholderHtml] = useState<string | null>(() =>
+    collaborationEnabled
+      ? generateHTML(parseMarkdownToDoc(splitFrontmatter(content).body), EXTENSIONS)
+      : null
   )
   /**
    * The body currently shown in the editor: seeded from a settled mount, updated on local edits (via
@@ -923,6 +935,11 @@ export function LoadedRichMarkdownEditor({
     []
   )
 
+  // Show the read-only placeholder only for a plain cold open — never during an agent stream. A stream
+  // that begins before the doc has seeded fills the (hidden) editor via Yjs, so gating the placeholder
+  // off while streaming lets that live content show through instead of hiding it behind stale markdown.
+  const showPlaceholder = collaborationEnabled && !collabReady && !isStreaming
+
   return (
     <div
       ref={containerRef}
@@ -947,9 +964,20 @@ export function LoadedRichMarkdownEditor({
           if (images.length > 0) void insertImagesRef.current(images, at)
         }}
       />
+      {showPlaceholder && placeholderHtml && (
+        // Instant read-only content while the collaborative doc seeds; the editor stays mounted-but-
+        // hidden below so it renders the seeded doc before the swap. Same layout box → no reflow.
+        <div
+          className='rich-markdown-prose mx-auto w-full max-w-[48rem] px-8 py-6'
+          dangerouslySetInnerHTML={{ __html: placeholderHtml }}
+        />
+      )}
       <EditorContent
         editor={editor}
-        className='mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+        className={cn(
+          'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
+          showPlaceholder && placeholderHtml && 'hidden'
+        )}
       />
     </div>
   )

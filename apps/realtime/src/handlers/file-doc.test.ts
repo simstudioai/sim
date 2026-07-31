@@ -543,6 +543,65 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
+  it('rejects a stale versioned merge (not newer than the synced version) without regressing the doc', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original')) // seed version 1
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
+
+    // A newer durable version lands and is recorded as the synced version.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', { version: 100 })).toBe('applied')
+    mockFetchFileDocMerge.mockClear()
+
+    // An older durable version arriving out of order (e.g. a concurrent write on another process) is
+    // stale: skipped before any diff is computed, so the live doc never regresses to older content and
+    // no diff is published that a later persist could write back.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', { version: 50 })).toBe(
+      'stale'
+    )
+    // The same version is idempotent — also skipped.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', { version: 100 })).toBe(
+      'stale'
+    )
+    expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
+  })
+
+  it('drops a streaming snapshot whose base predates a newer durable write, but never records it', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original')) // seed version 1
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
+
+    // A durable write (e.g. a concurrent human save) lands and is recorded as the synced version.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', { version: 100 })).toBe(
+      'applied'
+    )
+
+    // A streaming snapshot built from an OLDER base (50) — copilot loaded the file before that durable
+    // write — is stale: applying it would diff the live doc back toward the copilot content and clobber
+    // the durable write, which a later persist would then write over the file.
+    expect(
+      await applyMarkdownToLiveFileDoc('file-1', '# stale-base stream', { baseVersion: 50 })
+    ).toBe('stale')
+
+    // A streaming snapshot whose base IS the current durable version applies — nothing newer to clobber.
+    expect(
+      await applyMarkdownToLiveFileDoc('file-1', '# current-base stream', { baseVersion: 100 })
+    ).toBe('applied')
+
+    // ...and a streaming merge is never recorded as the synced version: a later durable write at 150 still
+    // applies (only durable writes move the synced version; the final edit_content write reconciles).
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', { version: 150 })).toBe(
+      'applied'
+    )
+  })
+
   it('serializes concurrent merges for the same file (second waits for the first)', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original'))
     const { io } = createIo()
