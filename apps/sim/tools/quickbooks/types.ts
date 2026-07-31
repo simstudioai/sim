@@ -98,11 +98,9 @@ export interface QuickBooksEmployee {
   Mobile?: QuickBooksPhoneNumber
   PrimaryEmailAddr?: QuickBooksEmailAddress
   PrimaryAddr?: QuickBooksAddress
-  SSN?: string
   BillableTime?: boolean
   MetaData?: QuickBooksMetaData
   sparse?: boolean
-  [key: string]: unknown
 }
 
 export interface QuickBooksItem {

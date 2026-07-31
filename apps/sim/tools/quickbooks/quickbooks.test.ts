@@ -7,6 +7,7 @@ import {
   getQuickBooksUserInfoUrl,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer'
 import { quickbooksCreateItemTool } from '@/tools/quickbooks/create_item'
 import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
@@ -297,6 +298,74 @@ describe('QuickBooks master-data reader', () => {
         time: 'test-time',
       },
     })
+  })
+
+  it('allowlists Employee output fields and removes sensitive provider properties', async () => {
+    const employee = {
+      Id: '5',
+      SyncToken: '2',
+      DisplayName: 'Sanitized Employee',
+      Active: true,
+      SSN: '000-00-0000',
+      BankAccountNumber: 'sensitive',
+      PrimaryEmailAddr: {
+        Address: 'employee@example.test',
+        VerificationToken: 'sensitive',
+      },
+      PrimaryAddr: {
+        Line1: '123 Main St',
+        PostalCode: '94105',
+        InternalGeoCode: 'sensitive',
+      },
+      MetaData: {
+        CreateTime: '2026-01-01T00:00:00Z',
+        InternalRevision: 'sensitive',
+      },
+    }
+    const listParamsForEmployee: QuickBooksReadMasterDataParams = {
+      ...listParams,
+      recordType: 'employee',
+    }
+
+    await expect(
+      quickbooksReadMasterDataTool.transformResponse!(
+        Response.json({ QueryResponse: { Employee: [employee] } }),
+        listParamsForEmployee
+      )
+    ).resolves.toMatchObject({
+      success: true,
+      output: {
+        recordType: 'employee',
+        items: [
+          {
+            Id: '5',
+            SyncToken: '2',
+            DisplayName: 'Sanitized Employee',
+            Active: true,
+            PrimaryEmailAddr: { Address: 'employee@example.test' },
+            PrimaryAddr: { Line1: '123 Main St', PostalCode: '94105' },
+            MetaData: { CreateTime: '2026-01-01T00:00:00Z' },
+          },
+        ],
+      },
+    })
+
+    const listResult = await quickbooksReadMasterDataTool.transformResponse!(
+      Response.json({ QueryResponse: { Employee: [employee] } }),
+      listParamsForEmployee
+    )
+    expect(listResult.output.items?.[0]).not.toHaveProperty('SSN')
+    expect(listResult.output.items?.[0]).not.toHaveProperty('BankAccountNumber')
+    expect(listResult.output.items?.[0]?.PrimaryEmailAddr).not.toHaveProperty('VerificationToken')
+    expect(listResult.output.items?.[0]?.PrimaryAddr).not.toHaveProperty('InternalGeoCode')
+    expect(listResult.output.items?.[0]?.MetaData).not.toHaveProperty('InternalRevision')
+
+    const byIdResult = await quickbooksReadMasterDataTool.transformResponse!(
+      Response.json({ Employee: employee }),
+      { ...listParamsForEmployee, readMode: 'by_id', recordId: '5' }
+    )
+    expect(byIdResult.output.item).not.toHaveProperty('SSN')
+    expect(byIdResult.output.item).not.toHaveProperty('BankAccountNumber')
   })
 
   it('rejects missing IDs, unknown types and unknown modes before a request', () => {
@@ -672,9 +741,37 @@ describe('QuickBooks tool and block boundaries', () => {
       and: { field: 'readMode', value: 'by_id' },
     })
     expect(subBlocks.startPosition.mode).toBe('advanced')
-    expect(subBlocks.startPosition.condition).toMatchObject({
+    expect(
+      evaluateSubBlockCondition(subBlocks.startPosition.condition, {
+        operation: 'quickbooks_read_master_data',
+        readMode: 'list',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(subBlocks.startPosition.condition, {
+        operation: 'quickbooks_read_master_data',
+        readMode: 'by_id',
+      })
+    ).toBe(false)
+    expect(
+      evaluateSubBlockCondition(subBlocks.startPosition.condition, {
+        operation: 'quickbooks_list_purchase_orders',
+        readMode: 'by_id',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(subBlocks.maxResults.condition, {
+        operation: 'quickbooks_list_bills',
+        readMode: 'by_id',
+      })
+    ).toBe(true)
+    expect(QuickBooksBlock.outputs.items.condition).toEqual({
       field: 'operation',
-      and: { field: 'readMode', value: 'by_id', not: true },
+      value: [
+        'quickbooks_read_master_data',
+        'quickbooks_list_purchase_orders',
+        'quickbooks_list_bills',
+      ],
     })
     expect(subBlocks.syncToken.condition).toEqual({
       field: 'operation',

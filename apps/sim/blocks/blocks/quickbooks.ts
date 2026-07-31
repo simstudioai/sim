@@ -24,6 +24,10 @@ const PAGINATED_OPERATIONS = [
   'quickbooks_list_purchase_orders',
   'quickbooks_list_bills',
 ] as const
+const TRANSACTION_LIST_OPERATIONS = [
+  'quickbooks_list_purchase_orders',
+  'quickbooks_list_bills',
+] as const
 const QUICKBOOKS_OPERATIONS = [
   'quickbooks_get_company_info',
   MASTER_DATA_OPERATION,
@@ -65,6 +69,13 @@ function parseTriStateBoolean(value: unknown, fieldName: string): boolean | unde
 
 function optionalValue(value: unknown): unknown {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
+}
+
+function paginationCondition(values?: Record<string, unknown>) {
+  if (values?.operation === MASTER_DATA_OPERATION) {
+    return { field: 'readMode', value: 'list' }
+  }
+  return { field: 'operation', value: [...TRANSACTION_LIST_OPERATIONS] }
 }
 
 export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
@@ -157,15 +168,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: '1',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: {
-          field: 'readMode',
-          value: 'by_id',
-          not: true,
-        },
-      },
+      condition: paginationCondition,
       value: () => '1',
     },
     {
@@ -174,15 +177,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: '25',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: {
-          field: 'readMode',
-          value: 'by_id',
-          not: true,
-        },
-      },
+      condition: paginationCondition,
       value: () => '25',
     },
     {
@@ -620,47 +615,27 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'array',
       description:
         'Account, Customer, Vendor, Item, Employee, PurchaseOrder, or Bill objects with native QuickBooks fields',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: { field: 'readMode', value: 'by_id', not: true },
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     startPosition: {
       type: 'number',
       description: 'One-based position of the first returned list item',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: { field: 'readMode', value: 'by_id', not: true },
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     maxResults: {
       type: 'number',
       description: 'Actual number of items reported for the list response',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: { field: 'readMode', value: 'by_id', not: true },
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     nextStartPosition: {
       type: 'number',
       description: 'Position to pass into an explicit next-page request',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: { field: 'readMode', value: 'by_id', not: true },
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     hasMore: {
       type: 'boolean',
       description: 'Conservative indication that another list page may exist',
-      condition: {
-        field: 'operation',
-        value: [...PAGINATED_OPERATIONS],
-        and: { field: 'readMode', value: 'by_id', not: true },
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     record: {
       type: 'json',

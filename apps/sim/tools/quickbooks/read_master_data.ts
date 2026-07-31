@@ -1,6 +1,8 @@
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
+  QuickBooksAddress,
+  QuickBooksEmployee,
   QuickBooksMasterDataRecord,
   QuickBooksReadMasterDataParams,
   QuickBooksReadMasterDataResponse,
@@ -18,6 +20,102 @@ import {
   transformQuickBooksListResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function sanitizeEmployeeAddress(value: unknown): QuickBooksAddress | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const source = value as Record<string, unknown>
+  const address: QuickBooksAddress = {}
+  for (const key of [
+    'Id',
+    'Line1',
+    'Line2',
+    'Line3',
+    'Line4',
+    'Line5',
+    'City',
+    'Country',
+    'CountrySubDivisionCode',
+    'PostalCode',
+    'Lat',
+    'Long',
+  ] as const) {
+    const field = optionalString(source[key])
+    if (field !== undefined) address[key] = field
+  }
+  return Object.keys(address).length > 0 ? address : undefined
+}
+
+function sanitizeEmployee(value: QuickBooksMasterDataRecord): QuickBooksEmployee {
+  const source = value as Record<string, unknown>
+  const id = optionalString(source.Id)?.trim()
+  if (!id) throw new Error('QuickBooks Employee response is missing Id')
+
+  const employee: QuickBooksEmployee = { Id: id }
+  for (const key of [
+    'SyncToken',
+    'DisplayName',
+    'GivenName',
+    'MiddleName',
+    'FamilyName',
+    'Suffix',
+    'Title',
+    'PrintOnCheckName',
+  ] as const) {
+    const field = optionalString(source[key])
+    if (field !== undefined) employee[key] = field
+  }
+  for (const key of ['Active', 'BillableTime', 'sparse'] as const) {
+    const field = optionalBoolean(source[key])
+    if (field !== undefined) employee[key] = field
+  }
+
+  const primaryPhone = source.PrimaryPhone
+  if (primaryPhone && typeof primaryPhone === 'object' && !Array.isArray(primaryPhone)) {
+    const freeFormNumber = optionalString((primaryPhone as Record<string, unknown>).FreeFormNumber)
+    if (freeFormNumber !== undefined) employee.PrimaryPhone = { FreeFormNumber: freeFormNumber }
+  }
+  const mobile = source.Mobile
+  if (mobile && typeof mobile === 'object' && !Array.isArray(mobile)) {
+    const freeFormNumber = optionalString((mobile as Record<string, unknown>).FreeFormNumber)
+    if (freeFormNumber !== undefined) employee.Mobile = { FreeFormNumber: freeFormNumber }
+  }
+  const primaryEmail = source.PrimaryEmailAddr
+  if (primaryEmail && typeof primaryEmail === 'object' && !Array.isArray(primaryEmail)) {
+    const address = optionalString((primaryEmail as Record<string, unknown>).Address)
+    if (address !== undefined) employee.PrimaryEmailAddr = { Address: address }
+  }
+
+  employee.PrimaryAddr = sanitizeEmployeeAddress(source.PrimaryAddr)
+  const metadata = source.MetaData
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    const metadataSource = metadata as Record<string, unknown>
+    const createTime = optionalString(metadataSource.CreateTime)
+    const lastUpdatedTime = optionalString(metadataSource.LastUpdatedTime)
+    if (createTime !== undefined || lastUpdatedTime !== undefined) {
+      employee.MetaData = {
+        ...(createTime !== undefined ? { CreateTime: createTime } : {}),
+        ...(lastUpdatedTime !== undefined ? { LastUpdatedTime: lastUpdatedTime } : {}),
+      }
+    }
+  }
+
+  return employee
+}
+
+function sanitizeMasterDataRecord(
+  recordType: QuickBooksReadMasterDataParams['recordType'],
+  value: QuickBooksMasterDataRecord
+): QuickBooksMasterDataRecord {
+  return recordType === 'employee' ? sanitizeEmployee(value) : value
+}
 
 export const quickbooksReadMasterDataTool: ToolConfig<
   QuickBooksReadMasterDataParams,
@@ -121,6 +219,9 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         output: {
           recordType: params.recordType,
           ...result.output,
+          items: result.output.items.map((item) =>
+            sanitizeMasterDataRecord(params.recordType, item)
+          ),
         },
       }
     }
@@ -133,7 +234,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         success: true,
         output: {
           recordType: params.recordType,
-          item: result.item,
+          item: sanitizeMasterDataRecord(params.recordType, result.item),
           time: result.time,
         },
       }
