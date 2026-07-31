@@ -162,6 +162,23 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     expect(second[2]?.baseVersion).toBe(BASE_VERSION_MS)
   })
 
+  it('falls back to updatedAt for baseVersion when the file has no content version', async () => {
+    // A legacy file with no `contentUpdatedAt` — the base version must fall back to `updatedAt`, the SAME
+    // line the relay's synced version is on, so the snapshot is still ordered (not shipped unordered).
+    const UPDATED_AT_MS = 850_000
+    peekFileIntentMock.mockResolvedValue({
+      existingContent: 'Base.',
+      fileRecord: { contentUpdatedAt: null, updatedAt: new Date(UPDATED_AT_MS) },
+    })
+    const intent = makeIntent({ operation: 'append', fileId: 'file-legacy', fileName: 'notes.md' })
+
+    await drive(editContentDelta('{"content":"Hello'), intent)
+    await flushMicrotasks()
+
+    expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(1)
+    expect(mergeEditIntoLiveFileDocMock.mock.calls[0][2]?.baseVersion).toBe(UPDATED_AT_MS)
+  })
+
   it('throttles merges: two deltas within LIVE_DOC_MERGE_THROTTLE_MS yield one merge', async () => {
     const intent = makeIntent({
       operation: 'append',

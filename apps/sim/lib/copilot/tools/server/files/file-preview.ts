@@ -142,14 +142,15 @@ function buildAppendPreview(existingContent: string, incomingContent: string): s
  * full-file replacement until the intent landed.
  */
 /**
- * The base content a copilot edit is computed against, plus the durable version (`contentUpdatedAt`,
- * epoch ms) that content is at. The version is the stream's causal base: the relay drops a streaming
- * snapshot if a NEWER durable write landed than this, so a concurrent human edit is never clobbered.
- * `baseVersion` is undefined only for a legacy file with no recorded `contentUpdatedAt`.
+ * The base content a copilot edit is computed against, plus the durable version (epoch ms) that content
+ * is at. The version is the stream's causal base: the relay drops a streaming snapshot if a NEWER durable
+ * write landed than this, so a concurrent human edit is never clobbered. Derived as
+ * `contentUpdatedAt ?? updatedAt` — the SAME version line the seed/persist use — so it is directly
+ * comparable to the relay's recorded synced version.
  */
 export interface WorkspaceFilePreviewBase {
   text: string
-  baseVersion: number | undefined
+  baseVersion: number
 }
 
 export async function loadWorkspaceFileTextForPreview(
@@ -160,7 +161,10 @@ export async function loadWorkspaceFileTextForPreview(
     const record = await getWorkspaceFile(workspaceId, fileId)
     if (!record) return undefined
     const buffer = await fetchWorkspaceFileBuffer(record)
-    return { text: buffer.toString('utf-8'), baseVersion: record.contentUpdatedAt?.getTime() }
+    return {
+      text: buffer.toString('utf-8'),
+      baseVersion: (record.contentUpdatedAt ?? record.updatedAt).getTime(),
+    }
   } catch (error) {
     logger.warn('Failed to load workspace file text for preview', {
       workspaceId,

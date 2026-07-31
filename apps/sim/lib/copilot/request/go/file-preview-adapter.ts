@@ -619,7 +619,11 @@ export async function processFilePreviewStreamEvent(input: {
             }
           )
           if (typeof intentBase?.existingContent === 'string') {
-            const baseVersion = intentBase.fileRecord?.contentUpdatedAt?.getTime()
+            // Same version line as the seed/persist (`contentUpdatedAt ?? updatedAt`), so the stream's
+            // base is comparable to the relay's synced version even when the file has no content version.
+            const baseVersion = (
+              intentBase.fileRecord?.contentUpdatedAt ?? intentBase.fileRecord?.updatedAt
+            )?.getTime()
             const seededSession: FilePreviewSession = {
               ...currentPreview.session,
               baseContent: intentBase.existingContent,
