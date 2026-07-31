@@ -62,7 +62,11 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
   }
   const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? DEFAULT_CLI_AUTH_ORIGIN)
   if (!key) {
-    p.log.warn('No key received — re-run bun run setup to retry, or set COPILOT_API_KEY yourself.')
+    // Both halves, because the caller writes the opt-out for a null key: a
+    // hand-set credential alone restores capability while Chat stays hidden.
+    p.log.warn(
+      'No key received — re-run bun run setup to retry, or set COPILOT_API_KEY and NEXT_PUBLIC_CHAT_DISABLED=false yourself.'
+    )
     return null
   }
   return key
