@@ -29,7 +29,6 @@ import {
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId, sortSpecNamesToIds } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
-import { columnTypeById } from '@/lib/table/column-types'
 import {
   addTableColumn,
   deleteColumn,
