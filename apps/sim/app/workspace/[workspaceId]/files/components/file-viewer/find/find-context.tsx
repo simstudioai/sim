@@ -201,12 +201,15 @@ export function useFileFind(): FileFindContextValue {
 
 /**
  * Registers the calling component as a searchable find surface. Pass the controller `factory` and any
- * `deps` that should rebuild the controller (e.g. the editor instance). No-ops outside a
- * {@link FileFindProvider} — the reads-only public share page renders the viewer without one.
+ * `deps` that should rebuild the controller (e.g. the editor instance). `enabled` (default true) gates
+ * registration — pass `false` while the surface is mounted but not actually visible (e.g. a Monaco
+ * editor hidden behind a preview pane), so a dead controller never outranks the visible one. No-ops
+ * outside a {@link FileFindProvider} — the read-only public share page renders the viewer without one.
  */
 export function useRegisterFindController(
   factory: FindControllerFactory,
-  deps: React.DependencyList
+  deps: React.DependencyList,
+  enabled = true
 ) {
   const ctx = useContext(FileFindContext)
   const ctxRef = useRef(ctx)
@@ -216,14 +219,15 @@ export function useRegisterFindController(
   const idRef = useRef<string | null>(null)
   idRef.current ??= generateId()
 
-  // Depends only on the caller's own `deps`, never on the (per-render) context value, so a re-render
-  // of the provider never re-registers the controller mid-search.
+  // Depends only on the caller's own `deps` (+ `enabled`), never on the (per-render) context value, so
+  // a re-render of the provider never re-registers the controller mid-search.
   useEffect(() => {
+    if (!enabled) return
     const c = ctxRef.current
     if (!c) return
     const id = idRef.current!
     const controller = factoryRef.current((result) => ctxRef.current?.reportResult(id, result))
     return c.registerSurface(id, controller)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
+  }, [enabled, ...deps])
 }

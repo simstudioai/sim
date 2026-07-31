@@ -401,6 +401,16 @@ export const TextEditor = memo(function TextEditor({
 
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
 
+  const isStreaming = isStreamInteractionLocked
+  const previewType = resolvePreviewType(file.type, file.name)
+  const isIframeRendered = previewType === 'html' || previewType === 'svg'
+  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  const showEditor = effectiveMode !== 'preview'
+  const showPreviewPane = effectiveMode !== 'editor'
+
+  // Register Monaco's find controller only while the editor is actually shown. In preview-only mode the
+  // editor is unmounted; registering it anyway would let the hidden, higher-priority editor controller
+  // outrank the visible preview's controller (e.g. a CSV table) and make Cmd+F search nothing.
   useRegisterFindController(
     (report) =>
       createMonacoFindController({
@@ -408,7 +418,8 @@ export const TextEditor = memo(function TextEditor({
         report,
         priority: FIND_PRIORITY.editor,
       }),
-    []
+    [],
+    showEditor
   )
 
   useEffect(() => {
@@ -517,9 +528,9 @@ export const TextEditor = memo(function TextEditor({
       saveImmediately()
     })
 
-    // Suppress Monaco's native find/replace widgets so Cmd+F is handled solely by the shared find
-    // bar's global command (which owns open / retarget / toggle-close). These are no-ops, not opens:
-    // a Monaco keybinding that reopened the bar is exactly what broke the Cmd+F close-toggle.
+    // Suppress Monaco's native find/replace widgets so Cmd+F is handled solely by the file find bar
+    // (see FileFindProvider's focus-scoped listener). No-ops, not opens — a Monaco keybinding that
+    // reopened the bar is exactly what broke the Cmd+F close-toggle.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {})
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {})
 
@@ -544,7 +555,10 @@ export const TextEditor = memo(function TextEditor({
         hasSelection: sel !== null && !sel.isEmpty(),
       })
     })
-    editor.onDidDispose(() => contextMenuDisposable.dispose())
+    editor.onDidDispose(() => {
+      contextMenuDisposable.dispose()
+      if (monacoEditorRef.current === editor) monacoEditorRef.current = null
+    })
   }
 
   const handleEditorChange = useCallback(
@@ -553,14 +567,6 @@ export const TextEditor = memo(function TextEditor({
     },
     [setDraftContent]
   )
-
-  const isStreaming = isStreamInteractionLocked
-
-  const previewType = resolvePreviewType(file.type, file.name)
-  const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
-  const showEditor = effectiveMode !== 'preview'
-  const showPreviewPane = effectiveMode !== 'editor'
 
   if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
 
