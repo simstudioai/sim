@@ -713,23 +713,33 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(b.socket.join).toHaveBeenCalledWith(ROOM_NAME)
   })
 
-  it('clears a departed caret when a socket rejoins the room with a new client id', async () => {
+  it('a socket owns MULTIPLE client ids (co-mounted providers) and relays awareness for each', async () => {
+    // The shared workspace socket hosts one provider per collaborative view, so the chat file preview
+    // and the standalone Files editor for the same file each JOIN with their own Yjs client id over ONE
+    // socket. Ownership is per client id: BOTH announcements must relay. (The old one-owner-per-socket
+    // model let the later JOIN overwrite the earlier, dropping its awareness — which broke the
+    // single-writer agent-stream election, letting a peer also self-elect and duplicate streamed text.)
     const { io, sent } = createIo()
-    const { frame: awFrame } = awarenessFrame(500, 'A')
     const a = setup('socket-a', io)
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 500 })
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](awFrame)
-    sent.length = 0
-
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 501 })
+    expect(joinSuccessFileId(a.socket)).toBe('file-1')
 
-    // The old client (500) caret removal is broadcast to the room.
-    const removal = sent.find(
-      (m) =>
-        m.event === FILE_DOC_EVENTS.MESSAGE &&
-        (m.payload as Uint8Array)[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS
-    )
-    expect(removal).toBeDefined()
+    const relayedFor = (clientId: number) => {
+      sent.length = 0
+      a.handlers[FILE_DOC_EVENTS.MESSAGE](awarenessFrame(clientId, `c${clientId}`).frame)
+      return sent.find(
+        (m) =>
+          m.event === FILE_DOC_EVENTS.MESSAGE &&
+          (m.payload as Uint8Array)[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS
+      )
+    }
+    // The FIRST provider's client id (500) is still owned after the second joins — its awareness relays.
+    expect(relayedFor(500)).toBeDefined()
+    // The second provider's client id (501) relays too.
+    expect(relayedFor(501)).toBeDefined()
+    // A client id this socket does NOT own is still dropped (ownership is not blanket-allowed).
+    expect(relayedFor(999)).toBeUndefined()
   })
 
   it('preserves the existing caret when a rebind to a foreign client id is rejected', async () => {

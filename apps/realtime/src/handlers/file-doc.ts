@@ -90,12 +90,16 @@ const MERGE_LOCK_RETRIES = Math.ceil(
   (MERGE_LOCK_TTL_MS + FILE_DOC_TIMEOUTS.mergeRequestMs) / MERGE_LOCK_RETRY_MS
 )
 
-/** A socket's presence ownership within a room. */
+/** One presence ownership within a room: a (socket, clientID) pair. */
 interface FileDocOwner {
   /**
-   * The awareness clientID the socket declared at join. It owns exactly this one
-   * and may only publish/remove awareness for it, so an authenticated peer cannot
-   * forge or clear another collaborator's presence.
+   * An awareness clientID this socket declared at join. The socket may only publish/remove awareness
+   * for a clientID it owns, so an authenticated peer cannot forge or clear another collaborator's
+   * presence. A single socket can own SEVERAL clientIDs at once — the shared workspace socket hosts one
+   * provider per mounted collaborative view, so e.g. the chat file preview and the standalone Files
+   * editor for the same file each bind their own Yjs clientID over the one socket. The election that
+   * picks a single agent-stream writer depends on every such provider's awareness propagating, so
+   * ownership is tracked per clientID, not one-per-socket (which would drop the later joiner's frames).
    */
   clientId: number
   /** The owning user — used to tell a reconnect (same user reusing its Yjs client
@@ -112,8 +116,9 @@ interface FileDocRoom {
   fileId: string
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
-  /** socketId → its presence ownership. */
-  owners: Map<string, FileDocOwner>
+  /** socketId → (clientId → its presence ownership). A socket owns one entry per collaborative provider
+   * it mounted for this file (see {@link FileDocOwner}); an empty inner map is never kept. */
+  owners: Map<string, Map<number, FileDocOwner>>
   /** True once the server-side seed fetch has started, so concurrent joins don't each fetch.
    * Reset on a fetch FAILURE so a later join can retry (a genuinely empty file stays empty). */
   serverSeedStarted: boolean
@@ -365,7 +370,12 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
  */
 function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
   const users: FileDocPresenceUser[] = []
-  for (const [socketId, owner] of room.owners) {
+  // One entry PER SOCKET (session), not per clientID: a socket's several providers are the same
+  // authenticated user, so any of its owners carries the identity; the client dedupes per user for the
+  // avatar stack (see the roster comment above). An empty inner map is never stored, so `owner` exists.
+  for (const [socketId, clientMap] of room.owners) {
+    const owner = clientMap.values().next().value
+    if (!owner) continue
     users.push({
       socketId,
       userId: owner.userId,
@@ -799,8 +809,9 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
 
     switch (messageType) {
       case FILE_DOC_MESSAGE_TYPE.SYNC: {
-        // Attribute a server-side persist of the resulting edit to the actual editor (blob metadata).
-        const editor = room.owners.get(socket.id)?.userId
+        // Attribute a server-side persist of the resulting edit to the actual editor (blob metadata). A
+        // socket's providers are all the same user, so any owner's userId identifies the editor.
+        const editor = room.owners.get(socket.id)?.values().next().value?.userId
         if (editor) room.lastEditorUserId = editor
         const encoder = encoding.createEncoder()
         encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
@@ -831,11 +842,12 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
       }
       case FILE_DOC_MESSAGE_TYPE.AWARENESS: {
         const update = decoding.readVarUint8Array(decoder)
-        // Enforce presence ownership: a socket may only publish/remove awareness
-        // for the clientID it bound at join, so a peer cannot spoof or clear
-        // another collaborator's caret.
-        const owned = room.owners.get(socket.id)?.clientId
-        if (owned === undefined || awarenessUpdateClientIds(update).some((id) => id !== owned)) {
+        // Enforce presence ownership: a socket may only publish/remove awareness for a clientID it bound
+        // at join, so a peer cannot spoof or clear another collaborator's caret. A socket can own SEVERAL
+        // clientIDs (one per mounted provider), so the frame is accepted only if EVERY id it carries is
+        // owned by this socket.
+        const owned = room.owners.get(socket.id)
+        if (owned === undefined || awarenessUpdateClientIds(update).some((id) => !owned.has(id))) {
           logger.warn('Dropping awareness frame for an unowned client id', { socketId: socket.id })
           return
         }
@@ -873,12 +885,16 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
   const room = fileDocRooms.get(name)
   if (!room) return
 
-  const owner = room.owners.get(socketId)
+  // The socket may own several clientIDs (one per provider it mounted for this file); drop them ALL.
+  // The client only emits LEAVE / disconnects once its LAST provider for the file tears down, so a
+  // per-socket cleanup here is correct — an earlier single-provider unmount already cleared its own
+  // caret via its awareness removal.
+  const clientMap = room.owners.get(socketId)
   room.owners.delete(socketId)
-  if (owner !== undefined) {
-    // Fires the awareness `update` handler with a non-socket origin → the removal
-    // is broadcast to every remaining client, so the departed caret vanishes.
-    awarenessProtocol.removeAwarenessStates(room.awareness, [owner.clientId], null)
+  if (clientMap !== undefined && clientMap.size > 0) {
+    // Fires the awareness `update` handler with a non-socket origin → the removals
+    // are broadcast to every remaining client, so the departed carets vanish.
+    awarenessProtocol.removeAwarenessStates(room.awareness, [...clientMap.keys()], null)
     // Refresh the roster for whoever remains (server-authenticated identity).
     broadcastFileDocPresence(io, name, room)
   }
@@ -980,20 +996,27 @@ export function setupWorkspaceFileDocHandlers(
       // rejected. This runs BEFORE any teardown of the socket's current binding below, so a
       // rejected rebind — even during a document switch — leaves the socket's existing document
       // and caret untouched.
-      for (const [otherSid, owner] of entry.owners) {
-        if (owner.clientId !== clientId || otherSid === socket.id) continue
+      for (const [otherSid, clientMap] of entry.owners) {
+        if (otherSid === socket.id) continue
+        const owner = clientMap.get(clientId)
+        if (owner === undefined) continue
         if (owner.userId !== userId) {
           emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
           return
         }
-        // Fully evict the stale prior socket of the same user — owner + caret AND its room
-        // mapping + Socket.IO membership — so it can no longer send document (sync) frames:
-        // handleMessage's SYNC path gates on socketToRoomName, not owners. Done inline rather
-        // than via cleanupFileDocForSocket, which could destroyRoomIfIdle the room we're joining.
-        entry.owners.delete(otherSid)
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [owner.clientId], null)
-        socketToRoomName.delete(otherSid)
-        io.in(otherSid).socketsLeave(name)
+        // Same user reclaiming its client id on a stale prior socket: evict just THAT clientID's binding
+        // + caret from the old socket. If that leaves the old socket with no providers, also drop its
+        // room mapping + Socket.IO membership so it can no longer send document (sync) frames
+        // (handleMessage's SYNC path gates on socketToRoomName, not owners); an old socket that still
+        // hosts OTHER providers keeps them. Done inline rather than via cleanupFileDocForSocket, which
+        // could destroyRoomIfIdle the room we're joining.
+        clientMap.delete(clientId)
+        awarenessProtocol.removeAwarenessStates(entry.awareness, [clientId], null)
+        if (clientMap.size === 0) {
+          entry.owners.delete(otherSid)
+          socketToRoomName.delete(otherSid)
+          io.in(otherSid).socketsLeave(name)
+        }
       }
 
       // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
@@ -1005,14 +1028,18 @@ export function setupWorkspaceFileDocHandlers(
         cleanupFileDocForSocket(socket.id, io)
       }
 
-      // Accepted: a same socket rebinding to a NEW client id clears its old caret
-      // so it doesn't linger as a ghost after the binding is overwritten.
-      const previous = entry.owners.get(socket.id)
-      if (previous !== undefined && previous.clientId !== clientId) {
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [previous.clientId], null)
+      // ADD this provider's clientID to the socket's ownership set (do NOT overwrite a sibling provider
+      // on the same socket — that lone-owner overwrite is exactly what dropped the chat preview's
+      // awareness when the Files editor co-mounted). A re-JOIN of the same clientID is idempotent. A
+      // single provider that later unmounts clears its own caret via its awareness removal; the whole
+      // set is dropped on the socket's LEAVE/disconnect (client emits LEAVE only after its LAST provider
+      // for the file tears down).
+      let clientMap = entry.owners.get(socket.id)
+      if (clientMap === undefined) {
+        clientMap = new Map<number, FileDocOwner>()
+        entry.owners.set(socket.id, clientMap)
       }
-
-      entry.owners.set(socket.id, { clientId, userId, userName, avatarUrl })
+      clientMap.set(clientId, { clientId, userId, userName, avatarUrl })
       socketToRoomName.set(socket.id, name)
       socket.join(name)
 
