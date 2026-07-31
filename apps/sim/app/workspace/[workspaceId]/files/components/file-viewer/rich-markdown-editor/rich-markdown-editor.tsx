@@ -399,6 +399,8 @@ export function LoadedRichMarkdownEditor({
    * durable write instead. Reset on settle.
    */
   const didApplyStreamRef = useRef(false)
+  /** True once this client has announced candidacy in the agent-stream election for the current stream. */
+  const agentAnnouncedRef = useRef(false)
   const router = useRouter()
   const routerRef = useRef(router)
   routerRef.current = router
@@ -886,16 +888,15 @@ export function LoadedRichMarkdownEditor({
         // re-runs and applies once it lands (the read-only placeholder shows the base content meanwhile —
         // see `showPlaceholder`).
         if (!collabReady) return
-        // Open the stream's shadow on the FIRST ready frame so it captures the pre-stream base (immune to
-        // later peer edits) — including for an `update`, whose frames are all held until settle, so settle
-        // still has a shadow through which to apply the final rewrite. Announce candidacy in the
-        // single-writer election so only one tab/window actually applies this stream (see the tick).
-        if (agentStreamSessionRef.current === null) {
-          agentStreamSessionRef.current = beginAgentStream(editor)
+        // Announce candidacy in the single-writer election (see the tick) so only one tab/window applies
+        // this stream. The shadow is opened lazily in the tick, only when THIS client actually leads — so a
+        // non-leader builds none, and a client that takes leadership mid-stream (a handoff) seeds its shadow
+        // from the CURRENT doc, already carrying the prior leader's ops, never a stale base.
+        if (!agentAnnouncedRef.current) {
+          agentAnnouncedRef.current = true
           didApplyStreamRef.current = false
           if (collaboration) announceAgentApplying(collaboration.awareness)
         }
-        const session = agentStreamSessionRef.current
         const body = splitFrontmatter(content).body
         if (body === lastStreamedBodyRef.current) return
         pendingStreamBodyRef.current = body
@@ -914,10 +915,15 @@ export function LoadedRichMarkdownEditor({
             streamRafRef.current = null
             return
           }
-          // Single-writer election: only the leader (min clientID among clients applying this stream)
-          // writes it into the shared doc, so multiple tabs/windows watching the same live copilot stream
-          // don't each insert it and duplicate content. A non-leader renders the leader's ops via Yjs;
-          // re-checked each frame, so it converges to one writer the moment awareness propagates.
+          // Single-writer election: only the leader (min clientID among clients announcing they apply this
+          // stream) writes it into the shared doc, so multiple tabs/windows watching the same live copilot
+          // stream don't each insert it and duplicate content. A non-leader renders the leader's ops via
+          // Yjs; re-checked each frame, so it converges to one writer the moment awareness propagates.
+          // Bounded residual (accepted): if two tabs start the SAME stream within the awareness-propagation
+          // window they briefly both lead and duplicate a frame or two — a rare, transient, never-persisted
+          // glitch (SYNC_NO_PERSIST keeps it out of storage; the durable edit_content write reconciles the
+          // final doc). Resumes are sequential (the second tab sees the first's announcement), so the common
+          // multi-tab case elects cleanly.
           if (
             collaboration &&
             !isAgentStreamLeader(collaboration.awareness, collaboration.doc.clientID)
@@ -934,8 +940,11 @@ export function LoadedRichMarkdownEditor({
           }
           const el = containerRef.current
           const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
-          // Defensive: a ready collab editor always has a ySync binding, so this applies; if one is
-          // somehow absent, bail this frame without advancing rather than looping.
+          // Open the shadow lazily HERE — only when THIS client actually leads — seeded from the CURRENT
+          // doc, so a handoff successor diffs against the prior leader's ops (no stale base) and a
+          // non-leader never builds one. Defensive: a ready collab editor always has a ySync binding.
+          agentStreamSessionRef.current ??= beginAgentStream(editor)
+          const session = agentStreamSessionRef.current
           if (!session || !applyAgentStreamFrame(editor, session, pending)) {
             streamRafRef.current = null
             return
@@ -953,19 +962,17 @@ export function LoadedRichMarkdownEditor({
         cancelAnimationFrame(streamRafRef.current)
         streamRafRef.current = null
       }
-      // Settle: apply the FINAL body once so the Y.Doc exactly equals the streamed result — even when no
-      // frame applied mid-stream (an `update` is held until settle, or the stream finished before the
-      // seed). Reuse the stream's shadow when it exists (seeded from the pre-stream base, so peer edits
-      // survive); otherwise open one on demand. The durable server write then lands as a noop diff.
+      // Settle: only a client that actually applied mid-stream (the elected leader, `didApplyStreamRef`)
+      // applies the FINAL body — its shadow is up to date, so this just catches a throttled last frame, so
+      // the Y.Doc exactly equals the streamed result. A client that never applied (a non-leader, a held
+      // `update`, or a pre-seed stream) has no shadow and skips — it converges via Yjs + the durable write.
+      // This is a LOCAL decision (no settle-time re-election), so a straggler can't self-elect after the
+      // leader clears its announcement.
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
-        // Only a client that actually applied mid-stream (the elected leader, `didApplyStreamRef`) applies
-        // the final body — its shadow is up to date, so this just catches a throttled last frame. A client
-        // that never applied has a base-seeded shadow; reconciling it to the final body would re-insert the
-        // whole doc as a duplicate, so it skips and converges via Yjs + the durable write. This is a LOCAL
-        // decision (no settle-time re-election), so a straggler can't self-elect after the leader clears.
         const didApply = didApplyStreamRef.current
         didApplyStreamRef.current = false
+        agentAnnouncedRef.current = false
         if (collaboration) clearAgentApplying(collaboration.awareness)
         lastStreamedBodyRef.current = null
         const session = agentStreamSessionRef.current
@@ -1088,6 +1095,8 @@ export function LoadedRichMarkdownEditor({
         agentStreamSessionRef.current = null
       }
       lastStreamedBodyRef.current = null
+      didApplyStreamRef.current = false
+      agentAnnouncedRef.current = false
     },
     []
   )
