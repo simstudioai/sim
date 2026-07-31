@@ -564,6 +564,12 @@ export interface KeywordSearchParams {
  * can report `similarity` for rows only the lexical leg found. Unlike the vector
  * leg there is no distance threshold — surfacing exact-token matches that are
  * semantically distant is the entire point of this leg.
+ *
+ * Candidate gathering mirrors the vector leg's `getQueryStrategy`: across many
+ * knowledge bases a single global `LIMIT` lets whichever base ranks strongest
+ * lexically consume every slot, so an exact-token hit in a smaller base would
+ * never reach fusion. Both legs must draw candidates the same way, or rank
+ * fusion is combining rankings taken over differently-shaped pools.
  */
 export async function executeKeywordSearch(params: KeywordSearchParams): Promise<SearchResult[]> {
   const { knowledgeBaseIds, topK, query, queryVector, structuredFilters } = params
@@ -573,16 +579,51 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
   }
 
   const tsQuery = sql`websearch_to_tsquery(${FTS_CONFIG}, ${query})`
+  const rankExpr = sql<number>`ts_rank_cd(${embedding.contentTsv}, ${tsQuery})`
   const tagFilterConditions = structuredFilters?.length
     ? getStructuredTagFilters(structuredFilters, embedding)
     : []
 
-  return await db
-    .select(
-      getSearchResultFields(
-        sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+  /** Selected alongside the row so per-base batches can be re-ranked globally. */
+  const selectFields = {
+    ...getSearchResultFields(
+      sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+    ),
+    keywordRank: rankExpr.as('keyword_rank'),
+  }
+
+  const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
+
+  if (strategy.useParallel) {
+    const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
+
+    const perBase = await Promise.all(
+      knowledgeBaseIds.map((kbId) =>
+        db
+          .select(selectFields)
+          .from(embedding)
+          .innerJoin(document, eq(embedding.documentId, document.id))
+          .where(
+            and(
+              eq(embedding.knowledgeBaseId, kbId),
+              ...getVisibilityConditions(),
+              sql`${embedding.contentTsv} @@ ${tsQuery}`,
+              ...tagFilterConditions
+            )
+          )
+          .orderBy(sql`${rankExpr} DESC`)
+          .limit(parallelLimit)
       )
     )
+
+    return perBase
+      .flat()
+      .sort((a, b) => b.keywordRank - a.keywordRank)
+      .slice(0, topK)
+  }
+
+  return await db
+    .select(selectFields)
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
@@ -593,7 +634,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         ...tagFilterConditions
       )
     )
-    .orderBy(sql`ts_rank_cd(${embedding.contentTsv}, ${tsQuery}) DESC`)
+    .orderBy(sql`${rankExpr} DESC`)
     .limit(topK)
 }
 

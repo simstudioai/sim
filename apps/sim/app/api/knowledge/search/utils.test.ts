@@ -46,9 +46,11 @@ afterEach(() => {
 })
 
 import {
+  executeKeywordSearch,
   executeKnowledgeSearch,
   fuseByReciprocalRank,
   generateSearchEmbedding,
+  getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
@@ -353,6 +355,57 @@ describe('Knowledge Search Utils', () => {
 
     it('returns an empty list when every leg is empty', () => {
       expect(fuseByReciprocalRank([[], []], 10)).toEqual([])
+    })
+  })
+
+  describe('executeKeywordSearch', () => {
+    beforeEach(() => {
+      resetDbChainMock()
+    })
+
+    it('returns nothing for a whitespace-only query without touching the database', async () => {
+      const results = await executeKeywordSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        query: '   ',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results).toEqual([])
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    })
+
+    it('issues one query per knowledge base once the parallel threshold is crossed', async () => {
+      const knowledgeBaseIds = ['kb-1', 'kb-2', 'kb-3', 'kb-4', 'kb-5']
+      expect(getQueryStrategy(knowledgeBaseIds.length, 10).useParallel).toBe(true)
+
+      await executeKeywordSearch({
+        knowledgeBaseIds,
+        topK: 10,
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      /**
+       * A single global LIMIT would let the lexically strongest base consume
+       * every slot, so an exact-token hit in a smaller base never reaches
+       * fusion. The vector leg already fans out here; both legs must match.
+       */
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(knowledgeBaseIds.length)
+    })
+
+    it('uses a single query when the parallel threshold is not crossed', async () => {
+      const knowledgeBaseIds = ['kb-1', 'kb-2']
+      expect(getQueryStrategy(knowledgeBaseIds.length, 10).useParallel).toBe(false)
+
+      await executeKeywordSearch({
+        knowledgeBaseIds,
+        topK: 10,
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
   })
 
