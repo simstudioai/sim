@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   executeInSandbox,
@@ -26,7 +27,18 @@ const logger = createLogger('CopilotDocCompile')
  * Errors so callers can return 5xx instead of telling the agent its script was
  * wrong.
  */
-export class DocCompileUserError extends Error {
+export class DocCompileUserError extends HttpError {
+  /**
+   * Mirrors the 409 that `docNotReadyResponse` (servable-file-response) already
+   * returns at the API boundary, so the executor's generic `.statusCode` mapping
+   * surfaces this as a retryable conflict rather than an opaque 500. Extending
+   * {@link HttpError} rather than `Error` also lets `withRouteHandler` map it — that
+   * boundary matches on `instanceof HttpError`, not on a duck-typed `statusCode`, so
+   * a plain field alone would still leak a 500 from any route that forgets the
+   * explicit `isDocNotReadyError` check.
+   */
+  readonly statusCode = 409
+
   constructor(message: string) {
     super(message)
     this.name = 'DocCompileUserError'
@@ -483,6 +495,21 @@ function compiledCacheSet(key: string, buffer: Buffer): void {
 }
 
 /**
+ * Sources that failed to render, so a read loop over a file that is not really a
+ * generated document cannot spend a sandbox run per read. Keyed identically to
+ * {@link compiledDocCache}, so an edit to the file produces a new key and gets a
+ * fresh attempt.
+ */
+const unrenderableSources = new Set<string>()
+
+function markUnrenderable(key: string): void {
+  if (unrenderableSources.size >= MAX_COMPILED_DOC_CACHE) {
+    unrenderableSources.delete(unrenderableSources.values().next().value as string)
+  }
+  unrenderableSources.add(key)
+}
+
+/**
  * Resolves the bytes a consumer should actually serve/attach for a stored file —
  * the single source of truth shared by the file-serve route and every tool that
  * downloads a workspace file (email attachments, uploads, provider file inputs).
@@ -498,63 +525,130 @@ function compiledCacheSet(key: string, buffer: Buffer): void {
  * - Bytes already carry the format magic (`%PDF`/ZIP) → real uploaded/binary file,
  *   serve as-is.
  * - Generated-doc source → load the content-addressed compiled artifact.
- * - Artifact missing in the E2B regime → the doc is still being generated; throw
- *   {@link DocCompileUserError} so callers signal "not ready / retry" instead of
- *   shipping source.
- * - E2B disabled → compile the committed JS source via isolated-vm (cached).
+ * - Artifact missing → render it now and store it, so the next read is a lookup. An
+ *   artifact miss is not evidence that a compile is in flight: the artifact key is
+ *   (workspace, source hash), so forking a workspace, moving a file, or editing the
+ *   source outside a recompiling writer orphans it permanently. Rendering on read
+ *   self-heals all of those.
+ * - Render fails → serve the stored bytes as `application/octet-stream` and remember
+ *   not to retry them. A file whose bytes are neither the format's binary nor
+ *   renderable source (a `.docx`-named legacy `.doc`, an HTML error page saved as
+ *   `.pdf`) is served as what it is instead of failing forever.
  * - Non-doc files → pass through with the extension-derived content type.
+ * - No workspace context AND no positive evidence of generation source → pass the
+ *   stored bytes through rather than execute them (see `isGeneratedSource`).
  *
- * It never falls back to attaching the raw source bytes for a generated doc.
+ * It never hands back generation source under a document content type, and it never
+ * leaves a caller in a state that only a retry-forever could clear.
  */
 export async function resolveServableDocBytes(args: {
   rawBuffer: Buffer
   fileName: string
   workspaceId: string | undefined
+  /**
+   * `true` when the caller has positive evidence the stored bytes are generation
+   * source (the file's MIME marker). Anything else — `false` or `undefined` — means
+   * "no such evidence".
+   *
+   * This flag may only ever WITHHOLD work, never authorize serving source. It is
+   * read in exactly one place: the no-workspace-context branch, where no artifact
+   * lookup is possible and the only remaining action would be executing the stored
+   * bytes as a program. Declining to compile there is safe — the bytes pass through
+   * untouched.
+   *
+   * It deliberately does NOT gate the workspace branches. The value derives from
+   * `UserFile.type`, which travels through workflow state and can be rewritten by a
+   * caller that never knew about the internal marker; letting a negative value
+   * short-circuit an artifact lookup or a compile would serve generation source
+   * under a binary content type — the corruption this whole module exists to
+   * prevent.
+   */
+  isGeneratedSource?: boolean
   ownerKey?: string
   signal?: AbortSignal
 }): Promise<{ buffer: Buffer; contentType: string }> {
-  const { rawBuffer, fileName, workspaceId, ownerKey, signal } = args
+  const { rawBuffer, fileName, workspaceId, isGeneratedSource, ownerKey, signal } = args
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const extNoDot = ext.replace(/^\./, '')
   const format = COMPILABLE_FORMATS[ext]
+  const passthrough = () => ({ buffer: rawBuffer, contentType: getContentType(fileName) })
 
   // xlsx isn't in COMPILABLE_FORMATS (no isolated-vm path), so match its ZIP magic
   // explicitly alongside the table-driven formats.
   const magic = format?.magic ?? (extNoDot === 'xlsx' ? ZIP_MAGIC : undefined)
   if (magic && bufferStartsWith(rawBuffer, magic)) {
-    return { buffer: rawBuffer, contentType: getContentType(fileName) }
+    return passthrough()
   }
 
   if (!format && extNoDot !== 'xlsx') {
-    return { buffer: rawBuffer, contentType: getContentType(fileName) }
+    return passthrough()
   }
 
   const source = rawBuffer.toString('utf-8')
+  const renderKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
+
+  /**
+   * Last resort when the bytes cannot be rendered. Deliberately does NOT claim the
+   * extension's content type: at this point the magic check has already failed and
+   * rendering has failed too, so labelling source text `application/pdf` would hand
+   * back a document nothing can open — the corruption this module exists to prevent.
+   */
+  const unrendered = (reason: string) => {
+    logger.warn('Serving stored bytes unrendered', { fileName, workspaceId, reason })
+    return { buffer: rawBuffer, contentType: 'application/octet-stream' }
+  }
 
   if (workspaceId) {
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
     if (stored) {
       return { buffer: stored.buffer, contentType: stored.contentType }
     }
-    if (isDocSandboxEnabled && (await getE2BDocFormat(fileName))) {
-      throw new DocCompileUserError('Document is still being generated')
+  } else if (!isGeneratedSource) {
+    // No workspace id (e.g. an execution-scratch key), so no artifact lookup is
+    // possible and the only branch left would hand these bytes to the sandbox as a
+    // program. Require positive evidence first. These bytes are whatever was stored,
+    // so the extension-derived type is still the best available answer.
+    return passthrough()
+  }
+
+  if (unrenderableSources.has(renderKey)) {
+    return unrendered('previous render attempt for these bytes failed')
+  }
+
+  if (workspaceId && isDocSandboxEnabled && (await getE2BDocFormat(fileName))) {
+    // Render on read. The artifact store is keyed by (workspace, source hash), so a
+    // miss is NOT proof that a compile is still in flight — forking a workspace,
+    // moving a file, or editing the source outside a recompiling writer all orphan
+    // the artifact permanently. Rendering here self-heals every one of those and
+    // stores the result, so the next read is a lookup. Compiling is idempotent
+    // (content-addressed), so racing a still-running write-time compile is wasteful
+    // but correct.
+    try {
+      return await compileDoc({ source, fileName, workspaceId })
+    } catch (error) {
+      markUnrenderable(renderKey)
+      return unrendered(getErrorMessage(error, 'sandbox render failed'))
     }
   }
 
   // Reaches here only for xlsx, which has no isolated-vm fallback.
-  if (!format) return { buffer: rawBuffer, contentType: getContentType(fileName) }
+  if (!format) return passthrough()
 
-  const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
-  const cached = compiledDocCache.get(cacheKey)
+  const cached = compiledDocCache.get(renderKey)
   if (cached) {
     return { buffer: cached, contentType: format.contentType }
   }
 
-  const compiled = await runSandboxTask(
-    format.taskId,
-    { code: source, workspaceId: workspaceId || '' },
-    { ownerKey, signal }
-  )
-  compiledCacheSet(cacheKey, compiled)
-  return { buffer: compiled, contentType: format.contentType }
+  try {
+    const compiled = await runSandboxTask(
+      format.taskId,
+      { code: source, workspaceId: workspaceId || '' },
+      { ownerKey, signal }
+    )
+    compiledCacheSet(renderKey, compiled)
+    return { buffer: compiled, contentType: format.contentType }
+  } catch (error) {
+    markUnrenderable(renderKey)
+    return unrendered(getErrorMessage(error, 'sandbox render failed'))
+  }
 }

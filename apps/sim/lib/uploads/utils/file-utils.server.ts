@@ -19,6 +19,7 @@ import {
   getFileExtension,
   getMimeTypeFromExtension,
   inferContextFromKey,
+  isGeneratedDocumentSourceType,
   isInternalFileUrl,
   isRenderableDocumentName,
   processSingleFileToUserFile,
@@ -375,8 +376,17 @@ export async function downloadServableFileFromStorage(
   })
 
   // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
-  // import below.
-  if (!isRenderableDocumentName(userFile.name)) {
+  // import below. A UserFile travels through workflow state, so `.name` and `.type`
+  // are both caller-editable and neither can rule the file out on its own: a
+  // generated doc can arrive with its name re-extensioned (.docx -> .doc) but its
+  // source marker intact, or with a hand-authored real MIME ("application/pdf")
+  // in place of the marker. Either signal routes to the resolver, whose magic-byte
+  // check on the actual stored bytes decides — real binaries pass through there
+  // unchanged. (The files/download route gates type-first instead; its type is the
+  // server-written DB record, which workflow state never is.)
+  const needsRendering =
+    isGeneratedDocumentSourceType(userFile.type) || isRenderableDocumentName(userFile.name)
+  if (!needsRendering) {
     const ext = getFileExtension(userFile.name)
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
@@ -391,6 +401,11 @@ export async function downloadServableFileFromStorage(
     rawBuffer: buffer,
     fileName: userFile.name,
     workspaceId,
+    // Only the positive case carries meaning: the resolver reads this solely to decide
+    // whether compiling is warranted where no artifact lookup is possible. Normalize
+    // first — `inferAttachmentMimeType` lowercases before the same Set lookup, and a
+    // stored type can arrive padded or upper-cased.
+    isGeneratedSource: isGeneratedDocumentSourceType(userFile.type?.trim().toLowerCase()),
     ownerKey: options.ownerKey,
     signal: options.signal,
   })

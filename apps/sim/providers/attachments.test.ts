@@ -59,6 +59,15 @@ describe('provider attachments', () => {
     ).toBe('image/png')
   })
 
+  it('infers MIME type from filename when file type is a generated-doc source marker', () => {
+    expect(
+      inferAttachmentMimeType({
+        ...pdfFile,
+        type: 'text/x-python-pdf',
+      })
+    ).toBe('application/pdf')
+  })
+
   it('formats OpenAI Responses content with text, image, and file parts', () => {
     const content = buildOpenAIMessageContent(
       'Analyze these files',

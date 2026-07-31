@@ -27,6 +27,7 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
+import { isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -170,6 +171,18 @@ export interface Base64HydrationOptions {
   timeoutMs?: number
   cacheTtlSeconds?: number
   preserveLargeValueMetadata?: boolean
+  /**
+   * Surface a still-compiling generated document as a thrown
+   * {@link DocCompileUserError} instead of hydrating the file without its content.
+   *
+   * Set this only where empty content would be silently wrong — chiefly the
+   * pre-provider attachment path, since sending a model an attachment with no
+   * bytes yields an answer about nothing. Hydration that DECORATES an already
+   * finished result (a completed block's output, the final run response) must
+   * leave it off: throwing there fails work that already succeeded over a
+   * condition that resolves itself seconds later.
+   */
+  throwOnDocNotReady?: boolean
 }
 
 class InMemoryBase64Cache implements Base64Cache {
@@ -423,6 +436,16 @@ async function resolveBase64(
       maxSourceBytes: maxBytes,
     })
   } catch (error) {
+    // A generated doc that hasn't finished compiling is retryable, not a
+    // permanently-unreadable file — swallowing it here would otherwise surface
+    // as a misleading "size limit or no longer accessible" error downstream
+    // (agent-handler.ts) instead of DocCompileUserError's own correct,
+    // actionable "still being generated" message. Callers that only decorate an
+    // already-finished result opt out, so a late compile cannot retroactively
+    // fail completed work.
+    if (options.throwOnDocNotReady && isDocNotReadyError(error)) {
+      throw error
+    }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
     return null
   }

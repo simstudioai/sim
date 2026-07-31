@@ -11,7 +11,10 @@ import {
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { StorageContext } from '@/lib/uploads'
 import { bufferToBase64, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import {
+  downloadServableFileFromStorage,
+  type ServableFile,
+} from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
@@ -286,12 +289,18 @@ export async function readUserFileContent(
     })
   }
 
-  let buffer: Buffer | null = null
+  let servable: ServableFile | null = null
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
   try {
-    buffer = await downloadFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+    servable = await downloadServableFileFromStorage(file, requestId, log, {
+      maxBytes: maxSourceBytes,
+      // Attributes any generated-doc compile this read triggers to the caller so
+      // it leaves the shared 'anonymous' sandbox fairness bucket. `userId` is
+      // always set here — assertUserFileContentAccess above rejects without it.
+      ownerKey: options.userId ? `user:${options.userId}` : undefined,
+    })
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       throw new ExecutionResourceLimitError({
@@ -303,9 +312,10 @@ export async function readUserFileContent(
     throw error
   }
 
-  if (!buffer) {
+  if (!servable) {
     throw new Error(`File content for ${file.name} is unavailable.`)
   }
+  const { buffer } = servable
   if (buffer.length > maxSourceBytes) {
     throw new ExecutionResourceLimitError({
       resource: 'execution_payload_bytes',
