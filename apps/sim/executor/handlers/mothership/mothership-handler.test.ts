@@ -1,5 +1,6 @@
 import '@sim/testing/mocks/executor'
 
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
@@ -114,6 +115,8 @@ describe('MothershipBlockHandler', () => {
     mockIsRedisCancellationEnabled.mockReset()
     mockIsRedisCancellationEnabled.mockReturnValue(false)
     mockReadUserFileContent.mockReset()
+    // The handler refuses to run without Chat; the shared mock defaults it off.
+    setEnvFlags({ isChatEnabled: true })
 
     block = {
       id: 'mothership-block-1',
@@ -146,6 +149,7 @@ describe('MothershipBlockHandler', () => {
     vi.useRealTimers()
     vi.clearAllMocks()
     vi.unstubAllGlobals()
+    resetEnvFlagsMock()
   })
 
   function createNdjsonResponse(events: unknown[]): Response {
@@ -220,6 +224,15 @@ describe('MothershipBlockHandler', () => {
       workflowId: 'workflow-1',
       executionId: 'execution-1',
     })
+  })
+
+  it('rejects execution before the internal request when Chat is disabled', async () => {
+    setEnvFlags({ isChatEnabled: false })
+
+    await expect(
+      handler.execute(context, block, { prompt: 'Hello from workflow' })
+    ).rejects.toThrow('Chat is disabled on this deployment')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects execution before the internal request when billing attribution is missing', async () => {

@@ -13,6 +13,7 @@ export interface EnvFlagsMockState {
   isHosted: boolean
   isCopilotBillingAttributionV1Enabled: boolean
   isCopilotBillingProtocolRequired: boolean
+  isChatEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
@@ -54,6 +55,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isHosted: false,
   isCopilotBillingAttributionV1Enabled: false,
   isCopilotBillingProtocolRequired: false,
+  isChatEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,

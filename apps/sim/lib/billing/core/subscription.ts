@@ -27,6 +27,7 @@ import {
 import {
   isAccessControlEnabled,
   isBillingEnabled,
+  isChatEnabled,
   isHosted,
   isInboxEnabled,
   isSsoEnabled,
@@ -522,7 +523,12 @@ function isInboxEntitledPlan(plan: string): boolean {
  * the workspace's organization, or its billed account for personal workspaces,
  * is on a Max or enterprise plan.
  *
- * Returns true if:
+ * Always false when Chat is disabled — inbox tasks run through the mothership
+ * and answer with a link to the resulting chat, so neither half works without it.
+ * That check comes first because the `!isBillingEnabled` shortcut below would
+ * otherwise hand every self-hosted deployment a broken Inbox.
+ *
+ * Otherwise returns true if:
  * - INBOX_ENABLED env var is set (self-hosted override), OR
  * - billing is disabled, OR
  * - the workspace belongs to an organization on a Max/enterprise plan (org-mode), OR
@@ -530,6 +536,7 @@ function isInboxEntitledPlan(plan: string): boolean {
  */
 export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<boolean> {
   try {
+    if (!isChatEnabled) return false
     if (isInboxEnabled) return true
     if (!isBillingEnabled) return true
 

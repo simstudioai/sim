@@ -635,7 +635,7 @@ function WorkspaceHeaderImpl({
                             )}
                             onClick={(e) => {
                               if (e.metaKey || e.ctrlKey) {
-                                window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                window.open(`/workspace/${workspace.id}`, '_blank')
                                 return
                               }
                               onWorkspaceSwitch(workspace)
@@ -643,7 +643,7 @@ function WorkspaceHeaderImpl({
                             onAuxClick={(e) => {
                               if (e.button === 1) {
                                 e.preventDefault()
-                                window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                window.open(`/workspace/${workspace.id}`, '_blank')
                               }
                             }}
                             onContextMenu={(e) => handleContextMenu(e, workspace)}

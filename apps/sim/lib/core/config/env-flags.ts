@@ -46,6 +46,23 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
+ * Is the Chat module exposed.
+ *
+ * Server code reads `CHAT_ENABLED`; client evaluation reads the
+ * `NEXT_PUBLIC_CHAT_ENABLED` twin via `window.__ENV`, so deployments must set
+ * both together (the setup wizard writes the pair). Chat needs
+ * `COPILOT_API_KEY` to reach the mothership at all — `bootstrap.ts` throws when
+ * this flag is on without it, so the two can never disagree at runtime.
+ *
+ * Read at module scope or inline during render only. Resolving it through
+ * `useState`/`useEffect` would render chat surfaces before removing them.
+ */
+export const isChatEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.CHAT_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_CHAT_ENABLED'))
+
+/**
  * Is billing enforcement enabled.
  *
  * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
@@ -207,8 +224,12 @@ export const isOrganizationsEnabled =
 /**
  * Is inbox (Sim Mailer) enabled via env var override
  * This bypasses hosted requirements for self-hosted deployments
+ *
+ * Requires Chat: an inbound message is executed by the mothership and answered
+ * with a link to the resulting chat, so with Chat off every inbox task fails and
+ * mails the recipient a dead link.
  */
-export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
+export const isInboxEnabled = isTruthy(env.INBOX_ENABLED) && isChatEnabled
 
 /**
  * Is whitelabeling enabled via env var override

@@ -600,7 +600,7 @@ async function acceptLockedInvitation(
 
   const redirectPath =
     inv.kind === 'workspace' && acceptedWorkspaceIds.length > 0
-      ? `/workspace/${acceptedWorkspaceIds[0]}/home`
+      ? `/workspace/${acceptedWorkspaceIds[0]}`
       : '/workspace'
 
   return {

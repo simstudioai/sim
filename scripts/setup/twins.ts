@@ -20,6 +20,7 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'EMAIL_PASSWORD_SIGNUP_ENABLED', client: 'NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED' },
   { server: 'E2B_ENABLED', client: 'NEXT_PUBLIC_E2B_ENABLED' },
   { server: 'DEPLOY_AS_BLOCK', client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED' },
+  { server: 'CHAT_ENABLED', client: 'NEXT_PUBLIC_CHAT_ENABLED' },
 ]
 
 /** Self-host feature unlocks offered by the wizard's Custom flow. */

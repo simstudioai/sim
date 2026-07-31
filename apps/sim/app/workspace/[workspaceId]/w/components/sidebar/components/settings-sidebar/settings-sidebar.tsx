@@ -220,7 +220,7 @@ export function SettingsSidebar({
 
   const handleBack = useCallback(() => {
     requestLeave(() => {
-      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}`))
     })
   }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
 

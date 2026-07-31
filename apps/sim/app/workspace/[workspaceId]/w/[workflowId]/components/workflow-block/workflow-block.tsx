@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -900,7 +901,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       sunsetStatus={sunset?.status}
       sunsetTooltip={sunset?.tooltip}
-      canFixSunset={canEditWorkflow}
+      canFixSunset={canEditWorkflow && isChatEnabled}
       onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}

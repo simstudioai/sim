@@ -100,7 +100,7 @@ export default function WorkspacePage() {
     }
 
     logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
-    router.replace(`/workspace/${targetWorkspace.id}/home`)
+    router.replace(workspaceLandingPath(targetWorkspace.id))
   }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
   const failedToLoad =
@@ -151,6 +151,18 @@ export default function WorkspacePage() {
   )
 }
 
+/**
+ * The workspace landing path. `/workspace/{id}` resolves server-side to either
+ * the chat composer or the workspace's first workflow, so callers never hardcode
+ * a module route. The query string is carried across because OAuth and billing
+ * flows return to `/workspace?...` and their signals (`billing=updated`,
+ * `trello_connected`, `error=...`) are consumed after this hop.
+ */
+function workspaceLandingPath(workspaceId: string): string {
+  const search = typeof window === 'undefined' ? '' : window.location.search
+  return `/workspace/${workspaceId}${search}`
+}
+
 async function handleWorkflowRedirect(
   workflowId: string,
   fallbackWorkspaceId: string,
@@ -169,7 +181,7 @@ async function handleWorkflowRedirect(
   } catch (error) {
     logger.error('Error fetching workflow for redirect:', error)
   }
-  router.replace(`/workspace/${fallbackWorkspaceId}/home`)
+  router.replace(workspaceLandingPath(fallbackWorkspaceId))
 }
 
 async function handleNoWorkspaces(
@@ -193,7 +205,7 @@ async function handleNoWorkspaces(
     })
     if (data.workspace?.id) {
       logger.info(`Created default workspace: ${data.workspace.id}`)
-      router.replace(`/workspace/${data.workspace.id}/home`)
+      router.replace(workspaceLandingPath(data.workspace.id))
       return
     }
     logger.error('Failed to create default workspace')

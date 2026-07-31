@@ -65,6 +65,23 @@ function scopeCondition(
 }
 
 /**
+ * The workspace's first active workflow in list order, or `null` when it has
+ * none. Shares {@link orderByClause} with {@link listWorkflowsForUser} so the
+ * workspace landing route resolves to the same workflow the sidebar lists
+ * first. Performs no auth checks — callers enforce workspace access before
+ * invoking.
+ */
+export async function getFirstWorkflowIdForWorkspace(workspaceId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: workflow.id })
+    .from(workflow)
+    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+    .orderBy(...orderByClause)
+    .limit(1)
+  return row?.id ?? null
+}
+
+/**
  * Lists workflows visible to a user as the contract wire shape, shared by the
  * `GET /api/workflows` route and the workspace sidebar prefetch. Performs no auth
  * or membership checks — callers enforce access before invoking.

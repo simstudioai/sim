@@ -57,7 +57,7 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
     initialValue: true,
   })
   if (!wants) {
-    p.log.info(theme.muted('Skipping — Chat stays disabled until COPILOT_API_KEY is set.'))
+    p.log.info(theme.muted('Skipping — the Chat module stays hidden until you re-run setup.'))
     return null
   }
   const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? DEFAULT_CLI_AUTH_ORIGIN)
@@ -66,6 +66,17 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
     return null
   }
   return key
+}
+
+/**
+ * The `CHAT_ENABLED` twin pair, derived from whether a chat key was obtained.
+ * Written on every run so removing the key also flips the flag off, rather than
+ * leaving a stale `true` that would surface a Chat UI with no backend.
+ */
+export function chatFlagValues(copilotKey: string | null): Record<string, string> {
+  const enabled = copilotKey ? 'true' : 'false'
+  const twin = FLAG_TWINS.find((pair) => pair.server === 'CHAT_ENABLED')
+  return twin ? { [twin.server]: enabled, [twin.client]: enabled } : {}
 }
 
 /**
