@@ -4,7 +4,14 @@
  *
  * @vitest-environment node
  */
-import { mockNextFetchResponse, setupGlobalFetchMock } from '@sim/testing/mocks'
+import {
+  dbChainMockFns,
+  mockNextFetchResponse,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+  setupGlobalFetchMock,
+} from '@sim/testing/mocks'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
@@ -39,11 +46,44 @@ afterEach(() => {
 })
 
 import {
+  executeKnowledgeSearch,
+  fuseByReciprocalRank,
   generateSearchEmbedding,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
+  RRF_K,
+  type SearchResult,
 } from '@/app/api/knowledge/search/utils'
+
+/** Minimal SearchResult builder — only the fields fusion and ordering read. */
+function makeResult(id: string, distance = 0.1): SearchResult {
+  return {
+    id,
+    content: `content-${id}`,
+    documentId: `doc-${id}`,
+    chunkIndex: 0,
+    tag1: null,
+    tag2: null,
+    tag3: null,
+    tag4: null,
+    tag5: null,
+    tag6: null,
+    tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
+    distance,
+    knowledgeBaseId: 'kb-123',
+  }
+}
 
 describe('Knowledge Search Utils', () => {
   beforeEach(() => {
@@ -180,6 +220,177 @@ describe('Knowledge Search Utils', () => {
       expect(params.structuredFilters).toHaveLength(1)
       expect(params.queryVector).toBe(JSON.stringify([0.1, 0.2, 0.3]))
       expect(params.distanceThreshold).toBe(0.8)
+    })
+  })
+
+  describe('fuseByReciprocalRank', () => {
+    it('ranks a row found by both legs above rows found by only one', () => {
+      const shared = makeResult('shared')
+      const vectorOnly = makeResult('vector-only')
+      const keywordOnly = makeResult('keyword-only')
+
+      const fused = fuseByReciprocalRank(
+        [
+          [vectorOnly, shared],
+          [keywordOnly, shared],
+        ],
+        10
+      )
+
+      expect(fused.map((r) => r.id)).toEqual(['shared', 'vector-only', 'keyword-only'])
+    })
+
+    it('dedupes by chunk id, keeping the first occurrence', () => {
+      const fromVector = makeResult('chunk-1', 0.2)
+      const fromKeyword = { ...makeResult('chunk-1', 0.9), content: 'stale copy' }
+
+      const fused = fuseByReciprocalRank([[fromVector], [fromKeyword]], 10)
+
+      expect(fused).toHaveLength(1)
+      expect(fused[0].content).toBe('content-chunk-1')
+      expect(fused[0].distance).toBe(0.2)
+    })
+
+    it('preserves leg ordering when only one leg returns rows', () => {
+      const rows = [makeResult('a'), makeResult('b'), makeResult('c')]
+
+      expect(fuseByReciprocalRank([rows, []], 10).map((r) => r.id)).toEqual(['a', 'b', 'c'])
+      expect(fuseByReciprocalRank([[], rows], 10).map((r) => r.id)).toEqual(['a', 'b', 'c'])
+    })
+
+    it('scores by reciprocal rank so a deep double hit beats a shallow single hit', () => {
+      const deepShared = makeResult('deep-shared')
+      const topSingle = makeResult('top-single')
+
+      /**
+       * `deep-shared` sits at rank 2 in both legs: 2 / (RRF_K + 2).
+       * `top-single` sits at rank 1 in one leg only: 1 / (RRF_K + 1).
+       * With RRF_K = 60 the double hit wins.
+       */
+      expect(2 / (RRF_K + 2)).toBeGreaterThan(1 / (RRF_K + 1))
+
+      const fused = fuseByReciprocalRank(
+        [
+          [topSingle, deepShared],
+          [makeResult('other'), deepShared],
+        ],
+        10
+      )
+
+      expect(fused[0].id).toBe('deep-shared')
+    })
+
+    it('trims the fused list to topK', () => {
+      const rows = Array.from({ length: 8 }, (_, i) => makeResult(`chunk-${i}`))
+
+      expect(fuseByReciprocalRank([rows, []], 3)).toHaveLength(3)
+    })
+
+    it('returns an empty list when every leg is empty', () => {
+      expect(fuseByReciprocalRank([[], []], 10)).toEqual([])
+    })
+  })
+
+  describe('executeKnowledgeSearch', () => {
+    beforeEach(() => {
+      resetDbChainMock()
+    })
+
+    it('throws when neither a query nor tag filters are provided', async () => {
+      await expect(
+        executeKnowledgeSearch({
+          knowledgeBaseIds: ['kb-123'],
+          topK: 10,
+          searchMode: 'hybrid',
+        })
+      ).rejects.toThrow('A search query or tag filters are required')
+    })
+
+    it('throws when a query is provided without a query vector', async () => {
+      await expect(
+        executeKnowledgeSearch({
+          knowledgeBaseIds: ['kb-123'],
+          topK: 10,
+          searchMode: 'hybrid',
+          query: 'PROJ-1234',
+        })
+      ).rejects.toThrow('Query vector is required')
+    })
+
+    it('runs a single retrieval leg in vector mode', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'vector',
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['vector-hit'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    })
+
+    it('runs both legs and fuses them in hybrid mode', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+      queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'hybrid',
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    })
+
+    it('falls back to vector results when the keyword leg fails', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+
+      /**
+       * Both legs share one `orderBy` spy, so target the keyword leg by its
+       * ranking expression. Calling the untouched spy first captures the
+       * sentinel that tells the mock to build its normal chain, which the
+       * vector leg still needs.
+       */
+      const chainDefault = dbChainMockFns.orderBy()
+      dbChainMockFns.orderBy.mockImplementation((fragment: unknown) => {
+        const text = (fragment as { strings?: string[] })?.strings?.join('') ?? ''
+        if (text.includes('ts_rank_cd')) {
+          throw new Error('tsquery blew up')
+        }
+        return chainDefault
+      })
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'hybrid',
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['vector-hit'])
+    })
+
+    it('skips both query legs when only tag filters are provided', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('tag-hit')])
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'hybrid',
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' } as never,
+        ],
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['tag-hit'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
   })
 
