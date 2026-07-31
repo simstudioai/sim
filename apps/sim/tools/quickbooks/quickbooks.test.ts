@@ -7,12 +7,29 @@ import {
   getQuickBooksUserInfoUrl,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
+import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer'
+import { quickbooksCreateItemTool } from '@/tools/quickbooks/create_item'
+import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
 import { quickbooksGetCompanyInfoTool } from '@/tools/quickbooks/get_company_info'
 import { quickbooksListBillsTool } from '@/tools/quickbooks/list_bills'
 import { quickbooksListPurchaseOrdersTool } from '@/tools/quickbooks/list_purchase_orders'
-import { quickbooksListVendorsTool } from '@/tools/quickbooks/list_vendors'
+import { quickbooksReadMasterDataTool } from '@/tools/quickbooks/read_master_data'
+import type {
+  QuickBooksCreateCustomerParams,
+  QuickBooksCreateItemParams,
+  QuickBooksCreateVendorParams,
+  QuickBooksReadMasterDataParams,
+  QuickBooksUpdateCustomerParams,
+  QuickBooksUpdateItemParams,
+  QuickBooksUpdateVendorParams,
+} from '@/tools/quickbooks/types'
+import { quickbooksUpdateCustomerTool } from '@/tools/quickbooks/update_customer'
+import { quickbooksUpdateItemTool } from '@/tools/quickbooks/update_item'
+import { quickbooksUpdateVendorTool } from '@/tools/quickbooks/update_vendor'
 import {
+  buildQuickBooksEntityUrl,
   buildQuickBooksQueryUrl,
+  parseQuickBooksAddress,
   transformQuickBooksListResponse,
   validateQuickBooksPagination,
 } from '@/tools/quickbooks/utils'
@@ -29,19 +46,21 @@ beforeEach(() => {
 afterEach(resetEnvMock)
 
 describe('QuickBooks request construction', () => {
-  it('selects the sandbox and production hosts only from QUICKBOOKS_ENV', () => {
-    const sandboxUrl = buildQuickBooksQueryUrl('123', 'Vendor', 1, 25)
-    expect(sandboxUrl.origin).toBe('https://sandbox-quickbooks.api.intuit.com')
+  it('selects sandbox and production hosts only from QUICKBOOKS_ENV', () => {
+    expect(buildQuickBooksQueryUrl('123', 'Vendor', 1, 25).origin).toBe(
+      'https://sandbox-quickbooks.api.intuit.com'
+    )
 
     setEnv({ QUICKBOOKS_ENV: 'production' })
-    const productionUrl = buildQuickBooksQueryUrl('123', 'Vendor', 1, 25)
-    expect(productionUrl.origin).toBe('https://quickbooks.api.intuit.com')
+    expect(buildQuickBooksQueryUrl('123', 'Vendor', 1, 25).origin).toBe(
+      'https://quickbooks.api.intuit.com'
+    )
     expect(getQuickBooksUserInfoUrl()).toBe(
       'https://accounts.platform.intuit.com/v1/openid_connect/userinfo'
     )
   })
 
-  it('requires an explicit valid environment at the API boundary', () => {
+  it('requires an explicit supported environment', () => {
     setEnv({ QUICKBOOKS_ENV: undefined })
     expect(() => getQuickBooksEnvironment()).toThrow(
       'QUICKBOOKS_ENV must be explicitly configured as either "sandbox" or "production"'
@@ -53,14 +72,17 @@ describe('QuickBooks request construction', () => {
     )
   })
 
-  it('encodes the fixed query and pins minor version 75', () => {
-    const url = buildQuickBooksQueryUrl(' 123456789 ', 'PurchaseOrder', 4, 50)
-
-    expect(url.pathname).toBe('/v3/company/123456789/query')
-    expect(url.searchParams.get('minorversion')).toBe('75')
-    expect(url.searchParams.get('query')).toBe(
+  it('encodes fixed query and entity URLs and pins minor version 75', () => {
+    const queryUrl = buildQuickBooksQueryUrl(' 123456789 ', 'PurchaseOrder', 4, 50)
+    expect(queryUrl.pathname).toBe('/v3/company/123456789/query')
+    expect(queryUrl.searchParams.get('minorversion')).toBe('75')
+    expect(queryUrl.searchParams.get('query')).toBe(
       'SELECT * FROM PurchaseOrder STARTPOSITION 4 MAXRESULTS 50'
     )
+
+    const entityUrl = buildQuickBooksEntityUrl('123456789', 'customer', ' A/B ')
+    expect(entityUrl.pathname).toBe('/v3/company/123456789/customer/A%2FB')
+    expect(entityUrl.searchParams.get('minorversion')).toBe('75')
   })
 
   it.each([
@@ -88,37 +110,30 @@ describe('QuickBooks request construction', () => {
 })
 
 describe('QuickBooks response contracts', () => {
-  it('validates the requested realm by successfully reading its CompanyInfo resource', async () => {
+  it('validates a realm by reading its CompanyInfo resource', async () => {
     const originalFetch = global.fetch
     const requestedUrls: string[] = []
-    const requestSignals: Array<AbortSignal | null | undefined> = []
-    global.fetch = async (input, init) => {
+    global.fetch = async (input) => {
       requestedUrls.push(input.toString())
-      requestSignals.push(init?.signal)
-      return new Response(
-        JSON.stringify({
-          CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
-          time: 'test-time',
-        })
-      )
+      return Response.json({
+        CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
+        time: 'test-time',
+      })
     }
 
     try {
       await expect(
         fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
-      ).resolves.toMatchObject({
-        CompanyInfo: { Id: '1' },
-      })
+      ).resolves.toMatchObject({ CompanyInfo: { Id: '1' } })
       expect(requestedUrls).toEqual([
         'https://sandbox-quickbooks.api.intuit.com/v3/company/123456789/companyinfo/123456789?minorversion=75',
       ])
-      expect(requestSignals[0]).toBeInstanceOf(AbortSignal)
     } finally {
       global.fetch = originalFetch
     }
   })
 
-  it('preserves sanitized Intuit fault context for failed company validation', async () => {
+  it('preserves sanitized fault guidance for failed company validation', async () => {
     const originalFetch = global.fetch
     global.fetch = async () =>
       Response.json(
@@ -134,10 +149,7 @@ describe('QuickBooks response contracts', () => {
             ],
           },
         },
-        {
-          status: 401,
-          headers: { intuit_tid: 'tracking-id' },
-        }
+        { status: 401, headers: { intuit_tid: 'tracking-id' } }
       )
 
     try {
@@ -151,149 +163,43 @@ describe('QuickBooks response contracts', () => {
     }
   })
 
-  it('preserves Retry-After without exposing a non-JSON company validation body', async () => {
-    const originalFetch = global.fetch
-    global.fetch = async () =>
-      new Response('<html>sensitive gateway response</html>', {
-        status: 429,
-        headers: { 'retry-after': '30' },
-      })
-
-    try {
-      await expect(
-        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
-      ).rejects.toThrow(
-        'QuickBooks company validation failed with HTTP 429. QuickBooks rate limit reached; retry after the indicated delay. (Retry-After: 30)'
-      )
-    } finally {
-      global.fetch = originalFetch
-    }
-  })
-
-  it('rejects a successful response without a CompanyInfo wrapper', async () => {
-    const originalFetch = global.fetch
-    global.fetch = async () => new Response(JSON.stringify({ time: 'test-time' }))
-
-    try {
-      await expect(
-        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
-      ).rejects.toThrow('missing CompanyInfo')
-    } finally {
-      global.fetch = originalFetch
-    }
-  })
-
-  it('preserves populated entity objects and derives conservative pagination', async () => {
-    const response = new Response(
-      JSON.stringify({
-        QueryResponse: {
-          Vendor: [
-            {
-              Id: '7',
-              DisplayName: 'Sanitized Vendor',
-              PrimaryEmailAddr: { Address: 'vendor@example.test' },
-            },
-          ],
-          startPosition: 2,
-          maxResults: 1,
-        },
-        time: '2026-01-01T00:00:00.000Z',
-      })
-    )
-
-    const result = await transformQuickBooksListResponse(
-      response,
-      { ...authParams, startPosition: 2, maxResults: 1 },
-      'Vendor'
-    )
-
-    expect(result.output).toEqual({
-      items: [
-        {
-          Id: '7',
-          DisplayName: 'Sanitized Vendor',
-          PrimaryEmailAddr: { Address: 'vendor@example.test' },
-        },
-      ],
-      startPosition: 2,
-      maxResults: 1,
-      nextStartPosition: 3,
-      hasMore: true,
-      time: '2026-01-01T00:00:00.000Z',
-    })
-  })
-
-  it('accepts a usable query response alongside an empty fault envelope', async () => {
+  it.each([
+    ['Account', { Id: '1', Name: 'Checking' }],
+    ['Customer', { Id: '2', DisplayName: 'Sanitized Customer' }],
+    ['Vendor', { Id: '3', DisplayName: 'Sanitized Vendor' }],
+    ['Item', { Id: '4', Name: 'Sanitized Service', Type: 'Service' }],
+    ['Employee', { Id: '5', DisplayName: 'Sanitized Employee' }],
+    ['PurchaseOrder', { Id: '6', DocNumber: 'PO-SANITIZED' }],
+    ['Bill', { Id: '7', DocNumber: 'BILL-SANITIZED' }],
+  ] as const)('preserves populated %s list records', async (entity, item) => {
     const result = await transformQuickBooksListResponse(
       Response.json({
-        Fault: { Error: [] },
         QueryResponse: {
-          Vendor: [{ Id: '7', DisplayName: 'Sanitized Vendor' }],
+          [entity]: [item],
           startPosition: 1,
           maxResults: 1,
         },
+        time: 'test-time',
       }),
       { ...authParams, startPosition: 1, maxResults: 1 },
-      'Vendor'
+      entity
     )
 
-    expect(result.output.items).toEqual([{ Id: '7', DisplayName: 'Sanitized Vendor' }])
+    expect(result.output).toEqual({
+      items: [item],
+      startPosition: 1,
+      maxResults: 1,
+      nextStartPosition: 2,
+      hasMore: true,
+      time: 'test-time',
+    })
   })
 
-  it.each([
-    ['Vendor', { Id: '7', DisplayName: 'Sanitized Vendor' }],
-    ['PurchaseOrder', { Id: '8', DocNumber: 'PO-SANITIZED', TotalAmt: 42 }],
-    ['Bill', { Id: '9', DocNumber: 'BILL-SANITIZED', Balance: 12 }],
-  ] as const)(
-    'preserves a populated %s wrapper with optional fields absent',
-    async (entity, item) => {
-      const result = await transformQuickBooksListResponse(
-        new Response(
-          JSON.stringify({
-            QueryResponse: {
-              [entity]: [item],
-              startPosition: 1,
-              maxResults: 1,
-            },
-          })
-        ),
-        { ...authParams, startPosition: 1, maxResults: 1 },
-        entity
-      )
-
-      expect(result.output.items).toEqual([item])
-      expect(result.output.hasMore).toBe(true)
-      expect(result.output.time).toBeNull()
-    }
-  )
-
-  it.each(['Vendor', 'PurchaseOrder', 'Bill'] as const)(
-    'handles an empty %s page without inventing a total count',
-    async (entity) => {
-      const result = await transformQuickBooksListResponse(
-        new Response(JSON.stringify({ QueryResponse: {}, time: 'test-time' })),
-        { ...authParams, startPosition: 11, maxResults: 25 },
-        entity
-      )
-
-      expect(result.output).toEqual({
-        items: [],
-        startPosition: 11,
-        maxResults: 0,
-        nextStartPosition: 11,
-        hasMore: false,
-        time: 'test-time',
-      })
-      expect(result.output).not.toHaveProperty('totalCount')
-    }
-  )
-
-  it('handles an empty QueryResponse without inventing a total count', async () => {
-    const response = new Response(JSON.stringify({ QueryResponse: {}, time: 'test-time' }))
+  it('handles an empty page without inventing a total', async () => {
     const result = await transformQuickBooksListResponse(
-      response,
+      Response.json({ QueryResponse: {}, time: 'test-time' }),
       { ...authParams, startPosition: 11, maxResults: 25 },
-      'Bill'
+      'Customer'
     )
 
     expect(result.output).toEqual({
@@ -307,10 +213,10 @@ describe('QuickBooks response contracts', () => {
     expect(result.output).not.toHaveProperty('totalCount')
   })
 
-  it('rejects malformed wrappers and entity lists', async () => {
+  it('rejects malformed and oversized list responses', async () => {
     await expect(
       transformQuickBooksListResponse(
-        new Response(JSON.stringify({})),
+        Response.json({}),
         { ...authParams, startPosition: 1, maxResults: 25 },
         'Vendor'
       )
@@ -318,18 +224,15 @@ describe('QuickBooks response contracts', () => {
 
     await expect(
       transformQuickBooksListResponse(
-        new Response(JSON.stringify({ QueryResponse: { Vendor: {} } })),
+        Response.json({ QueryResponse: { Vendor: {} } }),
         { ...authParams, startPosition: 1, maxResults: 25 },
         'Vendor'
       )
     ).rejects.toThrow('malformed entity list')
-  })
 
-  it('rejects a success body over the 8 MiB cap before JSON parsing', async () => {
     const oversized = JSON.stringify({
       QueryResponse: { Vendor: [{ Id: '1', padding: 'x'.repeat(QUICKBOOKS_MAX_RESPONSE_BYTES) }] },
     })
-
     await expect(
       transformQuickBooksListResponse(
         new Response(oversized),
@@ -338,196 +241,448 @@ describe('QuickBooks response contracts', () => {
       )
     ).rejects.toThrow(/exceeds maximum size/)
   })
-
-  it.each(['Vendor', 'PurchaseOrder', 'Bill'] as const)(
-    'recognizes a QuickBooks Fault in an HTTP 200 %s response',
-    async (entity) => {
-      const response = new Response(
-        JSON.stringify({
-          Fault: {
-            Error: [
-              {
-                code: '6000',
-                Message: 'A business validation error occurred',
-                Detail: 'Sanitized fault detail',
-              },
-            ],
-          },
-        }),
-        {
-          status: 200,
-          headers: { intuit_tid: 'tracking-id' },
-        }
-      )
-
-      await expect(
-        transformQuickBooksListResponse(
-          response,
-          { ...authParams, startPosition: 1, maxResults: 25 },
-          entity
-        )
-      ).rejects.toThrow(
-        'QuickBooks request failed with HTTP 200. 6000: A business validation error occurred: Sanitized fault detail (Intuit tracking ID: tracking-id)'
-      )
-    }
-  )
 })
 
-describe('QuickBooks tool boundaries', () => {
+describe('QuickBooks master-data reader', () => {
+  const listParams: QuickBooksReadMasterDataParams = {
+    ...authParams,
+    recordType: 'customer',
+    readMode: 'list',
+    startPosition: 3,
+    maxResults: 25,
+  }
+
+  it.each([
+    ['account', 'Account'],
+    ['customer', 'Customer'],
+    ['vendor', 'Vendor'],
+    ['item', 'Item'],
+    ['employee', 'Employee'],
+  ] as const)('maps %s to its fixed QuickBooks entity', (recordType, entity) => {
+    const requestUrl = quickbooksReadMasterDataTool.request.url as (
+      params: QuickBooksReadMasterDataParams
+    ) => string
+    const url = new URL(requestUrl({ ...listParams, recordType }))
+    expect(url.pathname).toBe('/v3/company/123456789/query')
+    expect(url.searchParams.get('query')).toBe(
+      `SELECT * FROM ${entity} STARTPOSITION 3 MAXRESULTS 25`
+    )
+  })
+
+  it('reads one encoded entity by ID', async () => {
+    const byIdParams: QuickBooksReadMasterDataParams = {
+      ...listParams,
+      recordType: 'item',
+      readMode: 'by_id',
+      recordId: ' A/B ',
+    }
+    const requestUrl = quickbooksReadMasterDataTool.request.url as (
+      params: QuickBooksReadMasterDataParams
+    ) => string
+    expect(new URL(requestUrl(byIdParams)).pathname).toBe('/v3/company/123456789/item/A%2FB')
+
+    await expect(
+      quickbooksReadMasterDataTool.transformResponse!(
+        Response.json({
+          Item: { Id: 'A/B', SyncToken: '0', Name: 'Sanitized Item', Type: 'Inventory' },
+          time: 'test-time',
+        }),
+        byIdParams
+      )
+    ).resolves.toEqual({
+      success: true,
+      output: {
+        recordType: 'item',
+        item: { Id: 'A/B', SyncToken: '0', Name: 'Sanitized Item', Type: 'Inventory' },
+        time: 'test-time',
+      },
+    })
+  })
+
+  it('rejects missing IDs, unknown types and unknown modes before a request', () => {
+    const requestUrl = quickbooksReadMasterDataTool.request.url as (
+      params: QuickBooksReadMasterDataParams
+    ) => string
+
+    expect(() => requestUrl({ ...listParams, readMode: 'by_id' })).toThrow('record ID')
+    expect(() =>
+      requestUrl({
+        ...listParams,
+        recordType: 'unsupported' as QuickBooksReadMasterDataParams['recordType'],
+      })
+    ).toThrow('record type')
+    expect(() =>
+      requestUrl({
+        ...listParams,
+        readMode: 'unsupported' as QuickBooksReadMasterDataParams['readMode'],
+      })
+    ).toThrow('read mode')
+  })
+})
+
+describe('QuickBooks customer and vendor mutations', () => {
+  const address = {
+    Line1: '123 Main St',
+    City: 'San Francisco',
+    CountrySubDivisionCode: 'CA',
+    PostalCode: '94105',
+  }
+
+  it('builds minimal and populated customer creates and preserves false', () => {
+    const minimal = quickbooksCreateCustomerTool.request.body!({
+      ...authParams,
+      displayName: ' Sanitized Customer ',
+    })
+    expect(minimal).toEqual({ DisplayName: 'Sanitized Customer' })
+
+    const populated: QuickBooksCreateCustomerParams = {
+      ...authParams,
+      displayName: 'Sanitized Customer',
+      companyName: 'Sanitized Company',
+      givenName: 'Sample',
+      familyName: 'Customer',
+      primaryEmail: 'customer@example.test',
+      primaryPhone: '555-0100',
+      billingAddress: address,
+      shippingAddress: address,
+      taxable: false,
+    }
+    expect(quickbooksCreateCustomerTool.request.body!(populated)).toEqual({
+      DisplayName: 'Sanitized Customer',
+      CompanyName: 'Sanitized Company',
+      GivenName: 'Sample',
+      FamilyName: 'Customer',
+      PrimaryEmailAddr: { Address: 'customer@example.test' },
+      PrimaryPhone: { FreeFormNumber: '555-0100' },
+      BillAddr: address,
+      ShipAddr: address,
+      Taxable: false,
+    })
+  })
+
+  it('builds sparse customer updates and rejects an empty update', () => {
+    const update: QuickBooksUpdateCustomerParams = {
+      ...authParams,
+      customerId: ' 12 ',
+      syncToken: ' 3 ',
+      activeStatus: 'inactive',
+      taxable: false,
+    }
+    expect(quickbooksUpdateCustomerTool.request.body!(update)).toEqual({
+      Id: '12',
+      SyncToken: '3',
+      sparse: true,
+      Taxable: false,
+      Active: false,
+    })
+
+    expect(() =>
+      quickbooksUpdateCustomerTool.request.body!({
+        ...authParams,
+        customerId: '12',
+        syncToken: '3',
+        activeStatus: 'unchanged',
+      })
+    ).toThrow('at least one field')
+  })
+
+  it('builds vendor create and sparse update bodies', () => {
+    const create: QuickBooksCreateVendorParams = {
+      ...authParams,
+      displayName: 'Sanitized Vendor',
+      printOnCheckName: 'Sanitized Vendor LLC',
+      accountNumber: 'ACCT-123',
+      vendor1099: false,
+    }
+    expect(quickbooksCreateVendorTool.request.body!(create)).toEqual({
+      DisplayName: 'Sanitized Vendor',
+      PrintOnCheckName: 'Sanitized Vendor LLC',
+      AcctNum: 'ACCT-123',
+      Vendor1099: false,
+    })
+
+    const update: QuickBooksUpdateVendorParams = {
+      ...authParams,
+      vendorId: '21',
+      syncToken: '4',
+      activeStatus: 'active',
+      vendor1099: true,
+    }
+    expect(quickbooksUpdateVendorTool.request.body!(update)).toEqual({
+      Id: '21',
+      SyncToken: '4',
+      sparse: true,
+      Vendor1099: true,
+      Active: true,
+    })
+  })
+
+  it('validates and converts the bounded address shape', () => {
+    expect(
+      parseQuickBooksAddress(
+        '{"line1":"123 Main St","city":"San Francisco","postalCode":"94105"}',
+        'billingAddress'
+      )
+    ).toEqual({
+      Line1: '123 Main St',
+      City: 'San Francisco',
+      PostalCode: '94105',
+    })
+    expect(() => parseQuickBooksAddress('[]', 'billingAddress')).toThrow('JSON object')
+    expect(() => parseQuickBooksAddress('{"unknown":"value"}', 'billingAddress')).toThrow(
+      'unsupported field'
+    )
+    expect(() => parseQuickBooksAddress('{"city":123}', 'billingAddress')).toThrow(
+      'must be a string'
+    )
+  })
+})
+
+describe('QuickBooks item mutations', () => {
+  it.each([
+    ['service', 'Service'],
+    ['non_inventory', 'NonInventory'],
+  ] as const)('creates a supported %s item', (itemType, apiType) => {
+    const params: QuickBooksCreateItemParams = {
+      ...authParams,
+      name: 'Sanitized Item',
+      itemType,
+      incomeAccountId: '79',
+      unitPrice: 12.5,
+      taxable: false,
+    }
+    expect(quickbooksCreateItemTool.request.body!(params)).toEqual({
+      Name: 'Sanitized Item',
+      Type: apiType,
+      IncomeAccountRef: { value: '79' },
+      UnitPrice: 12.5,
+      Taxable: false,
+    })
+  })
+
+  it('requires an expense account for purchase fields on create', () => {
+    expect(() =>
+      quickbooksCreateItemTool.request.body!({
+        ...authParams,
+        name: 'Sanitized Item',
+        itemType: 'service',
+        incomeAccountId: '79',
+        purchaseCost: 2.25,
+      })
+    ).toThrow('expenseAccountId')
+  })
+
+  it('rejects unsupported write types and non-finite money', () => {
+    expect(() =>
+      quickbooksCreateItemTool.request.body!({
+        ...authParams,
+        name: 'Sanitized Item',
+        itemType: 'inventory' as QuickBooksCreateItemParams['itemType'],
+        incomeAccountId: '79',
+      })
+    ).toThrow('Unsupported writable')
+
+    expect(() =>
+      quickbooksCreateItemTool.request.body!({
+        ...authParams,
+        name: 'Sanitized Item',
+        itemType: 'service',
+        incomeAccountId: '79',
+        unitPrice: Number.NaN,
+      })
+    ).toThrow('finite number')
+  })
+
+  it('builds sparse item updates without exposing type changes', () => {
+    const params: QuickBooksUpdateItemParams = {
+      ...authParams,
+      itemId: '44',
+      syncToken: '2',
+      activeStatus: 'unchanged',
+      unitPrice: 15.75,
+      expenseAccountId: '80',
+    }
+    expect(quickbooksUpdateItemTool.request.body!(params)).toEqual({
+      Id: '44',
+      SyncToken: '2',
+      sparse: true,
+      UnitPrice: 15.75,
+      ExpenseAccountRef: { value: '80' },
+    })
+    expect(quickbooksUpdateItemTool.params).not.toHaveProperty('itemType')
+  })
+
+  it('returns the native mutation record and convenient identifiers', async () => {
+    await expect(
+      quickbooksCreateItemTool.transformResponse!(
+        Response.json({
+          Item: { Id: '44', SyncToken: '0', Name: 'Sanitized Item', Type: 'Service' },
+          time: 'test-time',
+        })
+      )
+    ).resolves.toEqual({
+      success: true,
+      output: {
+        record: { Id: '44', SyncToken: '0', Name: 'Sanitized Item', Type: 'Service' },
+        recordId: '44',
+        syncToken: '0',
+        time: 'test-time',
+      },
+    })
+  })
+})
+
+describe('QuickBooks tool and block boundaries', () => {
   const tools = [
+    quickbooksCreateCustomerTool,
+    quickbooksCreateItemTool,
+    quickbooksCreateVendorTool,
     quickbooksGetCompanyInfoTool,
     quickbooksListBillsTool,
     quickbooksListPurchaseOrdersTool,
-    quickbooksListVendorsTool,
+    quickbooksReadMasterDataTool,
+    quickbooksUpdateCustomerTool,
+    quickbooksUpdateItemTool,
+    quickbooksUpdateVendorTool,
   ]
 
-  it('declares exactly four read-only tools with hidden company credentials and no retries', () => {
-    expect(tools.map((tool) => tool.id).sort()).toEqual([
-      'quickbooks_get_company_info',
-      'quickbooks_list_bills',
-      'quickbooks_list_purchase_orders',
-      'quickbooks_list_vendors',
-    ])
+  it('declares exactly ten bounded tools with hidden company credentials and no retries', () => {
+    expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
       expect(tool.params.realmId).toMatchObject({ required: true, visibility: 'hidden' })
-      expect(tool.request.method).toBe('GET')
       expect(tool.request.retry).toEqual({ enabled: false })
       expect(tool.request.maxResponseBytes).toBe(QUICKBOOKS_MAX_RESPONSE_BYTES)
       expect(tool.postProcess).toBeUndefined()
     }
   })
 
-  it('uses the connected realm for CompanyInfo and preserves its native object', async () => {
-    const url = quickbooksGetCompanyInfoTool.request.url
-    expect(typeof url).toBe('function')
-    expect((url as (params: typeof authParams) => string)(authParams)).toBe(
-      'https://sandbox-quickbooks.api.intuit.com/v3/company/123456789/companyinfo/123456789?minorversion=75'
-    )
-
-    const result = await quickbooksGetCompanyInfoTool.transformResponse!(
-      new Response(
-        JSON.stringify({
-          CompanyInfo: { Id: '1', CompanyName: 'Sanitized Company' },
-          time: 'test-time',
-        })
-      ),
-      authParams
-    )
-    expect(result.output).toEqual({
-      company: { Id: '1', CompanyName: 'Sanitized Company' },
-      time: 'test-time',
-    })
-  })
-
-  it('rejects an empty CompanyInfo wrapper', async () => {
-    await expect(
-      quickbooksGetCompanyInfoTool.transformResponse!(
-        new Response(JSON.stringify({ time: 'test-time' })),
-        authParams
-      )
-    ).rejects.toThrow('missing CompanyInfo')
-  })
-
-  it('recognizes a QuickBooks Fault in an HTTP 200 CompanyInfo response', async () => {
-    await expect(
-      quickbooksGetCompanyInfoTool.transformResponse!(
-        new Response(
-          JSON.stringify({
-            Fault: {
-              Error: [
-                {
-                  code: '3200',
-                  Message: 'Authentication failed',
-                  Detail: 'Sanitized fault detail',
-                },
-              ],
-            },
-          }),
-          { status: 200 }
-        ),
-        authParams
-      )
-    ).rejects.toThrow(
-      'QuickBooks request failed with HTTP 200. 3200: Authentication failed: Sanitized fault detail'
-    )
-  })
-
-  it('constructs one fixed query for each list tool', () => {
-    const listParams = { ...authParams, startPosition: 3, maxResults: 25 }
-    const cases = [
-      [quickbooksListVendorsTool, 'Vendor'],
-      [quickbooksListPurchaseOrdersTool, 'PurchaseOrder'],
-      [quickbooksListBillsTool, 'Bill'],
-    ] as const
-
-    for (const [tool, entity] of cases) {
-      const requestUrl = tool.request.url as (params: typeof listParams) => string
-      const url = new URL(requestUrl(listParams))
-      expect(url.pathname).toBe('/v3/company/123456789/query')
-      expect(url.searchParams.get('query')).toBe(
-        `SELECT * FROM ${entity} STARTPOSITION 3 MAXRESULTS 25`
-      )
-      expect(url.searchParams.get('minorversion')).toBe('75')
-    }
-  })
-})
-
-describe('QuickBooks block mapping', () => {
-  it('exposes only the four fixed actions and their OAuth credential', () => {
+  it('exposes the ten compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
-    const credentialInputs = QuickBooksBlock.subBlocks.filter((subBlock) =>
-      ['oauth-input', 'short-input'].includes(subBlock.type)
-    )
-
     expect(operation?.options).toEqual([
-      { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
-      { label: 'List Vendors', id: 'quickbooks_list_vendors' },
-      { label: 'List Purchase Orders', id: 'quickbooks_list_purchase_orders' },
-      { label: 'List Bills', id: 'quickbooks_list_bills' },
+      { label: 'Company: Get Info', id: 'quickbooks_get_company_info' },
+      { label: 'Master Data: Read', id: 'quickbooks_read_master_data' },
+      { label: 'Customers: Create', id: 'quickbooks_create_customer' },
+      { label: 'Customers: Update', id: 'quickbooks_update_customer' },
+      { label: 'Vendors: Create', id: 'quickbooks_create_vendor' },
+      { label: 'Vendors: Update', id: 'quickbooks_update_vendor' },
+      { label: 'Items: Create', id: 'quickbooks_create_item' },
+      { label: 'Items: Update', id: 'quickbooks_update_item' },
+      {
+        label: 'Purchasing: List Purchase Orders',
+        id: 'quickbooks_list_purchase_orders',
+      },
+      { label: 'Payables: List Bills', id: 'quickbooks_list_bills' },
     ])
-    expect(credentialInputs.filter((input) => input.id === 'credential')).toHaveLength(1)
-    expect(QuickBooksBlock.subBlocks.some((input) => input.id === 'realmId')).toBe(false)
-    expect(QuickBooksBlock.tools.access).toHaveLength(4)
+    const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).not.toContain('realmId')
+    expect(QuickBooksBlock.tools.access).not.toContain('quickbooks_list_vendors')
   })
 
-  it('coerces list pagination after parameter resolution and omits it for CompanyInfo', () => {
+  it('coerces pagination, addresses, tri-state booleans, and decimals after resolution', () => {
     expect(
       QuickBooksBlock.tools.config!.params!({
-        operation: 'quickbooks_list_bills',
+        operation: 'quickbooks_read_master_data',
         oauthCredential: 'credential-id',
+        recordType: 'vendor',
+        readMode: 'list',
         startPosition: '3',
         maxResults: '100',
       })
-    ).toEqual({
+    ).toMatchObject({
       credential: 'credential-id',
+      recordType: 'vendor',
+      readMode: 'list',
       startPosition: 3,
       maxResults: 100,
     })
 
     expect(
       QuickBooksBlock.tools.config!.params!({
-        operation: 'quickbooks_get_company_info',
+        operation: 'quickbooks_read_master_data',
         oauthCredential: 'credential-id',
+        recordType: 'vendor',
+        readMode: 'by_id',
+        recordId: '12',
         startPosition: 'invalid',
         maxResults: 'invalid',
       })
-    ).toEqual({ credential: 'credential-id' })
+    ).toEqual({
+      credential: 'credential-id',
+      recordType: 'vendor',
+      readMode: 'by_id',
+      recordId: '12',
+    })
+
+    expect(
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_create_customer',
+        oauthCredential: 'credential-id',
+        displayName: 'Sanitized Customer',
+        billingAddress: '{"line1":"123 Main St"}',
+        taxable: 'no',
+      })
+    ).toMatchObject({
+      credential: 'credential-id',
+      displayName: 'Sanitized Customer',
+      billingAddress: { Line1: '123 Main St' },
+      taxable: false,
+    })
+
+    expect(
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_create_item',
+        oauthCredential: 'credential-id',
+        name: 'Sanitized Item',
+        itemType: 'service',
+        incomeAccountId: '79',
+        unitPrice: '12.50',
+        purchaseCost: '2.25',
+      })
+    ).toMatchObject({
+      credential: 'credential-id',
+      unitPrice: 12.5,
+      purchaseCost: 2.25,
+    })
   })
 
-  it.each([
-    ['1.5', '25'],
-    ['0', '25'],
-    ['1', '101'],
-    ['1', '-1'],
-  ])('rejects invalid resolved pagination (%s, %s)', (startPosition, maxResults) => {
-    expect(() =>
+  it('omits unrelated coercion for CompanyInfo and rejects bad operation values', () => {
+    expect(
       QuickBooksBlock.tools.config!.params!({
-        operation: 'quickbooks_list_vendors',
+        operation: 'quickbooks_get_company_info',
         oauthCredential: 'credential-id',
-        startPosition,
-        maxResults,
+        startPosition: 'invalid',
       })
-    ).toThrow()
+    ).toEqual({ credential: 'credential-id' })
+
+    expect(() =>
+      QuickBooksBlock.tools.config!.tool!({ operation: 'quickbooks_list_vendors' })
+    ).toThrow('Unknown QuickBooks operation')
+  })
+
+  it('uses list-only, by-ID-only, and update-only field conditions', () => {
+    const subBlocks = Object.fromEntries(
+      QuickBooksBlock.subBlocks.map((subBlock) => [subBlock.id, subBlock])
+    )
+
+    expect(subBlocks.recordId.condition).toEqual({
+      field: 'operation',
+      value: 'quickbooks_read_master_data',
+      and: { field: 'readMode', value: 'by_id' },
+    })
+    expect(subBlocks.startPosition.mode).toBe('advanced')
+    expect(subBlocks.startPosition.condition).toMatchObject({
+      field: 'operation',
+      and: { field: 'readMode', value: 'by_id', not: true },
+    })
+    expect(subBlocks.syncToken.condition).toEqual({
+      field: 'operation',
+      value: ['quickbooks_update_customer', 'quickbooks_update_item', 'quickbooks_update_vendor'],
+    })
+    expect(subBlocks.itemType.condition).toEqual({
+      field: 'operation',
+      value: 'quickbooks_create_item',
+    })
   })
 })

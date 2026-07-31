@@ -2994,10 +2994,16 @@ import {
   quartrListTranscriptsTool,
 } from '@/tools/quartr'
 import {
+  quickbooksCreateCustomerTool,
+  quickbooksCreateItemTool,
+  quickbooksCreateVendorTool,
   quickbooksGetCompanyInfoTool,
   quickbooksListBillsTool,
   quickbooksListPurchaseOrdersTool,
-  quickbooksListVendorsTool,
+  quickbooksReadMasterDataTool,
+  quickbooksUpdateCustomerTool,
+  quickbooksUpdateItemTool,
+  quickbooksUpdateVendorTool,
 } from '@/tools/quickbooks'
 import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
 import {
@@ -6061,10 +6067,16 @@ export const tools: Record<string, ToolConfig> = {
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
   postgresql_introspect: postgresIntrospectTool,
+  quickbooks_create_customer: quickbooksCreateCustomerTool,
+  quickbooks_create_item: quickbooksCreateItemTool,
+  quickbooks_create_vendor: quickbooksCreateVendorTool,
   quickbooks_get_company_info: quickbooksGetCompanyInfoTool,
   quickbooks_list_bills: quickbooksListBillsTool,
   quickbooks_list_purchase_orders: quickbooksListPurchaseOrdersTool,
-  quickbooks_list_vendors: quickbooksListVendorsTool,
+  quickbooks_read_master_data: quickbooksReadMasterDataTool,
+  quickbooks_update_customer: quickbooksUpdateCustomerTool,
+  quickbooks_update_item: quickbooksUpdateItemTool,
+  quickbooks_update_vendor: quickbooksUpdateVendorTool,
   rds_query: rdsQueryTool,
   rds_insert: rdsInsertTool,
   rds_update: rdsUpdateTool,
