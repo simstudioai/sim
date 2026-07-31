@@ -21,7 +21,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { scheduleKeys } from '@/hooks/queries/schedules'
