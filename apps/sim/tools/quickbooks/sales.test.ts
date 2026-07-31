@@ -129,6 +129,14 @@ describe('QuickBooks sales reader', () => {
     })
   })
 
+  it('marks mode-specific sales read outputs as optional', () => {
+    expect(quickbooksReadSalesTransactionsTool.outputs.item?.optional).toBe(true)
+    expect(quickbooksReadSalesTransactionsTool.outputs.items?.optional).toBe(true)
+    for (const output of ['startPosition', 'maxResults', 'nextStartPosition', 'hasMore']) {
+      expect(quickbooksReadSalesTransactionsTool.outputs[output]?.optional).toBe(true)
+    }
+  })
+
   it('rejects malformed records without usable QuickBooks IDs', async () => {
     await expect(
       quickbooksReadSalesTransactionsTool.transformResponse!(

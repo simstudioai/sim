@@ -5,10 +5,7 @@ import type {
   QuickBooksReadSalesTransactionsResponse,
   QuickBooksSalesTransaction,
 } from '@/tools/quickbooks/types'
-import {
-  QUICKBOOKS_LIST_OUTPUTS,
-  QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
-} from '@/tools/quickbooks/types'
+import { QUICKBOOKS_SALES_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 import {
   buildQuickBooksEntityUrl,
   buildQuickBooksQueryUrl,
@@ -152,6 +149,31 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       optional: true,
       items: { type: 'json', properties: QUICKBOOKS_SALES_TRANSACTION_PROPERTIES },
     },
-    ...QUICKBOOKS_LIST_OUTPUTS,
+    startPosition: {
+      type: 'number',
+      description: 'One-based position of the first item in this response',
+      optional: true,
+    },
+    maxResults: {
+      type: 'number',
+      description: 'Actual number of items reported for this response',
+      optional: true,
+    },
+    nextStartPosition: {
+      type: 'number',
+      description: 'Position to use when explicitly requesting the next page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Conservative indication that another page may exist',
+      optional: true,
+    },
+    time: {
+      type: 'string',
+      description: 'QuickBooks response timestamp',
+      optional: true,
+      nullable: true,
+    },
   },
 }

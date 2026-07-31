@@ -524,11 +524,6 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `startPosition` | number | One-based position of the first item in this response |
-| `maxResults` | number | Actual number of items reported for this response |
-| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
-| `hasMore` | boolean | Conservative indication that another page may exist |
-| `time` | string | QuickBooks response timestamp |
 | `transactionType` | string | Sales transaction type returned |
 | `item` | json | Single native QuickBooks sales transaction |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -594,6 +589,12 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+
 ### `quickbooks_create_estimate`
 
 Create an estimate with bounded item and description lines
