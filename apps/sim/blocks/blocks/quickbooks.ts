@@ -356,8 +356,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Service', id: 'service' },
         { label: 'Non-inventory', id: 'non_inventory' },
       ],
-      condition: { field: 'operation', value: 'quickbooks_create_item' },
-      required: { field: 'operation', value: 'quickbooks_create_item' },
+      condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
+      required: { field: 'operation', value: [...ITEM_OPERATIONS] },
       value: () => 'service',
     },
     {

@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import {
@@ -15,6 +16,8 @@ import type {
   QuickBooksMutationResponse,
   QuickBooksPaginationParams,
   QuickBooksReference,
+  QuickBooksVendor,
+  QuickBooksWritableItemType,
 } from '@/tools/quickbooks/types'
 
 export type QuickBooksQueryEntity =
@@ -184,9 +187,11 @@ export async function transformQuickBooksEntityResponse<T extends QuickBooksMast
 
 export async function transformQuickBooksMutationResponse<T extends QuickBooksMasterDataRecord>(
   response: Response,
-  entity: QuickBooksQueryEntity
+  entity: QuickBooksQueryEntity,
+  sanitize: (item: T) => T = (item) => item
 ): Promise<QuickBooksMutationResponse<T>> {
-  const { item, time } = await transformQuickBooksEntityResponse<T>(response, entity)
+  const parsed = await transformQuickBooksEntityResponse<T>(response, entity)
+  const item = sanitize(parsed.item)
   const recordId = typeof item.Id === 'string' ? item.Id.trim() : ''
   const syncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''
   if (!recordId || !syncToken) {
@@ -194,8 +199,22 @@ export async function transformQuickBooksMutationResponse<T extends QuickBooksMa
   }
   return {
     success: true,
-    output: { record: item, recordId, syncToken, time },
+    output: { record: item, recordId, syncToken, time: parsed.time },
   }
+}
+
+export function sanitizeQuickBooksVendor(vendor: QuickBooksVendor): QuickBooksVendor {
+  return omit(vendor, ['TaxIdentifier']) as QuickBooksVendor
+}
+
+export function quickBooksWritableItemType(itemType: QuickBooksWritableItemType): string {
+  const types: Record<QuickBooksWritableItemType, string> = {
+    service: 'Service',
+    non_inventory: 'NonInventory',
+  }
+  const type = types[itemType]
+  if (!type) throw new Error(`Unsupported writable QuickBooks item type: ${String(itemType)}`)
+  return type
 }
 
 export function quickBooksReference(value: string, fieldName: string): QuickBooksReference {
@@ -269,6 +288,9 @@ export function parseQuickBooksAddress(
       throw new Error(`${fieldName}.${key} must be a string`)
     }
     result[quickBooksKey] = fieldValue
+  }
+  if (Object.keys(result).length === 0) {
+    throw new Error(`${fieldName} must contain at least one supported address field`)
   }
   return result
 }

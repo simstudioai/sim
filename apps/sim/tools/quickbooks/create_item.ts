@@ -1,6 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksCreateItemParams,
   QuickBooksItem,
@@ -12,16 +12,12 @@ import {
   getQuickBooksToolHeaders,
   optionalQuickBooksString,
   quickBooksReference,
+  quickBooksWritableItemType,
   requiredQuickBooksString,
   transformQuickBooksMutationResponse,
   validateQuickBooksOptionalNumber,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const QUICKBOOKS_ITEM_TYPES = {
-  service: 'Service',
-  non_inventory: 'NonInventory',
-} as const
 
 export const quickbooksCreateItemTool: ToolConfig<
   QuickBooksCreateItemParams,
@@ -110,8 +106,7 @@ export const quickbooksCreateItemTool: ToolConfig<
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
-      const type = QUICKBOOKS_ITEM_TYPES[params.itemType]
-      if (!type) throw new Error(`Unsupported writable QuickBooks item type: ${params.itemType}`)
+      const type = quickBooksWritableItemType(params.itemType)
       const purchaseDescription = optionalQuickBooksString(params.purchaseDescription)
       const purchaseCost = validateQuickBooksOptionalNumber(params.purchaseCost, 'purchaseCost')
       if (

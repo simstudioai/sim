@@ -1,6 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksCreateCustomerParams,
   QuickBooksCustomer,

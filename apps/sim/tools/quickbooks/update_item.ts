@@ -1,6 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksItem,
   QuickBooksMutationResponse,
@@ -14,6 +14,7 @@ import {
   optionalQuickBooksString,
   quickBooksActiveValue,
   quickBooksReference,
+  quickBooksWritableItemType,
   requiredQuickBooksString,
   transformQuickBooksMutationResponse,
   validateQuickBooksOptionalNumber,
@@ -52,6 +53,12 @@ export const quickbooksUpdateItemTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description: 'Current item sync token',
+    },
+    itemType: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Current item type: service or non_inventory',
     },
     name: {
       type: 'string',
@@ -120,6 +127,7 @@ export const quickbooksUpdateItemTool: ToolConfig<
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
+      quickBooksWritableItemType(params.itemType)
       const body = filterUndefined({
         Id: requiredQuickBooksString(params.itemId, 'itemId'),
         SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),

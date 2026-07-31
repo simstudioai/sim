@@ -198,6 +198,19 @@ describe('redactSensitiveValues', () => {
     expect(result).not.toContain('key123456')
   })
 
+  it.concurrent('should preserve workflow-state tokens in serialized JSON', () => {
+    const result = redactSensitiveValues(
+      '{"SyncToken":"3","nextPageToken":"page-2","accessToken":"secret","password":"don\'t leak"}'
+    )
+
+    expect(JSON.parse(result)).toEqual({
+      SyncToken: '3',
+      nextPageToken: 'page-2',
+      accessToken: REDACTED_MARKER,
+      password: REDACTED_MARKER,
+    })
+  })
+
   it.concurrent('should not modify safe strings', () => {
     const input = 'This is a normal string with no secrets'
     const result = redactSensitiveValues(input)

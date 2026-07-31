@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   fetchValidatedQuickBooksCompanyInfo,
@@ -7,7 +8,6 @@ import {
   getQuickBooksUserInfoUrl,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer'
 import { quickbooksCreateItemTool } from '@/tools/quickbooks/create_item'
 import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
@@ -368,6 +368,35 @@ describe('QuickBooks master-data reader', () => {
     expect(byIdResult.output.item).not.toHaveProperty('BankAccountNumber')
   })
 
+  it('removes vendor tax identifiers from list and by-ID output', async () => {
+    const vendor = {
+      Id: '3',
+      SyncToken: '1',
+      DisplayName: 'Sanitized Vendor',
+      TaxIdentifier: 'sensitive-tax-id',
+    }
+    const vendorParams: QuickBooksReadMasterDataParams = {
+      ...listParams,
+      recordType: 'vendor',
+    }
+
+    const listResult = await quickbooksReadMasterDataTool.transformResponse!(
+      Response.json({ QueryResponse: { Vendor: [vendor] } }),
+      vendorParams
+    )
+    expect(listResult.output.items?.[0]).toEqual({
+      Id: '3',
+      SyncToken: '1',
+      DisplayName: 'Sanitized Vendor',
+    })
+
+    const byIdResult = await quickbooksReadMasterDataTool.transformResponse!(
+      Response.json({ Vendor: vendor }),
+      { ...vendorParams, readMode: 'by_id', recordId: '3' }
+    )
+    expect(byIdResult.output.item).not.toHaveProperty('TaxIdentifier')
+  })
+
   it('rejects missing IDs, unknown types and unknown modes before a request', () => {
     const requestUrl = quickbooksReadMasterDataTool.request.url as (
       params: QuickBooksReadMasterDataParams
@@ -504,6 +533,28 @@ describe('QuickBooks customer and vendor mutations', () => {
     expect(() => parseQuickBooksAddress('{"city":123}', 'billingAddress')).toThrow(
       'must be a string'
     )
+    expect(() => parseQuickBooksAddress('{}', 'billingAddress')).toThrow('at least one')
+  })
+
+  it('removes vendor tax identifiers from mutation output', async () => {
+    const response = {
+      Vendor: {
+        Id: '21',
+        SyncToken: '0',
+        DisplayName: 'Sanitized Vendor',
+        TaxIdentifier: 'sensitive-tax-id',
+      },
+      time: 'test-time',
+    }
+
+    for (const tool of [quickbooksCreateVendorTool, quickbooksUpdateVendorTool]) {
+      const result = await tool.transformResponse!(Response.json(response))
+      expect(result.output.record).toEqual({
+        Id: '21',
+        SyncToken: '0',
+        DisplayName: 'Sanitized Vendor',
+      })
+    }
   })
 })
 
@@ -567,6 +618,7 @@ describe('QuickBooks item mutations', () => {
       ...authParams,
       itemId: '44',
       syncToken: '2',
+      itemType: 'service',
       activeStatus: 'unchanged',
       unitPrice: 15.75,
       expenseAccountId: '80',
@@ -578,7 +630,13 @@ describe('QuickBooks item mutations', () => {
       UnitPrice: 15.75,
       ExpenseAccountRef: { value: '80' },
     })
-    expect(quickbooksUpdateItemTool.params).not.toHaveProperty('itemType')
+    expect(quickbooksUpdateItemTool.params.itemType).toMatchObject({ required: true })
+    expect(() =>
+      quickbooksUpdateItemTool.request.body!({
+        ...params,
+        itemType: 'inventory' as QuickBooksUpdateItemParams['itemType'],
+      })
+    ).toThrow('Unsupported writable')
   })
 
   it('returns the native mutation record and convenient identifiers', async () => {
@@ -779,7 +837,7 @@ describe('QuickBooks tool and block boundaries', () => {
     })
     expect(subBlocks.itemType.condition).toEqual({
       field: 'operation',
-      value: 'quickbooks_create_item',
+      value: ['quickbooks_create_item', 'quickbooks_update_item'],
     })
   })
 })

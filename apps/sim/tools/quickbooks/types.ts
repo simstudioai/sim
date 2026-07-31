@@ -173,7 +173,6 @@ export interface QuickBooksVendor {
   Balance?: number
   CurrencyRef?: QuickBooksReference
   AcctNum?: string
-  TaxIdentifier?: string
   TermRef?: QuickBooksReference
   MetaData?: QuickBooksMetaData
   sparse?: boolean
@@ -290,7 +289,7 @@ export interface QuickBooksCreateItemParams extends QuickBooksAuthParams {
 }
 
 export interface QuickBooksUpdateItemParams
-  extends Omit<QuickBooksCreateItemParams, 'name' | 'itemType' | 'incomeAccountId'> {
+  extends Omit<QuickBooksCreateItemParams, 'name' | 'incomeAccountId'> {
   itemId: string
   syncToken: string
   name?: string

@@ -68,21 +68,11 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
     pattern: /\b(sk|pk|api|key)[_-][A-Za-z0-9\-._]{20,}\b/gi,
     replacement: REDACTED_MARKER,
   },
-  // JSON-style password fields: password: "value" or password: 'value'
-  {
-    pattern: /password['":\s]*['"][^'"]+['"]/gi,
-    replacement: `password: "${REDACTED_MARKER}"`,
-  },
-  // JSON-style token fields: token: "value" or token: 'value'
-  {
-    pattern: /token['":\s]*['"][^'"]+['"]/gi,
-    replacement: `token: "${REDACTED_MARKER}"`,
-  },
-  // JSON-style api_key fields: api_key: "value" or api-key: "value"
-  {
-    pattern: /api[_-]?key['":\s]*['"][^'"]+['"]/gi,
-    replacement: `api_key: "${REDACTED_MARKER}"`,
-  },
+]
+
+const STRING_FIELD_PATTERNS = [
+  /(^|[{,\s])(["']?)([A-Za-z0-9_-]+)\2(\s*:\s*)("(?:\\.|[^"\\])*")/gm,
+  /(^|[{,\s])(["']?)([A-Za-z0-9_-]+)\2(\s*:\s*)('(?:\\.|[^'\\])*')/gm,
 ]
 
 export function isSensitiveKey(key: string): boolean {
@@ -104,6 +94,13 @@ export function redactSensitiveValues(value: string): string {
   }
 
   let result = value
+  for (const pattern of STRING_FIELD_PATTERNS) {
+    result = result.replace(pattern, (match, prefix, keyQuote, key, separator, quotedValue) =>
+      isSensitiveKey(key)
+        ? `${prefix}${keyQuote}${key}${keyQuote}${separator}${quotedValue[0]}${REDACTED_MARKER}${quotedValue[0]}`
+        : match
+    )
+  }
   for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
     result = result.replace(pattern, replacement)
   }

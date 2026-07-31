@@ -1,6 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksMutationResponse,
   QuickBooksUpdateVendorParams,
@@ -16,6 +16,7 @@ import {
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
   requiredQuickBooksString,
+  sanitizeQuickBooksVendor,
   transformQuickBooksMutationResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -155,7 +156,11 @@ export const quickbooksUpdateVendorTool: ToolConfig<
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksVendor>(response, 'Vendor'),
+    transformQuickBooksMutationResponse<QuickBooksVendor>(
+      response,
+      'Vendor',
+      sanitizeQuickBooksVendor
+    ),
   outputs: {
     record: {
       type: 'json',
