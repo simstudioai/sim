@@ -5,12 +5,11 @@ import { getTableQuerySchema, updateTableContract } from '@/lib/api/contracts/ta
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
-import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  deleteTable,
   getTableById,
   moveTableToFolder,
   renameTable,
@@ -19,6 +18,7 @@ import {
   updateTableLocks,
 } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { performDeleteTable } from '@/lib/table/orchestration'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
@@ -268,14 +268,13 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      await deleteTable(tableId, requestId, authResult.userId)
-
-      captureServerEvent(
-        authResult.userId,
-        'table_deleted',
-        { table_id: tableId, workspace_id: table.workspaceId },
-        { groups: { workspace: table.workspaceId } }
-      )
+      const outcome = await performDeleteTable({ table, userId: authResult.userId, requestId })
+      if (!outcome.success) {
+        return NextResponse.json(
+          { error: outcome.error ?? 'Failed to delete table' },
+          { status: statusForOrchestrationError(outcome.errorCode) }
+        )
+      }
 
       return NextResponse.json({
         success: true,

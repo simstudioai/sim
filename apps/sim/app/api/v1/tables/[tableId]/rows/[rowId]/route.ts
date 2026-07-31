@@ -10,12 +10,14 @@ import {
   v1UpdateTableRowContract,
 } from '@/lib/api/contracts/v1/tables'
 import { parseRequest } from '@/lib/api/server'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { deleteRow, updateRow } from '@/lib/table'
+import { updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { performDeleteTableRow } from '@/lib/table/orchestration'
 import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -238,9 +240,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Route through the service (not a raw `db.delete`) so the delete lock is
-    // enforced — the raw path would return 200 on a locked table.
-    await deleteRow(result.table, rowId, requestId)
+    const outcome = await performDeleteTableRow({ table: result.table, rowId, requestId })
+    if (!outcome.success) {
+      return NextResponse.json(
+        { error: outcome.error ?? 'Failed to delete row' },
+        { status: statusForOrchestrationError(outcome.errorCode) }
+      )
+    }
 
     return NextResponse.json({
       success: true,

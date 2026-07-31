@@ -15,17 +15,19 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { buildIdByName, rowDataNameToId, updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
+import { performDeleteTableRow } from '@/lib/table/orchestration'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
+import { toApiRow, v2TableAccessError, v2TableLockError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableRowAPI')
 
@@ -214,22 +216,19 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    const [deletedRow] = await db
-      .delete(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, workspaceId)
-        )
-      )
-      .returning({ id: userTableRows.id })
-
-    if (!deletedRow) return v2Error('NOT_FOUND', 'Row not found')
+    const outcome = await performDeleteTableRow({ table: result.table, rowId, requestId })
+    if (!outcome.success) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to delete row')
+    }
 
     // v2 mirrors the bulk delete shape: always returns `deletedRowIds`.
-    return v2Data({ deletedCount: 1, deletedRowIds: [deletedRow.id] }, { rateLimit })
+    return v2Data({ deletedCount: 1, deletedRowIds: [rowId] }, { rateLimit })
   } catch (error) {
+    const lockError = v2TableLockError(error)
+    if (lockError) return lockError
+    if (error instanceof Error && error.message === 'Row not found') {
+      return v2Error('NOT_FOUND', 'Row not found')
+    }
     logger.error(`[${requestId}] Error deleting row`, {
       error: getErrorMessage(error, 'Unknown error'),
     })

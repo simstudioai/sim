@@ -11,10 +11,12 @@ import {
 } from '@/lib/api/contracts/tables'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { deleteRow, updateRow } from '@/lib/table'
+import { updateRow } from '@/lib/table'
+import { performDeleteTableRow } from '@/lib/table/orchestration'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import {
   accessError,
@@ -212,7 +214,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteRow(table, rowId, requestId)
+    const outcome = await performDeleteTableRow({ table, rowId, requestId })
+    if (!outcome.success) {
+      return NextResponse.json(
+        { error: outcome.error ?? 'Failed to delete row' },
+        { status: statusForOrchestrationError(outcome.errorCode) }
+      )
+    }
 
     return NextResponse.json({
       success: true,
