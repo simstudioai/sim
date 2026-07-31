@@ -602,6 +602,14 @@ async function mergeMarkdownIntoRoom(
   //     concurrent human edit from being silently lost; the per-process caller chain cannot see it.
   // A merge with neither key is never stale (legacy, unordered). Only a durable `version` is recorded,
   // so a streaming snapshot never advances the synced version — the final `edit_content` write does.
+  //
+  // Known, accepted limitation: two INDEPENDENT copilot streams editing the SAME file at once share one
+  // base version, so neither is stale relative to the other and their snapshots can interleave in the live
+  // doc. This is transient only — each stream's final durable write is version-ordered and reconciles the
+  // doc, so the steady state is deterministic (last durable wins) and the durable file is never corrupted.
+  // Ordering two independent snapshot streams would need a shared sequence they don't have; the fully
+  // robust form (a per-file streaming lease, or embedding the version in each stream entry) is a scoped
+  // follow-up, not a durability fix owed here.
   const isStale = (current: number): boolean => {
     if (version !== undefined) return version <= current
     if (baseVersion !== undefined) return current > baseVersion
