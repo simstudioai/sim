@@ -227,22 +227,6 @@ export async function registerLargeValueOwner(
   return true
 }
 
-export async function replaceLargeValueReferencesWithClient(
-  client: LargeValueMetadataClient,
-  scope: LargeValueReferenceScope,
-  value: unknown
-): Promise<void> {
-  if (!scope.workspaceId || !scope.executionId) {
-    return
-  }
-
-  await replaceLargeValueReferenceKeysWithClient(
-    client,
-    scope,
-    collectLargeValueReferenceKeys(value, scope.workspaceId)
-  )
-}
-
 export async function replaceLargeValueReferenceKeysWithClient(
   client: LargeValueMetadataClient,
   scope: LargeValueReferenceScope,
@@ -357,18 +341,6 @@ export async function addLargeValueReference(
       source,
     })
     .onConflictDoNothing()
-}
-
-export async function replaceLargeValueReferences(
-  scope: LargeValueReferenceScope,
-  value: unknown
-): Promise<void> {
-  const referenceKeys = scope.workspaceId
-    ? collectLargeValueReferenceKeys(value, scope.workspaceId)
-    : []
-  await dbFor('exec').transaction(async (tx) => {
-    await replaceLargeValueReferenceKeysWithClient(tx, scope, referenceKeys)
-  })
 }
 
 export async function markLargeValuesDeleted(
