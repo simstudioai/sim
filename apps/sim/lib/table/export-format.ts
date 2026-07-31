@@ -4,6 +4,7 @@
  * byte-identical files.
  */
 
+import { columnTypeOf } from '@/lib/table/column-types'
 import { selectValueToNames } from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
 
@@ -43,10 +44,10 @@ export function formatCsvValue(value: unknown): string {
  * (comma-joined for multi) so the file shows the enum label, not the id.
  */
 export function formatCsvCell(column: ColumnDefinition, value: unknown): string {
-  if (column.type === 'select') {
-    const resolved = resolveSelectExportValue(column, value)
-    const text = Array.isArray(resolved) ? resolved.join(', ') : (resolved ?? '')
-    return neutralizeCsvFormula(text)
+  // Every other type writes its stored value verbatim so the file re-imports
+  // byte-identically.
+  if (columnTypeOf(column).storesOpaqueIds) {
+    return neutralizeCsvFormula(columnTypeOf(column).formatForDisplay(value, column))
   }
   return formatCsvValue(value)
 }

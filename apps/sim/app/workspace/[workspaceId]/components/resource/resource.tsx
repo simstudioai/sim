@@ -21,6 +21,7 @@ import {
   cn,
   Loader,
 } from '@sim/emcn'
+import { Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
@@ -58,6 +59,16 @@ export interface ResourceCell {
    * resting cell exactly (same gap, weight, icon size).
    */
   editing?: ResourceCellEditing
+  /**
+   * Marks the row as pinned. Renders a small non-interactive glyph after the label — pinned
+   * rows sort to the top of every list, and without an indicator that ordering reads as
+   * arbitrary. Pinning itself is an action on the row's context menu, deliberately not a
+   * hover button here.
+   *
+   * Honoured only on the plain label cell: a cell rendering custom `content` owns its own
+   * layout, and the rename field replaces the label entirely while it is open.
+   */
+  pinned?: boolean
 }
 
 export interface ResourceRow {
@@ -488,9 +499,16 @@ interface CellContentProps {
   label: string
   content?: ReactNode
   editing?: ResourceCellEditing
+  pinned?: boolean
 }
 
-const CellContent = memo(function CellContent({ icon, label, content, editing }: CellContentProps) {
+const CellContent = memo(function CellContent({
+  icon,
+  label,
+  content,
+  editing,
+  pinned,
+}: CellContentProps) {
   if (editing) {
     return (
       <span className={cn('flex min-w-0 items-center', chipContentGap)}>
@@ -510,6 +528,13 @@ const CellContent = memo(function CellContent({ icon, label, content, editing }:
     <span className={cn('flex min-w-0 items-center', chipContentGap)}>
       {icon && <span className={cellIconNodeClass}>{icon}</span>}
       <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
+      {pinned && (
+        <Pin
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+          role='img'
+          aria-label='Pinned'
+        />
+      )}
     </span>
   )
 })
@@ -681,6 +706,7 @@ const DataRow = memo(function DataRow({
               label={cell?.label || EMPTY_CELL_PLACEHOLDER}
               content={cell?.content}
               editing={cell?.editing}
+              pinned={cell?.pinned}
             />
           </div>
         )

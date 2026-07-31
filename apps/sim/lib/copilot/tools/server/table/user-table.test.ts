@@ -141,6 +141,7 @@ import {
   normalizeSelectOptionsInput,
   userTableServerTool,
 } from '@/lib/copilot/tools/server/table/user-table'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -417,6 +418,37 @@ describe('userTableServerTool.import_file', () => {
       mode: 'replace',
       deleteSourceFile: false,
     })
+  })
+
+  it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'import_file',
+        args: { tableId: 'tbl_1', fileId: 'uploads/people.csv' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/materialize_file/)
+    expect(result.message).not.toMatch(/glob\("files/)
+  })
+
+  it('still tells the agent to glob files\\/ for a genuine workspace-file miss', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'import_file',
+        args: { tableId: 'tbl_1', fileId: 'files/typo.csv' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/File not found: "files\/typo\.csv"/)
   })
 
   it('rejects a background import while another job holds the table slot', async () => {
@@ -752,7 +784,7 @@ describe('userTableServerTool.query_rows', () => {
     })
   })
 
-  it('clamps an over-large query limit to MAX_QUERY_LIMIT instead of rejecting', async () => {
+  it('passes an explicit limit through unchanged (no row cap)', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -760,20 +792,75 @@ describe('userTableServerTool.query_rows', () => {
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
-    expect(options.limit).toBe(1000)
+    expect(options.limit).toBe(100000)
   })
 
-  it('queries without execution metadata and passes limit/offset through', async () => {
+  it('omits the limit so queryRows returns every matching row', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, offset: 10 } },
+      { operation: 'query_rows', args: { tableId: 'tbl_1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.limit).toBeUndefined()
+  })
+
+  it('decodes an opaque cursor into after/offset and skips the count', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row_9', orderKey: 'a9' },
+      keysetValid: true,
+      nextOffset: 20,
+    })
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, cursor } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
     expect(options.withExecutions).toBe(false)
-    expect(options.offset).toBe(10)
-    expect(result.data?.nextCursor).toBeUndefined()
+    expect(options.after).toEqual({ orderKey: 'a9', id: 'row_9' })
+    // A cursor page never re-counts.
+    expect(options.includeTotal).toBe(false)
+  })
+
+  it('surfaces the opaque nextCursor (not an offset) in the "more available" message', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [queryRow(1), queryRow(2)],
+      rowCount: 2,
+      totalCount: 10,
+      limit: 2,
+      offset: 0,
+      nextCursor: 'CURSOR_TOKEN_ABC',
+    })
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2 } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.message).toContain('more available')
+    expect(result.message).toContain('cursor=CURSOR_TOKEN_ABC')
+    expect(result.message).not.toContain('offset=')
+  })
+
+  it('rejects a keyset cursor combined with a custom sort', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row_9', orderKey: 'a9' },
+      keysetValid: true,
+      nextOffset: 20,
+    })
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', cursor, order: [{ field: 'name', direction: 'desc' }] },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/not valid for a sorted query/i)
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 })
 
@@ -804,7 +891,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -825,7 +916,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
 
   it('deletes inline when the unbounded match count is within the cap', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -843,7 +937,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -863,7 +961,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     })
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     await flushDetached()
@@ -898,7 +999,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     mockMarkTableJobRunning.mockResolvedValueOnce(false)
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -912,7 +1016,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -943,7 +1051,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -963,7 +1076,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -984,7 +1101,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1020,7 +1141,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { email: 'x' }, data: { email: 'y' } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'email', op: 'eq', value: 'x' }] },
+          data: { email: 'y' },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1042,7 +1167,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1056,7 +1185,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )

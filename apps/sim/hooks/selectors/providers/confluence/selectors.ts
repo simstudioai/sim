@@ -49,11 +49,12 @@ export const confluenceSelectors = {
         nextCursor: data.nextCursor,
       }
     },
+    /** The server filters by key and returns nothing for a key that does not exist. */
+    resolvesUnknownIds: true,
     /**
-     * Resolves a single space label. Hits only the first page — the dropdown's
-     * `fetchPage` stream populates the options cache for spaces beyond page 1,
-     * and `useSelectorOptionMap` merges them in. Walking all pages here would
-     * double API load since the stream is already running in parallel.
+     * Resolves a single space by key via the server's exact-key lookup, independent
+     * of how far the page drain has run — a space sorting beyond page 1 would
+     * otherwise never resolve, which on a large site is most of them.
      */
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
@@ -64,6 +65,7 @@ export const confluenceSelectors = {
           credential: credentialId,
           workflowId: context.workflowId,
           domain,
+          spaceKey: detailId,
         },
         signal,
       })
@@ -87,6 +89,16 @@ export const confluenceSelectors = {
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
+    /**
+     * Deliberately a single request, not a drain. `/pages` is cursor-paginated and
+     * this list is therefore capped at `limit`, which is a real gap — but draining it
+     * is worse: with no search term `title` is unset, so the drain would walk the
+     * entire site (up to `MAX_AUTO_DRAIN_PAGES` requests) every time the dropdown
+     * opens, and the route does not forward an abort signal upstream, so superseded
+     * drains still bill the tenant's rate limit. Fixing this properly needs
+     * server-side search whose `title` semantics have been confirmed against a live
+     * instance, not brute-force loading.
+     */
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')

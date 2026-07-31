@@ -13,6 +13,8 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
+import type { ColumnType } from '@/lib/table/column-types'
+import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
@@ -193,8 +195,18 @@ export async function detectCsvDelimiter(
   return best?.delimiter ?? fallback
 }
 
-/** Narrower type than `COLUMN_TYPES` used internally for coercion. */
-export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
+/**
+ * Column types the CSV path coerces. Derived from the registry rather than
+ * restated, so a new type is covered automatically.
+ */
+export type CsvColumnType = ColumnType
+
+/**
+ * The subset {@link inferColumnType} can return. Every other type either needs
+ * configuration inference cannot supply (`select`'s options, `currency`'s
+ * code) or would swallow ordinary text (`json`).
+ */
+type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -275,9 +287,11 @@ export async function parseCsvBuffer(
 /**
  * Infers a column type from a sample of non-empty values. Order matters: we
  * prefer narrower types (number > boolean > ISO date) and fall back to string.
- * JSON is never inferred automatically.
+ * JSON and currency are never inferred automatically — currency because the
+ * column would also have to guess an ISO code from a symbol, and guessing wrong
+ * mislabels every amount in the column.
  */
-export function inferColumnType(values: unknown[]): Exclude<CsvColumnType, 'json'> {
+export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
@@ -360,11 +374,18 @@ export function inferSchemaFromCsv(
  * empty inputs or values that cannot be parsed (numbers/booleans). Dates fall
  * back to the original string when unparseable so that schema validation can
  * reject it with context rather than silently inserting `null`.
+ *
+ * Deliberately NOT routed through the column-type registry's `coerce`, despite
+ * covering the same types. The registry's contract is "coerced or rejected",
+ * which the write path turns into `null`; an import instead wants an
+ * unparseable date or JSON blob to survive as its raw string so the row-level
+ * validation error names the offending value. Unifying the two would silently
+ * swap a descriptive import error for a blanked cell.
  */
 export function coerceValue(
   value: unknown,
   colType: CsvColumnType,
-  options?: NormalizeDateCellOptions
+  options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
@@ -372,6 +393,12 @@ export function coerceValue(
       const n = Number(value)
       return Number.isNaN(n) ? null : n
     }
+    // Importing into an existing currency column: the file carries the
+    // formatted amount (`$1,234.56`) but the cell stores a bare number. The
+    // column's currency is forwarded because it decides how a lone separator
+    // reads — a three-decimal currency's `0,500` is a half, not five hundred.
+    case 'currency':
+      return parseCurrencyInput(value, options?.currencyCode)
     case 'boolean': {
       const s = String(value).toLowerCase()
       if (s === 'true') return true
@@ -565,7 +592,10 @@ export function coerceRowsForTable(
       const col = colByName.get(colName)
       if (!col) continue
       const colType = (col.type as CsvColumnType) ?? 'string'
-      coerced[getColumnId(col)] = coerceValue(value, colType, options) as RowData[string]
+      coerced[getColumnId(col)] = coerceValue(value, colType, {
+        ...options,
+        ...(col.currencyCode !== undefined ? { currencyCode: col.currencyCode } : {}),
+      }) as RowData[string]
     }
     return coerced
   })

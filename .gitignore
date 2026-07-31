@@ -24,6 +24,8 @@ package-lock.json
 /apps/**/out/
 /apps/**/.next/
 /apps/**/build
+# apps/desktop/build holds electron-builder INPUTS (icon, entitlements), not outputs
+!/apps/desktop/build
 
 # production
 /build
@@ -100,3 +102,14 @@ i18n.cache
 # Python (apps/pii tests/tooling)
 __pycache__/
 .pytest_cache/
+
+# Local file-upload spill directory. `UPLOAD_DIR_SERVER` is
+# `join(process.cwd(), 'uploads')`, so it follows the cwd rather than a fixed
+# root: under `turbo run test` the cwd is apps/sim and `apps/sim/.gitignore`'s
+# `/uploads` catches it, but running vitest from the repo root drops ~40
+# `uploads/execution/**/large-value-*.json` files here instead.
+#
+# Anchored deliberately. An unanchored `uploads/` would also match
+# `apps/sim/lib/uploads/` — 61 files of tracked source — and silently ignore
+# anything added there later.
+/uploads

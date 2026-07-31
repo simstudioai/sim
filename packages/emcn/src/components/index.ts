@@ -168,6 +168,13 @@ export { Skeleton } from './skeleton/skeleton'
 export { Slider } from './slider/slider'
 export { Switch } from './switch/switch'
 export {
+  isTabTitleTruncated,
+  TabStrip,
+  type TabStripItem,
+  type TabStripProps,
+  tabDropIndex,
+} from './tab-strip/tab-strip'
+export {
   Table,
   TableBody,
   TableCaption,

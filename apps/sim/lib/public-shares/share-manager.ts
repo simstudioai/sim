@@ -82,6 +82,32 @@ export async function getSharesForResources(
   return result
 }
 
+/**
+ * All shares of a type within a workspace, keyed by `resourceId`.
+ *
+ * Preferred over {@link getSharesForResources} when enriching a workspace-wide
+ * listing: an id-list `IN` clause grows with the file count, while this is a
+ * single indexed lookup on `workspaceId`. Returning a superset of the listed
+ * resources is harmless — callers read it by `get(id)`.
+ */
+export async function getWorkspaceShares(
+  resourceType: ShareResourceType,
+  workspaceId: string
+): Promise<Map<string, ShareRecord>> {
+  const rows = await db
+    .select()
+    .from(publicShare)
+    .where(
+      and(eq(publicShare.resourceType, resourceType), eq(publicShare.workspaceId, workspaceId))
+    )
+
+  const result = new Map<string, ShareRecord>()
+  for (const row of rows) {
+    result.set(row.resourceId, mapShareRecord(row))
+  }
+  return result
+}
+
 interface UpsertFileShareInput {
   workspaceId: string
   fileId: string

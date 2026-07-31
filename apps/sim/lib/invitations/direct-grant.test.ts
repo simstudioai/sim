@@ -1,20 +1,35 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, auditMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { invitation, member } from '@sim/db/schema'
+import {
+  auditMock,
+  auditMockFns,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAcquireInvitationMutationLocks,
+  mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
+  mockGetEffectiveWorkspacePermission,
+  mockGetWorkspaceWithOwner,
+  mockRevokeInvitationWorkspaceGrantTx,
   mockSyncWorkspaceEnvCredentials,
-  mockCancelPendingInvitation,
   mockSendWorkspaceAddedEmail,
   mockCaptureServerEvent,
   mockWorkspaceMemberAdded,
 } = vi.hoisted(() => ({
+  mockAcquireInvitationMutationLocks: vi.fn(),
+  mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
+  mockGetEffectiveWorkspacePermission: vi.fn(),
+  mockGetWorkspaceWithOwner: vi.fn(),
+  mockRevokeInvitationWorkspaceGrantTx: vi.fn(),
   mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockCancelPendingInvitation: vi.fn(),
   mockSendWorkspaceAddedEmail: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
   mockWorkspaceMemberAdded: vi.fn(),
@@ -23,7 +38,16 @@ const {
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
   getUserOrganization: mockGetUserOrganization,
+}))
+
+vi.mock('@/lib/invitations/locks', () => ({
+  acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
+}))
+
+vi.mock('@/lib/invitations/core', () => ({
+  revokeInvitationWorkspaceGrantTx: mockRevokeInvitationWorkspaceGrantTx,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -35,37 +59,22 @@ vi.mock('@/lib/credentials/environment', () => ({
 }))
 
 vi.mock('@/lib/invitations/send', () => ({
-  cancelPendingInvitation: mockCancelPendingInvitation,
   sendWorkspaceAddedEmail: mockSendWorkspaceAddedEmail,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
+  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))
 
-import { grantWorkspaceAccessDirectly, isSameOrgMember } from '@/lib/invitations/direct-grant'
-
-/**
- * Drives `db.select().from().where()` results in call order. Both an awaited
- * `where()` and a chained `.limit()` resolve to the same per-call value.
- */
-function queueWhereResponses(responses: unknown[][]) {
-  const queue = [...responses]
-  dbChainMockFns.where.mockImplementation(() => {
-    const result = queue.shift() ?? []
-    const thenable = Promise.resolve(result) as Promise<unknown[]> & {
-      limit: ReturnType<typeof vi.fn>
-      orderBy: ReturnType<typeof vi.fn>
-      returning: ReturnType<typeof vi.fn>
-      groupBy: ReturnType<typeof vi.fn>
-    }
-    thenable.limit = vi.fn(() => Promise.resolve(result))
-    thenable.orderBy = vi.fn(() => Promise.resolve(result))
-    thenable.returning = vi.fn(() => Promise.resolve(result))
-    thenable.groupBy = vi.fn(() => Promise.resolve(result))
-    return thenable as ReturnType<typeof dbChainMockFns.where>
-  })
-}
+import {
+  DirectGrantContextChangedError,
+  grantWorkspaceAccessDirectly,
+} from '@/lib/invitations/direct-grant'
 
 const baseInput = {
   userId: 'user-2',
@@ -83,6 +92,25 @@ describe('grantWorkspaceAccessDirectly', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockAcquireInvitationMutationLocks.mockResolvedValue(undefined)
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+    })
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'ws-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'user-1',
+    })
+    mockGetEffectiveWorkspacePermission.mockResolvedValue('admin')
+    mockRevokeInvitationWorkspaceGrantTx.mockResolvedValue({
+      revoked: true,
+      invitationCancelled: false,
+    })
     mockSendWorkspaceAddedEmail.mockResolvedValue({ success: true })
     // Insert path reports the new row via `.returning()`.
     dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-new' }])
@@ -103,6 +131,14 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'member@example.com', workspaceId: 'ws-1' })
     )
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
+      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.from).toHaveBeenCalledWith(member)
   })
 
   it('reports unchanged (no audit/email) when a concurrent insert wins the race', async () => {
@@ -167,41 +203,45 @@ describe('grantWorkspaceAccessDirectly', () => {
   })
 
   it('supersedes lingering pending workspace invitations for the same email', async () => {
-    queueWhereResponses([
-      [], // existing permission lookup (transaction)
-      [{ invitationId: 'old-inv' }], // supersede lookup
-      [], // env lookup
-    ])
+    queueTableRows(invitation, [{ invitationId: 'old-inv' }])
+    queueTableRows(invitation, [{ invitationId: 'old-inv' }])
 
     await grantWorkspaceAccessDirectly({ ...baseInput })
 
-    expect(mockCancelPendingInvitation).toHaveBeenCalledWith('old-inv')
-  })
-})
-
-describe('isSameOrgMember', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
+    expect(mockRevokeInvitationWorkspaceGrantTx).toHaveBeenCalledWith(expect.anything(), {
+      invitationId: 'old-inv',
+      workspaceId: 'ws-1',
+    })
   })
 
-  it('returns false when the workspace has no organization', async () => {
-    expect(await isSameOrgMember('user-2', null)).toBe(false)
-    expect(mockGetUserOrganization).not.toHaveBeenCalled()
-  })
+  it('locks before re-reading scope and aborts when the workspace moved', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
+      id: 'ws-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      organizationId: 'org-2',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'user-3',
+    })
 
-  it('returns false when the user belongs to no organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce(null)
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(false)
-  })
+    await expect(grantWorkspaceAccessDirectly({ ...baseInput })).rejects.toBeInstanceOf(
+      DirectGrantContextChangedError
+    )
 
-  it('returns true when the user belongs to the workspace organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(true)
-  })
-
-  it('returns false when the user belongs to a different organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(false)
+    expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      invitationIds: [],
+      workspaceIds: ['ws-1'],
+    })
+    expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'user-2',
+      organizationIds: ['org-1'],
+    })
+    expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetWorkspaceWithOwner.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

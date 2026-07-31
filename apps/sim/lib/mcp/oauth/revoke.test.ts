@@ -30,12 +30,18 @@ const {
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
-  isPrivateOrReservedIP: (ip: string) =>
-    ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
   createSsrfGuardedFetchWithDispatcher: vi.fn(() => ({
     fetch: mockUndiciFetch,
     dispatcher: { destroy: vi.fn(() => Promise.resolve()) },
   })),
+}))
+/**
+ * Stubbed so the suite's `203.0.113.10` reads as an ordinary public address.
+ * The real classifier treats TEST-NET-3 as reserved, which would route every
+ * "public IP" case down the pinned-private branch instead.
+ */
+vi.mock('@sim/security/ssrf', () => ({
+  isPrivateIp: (ip: string) => ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpServerSsrf: mockValidateMcpServerSsrf,

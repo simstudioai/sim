@@ -424,6 +424,7 @@ const OUTCOME_NORMALIZATION: Record<string, PersistedToolState> = {
   interrupted: 'interrupted',
   pending: 'pending',
   executing: 'executing',
+  awaiting_approval: 'awaiting_approval',
 }
 
 function normalizeToolState(state: string | undefined): PersistedToolState {

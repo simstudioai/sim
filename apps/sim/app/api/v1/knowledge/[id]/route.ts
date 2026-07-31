@@ -13,7 +13,7 @@ import {
   handleError,
   resolveKnowledgeBase,
 } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest } from '@/app/api/v1/middleware'
+import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,7 +29,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1GetKnowledgeBaseContract, request, context)
+    const parsed = await parseRequest(v1GetKnowledgeBaseContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
@@ -54,7 +56,9 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1UpdateKnowledgeBaseContract, request, context)
+    const parsed = await parseRequest(v1UpdateKnowledgeBaseContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
@@ -106,7 +110,9 @@ export const DELETE = withRouteHandler(
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const parsed = await parseRequest(v1DeleteKnowledgeBaseContract, request, context)
+      const parsed = await parseRequest(v1DeleteKnowledgeBaseContract, request, context, {
+        validationErrorResponse: v1ValidationErrorResponse,
+      })
       if (!parsed.success) return parsed.response
 
       const { id } = parsed.data.params

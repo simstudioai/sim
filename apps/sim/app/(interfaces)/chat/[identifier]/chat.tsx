@@ -8,6 +8,7 @@ import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import {
   ChatErrorState,
   ChatHeader,
@@ -440,7 +441,8 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   return (
-    <div className='light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='light desktop-title-bar-page fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+      <DesktopTitleBarLane />
       {/* Header component */}
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 

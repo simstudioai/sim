@@ -96,6 +96,40 @@ export function requiredNumber(
   return value
 }
 
+export function nullableNumber(
+  record: Record<string, unknown>,
+  key: string,
+  context: string
+): number | null {
+  const value = record[key]
+  if (value === null) return null
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+    throw new Error(`${context}.${key} must be a safe integer or null`)
+  }
+  return value
+}
+
+export function requiredBoolean(
+  record: Record<string, unknown>,
+  key: string,
+  context: string
+): boolean {
+  const value = record[key]
+  if (typeof value !== 'boolean') throw new Error(`${context}.${key} must be a boolean`)
+  return value
+}
+
+export function nullableBoolean(
+  record: Record<string, unknown>,
+  key: string,
+  context: string
+): boolean | null {
+  const value = record[key]
+  if (value === null) return null
+  if (typeof value !== 'boolean') throw new Error(`${context}.${key} must be a boolean or null`)
+  return value
+}
+
 export function requiredRecord(
   record: Record<string, unknown>,
   key: string,

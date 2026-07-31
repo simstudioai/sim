@@ -335,6 +335,10 @@ describe('getCanonicalScopesForProvider', () => {
 
     expect(outlookScopes.length).toBeGreaterThan(0)
     expect(outlookScopes).toContain('Mail.ReadWrite')
+    expect(outlookScopes).toContain('Calendars.ReadWrite')
+    // .Shared is deliberately absent: unconfirmed for personal MSA, and this provider
+    // serves personal accounts whose mail access would break if consent failed.
+    expect(outlookScopes).not.toContain('Calendars.ReadWrite.Shared')
 
     const excelScopes = getCanonicalScopesForProvider('microsoft-excel')
 
@@ -618,6 +622,8 @@ describe('getScopesForService', () => {
 
     expect(scopes.length).toBeGreaterThan(0)
     expect(scopes).toContain('Mail.ReadWrite')
+    expect(scopes).toContain('Calendars.ReadWrite')
+    expect(scopes).not.toContain('Calendars.ReadWrite.Shared')
   })
 
   it.concurrent('should return empty array for empty string', () => {

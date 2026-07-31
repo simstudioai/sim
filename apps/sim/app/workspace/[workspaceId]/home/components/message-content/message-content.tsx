@@ -198,6 +198,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
     params: tc.params,
     result: tc.result,
     streamingArgs: tc.streamingArgs,
+    startedAt: tc.startedAtMs,
   }
 }
 

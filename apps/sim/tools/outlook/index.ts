@@ -1,3 +1,9 @@
+import { outlookCalendarCreateEventTool } from '@/tools/outlook/calendar_create_event'
+import { outlookCalendarDeleteEventTool } from '@/tools/outlook/calendar_delete_event'
+import { outlookCalendarGetEventTool } from '@/tools/outlook/calendar_get_event'
+import { outlookCalendarListEventsTool } from '@/tools/outlook/calendar_list_events'
+import { outlookCalendarRespondTool } from '@/tools/outlook/calendar_respond'
+import { outlookCalendarUpdateEventTool } from '@/tools/outlook/calendar_update_event'
 import { outlookCopyTool } from '@/tools/outlook/copy'
 import { outlookCreateFolderTool } from '@/tools/outlook/create_folder'
 import { outlookDeleteTool } from '@/tools/outlook/delete'
@@ -17,6 +23,12 @@ import { outlookSendTool } from '@/tools/outlook/send'
 import { outlookUpdateMessageTool } from '@/tools/outlook/update_message'
 
 export {
+  outlookCalendarCreateEventTool,
+  outlookCalendarDeleteEventTool,
+  outlookCalendarGetEventTool,
+  outlookCalendarListEventsTool,
+  outlookCalendarRespondTool,
+  outlookCalendarUpdateEventTool,
   outlookCopyTool,
   outlookCreateFolderTool,
   outlookDeleteTool,

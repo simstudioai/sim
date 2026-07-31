@@ -29,6 +29,8 @@ export interface QueuedMessage {
 
 export const ToolCallStatus = {
   executing: 'executing',
+  /** Held for the user's Allow / Always allow / Skip decision; nothing has run yet. */
+  awaiting_approval: 'awaiting_approval',
   success: 'success',
   error: 'error',
   cancelled: 'cancelled',
@@ -66,6 +68,8 @@ export interface ToolCallData {
   params?: Record<string, unknown>
   result?: ToolCallResult
   streamingArgs?: string
+  /** When execution started, for rows whose label changes as it runs. */
+  startedAt?: number
 }
 
 export interface ToolCallInfo {
@@ -79,6 +83,11 @@ export interface ToolCallInfo {
   calledBy?: string
   result?: ToolCallResult
   streamingArgs?: string
+  /**
+   * Wall-clock the call opened. Carried separately from the block `timestamp`,
+   * which falls back to a wire seq and so cannot be read as a clock.
+   */
+  startedAtMs?: number
 }
 
 export interface OptionItem {
@@ -170,4 +179,5 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   job: 'Job Agent',
   file: 'File Agent',
   media: 'Media Agent',
+  browser: 'Browser Agent',
 } as const

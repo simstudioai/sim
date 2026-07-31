@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const v1FileParamsSchema = z.object({
@@ -6,11 +7,11 @@ export const v1FileParamsSchema = z.object({
 })
 
 export const v1WorkspaceIdQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
+  workspaceId: requiredFieldSchema('workspaceId query parameter is required'),
 })
 
 export const v1UploadFileFormFieldsSchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId form field is required'),
+  workspaceId: requiredFieldSchema('workspaceId form field is required'),
 })
 
 export type V1FileParams = z.output<typeof v1FileParamsSchema>

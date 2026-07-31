@@ -12,7 +12,11 @@ import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
-import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
+import {
+  DYNAMIC_MODEL_PROVIDERS,
+  PROVIDER_DEFINITIONS,
+  SIM_AUTO_MODEL_ID,
+} from '@/providers/models'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
 
 /** The service-account alternative to OAuth for a service, when it offers one. */
@@ -499,6 +503,17 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
   const dynamicProviders = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
 
   const models: StaticModelOption[] = []
+
+  // Hosted-only automatic model. Deliberately not `recommended` and given no
+  // prompt guidance (limited-visibility release): the build agent can write it
+  // when a user explicitly asks for the auto model, but is never steered to it.
+  if (isHosted) {
+    models.push({
+      id: SIM_AUTO_MODEL_ID,
+      provider: 'sim',
+      hosted: true,
+    })
+  }
 
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue

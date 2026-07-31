@@ -262,6 +262,29 @@ export interface SubBlockConfig {
   canonicalParamId?: string
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
+  /**
+   * Marks "nothing selected" as a real choice, so a dynamic-option control does
+   * not pre-fill itself with the first option it fetches. Without it a combobox
+   * silently writes and persists a value the user never picked.
+   */
+  emptyIsValid?: boolean
+  /**
+   * Pins a "create a new one" row above the options of a picker, so authoring a
+   * resource never means leaving the workflow for Settings.
+   *
+   * Names the resource rather than carrying a component: block configs are read
+   * by the serializer and the executor, which must not pull in React. The picker
+   * owns the modal each name maps to.
+   */
+  createAction?: 'sandbox'
+  /**
+   * Restricts where a subblock renders. `tool-input` means it configures how the
+   * block behaves *as an agent tool* and has no meaning on the canvas, so the
+   * canvas editor skips it while the agent's tool-input config still shows it.
+   *
+   * Generic on purpose: shared code branches on this flag, never on a block type.
+   */
+  context?: 'tool-input'
   required?:
     | boolean
     | {
@@ -314,7 +337,8 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
-  showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
+  hideDividerBefore?: boolean // Visually group this field with the preceding visible subblock
+  showWhenEnvSet?: string // Show this subblock only when a named NEXT_PUBLIC_ env var is truthy; comma-separated means any of them
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
@@ -413,6 +437,15 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  /**
+   * Dropdown-specific: render option labels verbatim instead of lowercasing them.
+   *
+   * The editor lowercases dropdown labels as a typographic convention, which
+   * suits authored operation names ("Send Message"). It corrupts labels that are
+   * case-sensitive identifiers the user must reproduce elsewhere — a workspace
+   * secret shown as `stripe_key` cannot be referenced as `{{stripe_key}}`.
+   */
+  preserveLabelCase?: boolean
   // Combobox specific: Enable search input in dropdown
   searchable?: boolean
   /** Dropdown-specific: include static options as Cmd K search entries that preset this subblock. */

@@ -988,6 +988,71 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
+  it("should forward a tool's stripAuthOnRedirect to secureFetchWithPinnedIP", async () => {
+    // Tools whose endpoint redirects to a signed third-party URL (GitHub's
+    // Actions log download) must not have their API credential replayed to the
+    // redirect target. This fetch path follows redirects itself rather than
+    // through the fetch spec, so nothing strips the header without the flag.
+    const mockTool = {
+      id: 'test_redirecting_download',
+      name: 'Test Redirecting Download Tool',
+      description: 'A test tool whose endpoint redirects to another origin',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/download',
+        method: 'GET',
+        headers: () => ({ Authorization: 'Bearer secret-token' }),
+        stripAuthOnRedirect: true,
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_redirecting_download = mockTool
+
+    await executeTool('test_redirecting_download', {})
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://api.example.com/download',
+      '93.184.216.34',
+      expect.objectContaining({ stripAuthOnRedirect: true })
+    )
+
+    Reflect.deleteProperty(tools, 'test_redirecting_download')
+    Object.assign(tools, originalTools)
+  })
+
+  it('should leave stripAuthOnRedirect unset for tools that do not opt in', async () => {
+    const mockTool = {
+      id: 'test_plain_external',
+      name: 'Test Plain External Tool',
+      description: 'A test tool with no redirect handling',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/plain',
+        method: 'GET',
+        headers: () => ({ Authorization: 'Bearer secret-token' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_plain_external = mockTool
+
+    await executeTool('test_plain_external', {})
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://api.example.com/plain',
+      '93.184.216.34',
+      expect.objectContaining({ stripAuthOnRedirect: undefined })
+    )
+
+    Reflect.deleteProperty(tools, 'test_plain_external')
+    Object.assign(tools, originalTools)
+  })
+
   it('should throw when the proxyUrl param fails validation', async () => {
     inputValidationMockFns.mockValidateAndPinProxyUrl.mockResolvedValue({
       isValid: false,

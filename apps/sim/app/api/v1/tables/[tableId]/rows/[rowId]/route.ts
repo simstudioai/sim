@@ -9,7 +9,7 @@ import {
   v1GetTableRowContract,
   v1UpdateTableRowContract,
 } from '@/lib/api/contracts/v1/tables'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
@@ -22,6 +22,8 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
   resolveWorkspaceRequestActor,
+  v1ValidationErrorResponse,
+  v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowAPI')
@@ -116,7 +118,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1UpdateTableRowContract, request, context)
+    const parsed = await parseRequest(v1UpdateTableRowContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
@@ -181,7 +185,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
-    const validationResponse = validationErrorResponseFromError(error)
+    const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
     const errorMessage = toError(error).message

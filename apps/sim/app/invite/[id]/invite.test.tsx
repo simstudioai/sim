@@ -46,13 +46,48 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams,
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({
-    cancelQueries: mockCancelQueries,
-    invalidateQueries: mockInvalidateQueries,
-    setQueryData: mockSetQueryData,
-  }),
-}))
+vi.mock('@tanstack/react-query', async () => {
+  const React = await import('react')
+  return {
+    useQueryClient: () => ({
+      cancelQueries: mockCancelQueries,
+      invalidateQueries: mockInvalidateQueries,
+      setQueryData: mockSetQueryData,
+    }),
+    /**
+     * Minimal useQuery stand-in: runs the queryFn once when enabled and
+     * exposes { data, error, isPending } — enough for the invitation fetch.
+     */
+    useQuery: (options: {
+      queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
+      enabled?: boolean
+    }) => {
+      const [state, setState] = React.useState<{
+        data: unknown
+        error: unknown
+        isPending: boolean
+      }>({ data: undefined, error: null, isPending: true })
+      const enabled = options.enabled !== false
+      React.useEffect(() => {
+        if (!enabled) return
+        let cancelled = false
+        options.queryFn({}).then(
+          (data) => {
+            if (!cancelled) setState({ data, error: null, isPending: false })
+          },
+          (error) => {
+            if (!cancelled) setState({ data: undefined, error, isPending: false })
+          }
+        )
+        return () => {
+          cancelled = true
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [enabled])
+      return state
+    },
+  }
+})
 
 vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
@@ -246,6 +281,6 @@ describe('Invite', () => {
       cache: 'session',
       error: 'Session refresh denied',
     })
-    expect(mockLogger.warn).toHaveBeenCalledTimes(3)
+    expect(mockLogger.warn).toHaveBeenCalledTimes(4)
   })
 })

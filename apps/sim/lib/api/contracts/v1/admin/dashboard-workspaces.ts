@@ -24,6 +24,7 @@ export const adminDashboardWorkspacePreflightQuerySchema = z.object({
 
 export const adminDashboardWorkspaceMoveBodySchema = z.object({
   destinationOrganizationId: z.string().min(1).max(200),
+  expectedOwnerId: z.string().min(1).max(200).optional(),
 })
 
 const adminDashboardWorkspaceCandidateSchema = z.object({
@@ -35,6 +36,8 @@ const adminDashboardWorkspaceCandidateSchema = z.object({
   workspaceMode: z.string(),
   organizationId: z.string().nullable(),
   billedAccountUserId: z.string(),
+  /** Archived workspaces are movable; the flag lets admin UIs label them. */
+  archived: z.boolean(),
 })
 
 const adminDashboardWorkspacePreflightSchema = z.object({
@@ -76,9 +79,7 @@ const adminDashboardWorkspacePreflightResponseSchema = z.object({
 })
 
 const adminDashboardWorkspaceMoveResponseSchema = z.object({
-  data: adminDashboardWorkspacePreflightSchema.extend({
-    invitationEmailFailures: z.array(z.string()),
-  }),
+  data: adminDashboardWorkspacePreflightSchema,
 })
 
 export const adminDashboardWorkspaceSearchContract = defineRouteContract({

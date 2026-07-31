@@ -8,9 +8,9 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
+import { isPrivateIp } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
@@ -102,7 +102,7 @@ export class McpClient {
     // permits it) — the guarded lookup would filter it, so that case keeps the legacy pin
     // to the validated address (old behavior + its anti-rebinding property).
     const guarded = resolvedIP
-      ? isPrivateOrReservedIP(resolvedIP)
+      ? isPrivateIp(resolvedIP)
         ? createPinnedPrivateMcpFetch(resolvedIP)
         : createGuardedMcpFetch()
       : undefined

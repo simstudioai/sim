@@ -11,6 +11,7 @@ const {
   mockAcquireOrganizationMutationLock,
   mockAcquireInvitationMutationLocks,
   mockChangeWorkspaceStoragePayersInTx,
+  mockInvalidateWorkspaceTableLimitsCache,
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganizationTx: vi.fn(),
   mockSyncUsageLimitsFromSubscription: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockAcquireOrganizationMutationLock: vi.fn(),
   mockAcquireInvitationMutationLocks: vi.fn(),
   mockChangeWorkspaceStoragePayersInTx: vi.fn(),
+  mockInvalidateWorkspaceTableLimitsCache: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -32,6 +34,10 @@ vi.mock('@/lib/billing/storage/payer-transfer', () => ({
 
 vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
+}))
+
+vi.mock('@/lib/table/billing', () => ({
+  invalidateWorkspaceTableLimitsCache: mockInvalidateWorkspaceTableLimitsCache,
 }))
 
 vi.mock('@/lib/billing/core/usage', () => ({
@@ -122,10 +128,17 @@ describe('organization workspace helpers', () => {
       'owner-1',
       'org-1'
     )
+    expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.for.mock.invocationCallOrder[0]
+    )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ organizationAssignedAt: expect.any(Date) })
     )
     expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+    expect(mockInvalidateWorkspaceTableLimitsCache).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
       mockEnsureUserInOrganizationTx.mock.invocationCallOrder[0]
     )
@@ -216,6 +229,34 @@ describe('organization workspace helpers', () => {
       expect.objectContaining({ userId: 'owner-1' })
     )
     expect(dbChainMockFns.update).toHaveBeenCalled()
+  })
+
+  it('attaches an archived workspace without joining its collaborators', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-archived' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-archived' }])
+    queueTableRows(schemaMock.workspace, [
+      {
+        id: 'ws-archived',
+        billedAccountUserId: 'user-1',
+        organizationId: null,
+        archivedAt: new Date(),
+      },
+    ])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-archived' }])
+
+    const result = await attachOwnedWorkspacesToOrganization({
+      ownerUserId: 'user-1',
+      organizationId: 'org-1',
+      externalMemberPolicy: 'keep-external',
+      includeArchived: true,
+    })
+
+    // Purview: the archived workspace still moves into the organization…
+    expect(result.attachedWorkspaceIds).toEqual(['ws-archived'])
+    // …but nobody is joined (and no seat consumed) off the back of it.
+    expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+    expect(result.addedMemberIds).toEqual([])
   })
 
   it('rolls back membership work when a concurrent move wins before the locked re-read', async () => {

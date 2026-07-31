@@ -20,8 +20,8 @@ import {
   formatIntegrationType,
   INTEGRATIONS,
   type Integration,
+  resolveCredentialDisplay,
 } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -52,11 +52,6 @@ const FEATURED_INTEGRATIONS: readonly Integration[] = (() => {
     (i): i is Integration => i !== undefined
   )
 })()
-
-/** Lookup integration metadata by OAuth service display name (case-insensitive). */
-const INTEGRATION_BY_LOWER_NAME: ReadonlyMap<string, Integration> = new Map(
-  INTEGRATIONS.map((i) => [i.name.toLowerCase(), i])
-)
 
 const ALL_CATEGORY_SECTIONS: readonly { label: string; integrations: Integration[] }[] = (() => {
   const grouped = new Map<string, Integration[]>()
@@ -105,7 +100,12 @@ interface ConnectedDisplayItem {
   credential: WorkspaceCredential
   name: string
   description: string
-  serviceName: string
+  /**
+   * Extra haystack for the search box: the service name plus every integration
+   * the credential authenticates, so searching "jira" surfaces an Atlassian
+   * service account even when the user has replaced its description.
+   */
+  searchText: string
   integrationType: string | null
   blockType: string
   slug: string
@@ -165,20 +165,24 @@ export function Integrations() {
 
   const connectedItems = useMemo<ConnectedDisplayItem[]>(() => {
     return oauthCredentials.flatMap((credential) => {
-      if (!credential.providerId) return []
-      const service = getServiceConfigByProviderId(credential.providerId)
-      if (!service) return []
-      const integration = INTEGRATION_BY_LOWER_NAME.get(service.name.toLowerCase())
+      const display = resolveCredentialDisplay(credential)
+      if (!display.service || !display.icon) return []
       return [
         {
           credential,
           name: credential.displayName,
-          description: credential.description || `${service.name} integration`,
-          serviceName: service.name,
-          integrationType: integration?.integrationType ?? null,
-          blockType: integration?.type ?? '',
-          slug: integration?.slug ?? '',
-          icon: service.icon as ComponentType<{ className?: string }>,
+          description: credential.description || display.subtitle,
+          searchText: [
+            display.familyName,
+            display.service.name,
+            ...display.coveredIntegrations.map((i) => i.name),
+          ]
+            .filter(Boolean)
+            .join(' '),
+          integrationType: display.integration?.integrationType ?? null,
+          blockType: display.blockType,
+          slug: display.integration?.slug ?? '',
+          icon: display.icon,
         },
       ]
     })
@@ -264,7 +268,7 @@ export function Integrations() {
       return (
         item.name.toLowerCase().includes(normalizedSearch) ||
         item.description.toLowerCase().includes(normalizedSearch) ||
-        item.serviceName.toLowerCase().includes(normalizedSearch)
+        item.searchText.toLowerCase().includes(normalizedSearch)
       )
     })
   }, [

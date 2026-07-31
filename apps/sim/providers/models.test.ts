@@ -5,12 +5,15 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelPricing,
   getModelsWithPromptCaching,
   getPromptCachingMinimumTokens,
+  getProviderModels,
   getThinkingStreamVisibility,
   isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
+  updateFireworksModels,
 } from '@/providers/models'
 import { supportsPromptCaching } from '@/providers/utils'
 
@@ -367,6 +370,43 @@ describe('xai provider definition', () => {
 
   it('is included in getHostedModels since Sim provides the xAI key server-side', () => {
     expect(getHostedModels()).toContain('grok-4.5')
+  })
+})
+
+describe('fireworks static catalog (the sim-auto pool)', () => {
+  const poolModels = ['fireworks/glm-5.2', 'fireworks/kimi-k3']
+
+  it('is included in getHostedModels since Sim provides the Fireworks key server-side', () => {
+    for (const model of poolModels) {
+      expect(getHostedModels()).toContain(model)
+    }
+  })
+
+  it('prices every pool model so hosted usage is billable', () => {
+    for (const model of poolModels) {
+      const pricing = getModelPricing(model)
+      expect(pricing?.input).toBeGreaterThan(0)
+      expect(pricing?.output).toBeGreaterThan(0)
+    }
+  })
+
+  it('survives a dynamic model sync, which merges rather than replaces', () => {
+    updateFireworksModels(['fireworks/accounts/acme/models/custom'])
+
+    for (const model of poolModels) {
+      expect(getHostedModels()).toContain(model)
+      expect(getModelPricing(model)?.input).toBeGreaterThan(0)
+    }
+    expect(getProviderModels('fireworks')).toContain('fireworks/accounts/acme/models/custom')
+  })
+
+  it('does not duplicate a pool model the dynamic listing also returns', () => {
+    updateFireworksModels(['fireworks/glm-5.2'])
+
+    expect(getProviderModels('fireworks').filter((id) => id === 'fireworks/glm-5.2')).toHaveLength(
+      1
+    )
+    expect(getModelPricing('fireworks/glm-5.2')?.input).toBeGreaterThan(0)
   })
 })
 

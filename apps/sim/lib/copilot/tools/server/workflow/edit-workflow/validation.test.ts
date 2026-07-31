@@ -11,12 +11,14 @@ const {
   mockGetTool,
   mockGetCustomToolById,
   mockGetSkillById,
+  mockGetHostedModels,
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
   mockGetTool: vi.fn(),
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
+  mockGetHostedModels: vi.fn(() => [] as string[]),
 }))
 
 const conditionBlockConfig = {
@@ -53,6 +55,18 @@ const agentBlockConfig = {
     { id: 'tools', type: 'tool-input' },
     { id: 'skills', type: 'skill-input' },
   ],
+}
+
+const piBlockConfig = {
+  type: 'pi',
+  name: 'Pi Coding Agent',
+  outputs: {},
+  subBlocks: [
+    { id: 'mode', type: 'dropdown' },
+    { id: 'model', type: 'combobox', options: mockGetModelOptions },
+    { id: 'apiKey', type: 'short-input' },
+  ],
+  tools: { access: [] },
 }
 
 const huggingfaceBlockConfig = {
@@ -175,35 +189,25 @@ const toolsByIdMock: Record<string, unknown> = {
   },
 }
 
+const blockConfigsByType: Record<string, unknown> = {
+  condition: conditionBlockConfig,
+  slack: oauthBlockConfig,
+  router_v2: routerBlockConfig,
+  agent: agentBlockConfig,
+  pi: piBlockConfig,
+  huggingface: huggingfaceBlockConfig,
+  knowledge: knowledgeBlockConfig,
+  canonicalcred: canonicalCredBlockConfig,
+  video_generator_v3: videoBlockConfig,
+  custom_key_block: customKeyBlockConfig,
+  image_generator_v2: imageBlockConfig,
+  throw_gate_block: throwGateBlockConfig,
+  throw_selector_block: throwSelectorBlockConfig,
+  generic_webhook: genericWebhookBlockConfig,
+}
+
 vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'condition'
-      ? conditionBlockConfig
-      : type === 'slack'
-        ? oauthBlockConfig
-        : type === 'router_v2'
-          ? routerBlockConfig
-          : type === 'agent'
-            ? agentBlockConfig
-            : type === 'huggingface'
-              ? huggingfaceBlockConfig
-              : type === 'knowledge'
-                ? knowledgeBlockConfig
-                : type === 'canonicalcred'
-                  ? canonicalCredBlockConfig
-                  : type === 'video_generator_v3'
-                    ? videoBlockConfig
-                    : type === 'custom_key_block'
-                      ? customKeyBlockConfig
-                      : type === 'image_generator_v2'
-                        ? imageBlockConfig
-                        : type === 'throw_gate_block'
-                          ? throwGateBlockConfig
-                          : type === 'throw_selector_block'
-                            ? throwSelectorBlockConfig
-                            : type === 'generic_webhook'
-                              ? genericWebhookBlockConfig
-                              : undefined,
+  getBlock: (type: string) => blockConfigsByType[type],
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -227,7 +231,7 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
-  getHostedModels: () => [],
+  getHostedModels: mockGetHostedModels,
 }))
 
 import {
@@ -237,6 +241,8 @@ import {
   validateInputsForBlock,
   validateWorkflowSelectorIds,
 } from './validation'
+
+const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
 
 afterAll(resetEnvFlagsMock)
 
@@ -919,7 +925,69 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   })
 })
 
-const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+describe('preValidateCredentialInputs (hosted models)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetHostedModels.mockReturnValue(['claude-sonnet-4-6'])
+    setEnvFlags({ isHosted: true })
+  })
+
+  afterEach(() => {
+    mockGetHostedModels.mockReset()
+    setEnvFlags({ isHosted: false })
+  })
+
+  const piAddOperation = (mode: string) => [
+    {
+      operation_type: 'add' as const,
+      block_id: 'pi-1',
+      params: {
+        type: 'pi',
+        inputs: { mode, model: 'claude-sonnet-4-6', apiKey: 'user-anthropic-key' },
+      },
+    },
+  ]
+
+  it('strips apiKey for a hosted model on a normal LLM block', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'agent-1',
+        params: {
+          type: 'agent',
+          inputs: { model: 'claude-sonnet-4-6', apiKey: 'user-anthropic-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, CTX)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('hosted model')
+  })
+
+  // Create PR hands the key to the sandbox, so Sim never covers it with a hosted
+  // key -- stripping it would leave the copilot authoring a block that cannot run.
+  it('preserves apiKey on a Create PR Pi block when the model is hosted', async () => {
+    const result = await preValidateCredentialInputs(piAddOperation('cloud'), CTX)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  // Local Dev and Review Code keep the model client in Sim, so the hosted key applies.
+  it.each([['local'], ['cloud_review']])(
+    'strips apiKey on a Pi block in %s mode when the model is hosted',
+    async (mode) => {
+      const result = await preValidateCredentialInputs(piAddOperation(mode), CTX)
+
+      expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+      expect(result.errors).toHaveLength(1)
+    }
+  )
+})
 
 describe('validateWorkflowSelectorIds (credential inclusion)', () => {
   beforeEach(() => {

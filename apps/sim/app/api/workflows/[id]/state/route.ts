@@ -17,14 +17,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
-import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -152,46 +150,14 @@ export const PUT = withRouteHandler(
       // per variable (the path param is the source of truth), so the check
       // is unreachable and was removed.
 
-      // Sanitize custom tools in agent blocks before saving
-      const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(
-        state.blocks as Record<string, BlockState>
-      )
-
-      // Save to normalized tables
-      // Ensure all required fields are present for WorkflowState type
-      // Filter out blocks without type or name before saving
-      const filteredBlocks = Object.entries(sanitizedBlocks).reduce(
-        (acc, [blockId, block]: [string, BlockState]) => {
-          if (block.type && block.name) {
-            // Ensure all required fields are present
-            acc[blockId] = {
-              ...block,
-              enabled: block.enabled !== undefined ? block.enabled : true,
-              horizontalHandles:
-                block.horizontalHandles !== undefined ? block.horizontalHandles : true,
-              height: block.height !== undefined ? block.height : 0,
-              subBlocks: block.subBlocks || {},
-              outputs: block.outputs || {},
-            }
-          }
-          return acc
-        },
-        {} as typeof state.blocks
-      )
-
-      const typedBlocks = filteredBlocks as Record<string, BlockState>
-      const validatedEdges = validateEdges(state.edges as WorkflowState['edges'], typedBlocks)
-      const validationWarnings = validatedEdges.dropped.map(
-        ({ edge, reason }) => `Dropped edge "${edge.id}": ${reason}`
-      )
-      const canonicalLoops = generateLoopBlocks(typedBlocks)
-      const canonicalParallels = generateParallelBlocks(typedBlocks)
+      const { state: preparedState, warnings: preparationWarnings } =
+        prepareWorkflowStateForPersistence({
+          blocks: state.blocks as Record<string, BlockState>,
+          edges: state.edges as WorkflowState['edges'],
+        })
 
       const workflowState = {
-        blocks: filteredBlocks,
-        edges: validatedEdges.valid,
-        loops: canonicalLoops,
-        parallels: canonicalParallels,
+        ...preparedState,
         lastSaved: state.lastSaved || Date.now(),
         isDeployed: state.isDeployed || false,
         deployedAt: state.deployedAt,
@@ -303,10 +269,7 @@ export const PUT = withRouteHandler(
         )
       }
 
-      return NextResponse.json(
-        { success: true, warnings: [...warnings, ...validationWarnings] },
-        { status: 200 }
-      )
+      return NextResponse.json({ success: true, warnings: preparationWarnings }, { status: 200 })
     } catch (error: any) {
       if (error instanceof WorkflowLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })

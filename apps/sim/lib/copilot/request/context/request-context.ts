@@ -28,6 +28,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     errors: [],
     activeFileIntents: new Map(),
     trace: new TraceCollector(),
+    toolPermissions: { enabled: false, autoAllowed: new Set() },
     ...overrides,
   }
 }

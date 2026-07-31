@@ -105,6 +105,7 @@ import {
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -208,6 +209,11 @@ const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
+  // Where Better Auth sends OAuth callbacks that fail before the flow state is
+  // parsed — most commonly a provider-side Cancel/Deny. Without this it
+  // defaults to a nonexistent `/error` (a 404 dead-end), which strands the
+  // desktop sign-in/connect handoffs since their loopback is never pinged.
+  onAPIError: { errorURL: `${getBaseUrl()}/oauth-error` },
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
@@ -223,12 +229,21 @@ export const auth = betterAuth({
   session: {
     cookieCache: {
       enabled: true,
-      maxAge: 24 * 60 * 60, // 24 hours in seconds
+      // Better Auth's default, and deliberately short: the cached session is a
+      // signed cookie that `getSession` returns WITHOUT re-reading the database,
+      // so this is the window in which a revoked, expired, or signed-out session
+      // still authenticates. Anything longer is an un-revocable credential — at
+      // 24h a sign-out on one device left every other surface looking signed in
+      // for a day while every database-backed check (socket handshakes, the
+      // desktop handoff) failed against a row that no longer existed. The
+      // `version` below only covers org-wide invalidation, so this TTL remains
+      // the only bound on per-device sign-out latency.
+      maxAge: 5 * 60, // 5 minutes in seconds
       /**
        * Embeds the member org's security-policy version. Bumping the version
        * (policy change, org-wide revocation) invalidates every cached session
        * cookie in the org on its next request, forcing a DB session read —
-       * revocation latency becomes the policy cache TTL, not 24h.
+       * revocation latency becomes the policy cache TTL, not the full `maxAge`.
        */
       version: async (session) =>
         getSessionCookieCacheVersion(session as { userId?: string | null }),
@@ -327,6 +342,15 @@ export const auth = betterAuth({
               error,
             })
           }
+
+          /**
+           * Places the user in the instance organization before they reach the
+           * workspace list, so their first workspace is created org-owned and
+           * org-scoped enterprise settings apply to it from the start. No-ops
+           * unless `INSTANCE_ORG_NAME` is set, and swallows its own failures so
+           * organization setup can never block a signup.
+           */
+          await joinInstanceOrganization(user.id)
 
           if (isHosted && user.email && user.emailVerified) {
             try {
@@ -3228,8 +3252,14 @@ export const auth = betterAuth({
         },
       ],
     }),
-    // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED
+    /**
+     * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
+     * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
+     * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
+     * section visible and `hasSSOAccess` passing while sign-in silently had no
+     * SSO provider behind it.
+     */
+    ...(isSsoEnabled
       ? [
           sso({
             /**

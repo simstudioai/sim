@@ -494,6 +494,75 @@ describe('workflow store', () => {
     })
   })
 
+  describe('duplicateBlock cloned webhook path', () => {
+    /**
+     * `duplicateBlock` is not currently reachable from the canvas (the context-menu Duplicate goes
+     * through `preparePasteData` → `regenerateBlockIds`), but it is part of the store's public API,
+     * so the clone it produces must not inherit the source's deployed webhook identity either.
+     */
+    it('clears triggerPath when duplicating a webhook trigger block', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+      useWorkflowRegistry.setState({ activeWorkflowId: 'wf-1' })
+      useWorkflowStore.setState({ currentWorkflowId: 'wf-1' })
+
+      addBlock('original', 'generic_webhook', 'Webhook 1', { x: 0, y: 0 })
+      useWorkflowStore.setState((state) => ({
+        blocks: {
+          ...state.blocks,
+          original: {
+            ...state.blocks.original,
+            subBlocks: {
+              triggerPath: { id: 'triggerPath', type: 'short-input', value: 'original' },
+              webhookId: { id: 'webhookId', type: 'short-input', value: 'wh_original' },
+            },
+          },
+        },
+      }))
+      useSubBlockStore.setState({
+        workflowValues: {
+          'wf-1': { original: { triggerPath: 'original', webhookId: 'wh_original' } },
+        },
+      })
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const duplicatedId = Object.keys(blocks).find((id) => id !== 'original')
+      expect(duplicatedId).toBeDefined()
+      if (!duplicatedId) return
+
+      // Both sources must be cleared: the value map overrides the structure in mergeSubblockState.
+      expect(blocks[duplicatedId].subBlocks.triggerPath?.value).toBeNull()
+      const values = useSubBlockStore.getState().workflowValues['wf-1']
+      expect(values[duplicatedId].triggerPath).toBeNull()
+      // webhookId is user-entered action config on some blocks and is deliberately preserved.
+      expect(values[duplicatedId].webhookId).toBe('wh_original')
+      // The source keeps its own identity.
+      expect(values.original.triggerPath).toBe('original')
+    })
+
+    it('preserves a user-entered webhookId when duplicating an action block', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+      useWorkflowRegistry.setState({ activeWorkflowId: 'wf-1' })
+      useWorkflowStore.setState({ currentWorkflowId: 'wf-1' })
+
+      addBlock('original', 'discord', 'Discord 1', { x: 0, y: 0 })
+      useSubBlockStore.setState({
+        workflowValues: { 'wf-1': { original: { webhookId: '1234567890' } } },
+      })
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const duplicatedId = Object.keys(blocks).find((id) => id !== 'original')
+      expect(duplicatedId).toBeDefined()
+      if (!duplicatedId) return
+
+      const values = useSubBlockStore.getState().workflowValues['wf-1']
+      expect(values[duplicatedId].webhookId).toBe('1234567890')
+    })
+  })
+
   describe('batchUpdatePositions', () => {
     it('should update block position', () => {
       const { batchUpdatePositions } = useWorkflowStore.getState()

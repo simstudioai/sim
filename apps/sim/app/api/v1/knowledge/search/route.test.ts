@@ -12,10 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockHandleVectorOnlySearch,
-  mockHandleTagOnlySearch,
-  mockHandleTagAndVectorSearch,
-  mockGetQueryStrategy,
+  mockExecuteKnowledgeSearch,
   mockGenerateSearchEmbedding,
   mockGetDocumentMetadataByIds,
   mockAuthenticateRequest,
@@ -24,10 +21,7 @@ const {
   mockResolveSystemBillingAttribution,
   mockRecordSearchEmbeddingUsage,
 } = vi.hoisted(() => ({
-  mockHandleVectorOnlySearch: vi.fn(),
-  mockHandleTagOnlySearch: vi.fn(),
-  mockHandleTagAndVectorSearch: vi.fn(),
-  mockGetQueryStrategy: vi.fn(),
+  mockExecuteKnowledgeSearch: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
   mockGetDocumentMetadataByIds: vi.fn(),
   mockAuthenticateRequest: vi.fn(),
@@ -51,10 +45,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
 }
 
 vi.mock('@/app/api/knowledge/search/utils', () => ({
-  handleVectorOnlySearch: mockHandleVectorOnlySearch,
-  handleTagOnlySearch: mockHandleTagOnlySearch,
-  handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
-  getQueryStrategy: mockGetQueryStrategy,
+  executeKnowledgeSearch: mockExecuteKnowledgeSearch,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
@@ -78,6 +69,8 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 vi.mock('@/app/api/v1/middleware', () => ({
   authenticateRequest: mockAuthenticateRequest,
   validateWorkspaceAccess: mockValidateWorkspaceAccess,
+  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
+    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
 }))
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
@@ -113,12 +106,11 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       rateLimit: {},
     })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
-    mockGetQueryStrategy.mockReturnValue({ distanceThreshold: 0.5 })
     mockGenerateSearchEmbedding.mockResolvedValue({
       embedding: [0.1, 0.2, 0.3],
       isBYOK: false,
     })
-    mockHandleVectorOnlySearch.mockResolvedValue([])
+    mockExecuteKnowledgeSearch.mockResolvedValue([])
     mockGetDocumentMetadataByIds.mockResolvedValue({})
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
@@ -216,7 +208,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       hasAccess: true,
       knowledgeBase: baseKb('kb-confluence', 'text-embedding-3-small'),
     })
-    mockHandleVectorOnlySearch.mockResolvedValue([
+    mockExecuteKnowledgeSearch.mockResolvedValue([
       {
         documentId: 'doc-confluence',
         knowledgeBaseId: 'kb-confluence',
@@ -248,7 +240,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
   })
 
   it('allows tag-only search across mixed embedding models', async () => {
-    mockHandleTagOnlySearch.mockResolvedValue([])
+    mockExecuteKnowledgeSearch.mockResolvedValue([])
     mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
       hasAccess: true,
       knowledgeBase: baseKb('kb-mixed', 'text-embedding-3-small'),

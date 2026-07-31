@@ -79,7 +79,6 @@ export function useDuplicateFolder({ workspaceId, folderIds, onSuccess }: UseDup
           workspaceId,
           name: duplicateName,
           parentId: folder.parentId,
-          color: folder.color,
           newId: generateId(),
         })
         const newFolderId = result?.id

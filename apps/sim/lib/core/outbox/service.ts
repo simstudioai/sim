@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
 
 const logger = createLogger('OutboxService')
 
@@ -141,6 +141,81 @@ export async function enqueueOutboxEvent<T>(
   })
   logger.info('Enqueued outbox event', { id, eventType })
   return id
+}
+
+export interface CoalescedOutboxEnqueueOptions extends EnqueueOptions {
+  /**
+   * One scalar payload field that identifies the subject of this event.
+   *
+   * Callers must already serialize writers for this subject with their domain
+   * lock. The helper row-locks an existing pending event against the worker,
+   * then extends its delivery deadline instead of creating another row.
+   */
+  coalesceOn: {
+    payloadKey: string
+    payloadValue: string
+  }
+}
+
+/**
+ * Enqueues an outbox event or extends the settle window of the pending event
+ * for the same subject.
+ *
+ * This is for coalescing a burst of transactional mutations into one eventual
+ * side effect (for example, several workspace moves that all update the same
+ * surviving invitation). It intentionally coalesces only `pending` rows:
+ * processing/completed work already crossed the external-side-effect boundary
+ * and must not be rewritten.
+ *
+ * Concurrency between domain writers is supplied by the caller's existing
+ * subject lock. `FOR UPDATE` covers the outbox-worker race so a due row cannot
+ * be claimed while its `availableAt` is being extended.
+ */
+export async function enqueueOrReschedulePendingOutboxEvent<T>(
+  executor: Pick<typeof db, 'select' | 'insert' | 'update'>,
+  eventType: string,
+  payload: T,
+  options: CoalescedOutboxEnqueueOptions
+): Promise<string> {
+  const [existing] = await executor
+    .select({ id: outboxEvent.id, availableAt: outboxEvent.availableAt })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, eventType),
+        eq(outboxEvent.status, 'pending'),
+        sql`${outboxEvent.payload} ->> ${options.coalesceOn.payloadKey} = ${options.coalesceOn.payloadValue}`
+      )
+    )
+    .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
+    .for('update')
+    .limit(1)
+
+  if (!existing) {
+    return enqueueOutboxEvent(executor, eventType, payload, options)
+  }
+
+  const requestedAvailableAt = options.availableAt ?? new Date()
+  const availableAt =
+    existing.availableAt > requestedAvailableAt ? existing.availableAt : requestedAvailableAt
+  const [rescheduled] = await executor
+    .update(outboxEvent)
+    .set({ availableAt })
+    .where(and(eq(outboxEvent.id, existing.id), eq(outboxEvent.status, 'pending')))
+    .returning({ id: outboxEvent.id })
+
+  if (rescheduled) {
+    logger.info('Rescheduled pending outbox event', {
+      id: rescheduled.id,
+      eventType,
+      availableAt,
+    })
+    return rescheduled.id
+  }
+
+  // A worker won the status transition before this row lock was acquired.
+  // Preserve the requested side effect with a fresh event rather than losing it.
+  return enqueueOutboxEvent(executor, eventType, payload, options)
 }
 
 /**

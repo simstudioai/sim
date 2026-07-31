@@ -1,4 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+/**
+ * The Sandboxes section is dropped when no sandbox provider is configured, and
+ * `allNavigationItems` is built once at module load — so this has to be set before
+ * the module graph is imported, where a `beforeEach` would run too late. Pinning it
+ * also keeps the catalog assertions off the developer's untracked `apps/sim/.env`,
+ * which CI does not have.
+ */
+vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_SANDBOX_ENABLED = 'true'
+})
+
 import {
   SETTINGS_SECTION_REGISTRY,
   WORKSPACE_SETTINGS_ITEMS,
@@ -15,6 +27,7 @@ describe('unified settings navigation', () => {
       { key: 'tools', title: 'Tools' },
       { key: 'subscription', title: 'Subscription' },
       { key: 'system', title: 'System' },
+      { key: 'desktop', title: 'Desktop' },
       { key: 'enterprise', title: 'Enterprise' },
       { key: 'superuser', title: 'Superuser' },
     ])
@@ -23,6 +36,9 @@ describe('unified settings navigation', () => {
   it('keeps account, workspace, organization, and platform settings in one catalog', () => {
     expect(allNavigationItems.map(({ id, label, section }) => ({ id, label, section }))).toEqual([
       { id: 'general', label: 'General', section: 'account' },
+      { id: 'desktop', label: 'Desktop', section: 'desktop' },
+      { id: 'browser', label: 'Browser', section: 'desktop' },
+      { id: 'terminal', label: 'Terminal', section: 'desktop' },
       { id: 'access-control', label: 'Access control', section: 'enterprise' },
       { id: 'audit-logs', label: 'Audit logs', section: 'enterprise' },
       { id: 'forks', label: 'Workspace Forks', section: 'enterprise' },
@@ -35,6 +51,7 @@ describe('unified settings navigation', () => {
       { id: 'apikeys', label: 'Sim API keys', section: 'system' },
       { id: 'workflow-mcp-servers', label: 'MCP servers', section: 'system' },
       { id: 'byok', label: 'BYOK', section: 'system' },
+      { id: 'sandboxes', label: 'Sandboxes', section: 'system' },
       { id: 'inbox', label: 'Sim mailer', section: 'system' },
       { id: 'recently-deleted', label: 'Recently deleted', section: 'system' },
       { id: 'sso', label: 'Single sign-on', section: 'enterprise' },

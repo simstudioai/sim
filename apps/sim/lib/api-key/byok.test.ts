@@ -13,11 +13,24 @@ vi.mock('@/lib/core/security/encryption', () => ({
 }))
 
 vi.mock('@/lib/core/config/api-keys', () => ({
-  getRotatingApiKey: vi.fn(),
+  getRotatingApiKey: mockGetRotatingApiKey,
+}))
+
+const { mockEnv, mockGetRotatingApiKey, mockGetHostedModels, mockIsHosted } = vi.hoisted(() => ({
+  mockEnv: {} as Record<string, string | undefined>,
+  mockGetRotatingApiKey: vi.fn(),
+  mockGetHostedModels: vi.fn(() => [] as string[]),
+  mockIsHosted: { value: true },
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
-  env: {},
+  env: mockEnv,
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isHosted() {
+    return mockIsHosted.value
+  },
 }))
 
 vi.mock('@/providers/models', () => ({
@@ -25,7 +38,7 @@ vi.mock('@/providers/models', () => ({
     .fn()
     .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
   INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getHostedModels: vi.fn(() => []),
+  getHostedModels: mockGetHostedModels,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -36,7 +49,8 @@ vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: { getState: vi.fn() },
 }))
 
-import { getBYOKKey } from '@/lib/api-key/byok'
+import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
+import { useProvidersStore } from '@/stores/providers/store'
 
 /**
  * Rotation counters in the module under test are keyed by
@@ -150,5 +164,75 @@ describe('getBYOKKey', () => {
     dbChainMockFns.orderBy.mockRejectedValue(new Error('database unavailable'))
 
     expect(await getBYOKKey(uniqueWorkspaceId(), 'openai')).toBeNull()
+  })
+})
+
+describe('getApiKeyWithBYOK for Fireworks', () => {
+  const HOSTED_POOL_MODEL = 'fireworks/glm-5.2'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsHosted.value = true
+    mockEnv.FIREWORKS_API_KEY = 'platform-fireworks-key'
+    mockGetHostedModels.mockReturnValue([HOSTED_POOL_MODEL, 'fireworks/kimi-k3'])
+    mockGetRotatingApiKey.mockReturnValue('rotated-fireworks-key')
+    ;(useProvidersStore.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+      providers: {
+        ollama: { models: [] },
+        vllm: { models: [] },
+        litellm: { models: [] },
+        fireworks: { models: [] },
+        together: { models: [] },
+        baseten: { models: [] },
+        'ollama-cloud': { models: [] },
+      },
+    })
+  })
+
+  it('serves the rotating platform key for a hosted catalog model', async () => {
+    const result = await getApiKeyWithBYOK('fireworks', HOSTED_POOL_MODEL, uniqueWorkspaceId())
+
+    expect(mockGetRotatingApiKey).toHaveBeenCalledWith('fireworks')
+    expect(result).toEqual({ apiKey: 'rotated-fireworks-key', isBYOK: false })
+  })
+
+  it('prefers a workspace BYOK key over the platform key, as hosted models do', async () => {
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('key-1')])
+
+    const result = await getApiKeyWithBYOK('fireworks', HOSTED_POOL_MODEL, uniqueWorkspaceId())
+
+    expect(result).toEqual({ apiKey: 'decrypted-key-1', isBYOK: true })
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+
+  it('never serves the platform key to a dynamic model on hosted', async () => {
+    await expect(
+      getApiKeyWithBYOK('fireworks', 'fireworks/accounts/acme/models/custom', uniqueWorkspaceId())
+    ).rejects.toThrow('API key is required for Fireworks')
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+
+  it('serves a user-provided key for a dynamic model on hosted', async () => {
+    const result = await getApiKeyWithBYOK(
+      'fireworks',
+      'fireworks/accounts/acme/models/custom',
+      uniqueWorkspaceId(),
+      'user-key'
+    )
+
+    expect(result).toEqual({ apiKey: 'user-key', isBYOK: false })
+  })
+
+  it('falls back to the env key for any model when self-hosted', async () => {
+    mockIsHosted.value = false
+
+    const result = await getApiKeyWithBYOK(
+      'fireworks',
+      'fireworks/accounts/acme/models/custom',
+      uniqueWorkspaceId()
+    )
+
+    expect(result).toEqual({ apiKey: 'platform-fireworks-key', isBYOK: false })
   })
 })

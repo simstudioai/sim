@@ -10,6 +10,7 @@ import {
   type OAuthConnection,
 } from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/auth-client'
+import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
 const logger = createLogger('OAuthConnectionsQuery')
@@ -152,6 +153,21 @@ export function useConnectOAuthService() {
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
+        return { success: true }
+      }
+
+      // Desktop app: OAuth cannot run in the embedded window (Google/Microsoft
+      // block embedded user agents, and better-auth binds the flow's state to
+      // the initiating browser's cookies), so the whole flow is handed to the
+      // system browser and returns via the app's loopback. Completion arrives
+      // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
+      // which refreshes caches and shows the connected toast.
+      const desktopBridge = getDesktopBridge()
+      if (desktopBridge?.beginOAuthConnect) {
+        const opened = await desktopBridge.beginOAuthConnect(providerId)
+        if (!opened) {
+          throw new Error('Could not open your browser to connect this account.')
+        }
         return { success: true }
       }
 

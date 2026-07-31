@@ -4,6 +4,7 @@
 import { createMockRequest } from '@sim/testing'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const {
   mockCheckAuth,
@@ -79,19 +80,6 @@ describe('markdown export bundling', () => {
     mockExtractEmbeddedImageIds.mockReturnValue([])
   })
 
-  it('rejects a document embedding more assets than an export may bundle', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(
-      Array.from({ length: 501 }, (_, index) => `img-${index}`)
-    )
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error).toContain('501')
-    // Rejected on the embed count alone: nothing was resolved or downloaded.
-    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(1)
-  })
-
   it('rejects on declared asset bytes before downloading any of them', async () => {
     mockExtractEmbeddedImageIds.mockReturnValue(['a', 'b', 'c'])
     mockGetFileMetadataById.mockImplementation(async (id: string) =>
@@ -114,6 +102,39 @@ describe('markdown export bundling', () => {
     expect((await response.json()).error).toContain('exceeds')
     // Only the markdown body was read; the 300 MB of assets never left storage.
     expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts the document body against the export limit, not just its assets', async () => {
+    // Assets alone sit under the cap; the body is what carries the bundle over it.
+    mockExtractEmbeddedImageIds.mockReturnValue(['a'])
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(250 * MB))
+
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('document and its embedded files')
+  })
+
+  it('caps the document body read rather than loading it unbounded', async () => {
+    mockExtractEmbeddedImageIds.mockReturnValue([])
+
+    await GET(request(), context)
+
+    const bodyCall = mockDownloadFile.mock.calls.find(([options]) => options.key.endsWith('doc.md'))
+    expect(bodyCall?.[0].maxBytes).toBe(250 * MB)
+  })
+
+  it('reports an oversized body as a size rejection, not a server error', async () => {
+    mockExtractEmbeddedImageIds.mockReturnValue([])
+    mockDownloadFile.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'storage file download', maxBytes: 1 })
+    )
+
+    const response = await GET(request(), context)
+
+    // The cap exists to produce a clear limit message; a 500 would hide it.
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('export limit')
   })
 
   it('caps each asset download rather than trusting its declared size', async () => {

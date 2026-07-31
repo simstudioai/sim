@@ -1,11 +1,12 @@
 import type { ExaAnswerParams, ExaAnswerResponse } from '@/tools/exa/types'
+import { parseJsonSchema, requireCostTotal } from '@/tools/exa/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   id: 'exa_answer',
   name: 'Exa Answer',
   description: 'Get an AI-generated answer to a question with citations from the web using Exa AI.',
-  version: '1.0.0',
+  version: '2.0.0',
 
   params: {
     query: {
@@ -18,7 +19,15 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Whether to include the full text of the answer',
+      description:
+        'Include the full page text of each cited source (default: false). This does not affect the answer itself.',
+    },
+    outputSchema: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON Schema describing the answer shape. When supplied, the answer is returned as a structured object instead of a string.',
     },
     apiKey: {
       type: 'string',
@@ -34,11 +43,8 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
-        const costDollars = output.__costDollars as { total?: number } | undefined
-        if (costDollars?.total == null) {
-          throw new Error('Exa answer response missing costDollars field')
-        }
-        return { cost: costDollars.total, metadata: { costDollars } }
+        const cost = requireCostTotal(output, 'answer')
+        return { cost, metadata: { costDollars: output.__costDollars } }
       },
     },
     rateLimit: {
@@ -59,8 +65,10 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
         query: params.query,
       }
 
-      // Add optional parameters if provided
       if (params.text) body.text = params.text
+
+      const outputSchema = parseJsonSchema(params.outputSchema, 'outputSchema')
+      if (outputSchema) body.outputSchema = outputSchema
 
       return body
     },
@@ -72,14 +80,17 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     return {
       success: true,
       output: {
-        query: data.query || '',
-        answer: data.answer || '',
+        answer: data.answer ?? '',
         citations:
           data.citations?.map((citation: any) => ({
+            id: citation.id,
             title: citation.title || '',
             url: citation.url,
             text: citation.text || '',
+            author: citation.author,
+            publishedDate: citation.publishedDate,
           })) || [],
+        requestId: data.requestId,
         __costDollars: data.costDollars,
       },
     }
@@ -87,8 +98,9 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
 
   outputs: {
     answer: {
-      type: 'string',
-      description: 'AI-generated answer to the question',
+      type: 'json',
+      description:
+        'AI-generated answer to the question. A string, or an object matching outputSchema when one was supplied.',
     },
     citations: {
       type: 'array',
@@ -96,11 +108,18 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
       items: {
         type: 'object',
         properties: {
+          id: { type: 'string', description: 'Exa identifier for the cited source' },
           title: { type: 'string', description: 'The title of the cited source' },
           url: { type: 'string', description: 'The URL of the cited source' },
-          text: { type: 'string', description: 'Relevant text from the cited source' },
+          text: {
+            type: 'string',
+            description: 'Full page text of the cited source, when text is enabled',
+          },
+          author: { type: 'string', description: 'The author of the cited source' },
+          publishedDate: { type: 'string', description: 'Publication date of the cited source' },
         },
       },
     },
+    requestId: { type: 'string', description: 'Exa request identifier, useful for support' },
   },
 }

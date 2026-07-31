@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Badge, Button } from '@sim/emcn'
+import { Badge, Button, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
+import { truncate } from '@sim/utils/string'
 import type { BackgroundWorkItem } from '@/lib/api/contracts/workspace-fork'
 import {
   ActivityLog,
@@ -13,6 +14,12 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { useWorkspaceBackgroundWork } from '@/ee/workspace-forking/hooks/background-work'
 
 const logger = createLogger('ForkActivityPanel')
+
+/**
+ * Errors can carry a full driver message; the badge tooltip is a glance-level
+ * summary, so cap it. The untruncated text stays in the expanded detail box.
+ */
+const TOOLTIP_MAX_LENGTH = 240
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
@@ -119,6 +126,27 @@ function jobBadgeVariant(job: BackgroundWorkItem) {
       return 'purple' as const
     default:
       return 'gray-secondary' as const
+  }
+}
+
+/**
+ * Hover text for the Event badge, explaining what its color means. Successful rows
+ * (the per-operation colors) return null — the color already says "done", and the
+ * breakdown is one click away in the expanded row — so only the states a reader
+ * can't act on from color alone get a tooltip.
+ */
+function jobStatusTooltip(job: BackgroundWorkItem): string | null {
+  switch (job.status) {
+    case 'pending':
+      return 'Queued'
+    case 'processing':
+      return 'In progress'
+    case 'failed':
+      return truncate(job.error ?? 'Failed', TOOLTIP_MAX_LENGTH)
+    case 'completed_with_warnings':
+      return truncate(job.message ?? 'Completed with warnings', TOOLTIP_MAX_LENGTH)
+    default:
+      return null
   }
 }
 
@@ -239,13 +267,24 @@ function jobDetails(job: BackgroundWorkItem, report: JobReport) {
 function toActivityEntry(job: BackgroundWorkItem, view: ActivityView): ActivityLogEntry {
   const report = jobReport(job)
   const hasDetails = report.groups.length > 0 || report.notes.length > 0 || Boolean(job.error)
+  const tooltip = jobStatusTooltip(job)
+  const badge = (
+    <Badge variant={jobBadgeVariant(job)} size='sm' className='shrink-0'>
+      {jobEventLabel(job)}
+    </Badge>
+  )
   return {
     id: job.id,
     timestamp: formatDateTime(new Date(job.startedAt)),
-    event: (
-      <Badge variant={jobBadgeVariant(job)} size='sm' className='shrink-0'>
-        {jobEventLabel(job)}
-      </Badge>
+    event: tooltip ? (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{badge}</Tooltip.Trigger>
+        <Tooltip.Content>
+          <span className='block whitespace-normal break-words text-left'>{tooltip}</span>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    ) : (
+      badge
     ),
     description: jobTitle(job, view),
     actor: job.metadata?.actorName || 'System',

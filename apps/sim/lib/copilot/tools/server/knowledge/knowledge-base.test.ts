@@ -74,8 +74,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: vi.fn(),
 }))
 vi.mock('@/app/api/knowledge/search/utils', () => ({
-  getQueryStrategy: vi.fn(),
-  handleVectorOnlySearch: vi.fn(),
+  executeKnowledgeSearch: vi.fn(),
 }))
 vi.mock('@/app/api/knowledge/utils', () => ({
   checkDocumentWriteAccess: vi.fn(),

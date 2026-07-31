@@ -97,6 +97,18 @@ describe('isSensitiveKey', () => {
     })
   })
 
+  describe('provider-prefixed key fields', () => {
+    it.concurrent('should match block fields that end in an api key', () => {
+      expect(isSensitiveKey('searchApiKey')).toBe(true)
+      expect(isSensitiveKey('exa_api_key')).toBe(true)
+      expect(isSensitiveKey('providerApiKey')).toBe(true)
+    })
+
+    it.concurrent('should match ssh passphrases', () => {
+      expect(isSensitiveKey('passphrase')).toBe(true)
+    })
+  })
+
   describe('non-sensitive keys (no false positives)', () => {
     it.concurrent('should not match keys with sensitive words as prefix only', () => {
       expect(isSensitiveKey('tokenCount')).toBe(false)

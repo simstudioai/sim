@@ -1,0 +1,69 @@
+appId: ai.sim.desktop
+productName: Sim
+copyright: Copyright © 2026 Sim
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - static/**
+  - package.json
+
+asar: true
+
+# Native modules cannot be dlopen'd from inside an asar.
+# `scripts/ensure-pty-prebuilds.ts` guarantees both arch prebuilds are present
+# before packaging; see mac.x64ArchFiles for how the universal merge treats them.
+asarUnpack:
+  - "**/node_modules/@lydell/node-pty-*/prebuilds/**"
+
+# Space-free regardless of productName ("Sim Dev" etc.): GitHub rewrites
+# asset names containing spaces, which would desync the electron-updater
+# manifest from the uploaded files.
+artifactName: "Sim-${version}-${arch}.${ext}"
+
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  icon: build/generated-icon.icns
+  # node-pty keeps each architecture's binary at its own path, so both halves of
+  # the universal build carry an identical copy of both. @electron/universal
+  # refuses single-arch Mach-O files it wasn't told about, so name them here —
+  # it then takes one copy instead of trying to lipo two same-arch binaries.
+  x64ArchFiles: "**/node-pty-darwin-*/prebuilds/**"
+  # Both halves bundle byte-identical JS, so the merge is pure overhead and
+  # @electron/universal reuses a single app.asar anyway. Skipping it also avoids
+  # @electron/asar 3.x, which calls minimatch through a default export the
+  # workspace-wide minimatch@10 pin no longer provides.
+  mergeASARs: false
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+
+dmg:
+  sign: false
+
+# node-pty ships pure N-API prebuilds, which are ABI-stable across Node and
+# Electron versions, so there is nothing to rebuild against Electron's ABI.
+npmRebuild: false
+
+publish:
+  provider: github
+  owner: simstudioai
+  repo: sim

@@ -38,6 +38,7 @@ import type {
  * (`ADD_RESOURCE_EXCLUDED_TYPES` in `resource-tabs`).
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
+const NON_ATTACHABLE_RESOURCE_TYPES = new Set<MothershipResourceType>(['browser'])
 
 interface PlusMenuDropdownProps {
   workspaceId: string
@@ -90,13 +91,16 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    const visibleResources = useMemo(
-      () =>
-        isMention
-          ? availableResources
-          : availableResources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type)),
-      [isMention, availableResources]
-    )
+    // The `+` browse menu hides mention-only resource types; `@`-mention mode
+    // exposes the full catalog so integrations remain searchable inline.
+    const visibleResources = useMemo(() => {
+      const attachable = availableResources.filter(
+        ({ type }) => !NON_ATTACHABLE_RESOURCE_TYPES.has(type)
+      )
+      return isMention
+        ? attachable
+        : attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
+    }, [isMention, availableResources])
 
     const workflowTree = useMemo(() => {
       const workflowGroup = visibleResources.find((g) => g.type === 'workflow')

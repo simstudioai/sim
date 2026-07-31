@@ -6,6 +6,7 @@ import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/ser
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { findActiveFolder } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
@@ -69,6 +70,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    // Scoped to `resourceType: 'table'` so a folder id belonging to another
+    // resource's tree can't file a table where its own surface will never list it.
+    if (
+      params.folderId &&
+      !(await findActiveFolder(params.folderId, params.workspaceId, 'table'))
+    ) {
+      return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
+    }
+
     const planLimits = await getWorkspaceTableLimits(params.workspaceId)
 
     const normalizedSchema: TableSchema = {
@@ -81,6 +91,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         description: params.description,
         schema: normalizedSchema,
         workspaceId: params.workspaceId,
+        folderId: params.folderId ?? null,
         userId: authResult.userId,
         maxTables: planLimits.maxTables,
         initialRowCount: params.initialRowCount,
@@ -127,6 +138,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
+          folderId: table.folderId ?? null,
           locks: table.locks,
           createdAt:
             table.createdAt instanceof Date
@@ -209,6 +221,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         maxRows: t.maxRows,
         locks: t.locks,
         workspaceId: t.workspaceId,
+        folderId: t.folderId ?? null,
         createdBy: t.createdBy,
         createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
         updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),

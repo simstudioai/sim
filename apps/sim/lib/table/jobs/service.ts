@@ -209,16 +209,17 @@ export async function getJobProgress(tableId: string, jobId: string): Promise<nu
 /**
  * One keyset page of rows for the export worker, ordered by `(order_key, id)` — the same
  * authoritative visual order the grid (`queryRows`) uses, so exports and snapshots match what the
- * user sees even after manual reorders. Keyset (not OFFSET) keeps each page O(page); `order_key` is
- * present on every row (always assigned on insert, backfilled for legacy rows) with `id` as the
- * tiebreaker, and the `(table_id, order_key, id)` index serves it. The delete-job visibility mask
- * applies, like every user-facing read.
+ * user sees even after manual reorders. Keyset (not OFFSET) keeps each page O(page), with `id` as
+ * the tiebreaker and the `(table_id, order_key, id)` index serving it. `order_key` is nullable —
+ * rows predating the backfill, and forked rows that inherit a NULL key — so unkeyed rows form a
+ * trailing segment the seek admits explicitly. The delete-job visibility mask applies, like every
+ * user-facing read.
  */
 export async function selectExportRowPage(
   table: TableDefinition,
-  after: { orderKey: string; id: string } | null,
+  after: { orderKey: string | null; id: string } | null,
   limit: number
-): Promise<Array<{ id: string; data: RowData; orderKey: string }>> {
+): Promise<Array<{ id: string; data: RowData; orderKey: string | null }>> {
   const deleteMask = await pendingDeleteMask(table)
   const rows = await db
     .select({ id: userTableRows.id, data: userTableRows.data, orderKey: userTableRows.orderKey })
@@ -228,14 +229,22 @@ export async function selectExportRowPage(
         eq(userTableRows.tableId, table.id),
         eq(userTableRows.workspaceId, table.workspaceId),
         deleteMask,
+        // `order_key` is nullable and sorts LAST, so the page order is "keyed rows by
+        // key, then the unkeyed tail by id". A bare row-constructor comparison is NULL
+        // for unkeyed rows (dropping them) and NULL for an unkeyed anchor (dropping
+        // everything), which silently truncates exports. Seek per anchor kind instead.
         after
-          ? sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id})`
+          ? after.orderKey === null
+            ? sql`${userTableRows.orderKey} IS NULL AND ${userTableRows.id} > ${after.id}`
+            : sql`(${userTableRows.orderKey} IS NULL OR (${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id}))`
           : undefined
       )
     )
     .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
     .limit(limit)
-  return rows as Array<{ id: string; data: RowData; orderKey: string }>
+  // drizzle types a jsonb column as `unknown`; every writer goes through the
+  // row-data validators, so narrowing here is a projection, not an assumption.
+  return rows.map((r) => ({ ...r, data: r.data as RowData }))
 }
 
 /** How long a terminal export stays listable (and re-downloadable from the tray). */

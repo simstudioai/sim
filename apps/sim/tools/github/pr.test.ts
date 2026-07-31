@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { listPRsV2Tool } from '@/tools/github/list_prs'
 import { prTool, prV2Tool } from '@/tools/github/pr'
 import type {
   CreateCommentParams,
@@ -199,6 +200,54 @@ describe('GitHub PR reader tools', () => {
     await expect(
       prV2Tool.transformResponse!(response, { ...BASE_PARAMS, includeFiles: false })
     ).rejects.toThrow('pull request unavailable')
+  })
+
+  describe('head repository full name', () => {
+    it('parses a fixture with no head.repo key at all', async () => {
+      const result = await prV2Tool.transformResponse!(pullRequestResponse(), {
+        ...BASE_PARAMS,
+        includeFiles: false,
+      })
+
+      expect(result.output.head).toMatchObject({ ref: 'feature', repo_full_name: null })
+      expect(result.output.base).toMatchObject({ ref: 'staging', repo_full_name: null })
+    })
+
+    it('reads a deleted fork (repo: null) as null', async () => {
+      const payload = pullRequestPayload()
+      const response = Response.json({ ...payload, head: { ...payload.head, repo: null } })
+
+      const result = await prV2Tool.transformResponse!(response, {
+        ...BASE_PARAMS,
+        includeFiles: false,
+      })
+
+      expect(result.output.head.repo_full_name).toBeNull()
+    })
+
+    it("reads a present repository's full name", async () => {
+      const payload = pullRequestPayload()
+      const response = Response.json({
+        ...payload,
+        head: { ...payload.head, repo: { id: 1, full_name: 'octo/demo' } },
+      })
+
+      const result = await prV2Tool.transformResponse!(response, {
+        ...BASE_PARAMS,
+        includeFiles: false,
+      })
+
+      expect(result.output.head.repo_full_name).toBe('octo/demo')
+    })
+
+    it('is advertised on the PR reader but not on list_prs, whose transform never derives it', () => {
+      const prBranch = prV2Tool.outputs?.head?.properties
+      const listBranch = listPRsV2Tool.outputs?.items?.items?.properties?.head?.properties
+
+      expect(prBranch).toHaveProperty('repo_full_name')
+      expect(listBranch).toBeDefined()
+      expect(listBranch).not.toHaveProperty('repo_full_name')
+    })
   })
 
   it('rejects malformed successful files payloads instead of treating them as empty', async () => {

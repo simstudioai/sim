@@ -24,5 +24,6 @@ export const handleCompleteEvent: StreamHandler = (event, context) => {
     }
   }
 
+  context.completionStatus = event.payload.status
   context.streamComplete = true
 }

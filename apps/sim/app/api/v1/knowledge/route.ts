@@ -9,7 +9,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
-import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  authenticateRequest,
+  v1ValidationErrorResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,7 +25,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1ListKnowledgeBasesContract, request, {})
+    const parsed = await parseRequest(
+      v1ListKnowledgeBasesContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.query
@@ -50,7 +61,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const parsed = await parseRequest(v1CreateKnowledgeBaseContract, request, {})
+    const parsed = await parseRequest(
+      v1CreateKnowledgeBaseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: v1ValidationErrorResponse,
+      }
+    )
     if (!parsed.success) return parsed.response
 
     const { workspaceId, name, description, chunkingConfig } = parsed.data.body

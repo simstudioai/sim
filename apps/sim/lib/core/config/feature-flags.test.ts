@@ -13,6 +13,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
+    TABLES_V2_API: undefined as boolean | undefined,
   },
 }))
 
@@ -75,7 +76,6 @@ describe('getFeatureFlags', () => {
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
-    expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
@@ -103,7 +103,6 @@ describe('getFeatureFlags', () => {
     setEnvFlags({ isAppConfigEnabled: true })
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
-    expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
@@ -158,6 +157,30 @@ describe('isFeatureEnabled', () => {
       withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
+    })
+  })
+
+  describe('table-views flag', () => {
+    it('falls back to TABLE_VIEWS when AppConfig is disabled', async () => {
+      envRef.TABLE_VIEWS = undefined
+      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.TABLE_VIEWS = true
+      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs and users via AppConfig, ignoring the fallback secret', async () => {
+      envRef.TABLE_VIEWS = undefined
+      withAppConfig({ 'table-views': { orgIds: ['o1'], userIds: ['u9'] } })
+      expect(await isFeatureEnabled('table-views', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('table-views', { userId: 'u9' })).toBe(true)
+      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o2' })).toBe(false)
+    })
+
+    it('resolves off with no context, so a signed-out render never gates on', async () => {
+      envRef.TABLE_VIEWS = undefined
+      withAppConfig({ 'table-views': { orgIds: ['o1'] } })
+      expect(await isFeatureEnabled('table-views')).toBe(false)
     })
   })
 
@@ -221,5 +244,31 @@ describe('isFeatureEnabled', () => {
       expect(await enabled('f', { userId: 'u1' })).toBe(false)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('tables-v2-api flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.TABLES_V2_API = undefined
+  })
+
+  it('is off by default off-AppConfig, on when the fallback secret is set', async () => {
+    expect(await isFeatureEnabled('tables-v2-api')).toBe(false)
+    envRef.TABLES_V2_API = true
+    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
+  })
+
+  it('gates by org cohort via AppConfig', async () => {
+    withAppConfig({ 'tables-v2-api': { orgIds: ['org-1'] } })
+    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-1' })).toBe(true)
+    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-2' })).toBe(false)
+    expect(await isFeatureEnabled('tables-v2-api', { userId: 'u1' })).toBe(false)
+  })
+
+  it('global enabled turns it on for everyone', async () => {
+    withAppConfig({ 'tables-v2-api': { enabled: true } })
+    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
   })
 })

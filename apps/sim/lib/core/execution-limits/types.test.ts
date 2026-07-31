@@ -35,6 +35,7 @@ declare module '@/lib/core/execution-limits/types?execution-limits-test' {
 import {
   createTimeoutAbortController,
   getExecutionTimeout,
+  getRemainingExecutionMs,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits/types?execution-limits-test'
 
@@ -111,5 +112,44 @@ describe('getExecutionTimeout', () => {
     expect(reason.message).toBe('user')
     expect(isTimeoutAbortReason(reason)).toBe(false)
     controller.cleanup()
+  })
+})
+
+describe('getRemainingExecutionMs', () => {
+  it('reports the time left on the signal that enforces the timeout', () => {
+    const controller = createTimeoutAbortController(60_000)
+
+    const remaining = getRemainingExecutionMs(controller.signal)
+
+    expect(remaining).toBeGreaterThan(55_000)
+    expect(remaining).toBeLessThanOrEqual(60_000)
+    controller.cleanup()
+  })
+
+  it('never reports a negative remainder once the deadline has passed', () => {
+    vi.useFakeTimers()
+    try {
+      const controller = createTimeoutAbortController(1_000)
+      vi.advanceTimersByTime(5_000)
+
+      expect(getRemainingExecutionMs(controller.signal)).toBe(0)
+      controller.cleanup()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  /**
+   * `undefined` is "unknown", not "unlimited" — an untimed run, a signal from
+   * somewhere else, or a derived signal all land here, and a caller that needs a
+   * bound has to keep its own fallback rather than assume the run is untimed.
+   */
+  it('returns undefined for an untimed, foreign, or absent signal', () => {
+    const untimed = createTimeoutAbortController()
+
+    expect(getRemainingExecutionMs(untimed.signal)).toBeUndefined()
+    expect(getRemainingExecutionMs(new AbortController().signal)).toBeUndefined()
+    expect(getRemainingExecutionMs(undefined)).toBeUndefined()
+    untimed.cleanup()
   })
 })

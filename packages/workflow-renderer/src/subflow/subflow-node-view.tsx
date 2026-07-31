@@ -3,6 +3,7 @@ import { Badge, cn, handleKeyboardActivation } from '@sim/emcn'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
+import { OverflowSpan } from '../lib/overflow-span'
 import { tileIconColorClass } from '../lib/tile-icon-color'
 import type { BlockRunStatus, DiffStatus } from '../types'
 
@@ -171,15 +172,13 @@ export function SubflowNodeView({
                 )}
               />
             </div>
-            <span
+            <OverflowSpan
+              value={blockName}
               className={cn(
                 'truncate font-medium text-md',
                 !isEnabled && 'text-[var(--text-muted)]'
               )}
-              title={blockName}
-            >
-              {blockName}
-            </span>
+            />
           </div>
           <div className='flex items-center gap-1'>
             {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}

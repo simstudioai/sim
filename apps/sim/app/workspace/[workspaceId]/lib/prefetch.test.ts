@@ -20,8 +20,8 @@ import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefet
 import { prefetchHomeLists } from '@/app/workspace/[workspaceId]/home/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
 import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
@@ -110,13 +110,12 @@ describe('workspace list prefetches', () => {
         userId: 'u-1',
         workspaceId: WORKSPACE_ID,
         parentId: null,
-        color: null,
-        isExpanded: true,
+        resourceType: 'workflow',
         locked: false,
         sortOrder: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-02T00:00:00.000Z',
-        archivedAt: null,
+        deletedAt: null,
       }
       const files = [{ id: 'f-1' }]
       mockPrefetchInternalJson.mockImplementation(async (path: string) =>
@@ -127,15 +126,16 @@ describe('workspace list prefetches', () => {
       await prefetchHomeLists(client, WORKSPACE_ID)
 
       expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active`
+        `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active&resourceType=workflow`
       )
       const cachedFolders = client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active')) as Array<{
         id: string
-        color: string
+        resourceType: string
         createdAt: Date
       }>
       expect(cachedFolders).toHaveLength(1)
-      expect(cachedFolders[0].color).toBe('#6B7280')
+      expect(cachedFolders[0].resourceType).toBe('workflow')
+      // The wire shape carries ISO strings; the client shape carries Dates.
       expect(cachedFolders[0].createdAt).toBeInstanceOf(Date)
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })

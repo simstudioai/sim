@@ -1,6 +1,6 @@
 /**
- * Single source of truth for lock vocabulary shared by the lock settings modal,
- * the blocked-action toast, and the table header chip. Kept out of
+ * Single source of truth for lock vocabulary shared by the lock settings modal
+ * and the lock toasts (the on-open announcement and blocked actions). Kept out of
  * `lib/table/mutation-locks.ts` — that module is server-tainted (importing it
  * from a client component pulls `next/headers` into the browser bundle).
  */
@@ -76,8 +76,8 @@ export function describeLocks(locks: TableLocks): { name: string; detail: string
 
 /**
  * Why a locked-table notice was raised. `'status'` is the informational case
- * (a non-admin clicking the header lock chip); the rest are actions the user
- * just tried and couldn't do.
+ * (the announcement shown once when a locked table is opened); the rest are
+ * actions the user just tried and couldn't do.
  */
 export type BlockedTableAction = 'add-row' | 'add-column' | 'delete-column' | 'edit-cell' | 'status'
 

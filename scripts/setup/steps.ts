@@ -385,6 +385,13 @@ export async function promptUnlocks(vars: Map<string, string>): Promise<Record<s
   })
   if (selected.length === 0) return {}
   const flags = new Set(selected)
+  if (flags.has('ENTERPRISE_ENABLED')) {
+    p.log.info(
+      theme.muted(
+        'The enterprise switch covers every feature below — pick individual ones only to override it.'
+      )
+    )
+  }
   if (flags.has('ACCESS_CONTROL_ENABLED') && !flags.has('ORGANIZATIONS_ENABLED')) {
     flags.add('ORGANIZATIONS_ENABLED')
     p.log.info(theme.muted('Access control requires organizations — enabling both.'))

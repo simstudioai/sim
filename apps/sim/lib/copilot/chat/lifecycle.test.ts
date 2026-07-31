@@ -127,9 +127,7 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
   })
 
   it('legacy getAccessibleCopilotChat also assembles messages from copilot_messages', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { ...chatRow, model: 'm', planArtifact: null, config: null },
-    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, model: 'm', config: null }])
     dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }])
 
     const result = await getAccessibleCopilotChat(CHAT_ID, USER_ID)

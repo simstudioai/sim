@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { cn } from '@sim/emcn'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface CredentialDetailLayoutProps {
   /** Back link rendered at the start of the fixed action bar. */
@@ -17,7 +19,7 @@ interface CredentialDetailLayoutProps {
 export function CredentialDetailLayout({ back, actions, children }: CredentialDetailLayoutProps) {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={cn(PAGE_HEADER_BAR, 'justify-between')}>
         {back}
         {actions ? <div className='flex items-center'>{actions}</div> : null}
       </div>

@@ -2,6 +2,7 @@ import { createLogger, runWithRequestContext } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -36,13 +37,34 @@ function readTypedErrorStatus(error: unknown): number | undefined {
 }
 
 /**
+ * Stamps the request id, plus the rate-limit trio when the route consulted a
+ * bucket for this request. Applied on both the success and the unhandled-error
+ * path so a caller can read its quota from any response — including the 4xx and
+ * 5xx ones, which are exactly the responses worth retrying.
+ */
+function applyResponseHeaders(
+  response: NextResponse | Response | undefined,
+  request: NextRequest,
+  requestId: string
+): void {
+  if (!response?.headers) return
+  response.headers.set('x-request-id', requestId)
+  const rateLimit = getRateLimitHeaders(request)
+  if (!rateLimit) return
+  for (const [name, value] of Object.entries(rateLimit)) {
+    response.headers.set(name, value)
+  }
+}
+
+/**
  * Wraps a Next.js API route handler with centralized error reporting.
  *
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
  *   logger in the request lifecycle automatically includes it
  * - Logs all 4xx and 5xx responses with method, path, status, duration
  * - Catches unhandled errors, logs them, and returns a 500 with the request ID
- * - Attaches `x-request-id` response header
+ * - Attaches `x-request-id`, plus the rate-limit headers when the route
+ *   recorded a snapshot for the request
  */
 export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
   return async (request: NextRequest, context: T) => {
@@ -74,7 +96,7 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
             { status: 500 }
           )
         }
-        response?.headers?.set('x-request-id', requestId)
+        applyResponseHeaders(response, request, requestId)
         return response
       }
 
@@ -89,7 +111,7 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
         logger.info('OK', { status, duration })
       }
 
-      response?.headers?.set('x-request-id', requestId)
+      applyResponseHeaders(response, request, requestId)
       return response
     })
   }

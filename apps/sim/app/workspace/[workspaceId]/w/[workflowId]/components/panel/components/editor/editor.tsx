@@ -650,7 +650,16 @@ export function Editor() {
                                 : undefined
                             }
                           />
-                          {showDivider && <FieldDivider subblockMarker />}
+                          {showDivider && (
+                            <FieldDivider
+                              subblockMarker
+                              className={
+                                regularSubBlocks[index + 1]?.hideDividerBefore
+                                  ? '[&>div]:invisible'
+                                  : undefined
+                              }
+                            />
+                          )}
                         </div>
                       )
                     })}
@@ -707,7 +716,14 @@ export function Editor() {
                             }
                           />
                           {index < advancedOnlySubBlocks.length - 1 && (
-                            <FieldDivider subblockMarker />
+                            <FieldDivider
+                              subblockMarker
+                              className={
+                                advancedOnlySubBlocks[index + 1]?.hideDividerBefore
+                                  ? '[&>div]:invisible'
+                                  : undefined
+                              }
+                            />
                           )}
                         </div>
                       )

@@ -24,11 +24,11 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
   adminV1ImportWorkspaceContract,
@@ -41,8 +41,10 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -52,7 +54,6 @@ import {
 } from '@/app/api/v1/admin/responses'
 import type {
   ImportResult,
-  WorkflowVariable,
   WorkspaceImportRequest,
   WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
@@ -73,6 +74,77 @@ interface ParsedWorkflow {
   content: string
   name: string
   folderPath: string[]
+}
+
+/**
+ * Returns the id of the active workflow folder named `name` under `parentId`, creating it if
+ * absent — `mkdir -p` semantics.
+ *
+ * The generic `folder` table enforces active sibling-name uniqueness, which
+ * `workflow_folder` did not, so blindly inserting an import path segment that already exists
+ * now fails the whole import on a unique violation. Reusing the existing folder is also the
+ * behaviour an import of a folder *path* should have: importing into "Reports/2026" twice
+ * should land in one tree, not two.
+ */
+async function ensureImportFolder(
+  workspaceId: string,
+  userId: string,
+  name: string,
+  parentId: string | null
+): Promise<string> {
+  const [existing] = await db
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        eq(folderTable.name, name),
+        parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .limit(1)
+  if (existing) return existing.id
+
+  const folderId = generateId()
+  try {
+    await db.insert(folderTable).values({
+      id: folderId,
+      resourceType: 'workflow',
+      name,
+      userId,
+      workspaceId,
+      parentId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  } catch (error) {
+    /**
+     * The SELECT above is not serialized against this INSERT, so two imports sharing a folder
+     * path race here. The name is server-chosen, not user-chosen, so the right resolution is
+     * to adopt whichever folder won rather than fail the whole import with a 500 — the same
+     * reuse-on-conflict `ensureWorkspaceFileFolderPath` already does.
+     */
+    if (getPostgresErrorCode(error) !== '23505') throw error
+
+    const [concurrent] = await db
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, 'workflow'),
+          eq(folderTable.name, name),
+          parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!concurrent) throw error
+    return concurrent.id
+  }
+  return folderId
 }
 
 export const POST = withRouteHandler(
@@ -150,16 +222,12 @@ export const POST = withRouteHandler(
 
       let rootFolderId: string | undefined
       if (rootFolderName && createFolders) {
-        rootFolderId = generateId()
-        await db.insert(workflowFolder).values({
-          id: rootFolderId,
-          name: rootFolderName,
-          userId: workspaceData.ownerId,
+        rootFolderId = await ensureImportFolder(
           workspaceId,
-          parentId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
+          workspaceData.ownerId,
+          rootFolderName,
+          null
+        )
       }
 
       const folderMap = new Map<string, string>()
@@ -228,16 +296,12 @@ async function importSingleWorkflow(
         const fullPath = rootFolderId ? `root/${pathSegment}` : pathSegment
 
         if (!folderMap.has(fullPath)) {
-          const folderId = generateId()
-          await db.insert(workflowFolder).values({
-            id: folderId,
-            name: wf.folderPath[i],
-            userId: ownerId,
+          const folderId = await ensureImportFolder(
             workspaceId,
-            parentId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
+            ownerId,
+            wf.folderPath[i],
+            parentId
+          )
           folderMap.set(fullPath, folderId)
           parentId = folderId
         } else {
@@ -270,7 +334,22 @@ async function importSingleWorkflow(
       variables: {},
     })
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData)
+    /**
+     * Same normalization the editor, the v1 import API and the single-workflow
+     * admin import run, via the one shared implementation. Without it this route
+     * wrote raw parsed state, so a dangling edge tripped the `workflow_edges`
+     * foreign key and failed the restore, and blocks missing their backfilled
+     * columns could land unopenable.
+     */
+    const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(workflowData)
+    if (warnings.length > 0) {
+      logger.warn(`Admin API: normalized "${dedupedName}" with warnings`, { warnings })
+    }
+
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+      ...workflowData,
+      ...preparedState,
+    })
 
     if (!saveResult.success) {
       await db.delete(workflow).where(eq(workflow.id, workflowId))
@@ -282,18 +361,13 @@ async function importSingleWorkflow(
       }
     }
 
-    if (workflowData.variables && Array.isArray(workflowData.variables)) {
-      const variablesRecord: Record<string, WorkflowVariable> = {}
-      workflowData.variables.forEach((v) => {
-        const varId = v.id || generateId()
-        variablesRecord[varId] = {
-          id: varId,
-          name: v.name,
-          type: v.type || 'string',
-          value: v.value,
-        }
-      })
-
+    /**
+     * Previously guarded on `Array.isArray`, which silently dropped every
+     * variable in the current record form — the exact shape this workspace's
+     * own export emits — so an export/import round trip lost all of them.
+     */
+    const variablesRecord = normalizeImportedVariables(workflowData.variables)
+    if (Object.keys(variablesRecord).length > 0) {
       await db
         .update(workflow)
         .set({ variables: variablesRecord, updatedAt: new Date() })
