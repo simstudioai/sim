@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { Editor } from '@tiptap/core'
+import { initProseMirrorDoc, updateYFragment, ySyncPluginKey } from '@tiptap/y-tiptap'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
@@ -49,6 +50,18 @@ function track(t: { editor: Editor; doc: Y.Doc; awareness: Awareness }) {
 }
 
 describe('agent-stream applier', () => {
+  it('relies on y-tiptap internals that still exist (upgrade guardrail)', () => {
+    // beginAgentStream/applyAgentStreamFrame reach into y-tiptap internals (not public TipTap API):
+    // `ySyncPluginKey`, `updateYFragment`, `initProseMirrorDoc`. A y-tiptap bump that renames or drops
+    // any of them can pass typecheck yet break at runtime — assert their runtime shape here so an upgrade
+    // fails loudly at test time instead of in production. Pinned to an exact y-tiptap version in
+    // package.json; bump that pin and this guard together.
+    expect(typeof updateYFragment).toBe('function')
+    expect(typeof initProseMirrorDoc).toBe('function')
+    expect(ySyncPluginKey).toBeDefined()
+    expect(typeof ySyncPluginKey.getState).toBe('function')
+  })
+
   it('streams agent content into the live collaborative doc and broadcasts it as Yjs ops', () => {
     const { editor, doc } = track(makeCollabEditor())
 

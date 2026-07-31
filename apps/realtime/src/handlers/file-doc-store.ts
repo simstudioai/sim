@@ -299,6 +299,17 @@ export class FileDocStore {
    */
   private async appendUpdate(name: string, update: Uint8Array, agent = false): Promise<void> {
     if (!this.write) return
+    // Latch realEdited SYNCHRONOUSLY — before the first await — for a real (non-agent) publish. The edit
+    // already sits in room.doc (applied in doc.on('update') before publish was called), so if this set
+    // were deferred past the xAdd/expire awaits a CONCURRENT agent-frame-triggered maybeCompact could read
+    // realEdited=false, snapshot the doc (which already holds this real edit), and stamp it an agent
+    // (no-persist) snapshot — a lost edit. Setting it in the same synchronous tick as the doc mutation
+    // makes "room.doc holds a real edit ⇒ realEdited" hold before any compaction (always async) can run.
+    // Monotonic latch, so an eager set is safe; the seed never flows through here (it uses seedIfEmpty).
+    if (!agent) {
+      const editedRoom = this.rooms.get(name)
+      if (editedRoom) editedRoom.realEdited = true
+    }
     const encoded = Buffer.from(update).toString('base64')
     const fields: Record<string, string> = { [UPDATE_FIELD]: encoded }
     if (agent) fields[AGENT_FIELD] = '1'
@@ -318,13 +329,7 @@ export class FileDocStore {
     }
     await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
-    if (room) {
-      // A local non-agent publish (a user edit or the awaited copilot durable merge) is a real edit; the
-      // seed never flows through here (it uses seedIfEmpty). Set it BEFORE the compaction check below so a
-      // real edit can never be folded into an agent (no-persist) snapshot due to a tail-back race.
-      if (!agent) room.realEdited = true
-      if (++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
-    }
+    if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
   }
 
   /**

@@ -908,7 +908,10 @@ export function LoadedRichMarkdownEditor({
           // Single-writer election: only the leader (min clientID among clients announcing they apply this
           // stream) writes it into the shared doc, so multiple tabs/windows watching the same live copilot
           // stream don't each insert it and duplicate content. A non-leader renders the leader's ops via
-          // Yjs; re-checked each frame, so it converges to one writer the moment awareness propagates.
+          // Yjs; re-checked each frame, so a co-leader stops the moment awareness propagates. (The pick-up
+          // direction — a successor beginning to write after the leader tab closes — waits for the next
+          // content frame to run a tick; a stream that already delivered its last frame is covered by
+          // settle and the durable write, so at worst a brief end-of-stream display lag, never a loss.)
           // Bounded residual (accepted): if two tabs start the SAME stream within the awareness-propagation
           // window they briefly both lead and duplicate a frame or two — a rare, transient, never-persisted
           // glitch (SYNC_NO_PERSIST keeps it out of storage; the durable edit_content write reconciles the
@@ -962,27 +965,41 @@ export function LoadedRichMarkdownEditor({
         cancelAnimationFrame(streamRafRef.current)
         streamRafRef.current = null
       }
-      // Settle: apply the FINAL body so the Y.Doc exactly equals the streamed result. The mid-stream
-      // leader REUSES its up-to-date shadow (just catching a throttled last frame); a client that never
-      // applied mid-stream (a non-leader, a held `update`, or a pre-seed stream) opens a FRESH shadow
-      // seeded from the CURRENT doc. Reconciling current→final is idempotent — a client that settles after
-      // another already wrote the final reconciles to a noop — so there is NO settle-time election and no
-      // base-shadow duplication, and a lone client (incl. an `update`) still applies rather than waiting on
-      // the durable merge. That durable `edit_content` write then lands as a noop diff too.
+      // Settle: apply the FINAL body so the Y.Doc exactly equals the streamed result — but ONLY the
+      // elected writer applies it (the same min-clientID election the streaming tick uses). Without this,
+      // N tabs watching one run each open a fresh shadow and reconcile current→final; a non-leader's local
+      // settle microtask runs BEFORE the leader's final propagates (a server round-trip), so both insert
+      // the same tail and Yjs keeps both (it does not dedupe identical text from two clients) → a
+      // duplicated tail. The election is reliable here (unlike the bounded startup window): the stream ran
+      // for seconds, so awareness is long converged. Each tab reads leadership BEFORE clearing its own
+      // announcement — a remote clear is a network round-trip, always slower than these local microtasks,
+      // so every tab sees the same announcer set and agrees on one leader. The leader reuses its
+      // up-to-date shadow (catching a throttled last frame) or, if it never applied mid-stream (a held
+      // `update`, or a pre-seed stream), opens a FRESH shadow from the current doc; a non-leader applies
+      // nothing (the leader's final broadcasts to it) and frees any shadow it still held. The durable
+      // `edit_content` write then lands as a noop diff for everyone.
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
         agentAnnouncedRef.current = false
+        const isSettleWriter =
+          !collaboration || isAgentStreamLeader(collaboration.awareness, collaboration.doc.clientID)
         if (collaboration) clearAgentApplying(collaboration.awareness)
         lastStreamedBodyRef.current = null
-        const finalBody = splitFrontmatter(content).body
-        const session = agentStreamSessionRef.current ?? beginAgentStream(editor)
+        const heldSession = agentStreamSessionRef.current
         agentStreamSessionRef.current = null
-        if (session) {
-          runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
-          // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
-          // can supersede the run token and drop the apply above, but the shadow must always be
-          // destroyed. Queued after the apply, so it frees the shadow only once that has had its chance.
-          queueMicrotask(() => endAgentStream(session))
+        if (isSettleWriter) {
+          const finalBody = splitFrontmatter(content).body
+          const session = heldSession ?? beginAgentStream(editor)
+          if (session) {
+            runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
+            // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
+            // can supersede the run token and drop the apply above, but the shadow must always be
+            // destroyed. Queued after the apply, so it frees the shadow only once that has had its chance.
+            queueMicrotask(() => endAgentStream(session))
+          }
+        } else if (heldSession) {
+          // Non-leader: it never writes the final (the leader does + broadcasts it); free any shadow it held.
+          queueMicrotask(() => endAgentStream(heldSession))
         }
       }
       return

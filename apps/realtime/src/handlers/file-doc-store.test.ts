@@ -270,6 +270,23 @@ describe('FileDocStore', () => {
     bDoc.destroy()
   })
 
+  it('latches realEdited synchronously so a concurrent compaction can never mislabel a real edit', async () => {
+    // The data-loss race: a real edit sits in room.doc synchronously, but if realEdited were set only
+    // AFTER appendUpdate's awaits, a concurrent agent-triggered compaction could snapshot that content and
+    // stamp it an agent (no-persist) frame — losing the edit. The latch must be set in the same tick.
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = (a as any).rooms.get(NAME)
+    expect(room.realEdited).toBe(false)
+    // Kick off a real (non-agent) append but do NOT await it: realEdited must already be true before the
+    // xAdd/expire awaits resolve, so any compaction racing on the awaits sees the real edit.
+    const pending = (a as any).appendUpdate(NAME, updateFor('real user edit'))
+    expect(room.realEdited).toBe(true)
+    await pending
+    doc.destroy()
+  })
+
   it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')
