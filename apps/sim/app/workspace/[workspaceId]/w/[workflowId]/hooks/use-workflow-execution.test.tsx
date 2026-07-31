@@ -34,6 +34,20 @@ const {
       enabled: true,
       subBlocks: {},
     },
+    condition1: {
+      id: 'condition1',
+      type: 'condition',
+      name: 'Check',
+      enabled: true,
+      subBlocks: {},
+    },
+    disabledBranch: {
+      id: 'disabledBranch',
+      type: 'slack',
+      name: 'Send Empty',
+      enabled: false,
+      subBlocks: {},
+    },
   }
   const idleExecution = {
     status: 'idle',
@@ -73,12 +87,20 @@ const {
     finishRunningEntries: vi.fn(),
     clearExecutionEntries: vi.fn(),
   }
+  const workflowEdges = [
+    {
+      id: 'edge-1',
+      source: 'condition1',
+      target: 'disabledBranch',
+      sourceHandle: 'condition-else1',
+    },
+  ]
   const workflowStoreState = {
     blocks: workflowBlocks,
-    edges: [],
+    edges: workflowEdges,
     getWorkflowState: vi.fn(() => ({
       blocks: workflowBlocks,
-      edges: [],
+      edges: workflowEdges,
       loops: {},
       parallels: {},
     })),
@@ -467,6 +489,42 @@ describe('useWorkflowExecution attachment uploads', () => {
         }),
       })
     )
+
+    unmount()
+  })
+})
+
+describe('useWorkflowExecution workflow state override', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+    mockExecute.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sends disabled blocks so no edge points at a block the executor cannot see', async () => {
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    await act(async () => {
+      const runResult = await result().handleRunWorkflow({
+        input: 'go',
+        conversationId: 'conversation-1',
+      })
+      await drainStream(runResult)
+    })
+
+    expect(mockExecute).toHaveBeenCalledTimes(1)
+    const { workflowStateOverride } = mockExecute.mock.calls[0][0]
+    const sentBlockIds = new Set(Object.keys(workflowStateOverride.blocks))
+
+    expect(sentBlockIds.has('disabledBranch')).toBe(true)
+    for (const edge of workflowStateOverride.edges) {
+      expect(sentBlockIds.has(edge.source)).toBe(true)
+      expect(sentBlockIds.has(edge.target)).toBe(true)
+    }
 
     unmount()
   })
