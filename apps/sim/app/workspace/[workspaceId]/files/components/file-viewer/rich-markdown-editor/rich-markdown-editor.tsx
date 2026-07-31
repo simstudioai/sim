@@ -918,6 +918,15 @@ export function LoadedRichMarkdownEditor({
             collaboration &&
             !isAgentStreamLeader(collaboration.awareness, collaboration.doc.clientID)
           ) {
+            // Not (or no longer) the leader: discard any shadow this client holds. A shadow only tracks
+            // ITS OWN reconciles, so one kept across a leadership loss goes stale as the interim leader
+            // advances the shared doc; reusing it on a later regain would re-emit ops for content already
+            // present (duplication). Dropping it here means a regain rebuilds a FRESH shadow from the
+            // current doc via the `??=` below — upholding "a non-leader holds none."
+            if (agentStreamSessionRef.current) {
+              endAgentStream(agentStreamSessionRef.current)
+              agentStreamSessionRef.current = null
+            }
             streamRafRef.current = null
             return
           }
@@ -931,8 +940,10 @@ export function LoadedRichMarkdownEditor({
           const el = containerRef.current
           const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
           // Open the shadow lazily HERE — only when THIS client actually leads — seeded from the CURRENT
-          // doc, so a handoff successor diffs against the prior leader's ops (no stale base) and a
-          // non-leader never builds one. Defensive: a ready collab editor always has a ySync binding.
+          // doc. A non-leader holds none (torn down above), so whether this client is a first-time leader
+          // or one REGAINING leadership, `??=` finds a null ref and rebuilds fresh from the current doc,
+          // already carrying the interim leader's ops (never a stale base). Defensive: a ready collab
+          // editor always has a ySync binding.
           agentStreamSessionRef.current ??= beginAgentStream(editor)
           const session = agentStreamSessionRef.current
           if (!session || !applyAgentStreamFrame(editor, session, pending)) {

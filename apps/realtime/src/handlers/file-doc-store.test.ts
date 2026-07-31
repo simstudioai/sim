@@ -223,8 +223,14 @@ describe('FileDocStore', () => {
 
     const a = await newStore()
     // This task has integrated only up to entry 400 (all no-ops) — its local doc is empty and lags the
-    // two peer entries. Inject that lagging room directly.
-    ;(a as any).rooms.set(NAME, { doc: new Y.Doc(), lastId: '400-0', publishes: 0 })
+    // two peer entries. Inject that lagging room directly (a real edit was integrated → realEdited).
+    ;(a as any).rooms.set(NAME, {
+      doc: new Y.Doc(),
+      lastId: '400-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: true,
+    })
     await (a as any).maybeCompact(NAME)
 
     // A fresh catch-up must still reconstruct the peer content — compaction must not have trimmed 401/402.
@@ -262,6 +268,42 @@ describe('FileDocStore', () => {
     // The normal edit's entry carries no agent marker.
     expect(stream.filter((e) => e.message.a === '1')).toHaveLength(1)
     bDoc.destroy()
+  })
+
+  it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')
+    // A doc whose content is purely agent preview (no real edit integrated) — realEdited stays false.
+    const agentDoc = docWithText('agent-only preview body')
+    const entries = Array.from({ length: 400 }, (_, i) => ({
+      id: `${i + 1}-0`,
+      message: { u: noop },
+    }))
+    state.backing!.streams.set(streamKey, entries)
+    state.backing!.seq = 400
+
+    const a = await newStore()
+    ;(a as any).rooms.set(NAME, {
+      doc: agentDoc,
+      lastId: '400-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: false,
+    })
+    await (a as any).maybeCompact(NAME)
+
+    // The snapshot must carry the AGENT marker, NOT the snapshot marker, so a peer catch-up applies it as
+    // REDIS_AGENT_ORIGIN and never marks the doc edited — the no-persist guarantee survives compaction.
+    const stream = state.backing!.streams.get(streamKey)!
+    const last = stream[stream.length - 1].message
+    expect(last.a).toBe('1')
+    expect(last.s).toBeUndefined()
+    // Content is still fully reconstructable from the compacted stream.
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
+    expect(doc.getText('body').toString()).toBe('agent-only preview body')
+    doc.destroy()
+    agentDoc.destroy()
   })
 
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {
@@ -407,8 +449,20 @@ describe('FileDocStore', () => {
     const b = await newStore()
     const docA = new Y.Doc()
     Y.applyUpdate(docA, peerUpdates[0]) // A integrated up to 401
-    ;(a as any).rooms.set(NAME, { doc: docA, lastId: '401-0', publishes: 0 })
-    ;(b as any).rooms.set(NAME, { doc: new Y.Doc(), lastId: '400-0', publishes: 0 })
+    ;(a as any).rooms.set(NAME, {
+      doc: docA,
+      lastId: '401-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: true,
+    })
+    ;(b as any).rooms.set(NAME, {
+      doc: new Y.Doc(),
+      lastId: '400-0',
+      publishes: 0,
+      seededObserved: true,
+      realEdited: true,
+    })
     await Promise.all([(a as any).maybeCompact(NAME), (b as any).maybeCompact(NAME)])
 
     const doc = new Y.Doc()

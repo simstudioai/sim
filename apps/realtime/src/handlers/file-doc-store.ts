@@ -33,7 +33,7 @@
  * @module
  */
 import { createLogger } from '@sim/logger'
-import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -180,6 +180,12 @@ function applyEntryToDoc(
   }
 }
 
+/** Whether a doc carries the seed flag (mirrors the relay's `isDocSeeded`), so the store can tell the
+ * one-time seed transition from a real post-seed edit without re-implementing the check divergently. */
+function isDocSeeded(doc: Y.Doc): boolean {
+  return doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) === true
+}
+
 /** One locally-open room the store tracks: its doc and the last stream id applied to it. */
 interface StoreRoom {
   doc: Y.Doc
@@ -187,6 +193,14 @@ interface StoreRoom {
   lastId: string
   /** Local publish count, to pace compaction checks. */
   publishes: number
+  /** Set once the doc has been observed seeded, so the seed transition itself is never mistaken for an
+   * edit (mirrors the relay's `seededObserved`). */
+  seededObserved: boolean
+  /** Whether the doc has integrated any REAL (non-agent, non-seed) edit. Compaction stamps its snapshot
+   * as an AGENT snapshot ({@link REDIS_AGENT_ORIGIN}, never persisted) until this is true, so a long
+   * agent-only stream that crosses the compaction threshold can't fold its preview content into a
+   * snapshot that marks peers edited. */
+  realEdited: boolean
 }
 
 /**
@@ -250,7 +264,13 @@ export class FileDocStore {
     if (!this.enabled || !this.write) return
     // Register BEFORE the async read so a concurrent publish/tailer for this room can't be missed —
     // the tailer resumes from `lastId`, which the catch-up advances.
-    const room: StoreRoom = { doc, lastId: '0', publishes: 0 }
+    const room: StoreRoom = {
+      doc,
+      lastId: '0',
+      publishes: 0,
+      seededObserved: false,
+      realEdited: false,
+    }
     this.rooms.set(name, room)
     try {
       const entries = await this.write.xRange(streamKey(name), '-', '+')
@@ -298,7 +318,13 @@ export class FileDocStore {
     }
     await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
-    if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
+    if (room) {
+      // A local non-agent publish (a user edit or the awaited copilot durable merge) is a real edit; the
+      // seed never flows through here (it uses seedIfEmpty). Set it BEFORE the compaction check below so a
+      // real edit can never be folded into an agent (no-persist) snapshot due to a tail-back race.
+      if (!agent) room.realEdited = true
+      if (++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
+    }
   }
 
   /**
@@ -538,7 +564,16 @@ export class FileDocStore {
       : message[AGENT_FIELD]
         ? REDIS_AGENT_ORIGIN
         : REDIS_ORIGIN
+    const seededBefore = room.seededObserved
     applyEntryToDoc(room.doc, id, message, origin)
+    if (isDocSeeded(room.doc)) room.seededObserved = true
+    // Track a real edit integrated from the stream so compaction knows whether its snapshot represents
+    // real content or agent-only preview: a real snapshot (folds real edits), or a markerless edit
+    // applied AFTER the doc was already seeded (the seed transition itself never counts). Agent frames
+    // and agent snapshots (REDIS_AGENT_ORIGIN) never count.
+    if (origin === REDIS_SNAPSHOT_ORIGIN || (origin === REDIS_ORIGIN && seededBefore)) {
+      room.realEdited = true
+    }
   }
 
   /**
@@ -599,10 +634,14 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
-        // Mark it a snapshot so a fresh catch-up task treats it as edited content, not a bare seed.
+        // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
+        // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
+        // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
+        // the no-persist guarantee even when a long copilot stream alone crosses the compaction threshold.
+        const marker = room.realEdited ? SNAPSHOT_FIELD : AGENT_FIELD
         await this.write.xAdd(streamKey(name), '*', {
           [UPDATE_FIELD]: snapshot,
-          [SNAPSHOT_FIELD]: '1',
+          [marker]: '1',
         })
         // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.

@@ -99,6 +99,46 @@ describe('agent-stream applier', () => {
     expect(editor.getText()).toContain('Agent wrote this')
   })
 
+  it('a shadow reused after the live doc advanced duplicates content; a fresh one does not', () => {
+    // The invariant behind the component's leadership-regain teardown: a shadow tracks only ITS OWN
+    // reconciles, so once the live doc advances under another writer, REUSING that stale shadow re-emits
+    // ops for content already present (duplication). Seeding a FRESH shadow from the current doc fixes it.
+    const stale = track(makeCollabEditor())
+    const staleSession = beginAgentStream(stale.editor)! // seeded from the empty base
+    applyAgentStreamFrame(stale.editor, staleSession, 'Alpha paragraph.')
+    // Another writer advances the live doc while this shadow is NOT looking (a handoff to an interim leader).
+    stale.editor.commands.focus('end')
+    stale.editor.commands.insertContent('\n\nBeta paragraph.')
+    // Reusing the stale shadow (only knows "Alpha") to reconcile toward the full body re-inserts "Beta".
+    applyAgentStreamFrame(
+      stale.editor,
+      staleSession,
+      'Alpha paragraph.\n\nBeta paragraph.\n\nGamma paragraph.'
+    )
+    endAgentStream(staleSession)
+    const staleText = stale.editor.getText()
+    expect(staleText.match(/Beta paragraph/g)?.length).toBe(2) // duplicated — what the teardown prevents
+
+    // Fresh shadow re-seeded from the CURRENT doc (what a regaining leader does after teardown) emits only
+    // the genuine delta, so no content duplicates.
+    const fresh = track(makeCollabEditor())
+    const first = beginAgentStream(fresh.editor)!
+    applyAgentStreamFrame(fresh.editor, first, 'Alpha paragraph.')
+    fresh.editor.commands.focus('end')
+    fresh.editor.commands.insertContent('\n\nBeta paragraph.')
+    endAgentStream(first)
+    const regained = beginAgentStream(fresh.editor)! // re-seeded from the advanced doc
+    applyAgentStreamFrame(
+      fresh.editor,
+      regained,
+      'Alpha paragraph.\n\nBeta paragraph.\n\nGamma paragraph.'
+    )
+    endAgentStream(regained)
+    const freshText = fresh.editor.getText()
+    expect(freshText.match(/Beta paragraph/g)?.length).toBe(1)
+    expect(freshText).toContain('Gamma paragraph')
+  })
+
   it('preserves a concurrent peer edit to a region the agent snapshot does not include', () => {
     // This is the core "AI as a CRDT peer" guarantee: the agent relays only its OWN delta (computed
     // against a private shadow), never a whole-document reconcile that would revert a peer's edit.
