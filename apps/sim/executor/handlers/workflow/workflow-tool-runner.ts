@@ -1,21 +1,32 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
+import type { TraceSpan } from '@/lib/logs/types'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import {
   buildCustomBlockExecutionContext,
   type CustomBlockExecutorContext,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
-import {
-  aggregateChildCost,
-  WorkflowBlockHandler,
-} from '@/executor/handlers/workflow/workflow-handler'
+import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import { classifyExecutionError } from '@/executor/utils/errors'
 import { parseJSON } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('WorkflowToolRunner')
+
+/**
+ * Hosted-key spend of a failed child run, the way the parent bills it: recurse
+ * nested spans and de-dupe model breakdowns, then subtract the base execution
+ * charge the parent already applies once itself. A naive top-level `cost.total`
+ * sum undercounts when spend sits on nested children.
+ */
+function aggregateChildCost(childTraceSpans: TraceSpan[]): number {
+  if (childTraceSpans.length === 0) return 0
+  const summary = calculateCostSummary(childTraceSpans)
+  return Math.max(0, summary.totalCost - summary.baseExecutionCharge)
+}
 
 interface WorkflowToolParams {
   workflowId?: string
