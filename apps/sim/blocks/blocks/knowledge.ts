@@ -93,10 +93,10 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Retrieval Mode',
       type: 'dropdown',
       options: [
-        { label: 'Hybrid (full-text + vector)', id: 'hybrid' },
         { label: 'Vector only', id: 'vector' },
+        { label: 'Hybrid (full-text + vector)', id: 'hybrid' },
       ],
-      value: () => 'hybrid',
+      value: () => 'vector',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
@@ -454,7 +454,7 @@ export const KnowledgeBlock: BlockConfig = {
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
     searchMode: {
       type: 'string',
-      description: 'Retrieval mode: hybrid (full-text + vector) or vector only',
+      description: 'Retrieval mode: vector only (default) or hybrid (full-text + vector)',
     },
     rerankerEnabled: { type: 'boolean', description: 'Apply Cohere reranking to search results' },
     rerankerModel: { type: 'string', description: 'Cohere rerank model identifier' },

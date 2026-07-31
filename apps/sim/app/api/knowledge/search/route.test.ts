@@ -22,13 +22,11 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 const {
   mockGetDocumentTagDefinitions,
   mockExecuteKnowledgeSearch,
-  mockGetQueryStrategy,
   mockGenerateSearchEmbedding,
   mockGetDocumentMetadataByIds,
 } = vi.hoisted(() => ({
   mockGetDocumentTagDefinitions: vi.fn(),
   mockExecuteKnowledgeSearch: vi.fn(),
-  mockGetQueryStrategy: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
   mockGetDocumentMetadataByIds: vi.fn(),
 }))
@@ -66,7 +64,6 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 
 vi.mock('./utils', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
-  getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
   APIError: class APIError extends Error {
@@ -113,12 +110,6 @@ describe('Knowledge Search API Route', () => {
     setEnv({ OPENAI_API_KEY: 'test-api-key' })
 
     mockExecuteKnowledgeSearch.mockClear()
-    mockGetQueryStrategy.mockClear().mockReturnValue({
-      useParallel: false,
-      distanceThreshold: 1.0,
-      parallelLimit: 15,
-      singleQueryOptimized: true,
-    })
     mockGenerateSearchEmbedding
       .mockClear()
       .mockResolvedValue({ embedding: [0.1, 0.2, 0.3, 0.4, 0.5], isBYOK: false })
@@ -207,14 +198,14 @@ describe('Knowledge Search API Route', () => {
       expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        searchMode: 'hybrid',
+        searchMode: 'vector',
         query: validSearchData.query,
         queryVector: JSON.stringify(mockEmbedding),
         structuredFilters: undefined,
       })
     })
 
-    it('should forward the searchMode opt-out to the retrieval layer', async () => {
+    it('should forward the hybrid searchMode opt-in to the retrieval layer', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
@@ -239,12 +230,12 @@ describe('Knowledge Search API Route', () => {
           }),
       })
 
-      const req = createMockRequest('POST', { ...validSearchData, searchMode: 'vector' })
+      const req = createMockRequest('POST', { ...validSearchData, searchMode: 'hybrid' })
       const response = await POST(req)
 
       expect(response.status).toBe(200)
       expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith(
-        expect.objectContaining({ searchMode: 'vector' })
+        expect.objectContaining({ searchMode: 'hybrid' })
       )
     })
 
@@ -287,7 +278,7 @@ describe('Knowledge Search API Route', () => {
       expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123', 'kb-456'],
         topK: 10,
-        searchMode: 'hybrid',
+        searchMode: 'vector',
         query: multiKbData.query,
         queryVector: JSON.stringify(mockEmbedding),
         structuredFilters: undefined,
@@ -796,7 +787,7 @@ describe('Knowledge Search API Route', () => {
       expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        searchMode: 'hybrid',
+        searchMode: 'vector',
         structuredFilters: [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api', valueTo: undefined },
         ],
@@ -850,7 +841,7 @@ describe('Knowledge Search API Route', () => {
       expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        searchMode: 'hybrid',
+        searchMode: 'vector',
         query: 'test search',
         queryVector: JSON.stringify(mockEmbedding),
         structuredFilters: [
@@ -1066,13 +1057,6 @@ describe('Knowledge Search API Route', () => {
         },
       ])
 
-      mockGetQueryStrategy.mockReturnValue({
-        useParallel: false,
-        distanceThreshold: 1.0,
-        parallelLimit: 15,
-        singleQueryOptimized: true,
-      })
-
       mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
       mockGetDocumentMetadataByIds.mockResolvedValue({
         'doc-active': {
@@ -1142,13 +1126,6 @@ describe('Knowledge Search API Route', () => {
         },
       ])
 
-      mockGetQueryStrategy.mockReturnValue({
-        useParallel: false,
-        distanceThreshold: 1.0,
-        parallelLimit: 15,
-        singleQueryOptimized: true,
-      })
-
       mockGetDocumentMetadataByIds.mockResolvedValue({
         'doc-active-tagged': { filename: 'Active Tagged Document.pdf', sourceUrl: null },
       })
@@ -1213,13 +1190,6 @@ describe('Knowledge Search API Route', () => {
           knowledgeBaseId: 'kb-123',
         },
       ])
-
-      mockGetQueryStrategy.mockReturnValue({
-        useParallel: false,
-        distanceThreshold: 1.0,
-        parallelLimit: 15,
-        singleQueryOptimized: true,
-      })
 
       mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
       mockGetDocumentMetadataByIds.mockResolvedValue({

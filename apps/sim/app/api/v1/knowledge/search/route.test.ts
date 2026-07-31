@@ -13,7 +13,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockExecuteKnowledgeSearch,
-  mockGetQueryStrategy,
   mockGenerateSearchEmbedding,
   mockGetDocumentMetadataByIds,
   mockAuthenticateRequest,
@@ -23,7 +22,6 @@ const {
   mockRecordSearchEmbeddingUsage,
 } = vi.hoisted(() => ({
   mockExecuteKnowledgeSearch: vi.fn(),
-  mockGetQueryStrategy: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
   mockGetDocumentMetadataByIds: vi.fn(),
   mockAuthenticateRequest: vi.fn(),
@@ -48,7 +46,6 @@ const SYSTEM_BILLING_ATTRIBUTION = {
 
 vi.mock('@/app/api/knowledge/search/utils', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
-  getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
@@ -109,7 +106,6 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       rateLimit: {},
     })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
-    mockGetQueryStrategy.mockReturnValue({ distanceThreshold: 0.5 })
     mockGenerateSearchEmbedding.mockResolvedValue({
       embedding: [0.1, 0.2, 0.3],
       isBYOK: false,
