@@ -15,7 +15,7 @@ const EMPTY_FLAGS = { caseSensitive: false, wholeWord: false, regex: false }
 
 function toResult(state: FindPluginState): FindResult {
   return {
-    count: state.matches.length,
+    count: state.total,
     currentIndex: state.currentIndex,
     truncated: state.truncated,
   }

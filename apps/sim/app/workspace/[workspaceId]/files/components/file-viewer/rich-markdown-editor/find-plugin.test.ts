@@ -77,6 +77,14 @@ describe('markdown find plugin + controller', () => {
     expect(last().count).toBe(0)
   })
 
+  it('reports the true total even when the highlight cap drops later matches', () => {
+    const big = editorWith(`<p>${'x '.repeat(5001)}</p>`)
+    const { controller, last } = controllerFor(big)
+    controller.search('x', flags())
+    expect(getFindState(big.state).matches.length).toBe(5000) // navigable/highlighted set is capped
+    expect(last().count).toBe(5001) // but the reported count is the accurate total
+  })
+
   it('recomputes matches when the document changes underneath an active find', () => {
     const { controller } = controllerFor(editor)
     controller.search('two', flags())

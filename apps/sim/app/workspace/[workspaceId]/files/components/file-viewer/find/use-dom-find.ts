@@ -133,26 +133,29 @@ function toRange(index: TextNodeIndex, start: number, end: number): Range | null
 
 export interface DomMatches {
   ranges: Range[]
-  /** True when the highlight cap dropped some matches. */
-  capped: boolean
+  /** Total match count, which may exceed `ranges.length` when the highlight cap is hit. */
+  total: number
 }
 
 /**
- * Finds every match of `regex` in a DOM subtree and returns DOM Ranges. Concatenates the container's
- * visible text (across element boundaries, so a match can span adjacent inline nodes) and maps match
- * offsets back to `(node, offset)` Ranges. Exported for testing.
+ * Finds every match of `regex` in a DOM subtree and returns DOM Ranges plus the true total. Concatenates
+ * the container's visible text (across element boundaries, so a match can span adjacent inline nodes) and
+ * maps match offsets back to `(node, offset)` Ranges. The highlight cap bounds how many `ranges` are
+ * materialized, but `total` always reflects every match. Exported for testing.
  */
 export function computeDomMatches(root: HTMLElement, regex: RegExp): DomMatches {
   const index = indexTextNodes(root)
-  const { ranges, capped } = findMatches(index.text, regex)
+  const { ranges, total } = findMatches(index.text, regex)
   const domRanges = ranges
     .map((r) => toRange(index, r.start, r.end))
     .filter((r): r is Range => r !== null)
-  return { ranges: domRanges, capped }
+  return { ranges: domRanges, total }
 }
 
 interface DomControllerState {
   ranges: Range[]
+  /** True match total; may exceed `ranges.length` once the highlight cap is hit. */
+  total: number
   currentIndex: number
   truncated: boolean
 }
@@ -162,7 +165,7 @@ function createDomFindController(
   truncated: boolean,
   report: FindResultReporter
 ): FindController {
-  const state: DomControllerState = { ranges: [], currentIndex: -1, truncated: false }
+  const state: DomControllerState = { ranges: [], total: 0, currentIndex: -1, truncated: false }
   const supportsHighlight = highlightApiAvailable()
 
   const clearHighlights = () => {
@@ -195,7 +198,7 @@ function createDomFindController(
 
   const reportResult = () =>
     report({
-      count: state.ranges.length,
+      count: state.total,
       currentIndex: state.currentIndex,
       truncated: state.truncated,
     })
@@ -207,16 +210,20 @@ function createDomFindController(
       const regex = buildFindRegex(query, flags)
       if (!container || !regex) {
         state.ranges = []
+        state.total = 0
         state.currentIndex = -1
         state.truncated = false
         clearHighlights()
         reportResult()
         return
       }
-      const { ranges, capped } = computeDomMatches(container, regex)
+      const { ranges, total } = computeDomMatches(container, regex)
       state.ranges = ranges
+      state.total = total
       state.currentIndex = state.ranges.length > 0 ? 0 : -1
-      state.truncated = truncated || capped
+      // `truncated` marks a partial content window (a row-capped preview), not the highlight cap;
+      // `count` already reports the true total, so the `+` stays reserved for unsearched content.
+      state.truncated = truncated
       paint()
       revealCurrent()
       reportResult()
@@ -238,6 +245,7 @@ function createDomFindController(
     focusTarget: () => getContainer()?.focus?.(),
     dispose: () => {
       state.ranges = []
+      state.total = 0
       state.currentIndex = -1
       clearHighlights()
     },

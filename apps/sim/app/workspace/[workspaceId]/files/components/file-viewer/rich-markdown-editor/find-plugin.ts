@@ -23,6 +23,8 @@ export interface FindPluginState {
   query: string
   flags: FindFlags
   matches: FindMatchRange[]
+  /** True match total; may exceed `matches.length` once the highlight cap drops later matches. */
+  total: number
   currentIndex: number
   truncated: boolean
   decorations: DecorationSet
@@ -34,6 +36,7 @@ const INITIAL_STATE: FindPluginState = {
   query: '',
   flags: EMPTY_FLAGS,
   matches: [],
+  total: 0,
   currentIndex: -1,
   truncated: false,
   decorations: DecorationSet.empty,
@@ -110,6 +113,7 @@ export function computeFindState(
       query,
       flags,
       matches: [],
+      total: 0,
       currentIndex: -1,
       truncated: false,
       decorations: DecorationSet.empty,
@@ -117,7 +121,7 @@ export function computeFindState(
   }
 
   const { text, map } = buildDocText(doc)
-  const { ranges, total, capped } = findMatches(text, regex)
+  const { ranges, total } = findMatches(text, regex)
   const matches: FindMatchRange[] = []
   for (const range of ranges) {
     const from = map[range.start]
@@ -137,8 +141,11 @@ export function computeFindState(
     query,
     flags,
     matches,
+    // `total` counts every match; `matches` is bounded by the highlight cap. The whole document is
+    // searched, so there is no partial content window — `truncated` (the bar's `+`) stays false.
+    total,
     currentIndex: nextIndex,
-    truncated: capped || total > matches.length,
+    truncated: false,
     decorations: buildDecorations(doc, matches, nextIndex),
   }
 }
