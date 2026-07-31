@@ -376,6 +376,51 @@ describe('SQL Builder', () => {
     })
   })
 
+  describe('buildFilterClause > built-in columns', () => {
+    it('filters createdAt range against the physical created_at column', () => {
+      const out = render(
+        buildFilterClause(
+          {
+            createdAt: { $gte: '2026-07-24T03:00:00.000Z', $lte: '2026-07-25T02:59:59.999Z' },
+          } as Filter,
+          TABLE,
+          NO_COLUMNS
+        )
+      )
+      expect(out).toBe(
+        `${TABLE}.created_at >= '2026-07-24T03:00:00.000Z'::timestamptz AND ${TABLE}.created_at <= '2026-07-25T02:59:59.999Z'::timestamptz`
+      )
+    })
+
+    it('accepts a date string for a createdAt range (no numeric-cast rejection)', () => {
+      expect(() =>
+        buildFilterClause(
+          { createdAt: { $gte: '2026-07-24T03:00:00.000Z' } } as Filter,
+          TABLE,
+          NO_COLUMNS
+        )
+      ).not.toThrow()
+    })
+
+    it('filters id equality with = against the physical column, not JSONB containment', () => {
+      const out = render(buildFilterClause({ id: 'row_123' }, TABLE, NO_COLUMNS))
+      expect(out).toBe(`${TABLE}.id = 'row_123'`)
+    })
+
+    it('filters id membership with IN', () => {
+      const out = render(
+        buildFilterClause({ id: { $in: ['a', 'b'] } } as Filter, TABLE, NO_COLUMNS)
+      )
+      expect(out).toBe(`${TABLE}.id IN ('a', 'b')`)
+    })
+
+    it('lets a user column with the same key shadow the built-in', () => {
+      const cols: ColumnDefinition[] = [{ id: 'id', name: 'id', type: 'string' }]
+      const out = render(buildFilterClause({ id: 'row_123' }, TABLE, cols))
+      expect(out).toBe(`${TABLE}.data @> '{"id":"row_123"}'::jsonb`)
+    })
+  })
+
   describe('buildSortClause', () => {
     it('returns undefined for empty sort', () => {
       expect(buildSortClause({}, TABLE, NO_COLUMNS)).toBeUndefined()
@@ -400,13 +445,14 @@ describe('SQL Builder', () => {
       expect(out).toBe(`(${TABLE}.data->>'birthDate')::timestamptz ASC NULLS LAST`)
     })
 
-    it('sorts createdAt / updatedAt as direct column refs', () => {
+    it('sorts built-in columns by their physical top-level column', () => {
       expect(render(buildSortClause({ createdAt: 'desc' }, TABLE, NO_COLUMNS))).toBe(
-        `${TABLE}.createdAt DESC`
+        `${TABLE}.created_at DESC`
       )
       expect(render(buildSortClause({ updatedAt: 'asc' }, TABLE, NO_COLUMNS))).toBe(
-        `${TABLE}.updatedAt ASC`
+        `${TABLE}.updated_at ASC`
       )
+      expect(render(buildSortClause({ id: 'asc' }, TABLE, NO_COLUMNS))).toBe(`${TABLE}.id ASC`)
     })
 
     it('combines multiple sort fields with commas', () => {
