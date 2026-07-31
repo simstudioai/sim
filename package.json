@@ -41,7 +41,6 @@
     "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
     "check:desktop-ipc": "bun run scripts/check-desktop-ipc-contract.ts",
     "check:cli-api": "bun run scripts/generate-v2-cli-api.ts --check",
-    "check:openapi-drift": "bun run scripts/generate-v2-cli-api.ts --check-openapi",
     "generate:cli-api": "bun run scripts/generate-v2-cli-api.ts",
     "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",

@@ -152,6 +152,13 @@ export class SimClient {
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
       }
+      if (response.status === 404) {
+        // The v2 surface is behind a rollout flag that answers 404 when the
+        // caller is not in the cohort — deliberately indistinguishable from a
+        // missing resource, so the CLI cannot tell which happened. Offered as a
+        // possibility rather than a diagnosis; a plain bad id 404s identically.
+        error.message = `${error.message}\n  If every command returns this, the v2 API may not be enabled for your account yet.`
+      }
       throw error
     }
 

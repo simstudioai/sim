@@ -1,0 +1,85 @@
+import type { V2OperationName } from '../generated/v2-api.js'
+
+/**
+ * The CLI contract: how the terminal surface maps onto the v2 API.
+ *
+ * Most of a command is derivable and is NOT stated here. Method, path, path
+ * params, field types, enum values, defaults, and required-ness all come from
+ * the generated operation table, which comes from the Zod route contracts. The
+ * command name itself derives from `<resource> <sub-resource> <verb>` for 41 of
+ * the 44 operations.
+ *
+ * This file carries only what a schema cannot say:
+ *
+ * - `command` — when the derived name collides or reads badly. REST overloads
+ *   one path for single and bulk (`DELETE /rows` vs `DELETE /rows/[rowId]`), so
+ *   those need a human to pick `delete` vs `batch-delete`.
+ * - `flags` — when a field's *type* misdescribes its *meaning*. `workflowIds`
+ *   is `z.string()` that the route splits on commas; nothing in the schema says
+ *   "list". Also friendlier aliases (`conflictTarget` → `--on`).
+ * - `columns` — which of a response's fields belong in a table. Editorial.
+ * - `confirm` — which operations are destructive enough to demand `--yes`.
+ *
+ * An operation with nothing unusual needs no entry at all.
+ */
+
+/** How one request field is exposed as a flag. */
+export interface FlagSpec {
+  /** Flag name, kebab-case, without `--`. Defaults to the kebab-cased field name. */
+  name?: string
+  /** Short alias, e.g. `w` for `--workspace`. */
+  short?: string
+  /**
+   * Accept a repeated flag and send it comma-joined. For fields the schema
+   * types as `string` but the route splits — invisible to any type-driven
+   * generator, so it has to be stated.
+   */
+  list?: boolean
+  /** Take a JSON string. Implied for object/array/unknown fields. */
+  json?: boolean
+  /** Overrides the help text otherwise taken from the OpenAPI description. */
+  describe?: string
+  /**
+   * Never expose this field as a flag, and never send it.
+   *
+   * For request fields the terminal cannot honor — `stream: true` switches the
+   * response to SSE, which the JSON client would try to `JSON.parse`. Offering
+   * the flag would advertise a mode that breaks; a bespoke streaming command
+   * owns that instead.
+   */
+  omit?: boolean
+}
+
+/** A column in table-mode output. */
+export interface ColumnSpec {
+  /** Header, and the default path into the row when `value` is omitted. */
+  header: string
+  /** Dot path into the row. Defaults to `header`. */
+  path?: string
+  /** Rendering hint; `auto` inspects the value. */
+  format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost'
+}
+
+export interface CommandSpec {
+  /**
+   * Command path, space-separated. Omit to accept the derived
+   * `<resource> [sub-resource] <verb>` name.
+   */
+  command?: string
+  /** One-line help. Falls back to the OpenAPI summary for the operation. */
+  describe?: string
+  /** Per-field flag overrides, keyed by the contract's field name. */
+  flags?: Record<string, FlagSpec>
+  /** Columns for table output. Omit on non-list commands to print a record. */
+  columns?: ColumnSpec[]
+  /**
+   * Require `--yes`. The message should say what is about to be destroyed —
+   * the point is that the caller can tell whether they meant it.
+   */
+  confirm?: string
+  /** Keep the operation out of the CLI surface entirely. */
+  hidden?: boolean
+}
+
+/** The contract: operation name → how it appears in the terminal. */
+export type CliContract = Partial<Record<V2OperationName, CommandSpec>>

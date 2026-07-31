@@ -136,11 +136,6 @@ jobs:
       - name: Sim CLI API generation up to date
         run: bun run check:cli-api
 
-      # Structure only — the OpenAPI documents keep their hand-written prose,
-      # but every v2 path/method must still exist on both sides.
-      - name: OpenAPI matches the v2 contracts
-        run: bun run check:openapi-drift
-
       # Complements the bridge audit above, which compares against a snapshot
       # this same PR is allowed to regenerate. This one derives every fact from
       # the source both sides execute, so it has no such blind spot.

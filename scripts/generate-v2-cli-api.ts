@@ -16,15 +16,14 @@
  * boundary changes.
  *
  * Deliberately NOT generated: the OpenAPI documents under `apps/docs`. They
- * carry ~1000 hand-written descriptions and ~400 examples that Zod schemas do
- * not encode, and regenerating them would trade real documentation for
- * mechanical accuracy. `--check-openapi` reconciles their *structure* against
- * the contracts instead, so the prose survives while drift still fails CI.
+ * carry hand-written descriptions, examples, and error responses that Zod
+ * schemas do not encode. `scripts/check-openapi-specs.ts` reconciles those
+ * against the same contracts instead, field by field, so the prose survives
+ * while drift still fails CI.
  *
  * Usage:
  *   bun run scripts/generate-v2-cli-api.ts              # write the generated file
  *   bun run scripts/generate-v2-cli-api.ts --check      # fail if it is stale
- *   bun run scripts/generate-v2-cli-api.ts --check-openapi
  */
 
 import { spawnSync } from 'node:child_process'
@@ -35,7 +34,6 @@ import { z } from 'zod'
 const ROOT = path.resolve(import.meta.dir, '..')
 const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 const OUTPUT = path.join(ROOT, 'packages/sim-cli/src/generated/v2-api.ts')
-const DOCS_DIR = path.join(ROOT, 'apps/docs')
 
 /** Contract modules to read, in emit order. */
 const DOMAINS = [
@@ -239,59 +237,6 @@ function render(operations: Operation[]): string {
 }
 
 /**
- * Reconciles the hand-written OpenAPI documents against the contracts.
- *
- * Structure only — every contract path/method must be documented, and every
- * documented v2 path/method must exist as a contract. Descriptions and examples
- * are the docs' own, and are deliberately not compared.
- */
-function checkOpenApi(operations: Operation[]): string[] {
-  const problems: string[] = []
-
-  const documented = new Set<string>()
-  for (const file of [
-    'openapi-core.json',
-    'openapi-v2-workflows.json',
-    'openapi-v2-logs.json',
-    'openapi-v2-tables.json',
-    'openapi-v2-knowledge.json',
-    'openapi-v2-files-audit.json',
-  ]) {
-    let spec: JsonSchema
-    try {
-      spec = JSON.parse(readFileSync(path.join(DOCS_DIR, file), 'utf8'))
-    } catch {
-      problems.push(`missing or unparseable spec: ${file}`)
-      continue
-    }
-    for (const [specPath, methods] of Object.entries(spec.paths ?? {})) {
-      for (const method of Object.keys(methods as object)) {
-        if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue
-        documented.add(`${method.toUpperCase()} ${specPath}`)
-      }
-    }
-  }
-
-  for (const op of operations) {
-    // Contracts use Next.js `[id]`; OpenAPI uses `{id}`.
-    const openApiPath = op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')
-    const key = `${op.contract.method} ${openApiPath}`
-    if (!documented.has(key)) {
-      problems.push(`contract not documented in OpenAPI: ${key} (${op.name})`)
-    }
-    documented.delete(key)
-  }
-
-  for (const stale of documented) {
-    if (stale.includes('/api/v2/')) {
-      problems.push(`documented in OpenAPI but no contract: ${stale}`)
-    }
-  }
-
-  return problems
-}
-
-/**
  * Runs the emitted source through Biome so the generated file is a fixed point
  * of the repo's formatter.
  *
@@ -323,20 +268,6 @@ function format(source: string): string {
 async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
-
-  if (args.has('--check-openapi')) {
-    const problems = checkOpenApi(operations)
-    if (problems.length > 0) {
-      console.error('OpenAPI drift against the v2 contracts:\n')
-      for (const problem of problems) console.error(`  - ${problem}`)
-      console.error(
-        '\nUpdate apps/docs/openapi-v2-*.json to match the contracts (the contracts are authoritative).'
-      )
-      process.exit(1)
-    }
-    console.log(`OpenAPI matches all ${operations.length} v2 contracts.`)
-    return
-  }
 
   const generated = format(render(operations))
 

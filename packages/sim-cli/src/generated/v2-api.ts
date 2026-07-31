@@ -50,6 +50,29 @@ export type AddTableColumnResponse = {
   }
 }
 
+/** `POST /api/v2/workflows/[id]/executions/[executionId]/cancel` */
+export type CancelWorkflowExecutionParams = {
+  id: string
+  executionId: string
+}
+
+export type CancelWorkflowExecutionResponse = {
+  data: {
+    success: boolean
+    executionId: string
+    redisAvailable: boolean
+    durablyRecorded: boolean
+    locallyAborted: boolean
+    pausedCancelled: boolean
+    reason?:
+      | 'recorded'
+      | 'redis_unavailable'
+      | 'redis_write_failed'
+      | 'paused_event_publish_failed'
+      | 'paused_database_cancel_failed'
+  }
+}
+
 /** `POST /api/v2/knowledge` */
 export type CreateKnowledgeBaseBody = {
   workspaceId: string
@@ -363,6 +386,49 @@ export type DownloadFileQuery = {
 
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
+
+/** `POST /api/v2/workflows/[id]/execute` */
+export type ExecuteWorkflowParams = {
+  id: string
+}
+
+export type ExecuteWorkflowBody = {
+  input?: Record<string, unknown>
+  async?: boolean
+  stream?: boolean
+  selectedOutputs?: Array<string>
+  includeThinking?: boolean
+  includeToolCalls?: boolean
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
+}
+
+export type ExecuteWorkflowResponse = {
+  data: {
+    executionId: string
+    workflowId: string
+    status: 'completed' | 'failed' | 'paused' | 'cancelled'
+    output: unknown
+    error: {
+      message: string
+      code:
+        | 'TIMEOUT'
+        | 'CANCELLED'
+        | 'USAGE_LIMIT_EXCEEDED'
+        | 'INVALID_INPUT'
+        | 'BLOCK_EXECUTION_FAILED'
+        | 'CHILD_WORKFLOW_FAILED'
+        | 'OUTPUT_TOO_LARGE'
+        | 'EXECUTION_FAILED'
+      blockId?: string
+      blockName?: string
+      blockType?: string
+    } | null
+    startedAt?: string
+    endedAt?: string
+    durationMs?: number
+  }
+}
 
 /** `GET /api/v2/workflows/[id]/export` */
 export type ExportWorkflowParams = {
@@ -740,6 +806,59 @@ export type GetWorkflowResponse = {
       type: string
       description?: string
     }>
+  }
+}
+
+/** `GET /api/v2/workflows/[id]/executions/[executionId]` */
+export type GetWorkflowExecutionParams = {
+  id: string
+  executionId: string
+}
+
+export type GetWorkflowExecutionQuery = {
+  includeOutput?: 'true' | 'false'
+  selectedOutputs?: string
+}
+
+export type GetWorkflowExecutionResponse = {
+  data: {
+    executionId: string
+    workflowId: string
+    status: 'queued' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
+    trigger: string | null
+    startedAt: string | null
+    endedAt: string | null
+    durationMs: number | null
+    paused: {
+      pausedAt: string
+      resumeAt: string | null
+      pauseKind: 'time' | 'human' | null
+      blockedOnBlockId: string | null
+      automaticResumeWaitingReason: string | null
+      pausedExecutionId: string
+      pausePointCount: number
+      resumedCount: number
+    } | null
+    cost: {
+      total: number
+    } | null
+    error: {
+      message: string
+      code:
+        | 'TIMEOUT'
+        | 'CANCELLED'
+        | 'USAGE_LIMIT_EXCEEDED'
+        | 'INVALID_INPUT'
+        | 'BLOCK_EXECUTION_FAILED'
+        | 'CHILD_WORKFLOW_FAILED'
+        | 'OUTPUT_TOO_LARGE'
+        | 'EXECUTION_FAILED'
+      blockId?: string
+      blockName?: string
+      blockType?: string
+    } | null
+    output: unknown | null
+    blockOutputs: Record<string, unknown> | null
   }
 }
 
@@ -1394,6 +1513,12 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     responseMode: 'json',
   },
+  cancelWorkflowExecution: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/executions/[executionId]/cancel',
+    pathParams: ['id', 'executionId'] as const,
+    responseMode: 'json',
+  },
   createKnowledgeBase: {
     method: 'POST',
     path: '/api/v2/knowledge',
@@ -1466,6 +1591,12 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     responseMode: 'binary',
   },
+  executeWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/execute',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+  },
   exportWorkflow: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/export',
@@ -1524,6 +1655,12 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/workflows/[id]',
     pathParams: ['id'] as const,
+    responseMode: 'json',
+  },
+  getWorkflowExecution: {
+    method: 'GET',
+    path: '/api/v2/workflows/[id]/executions/[executionId]',
+    pathParams: ['id', 'executionId'] as const,
     responseMode: 'json',
   },
   importWorkflow: {

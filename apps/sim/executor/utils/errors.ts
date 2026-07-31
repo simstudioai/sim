@@ -155,7 +155,10 @@ function readAttachedBlockContext(error: unknown): {
   blockType?: string
 } {
   if (!(error instanceof Error)) return {}
-  const attached = error as unknown as AttachedBlockContext
+  // Widen rather than erase: the value is an Error, it just may carry extra
+  // fields attached at throw time. Casting through `unknown` would discard
+  // that, and trips the double-cast ratchet for no benefit.
+  const attached = error as Error & Partial<AttachedBlockContext>
   return {
     blockId: typeof attached.blockId === 'string' ? attached.blockId : undefined,
     blockName: typeof attached.blockName === 'string' ? attached.blockName : undefined,
