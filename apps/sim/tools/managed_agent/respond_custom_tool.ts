@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { sendCustomToolResults } from '@/lib/managed-agents/session-client'
-import { isTruthyAck, normalizeStringList } from '@/tools/managed_agent/normalizers'
+import { isTruthyAck } from '@/tools/managed_agent/normalizers'
 import {
   ACCESS_TOKEN_PARAM,
   CREDENTIAL_PARAM,
@@ -22,6 +22,11 @@ import type { ToolConfig } from '@/tools/types'
  * A permission confirmation does NOT unblock these — that is a different event
  * for a different kind of gate. `managed_agent_get_session` labels each pending
  * gate with `kind`, so a workflow can route to the right operation.
+ *
+ * Deliberately answers ONE call per invocation. Each pending custom tool has
+ * its own output, so accepting a list here would force every one of them to
+ * share a single result — silently wrong whenever more than one is pending.
+ * Answer several by iterating this operation over `pendingTools`.
  */
 export const managedAgentRespondCustomToolTool: ToolConfig<
   ManagedAgentCustomToolResultParams,
@@ -37,12 +42,12 @@ export const managedAgentRespondCustomToolTool: ToolConfig<
     credential: CREDENTIAL_PARAM,
     accessToken: ACCESS_TOKEN_PARAM,
     sessionId: SESSION_ID_PARAM,
-    customToolUseIds: {
-      type: 'array',
+    customToolUseId: {
+      type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        "Custom tool-use EVENT ids, from Get Session pendingTools[].id where kind is 'custom_tool_result'.",
+        "The custom tool-use EVENT id being answered, from Get Session pendingTools[].id where kind is 'custom_tool_result'.",
     },
     result: {
       type: 'string',
@@ -61,24 +66,24 @@ export const managedAgentRespondCustomToolTool: ToolConfig<
   request: UNUSED_REQUEST,
 
   directExecution: async (params, signal): Promise<ManagedAgentCustomToolResultResponse> => {
-    const emptyOutput = { sessionId: '', answeredToolUseIds: [] as string[] }
+    const emptyOutput = { sessionId: '', answeredToolUseId: '' }
     const target = resolveSessionTarget(params)
     if (!target.ok) {
       return { success: false, output: emptyOutput, error: target.error }
     }
 
-    const customToolUseIds = normalizeStringList(params.customToolUseIds)
-    if (customToolUseIds.length === 0) {
+    const customToolUseId = params.customToolUseId?.trim()
+    if (!customToolUseId) {
       return {
         success: false,
         output: { ...emptyOutput, sessionId: target.sessionId },
         error:
-          'At least one custom tool-use event id is required. Read them from Get Session pendingTools[].id.',
+          'A custom tool-use event id is required. Read it from Get Session pendingTools[].id.',
       }
     }
 
     // The result may legitimately be empty (a tool that returns nothing), so
-    // only the id list is required — an absent result is sent as an empty string.
+    // only the id is required — an absent result is sent as an empty string.
     const result = (params.result ?? '').toString()
     const isError = isTruthyAck(params.isError)
 
@@ -86,16 +91,12 @@ export const managedAgentRespondCustomToolTool: ToolConfig<
       await sendCustomToolResults({
         apiKey: target.apiKey,
         sessionId: target.sessionId,
-        results: customToolUseIds.map((customToolUseId) => ({
-          customToolUseId,
-          content: result,
-          isError,
-        })),
+        results: [{ customToolUseId, content: result, isError }],
         ...(signal ? { signal } : {}),
       })
       return {
         success: true,
-        output: { sessionId: target.sessionId, answeredToolUseIds: customToolUseIds },
+        output: { sessionId: target.sessionId, answeredToolUseId: customToolUseId },
       }
     } catch (error) {
       return {
@@ -108,9 +109,9 @@ export const managedAgentRespondCustomToolTool: ToolConfig<
 
   outputs: {
     sessionId: { type: 'string', description: 'The session that was answered.' },
-    answeredToolUseIds: {
-      type: 'json',
-      description: 'The custom tool-use event ids that were answered.',
+    answeredToolUseId: {
+      type: 'string',
+      description: 'The custom tool-use event id that was answered.',
     },
   },
 }

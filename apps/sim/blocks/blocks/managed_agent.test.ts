@@ -160,8 +160,8 @@ describe('Managed Agent block — per-operation field visibility', () => {
     // not share inputs — otherwise a workflow can silently answer the wrong way.
     expect(isVisible('toolUseIds', { operation: 'respond_tool_confirmation' })).toBe(true)
     expect(isVisible('toolUseIds', { operation: 'respond_custom_tool' })).toBe(false)
-    expect(isVisible('customToolUseIds', { operation: 'respond_custom_tool' })).toBe(true)
-    expect(isVisible('customToolUseIds', { operation: 'respond_tool_confirmation' })).toBe(false)
+    expect(isVisible('customToolUseId', { operation: 'respond_custom_tool' })).toBe(true)
+    expect(isVisible('customToolUseId', { operation: 'respond_tool_confirmation' })).toBe(false)
     expect(isVisible('result', { operation: 'respond_custom_tool' })).toBe(true)
     expect(isVisible('decision', { operation: 'respond_custom_tool' })).toBe(false)
   })

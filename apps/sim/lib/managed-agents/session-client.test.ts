@@ -7,6 +7,7 @@ import {
   buildSessionCreatePayload,
   deleteSession,
   listSessionEvents,
+  listSessionEventsPage,
   parseSessionSnapshot,
   resolvePendingToolGates,
   sendCustomToolResults,
@@ -480,6 +481,53 @@ describe('resolvePendingToolGates', () => {
     expect(gates[0]).toEqual({ id: 'sevt_1' })
   })
 
+  it('finds a gate that lives past the first page', async () => {
+    // Gates are the most RECENT tool calls. A read that capped instead of
+    // filtering would keep page 1 and miss exactly the events that matter.
+    let page = 0
+    global.fetch = vi.fn(async () => {
+      const offset = page * 100
+      page += 1
+      const data = Array.from({ length: 100 }, (_, i) => ({
+        id: `t${offset + i}`,
+        type: 'agent.tool_use',
+        name: `tool_${offset + i}`,
+      }))
+      return Response.json({ data, next_page: page < 4 ? `c${page}` : null })
+    }) as unknown as typeof fetch
+
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['t399'],
+    })
+    expect(gates).toEqual([
+      { id: 't399', eventType: 'agent.tool_use', kind: 'confirmation', name: 'tool_399' },
+    ])
+  })
+
+  it('keeps paging when an entire page filters out', async () => {
+    let page = 0
+    const spy = vi.fn(async () => {
+      page += 1
+      // Page 1 holds nothing wanted; the target is only on page 2.
+      const data =
+        page === 1
+          ? [{ id: 'other', type: 'agent.tool_use', name: 'noise' }]
+          : [{ id: 'want', type: 'agent.tool_use', name: 'target' }]
+      return Response.json({ data, next_page: page < 2 ? 'c1' : null })
+    }) as unknown as typeof fetch
+    global.fetch = spy
+
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['want'],
+    })
+    expect((spy as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2)
+    expect(gates[0]?.name).toBe('target')
+  })
+
   it('short-circuits with no ids', async () => {
     const spy = vi.fn() as unknown as typeof fetch
     global.fetch = spy
@@ -536,6 +584,28 @@ describe('listSessionEvents — bounded reads', () => {
     expect(events).toHaveLength(10)
     expect(events[0]?.id).toBe('e290')
     expect(events.at(-1)?.id).toBe('e299')
+  })
+
+  it('reports the untrimmed total so a full history is not mistaken for a tail', async () => {
+    // A history of exactly `maxItems` dropped nothing — `total === events.length`
+    // is what lets the caller tell that apart from a genuinely capped read.
+    global.fetch = pagedFetch(3)
+    const exact = await listSessionEventsPage({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: 300,
+    })
+    expect(exact.events).toHaveLength(300)
+    expect(exact.total).toBe(300)
+
+    global.fetch = pagedFetch(3)
+    const capped = await listSessionEventsPage({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: 120,
+    })
+    expect(capped.events).toHaveLength(120)
+    expect(capped.total).toBe(300)
   })
 
   it('returns the whole history when uncapped', async () => {

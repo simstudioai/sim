@@ -375,9 +375,6 @@ function gateKindFor(eventType: string | undefined): PendingToolGateKind | undef
   return undefined
 }
 
-/** Upper bound on tool-use events scanned when naming pending gates. */
-const MAX_GATE_LOOKUP_EVENTS = 2000
-
 /** Event types that can block a session pending a client response. */
 const TOOL_USE_EVENT_TYPES = [
   'agent.tool_use',
@@ -405,10 +402,12 @@ export async function resolvePendingToolGates(
       ...(input.signal ? { signal: input.signal } : {}),
       path: `/v1/sessions/${input.sessionId}/events`,
       searchParams: TOOL_USE_EVENT_TYPES.map((type): [string, string] => ['types[]', type]),
-      // Bounded: this only needs to find a handful of ids, and an unbounded read
-      // of a long session's tool history is a needless memory cost. An id that
-      // falls outside the window still comes back unenriched, which is usable.
-      maxItems: MAX_GATE_LOOKUP_EVENTS,
+      // Keep only the events actually being looked up rather than capping the
+      // read. A cap would retain the OLDEST page-order events, and blocking
+      // gates are by definition the most recent tool calls — exactly the ones a
+      // cap would drop. Filtering instead bounds memory to the id count while
+      // staying correct however the API orders its pages.
+      filter: (event) => Boolean(event.id && wanted.has(event.id)),
     })
   } catch {
     // Enrichment is best-effort — fall through to bare ids below.
@@ -497,6 +496,13 @@ async function listPaginated<T>(
     maxItems?: number
     /** Extra repeatable query pairs (e.g. `types[]` filters). */
     searchParams?: Array<[string, string]>
+    /**
+     * Applied per item as pages arrive, so only matches are retained. Use this
+     * instead of `maxItems` when the caller needs specific items rather than a
+     * prefix — a cap keeps whatever the API returned first, which is the oldest
+     * entries on a chronological endpoint.
+     */
+    filter?: (item: T) => boolean
   }
 ): Promise<T[]> {
   const collected: T[] = []
@@ -521,7 +527,9 @@ async function listPaginated<T>(
     }
     const body = (await resp.json()) as AnthropicListPage<T>
     const items = Array.isArray(body.data) ? body.data : []
-    collected.push(...items)
+    collected.push(...(input.filter ? items.filter(input.filter) : items))
+    // Paging continues on the RAW page, not the filtered result: a page whose
+    // every item was filtered out is not the end of the list.
     if (!body.next_page || items.length === 0) break
     page = body.next_page
   }
@@ -556,6 +564,28 @@ export async function listSessionEvents(
     maxItems?: number
   }
 ): Promise<AnthropicSessionEvent[]> {
+  return (await listSessionEventsPage(input)).events
+}
+
+/** An event read plus the size of the history it was taken from. */
+export interface SessionEventPage {
+  events: AnthropicSessionEvent[]
+  /**
+   * How many events the session actually has, before any cap. Compare against
+   * `events.length` to tell a capped read from a complete one — a history that
+   * happens to be exactly `maxItems` long has dropped nothing.
+   */
+  total: number
+}
+
+/**
+ * Same read as {@link listSessionEvents}, but also reports the untrimmed
+ * history size so callers can distinguish "this is a tail" from "this is
+ * everything, and it happens to be exactly the cap".
+ */
+export async function listSessionEventsPage(
+  input: SessionAuth & { sessionId: string; types?: string[]; maxItems?: number }
+): Promise<SessionEventPage> {
   const types = (input.types ?? []).filter((type) => type.trim().length > 0)
   const events = await listPaginated<AnthropicSessionEvent>({
     apiKey: input.apiKey,
@@ -574,10 +604,14 @@ export async function listSessionEvents(
   const ordered = events.sort(
     (a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at)
   )
+  const total = ordered.length
   const maxItems = input.maxItems
   // Slice AFTER ordering so the cap is "the newest N", independent of the order
   // the API returned pages in.
-  return maxItems !== undefined && ordered.length > maxItems ? ordered.slice(-maxItems) : ordered
+  return {
+    events: maxItems !== undefined && total > maxItems ? ordered.slice(-maxItems) : ordered,
+    total,
+  }
 }
 
 /** Epoch millis for a `processed_at`, or +Infinity when absent/queued/unparseable (sorts last). */

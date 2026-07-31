@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { listSessionEvents } from '@/lib/managed-agents/session-client'
+import { listSessionEventsPage } from '@/lib/managed-agents/session-client'
 import { normalizeStringList } from '@/tools/managed_agent/normalizers'
 import {
   ACCESS_TOKEN_PARAM,
@@ -86,7 +86,7 @@ export const managedAgentListEventsTool: ToolConfig<
       Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : DEFAULT_EVENT_LIMIT
 
     try {
-      const events = await listSessionEvents({
+      const { events, total } = await listSessionEventsPage({
         apiKey: target.apiKey,
         sessionId: target.sessionId,
         maxItems,
@@ -111,9 +111,10 @@ export const managedAgentListEventsTool: ToolConfig<
           events,
           count: events.length,
           assistantText,
-          // Signals that older events were dropped, so a caller reading history
-          // knows this is a tail rather than the whole session.
-          truncated: events.length >= maxItems,
+          // Compared against the untrimmed history size, not the limit: a
+          // session holding exactly `maxItems` events dropped nothing and must
+          // not be reported as a partial read.
+          truncated: total > events.length,
         },
       }
     } catch (error) {

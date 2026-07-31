@@ -146,8 +146,8 @@ export interface ManagedAgentToolConfirmationResponse extends ToolResponse {
 }
 
 export interface ManagedAgentCustomToolResultParams extends ManagedAgentSessionOpParams {
-  /** Blocking custom tool-use EVENT ids (array, JSON string, or comma list). */
-  customToolUseIds?: unknown
+  /** The blocking custom tool-use EVENT id being answered. */
+  customToolUseId?: string
   /** The tool's output, returned to the agent. */
   result?: string
   /** Marks the result as a failure. */
@@ -155,7 +155,7 @@ export interface ManagedAgentCustomToolResultParams extends ManagedAgentSessionO
 }
 
 export interface ManagedAgentCustomToolResultResponse extends ToolResponse {
-  output: { sessionId: string; answeredToolUseIds: string[] }
+  output: { sessionId: string; answeredToolUseId: string }
 }
 
 export interface ManagedAgentArchiveSessionParams extends ManagedAgentSessionOpParams {}

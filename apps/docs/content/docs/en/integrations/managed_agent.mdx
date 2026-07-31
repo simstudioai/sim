@@ -216,7 +216,7 @@ Return the result of a custom tool a Managed Agent session is waiting on so it c
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `customToolUseIds` | array | Yes | Custom tool-use EVENT ids, from Get Session pendingTools\[\].id where kind is 'custom_tool_result'. |
+| `customToolUseId` | string | Yes | The custom tool-use EVENT id being answered, from Get Session pendingTools\[\].id where kind is 'custom_tool_result'. |
 | `result` | string | Yes | The tool's output, returned to the agent as text. |
 | `isError` | boolean | No | Mark the result as a failure so the agent can adjust its approach. |
 
@@ -225,7 +225,7 @@ Return the result of a custom tool a Managed Agent session is waiting on so it c
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sessionId` | string | The session that was answered. |
-| `answeredToolUseIds` | json | The custom tool-use event ids that were answered. |
+| `answeredToolUseId` | string | The custom tool-use event id that was answered. |
 
 ### `managed_agent_archive_session`
 
