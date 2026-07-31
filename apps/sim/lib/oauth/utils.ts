@@ -543,6 +543,42 @@ export function getServiceAccountProviderForProviderId(providerId: string): stri
   return serviceConfig?.serviceAccountProviderId
 }
 
+/**
+ * The two provider ids a service answers to. Structurally satisfied by both
+ * `OAuthServiceConfig` and the lighter `OAuthServiceMatch` that catalog
+ * resolution returns, so callers pass whichever they already hold.
+ */
+export interface ServiceProviderIdentity {
+  providerId: string
+  serviceAccountProviderId?: string
+}
+
+/**
+ * Whether a stored credential's `providerId` authenticates the given service.
+ *
+ * A service is reachable by two ids: its own OAuth `providerId` (`jira`) and
+ * the service-account provider its family issues (`atlassian-service-account`).
+ * One Atlassian API token authenticates Jira, Jira Service Management, and
+ * Confluence alike, so matching on the OAuth `providerId` alone hides a
+ * service-account credential from every product page it actually powers.
+ *
+ * Prefer this over comparing `getServiceConfigByProviderId(id)?.providerId`
+ * against a service: that resolver walks `OAUTH_PROVIDERS` in declaration
+ * order and answers "which service owns this id", which for a family-wide
+ * service-account id is an arbitrary single winner — `atlassian-service-account`
+ * resolves to the `Atlassian Service Account` pseudo-service and
+ * `google-service-account` to whichever Google service is declared first.
+ */
+export function credentialProviderMatchesService(
+  credentialProviderId: string,
+  service: ServiceProviderIdentity
+): boolean {
+  return (
+    service.providerId === credentialProviderId ||
+    service.serviceAccountProviderId === credentialProviderId
+  )
+}
+
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []

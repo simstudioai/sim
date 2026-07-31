@@ -5,6 +5,16 @@ import {
   getServiceAccountConnectNoun,
   getServiceAccountGatingBlockType,
 } from '@/lib/credentials/service-account-provider-ids'
+/**
+ * Imported from the module rather than the `@/lib/integrations` barrel: the
+ * barrel builds `POPULAR_WORKFLOWS` by calling `getAllBlockMeta()` at module
+ * load, so importing it from a leaf component drags the whole block registry
+ * into that component's graph.
+ */
+import {
+  getServiceAccountFamilyIcon,
+  getServiceAccountFamilyName,
+} from '@/lib/integrations/credential-display'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal'
 import { getBlock } from '@/blocks'
@@ -17,6 +27,10 @@ import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
  */
 export interface ServiceAccountConnectTarget {
   serviceAccountProviderId: ServiceAccountProviderId
+  /**
+   * Name the setup surface is titled with — the vendor ("Atlassian") for a
+   * family service account, not the product page you opened it from.
+   */
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
@@ -71,6 +85,15 @@ export function useServiceAccountConnectTarget({
       ? 'Set up a custom bot'
       : `Add ${getServiceAccountConnectNoun(serviceAccountProviderId)}`
 
-    return { serviceAccountProviderId, serviceName, serviceIcon, label, hidden }
+    const familyName = getServiceAccountFamilyName(serviceAccountProviderId)
+    const familyIcon = getServiceAccountFamilyIcon(serviceAccountProviderId)
+
+    return {
+      serviceAccountProviderId,
+      serviceName: familyName ?? serviceName,
+      serviceIcon: familyIcon ?? serviceIcon,
+      label,
+      hidden,
+    }
   }, [serviceAccountProviderId, serviceName, serviceIcon, isSlackBot, hidden])
 }

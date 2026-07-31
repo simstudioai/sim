@@ -4,6 +4,7 @@ import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@sim/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import type { EditingCell, SaveReason } from '../../../types'
 import {
@@ -58,11 +59,11 @@ export function ExpandedCellPopover({
     return { row, column, colIndex, value: row.data[column.key] }
   }, [expandedCell, rows, columns])
 
-  const isBooleanCell = target?.column.type === 'boolean'
+  const isTogglingCell = target ? columnTypeOf(target.column).editor === 'toggle' : false
   // Workflow-output cells are editable in the expanded view too — the user
   // can override the workflow's value. Booleans toggle inline; the expanded
   // popover only handles text-shaped inputs.
-  const isEditable = Boolean(target) && canEdit && !isBooleanCell
+  const isEditable = Boolean(target) && canEdit && !isTogglingCell
 
   const displayText = useMemo(() => {
     if (!target) return ''
@@ -73,6 +74,9 @@ export function ExpandedCellPopover({
     // those to the inline dropdown.)
     if (target.column.type === 'date' && typeof value === 'string') {
       return storageToDisplay(value, { seconds: true })
+    }
+    if (target.column.type === 'currency') {
+      return columnTypeOf(target.column).formatForDisplay(value, target.column)
     }
     if (typeof value === 'string') return value
     return JSON.stringify(value, null, 2)
@@ -231,14 +235,12 @@ function ExpandedCellEditor({
       setParseError('Invalid JSON')
       return
     }
-    /** `cleanCellValue` nulls unparseable dates/numbers instead of throwing — reject rather than silently clear. */
-    if (
-      cleaned === null &&
-      draftValue.trim() !== '' &&
-      (column.type === 'date' || column.type === 'number')
-    ) {
-      setParseError(column.type === 'date' ? 'Invalid date' : 'Invalid number')
-      return
+    if (cleaned === null && draftValue.trim() !== '') {
+      const message = columnTypeOf(column).parseErrorMessage
+      if (message) {
+        setParseError(message)
+        return
+      }
     }
     onSave(rowId, column.key, cleaned, 'blur')
     onClose()

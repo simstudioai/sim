@@ -12,6 +12,7 @@ import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
@@ -44,7 +45,8 @@ function WorkspaceStatusCard({
   onPrimary,
 }: WorkspaceStatusCardProps) {
   return (
-    <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+    <main className='desktop-title-bar-page flex w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+      <DesktopTitleBarLane />
       <div className='flex max-w-md flex-col items-center gap-3 text-center'>
         <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
           <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
@@ -201,7 +203,8 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className='flex h-screen w-full items-center justify-center'>
+    <div className='desktop-title-bar-page flex w-full items-center justify-center'>
+      <DesktopTitleBarLane />
       <div
         className='size-[18px] animate-spin rounded-full'
         style={{

@@ -104,6 +104,7 @@ vi.mock('@/providers/fireworks/utils', () => ({
   })),
   createReadableStreamFromOpenAIStream: vi.fn(() => createEmptyStream()),
   supportsNativeStructuredOutputs: vi.fn(() => true),
+  resolveFireworksWireModel: vi.fn((stripped: string) => stripped),
 }))
 vi.mock('@/providers/openrouter/utils', () => ({
   checkForForcedToolUsage: vi.fn(() => ({

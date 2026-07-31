@@ -163,7 +163,17 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
   }
 }
 
-export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json', 'select'] as const
+/**
+ * Re-exported from the column-type module, which is the single source of truth.
+ * Kept here because this is where callers already import it from — restating
+ * the list would let the two drift, which is the class of bug the registry
+ * exists to remove.
+ *
+ * Points at `types` rather than `registry` on purpose: this module is re-
+ * exported by the `@/lib/table` barrel that 44 server modules import, and the
+ * registry pulls in `@sim/emcn/icons`.
+ */
+export { COLUMN_TYPES } from '@/lib/table/column-types/types'
 
 /** Maximum number of options a `select`/`multiselect` column may declare. */
 export const MAX_SELECT_OPTIONS = 100

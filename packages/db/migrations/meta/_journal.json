@@ -1937,8 +1937,15 @@
     {
       "idx": 277,
       "version": "7",
-      "when": 1785385489164,
-      "tag": "0277_collab_doc_state_and_content_version",
+      "when": 1785358812851,
+      "tag": "0277_workspace_sandboxes",
+      "breakpoints": true
+    },
+    {
+      "idx": 278,
+      "version": "7",
+      "when": 1785462576975,
+      "tag": "0278_collab_doc_state_and_content_version",
       "breakpoints": true
     }
   ]

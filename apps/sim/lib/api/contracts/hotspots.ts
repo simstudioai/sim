@@ -190,6 +190,12 @@ export const functionExecuteContract = defineRouteContract({
     workspaceId: z.string().optional(),
     userId: z.string().optional(),
     isCustomTool: z.boolean().optional().default(false),
+    /** Workspace sandbox whose dependency set this execution runs against. */
+    sandboxId: z.string().optional(),
+    /** `all` (default) or `selected`; see mountedSecrets. */
+    secretScope: z.enum(['all', 'selected']).optional(),
+    /** Secret names this execution may read when secretScope is `selected`. */
+    mountedSecrets: z.array(z.string()).optional(),
     _sandboxFiles: z
       .array(
         z.union([

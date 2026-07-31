@@ -2,6 +2,7 @@
 
 import { ChipLink } from '@sim/emcn'
 import { ArrowLeft } from 'lucide-react'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface IntegrationBlockDetailFallbackProps {
   workspaceId: string
@@ -23,7 +24,7 @@ export function IntegrationBlockDetailFallback({
 }: IntegrationBlockDetailFallbackProps) {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={PAGE_HEADER_BAR}>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>

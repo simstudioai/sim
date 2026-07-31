@@ -73,6 +73,23 @@ export async function enforceIpRateLimit(
 }
 
 /**
+ * Apply a per-workspace token bucket. Use for routes whose cost is borne by the
+ * workspace rather than the acting user — a shared budget any member spends
+ * against, so N admins cannot each get a full allowance.
+ */
+export async function enforceWorkspaceRateLimit(
+  bucketName: string,
+  workspaceId: string,
+  config: TokenBucketConfig = DEFAULT_USER_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  const key = `route:${bucketName}:workspace:${workspaceId}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('Workspace rate limit exceeded', { bucket: bucketName, workspaceId })
+  return buildRateLimitResponse(resetAt)
+}
+
+/**
  * Apply a per-user limit when a userId is present, else fall back to per-IP.
  * Use for routes whose auth path may legitimately resolve without a userId
  * (e.g. internal JWT calls with `requireWorkflowId: false`) so missing-userId
