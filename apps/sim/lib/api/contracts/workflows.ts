@@ -551,7 +551,7 @@ const workflowExecutionStatusEnum = z.enum([
   'cancelled',
 ])
 
-const workflowExecutionPausedDetailSchema = z.object({
+export const workflowExecutionPausedDetailSchema = z.object({
   pausedAt: z.string(),
   resumeAt: z.string().nullable(),
   pauseKind: z.enum(['time', 'human']).nullable(),
@@ -580,7 +580,7 @@ const workflowExecutionStatusResponseSchema = z.object({
 
 export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
 
-const workflowExecutionStatusQuerySchema = z.object({
+export const workflowExecutionStatusQuerySchema = z.object({
   includeOutput: z
     .enum(['true', 'false'])
     .optional()
