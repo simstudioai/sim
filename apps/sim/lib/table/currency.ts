@@ -15,6 +15,15 @@ export const DEFAULT_CURRENCY_CODE = 'USD'
 /** A bare numeric literal in exponent form, e.g. `1e+21` or `-1.5e-3`. */
 const EXPONENT_LITERAL = /^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/
 
+/**
+ * Invisible bidi control marks. `Intl` wraps RTL-locale output in them, so a
+ * pasted `‏1,234.56 ‏₪` carries characters that are not part of the amount.
+ */
+const BIDI_MARKS = /[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g
+
+/** Minus-sign characters `Intl` emits in place of the ASCII hyphen. */
+const UNICODE_MINUS = /[\u2212\u2012\u2013\uFE63\uFF0D]/g
+
 /** A letter directly adjacent to a digit: an identifier, not an amount. */
 const LETTER_TOUCHING_DIGIT = /\p{L}\d|\d\p{L}/u
 
@@ -162,6 +171,11 @@ export function getCurrencyOptions(): readonly CurrencyOption[] {
  * therefore read as fifteen hundred — a known ambiguity that resolves in favor
  * of the far more common reading.
  *
+ * Reads ASCII digits only. Locales that format with their own numeral systems
+ * (Arabic-Indic `١٢٣`, for instance) are rejected rather than misread —
+ * supporting them is a wider decision than this type, since it would also
+ * touch `number`, display, and sorting.
+ *
  * Returns `null` when no amount can be read, so callers can distinguish
  * "unparseable" from a legitimate `0`.
  */
@@ -169,7 +183,10 @@ export function parseCurrencyInput(raw: unknown): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
   if (typeof raw !== 'string') return null
 
-  const trimmed = raw.trim()
+  // `Intl` emits U+2212 MINUS SIGN (and locale-specific dashes) rather than the
+  // ASCII hyphen for negatives in several locales, so a pasted `−12,50 kr`
+  // would otherwise fail to read as negative.
+  const trimmed = raw.trim().replace(BIDI_MARKS, '').replace(UNICODE_MINUS, '-')
   if (trimmed === '') return null
 
   const parenthesized = /^\((.*)\)$/.exec(trimmed)

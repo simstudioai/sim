@@ -103,6 +103,51 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('-$12.50')).toBe(-12.5)
   })
 
+  it('parses what Intl emits, across locales and signs', () => {
+    // The realistic input: a user pastes a cell from a spreadsheet. Generated
+    // rather than hand-listed so a parser change cannot quietly regress a
+    // locale nobody thought to write down.
+    const pairs: Array<[string, string]> = [
+      ['en-US', 'USD'],
+      ['de-DE', 'EUR'],
+      ['fr-FR', 'EUR'],
+      ['pt-BR', 'BRL'],
+      ['en-IN', 'INR'],
+      ['ja-JP', 'JPY'],
+      ['en-GB', 'GBP'],
+      ['de-CH', 'CHF'],
+      ['sv-SE', 'SEK'],
+      ['da-DK', 'DKK'],
+      ['pl-PL', 'PLN'],
+      ['ru-RU', 'RUB'],
+      ['it-IT', 'EUR'],
+      ['nl-NL', 'EUR'],
+      ['tr-TR', 'TRY'],
+      ['ko-KR', 'KRW'],
+      ['zh-CN', 'CNY'],
+      ['en-CA', 'CAD'],
+      ['en-AU', 'AUD'],
+      ['he-IL', 'ILS'],
+    ]
+    const amounts = [0, 12, 1234.56, 1234567.89, -12.5, -1234.56]
+
+    for (const [locale, currency] of pairs) {
+      for (const amount of amounts) {
+        const formatted = new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency,
+        }).format(amount)
+        const parsed = parseCurrencyInput(formatted)
+        expect(parsed, `${locale}/${currency} ${JSON.stringify(formatted)}`).not.toBeNull()
+        // Zero-decimal currencies round, so compare within one unit.
+        expect(
+          Math.abs((parsed as number) - amount),
+          `${locale}/${currency} ${JSON.stringify(formatted)} -> ${parsed}`
+        ).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
   it('parses the locale formats of the currencies the picker pins', () => {
     // These are exactly what `Intl.NumberFormat` emits, i.e. what a user pastes
     // from a spreadsheet. Rejecting them would make the pinned currencies
