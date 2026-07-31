@@ -2,7 +2,16 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildSessionCreatePayload, listSessionEvents } from '@/lib/managed-agents/session-client'
+import {
+  archiveSession,
+  buildSessionCreatePayload,
+  deleteSession,
+  listSessionEvents,
+  parseSessionSnapshot,
+  resolvePendingToolGates,
+  sendToolConfirmations,
+  updateSession,
+} from '@/lib/managed-agents/session-client'
 
 const BASE = {
   apiKey: 'sk-ant-fake',
@@ -187,5 +196,304 @@ describe('listSessionEvents — ordering', () => {
     const events = await listSessionEvents({ apiKey: 'sk-ant-fake', sessionId: 'sess_1' })
 
     expect(events.map((e) => e.id)).toEqual(['a', 'b', 'c', 'queued'])
+  })
+})
+
+describe('buildSessionCreatePayload — initial_events', () => {
+  it('seeds a single user.message so create+send is one call', () => {
+    const payload = buildSessionCreatePayload({ ...BASE, initialMessage: 'hello there' })
+    expect(payload.initial_events).toEqual([
+      { type: 'user.message', content: [{ type: 'text', text: 'hello there' }] },
+    ])
+  })
+
+  it('trims the seeded message', () => {
+    const payload = buildSessionCreatePayload({ ...BASE, initialMessage: '  hi  ' })
+    expect(payload.initial_events).toEqual([
+      { type: 'user.message', content: [{ type: 'text', text: 'hi' }] },
+    ])
+  })
+
+  it('omits initial_events entirely when there is no message', () => {
+    // An empty array is equivalent to omitting the field, and a blank message
+    // would be rejected — so neither is ever sent.
+    expect(buildSessionCreatePayload({ ...BASE }).initial_events).toBeUndefined()
+    expect(
+      buildSessionCreatePayload({ ...BASE, initialMessage: '' }).initial_events
+    ).toBeUndefined()
+    expect(
+      buildSessionCreatePayload({ ...BASE, initialMessage: '   ' }).initial_events
+    ).toBeUndefined()
+  })
+})
+
+describe('parseSessionSnapshot', () => {
+  it('reads status, usage, title and metadata', () => {
+    const snapshot = parseSessionSnapshot({
+      status: 'idle',
+      title: 'my session',
+      metadata: { slack_channel: 'C123', retries: 2, ok: true, dropped: { a: 1 } },
+      usage: { input_tokens: 10, output_tokens: 20 },
+    })
+    expect(snapshot.status).toBe('idle')
+    expect(snapshot.title).toBe('my session')
+    expect(snapshot.usage).toEqual({ inputTokens: 10, outputTokens: 20 })
+    // Scalars are stringified; non-scalars are dropped rather than mangled.
+    expect(snapshot.metadata).toEqual({ slack_channel: 'C123', retries: '2', ok: 'true' })
+  })
+
+  it('reads the blocking event ids off a requires_action stop reason', () => {
+    const snapshot = parseSessionSnapshot({
+      status: 'idle',
+      stop_reason: { type: 'requires_action', event_ids: ['sevt_1', 'sevt_2'] },
+    })
+    expect(snapshot.stopReason).toEqual({
+      type: 'requires_action',
+      eventIds: ['sevt_1', 'sevt_2'],
+    })
+  })
+
+  it('tolerates an unknown status and a missing body', () => {
+    expect(parseSessionSnapshot({ status: 'bogus' }).status).toBeUndefined()
+    expect(parseSessionSnapshot(null)).toEqual({})
+    expect(parseSessionSnapshot(undefined)).toEqual({})
+  })
+})
+
+describe('session lifecycle calls', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  const captureFetch = (body: unknown = {}) => {
+    const spy = vi.fn(async () => Response.json(body)) as unknown as typeof fetch
+    global.fetch = spy
+    return spy as unknown as ReturnType<typeof vi.fn>
+  }
+
+  it('updateSession posts title and metadata', async () => {
+    const spy = captureFetch({ status: 'idle', title: 'renamed' })
+    await updateSession({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      title: 'renamed',
+      metadata: { slack_ts: '123' },
+    })
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.anthropic.com/v1/sessions/sesn_1')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({
+      title: 'renamed',
+      metadata: { slack_ts: '123' },
+    })
+  })
+
+  it('updateSession refuses a no-op update rather than sending an empty body', async () => {
+    captureFetch()
+    await expect(updateSession({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })).rejects.toThrow(
+      /requires a title or metadata/
+    )
+  })
+
+  it('archiveSession POSTs the archive sub-resource', async () => {
+    const spy = captureFetch()
+    await archiveSession({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.anthropic.com/v1/sessions/sesn_1/archive')
+    expect(init.method).toBe('POST')
+  })
+
+  it('deleteSession issues a DELETE', async () => {
+    const spy = captureFetch()
+    await deleteSession({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.anthropic.com/v1/sessions/sesn_1')
+    expect(init.method).toBe('DELETE')
+  })
+
+  it('surfaces the status code and body when a call fails', async () => {
+    global.fetch = vi.fn(
+      async () => new Response('session is running', { status: 400 })
+    ) as unknown as typeof fetch
+    await expect(archiveSession({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })).rejects.toThrow(
+      /400.*session is running/
+    )
+  })
+})
+
+describe('sendToolConfirmations', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  const capture = () => {
+    const spy = vi.fn(async () => Response.json({})) as unknown as typeof fetch
+    global.fetch = spy
+    return spy as unknown as ReturnType<typeof vi.fn>
+  }
+
+  it('sends every confirmation in one request', async () => {
+    const spy = capture()
+    await sendToolConfirmations({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      confirmations: [
+        { toolUseId: 'sevt_1', result: 'allow' },
+        { toolUseId: 'sevt_2', result: 'allow' },
+      ],
+    })
+    expect(spy).toHaveBeenCalledTimes(1)
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.anthropic.com/v1/sessions/sesn_1/events')
+    expect(JSON.parse(init.body as string)).toEqual({
+      events: [
+        { type: 'user.tool_confirmation', tool_use_id: 'sevt_1', result: 'allow' },
+        { type: 'user.tool_confirmation', tool_use_id: 'sevt_2', result: 'allow' },
+      ],
+    })
+  })
+
+  it('uses deny_message on a denial and omits it on an allow', async () => {
+    const spy = capture()
+    await sendToolConfirmations({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      confirmations: [
+        { toolUseId: 'sevt_1', result: 'deny', denyMessage: 'not the prod project' },
+        { toolUseId: 'sevt_2', result: 'allow', denyMessage: 'ignored' },
+      ],
+    })
+    const [, init] = spy.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(init.body as string).events).toEqual([
+      {
+        type: 'user.tool_confirmation',
+        tool_use_id: 'sevt_1',
+        result: 'deny',
+        deny_message: 'not the prod project',
+      },
+      { type: 'user.tool_confirmation', tool_use_id: 'sevt_2', result: 'allow' },
+    ])
+  })
+})
+
+describe('resolvePendingToolGates', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it('resolves ids to names in the order the API reported them', async () => {
+    global.fetch = vi.fn(async () =>
+      Response.json({
+        data: [
+          { id: 'sevt_2', type: 'agent.mcp_tool_use', name: 'create_issue', input: { title: 'x' } },
+          { id: 'sevt_1', type: 'agent.tool_use', name: 'bash', input: { command: 'ls' } },
+        ],
+        next_page: null,
+      })
+    ) as unknown as typeof fetch
+
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['sevt_1', 'sevt_2'],
+    })
+
+    expect(gates).toEqual([
+      { id: 'sevt_1', eventType: 'agent.tool_use', name: 'bash', input: { command: 'ls' } },
+      {
+        id: 'sevt_2',
+        eventType: 'agent.mcp_tool_use',
+        name: 'create_issue',
+        input: { title: 'x' },
+      },
+    ])
+  })
+
+  it('filters the events request to tool-use types', async () => {
+    const spy = vi.fn(async () =>
+      Response.json({ data: [], next_page: null })
+    ) as unknown as typeof fetch
+    global.fetch = spy
+
+    await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['sevt_1'],
+    })
+
+    const [url] = (spy as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
+    const types = new URL(url).searchParams.getAll('types[]')
+    expect(types).toEqual(['agent.tool_use', 'agent.mcp_tool_use', 'agent.custom_tool_use'])
+  })
+
+  it('still returns the ids when enrichment fails — they alone can answer a gate', async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error('network down')
+    }) as unknown as typeof fetch
+
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['sevt_1', 'sevt_2'],
+    })
+    expect(gates).toEqual([{ id: 'sevt_1' }, { id: 'sevt_2' }])
+  })
+
+  it('short-circuits with no ids', async () => {
+    const spy = vi.fn() as unknown as typeof fetch
+    global.fetch = spy
+    expect(
+      await resolvePendingToolGates({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1', eventIds: [] })
+    ).toEqual([])
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('listSessionEvents — bounded reads', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  const pagedFetch = () =>
+    vi.fn(async () =>
+      Response.json({
+        data: Array.from({ length: 100 }, (_, i) => ({
+          id: `e${i}`,
+          type: 'agent.message',
+          processed_at: '2026-01-01T00:00:00Z',
+        })),
+        next_page: 'cursor',
+      })
+    ) as unknown as typeof fetch
+
+  it('stops paging once maxItems is reached', async () => {
+    const spy = pagedFetch()
+    global.fetch = spy
+    const events = await listSessionEvents({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: 250,
+    })
+    // 3 pages of 100 covers 250; a 4th would exceed the cap.
+    expect((spy as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3)
+    expect(events).toHaveLength(300)
+  })
+
+  it('passes a types filter through as repeatable types[] params', async () => {
+    const spy = vi.fn(async () =>
+      Response.json({ data: [], next_page: null })
+    ) as unknown as typeof fetch
+    global.fetch = spy
+    await listSessionEvents({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      types: ['agent.message', ' agent.tool_use '],
+    })
+    const [url] = (spy as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
+    expect(new URL(url).searchParams.getAll('types[]')).toEqual(['agent.message', 'agent.tool_use'])
   })
 })

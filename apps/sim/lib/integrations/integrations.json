@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-30",
+  "updatedAt": "2026-07-31",
   "integrations": [
     {
       "type": "onepassword",
@@ -2905,8 +2905,49 @@
       "bgColor": "#DA7756",
       "iconName": "ClaudeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/managed-agent",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Run session (create, send, wait for reply)",
+          "description": "Open a Claude Platform Managed Agent session and return the assistant response as text."
+        },
+        {
+          "name": "Create session",
+          "description": "Create a Claude Platform Managed Agent session and return its id without waiting for a reply."
+        },
+        {
+          "name": "Send message",
+          "description": "Send a user message to an existing Claude Platform Managed Agent session."
+        },
+        {
+          "name": "Get session",
+          "description": "Read a Managed Agent session: status, stop reason, token usage, metadata, and any tool calls awaiting approval."
+        },
+        {
+          "name": "List events",
+          "description": "Read a Managed Agent session's event history and the agent's reply text."
+        },
+        {
+          "name": "Update session",
+          "description": "Update a Managed Agent session's title or metadata."
+        },
+        {
+          "name": "Interrupt session",
+          "description": "Stop a running Managed Agent session; it stays usable afterwards."
+        },
+        {
+          "name": "Respond to tool confirmation",
+          "description": "Allow or deny the tool calls a Managed Agent session is waiting on before it can continue."
+        },
+        {
+          "name": "Archive session",
+          "description": "Archive a Managed Agent session, preserving its history. Not reversible."
+        },
+        {
+          "name": "Delete session",
+          "description": "Permanently delete a Managed Agent session, its events, and its sandbox. Not reversible."
+        }
+      ],
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
