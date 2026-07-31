@@ -316,10 +316,11 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
     await flushMicrotasks()
 
-    // It fans out to the room excluding the sender, so a collaborator sees the stream live...
+    // It fans out to the WHOLE room — no socket excluded — so peers AND a same-socket sibling provider see
+    // the stream live (the emitting provider no-ops on its own echo).
     const fanout = sent
       .slice(before)
-      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && m.except === 'socket-1')
+      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && m.except === undefined)
     expect(fanout.length).toBeGreaterThan(0)
 
     // ...but it must NOT mark the doc dirty: a last-disconnect flush never persists agent content (the

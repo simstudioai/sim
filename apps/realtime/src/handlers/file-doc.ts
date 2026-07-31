@@ -179,22 +179,14 @@ function originSocketId(origin: unknown): string | null {
 
 /**
  * The transaction origin stamped on an agent-streamed frame (a {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}
- * apply). It carries the emitting socket id for broadcast exclusion, but is deliberately NOT a plain
- * string — so `originSocketId` returns `null` for it and the update never triggers `edited`/`schedulePersist`
- * (the copilot's final `edit_content` write is the durable persist).
+ * apply). A non-string sentinel, so `originSocketId` returns `null` for it and the update never triggers
+ * `edited`/`schedulePersist` (the copilot's final `edit_content` write is the durable persist). Unlike a
+ * client edit, an agent frame is broadcast to the WHOLE room (its originating socket is NOT excluded), so a
+ * second {@link FileDocProvider} on the same socket — e.g. the chat preview alongside the Files editor —
+ * also receives the mid-stream ops. The emitting provider no-ops on its own echo (the ops are already
+ * applied locally), so broadcasting back to the sender is harmless.
  */
-interface AgentSyncOrigin {
-  readonly agentSocketId: string
-}
-
-function isAgentSyncOrigin(origin: unknown): origin is AgentSyncOrigin {
-  return typeof origin === 'object' && origin !== null && 'agentSocketId' in origin
-}
-
-/** The socket id to exclude when relaying an update — a client socket edit OR an agent-streamed frame. */
-function excludeSocketId(origin: unknown): string | null {
-  return originSocketId(origin) ?? (isAgentSyncOrigin(origin) ? origin.agentSocketId : null)
-}
+const AGENT_SYNC_ORIGIN = Symbol('file-doc-agent-sync')
 
 /**
  * Broadcast an AWARENESS frame to the room ACROSS tasks via the Socket.IO Redis adapter. Awareness
@@ -706,7 +698,15 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     // Fan out to THIS task's clients only (excluding the origin socket if local — a user edit OR an
     // agent-streamed frame). Cross-task delivery rides the shared stream — every task's tailer applies +
     // runs its own local fan-out.
-    broadcastLocal(io, name, encoding.toUint8Array(encoder), excludeSocketId(origin))
+    // A client edit excludes its own sender socket (echo suppression). An agent frame broadcasts to the
+    // WHOLE room — no socket excluded — so a same-socket sibling provider (chat preview + Files editor)
+    // stays live mid-stream; the emitting provider no-ops on its own echo.
+    broadcastLocal(
+      io,
+      name,
+      encoding.toUint8Array(encoder),
+      origin === AGENT_SYNC_ORIGIN ? null : originSocketId(origin)
+    )
     // Share every locally-originated update to the stream so peers converge. Skip updates that already
     // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN) and SEED_ORIGIN — the seed is published
     // EXPLICITLY and AWAITED under the seed lock (so it lands before the lock releases), which a
@@ -720,7 +720,7 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     // fresh task catching up purely from it must not treat the doc as unedited. The seed transition
     // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. NOTE:
     // an agent-streamed frame ({@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}) is not counted on the
-    // ORIGINATING task (it applies under an AgentSyncOrigin — see the handler), but in the multi-replica
+    // ORIGINATING task (it applies under {@link AGENT_SYNC_ORIGIN} — see the handler), but in the multi-replica
     // path it is published to the stream and PEER tasks apply it as REDIS_ORIGIN, indistinguishable from a
     // peer edit, so it marks `edited` there. That only ever causes an extra idempotent persist of content
     // the copilot's final `edit_content` write persists durably anyway (safe over-persist, never a lost
@@ -804,16 +804,15 @@ function handleMessage(socket: AuthenticatedSocket, data: unknown) {
         break
       }
       case FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST: {
-        // An agent-streamed frame: apply + fan out to peers (so a collaborator sees the stream live) but
+        // An agent-streamed frame: apply + fan out to the room (so a collaborator sees the stream live) but
         // do NOT treat it as a durable user edit. Unlike SYNC, we do NOT set `lastEditorUserId`, and the
-        // apply uses an {@link AgentSyncOrigin} (not the bare socket id) so `originSocketId` is `null` in
-        // `doc.on('update')` — skipping `edited`/`schedulePersist`. `excludeSocketId` still reads the
-        // carried socket id, so the sender is excluded from the relay fan-out. The copilot's final
+        // apply uses {@link AGENT_SYNC_ORIGIN} (a non-string sentinel) so `originSocketId` is `null` in
+        // `doc.on('update')` — skipping `edited`/`schedulePersist`, and broadcasting to the WHOLE room
+        // (including the sender socket, so a same-socket sibling provider stays live). The copilot's final
         // `edit_content` write remains the authoritative durable persist.
         const encoder = encoding.createEncoder()
         encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
-        const agentOrigin: AgentSyncOrigin = { agentSocketId: socket.id }
-        syncProtocol.readSyncMessage(decoder, encoder, room.doc, agentOrigin)
+        syncProtocol.readSyncMessage(decoder, encoder, room.doc, AGENT_SYNC_ORIGIN)
         if (encoding.length(encoder) > 1) {
           socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
         }
