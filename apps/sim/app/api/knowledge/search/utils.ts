@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 const logger = createLogger('KnowledgeSearch')
@@ -570,6 +570,14 @@ export interface KeywordSearchParams {
  * lexically consume every slot, so an exact-token hit in a smaller base would
  * never reach fusion. Both legs must draw candidates the same way, or rank
  * fusion is combining rankings taken over differently-shaped pools.
+ *
+ * Ranking and hydration are two steps on purpose. Projecting the cosine
+ * distance in the ranking query makes Postgres detoast the 1536-dimension
+ * vector and compute a distance for *every* full-text match before the `LIMIT`
+ * applies — work that scales with how common the query term is rather than
+ * with `topK` (measured at ~59x the buffer reads on a 20k-chunk base for a term
+ * matching every row). Ranking therefore touches no vectors, and only the rows
+ * that survive the limit are hydrated.
  */
 export async function executeKeywordSearch(params: KeywordSearchParams): Promise<SearchResult[]> {
   const { knowledgeBaseIds, topK, query, queryVector, structuredFilters } = params
@@ -584,58 +592,55 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     ? getStructuredTagFilters(structuredFilters, embedding)
     : []
 
-  /** Selected alongside the row so per-base batches can be re-ranked globally. */
-  const selectFields = {
-    ...getSearchResultFields(
-      sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
-    ),
-    keywordRank: rankExpr.as('keyword_rank'),
-  }
+  const rankConditions = (kbScope: SQL | undefined) =>
+    and(
+      kbScope,
+      ...getVisibilityConditions(),
+      sql`${embedding.contentTsv} @@ ${tsQuery}`,
+      ...tagFilterConditions
+    )
+
+  /** Ranking pass: ids and relevance only, so no vector is read. */
+  const rankRows = (kbScope: SQL | undefined, limit: number) =>
+    db
+      .select({ id: embedding.id, keywordRank: rankExpr.as('keyword_rank') })
+      .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
+      .where(rankConditions(kbScope))
+      .orderBy(sql`${rankExpr} DESC`)
+      .limit(limit)
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
 
+  let ranked: { id: string; keywordRank: number }[]
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
-
     const perBase = await Promise.all(
-      knowledgeBaseIds.map((kbId) =>
-        db
-          .select(selectFields)
-          .from(embedding)
-          .innerJoin(document, eq(embedding.documentId, document.id))
-          .where(
-            and(
-              eq(embedding.knowledgeBaseId, kbId),
-              ...getVisibilityConditions(),
-              sql`${embedding.contentTsv} @@ ${tsQuery}`,
-              ...tagFilterConditions
-            )
-          )
-          .orderBy(sql`${rankExpr} DESC`)
-          .limit(parallelLimit)
-      )
+      knowledgeBaseIds.map((kbId) => rankRows(eq(embedding.knowledgeBaseId, kbId), parallelLimit))
     )
-
-    return perBase
-      .flat()
-      .sort((a, b) => b.keywordRank - a.keywordRank)
-      .slice(0, topK)
+    ranked = perBase.flat().sort((a, b) => b.keywordRank - a.keywordRank)
+  } else {
+    ranked = await rankRows(inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
   }
 
-  return await db
-    .select(selectFields)
-    .from(embedding)
-    .innerJoin(document, eq(embedding.documentId, document.id))
-    .where(
-      and(
-        inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-        ...getVisibilityConditions(),
-        sql`${embedding.contentTsv} @@ ${tsQuery}`,
-        ...tagFilterConditions
+  const topIds = ranked.slice(0, topK).map((row) => row.id)
+  if (topIds.length === 0) {
+    return []
+  }
+
+  /** Hydration pass: full rows plus the cosine distance, bounded to the survivors. */
+  const hydrated = await db
+    .select(
+      getSearchResultFields(
+        sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
       )
     )
-    .orderBy(sql`${rankExpr} DESC`)
-    .limit(topK)
+    .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
+    .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions()))
+
+  const rowById = new Map(hydrated.map((row) => [row.id, row]))
+  return topIds.map((id) => rowById.get(id)).filter((row): row is SearchResult => row !== undefined)
 }
 
 /**

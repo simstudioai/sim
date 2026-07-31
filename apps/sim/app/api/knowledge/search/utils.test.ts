@@ -394,6 +394,31 @@ describe('Knowledge Search Utils', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(knowledgeBaseIds.length)
     })
 
+    it('ranks without selecting the embedding column, then hydrates the survivors', async () => {
+      queueTableRows(schemaMock.embedding, [{ id: 'kw-1', keywordRank: 0.9 }])
+      queueTableRows(schemaMock.embedding, [makeResult('kw-1')])
+
+      const results = await executeKeywordSearch({
+        knowledgeBaseIds: ['kb-1'],
+        topK: 10,
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['kw-1'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+
+      /**
+       * Projecting the distance in the ranking pass makes Postgres detoast the
+       * 1536-dimension vector for every full-text match before the LIMIT, so
+       * cost tracks how common the term is rather than topK. The ranking pass
+       * must select ids and relevance only.
+       */
+      const rankingSelect = dbChainMockFns.select.mock.calls[0][0]
+      expect(Object.keys(rankingSelect)).toEqual(['id', 'keywordRank'])
+      expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toContain('distance')
+    })
+
     it('uses a single query when the parallel threshold is not crossed', async () => {
       const knowledgeBaseIds = ['kb-1', 'kb-2']
       expect(getQueryStrategy(knowledgeBaseIds.length, 10).useParallel).toBe(false)
@@ -451,7 +476,9 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
+      // Vector leg, then the keyword leg's ranking pass, then its hydration pass.
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+      queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
       queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
 
       const results = await executeKnowledgeSearch({
@@ -463,7 +490,7 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
     })
 
     it('falls back to vector results when the keyword leg fails', async () => {
