@@ -1,7 +1,7 @@
 /**
  * CDP instrumentation for agent tabs via `webContents.debugger`: auto-handles
- * the page states that would otherwise wedge automation (JS dialogs, file
- * choosers), captures screenshots that work even while the view is hidden,
+ * the page states that would otherwise wedge automation (JS dialogs),
+ * captures screenshots that work even while the view is hidden,
  * and dispatches TRUSTED input (key events, text insertion). Trusted input
  * goes through Blink's real input pipeline — unlike synthetic DOM
  * `KeyboardEvent`s, it triggers default actions (select-all, deletion, caret
@@ -24,8 +24,6 @@ export interface PageDialog {
 export interface CdpCallbacks {
   /** A JS dialog was auto-handled; the driver surfaces it to the model. */
   onDialog: (dialog: PageDialog) => void
-  /** A file chooser was suppressed; the driver surfaces it to the model. */
-  onFileChooser: () => void
 }
 
 /** Per-tab callbacks, so a background tab's events reach ITS driver, not the
@@ -58,9 +56,6 @@ export async function ensureInstrumented(contents: WebContents, cb: CdpCallbacks
   }
 
   await send(contents, 'Page.enable')
-  // Suppress native file choosers: nothing can drive them from the panel,
-  // and an open chooser blocks the page. Recorded and surfaced instead.
-  await send(contents, 'Page.setInterceptFileChooserDialog', { enabled: true }).catch(() => {})
 }
 
 /**
@@ -91,10 +86,6 @@ function handleDebuggerEvent(
     logger.info('Auto-handled page dialog', { type })
     callbacks?.onDialog({ type, message })
     return
-  }
-  if (method === 'Page.fileChooserOpened') {
-    logger.info('Suppressed file chooser in agent browser')
-    callbacks?.onFileChooser()
   }
 }
 

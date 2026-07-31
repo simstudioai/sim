@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { isAbsolute, join } from 'node:path'
 import type {
   BrowserDataKind,
   BrowserFindRequest,
@@ -9,10 +11,31 @@ import type {
   BrowserTabsState,
   BrowserTheme,
 } from '@sim/browser-protocol'
+import type {
+  BrowserDownloadInfo,
+  BrowserDownloadsState,
+  BrowserZoomPercent,
+  DesktopAppearanceTheme,
+} from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { BrowserWindow, CookiesSetDetails, Input, Session, WebContents } from 'electron'
-import { session as electronSession, nativeTheme, WebContentsView } from 'electron'
+import type {
+  BrowserWindow,
+  CookiesSetDetails,
+  DownloadItem,
+  Input,
+  MenuItemConstructorOptions,
+  Session,
+  WebContents,
+} from 'electron'
+import {
+  app,
+  session as electronSession,
+  Menu,
+  nativeTheme,
+  shell,
+  WebContentsView,
+} from 'electron'
 import { attachAgentContextMenu, BASE_ZOOM_FACTOR } from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
 import {
@@ -33,6 +56,7 @@ import {
   isBlockedSubresourceUrl,
   subresourceNeedsResolution,
 } from '@/main/browser-agent/url-guard'
+import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
 
 const logger = createLogger('BrowserAgentSession')
 
@@ -63,6 +87,8 @@ export interface BrowserSessionSnapshotV1 {
     pinned: boolean
   }>
   activeIndex: number
+  /** Recent finished downloads; persisted only in the encrypted per-chat store. */
+  downloads?: BrowserFinishedDownload[]
 }
 
 export interface BrowserSessionPersistence {
@@ -72,6 +98,11 @@ export interface BrowserSessionPersistence {
   /** Synchronously confirms a durable write before retiring legacy fallback data. */
   flush?: () => boolean | undefined
   disposeScope?: (scopeId: string) => void
+}
+
+export interface BrowserDownloadSettings {
+  /** Resolves the current destination when a download starts. */
+  getDirectory: () => string
 }
 
 export interface AgentSessionEvents {
@@ -92,8 +123,8 @@ export interface AgentSessionEvents {
   onTabsChanged: () => void
   /** Sim's appearance preference changed for an existing tab. */
   onTabThemeChanged: (contents: WebContents, theme: BrowserTheme) => void
-  /** A download was blocked on the agent partition. */
-  onDownloadBlocked: (filename: string, url: string) => void
+  /** A download started, progressed, or finished inside one chat's browser. */
+  onDownloadsChanged?: (state: BrowserDownloadsState) => void
 }
 
 /**
@@ -271,11 +302,134 @@ const configuredPartitions = new WeakSet<Session>()
 let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 let browserSessionPersistence: BrowserSessionPersistence | null = null
+let browserDownloadSettings: BrowserDownloadSettings | null = null
 let legacyPinnedTabPersistence: PinnedTabPersistence | null = null
 let legacyPinnedFallbackClaimedBy: string | null = null
 let legacyPinnedFallbackPersistedFor: string | null = null
 /** Raw Sim preference; `system` remains dynamic as the OS theme changes. */
 let browserTheme: BrowserTheme = 'system'
+let browserAppTheme: BrowserTheme = 'system'
+let browserAppearanceTheme: DesktopAppearanceTheme = 'app'
+let browserDefaultZoom: BrowserZoomPercent = 100
+const activeDownloadPaths = new Set<string>()
+type TrackedBrowserDownload = BrowserDownloadInfo & { savePath: string }
+type BrowserFinishedDownload = Omit<TrackedBrowserDownload, 'state'> & {
+  state: Exclude<BrowserDownloadInfo['state'], 'progressing'>
+}
+
+const browserDownloadsByScope = new Map<string, TrackedBrowserDownload[]>()
+
+/** Mirrors the compact recent-downloads panel used by mainstream browsers. */
+const MAX_RECENT_FINISHED_DOWNLOADS = 5
+
+function browserDownloadsState(scopeId: string): BrowserDownloadsState {
+  const resolved = resolveBrowserScopeId(scopeId)
+  return {
+    scopeId: resolved,
+    downloads: (browserDownloadsByScope.get(resolved) ?? []).map(
+      ({ savePath: _savePath, ...item }) => ({ ...item })
+    ),
+  }
+}
+
+function publishBrowserDownloads(scopeId: string): void {
+  events?.onDownloadsChanged?.(browserDownloadsState(scopeId))
+}
+
+function trimBrowserDownloads(scopeId: string): void {
+  const downloads = browserDownloadsByScope.get(scopeId)
+  if (!downloads) return
+  let finished = 0
+  browserDownloadsByScope.set(
+    scopeId,
+    downloads.filter((download) => {
+      if (download.state === 'progressing') return true
+      finished += 1
+      return finished <= MAX_RECENT_FINISHED_DOWNLOADS
+    })
+  )
+}
+
+function updateDownloadProgress(download: BrowserDownloadInfo, item: DownloadItem): void {
+  download.receivedBytes = Math.max(0, item.getReceivedBytes())
+  download.totalBytes = Math.max(0, item.getTotalBytes())
+}
+
+function isFinishedBrowserDownload(
+  download: TrackedBrowserDownload
+): download is BrowserFinishedDownload {
+  return download.state !== 'progressing'
+}
+
+/** Returns safe metadata only; local paths stay in the Electron main process. */
+export function getBrowserDownloadsState(scopeId: string): BrowserDownloadsState {
+  return browserDownloadsState(scopeId)
+}
+
+/** Human-readable byte count for the native recent-downloads menu. */
+export function formatBrowserDownloadBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB'] as const
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / 1024 ** unitIndex
+  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
+}
+
+function downloadMenuDetail(download: BrowserDownloadInfo): string {
+  const received = formatBrowserDownloadBytes(download.receivedBytes)
+  if (download.state === 'progressing') {
+    return download.totalBytes > 0
+      ? `${received} / ${formatBrowserDownloadBytes(download.totalBytes)}`
+      : `${received} · Downloading`
+  }
+  if (download.state === 'interrupted') return `${received} · Failed`
+  if (download.state === 'cancelled') return `${received} · Cancelled`
+  return received
+}
+
+/** Opens above the native page, unlike renderer popovers beneath a WebContentsView. */
+export function showBrowserDownloadsMenu(
+  scopeId: string,
+  ownerWindow: BrowserWindow,
+  anchor: { x: number; y: number }
+): boolean {
+  if (ownerWindow.isDestroyed()) return false
+  const resolved = resolveBrowserScopeId(scopeId)
+  const downloads = browserDownloadsByScope.get(resolved) ?? []
+  const template: MenuItemConstructorOptions[] =
+    downloads.length === 0
+      ? [{ label: 'No downloads yet', enabled: false }]
+      : downloads.map((download) => {
+          const revealable = download.state === 'completed' && existsSync(download.savePath)
+          return {
+            label: download.filename,
+            sublabel: downloadMenuDetail(download),
+            enabled: revealable,
+            click: revealable
+              ? () => {
+                  showBrowserDownloadInFolder(resolved, download.id)
+                }
+              : undefined,
+          }
+        })
+  Menu.buildFromTemplate(template).popup({
+    window: ownerWindow,
+    x: Math.round(anchor.x),
+    y: Math.round(anchor.y),
+  })
+  return true
+}
+
+/** Reveals a completed download without launching the downloaded file. */
+export function showBrowserDownloadInFolder(scopeId: string, downloadId: string): boolean {
+  const resolved = resolveBrowserScopeId(scopeId)
+  const download = browserDownloadsByScope
+    .get(resolved)
+    ?.find((candidate) => candidate.id === downloadId)
+  if (!download || download.state !== 'completed' || !existsSync(download.savePath)) return false
+  shell.showItemInFolder(download.savePath)
+  return true
+}
 
 /**
  * Returns the module to the state it had before any session ran.
@@ -298,10 +452,16 @@ function resetSessionState(): void {
   suspendedBrowserScopes.clear()
   activeBrowserScopeId = LEGACY_BROWSER_SCOPE
   browserSessionPersistence = null
+  browserDownloadSettings = null
   legacyPinnedTabPersistence = null
   legacyPinnedFallbackClaimedBy = null
   legacyPinnedFallbackPersistedFor = null
   browserTheme = 'system'
+  browserAppTheme = 'system'
+  browserAppearanceTheme = 'app'
+  browserDefaultZoom = 100
+  activeDownloadPaths.clear()
+  browserDownloadsByScope.clear()
   activatePanelScope(LEGACY_BROWSER_SCOPE)
 }
 
@@ -309,16 +469,19 @@ export function initSession(
   handlers: AgentSessionEvents,
   mainWindowProvider: () => BrowserWindow | null,
   legacyPersistence?: PinnedTabPersistence,
-  persistence?: BrowserSessionPersistence
+  persistence?: BrowserSessionPersistence,
+  downloadSettings?: BrowserDownloadSettings
 ): void {
   resetSessionState()
   events = handlers
   getMainWindow = mainWindowProvider
   legacyPinnedTabPersistence = legacyPersistence ?? null
   browserSessionPersistence = persistence ?? null
+  browserDownloadSettings = downloadSettings ?? null
   initPanel({
     getMainWindow: () => getMainWindow(),
     activeTab: () => withBrowserScope(getActiveBrowserScopeId(), activeTab),
+    backgroundColor: browserBackgroundColor,
     ensureInitialTab: () => {
       withBrowserScope(getActiveBrowserScopeId(), () => {
         restoreBrowserSession()
@@ -464,6 +627,14 @@ export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boo
   } else if (destinationState) {
     browserScopeStates.delete(to)
   }
+  const sourceDownloads = browserDownloadsByScope.get(from)
+  if (sourceDownloads) {
+    const destinationDownloads = browserDownloadsByScope.get(to) ?? []
+    browserDownloadsByScope.set(to, [...sourceDownloads, ...destinationDownloads])
+    browserDownloadsByScope.delete(from)
+    trimBrowserDownloads(to)
+    publishBrowserDownloads(to)
+  }
   browserScopeAliases.set(from, to)
   if (resolveBrowserScopeId(activeBrowserScopeId) === to || activeBrowserScopeId === from) {
     activeBrowserScopeId = to
@@ -480,6 +651,7 @@ export function disposeBrowserScope(scopeId: string): void {
   if (resolved !== scopeId) {
     browserScopeAliases.delete(scopeId)
     suspendedBrowserScopes.delete(scopeId)
+    browserDownloadsByScope.delete(scopeId)
     try {
       browserSessionPersistence?.disposeScope?.(scopeId)
     } catch (error) {
@@ -489,6 +661,7 @@ export function disposeBrowserScope(scopeId: string): void {
     }
     return
   }
+  browserDownloadsByScope.delete(resolved)
 
   suspendedBrowserScopes.delete(resolved)
   const state = browserScopeStates.get(resolved)
@@ -593,6 +766,7 @@ function sanitizeBrowserSessionSnapshot(value: unknown): BrowserSessionSnapshotV
     v?: unknown
     tabs?: unknown
     activeIndex?: unknown
+    downloads?: unknown
   }
   if (raw.v !== 1 || !Array.isArray(raw.tabs)) return null
 
@@ -609,6 +783,49 @@ function sanitizeBrowserSessionSnapshot(value: unknown): BrowserSessionSnapshotV
     typeof raw.activeIndex === 'number' && Number.isFinite(raw.activeIndex)
       ? Math.trunc(raw.activeIndex)
       : 0
+  const restoredDownloads: BrowserFinishedDownload[] = []
+  if (Array.isArray(raw.downloads)) {
+    for (const candidate of raw.downloads) {
+      if (typeof candidate !== 'object' || candidate === null) continue
+      const download = candidate as Partial<BrowserDownloadInfo> & { savePath?: unknown }
+      if (
+        typeof download.id !== 'string' ||
+        download.id.length === 0 ||
+        download.id.length > 128 ||
+        typeof download.filename !== 'string' ||
+        download.filename.length === 0 ||
+        download.filename.length > 200 ||
+        (download.state !== 'completed' &&
+          download.state !== 'interrupted' &&
+          download.state !== 'cancelled') ||
+        typeof download.receivedBytes !== 'number' ||
+        !Number.isSafeInteger(download.receivedBytes) ||
+        download.receivedBytes < 0 ||
+        typeof download.totalBytes !== 'number' ||
+        !Number.isSafeInteger(download.totalBytes) ||
+        download.totalBytes < 0 ||
+        typeof download.startedAt !== 'string' ||
+        !Number.isFinite(Date.parse(download.startedAt)) ||
+        typeof download.savePath !== 'string' ||
+        download.savePath.length === 0 ||
+        download.savePath.length > 4_096 ||
+        download.savePath.includes('\0') ||
+        !isAbsolute(download.savePath)
+      ) {
+        continue
+      }
+      restoredDownloads.push({
+        id: download.id,
+        filename: download.filename,
+        state: download.state,
+        receivedBytes: download.receivedBytes,
+        totalBytes: download.totalBytes,
+        startedAt: download.startedAt,
+        savePath: download.savePath,
+      })
+      if (restoredDownloads.length >= MAX_RECENT_FINISHED_DOWNLOADS) break
+    }
+  }
   return {
     v: 1,
     tabs: restoredTabs,
@@ -616,16 +833,22 @@ function sanitizeBrowserSessionSnapshot(value: unknown): BrowserSessionSnapshotV
       restoredTabs.length === 0
         ? -1
         : Math.max(0, Math.min(restoredTabs.length - 1, requestedIndex)),
+    ...(restoredDownloads.length > 0 ? { downloads: restoredDownloads } : {}),
   }
 }
 
 function browserSessionSnapshot(): BrowserSessionSnapshotV1 {
   const liveTabs = tabs.filter((tab) => !tab.view.webContents.isDestroyed())
   const activeIndex = liveTabs.findIndex((tab) => tab.id === currentScope.activeTabId)
+  const downloads = (browserDownloadsByScope.get(getBrowserScopeId()) ?? [])
+    .filter(isFinishedBrowserDownload)
+    .slice(0, MAX_RECENT_FINISHED_DOWNLOADS)
+    .map((download) => ({ ...download }))
   return {
     v: 1,
     tabs: liveTabs.map((tab) => ({ url: tabUrl(tab), pinned: tab.pinned })),
     activeIndex,
+    ...(downloads.length > 0 ? { downloads } : {}),
   }
 }
 
@@ -713,9 +936,9 @@ export async function importAgentCookies(
 }
 
 /**
- * Default-deny hardening for the agent partition: no permission grants of any
- * kind, and downloads are cancelled (and surfaced to the driver) rather than
- * silently dropped on disk.
+ * Default-deny hardening for the agent partition. Site permissions remain
+ * denied, while uploads use Chromium's native file chooser and downloads are
+ * saved into the device-level browser download directory.
  */
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
@@ -775,14 +998,56 @@ function configureAgentPartition(ses: Session): void {
       })
   })
   ses.on('will-download', (_event, item, contents) => {
-    const filename = item.getFilename()
-    const url = item.getURL()
-    logger.info('Blocked download in agent browser', { filename })
-    item.cancel()
-    const scopeId = browserScopeIdForContents(contents)
-    if (scopeId) {
-      withBrowserScope(scopeId, () => events?.onDownloadBlocked(filename, url))
+    const directory = browserDownloadSettings?.getDirectory()
+    if (!directory) {
+      logger.warn('Agent browser download has no configured destination')
+      item.cancel()
+      return
     }
+    const scopeId = browserScopeIdForContents(contents) ?? getActiveBrowserScopeId()
+    const filename = suggestedFilename(item.getFilename(), item.getMimeType())
+    const savePath = uniqueDownloadPath(
+      directory,
+      filename,
+      (candidate) => activeDownloadPaths.has(candidate) || existsSync(candidate)
+    )
+    activeDownloadPaths.add(savePath)
+    item.setSavePath(savePath)
+    const download: BrowserDownloadInfo & { savePath: string } = {
+      id: randomUUID(),
+      filename,
+      state: 'progressing',
+      receivedBytes: Math.max(0, item.getReceivedBytes()),
+      totalBytes: Math.max(0, item.getTotalBytes()),
+      startedAt: new Date().toISOString(),
+      savePath,
+    }
+    browserDownloadsByScope.set(scopeId, [
+      download,
+      ...(browserDownloadsByScope.get(scopeId) ?? []),
+    ])
+    trimBrowserDownloads(scopeId)
+    publishBrowserDownloads(scopeId)
+    logger.info('Agent browser download started', { filename })
+    item.on('updated', (_updatedEvent, state) => {
+      updateDownloadProgress(download, item)
+      download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
+      publishBrowserDownloads(scopeId)
+    })
+    item.once('done', (_doneEvent, state) => {
+      activeDownloadPaths.delete(savePath)
+      updateDownloadProgress(download, item)
+      download.state = state
+      trimBrowserDownloads(scopeId)
+      publishBrowserDownloads(scopeId)
+      withBrowserScope(scopeId, persistBrowserSession)
+      if (state === 'completed') {
+        logger.info('Agent browser download completed', { filename })
+        if (process.platform === 'darwin') app.dock?.downloadFinished(savePath)
+      } else if (state === 'interrupted') {
+        logger.warn('Agent browser download interrupted', { filename })
+      }
+    })
   })
 }
 
@@ -796,9 +1061,8 @@ function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
 
 /**
  * Opens the renderer's find bar and moves keyboard focus to it. The bar is
- * renderer chrome rather than an overlay on the page: a renderer element that
- * overlapped the native view would trip the occlusion path and hide the very
- * page being searched.
+ * docked browser chrome rather than an overlay on the page, so the native page
+ * remains visible while the search controls are open.
  */
 function openRendererFind(): void {
   if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
@@ -934,7 +1198,7 @@ function createTabView(): WebContentsView {
       spellcheck: false,
       // The default every origin this tab visits starts at; a per-origin zoom
       // the user sets from the page menu still wins and still persists.
-      zoomFactor: BASE_ZOOM_FACTOR,
+      zoomFactor: getBrowserDefaultZoomFactor(),
     },
   })
   view.setBackgroundColor(browserBackgroundColor())
@@ -943,6 +1207,7 @@ function createTabView(): WebContentsView {
   configureAgentPartition(contents.session)
   attachAgentContextMenu(contents, {
     openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url)),
+    defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
   contents.on(
@@ -1169,6 +1434,36 @@ export function setBrowserTheme(theme: BrowserTheme): void {
   }
 }
 
+/** Records Sim's theme and applies it only while the browser is set to follow Sim. */
+export function setBrowserAppTheme(theme: BrowserTheme): void {
+  browserAppTheme = theme
+  if (browserAppearanceTheme === 'app') setBrowserTheme(theme)
+}
+
+/** Resolves the persisted browser choice against the latest theme reported by Sim. */
+export function setBrowserAppearanceTheme(theme: DesktopAppearanceTheme): void {
+  browserAppearanceTheme = theme
+  setBrowserTheme(theme === 'app' ? browserAppTheme : theme)
+}
+
+/** Converts the user-facing percentage into Chromium's panel-relative factor. */
+export function getBrowserDefaultZoomFactor(): number {
+  return BASE_ZOOM_FACTOR * (browserDefaultZoom / 100)
+}
+
+/** Applies and retains the default zoom for every current and future tab. */
+export function setBrowserDefaultZoom(zoom: BrowserZoomPercent): void {
+  browserDefaultZoom = zoom
+  const factor = getBrowserDefaultZoomFactor()
+  for (const scopeId of browserScopeStates.keys()) {
+    withBrowserScope(scopeId, () => {
+      for (const tab of tabs) {
+        if (!tab.view.webContents.isDestroyed()) tab.view.webContents.setZoomFactor(factor)
+      }
+    })
+  }
+}
+
 export function getBrowserTheme(): BrowserTheme {
   return browserTheme
 }
@@ -1290,6 +1585,11 @@ export function restoreBrowserSession(): void {
 
   const restoredTabs: AgentTab[] = []
   if (snapshot) {
+    browserDownloadsByScope.set(
+      scopeId,
+      snapshot.downloads?.map((download) => ({ ...download })) ?? []
+    )
+    publishBrowserDownloads(scopeId)
     for (const entry of snapshot.tabs) {
       const tab = addTabInternal({ pinned: entry.pinned, activate: false, notify: false })
       tab.pendingRestoreUrl = entry.url
@@ -1522,6 +1822,29 @@ export function setTabPinned(tabId: string, pinned: boolean): AgentTab {
   return tab
 }
 
+/** Opens tab actions as a native menu so the embedded page never has to be hidden. */
+export function showTabContextMenu(tabId: string): void {
+  const scopeId = getBrowserScopeId()
+  const tab = tabs.find((entry) => entry.id === tabId)
+  if (!tab || tab.view.webContents.isDestroyed()) return
+
+  const inOwningScope = (action: () => void) => () => withBrowserScope(scopeId, action)
+
+  Menu.buildFromTemplate([
+    {
+      label: tab.pinned ? 'Unpin Tab' : 'Pin Tab',
+      click: inOwningScope(() => setTabPinned(tabId, !tab.pinned)),
+    },
+    { label: 'Duplicate Tab', click: inOwningScope(() => duplicateTab(tabId)) },
+    { type: 'separator' },
+    {
+      label: 'Close Tab',
+      enabled: !tab.pinned,
+      click: inOwningScope(() => closeTab(tabId)),
+    },
+  ]).popup()
+}
+
 /**
  * Closes the active tab when the browser resource currently owns the user's
  * interaction context. Application menu accelerators run before a
@@ -1665,6 +1988,7 @@ export async function clearProfileStorage(): Promise<void> {
   for (const scopeId of browserScopeStates.keys()) {
     withBrowserScope(scopeId, () => {
       closeLiveTabs()
+      browserDownloadsByScope.delete(scopeId)
       // Stays true so a later restore cannot re-read the list being erased here.
       currentScope.restored = true
       currentScope.restoring = false

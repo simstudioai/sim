@@ -10,6 +10,14 @@ import {
   useRef,
   useState,
 } from 'react'
+import {
+  type DesktopAppearanceTheme,
+  type TerminalAppearanceTheme,
+  type TerminalSelectedProfile,
+  type TerminalThemePalette,
+  type TerminalThemeProfile,
+  terminalProfileThemeId,
+} from '@sim/desktop-bridge'
 import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -23,6 +31,11 @@ import '@xterm/xterm/css/xterm.css'
 import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
+import {
+  loadDesktopTerminalAppearance,
+  resolveDesktopAppearanceTheme,
+} from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import {
   closeTerminal,
@@ -135,7 +148,7 @@ const RESIZE_SETTLE_MS = 120
 const MAX_BANKED_CHARS = 256_000
 
 const LIGHT_THEME = {
-  background: '#ffffff',
+  background: '#fefefe',
   foreground: '#1f2328',
   cursor: '#1f2328',
   selectionBackground: '#b4d5fe',
@@ -158,7 +171,7 @@ const LIGHT_THEME = {
 }
 
 const DARK_THEME = {
-  background: '#0d1117',
+  background: '#1b1b1b',
   foreground: '#e6edf3',
   cursor: '#e6edf3',
   selectionBackground: '#264f78',
@@ -260,13 +273,34 @@ const TerminalView = memo(function TerminalView({
   active,
   visible,
   scopeId,
+  appearanceTheme,
+  selectedProfile,
+  profiles,
+  onAppearanceThemeChange,
+  appearanceThemePending,
 }: {
   terminalId: string
   active: boolean
   visible: boolean
   scopeId: string
+  appearanceTheme: TerminalAppearanceTheme
+  selectedProfile?: TerminalSelectedProfile
+  profiles: TerminalThemeProfile[]
+  onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
+  appearanceThemePending?: boolean
 }) {
   const { resolvedTheme } = useTheme()
+  const profileThemeId = terminalProfileThemeId(appearanceTheme)
+  const profileTheme = selectedProfile?.id === profileThemeId ? selectedProfile : undefined
+  const colorScheme = resolveDesktopAppearanceTheme(
+    (profileThemeId ? 'app' : appearanceTheme) as DesktopAppearanceTheme,
+    resolvedTheme
+  )
+  const terminalTheme: TerminalThemePalette = profileTheme
+    ? profileTheme.palette
+    : colorScheme === 'dark'
+      ? DARK_THEME
+      : LIGHT_THEME
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -291,7 +325,7 @@ const TerminalView = memo(function TerminalView({
         'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       lineHeight: 1.35,
       scrollback: 10_000,
-      theme: resolvedTheme === 'dark' ? DARK_THEME : LIGHT_THEME,
+      theme: terminalTheme,
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
@@ -460,8 +494,8 @@ const TerminalView = memo(function TerminalView({
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
-    terminal.options.theme = resolvedTheme === 'dark' ? DARK_THEME : LIGHT_THEME
-  }, [resolvedTheme])
+    terminal.options.theme = terminalTheme
+  }, [terminalTheme])
 
   // A GPU renderer only for the terminal on screen.
   //
@@ -585,6 +619,10 @@ const TerminalView = memo(function TerminalView({
         onCopy={copySelection}
         onPaste={pasteClipboard}
         onClear={clearScreen}
+        appearanceTheme={appearanceTheme}
+        profiles={profiles}
+        onAppearanceThemeChange={onAppearanceThemeChange}
+        appearanceThemePending={appearanceThemePending}
         onNewTab={newTab}
         onCloseTerminal={closeThisTerminal}
       />
@@ -613,6 +651,10 @@ export function shouldRemoveTerminalResource(
 
 export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const [appearanceTheme, setAppearanceTheme] = useState<TerminalAppearanceTheme>('app')
+  const [selectedProfile, setSelectedProfile] = useState<TerminalSelectedProfile>()
+  const [profiles, setProfiles] = useState<TerminalThemeProfile[]>([])
+  const [appearanceThemePending, setAppearanceThemePending] = useState(false)
   // Scope activation happens after a navigation commits. Selecting this
   // panel's bucket directly avoids briefly rendering the previous chat's
   // terminal ids and then sending user actions for them under the new scope.
@@ -624,6 +666,43 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void loadDesktopTerminalAppearance().then((next) => {
+      if (!active) return
+      setAppearanceTheme(next.theme)
+      setSelectedProfile(next.selectedProfile)
+      setProfiles(next.profiles)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const setTerminalAppearanceTheme = useCallback(
+    async (theme: TerminalAppearanceTheme) => {
+      const bridge = getDesktopBridge()
+      const profileId = terminalProfileThemeId(theme)
+      const profile = profileId ? profiles.find(({ id }) => id === profileId) : undefined
+      const update = profile
+        ? () => bridge?.terminalThemes?.selectProfile(profile.id)
+        : () => bridge?.settings?.setTerminalTheme?.(theme)
+      setAppearanceThemePending(true)
+      try {
+        const preferences = await update()
+        if (!preferences) return
+        setAppearanceTheme(preferences.terminalTheme ?? theme)
+        setSelectedProfile(preferences.terminalProfile)
+        setDesktopPreferencesSnapshot(preferences)
+      } catch {
+        toast.error('Could not update terminal appearance')
+      } finally {
+        setAppearanceThemePending(false)
+      }
+    },
+    [profiles]
+  )
 
   // Interaction ownership is reported once for the whole panel, never per tab.
   // The shell holds a single focus flag, so a per-tab reporter would let one
@@ -799,6 +878,16 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
             active={tab.terminalId === activeTerminalId}
             visible={visible}
             scopeId={scopeId}
+            appearanceTheme={appearanceTheme}
+            selectedProfile={selectedProfile}
+            profiles={profiles}
+            onAppearanceThemeChange={
+              getDesktopBridge()?.settings?.setTerminalTheme ||
+              getDesktopBridge()?.terminalThemes?.selectProfile
+                ? (theme) => void setTerminalAppearanceTheme(theme)
+                : undefined
+            }
+            appearanceThemePending={appearanceThemePending}
           />
         ))}
         {startError && (

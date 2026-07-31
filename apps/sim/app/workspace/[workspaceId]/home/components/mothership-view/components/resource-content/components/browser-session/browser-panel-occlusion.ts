@@ -1,175 +1,239 @@
 'use client'
 
-import { type RefObject, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { BrowserPanelSnapshot } from '@sim/browser-protocol'
 import {
-  reportBrowserPanelOcclusion,
-  resetBrowserPanelOcclusion,
+  captureBrowserPanelSnapshot,
+  isBrowserPanelOcclusionAvailable,
+  setBrowserPanelOccluded,
 } from '@/lib/browser-agent/transport'
 
-const NATIVE_SURFACE_OVERLAY_SELECTOR = '[data-native-surface-overlay]'
+const SNAPSHOT_DECODE_TIMEOUT_MS = 3_000
+const SNAPSHOT_PAINT_TIMEOUT_MS = 1_000
 
-type OverlayRect = Pick<DOMRect, 'bottom' | 'height' | 'left' | 'right' | 'top' | 'width'>
+export type BrowserPanelOverlay = 'downloads' | 'resources' | 'suggestions' | 'tab' | 'toolbar'
 
-/** True when two non-empty viewport rectangles overlap. */
-export function overlayRectsIntersect(first: OverlayRect, second: OverlayRect): boolean {
-  if (first.width <= 0 || first.height <= 0 || second.width <= 0 || second.height <= 0) {
+export interface BrowserPanelOverlayController {
+  requestOverlay: (overlay: BrowserPanelOverlay, fallback: () => void) => Promise<void>
+  closeOverlay: (overlay: BrowserPanelOverlay) => Promise<void>
+}
+
+interface SnapshotRender {
+  frame: BrowserPanelSnapshot
+  requestId: number
+}
+
+interface PendingPaint {
+  requestId: number
+  resolve: (painted: boolean) => void
+}
+
+interface BrowserPanelOcclusion extends BrowserPanelOverlayController {
+  activeOverlay: BrowserPanelOverlay | null
+  snapshot: BrowserPanelSnapshot | null
+  onSnapshotError: () => void
+}
+
+/**
+ * Decodes the replacement before React mounts it. Waiting on the mounted
+ * image's `load` event is racy for data URLs: Chromium can satisfy a cached
+ * image between commit and listener delivery, which left the handshake parked
+ * until its timeout and silently opened the native fallback menu instead.
+ */
+async function decodeSnapshot(dataUrl: string): Promise<boolean> {
+  const image = new Image()
+  image.src = dataUrl
+  let timeoutId: number | null = null
+  try {
+    await Promise.race([
+      image.decode(),
+      new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(
+          () => reject(new Error('snapshot decode timed out')),
+          SNAPSHOT_DECODE_TIMEOUT_MS
+        )
+      }),
+    ])
+    return true
+  } catch {
     return false
+  } finally {
+    if (timeoutId !== null) window.clearTimeout(timeoutId)
   }
-  return (
-    first.left < second.right &&
-    first.right > second.left &&
-    first.top < second.bottom &&
-    first.bottom > second.top
-  )
 }
 
 /**
- * Checks tagged renderer overlays against the native browser host. Shared
- * overlay primitives carry `data-native-surface-overlay`, which makes this
- * work for pointer-transparent tooltips as well as interactive portals.
- */
-export function isPanelObscuredByOverlay(
-  host: HTMLElement,
-  hostRect: DOMRect,
-  overlays: Iterable<HTMLElement> = document.querySelectorAll<HTMLElement>(
-    NATIVE_SURFACE_OVERLAY_SELECTOR
-  )
-): boolean {
-  for (const overlay of overlays) {
-    if (host.contains(overlay)) continue
-    if (overlayRectsIntersect(hostRect, overlay.getBoundingClientRect())) {
-      return true
-    }
-  }
-  return false
-}
-
-function elementContainsOverlay(node: Node): boolean {
-  if (!(node instanceof Element)) return false
-  return (
-    node.matches(NATIVE_SURFACE_OVERLAY_SELECTOR) ||
-    node.querySelector(NATIVE_SURFACE_OVERLAY_SELECTOR) !== null
-  )
-}
-
-/**
- * Attribute changes get the cheap self-check only. A subtree scan there would
- * be the dominant cost of a resize frame — the virtualizer rewrites `style` on
- * every visible transcript row, and each scan walks a fully rendered markdown
- * body to conclude nothing changed — and it cannot find anything new: an
- * overlay already inside that subtree was registered when it was inserted, so
- * the only attribute change that can introduce one is the marker landing on
- * the target itself, which `matches` covers.
- */
-function mutationTouchesOverlay(mutation: MutationRecord): boolean {
-  if (mutation.type === 'childList') {
-    return [...mutation.addedNodes, ...mutation.removedNodes].some(elementContainsOverlay)
-  }
-  return (
-    mutation.target instanceof Element && mutation.target.matches(NATIVE_SURFACE_OVERLAY_SELECTOR)
-  )
-}
-
-/**
- * Coordinates all tagged renderer overlays with the native browser surface.
- * Mutation and resize observers keep the tracked overlay set current, while
- * captured scroll handles poppers moving without changing their own DOM.
+ * Explicit browser-chrome native-surface swap.
+ *
+ * Unlike the previous global overlay observer, this runs only after a browser
+ * chrome interaction. The native page remains visible while its lossless frame is
+ * captured and decoded. React paints that frame underneath the still-visible
+ * page; only after two animation frames does the desktop hide the native view
+ * and let the requested emcn menu mount. Closing performs the inverse order.
  */
 export function useBrowserPanelOcclusion(
-  hostRef: RefObject<HTMLElement | null>,
-  visible: boolean,
-  scopeId: string
-): boolean {
-  const [occluded, setOccluded] = useState(false)
+  scopeId: string,
+  activeTabId: string | null
+): BrowserPanelOcclusion {
+  const supported = isBrowserPanelOcclusionAvailable()
+  const [snapshotRender, setSnapshotRender] = useState<SnapshotRender | null>(null)
+  const [activeOverlay, setActiveOverlay] = useState<BrowserPanelOverlay | null>(null)
+  const activeOverlayRef = useRef<BrowserPanelOverlay | null>(null)
+  const activeTabIdRef = useRef(activeTabId)
+  const requestIdRef = useRef(0)
+  const pendingPaintRef = useRef<PendingPaint | null>(null)
+  const paintFramesRef = useRef<number[]>([])
+  const revealPromiseRef = useRef<Promise<void>>(Promise.resolve())
+  const mountedRef = useRef(true)
+  activeTabIdRef.current = activeTabId
+
+  const settlePaint = useCallback((requestId: number, painted: boolean) => {
+    const pending = pendingPaintRef.current
+    if (!pending || pending.requestId !== requestId) return
+    pendingPaintRef.current = null
+    pending.resolve(painted)
+  }, [])
+
+  const cancelPaintFrames = useCallback(() => {
+    for (const frame of paintFramesRef.current) cancelAnimationFrame(frame)
+    paintFramesRef.current = []
+  }, [])
+
+  useLayoutEffect(() => {
+    cancelPaintFrames()
+    const render = snapshotRender
+    const pending = pendingPaintRef.current
+    if (!render || !pending || pending.requestId !== render.requestId) return
+
+    // The frame was decoded before commit. Two animation frames now establish
+    // that the DOM replacement itself reached the compositor before the native
+    // WebContentsView is hidden.
+    const first = requestAnimationFrame(() => {
+      const second = requestAnimationFrame(() => {
+        paintFramesRef.current = []
+        settlePaint(render.requestId, true)
+      })
+      paintFramesRef.current = [second]
+    })
+    paintFramesRef.current = [first]
+    return cancelPaintFrames
+  }, [cancelPaintFrames, settlePaint, snapshotRender])
+
+  const onSnapshotError = useCallback(() => {
+    const render = snapshotRender
+    if (render) settlePaint(render.requestId, false)
+  }, [settlePaint, snapshotRender])
+
+  const reveal = useCallback(
+    async (requestId: number) => {
+      await setBrowserPanelOccluded(false, scopeId).catch(() => false)
+      if (mountedRef.current && requestIdRef.current === requestId) {
+        setSnapshotRender(null)
+      }
+    },
+    [scopeId]
+  )
+
+  const closeOverlay = useCallback(
+    async (overlay: BrowserPanelOverlay) => {
+      if (activeOverlayRef.current !== overlay) {
+        await revealPromiseRef.current
+        return
+      }
+      const requestId = ++requestIdRef.current
+      activeOverlayRef.current = null
+      setActiveOverlay(null)
+      cancelPaintFrames()
+      pendingPaintRef.current?.resolve(false)
+      pendingPaintRef.current = null
+      const revealing = reveal(requestId)
+      revealPromiseRef.current = revealing
+      await revealing
+    },
+    [cancelPaintFrames, reveal]
+  )
+
+  const requestOverlay = useCallback(
+    async (overlay: BrowserPanelOverlay, fallback: () => void) => {
+      if (activeOverlayRef.current === overlay || pendingPaintRef.current) return
+      if (!supported) {
+        fallback()
+        return
+      }
+
+      const requestId = ++requestIdRef.current
+      const frame = await captureBrowserPanelSnapshot(scopeId).catch(() => null)
+      if (!mountedRef.current || requestIdRef.current !== requestId) return
+      if (!frame || (activeTabIdRef.current && frame.tabId !== activeTabIdRef.current)) {
+        fallback()
+        return
+      }
+
+      const decoded = await decodeSnapshot(frame.dataUrl)
+      if (!mountedRef.current || requestIdRef.current !== requestId) return
+      if (!decoded) {
+        fallback()
+        return
+      }
+
+      const painted = new Promise<boolean>((resolve) => {
+        pendingPaintRef.current = { requestId, resolve }
+      })
+      setSnapshotRender({ frame, requestId })
+      const paintTimeout = window.setTimeout(
+        () => settlePaint(requestId, false),
+        SNAPSHOT_PAINT_TIMEOUT_MS
+      )
+      const didPaint = await painted
+      window.clearTimeout(paintTimeout)
+      if (!mountedRef.current || requestIdRef.current !== requestId) return
+      if (!didPaint) {
+        setSnapshotRender(null)
+        fallback()
+        return
+      }
+
+      const hidden = await setBrowserPanelOccluded(true, scopeId).catch(() => false)
+      if (!mountedRef.current || requestIdRef.current !== requestId) {
+        if (hidden) await setBrowserPanelOccluded(false, scopeId).catch(() => false)
+        return
+      }
+      if (!hidden) {
+        setSnapshotRender(null)
+        fallback()
+        return
+      }
+
+      activeOverlayRef.current = overlay
+      setActiveOverlay(overlay)
+    },
+    [scopeId, settlePaint, supported]
+  )
 
   useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
-    // Occlusion of a hidden panel is meaningless — there is no native view on
-    // screen to be covered — so none of the machinery below runs while hidden.
-    // That machinery is a document-body MutationObserver plus capture-phase
-    // scroll/resize listeners, which otherwise fire on every DOM change and
-    // scroll anywhere in the app (the chat transcript streaming, most of all)
-    // for a panel nobody can see.
-    if (!visible) {
-      setOccluded(false)
-      resetBrowserPanelOcclusion(scopeId)
-      return
-    }
-
-    let disposed = false
-    let checkQueued = false
-    let lastOccluded = false
-    let overlays = new Set<HTMLElement>()
-
-    const checkOcclusion = () => {
-      if (disposed) return
-      // Measuring the host is a forced layout, and it used to happen even with
-      // nothing open — the rect is an eager argument, so the empty-set answer
-      // was reached only after paying for it. Nothing is open for the whole of
-      // a window resize, which is exactly when the flush is most expensive.
-      const nextOccluded =
-        overlays.size > 0 && isPanelObscuredByOverlay(host, host.getBoundingClientRect(), overlays)
-      if (nextOccluded === lastOccluded) return
-      lastOccluded = nextOccluded
-      setOccluded(nextOccluded)
-      reportBrowserPanelOcclusion(nextOccluded, scopeId)
-    }
-
-    const scheduleOcclusionCheck = () => {
-      if (checkQueued || disposed) return
-      checkQueued = true
-      queueMicrotask(() => {
-        checkQueued = false
-        checkOcclusion()
-      })
-    }
-
-    const resizeObserver = new ResizeObserver(scheduleOcclusionCheck)
-
-    const refreshOverlays = () => {
-      const nextOverlays = new Set(
-        document.querySelectorAll<HTMLElement>(NATIVE_SURFACE_OVERLAY_SELECTOR)
-      )
-      for (const overlay of overlays) {
-        if (!nextOverlays.has(overlay)) {
-          resizeObserver.unobserve(overlay)
-        }
-      }
-      for (const overlay of nextOverlays) {
-        if (!overlays.has(overlay)) {
-          resizeObserver.observe(overlay)
-        }
-      }
-      overlays = nextOverlays
-      scheduleOcclusionCheck()
-    }
-
-    const mutationObserver = new MutationObserver((mutations) => {
-      if (!mutations.some(mutationTouchesOverlay)) return
-      refreshOverlays()
-    })
-
-    resizeObserver.observe(host)
-    mutationObserver.observe(document.body, {
-      attributes: true,
-      attributeFilter: ['class', 'data-native-surface-overlay', 'data-state', 'hidden', 'style'],
-      childList: true,
-      subtree: true,
-    })
-    window.addEventListener('resize', scheduleOcclusionCheck)
-    window.addEventListener('scroll', scheduleOcclusionCheck, true)
-    refreshOverlays()
-
+    mountedRef.current = true
     return () => {
-      disposed = true
-      mutationObserver.disconnect()
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', scheduleOcclusionCheck)
-      window.removeEventListener('scroll', scheduleOcclusionCheck, true)
-      resetBrowserPanelOcclusion(scopeId)
+      mountedRef.current = false
+      requestIdRef.current++
+      cancelPaintFrames()
+      pendingPaintRef.current?.resolve(false)
+      pendingPaintRef.current = null
+      void setBrowserPanelOccluded(false, scopeId)
     }
-  }, [hostRef, visible, scopeId])
+  }, [cancelPaintFrames, scopeId])
 
-  return occluded
+  useEffect(() => {
+    const frame = snapshotRender?.frame
+    if (!frame || !activeTabId || frame.tabId === activeTabId) return
+    const overlay = activeOverlayRef.current
+    if (overlay) closeOverlay(overlay)
+  }, [activeTabId, closeOverlay, snapshotRender])
+
+  return {
+    activeOverlay,
+    snapshot: snapshotRender?.frame ?? null,
+    requestOverlay,
+    closeOverlay,
+    onSnapshotError,
+  }
 }

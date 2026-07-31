@@ -24,12 +24,15 @@ import {
   type BrowserTabsState,
   type BrowserToolName,
 } from '@sim/browser-protocol'
+import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
-import type { BrowserWindow, WebContents } from 'electron'
+import type { BrowserWindow, MenuItemConstructorOptions, WebContents } from 'electron'
+import { Menu } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
+import { steppedZoomFactor, zoomPercentOf } from '@/main/browser-agent/context-menu'
 import { ToolError } from '@/main/browser-agent/errors'
 import {
   comboInsertsText,
@@ -83,6 +86,8 @@ export interface DriverCallbacks {
   onSessionStatus: (alive: boolean, scopeId?: string) => void
   /** Whether the active tab shows a login form Sim holds a credential for. */
   onFillAvailability: (available: boolean, scopeId?: string) => void
+  /** Live native download state for one isolated browser scope. */
+  onDownloadsChanged?: (state: BrowserDownloadsState) => void
 }
 
 let driverCallbacks: DriverCallbacks | null = null
@@ -91,9 +96,9 @@ let knownSessions: BrowserKnownSessionRegistry | null = null
 let configStore: ConfigStore | null = null
 
 /**
- * Page states auto-handled since the last tool result (dismissed dialogs,
- * suppressed file choosers, blocked downloads). Attached to the next tool
- * result so the model reacts to what actually happened on the page.
+ * Page states auto-handled since the last tool result (currently dismissed
+ * dialogs). Attached to the next tool result so the model reacts to what
+ * actually happened on the page.
  */
 interface DriverScopeState {
   pendingNotices: string[]
@@ -187,7 +192,7 @@ function pushTabsState(): void {
   driverCallbacks?.onTabsState(state)
 }
 
-/** Instruments a fresh tab: CDP dialog/chooser handling + page-state pushes. */
+/** Instruments a fresh tab: CDP dialog handling + page-state pushes. */
 function instrumentTab(contents: WebContents): void {
   const scopeId = session.browserScopeIdForContents(contents) ?? session.getBrowserScopeId()
   const inScope =
@@ -200,12 +205,6 @@ function instrumentTab(contents: WebContents): void {
       onDialog: inScope((dialog) => {
         recordNotice(
           `The page showed a ${dialog.type} dialog ("${dialog.message}") which was auto-dismissed.`
-        )
-      }),
-      onFileChooser: inScope(() => {
-        recordNotice(
-          'The page opened a file picker; native file uploads are not driven by the agent — ' +
-            'the user can complete the upload directly in the browser panel if needed.'
         )
       }),
     })
@@ -248,7 +247,8 @@ export function initDriver(
   callbacks: DriverCallbacks,
   getMainWindow: () => BrowserWindow | null,
   config?: ConfigStore,
-  persistence?: BrowserSessionPersistence
+  persistence?: BrowserSessionPersistence,
+  downloadSettings?: session.BrowserDownloadSettings
 ): void {
   driverCallbacks = callbacks
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
@@ -293,11 +293,7 @@ export function initDriver(
           })
         })
       },
-      onDownloadBlocked: (filename) => {
-        recordNotice(
-          `The page tried to download "${filename}"; downloads are not supported in the agent browser, so it was blocked.`
-        )
-      },
+      onDownloadsChanged: (state) => callbacks.onDownloadsChanged?.(state),
     },
     getMainWindow,
     config
@@ -310,8 +306,97 @@ export function initDriver(
           },
         }
       : undefined,
-    persistence
+    persistence,
+    downloadSettings
   )
+}
+
+/** Safe recent download metadata for one chat; host paths never cross the bridge. */
+export function getDownloadsState(scopeId: string): BrowserDownloadsState {
+  return session.getBrowserDownloadsState(scopeId)
+}
+
+/** Opens one chat's recent downloads as a native menu above the browser page. */
+export function showDownloadsMenu(
+  scopeId: string,
+  ownerWindow: BrowserWindow,
+  anchor: { x: number; y: number }
+): boolean {
+  return session.showBrowserDownloadsMenu(scopeId, ownerWindow, anchor)
+}
+
+/** Opens the browser's native overflow menu above the embedded page. */
+export function showToolbarMenu(
+  scopeId: string,
+  ownerWindow: BrowserWindow,
+  anchor: { x: number; y: number }
+): boolean {
+  if (ownerWindow.isDestroyed()) return false
+  const resolved = session.resolveBrowserScopeId(scopeId)
+  const contents = session.withBrowserScope(resolved, () => session.activeTab()?.view.webContents)
+  const pageAvailable = Boolean(contents && !contents.isDestroyed())
+  const defaultZoomFactor = session.getBrowserDefaultZoomFactor()
+  const zoomFactor = pageAvailable
+    ? (contents?.getZoomFactor() ?? defaultZoomFactor)
+    : defaultZoomFactor
+  const zoomIn = steppedZoomFactor(zoomFactor, 1)
+  const zoomOut = steppedZoomFactor(zoomFactor, -1)
+  const sendCommand = (command: BrowserToolbarCommand) => {
+    if (ownerWindow.isDestroyed()) return
+    ownerWindow.webContents.send('browser-agent:toolbar-command', command, resolved)
+  }
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: 'Find in Page',
+      accelerator: 'CommandOrControl+F',
+      enabled: pageAvailable,
+      click: () => {
+        if (!ownerWindow.isDestroyed()) {
+          ownerWindow.webContents.send('browser-agent:open-find', resolved)
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: `Zoom (${zoomPercentOf(zoomFactor)}%)`,
+      enabled: pageAvailable,
+      submenu: [
+        {
+          label: 'Zoom In',
+          accelerator: 'CommandOrControl+Plus',
+          enabled: zoomIn !== zoomFactor,
+          click: () => contents?.setZoomFactor(zoomIn),
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CommandOrControl+-',
+          enabled: zoomOut !== zoomFactor,
+          click: () => contents?.setZoomFactor(zoomOut),
+        },
+        {
+          label: 'Reset Zoom',
+          accelerator: 'CommandOrControl+0',
+          enabled: zoomFactor !== defaultZoomFactor,
+          click: () => contents?.setZoomFactor(defaultZoomFactor),
+        },
+      ],
+    },
+    { type: 'separator' },
+    { label: 'Import Passwords', click: () => sendCommand('import') },
+    { type: 'separator' },
+    { label: 'Browser Settings', click: () => sendCommand('browser-settings') },
+  ]
+  Menu.buildFromTemplate(template).popup({
+    window: ownerWindow,
+    x: Math.round(anchor.x),
+    y: Math.round(anchor.y),
+  })
+  return true
+}
+
+/** Reveals a completed browser download without opening the downloaded file. */
+export function showDownloadInFolder(scopeId: string, downloadId: string): boolean {
+  return session.showBrowserDownloadInFolder(scopeId, downloadId)
 }
 
 /** Activates a chat's isolated browser state and publishes its current header. */
@@ -950,9 +1035,9 @@ async function executeToolInner(
 }
 
 /**
- * Attaches auto-handled page-state notices (dismissed dialogs, suppressed
- * file choosers, blocked downloads) to the outgoing result so the model
- * learns what happened without a dedicated tool.
+ * Attaches auto-handled page-state notices (currently dismissed dialogs) to
+ * the outgoing result so the model learns what happened without a dedicated
+ * tool.
  */
 function withNotices(result: unknown): unknown {
   const state = driverScopeState()
@@ -1090,6 +1175,18 @@ export async function handlePanelAction(
         return
       case 'forward':
         if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
+        return
+      case 'print':
+        contents.print({ printBackground: true })
+        return
+      case 'zoom-in':
+        contents.setZoomFactor(steppedZoomFactor(contents.getZoomFactor(), 1))
+        return
+      case 'zoom-out':
+        contents.setZoomFactor(steppedZoomFactor(contents.getZoomFactor(), -1))
+        return
+      case 'zoom-reset':
+        contents.setZoomFactor(session.getBrowserDefaultZoomFactor())
         return
       default:
         return

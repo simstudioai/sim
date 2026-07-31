@@ -34,6 +34,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
@@ -96,6 +97,8 @@ interface ResourceContentProps {
    * ever rendered when active.
    */
   visible?: boolean
+  /** Registers the active browser's targeted renderer-overlay handshake. */
+  onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
 /**
@@ -161,6 +164,7 @@ export const ResourceContent = memo(function ResourceContent({
   tableViewsEnabled,
   onNotFound,
   visible = true,
+  onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -301,7 +305,14 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
-      return <BrowserSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
+      return (
+        <BrowserSession
+          key={resource.id}
+          scopeId={desktopScopeId}
+          visible={visible}
+          onOverlayControllerChange={onBrowserOverlayControllerChange}
+        />
+      )
 
     case 'terminal':
       return <TerminalSession key={resource.id} scopeId={desktopScopeId} visible={visible} />

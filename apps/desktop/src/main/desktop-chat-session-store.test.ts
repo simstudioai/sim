@@ -32,6 +32,17 @@ const BROWSER: BrowserSessionSnapshot = {
     { url: 'about:blank', pinned: false },
   ],
   activeIndex: 1,
+  downloads: [
+    {
+      id: 'download-1',
+      filename: 'report.csv',
+      state: 'completed',
+      receivedBytes: 2_048,
+      totalBytes: 2_048,
+      startedAt: '2026-07-31T12:00:00.000Z',
+      savePath: '/Users/ada/Downloads/report.csv',
+    },
+  ],
 }
 const TERMINAL: TerminalSessionSnapshot = {
   v: 1,
@@ -104,6 +115,7 @@ describe('DesktopChatSessionStore', () => {
     expect(onDisk).not.toContain('chat-secret')
     expect(onDisk).not.toContain('example.com')
     expect(onDisk).not.toContain('/Users/ada/code')
+    expect(onDisk).not.toContain('report.csv')
     expect(JSON.parse(onDisk)).toEqual({ v: 1, ciphertext: expect.any(String) })
     expect(provider.encryptString).toHaveBeenCalledOnce()
     expect(statSync(filePath).mode & 0o077).toBe(0)

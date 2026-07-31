@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { Session, WebContents } from 'electron'
-import { app, BrowserWindow, crashReporter, net, session } from 'electron'
+import type { OpenDialogOptions, Session, WebContents } from 'electron'
+import { app, BrowserWindow, crashReporter, dialog, net, session } from 'electron'
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
@@ -11,6 +11,7 @@ import {
 } from '@/main/browser-agent/driver'
 import {
   canReportPanelBounds,
+  capturePanelSnapshot as captureBrowserAgentPanelSnapshot,
   setPanelBounds as setBrowserAgentPanelBounds,
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
@@ -20,6 +21,8 @@ import {
   isBrowserScopeSuspended,
   quiesceBrowserSessions,
   reopenFocusedTab as reopenClosedBrowserTab,
+  setBrowserDefaultZoom as setAgentBrowserDefaultZoom,
+  setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
 import {
@@ -448,6 +451,27 @@ function main(): void {
     setTerminalEnabled: (enabled) => {
       if (!enabled) terminal.dispose()
     },
+    setBrowserTheme: setAgentBrowserTheme,
+    setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
+    onBrowserThemeChanged: (theme) => {
+      const win = getMainWindow()
+      if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
+      win.webContents.send('browser-agent:appearance-theme-changed', theme)
+    },
+    getDefaultBrowserDownloadDirectory: () => app.getPath('downloads'),
+    chooseBrowserDownloadDirectory: async (defaultPath) => {
+      const options: OpenDialogOptions = {
+        title: 'Choose Browser Downloads Folder',
+        buttonLabel: 'Choose',
+        defaultPath,
+        properties: ['openDirectory', 'createDirectory'],
+      }
+      const win = getMainWindow()
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
   })
 
   /**
@@ -535,6 +559,11 @@ function main(): void {
             scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', { available })
           }
         },
+        onDownloadsChanged: (state) => {
+          if (state.scopeId) {
+            scopeEvents.sendBrowser(state.scopeId, 'browser-agent:downloads-state', state)
+          }
+        },
       },
       getMainWindow,
       config,
@@ -547,6 +576,10 @@ function main(): void {
         disposeScope: (scopeId) => {
           desktopChatSessions.deleteScope(appOrigin(), scopeId)
         },
+      },
+      {
+        getDirectory: () =>
+          desktopSettings.getPreferences().browserDownloadDirectory ?? app.getPath('downloads'),
       }
     )
     await localFilesystem.initialize()
@@ -603,9 +636,13 @@ function main(): void {
           const win = windowForContents(sender)
           if (win) setBrowserAgentPanelFocused(focused, win, scopeId)
         },
+        captureSnapshot: (sender, scopeId) => {
+          const win = windowForContents(sender)
+          return win ? captureBrowserAgentPanelSnapshot(win, scopeId) : Promise.resolve(null)
+        },
         setOccluded: (sender, occluded, scopeId) => {
           const win = windowForContents(sender)
-          if (win) setBrowserAgentPanelOccluded(occluded, win, scopeId)
+          return win ? setBrowserAgentPanelOccluded(occluded, win, scopeId) : false
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),

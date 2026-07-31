@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   activateScope,
+  capturePanelSnapshot,
   discardScope,
   disposeScope,
   markScopeSuspended,
@@ -14,8 +15,8 @@ const {
   onFindResult,
   onFocusOmnibox,
   onOpenFind,
-  onPanelSnapshot,
   onScopeSuspended,
+  onToolbarCommand,
   reorderTab,
   restoreScope,
   nativeSuspendScope,
@@ -23,14 +24,16 @@ const {
   setPanelBounds,
   setPanelFocused,
   setPanelOccluded,
-  setPanelSnapshot,
   setSessionAlive,
   setTabPinned,
+  showTabContextMenu,
+  showToolbarMenu,
   setTheme,
   setTabsState,
   setTabsSupported,
 } = vi.hoisted(() => ({
   activateScope: vi.fn(),
+  capturePanelSnapshot: vi.fn(),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
   markScopeSuspended: vi.fn(),
@@ -43,8 +46,8 @@ const {
   onFindResult: vi.fn(),
   onFocusOmnibox: vi.fn(),
   onOpenFind: vi.fn(),
-  onPanelSnapshot: vi.fn(),
   onScopeSuspended: vi.fn(),
+  onToolbarCommand: vi.fn(),
   reorderTab: vi.fn(),
   restoreScope: vi.fn(),
   nativeSuspendScope: vi.fn(async () => true),
@@ -52,9 +55,10 @@ const {
   setPanelBounds: vi.fn(),
   setPanelFocused: vi.fn(),
   setPanelOccluded: vi.fn(),
-  setPanelSnapshot: vi.fn(),
   setSessionAlive: vi.fn(),
   setTabPinned: vi.fn(),
+  showTabContextMenu: vi.fn(),
+  showToolbarMenu: vi.fn(),
   setTheme: vi.fn(),
   setTabsState: vi.fn(),
   setTabsSupported: vi.fn(),
@@ -64,6 +68,7 @@ vi.mock('@/lib/desktop', () => ({
   getDesktopBridge: () => ({
     browserAgent: {
       executeTool: vi.fn(),
+      capturePanelSnapshot,
       disposeScope,
       getTabsState: vi.fn(async () => ({ tabs: [], activeTabId: null })),
       migrateScope: nativeMigrateScope,
@@ -72,8 +77,8 @@ vi.mock('@/lib/desktop', () => ({
       onFocusOmnibox,
       onOpenFind,
       onPageState,
-      onPanelSnapshot,
       onScopeSuspended,
+      onToolbarCommand,
       onSessionStatus,
       onTabsState,
       panelAction: vi.fn(),
@@ -84,6 +89,8 @@ vi.mock('@/lib/desktop', () => ({
       setPanelFocused,
       setPanelOccluded,
       setTabPinned,
+      showTabContextMenu,
+      showToolbarMenu,
       setTheme,
     },
   }),
@@ -99,7 +106,6 @@ vi.mock('@/stores/browser-session/store', () => ({
       migrateScope: migrateStoreScope,
       suspendScope: markScopeSuspended,
       setPageState,
-      setPanelSnapshot,
       setSessionAlive,
       setTabsState,
       setTabsSupported,
@@ -108,8 +114,10 @@ vi.mock('@/stores/browser-session/store', () => ({
 }))
 
 import {
+  captureBrowserPanelSnapshot,
   discardBrowserScope,
   initBrowserAgentTransport,
+  isBrowserPanelOcclusionAvailable,
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
   migrateBrowserScope,
@@ -117,25 +125,26 @@ import {
   onBrowserFindOpen,
   onBrowserFindResult,
   onBrowserOmniboxFocus,
+  onBrowserToolbarCommand,
   reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
-  reportBrowserPanelOcclusion,
   reportBrowserTheme,
-  resetBrowserPanelOcclusion,
   restoreBrowserScope,
+  setBrowserPanelOccluded,
   setBrowserTabPinned,
+  showBrowserTabContextMenu,
+  showBrowserToolbarMenu,
   suspendBrowserScope,
 } from '@/lib/browser-agent/transport'
 
 describe('browser panel transport', () => {
   beforeEach(() => {
-    resetBrowserPanelOcclusion()
     setPanelBounds.mockClear()
     setPanelFocused.mockClear()
-    setPanelOccluded.mockClear()
+    capturePanelSnapshot.mockReset()
+    setPanelOccluded.mockReset()
     setPageState.mockClear()
-    setPanelSnapshot.mockClear()
     setSessionAlive.mockClear()
     setTabsState.mockClear()
     setTabsSupported.mockClear()
@@ -147,29 +156,26 @@ describe('browser panel transport', () => {
     migrateStoreScope.mockClear()
     nativeMigrateScope.mockReset()
     setTabPinned.mockClear()
+    showTabContextMenu.mockClear()
+    showToolbarMenu.mockClear()
+    onToolbarCommand.mockClear()
     setTheme.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
   })
 
-  it('forwards panel bounds independently from native-view occlusion', () => {
+  it('forwards panel bounds directly to the native view', () => {
     const initialBounds = { x: 10, y: 20, width: 300, height: 200 }
     const updatedBounds = { x: 20, y: 30, width: 320, height: 220 }
 
     reportBrowserPanelBounds(initialBounds)
-    reportBrowserPanelOcclusion(true)
     reportBrowserPanelBounds(updatedBounds)
-    reportBrowserPanelOcclusion(false)
 
     // A caller with no anchor to declare keeps whatever was last retained —
     // here there was never one, so the shell is told null both times.
     expect(setPanelBounds.mock.calls).toEqual([
       [initialBounds, null, 'legacy'],
       [updatedBounds, null, 'legacy'],
-    ])
-    expect(setPanelOccluded.mock.calls).toEqual([
-      [true, 'legacy'],
-      [false, 'legacy'],
     ])
   })
 
@@ -183,6 +189,28 @@ describe('browser panel transport', () => {
     ])
   })
 
+  it('captures and swaps the native panel within the requested chat scope', async () => {
+    const snapshot = {
+      dataUrl: 'data:image/png;base64,c2lt',
+      tabId: 'tab-1',
+      zoomPercent: 100,
+      scopeId: 'chat-a',
+    }
+    capturePanelSnapshot.mockResolvedValue(snapshot)
+    setPanelOccluded.mockResolvedValue(true)
+
+    expect(isBrowserPanelOcclusionAvailable()).toBe(true)
+    await expect(captureBrowserPanelSnapshot('chat-a')).resolves.toEqual(snapshot)
+    await expect(setBrowserPanelOccluded(true, 'chat-a')).resolves.toBe(true)
+    await expect(setBrowserPanelOccluded(false, 'chat-a')).resolves.toBe(true)
+
+    expect(capturePanelSnapshot).toHaveBeenCalledWith('chat-a')
+    expect(setPanelOccluded.mock.calls).toEqual([
+      [true, 'chat-a'],
+      [false, 'chat-a'],
+    ])
+  })
+
   it('forwards tab pinning only through shells that advertise support', () => {
     expect(isBrowserTabPinningAvailable()).toBe(true)
 
@@ -193,6 +221,28 @@ describe('browser panel transport', () => {
       ['tab-2', true, 'legacy'],
       ['tab-2', false, 'legacy'],
     ])
+  })
+
+  it('opens the native tab menu in the matching browser scope', () => {
+    showBrowserTabContextMenu('tab-2', 'chat-a')
+
+    expect(showTabContextMenu).toHaveBeenCalledWith('tab-2', 'chat-a')
+  })
+
+  it('opens and scopes the native browser toolbar menu', () => {
+    showBrowserToolbarMenu({ x: 10, y: 20 }, 'chat-a')
+    expect(showToolbarMenu).toHaveBeenCalledWith({ x: 10, y: 20 }, 'chat-a')
+
+    const callback = vi.fn()
+    onBrowserToolbarCommand(callback, 'chat-a')
+    const listener = onToolbarCommand.mock.calls[0][0] as (
+      command: 'browser-settings',
+      scopeId?: string
+    ) => void
+    listener('browser-settings', 'chat-b')
+    listener('browser-settings', 'chat-a')
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith('browser-settings')
   })
 
   it('forwards tab reordering only through shells that advertise support', () => {
@@ -274,19 +324,6 @@ describe('browser panel transport', () => {
     expect(setTabsState).toHaveBeenCalledWith(tabsState, 'chat-restored')
   })
 
-  it('wires captured browser frames into the browser-session store', () => {
-    initBrowserAgentTransport()
-    const listener = onPanelSnapshot.mock.calls[0][0] as (snapshot: {
-      dataUrl: string
-      tabId: string
-    }) => void
-    const snapshot = { dataUrl: 'data:image/png;base64,c2lt', tabId: 'tab-1' }
-
-    listener(snapshot)
-
-    expect(setPanelSnapshot).toHaveBeenCalledWith(snapshot, 'legacy')
-  })
-
   it('routes late browser events to the scope carried by the event', () => {
     initBrowserAgentTransport()
     const pageListener = onPageState.mock.calls[0][0] as (state: {
@@ -337,24 +374,16 @@ describe('browser panel transport', () => {
     expect(markScopeSuspended).toHaveBeenCalledWith('chat-background')
   })
 
-  it('keeps geometry and occlusion independent for two chat scopes', () => {
+  it('keeps geometry independent for two chat scopes', () => {
     const a = { x: 1, y: 2, width: 300, height: 200 }
     const b = { x: 10, y: 20, width: 400, height: 250 }
 
     reportBrowserPanelBounds(a, null, 'chat-a')
-    reportBrowserPanelOcclusion(true, 'chat-a')
     reportBrowserPanelBounds(b, null, 'chat-b')
-    reportBrowserPanelOcclusion(true, 'chat-b')
-    reportBrowserPanelOcclusion(false, 'chat-a')
 
     expect(setPanelBounds.mock.calls).toEqual([
       [a, null, 'chat-a'],
       [b, null, 'chat-b'],
-    ])
-    expect(setPanelOccluded.mock.calls).toEqual([
-      [true, 'chat-a'],
-      [true, 'chat-b'],
-      [false, 'chat-a'],
     ])
   })
 

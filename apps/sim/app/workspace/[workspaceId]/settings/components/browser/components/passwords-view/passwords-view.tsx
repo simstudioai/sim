@@ -55,6 +55,7 @@ function summarize({ cookies, passwords }: BrowserChromeImportResult): string | 
 
 interface PasswordsViewProps {
   credentials: BrowserCredentialMetadata[]
+  initialImportOpen?: boolean
   onChange: (credentials: BrowserCredentialMetadata[]) => void
   onBack: () => void
   /** Lets the Browser page refresh its own counts after an import. */
@@ -66,13 +67,19 @@ interface PasswordsViewProps {
  * login, each opening its own detail page. Nothing secret is shown here — the
  * password only exists on the detail page, and only after Touch ID.
  */
-export function PasswordsView({ credentials, onChange, onBack, onImported }: PasswordsViewProps) {
+export function PasswordsView({
+  credentials,
+  initialImportOpen = false,
+  onChange,
+  onBack,
+  onImported,
+}: PasswordsViewProps) {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false)
   const [deleteAllPending, setDeleteAllPending] = useState(false)
   const [profiles, setProfiles] = useState<BrowserImportProfile[]>([])
-  const [importOpen, setImportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(initialImportOpen)
   const [importPending, setImportPending] = useState(false)
 
   useEffect(() => {

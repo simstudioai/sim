@@ -10,6 +10,29 @@ import { createConfigStore } from '@/main/config'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { Notification } from '@/test/electron-mock'
 
+const IMPORTED_PALETTE = {
+  background: '#101010',
+  foreground: '#f0f0f0',
+  cursor: '#ffffff',
+  selectionBackground: '#264f78',
+  black: '#000000',
+  red: '#cc0000',
+  green: '#00cc00',
+  yellow: '#cccc00',
+  blue: '#0000cc',
+  magenta: '#cc00cc',
+  cyan: '#00cccc',
+  white: '#cccccc',
+  brightBlack: '#555555',
+  brightRed: '#ff5555',
+  brightGreen: '#55ff55',
+  brightYellow: '#ffff55',
+  brightBlue: '#5555ff',
+  brightMagenta: '#ff55ff',
+  brightCyan: '#55ffff',
+  brightWhite: '#ffffff',
+}
+
 function makeService() {
   const config = createConfigStore(
     join(mkdtempSync(join(tmpdir(), 'sim-desktop-settings-')), 'settings.json'),
@@ -21,6 +44,10 @@ function makeService() {
   const setTrayEnabled = vi.fn()
   const setBrowserEnabled = vi.fn()
   const setTerminalEnabled = vi.fn()
+  const setBrowserTheme = vi.fn()
+  const setBrowserDefaultZoom = vi.fn()
+  const onBrowserThemeChanged = vi.fn()
+  const chooseBrowserDownloadDirectory = vi.fn(async () => '/tmp/custom-downloads')
   const service = createDesktopSettingsService({
     config,
     getMainWindow: () => window,
@@ -29,6 +56,11 @@ function makeService() {
     setTrayEnabled,
     setBrowserEnabled,
     setTerminalEnabled,
+    setBrowserTheme,
+    setBrowserDefaultZoom,
+    onBrowserThemeChanged,
+    getDefaultBrowserDownloadDirectory: () => '/tmp/Downloads',
+    chooseBrowserDownloadDirectory,
   })
   return {
     config,
@@ -38,6 +70,10 @@ function makeService() {
     setTrayEnabled,
     setBrowserEnabled,
     setTerminalEnabled,
+    setBrowserTheme,
+    setBrowserDefaultZoom,
+    onBrowserThemeChanged,
+    chooseBrowserDownloadDirectory,
     service,
   }
 }
@@ -85,6 +121,101 @@ describe('desktop settings service', () => {
     expect(config.get('terminalEnabled')).toBe(false)
     expect(setBrowserEnabled).toHaveBeenCalledWith(false)
     expect(setTerminalEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('persists browser and terminal appearance with match-Sim defaults', () => {
+    const { config, service, setBrowserTheme, onBrowserThemeChanged } = makeService()
+    expect(service.getPreferences()).toMatchObject({
+      browserTheme: 'app',
+      terminalTheme: 'app',
+    })
+
+    service.setAppearancePreference('browserTheme', 'dark')
+    service.setAppearancePreference('terminalTheme', 'light')
+
+    expect(config.get('browserTheme')).toBe('dark')
+    expect(config.get('terminalTheme')).toBe('light')
+    expect(setBrowserTheme).toHaveBeenCalledWith('dark')
+    expect(onBrowserThemeChanged).toHaveBeenCalledWith('dark')
+    expect(service.getPreferences()).toMatchObject({
+      browserTheme: 'dark',
+      terminalTheme: 'light',
+    })
+  })
+
+  it('does not announce a browser theme when the preference did not change', () => {
+    const { service, onBrowserThemeChanged } = makeService()
+
+    service.setAppearancePreference('browserTheme', 'app')
+
+    expect(onBrowserThemeChanged).not.toHaveBeenCalled()
+  })
+
+  it('persists and applies the default browser zoom', () => {
+    const { config, service, setBrowserDefaultZoom } = makeService()
+
+    expect(service.getPreferences().browserDefaultZoom).toBe(100)
+
+    const preferences = service.setBrowserDefaultZoom(125)
+
+    expect(config.get('browserDefaultZoom')).toBe(125)
+    expect(setBrowserDefaultZoom).toHaveBeenCalledWith(125)
+    expect(preferences.browserDefaultZoom).toBe(125)
+  })
+
+  it('applies the stored browser zoom at startup', () => {
+    const { config, service, setBrowserDefaultZoom } = makeService()
+    config.set('browserDefaultZoom', 150)
+
+    service.applySystemPreferences()
+
+    expect(setBrowserDefaultZoom).toHaveBeenCalledWith(150)
+  })
+
+  it('defaults browser downloads to Downloads and persists a chosen folder', async () => {
+    const { chooseBrowserDownloadDirectory, config, service } = makeService()
+
+    expect(service.getPreferences().browserDownloadDirectory).toBe('/tmp/Downloads')
+
+    const preferences = await service.chooseBrowserDownloadDirectory()
+
+    expect(chooseBrowserDownloadDirectory).toHaveBeenCalledWith('/tmp/Downloads')
+    expect(config.get('browserDownloadDirectory')).toBe('/tmp/custom-downloads')
+    expect(preferences?.browserDownloadDirectory).toBe('/tmp/custom-downloads')
+  })
+
+  it('caches and selects a Terminal or iTerm2 profile', () => {
+    const { config, service } = makeService()
+
+    const preferences = service.selectTerminalProfile({
+      id: 'iterm2:ocean',
+      name: 'Ocean',
+      source: 'iterm2',
+      sourceLabel: 'iTerm2',
+      isDefault: true,
+      palette: IMPORTED_PALETTE,
+    })
+
+    expect(config.get('terminalTheme')).toBe('profile:iterm2:ocean')
+    expect(config.get('terminalProfile')).toEqual({
+      id: 'iterm2:ocean',
+      name: 'Ocean',
+      source: 'iterm2',
+      palette: IMPORTED_PALETTE,
+    })
+    expect(preferences).toMatchObject({
+      terminalTheme: 'profile:iterm2:ocean',
+      terminalProfile: { id: 'iterm2:ocean', name: 'Ocean' },
+    })
+  })
+
+  it('does not select a profile theme without its cached palette', () => {
+    const { config, service } = makeService()
+
+    service.setAppearancePreference('terminalTheme', 'profile:missing')
+
+    expect(config.get('terminalTheme')).toBeUndefined()
+    expect(service.getPreferences().terminalTheme).toBe('app')
   })
 
   it('applies login-item changes only for packaged builds', () => {

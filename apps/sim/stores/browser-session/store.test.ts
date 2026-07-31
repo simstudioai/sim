@@ -11,7 +11,6 @@ function resetStore(): void {
     tabs: [],
     activeTabId: null,
     tabsSupported: false,
-    panelSnapshot: null,
     sessionAlive: true,
     suspended: false,
   }
@@ -240,7 +239,6 @@ describe('browser session store', () => {
       tabs: [],
       activeTabId: null,
       pageState: null,
-      panelSnapshot: null,
       sessionAlive: false,
     })
   })

@@ -1,4 +1,5 @@
 import { readFileSync, unlinkSync } from 'node:fs'
+import { isAbsolute } from 'node:path'
 import { safeStorage } from 'electron'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 
@@ -9,6 +10,10 @@ const MAX_ORIGIN_LENGTH = 2_048
 const MAX_SCOPE_LENGTH = 512
 const MAX_URL_LENGTH = 8_192
 const MAX_CWD_LENGTH = 4_096
+const MAX_DOWNLOADS = 5
+const MAX_DOWNLOAD_ID_LENGTH = 128
+const MAX_DOWNLOAD_FILENAME_LENGTH = 200
+const MAX_DOWNLOAD_PATH_LENGTH = 4_096
 const DEFAULT_WRITE_DELAY_MS = 250
 
 export interface BrowserSessionSnapshot {
@@ -18,6 +23,15 @@ export interface BrowserSessionSnapshot {
     pinned: boolean
   }>
   activeIndex: number
+  downloads?: Array<{
+    id: string
+    filename: string
+    state: 'completed' | 'interrupted' | 'cancelled'
+    receivedBytes: number
+    totalBytes: number
+    startedAt: string
+    savePath: string
+  }>
 }
 
 export interface TerminalSessionSnapshot {
@@ -139,10 +153,54 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
     tabs.push({ url, pinned: candidate.pinned })
   }
 
+  const downloads: NonNullable<BrowserSessionSnapshot['downloads']> = []
+  if (Array.isArray(value.downloads)) {
+    for (const candidate of value.downloads) {
+      if (!isRecord(candidate)) continue
+      if (
+        typeof candidate.id !== 'string' ||
+        candidate.id.length === 0 ||
+        candidate.id.length > MAX_DOWNLOAD_ID_LENGTH ||
+        typeof candidate.filename !== 'string' ||
+        candidate.filename.length === 0 ||
+        candidate.filename.length > MAX_DOWNLOAD_FILENAME_LENGTH ||
+        (candidate.state !== 'completed' &&
+          candidate.state !== 'interrupted' &&
+          candidate.state !== 'cancelled') ||
+        typeof candidate.receivedBytes !== 'number' ||
+        !Number.isSafeInteger(candidate.receivedBytes) ||
+        candidate.receivedBytes < 0 ||
+        typeof candidate.totalBytes !== 'number' ||
+        !Number.isSafeInteger(candidate.totalBytes) ||
+        candidate.totalBytes < 0 ||
+        typeof candidate.startedAt !== 'string' ||
+        !Number.isFinite(Date.parse(candidate.startedAt)) ||
+        typeof candidate.savePath !== 'string' ||
+        candidate.savePath.length === 0 ||
+        candidate.savePath.length > MAX_DOWNLOAD_PATH_LENGTH ||
+        candidate.savePath.includes('\0') ||
+        !isAbsolute(candidate.savePath)
+      ) {
+        continue
+      }
+      downloads.push({
+        id: candidate.id,
+        filename: candidate.filename,
+        state: candidate.state,
+        receivedBytes: candidate.receivedBytes,
+        totalBytes: candidate.totalBytes,
+        startedAt: candidate.startedAt,
+        savePath: candidate.savePath,
+      })
+      if (downloads.length >= MAX_DOWNLOADS) break
+    }
+  }
+
   return {
     v: SNAPSHOT_VERSION,
     tabs,
     activeIndex: normalizeActiveIndex(value.activeIndex, tabs.length),
+    ...(downloads.length > 0 ? { downloads } : {}),
   }
 }
 
@@ -174,6 +232,9 @@ function cloneBrowserSnapshot(snapshot: BrowserSessionSnapshot): BrowserSessionS
     v: SNAPSHOT_VERSION,
     tabs: snapshot.tabs.map((tab) => ({ ...tab })),
     activeIndex: snapshot.activeIndex,
+    ...(snapshot.downloads
+      ? { downloads: snapshot.downloads.map((download) => ({ ...download })) }
+      : {}),
   }
 }
 
@@ -193,7 +254,7 @@ function keyFor(origin: string, scope: string): string {
  * Persists the small descriptors needed to reconstruct each chat's browser
  * and terminal tabs. Live browser contents and shell processes remain owned by
  * their scoped registries; this store contains URLs, pin state, and working
- * directories only.
+ * directories, and a bounded recent-download list only.
  *
  * The complete payload is encrypted with Electron safeStorage before an
  * atomic owner-only write. When OS-backed encryption is unavailable, the same

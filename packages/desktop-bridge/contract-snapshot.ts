@@ -875,6 +875,14 @@ export interface SimDesktopBrowserAgentApi {
    * and clear everything.
    */
   clearBrowsingData?(kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState>
+  /** Recent downloads owned by one chat's isolated browser session. */
+  getDownloadsState?(scopeId?: string): Promise<BrowserDownloadsState>
+  /** Reveals one completed download in Finder or the platform file manager. */
+  showDownloadInFolder?(downloadId: string, scopeId?: string): Promise<boolean>
+  /** Opens the browser's configured downloads directory. */
+  openDownloadsDirectory?(): Promise<boolean>
+  /** Subscribe to download starts, progress, and completion for the active chat. */
+  onDownloadsState?(callback: (state: BrowserDownloadsState) => void): () => void
   /**
    * Subscribe to live tab-list changes. Optional for compatibility with older
    * installed desktop versions.
@@ -887,6 +895,24 @@ export interface SimDesktopBrowserAgentApi {
   onSessionStatus(callback: (alive: boolean, scopeId?: string) => void): () => void
   /** Subscribe when a task's live pages close but its restart descriptor is retained. */
   onScopeSuspended?(callback: (scopeId: string) => void): () => void
+}
+
+export type BrowserDownloadState = 'progressing' | 'completed' | 'interrupted' | 'cancelled'
+
+/** Safe renderer metadata for a native browser download; host paths never cross the bridge. */
+export interface BrowserDownloadInfo {
+  id: string
+  filename: string
+  state: BrowserDownloadState
+  receivedBytes: number
+  totalBytes: number
+  startedAt: string
+}
+
+/** The newest downloads for one browser scope, newest first. */
+export interface BrowserDownloadsState {
+  downloads: BrowserDownloadInfo[]
+  scopeId?: string
 }
 
 /**
@@ -1237,6 +1263,104 @@ export interface DesktopOAuthConnectScope {
   credentialId?: string
 }
 
+export interface TerminalThemePalette {
+  background: string
+  foreground: string
+  cursor: string
+  cursorAccent?: string
+  selectionBackground: string
+  selectionForeground?: string
+  black: string
+  red: string
+  green: string
+  yellow: string
+  blue: string
+  magenta: string
+  cyan: string
+  white: string
+  brightBlack: string
+  brightRed: string
+  brightGreen: string
+  brightYellow: string
+  brightBlue: string
+  brightMagenta: string
+  brightCyan: string
+  brightWhite: string
+}
+
+export type TerminalThemeSource = 'terminal' | 'iterm2'
+
+export interface TerminalSelectedProfile {
+  /** Stable source profile id used to restore this selection. */
+  id: string
+  name: string
+  source: TerminalThemeSource
+  palette: TerminalThemePalette
+}
+
+export interface TerminalThemeProfile extends TerminalSelectedProfile {
+  sourceLabel: string
+  isDefault?: boolean
+}
+
+const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
+  'background',
+  'foreground',
+  'cursor',
+  'selectionBackground',
+  'black',
+  'red',
+  'green',
+  'yellow',
+  'blue',
+  'magenta',
+  'cyan',
+  'white',
+  'brightBlack',
+  'brightRed',
+  'brightGreen',
+  'brightYellow',
+  'brightBlue',
+  'brightMagenta',
+  'brightCyan',
+  'brightWhite',
+]
+
+const TERMINAL_THEME_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
+export function isTerminalSelectedProfile(value: unknown): value is TerminalSelectedProfile {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<TerminalSelectedProfile>
+  if (
+    typeof candidate.id !== 'string' ||
+    candidate.id.length === 0 ||
+    candidate.id.length > 300 ||
+    typeof candidate.name !== 'string' ||
+    candidate.name.length === 0 ||
+    candidate.name.length > 200 ||
+    (candidate.source !== 'terminal' && candidate.source !== 'iterm2') ||
+    typeof candidate.palette !== 'object' ||
+    candidate.palette === null
+  ) {
+    return false
+  }
+  if (
+    !TERMINAL_THEME_PALETTE_KEYS.every(
+      (key) =>
+        typeof candidate.palette?.[key] === 'string' &&
+        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key])
+    )
+  ) {
+    return false
+  }
+  return (['cursorAccent', 'selectionForeground'] as const).every(
+    (key) =>
+      candidate.palette?.[key] === undefined ||
+      (typeof candidate.palette[key] === 'string' &&
+        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key]))
+  )
+}
+
 export interface DesktopPreferences {
   notificationsEnabled: boolean
   notificationSounds: boolean
@@ -1256,6 +1380,60 @@ export interface DesktopPreferences {
   browserEnabled?: boolean
   /** Let Chat run commands in local shells. Same compatibility caveat. */
   terminalEnabled?: boolean
+  /**
+   * Appearance used by browser pages on this device. `app` follows Sim's
+   * current preference; explicit values override it.
+   */
+  browserTheme?: DesktopAppearanceTheme
+  /** Default page zoom used by current and future built-in browser tabs. */
+  browserDefaultZoom?: BrowserZoomPercent
+  /** Folder where the built-in browser saves downloads on this device. */
+  browserDownloadDirectory?: string
+  /** Appearance used by terminal canvases on this device. */
+  terminalTheme?: TerminalAppearanceTheme
+  /** Cached colors for the selected Terminal.app or iTerm2 profile. */
+  terminalProfile?: TerminalSelectedProfile
+}
+
+export const BROWSER_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
+
+export type BrowserZoomPercent = (typeof BROWSER_ZOOM_PERCENTS)[number]
+
+export function isBrowserZoomPercent(value: unknown): value is BrowserZoomPercent {
+  return typeof value === 'number' && (BROWSER_ZOOM_PERCENTS as readonly number[]).includes(value)
+}
+
+export const DESKTOP_APPEARANCE_THEMES = ['app', 'light', 'dark'] as const
+
+export type DesktopAppearanceTheme = (typeof DESKTOP_APPEARANCE_THEMES)[number]
+
+export function isDesktopAppearanceTheme(value: unknown): value is DesktopAppearanceTheme {
+  return (
+    typeof value === 'string' && (DESKTOP_APPEARANCE_THEMES as readonly string[]).includes(value)
+  )
+}
+
+export const TERMINAL_PROFILE_THEME_PREFIX = 'profile:' as const
+
+export type TerminalAppearanceTheme =
+  | DesktopAppearanceTheme
+  | `${typeof TERMINAL_PROFILE_THEME_PREFIX}${string}`
+
+export function terminalProfileThemeValue(id: string): TerminalAppearanceTheme {
+  return `${TERMINAL_PROFILE_THEME_PREFIX}${id}`
+}
+
+export function terminalProfileThemeId(value: TerminalAppearanceTheme): string | null {
+  return value.startsWith(TERMINAL_PROFILE_THEME_PREFIX)
+    ? value.slice(TERMINAL_PROFILE_THEME_PREFIX.length)
+    : null
+}
+
+export function isTerminalAppearanceTheme(value: unknown): value is TerminalAppearanceTheme {
+  if (isDesktopAppearanceTheme(value)) return true
+  if (typeof value !== 'string' || !value.startsWith(TERMINAL_PROFILE_THEME_PREFIX)) return false
+  const id = value.slice(TERMINAL_PROFILE_THEME_PREFIX.length)
+  return id.length > 0 && id.length <= 300
 }
 
 /**
@@ -1269,7 +1447,14 @@ export interface DesktopPreferences {
  */
 export type DesktopPreferenceKey = Exclude<
   keyof DesktopPreferences,
-  'trayEnabled' | 'browserEnabled' | 'terminalEnabled'
+  | 'trayEnabled'
+  | 'browserEnabled'
+  | 'terminalEnabled'
+  | 'browserTheme'
+  | 'browserDefaultZoom'
+  | 'browserDownloadDirectory'
+  | 'terminalTheme'
+  | 'terminalProfile'
 >
 
 export interface DesktopNotificationPayload {
@@ -1306,6 +1491,22 @@ export interface SimDesktopSettingsApi {
    * ends every open shell. Optional, like {@link setBrowserEnabled}.
    */
   setTerminalEnabled?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Overrides the appearance requested by browser pages. Optional so web
+   * deployments can feature-detect shells that expose the preference.
+   */
+  setBrowserTheme?(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
+  /** Sets the default page zoom for current and future browser tabs. */
+  setBrowserDefaultZoom?(zoom: BrowserZoomPercent): Promise<DesktopPreferences>
+  /** Shows a native folder picker and persists the selected browser download location. */
+  chooseBrowserDownloadDirectory?(): Promise<DesktopPreferences | null>
+  /** Overrides the terminal canvas appearance. Optional, like {@link setBrowserTheme}. */
+  setTerminalTheme?(theme: TerminalAppearanceTheme): Promise<DesktopPreferences>
+}
+
+export interface SimDesktopTerminalThemesApi {
+  listProfiles(): Promise<TerminalThemeProfile[]>
+  selectProfile(profileId: string): Promise<DesktopPreferences | null>
 }
 
 /**
@@ -1407,4 +1608,6 @@ export interface SimDesktopApi {
    * that predate the agent terminal.
    */
   terminal?: SimDesktopTerminalApi
+  /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
+  terminalThemes?: SimDesktopTerminalThemesApi
 }

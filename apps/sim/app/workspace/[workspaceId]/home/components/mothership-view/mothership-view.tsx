@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useMemo, useState } from 'react'
+import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -11,6 +11,7 @@ import {
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
@@ -92,6 +93,30 @@ export const MothershipView = memo(
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
     const { removeResource } = useMothershipResources()
+    const browserOverlayControllerRef = useRef<BrowserPanelOverlayController | null>(null)
+
+    const registerBrowserOverlayController = useCallback(
+      (controller: BrowserPanelOverlayController | null) => {
+        browserOverlayControllerRef.current = controller
+      },
+      []
+    )
+
+    const requestAddResourceOpen = useCallback(
+      (open: () => void) => {
+        const controller = browserOverlayControllerRef.current
+        if (active?.type !== 'browser' || !controller) {
+          open()
+          return
+        }
+        void controller.requestOverlay('resources', open).then(open)
+      },
+      [active?.type]
+    )
+
+    const closeAddResource = useCallback(() => {
+      return browserOverlayControllerRef.current?.closeOverlay('resources') ?? Promise.resolve()
+    }, [])
 
     const persistentResources = useMemo(() => resources.filter(isPersistentPanel), [resources])
 
@@ -149,6 +174,7 @@ export const MothershipView = memo(
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
             workspaceId={workspaceId}
+            desktopScopeId={desktopScopeId}
             chatId={chatId}
             resources={resources}
             activeId={active?.id ?? null}
@@ -157,6 +183,8 @@ export const MothershipView = memo(
             }
             previewMode={isActivePreviewable ? previewMode : undefined}
             onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+            onRequestAddResourceOpen={requestAddResourceOpen}
+            onAddResourceClose={closeAddResource}
           />
           <div className='relative min-h-0 flex-1 overflow-hidden'>
             {/*
@@ -187,6 +215,7 @@ export const MothershipView = memo(
                   desktopScopeId={desktopScopeId}
                   resource={resource}
                   visible={resource.id === active?.id}
+                  onBrowserOverlayControllerChange={registerBrowserOverlayController}
                 />
               </div>
             ))}

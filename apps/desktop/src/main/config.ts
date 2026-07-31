@@ -1,4 +1,9 @@
 import { readFileSync } from 'node:fs'
+import type {
+  BrowserZoomPercent,
+  TerminalAppearanceTheme,
+  TerminalSelectedProfile,
+} from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
@@ -101,6 +106,15 @@ export interface DesktopSettings {
   autoDownloadUpdates?: boolean
   browserEnabled?: boolean
   terminalEnabled?: boolean
+  /** Device-wide browser page appearance; `app` follows Sim. */
+  browserTheme?: 'app' | 'light' | 'dark'
+  /** Device-wide default zoom for built-in browser pages. */
+  browserDefaultZoom?: BrowserZoomPercent
+  /** Folder where the built-in browser saves downloaded files. */
+  browserDownloadDirectory?: string
+  /** Device-wide terminal canvas appearance; `app` follows Sim. */
+  terminalTheme?: TerminalAppearanceTheme
+  terminalProfile?: TerminalSelectedProfile
   /**
    * Where the agent terminal last was. A shell that always reopened in the
    * home directory would drop the user back at square one every session, and

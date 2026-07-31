@@ -3,7 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserPanelAnchor, BrowserTabState } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
-import { Button, ChipInput, Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@sim/emcn'
+import type { DesktopAppearanceTheme } from '@sim/desktop-bridge'
+import {
+  Button,
+  ChipInput,
+  chipVariants,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+  MoreHorizontal,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+} from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Cursor, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import {
@@ -11,10 +28,12 @@ import {
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
   loadBrowserSuggestionSources,
+  onBrowserAppearanceThemeChanged,
   onBrowserFillAvailability,
   onBrowserFindClose,
   onBrowserFindOpen,
   onBrowserOmniboxFocus,
+  onBrowserToolbarCommand,
   reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
@@ -22,19 +41,28 @@ import {
   sendBrowserPanelAction,
   setBrowserTabPinned,
   showBrowserCredentialChooser,
+  showBrowserTabContextMenu,
+  showBrowserToolbarMenu,
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { loadDesktopAppearanceTheme, resolveDesktopAppearanceTheme } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
-import { useBrowserPanelOcclusion } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
+import {
+  type BrowserPanelOverlayController,
+  useBrowserPanelOcclusion,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
+import { BrowserThemeNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-theme-notice'
 import {
   mergeSuggestionSources,
   moveActiveIndex,
   rankSuggestions,
   type UrlSuggestion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/url-suggestions'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 
@@ -111,6 +139,7 @@ function describeAnchor(panel: HTMLElement | null): BrowserPanelAnchor | null {
 interface BrowserSessionProps {
   visible: boolean
   scopeId: string
+  onOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
 /** Administrative suspension retains the resource even though live tabs are gone. */
@@ -127,8 +156,17 @@ export function shouldReportBrowserBounds(visible: boolean, suspended: boolean):
   return visible && !suspended
 }
 
-export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
+export function BrowserSession({
+  visible,
+  scopeId,
+  onOverlayControllerChange,
+}: BrowserSessionProps) {
   const { theme } = useTheme()
+  const [appearanceTheme, setAppearanceTheme] = useState<DesktopAppearanceTheme | null>(null)
+  const [themeNoticeVersion, setThemeNoticeVersion] = useState(0)
+  const reportedBrowserThemeRef = useRef<ReturnType<typeof resolveDesktopAppearanceTheme> | null>(
+    null
+  )
   // Read the panel's own bucket instead of the store's active projection.
   // Chat navigation activates the desktop scope in an effect, so the projection
   // can still describe the previous chat during the first render of this keyed
@@ -144,9 +182,6 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
   const tabsSupported = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.tabsSupported ?? false
   )
-  const panelSnapshot = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.panelSnapshot ?? null
-  )
   const sessionAlive = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.sessionAlive ?? true
   )
@@ -158,8 +193,9 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
   const urlInputRef = useRef<HTMLInputElement>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
   const fillButtonRef = useRef<HTMLButtonElement>(null)
-  const panelOccluded = useBrowserPanelOcclusion(hostRef, visible && !suspended, scopeId)
+  const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const { removeResource } = useMothershipResources()
+  const { navigateToSettings } = useSettingsNavigation()
 
   // The browser session ending closes the panel, the way the terminal panel
   // goes when its last shell does. What it leaves otherwise is a tab whose
@@ -205,8 +241,56 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
   /** Whether the find bar is docked above the page. */
   const [findOpen, setFindOpen] = useState(false)
   const findSupported = isBrowserFindAvailable()
+  const {
+    activeOverlay,
+    snapshot: panelSnapshot,
+    requestOverlay,
+    closeOverlay,
+    onSnapshotError,
+  } = useBrowserPanelOcclusion(scopeId, activeTabId)
+
+  // The resource picker lives above this component in the panel tab bar. Give
+  // that one external browser overlay access to the same capture/hide handshake
+  // as the browser's own menus, without restoring a document-wide observer.
+  useEffect(() => {
+    if (!onOverlayControllerChange) return
+    onOverlayControllerChange({ requestOverlay, closeOverlay })
+    return () => onOverlayControllerChange(null)
+  }, [closeOverlay, onOverlayControllerChange, requestOverlay])
 
   useEffect(() => onBrowserFillAvailability(setFillAvailable), [])
+
+  useEffect(() => {
+    let active = true
+    void loadDesktopAppearanceTheme('browser').then((next) => {
+      if (active) setAppearanceTheme(next)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => onBrowserAppearanceThemeChanged((next) => setAppearanceTheme(next)), [])
+
+  useEffect(
+    () =>
+      onBrowserToolbarCommand((command) => {
+        if (command === 'import') {
+          navigateToSettings({ section: 'browser', browserView: 'passwords', browserImport: true })
+          return
+        }
+        if (command === 'passwords') {
+          navigateToSettings({ section: 'browser', browserView: 'passwords' })
+          return
+        }
+        if (command === 'clear-data') {
+          navigateToSettings({ section: 'browser', browserClear: true })
+          return
+        }
+        navigateToSettings({ section: 'browser' })
+      }, scopeId),
+    [navigateToSettings, scopeId]
+  )
 
   // Reloaded whenever the panel comes back on screen, so an import or a fresh
   // sign-in elsewhere in the app shows up without a reload.
@@ -222,10 +306,15 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
   }, [panelVisible])
 
   useEffect(() => {
-    if (isBrowserTheme(theme)) {
-      reportBrowserTheme(theme)
+    if (appearanceTheme) {
+      const next = resolveDesktopAppearanceTheme(appearanceTheme, theme)
+      if (isBrowserTheme(next)) reportBrowserTheme(next)
+      if (reportedBrowserThemeRef.current && reportedBrowserThemeRef.current !== next) {
+        setThemeNoticeVersion((version) => version + 1)
+      }
+      reportedBrowserThemeRef.current = next
     }
-  }, [theme])
+  }, [appearanceTheme, theme])
 
   // Claiming focus is tied to being on screen, not to being mounted: a hidden
   // panel that announced itself as focused would take keystrokes meant for
@@ -320,8 +409,7 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
   // layout change (deferring to the next rAF made the native view trail a
   // live panel drag by a full frame). Viewport resize and captured scroll
   // fire pre-layout, so those defer to rAF for a clean measure. A one-second
-  // heartbeat renews the main-process visibility lease. Renderer overlays are
-  // coordinated separately so bounds continue updating while the view hides.
+  // heartbeat renews the main-process visibility lease.
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -416,6 +504,17 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
     [suggestionCorpus, urlDraft]
   )
 
+  // The suggestion list is renderer UI that extends over the native page.
+  // Keep the page's exact captured frame underneath it while it is open so
+  // pointer events reach the Sim popover instead of the WebContentsView.
+  useEffect(() => {
+    if (suggestions.length > 0) {
+      void requestOverlay('suggestions', () => {})
+      return
+    }
+    void closeOverlay('suggestions')
+  }, [closeOverlay, requestOverlay, suggestions.length])
+
   const navigateTo = useCallback(
     (url: string) => {
       sendBrowserPanelAction('navigate', { url }, scopeId)
@@ -456,6 +555,12 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
     if (!rect) return
     showBrowserCredentialChooser({ x: rect.left, y: rect.bottom })
   }, [])
+
+  const handleShowNativeToolbarMenu = useCallback(() => {
+    const rect = toolbarMenuButtonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    showBrowserToolbarMenu({ x: rect.left, y: rect.bottom }, scopeId)
+  }, [scopeId])
 
   const handleSwitchTab = useCallback(
     (tabId: string) => {
@@ -508,7 +613,12 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
             onCloseTab={handleCloseTab}
             onDuplicateTab={handleDuplicateTab}
             onSetTabPinned={handleSetTabPinned}
+            onOpenTabMenu={(tabId) =>
+              void requestOverlay('tab', () => showBrowserTabContextMenu(tabId, scopeId))
+            }
+            onCloseTabMenu={() => void closeOverlay('tab')}
             onReorderTab={handleReorderTab}
+            contextMenuOpen={activeOverlay === 'tab'}
             pinningSupported={tabPinningSupported}
             reorderingSupported={tabReorderingSupported}
           />
@@ -654,7 +764,9 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
               ))}
             </PopoverContent>
           </Popover>
-          {/* Only shown when this page has a login form and a saved match. */}
+          {findOpen && (
+            <BrowserFindBar inputRef={findInputRef} onClose={closeFind} scopeId={scopeId} />
+          )}
           {fillAvailable && (
             <Button
               ref={fillButtonRef}
@@ -669,23 +781,118 @@ export function BrowserSession({ visible, scopeId }: BrowserSessionProps) {
               <Key className='size-[14px]' />
             </Button>
           )}
+          <BrowserDownloads
+            scopeId={scopeId}
+            open={activeOverlay === 'downloads'}
+            requestOpen={(fallback) => void requestOverlay('downloads', fallback)}
+            onClose={() => void closeOverlay('downloads')}
+          />
+          <DropdownMenu
+            open={activeOverlay === 'toolbar'}
+            modal={false}
+            onOpenChange={(open) => {
+              if (open) void requestOverlay('toolbar', handleShowNativeToolbarMenu)
+              else void closeOverlay('toolbar')
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <button
+                ref={toolbarMenuButtonRef}
+                type='button'
+                aria-label='Browser menu'
+                title='Browser menu'
+                className={cn(chipVariants({ flush: true }), 'flex-shrink-0')}
+              >
+                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align='end'
+              sideOffset={5}
+              className='w-[300px]'
+              // The menu's deferred focus restoration otherwise races the
+              // find input opened by its own action and returns focus here.
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              <DropdownMenuItem
+                disabled={!findSupported}
+                onSelect={() => void closeOverlay('toolbar').then(openFind)}
+              >
+                Find in Page
+                <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() =>
+                  void closeOverlay('toolbar').then(() =>
+                    sendBrowserPanelAction('zoom-in', {}, scopeId)
+                  )
+                }
+              >
+                Zoom In
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  void closeOverlay('toolbar').then(() =>
+                    sendBrowserPanelAction('zoom-out', {}, scopeId)
+                  )
+                }
+              >
+                Zoom Out
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  void closeOverlay('toolbar').then(() =>
+                    sendBrowserPanelAction('zoom-reset', {}, scopeId)
+                  )
+                }
+              >
+                Reset Zoom
+                <DropdownMenuShortcut>{panelSnapshot?.zoomPercent ?? 100}%</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() =>
+                  void closeOverlay('toolbar').then(() =>
+                    navigateToSettings({
+                      section: 'browser',
+                      browserView: 'passwords',
+                      browserImport: true,
+                    })
+                  )
+                }
+              >
+                Import Passwords
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() =>
+                  void closeOverlay('toolbar').then(() =>
+                    navigateToSettings({ section: 'browser' })
+                  )
+                }
+              >
+                Browser Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        {findOpen && (
-          <BrowserFindBar inputRef={findInputRef} onClose={closeFind} scopeId={scopeId} />
+        {themeNoticeVersion > 0 && (
+          <BrowserThemeNotice key={themeNoticeVersion} scopeId={scopeId} />
         )}
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>
-        {panelOccluded &&
-          panelSnapshot &&
-          (!activeTabId || panelSnapshot.tabId === activeTabId) && (
-            <img
-              src={panelSnapshot.dataUrl}
-              alt=''
-              aria-hidden
-              className='pointer-events-none absolute inset-0 size-full object-fill'
-            />
-          )}
+        {panelSnapshot && (!activeTabId || panelSnapshot.tabId === activeTabId) && (
+          <img
+            src={panelSnapshot.dataUrl}
+            alt=''
+            aria-hidden
+            draggable={false}
+            onError={onSnapshotError}
+            className='pointer-events-none absolute inset-0 size-full select-none object-fill'
+          />
+        )}
         {!pageState && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Cursor className='size-[18px] text-[var(--text-tertiary)]' />

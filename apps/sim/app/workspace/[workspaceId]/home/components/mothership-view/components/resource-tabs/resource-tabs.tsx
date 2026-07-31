@@ -12,8 +12,10 @@ import {
 } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@sim/emcn/icons'
+import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
+import { openTerminal } from '@/lib/terminal/transport'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -40,6 +42,20 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
+
+/** Opens another inner tab when a singleton desktop resource already exists. */
+export function openExistingResourceTab(
+  resource: MothershipResource,
+  desktopScopeId: string,
+  selectResource: (id: string) => void
+): void {
+  selectResource(resource.id)
+  if (resource.type === 'browser') {
+    sendBrowserPanelAction('new-tab', {}, desktopScopeId)
+  } else if (resource.type === 'terminal') {
+    void openTerminal(undefined, desktopScopeId)
+  }
+}
 
 /**
  * Types that cannot be opened as a resource tab. Folders and chats have no tab
@@ -263,22 +279,28 @@ const ResourceTabItem = memo(function ResourceTabItem({
 
 interface ResourceTabsProps {
   workspaceId: string
+  desktopScopeId: string
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
+  onRequestAddResourceOpen?: (open: () => void) => void
+  onAddResourceClose?: () => Promise<void>
 }
 
 export function ResourceTabs({
   workspaceId,
+  desktopScopeId,
   chatId,
   resources,
   activeId,
   previewMode,
   onCyclePreviewMode,
   actions,
+  onRequestAddResourceOpen,
+  onAddResourceClose,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId, resources.length > 0)
@@ -360,6 +382,13 @@ export function ResourceTabs({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [chatId, onAddResource]
+  )
+
+  const handleOpenExisting = useCallback(
+    (resource: MothershipResource) => {
+      openExistingResourceTab(resource, desktopScopeId, selectResource)
+    },
+    [desktopScopeId, selectResource]
   )
 
   const handleTabClick = useCallback(
@@ -653,8 +682,10 @@ export function ResourceTabs({
           workspaceId={workspaceId}
           existingKeys={existingKeys}
           onAdd={handleAdd}
-          onSwitch={selectResource}
+          onOpenExisting={handleOpenExisting}
           excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+          onRequestOpen={onRequestAddResourceOpen}
+          onClose={onAddResourceClose}
         />
       </div>
       {(actions || (previewMode && onCyclePreviewMode)) && (

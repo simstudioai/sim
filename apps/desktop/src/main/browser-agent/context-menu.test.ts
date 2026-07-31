@@ -33,7 +33,13 @@ function params(overrides: Partial<Params> = {}): Params {
 
 function page(overrides: Partial<Page> = {}): Page {
   // A fresh tab sits at the panel's baseline, which the menu reports as 100%.
-  return { canGoBack: true, canGoForward: true, zoomFactor: BASE_ZOOM_FACTOR, ...overrides }
+  return {
+    canGoBack: true,
+    canGoForward: true,
+    zoomFactor: BASE_ZOOM_FACTOR,
+    defaultZoomFactor: BASE_ZOOM_FACTOR,
+    ...overrides,
+  }
 }
 
 function handlers(): Handlers {
@@ -67,7 +73,7 @@ describe('buildAgentContextMenuTemplate', () => {
       'Reload',
       'Zoom In',
       'Zoom Out',
-      'Actual Size (100%)',
+      'Reset Zoom (100%)',
     ])
   })
 
@@ -137,7 +143,7 @@ describe('buildAgentContextMenuTemplate', () => {
     // against Chromium's native scale (where this factor would read 110%).
     const twoUp = steppedZoomFactor(steppedZoomFactor(BASE_ZOOM_FACTOR, 1), 1)
     const stepped = buildAgentContextMenuTemplate(params(), page({ zoomFactor: twoUp }), handlers())
-    expect(item(stepped, 'Actual Size (121%)')?.enabled).toBe(true)
+    expect(item(stepped, 'Reset Zoom (121%)')?.enabled).toBe(true)
 
     const atMax = buildAgentContextMenuTemplate(params(), page({ zoomFactor: 3 }), handlers())
     expect(item(atMax, 'Zoom In')?.enabled).toBe(false)
@@ -148,21 +154,26 @@ describe('buildAgentContextMenuTemplate', () => {
 
     // Nothing to reset to at 100%.
     expect(
-      item(buildAgentContextMenuTemplate(params(), page(), handlers()), 'Actual Size (100%)')
+      item(buildAgentContextMenuTemplate(params(), page(), handlers()), 'Reset Zoom (100%)')
         ?.enabled
     ).toBe(false)
   })
 
-  it('resets to exactly the baseline, undoing accumulated drift', () => {
+  it('resets to the configured default, undoing accumulated drift', () => {
     const handled = handlers()
     // Three rungs of float multiplication up, so the factor no longer sits on a
     // clean value — reset has to restore the baseline exactly, not step back.
     const drifted = [1, 1, 1].reduce((factor) => steppedZoomFactor(factor, 1), BASE_ZOOM_FACTOR)
-    const template = buildAgentContextMenuTemplate(params(), page({ zoomFactor: drifted }), handled)
+    const configuredDefault = BASE_ZOOM_FACTOR * 1.25
+    const template = buildAgentContextMenuTemplate(
+      params(),
+      page({ zoomFactor: drifted, defaultZoomFactor: configuredDefault }),
+      handled
+    )
 
-    item(template, 'Actual Size (133%)')?.click?.({} as never, undefined as never, {} as never)
+    item(template, 'Reset Zoom (133%)')?.click?.({} as never, undefined as never, {} as never)
 
-    expect(handled.setZoomFactor).toHaveBeenCalledWith(BASE_ZOOM_FACTOR)
+    expect(handled.setZoomFactor).toHaveBeenCalledWith(configuredDefault)
   })
 
   it('never leaves a separator with nothing above it', () => {
@@ -190,7 +201,10 @@ describe('attachAgentContextMenu', () => {
   it('pops a menu built from the page that was right-clicked', () => {
     const contents = new WebContentsView().webContents
     vi.mocked(contents.navigationHistory.canGoBack).mockReturnValue(true)
-    attachAgentContextMenu(contents, { openTab: vi.fn() })
+    attachAgentContextMenu(contents, {
+      openTab: vi.fn(),
+      defaultZoomFactor: () => BASE_ZOOM_FACTOR,
+    })
 
     const listeners = vi.mocked(contents.on).mock.calls as unknown as [
       string,

@@ -36,6 +36,7 @@ export const crashReporter = {
 
 export const shell = {
   openExternal: vi.fn(() => Promise.resolve()),
+  openPath: vi.fn(() => Promise.resolve('')),
   showItemInFolder: vi.fn(),
 }
 
@@ -131,6 +132,7 @@ function createWebContentsMock() {
     getTitle: vi.fn(() => 'Example'),
     loadURL: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
+    print: vi.fn(),
     focus: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),

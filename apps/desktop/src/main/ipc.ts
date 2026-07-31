@@ -2,14 +2,21 @@ import {
   type BrowserPanelAction,
   type BrowserPanelAnchor,
   type BrowserPanelBounds,
+  type BrowserPanelSnapshot,
   isBrowserDataKind,
   isBrowserTheme,
   isBrowserToolName,
 } from '@sim/browser-protocol'
-import type {
-  DesktopNotificationPayload,
-  DesktopUpdateState,
-  DesktopWindowState,
+import {
+  type BrowserZoomPercent,
+  type DesktopAppearanceTheme,
+  type DesktopNotificationPayload,
+  type DesktopUpdateState,
+  type DesktopWindowState,
+  isBrowserZoomPercent,
+  isDesktopAppearanceTheme,
+  isTerminalAppearanceTheme,
+  type TerminalAppearanceTheme,
 } from '@sim/desktop-bridge'
 import {
   isTerminalOperation,
@@ -23,10 +30,14 @@ import {
   clearBrowsingData,
   disposeBrowserScope,
   executeTool,
+  getDownloadsState,
   getKnownSessions,
   handlePanelAction,
   migrateBrowserScope,
   restoreBrowserScope,
+  showDownloadInFolder,
+  showDownloadsMenu,
+  showToolbarMenu,
   suspendBrowserScope,
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
@@ -34,8 +45,9 @@ import {
   findInActiveTab,
   peekTabsState,
   reorderTab,
-  setBrowserTheme,
+  setBrowserAppTheme,
   setTabPinned,
+  showTabContextMenu,
   stopFindInActiveTab,
   withBrowserScope,
 } from '@/main/browser-agent/session'
@@ -63,6 +75,7 @@ import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
+import { listTerminalThemeProfiles } from '@/main/terminal-themes'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
@@ -235,7 +248,8 @@ export interface IpcDeps {
       scopeId: string
     ) => void
     setFocused: (sender: WebContents, focused: boolean, scopeId: string) => void
-    setOccluded: (sender: WebContents, occluded: boolean, scopeId: string) => void
+    captureSnapshot: (sender: WebContents, scopeId: string) => Promise<BrowserPanelSnapshot | null>
+    setOccluded: (sender: WebContents, occluded: boolean, scopeId: string) => boolean
   }
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   updates: {
@@ -610,6 +624,55 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           ? deps.settings.setPreference(key, value)
           : deps.settings.getPreferences(),
     },
+    'desktop:settings:set-appearance': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (key: unknown, value: unknown) => {
+        if (key === 'browserTheme' && isDesktopAppearanceTheme(value)) {
+          return deps.settings.setAppearancePreference(key, value as DesktopAppearanceTheme)
+        }
+        if (key === 'terminalTheme' && isTerminalAppearanceTheme(value)) {
+          return deps.settings.setAppearancePreference(key, value as TerminalAppearanceTheme)
+        }
+        return deps.settings.getPreferences()
+      },
+    },
+    'desktop:settings:set-browser-default-zoom': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (zoom: unknown) =>
+        isBrowserZoomPercent(zoom)
+          ? deps.settings.setBrowserDefaultZoom(zoom as BrowserZoomPercent)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:choose-browser-download-directory': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: null,
+      handler: () => deps.settings.chooseBrowserDownloadDirectory(),
+    },
+    'terminal-themes:list-profiles': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: [],
+      handler: () => listTerminalThemeProfiles(),
+    },
+    'terminal-themes:select-profile': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      needsUserActivation: true,
+      denied: null,
+      handler: async (profileId) => {
+        if (typeof profileId !== 'string') return null
+        const profile = (await listTerminalThemeProfiles()).find(({ id }) => id === profileId)
+        return profile ? deps.settings.selectTerminalProfile(profile) : null
+      },
+    },
     'desktop:settings:notify': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -784,6 +847,79 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return getKnownSessions()
       },
     },
+    'browser-agent:get-downloads-state': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { downloads: [] },
+      handler: (sender, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? getDownloadsState(scope) : { downloads: [] }
+      },
+    },
+    'browser-agent:show-download-in-folder': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: false,
+      handler: (sender, downloadId, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope && typeof downloadId === 'string'
+          ? showDownloadInFolder(scope, downloadId)
+          : false
+      },
+    },
+    'browser-agent:show-downloads-menu': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: false,
+      handler: (sender, anchor, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const ownerWindow = deps.getWindowForContents(contents)
+        if (!scope || !ownerWindow || !isRecordLike(anchor)) return false
+        const { x, y } = anchor as { x?: unknown; y?: unknown }
+        if (
+          typeof x !== 'number' ||
+          typeof y !== 'number' ||
+          !Number.isFinite(x) ||
+          !Number.isFinite(y)
+        ) {
+          return false
+        }
+        return showDownloadsMenu(scope, ownerWindow, { x, y })
+      },
+    },
+    'browser-agent:show-toolbar-menu': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: false,
+      handler: (sender, anchor, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const ownerWindow = deps.getWindowForContents(contents)
+        if (!scope || !ownerWindow || !isRecordLike(anchor)) return false
+        const { x, y } = anchor as { x?: unknown; y?: unknown }
+        if (
+          typeof x !== 'number' ||
+          typeof y !== 'number' ||
+          !Number.isFinite(x) ||
+          !Number.isFinite(y)
+        ) {
+          return false
+        }
+        return showToolbarMenu(scope, ownerWindow, { x, y })
+      },
+    },
     'browser-agent:panel-action': {
       kind: 'send',
       gate: 'app-origin',
@@ -813,6 +949,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         try {
           withBrowserScope(scope, () => setTabPinned(tabId, pinned))
         } catch {}
+      },
+    },
+    'browser-agent:show-tab-context-menu': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender, tabId, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof tabId !== 'string') return
+        withBrowserScope(scope, () => showTabContextMenu(tabId))
       },
     },
     'browser-agent:reorder-tab': {
@@ -854,6 +1001,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
       },
     },
+    'browser-agent:capture-panel-snapshot': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: null,
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        return scope ? deps.browserPanel.captureSnapshot(contents, scope) : null
+      },
+    },
+    'browser-agent:set-panel-occluded': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, occluded, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        return scope && typeof occluded === 'boolean'
+          ? deps.browserPanel.setOccluded(contents, occluded, scope)
+          : false
+      },
+    },
     'browser-agent:set-panel-focused': {
       kind: 'send',
       gate: 'app-origin',
@@ -866,25 +1039,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
       },
     },
-    'browser-agent:set-panel-occluded': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, occluded, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (scope && typeof occluded === 'boolean') {
-          deps.browserPanel.setOccluded(sender as WebContents, occluded, scope)
-        }
-      },
-    },
     'browser-agent:set-theme': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'browser',
       handler: (theme) => {
         if (isBrowserTheme(theme)) {
-          setBrowserTheme(theme)
+          setBrowserAppTheme(theme)
         }
       },
     },

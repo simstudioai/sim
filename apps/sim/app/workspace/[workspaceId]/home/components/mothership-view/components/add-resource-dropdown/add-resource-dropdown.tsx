@@ -52,12 +52,16 @@ export interface AddResourceDropdownProps {
   workspaceId: string
   existingKeys: Set<string>
   onAdd: (resource: MothershipResource) => void
-  onSwitch?: (resourceId: string) => void
+  onOpenExisting?: (resource: MothershipResource) => void
   /**
    * Resource types to hide from the dropdown. Must be referentially stable
    * (a module constant) — it keys the underlying group memo.
    */
   excludeTypes?: readonly MothershipResourceType[]
+  /** Delays mounting the menu until a native surface beneath it is hidden. */
+  onRequestOpen?: (open: () => void) => void
+  /** Restores any native surface hidden for this menu. */
+  onClose?: () => Promise<void>
 }
 
 interface AvailableItemsByType {
@@ -273,7 +277,7 @@ export function useAvailableResources(
       },
     ]
     // The live browser panel — desktop app only (needs the agent-browser
-    // bridge). A singleton: opening it again just activates the existing tab.
+    // bridge). There is one top-level panel; repeated launches open inner tabs.
     if (isBrowserAgentAvailable()) {
       groups.push({
         type: 'browser' as const,
@@ -286,7 +290,7 @@ export function useAvailableResources(
       })
     }
     // The live terminal — desktop app only (needs the PTY bridge), and a
-    // singleton like the browser.
+    // single top-level panel like the browser.
     if (isTerminalAvailable()) {
       groups.push({
         type: 'terminal' as const,
@@ -515,8 +519,10 @@ export function AddResourceDropdown({
   workspaceId,
   existingKeys,
   onAdd,
-  onSwitch,
+  onOpenExisting,
   excludeTypes,
+  onRequestOpen,
+  onClose,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -527,23 +533,33 @@ export function AddResourceDropdown({
     excludeTypes,
   })
   const treeSections = useResourceTreeSections({ groups: available, structureFolders })
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next)
-    if (!next) {
-      setSearch('')
-      setActiveIndex(0)
-    }
-  }
-
-  const select = (resource: MothershipResource) => {
-    if (onSwitch && existingKeys.has(`${resource.type}:${resource.id}`)) {
-      onSwitch(resource.id)
-    } else {
-      onAdd(resource)
-    }
+  const closeMenu = () => {
     setOpen(false)
     setSearch('')
     setActiveIndex(0)
+    return onClose?.() ?? Promise.resolve()
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      if (onRequestOpen) {
+        onRequestOpen(() => setOpen(true))
+      } else {
+        setOpen(true)
+      }
+      return
+    }
+    void closeMenu()
+  }
+
+  const select = (resource: MothershipResource) => {
+    void closeMenu().then(() => {
+      if (onOpenExisting && existingKeys.has(`${resource.type}:${resource.id}`)) {
+        onOpenExisting(resource)
+      } else {
+        onAdd(resource)
+      }
+    })
   }
 
   const filtered = useMemo(() => {
@@ -633,8 +649,8 @@ export function AddResourceDropdown({
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon
-                // The browser and terminal panels are singletons — flat
-                // items, not one-entry submenus.
+                // Browser and terminal each have one top-level panel — flat
+                // launchers here create inner tabs when that panel exists.
                 if (type === 'browser' || type === 'terminal') {
                   const item = items[0]
                   return (

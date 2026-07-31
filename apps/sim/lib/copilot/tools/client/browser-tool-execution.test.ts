@@ -43,7 +43,6 @@ describe('executeBrowserToolOnClient', () => {
       tabs: [],
       activeTabId: null,
       tabsSupported: false,
-      panelSnapshot: null,
       sessionAlive: true,
     }
     useBrowserSessionStore.setState({

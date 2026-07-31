@@ -112,14 +112,16 @@ export interface BrowserPanelAnchor {
   widthRatio: number
 }
 
-/** Last captured frame used while renderer overlays occlude the native view. */
+/**
+ * Pixel-exact browser frame displayed during a renderer-owned toolbar menu.
+ * The native page stays visible until this frame has painted, then the shell
+ * hides it without changing its bounds or compositor attachment.
+ */
 export interface BrowserPanelSnapshot {
   dataUrl: string
   tabId: string
-  /**
-   * Renderer-to-desktop scope that owns the captured tab. Optional for
-   * compatibility with desktop builds that predate chat isolation.
-   */
+  zoomPercent: number
+  /** Chat scope that owns the captured tab. */
   scopeId?: string
 }
 
@@ -141,6 +143,10 @@ export interface BrowserPanelAction {
     | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
+    | 'print'
+    | 'zoom-in'
+    | 'zoom-out'
+    | 'zoom-reset'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string

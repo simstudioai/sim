@@ -32,9 +32,9 @@ const MAX_ZOOM_FACTOR = 3
  * The browser lives in a panel that is only ever a fraction of the window, so
  * it renders a rung below Chromium's native scale and treats THAT as its
  * baseline: the menu reads 100% there, and every other rung is reported
- * relative to it. Users get a zoom control that behaves the way one should —
- * starts at 100%, resets to 100% — over a page that is genuinely rendering at
- * ~91% of native.
+ * relative to it. New installs start there; when a user chooses a different
+ * default, Reset Zoom returns to that configured percentage. The initial 100%
+ * is genuinely rendering at ~91% of native.
  *
  * Defined as one rung below native rather than as a round number so the ladder
  * still lands exactly on Chromium's 1.0 (the crispest rasterization, one step
@@ -76,6 +76,7 @@ interface AgentPageContext {
   canGoBack: boolean
   canGoForward: boolean
   zoomFactor: number
+  defaultZoomFactor: number
 }
 
 interface AgentContextMenuHandlers {
@@ -92,6 +93,8 @@ interface AgentContextMenuHandlers {
 export interface AgentContextMenuHost {
   /** Opens a link from the page in another tab of the same browser. */
   openTab(url: string): void
+  /** Returns the device's current default page zoom factor. */
+  defaultZoomFactor(): number
 }
 
 /**
@@ -150,9 +153,9 @@ export function buildAgentContextMenuTemplate(
       click: () => handlers.setZoomFactor(zoomOut),
     },
     {
-      label: `Actual Size (${zoomPercent}%)`,
-      enabled: zoomPercent !== 100,
-      click: () => handlers.setZoomFactor(BASE_ZOOM_FACTOR),
+      label: `Reset Zoom (${zoomPercent}%)`,
+      enabled: page.zoomFactor !== page.defaultZoomFactor,
+      click: () => handlers.setZoomFactor(page.defaultZoomFactor),
     }
   )
 
@@ -168,6 +171,7 @@ export function attachAgentContextMenu(contents: WebContents, host: AgentContext
         canGoBack: contents.navigationHistory.canGoBack(),
         canGoForward: contents.navigationHistory.canGoForward(),
         zoomFactor: contents.getZoomFactor(),
+        defaultZoomFactor: host.defaultZoomFactor(),
       },
       {
         copy: () => contents.copy(),

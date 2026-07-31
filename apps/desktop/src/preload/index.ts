@@ -18,11 +18,15 @@ import type {
   BrowserChromeImportResult,
   BrowserCredentialConflictPolicy,
   BrowserCredentialMetadata,
+  BrowserDownloadsState,
   BrowserFillAvailability,
   BrowserImportProfile,
   BrowserImportResult,
   BrowserPasswordImportResult,
   BrowserSiteInfo,
+  BrowserToolbarCommand,
+  BrowserZoomPercent,
+  DesktopAppearanceTheme,
   DesktopCommand,
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
@@ -34,6 +38,8 @@ import type {
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
+  TerminalAppearanceTheme,
+  TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import {
   TERMINAL_TOOL_NAME,
@@ -109,6 +115,14 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('desktop:settings:set', 'browserEnabled', enabled),
     setTerminalEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set', 'terminalEnabled', enabled),
+    setBrowserTheme: (theme: DesktopAppearanceTheme): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-appearance', 'browserTheme', theme),
+    setBrowserDefaultZoom: (zoom: BrowserZoomPercent): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-browser-default-zoom', zoom),
+    chooseBrowserDownloadDirectory: (): Promise<DesktopPreferences | null> =>
+      ipcRenderer.invoke('desktop:settings:choose-browser-download-directory'),
+    setTerminalTheme: (theme: TerminalAppearanceTheme): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-appearance', 'terminalTheme', theme),
   },
   updates: {
     getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),
@@ -150,6 +164,9 @@ const api: SimDesktopApi = {
     setTabPinned: (tabId: string, pinned: boolean, scopeId?: string): void => {
       ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned, scopeId)
     },
+    showTabContextMenu: (tabId: string, scopeId?: string): void => {
+      ipcRenderer.send('browser-agent:show-tab-context-menu', tabId, scopeId)
+    },
     reorderTab: (tabId: string, targetIndex: number, scopeId?: string): void => {
       ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex, scopeId)
     },
@@ -160,11 +177,12 @@ const api: SimDesktopApi = {
     ): void => {
       ipcRenderer.send('browser-agent:set-panel-bounds', bounds, anchor ?? null, scopeId)
     },
+    capturePanelSnapshot: (scopeId?: string): Promise<BrowserPanelSnapshot | null> =>
+      ipcRenderer.invoke('browser-agent:capture-panel-snapshot', scopeId),
+    setPanelOccluded: (occluded: boolean, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:set-panel-occluded', occluded, scopeId),
     setPanelFocused: (focused: boolean, scopeId?: string): void => {
       ipcRenderer.send('browser-agent:set-panel-focused', focused, scopeId)
-    },
-    setPanelOccluded: (occluded: boolean, scopeId?: string): void => {
-      ipcRenderer.send('browser-agent:set-panel-occluded', occluded, scopeId)
     },
     setTheme: (theme: BrowserTheme): void => {
       ipcRenderer.send('browser-agent:set-theme', theme)
@@ -209,13 +227,6 @@ const api: SimDesktopApi = {
         ipcRenderer.removeListener('browser-agent:find-result', listener)
       }
     },
-    onPanelSnapshot: (callback: (snapshot: BrowserPanelSnapshot) => void): (() => void) => {
-      const listener = (_event: unknown, snapshot: BrowserPanelSnapshot) => callback(snapshot)
-      ipcRenderer.on('browser-agent:panel-snapshot', listener)
-      return () => {
-        ipcRenderer.removeListener('browser-agent:panel-snapshot', listener)
-      }
-    },
     onPageState: (callback: (state: BrowserPageState) => void): (() => void) => {
       const listener = (_event: unknown, state: BrowserPageState) => callback(state)
       ipcRenderer.on('browser-agent:page-state', listener)
@@ -229,6 +240,38 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:get-known-sessions'),
     clearBrowsingData: (kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState> =>
       ipcRenderer.invoke('browser-agent:clear-browsing-data', kinds),
+    getDownloadsState: (scopeId?: string): Promise<BrowserDownloadsState> =>
+      ipcRenderer.invoke('browser-agent:get-downloads-state', scopeId),
+    showDownloadsMenu: (anchor: { x: number; y: number }, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:show-downloads-menu', anchor, scopeId),
+    showToolbarMenu: (anchor: { x: number; y: number }, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:show-toolbar-menu', anchor, scopeId),
+    showDownloadInFolder: (downloadId: string, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:show-download-in-folder', downloadId, scopeId),
+    onDownloadsState: (callback: (state: BrowserDownloadsState) => void): (() => void) => {
+      const listener = (_event: unknown, state: BrowserDownloadsState) => callback(state)
+      ipcRenderer.on('browser-agent:downloads-state', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:downloads-state', listener)
+      }
+    },
+    onToolbarCommand: (
+      callback: (command: BrowserToolbarCommand, scopeId?: string) => void
+    ): (() => void) => {
+      const listener = (_event: unknown, command: BrowserToolbarCommand, scopeId?: string) =>
+        callback(command, scopeId)
+      ipcRenderer.on('browser-agent:toolbar-command', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:toolbar-command', listener)
+      }
+    },
+    onAppearanceThemeChanged: (callback: (theme: DesktopAppearanceTheme) => void): (() => void) => {
+      const listener = (_event: unknown, theme: DesktopAppearanceTheme) => callback(theme)
+      ipcRenderer.on('browser-agent:appearance-theme-changed', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:appearance-theme-changed', listener)
+      }
+    },
     onTabsState: (callback: (state: BrowserTabsState) => void): (() => void) => {
       const listener = (_event: unknown, state: BrowserTabsState) => callback(state)
       ipcRenderer.on('browser-agent:tabs-state', listener)
@@ -258,6 +301,12 @@ const api: SimDesktopApi = {
   // worked around.
   ...(process.platform === 'darwin'
     ? {
+        terminalThemes: {
+          listProfiles: (): Promise<TerminalThemeProfile[]> =>
+            ipcRenderer.invoke('terminal-themes:list-profiles'),
+          selectProfile: (profileId: string): Promise<DesktopPreferences | null> =>
+            ipcRenderer.invoke('terminal-themes:select-profile', profileId),
+        },
         browserImport: {
           listChromeProfiles: (): Promise<BrowserImportProfile[]> =>
             ipcRenderer.invoke('browser-import:list-profiles'),

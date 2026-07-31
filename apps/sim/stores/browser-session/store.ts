@@ -1,9 +1,4 @@
-import type {
-  BrowserPageState,
-  BrowserPanelSnapshot,
-  BrowserTabState,
-  BrowserTabsState,
-} from '@sim/browser-protocol'
+import type { BrowserPageState, BrowserTabState, BrowserTabsState } from '@sim/browser-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
@@ -16,8 +11,6 @@ export interface BrowserSessionData {
   tabs: BrowserTabState[]
   activeTabId: string | null
   tabsSupported: boolean
-  /** Last browser frame captured for display beneath renderer overlays. */
-  panelSnapshot: BrowserPanelSnapshot | null
   /** False after this chat's browser session ends; true again when a new one starts. */
   sessionAlive: boolean
   /** Live views were administratively stopped while the restart descriptor was retained. */
@@ -34,7 +27,6 @@ interface BrowserSessionState extends BrowserSessionData {
   setPageState: (state: BrowserPageState, scopeId?: string) => void
   setTabsState: (state: BrowserTabsState, scopeId?: string) => void
   setTabsSupported: (supported: boolean, scopeId?: string) => void
-  setPanelSnapshot: (snapshot: BrowserPanelSnapshot, scopeId?: string) => void
   setSessionAlive: (alive: boolean, scopeId?: string) => void
   resetScope: (scopeId?: string) => void
 }
@@ -45,7 +37,6 @@ function createInitialSession(): BrowserSessionData {
     tabs: [],
     activeTabId: null,
     tabsSupported: false,
-    panelSnapshot: null,
     sessionAlive: true,
     suspended: false,
   }
@@ -63,8 +54,7 @@ function isPristineSession(session: BrowserSessionData): boolean {
     !session.suspended &&
     session.pageState === null &&
     session.tabs.length === 0 &&
-    session.activeTabId === null &&
-    session.panelSnapshot === null
+    session.activeTabId === null
   )
 }
 
@@ -180,7 +170,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               current.pageState === null &&
               current.tabs.length === 0 &&
               current.activeTabId === null &&
-              current.panelSnapshot === null &&
               !current.sessionAlive
             ) {
               return current
@@ -190,7 +179,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               pageState: null,
               tabs: [],
               activeTabId: null,
-              panelSnapshot: null,
               sessionAlive: false,
               suspended: true,
             }
@@ -287,15 +275,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             current.tabsSupported === tabsSupported ? current : { ...current, tabsSupported }
           )
         }),
-      setPanelSnapshot: (panelSnapshot, requestedScopeId) =>
-        set((state) => {
-          const scopeId = scopeFor(requestedScopeId, panelSnapshot.scopeId, state.activeScopeId)
-          return withSession(state, scopeId, (current) =>
-            current.suspended || current.panelSnapshot === panelSnapshot
-              ? current
-              : { ...current, panelSnapshot }
-          )
-        }),
       setSessionAlive: (alive, requestedScopeId) =>
         set((state) => {
           const scopeId = requestedScopeId ?? state.activeScopeId
@@ -308,8 +287,7 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               !current.sessionAlive &&
               current.pageState === null &&
               current.tabs.length === 0 &&
-              current.activeTabId === null &&
-              current.panelSnapshot === null
+              current.activeTabId === null
             ) {
               return current
             }
@@ -319,7 +297,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               pageState: null,
               tabs: [],
               activeTabId: null,
-              panelSnapshot: null,
             }
           })
         }),

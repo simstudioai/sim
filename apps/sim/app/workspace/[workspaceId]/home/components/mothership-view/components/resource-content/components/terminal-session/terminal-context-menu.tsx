@@ -1,13 +1,24 @@
 'use client'
 
 import {
+  isTerminalAppearanceTheme,
+  type TerminalAppearanceTheme,
+  type TerminalThemeProfile,
+  terminalProfileThemeValue,
+} from '@sim/desktop-bridge'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Clipboard, Duplicate, Plus, Trash, X } from '@sim/emcn/icons'
+import { Check, Clipboard, Duplicate, Palette, Plus, Trash, X } from '@sim/emcn/icons'
 
 interface TerminalContextMenuProps {
   isOpen: boolean
@@ -19,6 +30,10 @@ interface TerminalContextMenuProps {
   onCopy: () => void
   onPaste: () => void
   onClear: () => void
+  appearanceTheme: TerminalAppearanceTheme
+  profiles: TerminalThemeProfile[]
+  onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
+  appearanceThemePending?: boolean
   onNewTab: () => void
   /** Closes this terminal. Absent when it is the only one left. */
   onCloseTerminal?: () => void
@@ -48,6 +63,10 @@ export function TerminalContextMenu({
   onCopy,
   onPaste,
   onClear,
+  appearanceTheme,
+  profiles,
+  onAppearanceThemeChange,
+  appearanceThemePending = false,
   onNewTab,
   onCloseTerminal,
 }: TerminalContextMenuProps) {
@@ -83,6 +102,39 @@ export function TerminalContextMenu({
           <Trash />
           Clear
         </DropdownMenuItem>
+        {onAppearanceThemeChange && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={appearanceThemePending}>
+              <Palette />
+              Theme
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                aria-label='Terminal theme'
+                value={appearanceTheme}
+                onValueChange={(theme) => {
+                  if (isTerminalAppearanceTheme(theme)) onAppearanceThemeChange(theme)
+                }}
+              >
+                <DropdownMenuRadioItem value='app'>Default</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value='light'>Sim Light</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value='dark'>Sim Dark</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              {profiles.map((profile) => {
+                const value = terminalProfileThemeValue(profile.id)
+                return (
+                  <DropdownMenuItem
+                    key={profile.id}
+                    onSelect={() => onAppearanceThemeChange(value)}
+                  >
+                    <Check className={appearanceTheme === value ? 'opacity-100' : 'opacity-0'} />
+                    {profile.source === 'iterm2' ? 'iTerm2' : 'Terminal'} · {profile.name}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
 
         <DropdownMenuSeparator />
 

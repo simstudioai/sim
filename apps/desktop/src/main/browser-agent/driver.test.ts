@@ -1,8 +1,9 @@
+import type { MenuItemConstructorOptions } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, Menu } from 'electron'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
 
@@ -63,6 +64,28 @@ describe('executeTool', () => {
     // list_tabs works without a session (empty list).
     expect(second.ok).toBe(true)
     expect(second.result).toMatchObject({ tabs: [] })
+  })
+
+  it('builds the native toolbar menu and routes renderer-owned actions back to its chat', async () => {
+    await driver.executeTool('browser_open_tab', {})
+    const win = new BrowserWindow()
+    vi.mocked(Menu.buildFromTemplate).mockClear()
+
+    expect(driver.showToolbarMenu('legacy', win, { x: 20, y: 30 })).toBe(true)
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls[0]?.[0] as
+      | MenuItemConstructorOptions[]
+      | undefined
+    const labels = template?.filter((item) => item.type !== 'separator').map((item) => item.label)
+    expect(labels).toEqual(['Find in Page', 'Zoom (110%)', 'Import Passwords', 'Browser Settings'])
+
+    const settings = template?.find((item) => item.label === 'Browser Settings')
+    const openSettings = settings?.click as (() => void) | undefined
+    openSettings?.()
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'browser-agent:toolbar-command',
+      'browser-settings',
+      'legacy'
+    )
   })
 
   it('keeps tool queues and tab state isolated by chat scope', async () => {

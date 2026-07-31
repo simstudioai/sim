@@ -18,6 +18,40 @@ vi.mock('@/main/browser-import', () => ({
   })),
 }))
 
+vi.mock('@/main/terminal-themes', () => ({
+  listTerminalThemeProfiles: vi.fn(async () => [
+    {
+      id: 'iterm2:ocean',
+      name: 'Ocean',
+      source: 'iterm2',
+      sourceLabel: 'iTerm2',
+      isDefault: true,
+      palette: {
+        background: '#101010',
+        foreground: '#f0f0f0',
+        cursor: '#ffffff',
+        selectionBackground: '#264f78',
+        black: '#000000',
+        red: '#cc0000',
+        green: '#00cc00',
+        yellow: '#cccc00',
+        blue: '#0000cc',
+        magenta: '#cc00cc',
+        cyan: '#00cccc',
+        white: '#cccccc',
+        brightBlack: '#555555',
+        brightRed: '#ff5555',
+        brightGreen: '#55ff55',
+        brightYellow: '#ffff55',
+        brightBlue: '#5555ff',
+        brightMagenta: '#ff55ff',
+        brightCyan: '#55ffff',
+        brightWhite: '#ffffff',
+      },
+    },
+  ]),
+}))
+
 const { mockCoordinator } = vi.hoisted(() => ({
   mockCoordinator: {
     noteFormState: vi.fn(),
@@ -78,6 +112,7 @@ import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalRegistry } from '@/main/terminal/registry'
+import { listTerminalThemeProfiles } from '@/main/terminal-themes'
 
 const APP = 'https://sim.ai'
 const ESC = '\u001b'
@@ -185,6 +220,7 @@ describe('registerIpcHandlers', () => {
     vi.mocked(listChromeImportProfiles).mockClear()
     vi.mocked(importChromeCookies).mockClear()
     vi.mocked(importChromePasswords).mockClear()
+    vi.mocked(listTerminalThemeProfiles).mockClear()
     vi.mocked(credentialsAvailable).mockClear()
     vi.mocked(listCredentials).mockClear()
     vi.mocked(forgetCredential).mockClear()
@@ -217,6 +253,17 @@ describe('registerIpcHandlers', () => {
           autoDownloadUpdates: true,
         })),
         setPreference: vi.fn(),
+        setAppearancePreference: vi.fn(),
+        setBrowserDefaultZoom: vi.fn(),
+        selectTerminalProfile: vi.fn(),
+        chooseBrowserDownloadDirectory: vi.fn(async () => ({
+          notificationsEnabled: true,
+          notificationSounds: true,
+          notificationsOnlyWhenUnfocused: true,
+          launchAtLogin: false,
+          autoDownloadUpdates: true,
+          browserDownloadDirectory: '/tmp/downloads',
+        })),
         notify: vi.fn(() => true),
         applySystemPreferences: vi.fn(),
       },
@@ -226,7 +273,13 @@ describe('registerIpcHandlers', () => {
         activateScope: vi.fn(),
         setBounds: vi.fn(),
         setFocused: vi.fn(),
-        setOccluded: vi.fn(),
+        captureSnapshot: vi.fn(async () => ({
+          dataUrl: 'data:image/png;base64,c2lt',
+          tabId: 'tab-1',
+          zoomPercent: 100,
+          scopeId: 'legacy',
+        })),
+        setOccluded: vi.fn(() => true),
       },
       updates: {
         getState: vi.fn(() => ({ status: 'ready' as const, version: '1.2.3' })),
@@ -374,6 +427,8 @@ describe('registerIpcHandlers', () => {
     const { invoke } = collectHandlers()
     const get = invoke.get('desktop:settings:get')
     const set = invoke.get('desktop:settings:set')
+    const setAppearance = invoke.get('desktop:settings:set-appearance')
+    const setBrowserDefaultZoom = invoke.get('desktop:settings:set-browser-default-zoom')
     const notify = invoke.get('desktop:settings:notify')
 
     expect(await get?.(evilEvent)).toBeNull()
@@ -386,6 +441,25 @@ describe('registerIpcHandlers', () => {
 
     await set?.(appEvent, 'notificationsEnabled', false)
     expect(deps.settings.setPreference).toHaveBeenCalledWith('notificationsEnabled', false)
+
+    await setAppearance?.(evilEvent, 'browserTheme', 'dark')
+    await setAppearance?.(appEvent, 'not-a-setting', 'dark')
+    await setAppearance?.(appEvent, 'browserTheme', 'sepia')
+    expect(deps.settings.setAppearancePreference).not.toHaveBeenCalled()
+
+    await setAppearance?.(appEvent, 'browserTheme', 'dark')
+    await setAppearance?.(appEvent, 'terminalTheme', 'app')
+    expect(vi.mocked(deps.settings.setAppearancePreference).mock.calls).toEqual([
+      ['browserTheme', 'dark'],
+      ['terminalTheme', 'app'],
+    ])
+
+    await setBrowserDefaultZoom?.(evilEvent, 125)
+    await setBrowserDefaultZoom?.(appEvent, 123)
+    expect(deps.settings.setBrowserDefaultZoom).not.toHaveBeenCalled()
+
+    await setBrowserDefaultZoom?.(appEvent, 125)
+    expect(deps.settings.setBrowserDefaultZoom).toHaveBeenCalledWith(125)
 
     expect(await notify?.(evilEvent, { title: 'Done', body: 'Ready' })).toBe(false)
     expect(await notify?.(appEvent, { title: '', body: 'Ready' })).toBe(false)
@@ -406,6 +480,45 @@ describe('registerIpcHandlers', () => {
       body: 'Sim finished responding.',
       route: '/workspace/ws1/chat/c1',
     })
+  })
+
+  it('lists profiles and selects one only from an active app interaction', async () => {
+    const { invoke } = collectHandlers()
+    const list = invoke.get('terminal-themes:list-profiles')
+    const selectProfile = invoke.get('terminal-themes:select-profile')
+
+    expect(await list?.(evilEvent)).toEqual([])
+    expect(listTerminalThemeProfiles).not.toHaveBeenCalled()
+
+    const profiles = await list?.(appEvent)
+    expect(profiles).toEqual([
+      expect.objectContaining({ id: 'iterm2:ocean', name: 'Ocean', source: 'iterm2' }),
+    ])
+
+    expect(await selectProfile?.(inactiveAppEvent, 'iterm2:ocean')).toBeNull()
+    expect(deps.settings.selectTerminalProfile).not.toHaveBeenCalled()
+
+    await selectProfile?.(activeAppEvent, 'missing')
+    expect(deps.settings.selectTerminalProfile).not.toHaveBeenCalled()
+
+    await selectProfile?.(activeAppEvent, 'iterm2:ocean')
+    expect(deps.settings.selectTerminalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'iterm2:ocean', name: 'Ocean' })
+    )
+  })
+
+  it('opens the browser download-folder picker only from an active app interaction', async () => {
+    const { invoke } = collectHandlers()
+    const choose = invoke.get('desktop:settings:choose-browser-download-directory')
+
+    expect(await choose?.(evilEvent)).toBeNull()
+    expect(await choose?.(inactiveAppEvent)).toBeNull()
+    expect(deps.settings.chooseBrowserDownloadDirectory).not.toHaveBeenCalled()
+
+    await expect(choose?.(activeAppEvent)).resolves.toMatchObject({
+      browserDownloadDirectory: '/tmp/downloads',
+    })
+    expect(deps.settings.chooseBrowserDownloadDirectory).toHaveBeenCalledTimes(1)
   })
 
   it('reports native fullscreen state only to the app origin', async () => {
@@ -566,6 +679,15 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, '1', true)).not.toThrow()
   })
 
+  it('restricts browser-tab context menus to typed app-origin messages', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-agent:show-tab-context-menu')
+
+    expect(() => handler?.(evilEvent, '1')).not.toThrow()
+    expect(() => handler?.(appEvent, 1)).not.toThrow()
+    expect(() => handler?.(appEvent, '1')).not.toThrow()
+  })
+
   it('restricts browser-tab reordering to typed app-origin messages', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:reorder-tab')
@@ -575,16 +697,6 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(appEvent, '1', '0')).not.toThrow()
     expect(() => handler?.(appEvent, '1', Number.NaN)).not.toThrow()
     expect(() => handler?.(appEvent, '1', 0)).not.toThrow()
-  })
-
-  it('restricts browser-panel occlusion updates to boolean app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-panel-occluded')
-
-    expect(() => handler?.(evilEvent, true)).not.toThrow()
-    expect(() => handler?.(appEvent, 'yes')).not.toThrow()
-    expect(() => handler?.(appEvent, true)).not.toThrow()
-    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(appSender, true, 'legacy')
   })
 
   it('restricts browser-panel focus updates to boolean app-origin messages', () => {
@@ -624,6 +736,24 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('captures and swaps the browser panel only for its active app scope', async () => {
+    const { invoke } = collectHandlers()
+
+    await expect(
+      invoke.get('browser-agent:capture-panel-snapshot')?.(activeAppEvent, 'legacy')
+    ).resolves.toMatchObject({ tabId: 'tab-1', zoomPercent: 100 })
+    expect(deps.browserPanel.captureSnapshot).toHaveBeenCalledWith(activeSender.sender, 'legacy')
+
+    await expect(
+      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'legacy')
+    ).resolves.toBe(true)
+    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(activeSender.sender, true, 'legacy')
+
+    await expect(
+      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, 'yes', 'legacy')
+    ).resolves.toBe(false)
+  })
+
   it('drops stale browser-panel bounds after another chat is activated', async () => {
     const { invoke, on } = collectHandlers()
     const bounds = { x: 100, y: 50, width: 800, height: 600 }
@@ -634,6 +764,70 @@ describe('registerIpcHandlers', () => {
 
     on.get('browser-agent:set-panel-bounds')?.(appEvent, bounds, null, 'chat-b')
     expect(deps.browserPanel.setBounds).toHaveBeenCalledWith(appSender, bounds, undefined, 'chat-b')
+  })
+
+  it('keeps download metadata chat-scoped and gates Finder actions on user input', async () => {
+    const state = {
+      scopeId: 'chat-b',
+      downloads: [
+        {
+          id: 'download-1',
+          filename: 'report.csv',
+          state: 'completed' as const,
+          receivedBytes: 100,
+          totalBytes: 100,
+          startedAt: '2026-07-31T12:00:00.000Z',
+        },
+      ],
+    }
+    const getState = vi.spyOn(browserDriver, 'getDownloadsState').mockReturnValue(state)
+    const showMenu = vi.spyOn(browserDriver, 'showDownloadsMenu').mockReturnValue(true)
+    const showToolbar = vi.spyOn(browserDriver, 'showToolbarMenu').mockReturnValue(true)
+    const showInFolder = vi.spyOn(browserDriver, 'showDownloadInFolder').mockReturnValue(true)
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-b')
+    await expect(
+      invoke.get('browser-agent:get-downloads-state')?.(activeAppEvent, 'chat-a')
+    ).resolves.toEqual({ downloads: [] })
+    await expect(
+      invoke.get('browser-agent:get-downloads-state')?.(activeAppEvent, 'chat-b')
+    ).resolves.toEqual(state)
+    expect(getState).toHaveBeenCalledWith('chat-b')
+
+    await expect(
+      invoke.get('browser-agent:show-downloads-menu')?.(
+        inactiveAppEvent,
+        { x: 10, y: 20 },
+        'chat-b'
+      )
+    ).resolves.toBe(false)
+    await expect(
+      invoke.get('browser-agent:show-downloads-menu')?.(activeAppEvent, { x: 10, y: 20 }, 'chat-b')
+    ).resolves.toBe(true)
+    expect(showMenu).toHaveBeenCalledWith('chat-b', FAKE_WINDOW, { x: 10, y: 20 })
+
+    await expect(
+      invoke.get('browser-agent:show-toolbar-menu')?.(activeAppEvent, { x: 30, y: 40 }, 'chat-b')
+    ).resolves.toBe(true)
+    expect(showToolbar).toHaveBeenCalledWith('chat-b', FAKE_WINDOW, { x: 30, y: 40 })
+
+    await expect(
+      invoke.get('browser-agent:show-download-in-folder')?.(
+        inactiveAppEvent,
+        'download-1',
+        'chat-b'
+      )
+    ).resolves.toBe(false)
+    await expect(
+      invoke.get('browser-agent:show-download-in-folder')?.(activeAppEvent, 'download-1', 'chat-b')
+    ).resolves.toBe(true)
+    expect(showInFolder).toHaveBeenCalledWith('chat-b', 'download-1')
+
+    getState.mockRestore()
+    showMenu.mockRestore()
+    showToolbar.mockRestore()
+    showInFolder.mockRestore()
   })
 
   it('restores only the browser scope active for that renderer', async () => {
