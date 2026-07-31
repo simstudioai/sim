@@ -654,10 +654,12 @@ export async function processFilePreviewStreamEvent(input: {
           // Stream the growing content into the file's LIVE collaborative Y.Doc (when a room is open)
           // so collaborators watching the file see the copilot write stream in via Yjs — the AI as a
           // CRDT peer, applied by the relay as a minimal `updateYFragment` diff. Fire-and-forget so a
-          // slow relay never stalls the stream; `mergeEditIntoLiveFileDoc` serializes ordering per file
-          // and treats a versionless call as a non-durable preview merge (the final `edit_content`
-          // write carries the real version and reconciles the durable file). No-op for `create` (never
-          // streams here) and for a file with no open room (the relay reports `applied: false`).
+          // slow relay never stalls the stream. Pass `streamedAt` (this snapshot's wall-clock time) so
+          // the relay orders it on the file's version line — a delayed snapshot older than a newer
+          // durable write, even from another process, is dropped rather than regressing the doc — but
+          // never records it as a durable checkpoint (the final `edit_content` write carries the real
+          // version and reconciles the durable file). No-op for `create` (never streams here) and for a
+          // file with no open room (the relay reports `applied: false`).
           //
           // Gates: markdown only (non-markdown has no collaborative room). Only `append`/`patch` stream
           // — they build on the existing content, so they need the base loaded (a base-less snapshot
@@ -675,7 +677,9 @@ export async function processFilePreviewStreamEvent(input: {
             now - currentPreview.lastLiveMergeAt >= LIVE_DOC_MERGE_THROTTLE_MS
           const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt
           if (dueForLiveMerge && nextSession.fileId) {
-            void mergeEditIntoLiveFileDoc(nextSession.fileId, nextSession.previewText)
+            void mergeEditIntoLiveFileDoc(nextSession.fileId, nextSession.previewText, {
+              streamedAt: now,
+            })
           }
 
           if (

@@ -17,26 +17,43 @@ describe('mergeEditIntoLiveFileDoc', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
-    await mergeEditIntoLiveFileDoc('file-1', '# hello', 42)
+    await mergeEditIntoLiveFileDoc('file-1', '# hello', { version: 42 })
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://realtime/api/file-doc/apply-edit',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'x-api-key': 'secret' }),
+        // A durable write sends `version`; the undefined `streamedAt` is dropped by JSON.stringify.
         body: JSON.stringify({ fileId: 'file-1', markdown: '# hello', version: 42 }),
       })
     )
   })
 
+  it('sends streamedAt (not version) for a streaming snapshot', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await mergeEditIntoLiveFileDoc('file-1', '# hello', { streamedAt: 1234 })
+
+    // The relay orders the snapshot by streamedAt without recording it — version stays absent on the wire.
+    expect(fetchMock.mock.calls[0][1].body).toBe(
+      JSON.stringify({ fileId: 'file-1', markdown: '# hello', streamedAt: 1234 })
+    )
+  })
+
   it('never throws when the realtime call fails (best-effort)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket pod down')))
-    await expect(mergeEditIntoLiveFileDoc('file-1', '# hello', 42)).resolves.toBeUndefined()
+    await expect(
+      mergeEditIntoLiveFileDoc('file-1', '# hello', { version: 42 })
+    ).resolves.toBeUndefined()
   })
 
   it('never throws on a non-2xx response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
-    await expect(mergeEditIntoLiveFileDoc('file-1', '# hello', 42)).resolves.toBeUndefined()
+    await expect(
+      mergeEditIntoLiveFileDoc('file-1', '# hello', { version: 42 })
+    ).resolves.toBeUndefined()
   })
 
   it('reports isLiveDocMergeInFlight while a merge runs and clears when it settles', async () => {
@@ -68,7 +85,7 @@ describe('mergeEditIntoLiveFileDoc', () => {
 
     const stream = mergeEditIntoLiveFileDoc('file-durable', 'partial') // versionless, in flight
     await Promise.resolve()
-    const durable = mergeEditIntoLiveFileDoc('file-durable', 'final content', 100) // versioned
+    const durable = mergeEditIntoLiveFileDoc('file-durable', 'final content', { version: 100 }) // versioned
     await Promise.resolve()
     await Promise.resolve()
 
@@ -107,8 +124,8 @@ describe('mergeEditIntoLiveFileDoc', () => {
     await flush()
     // Two durable writes arrive while the streaming merge is in flight — both must chain, not both
     // resume-and-fire concurrently.
-    const a = mergeEditIntoLiveFileDoc('file-order', 'a', 1)
-    const b = mergeEditIntoLiveFileDoc('file-order', 'b', 2)
+    const a = mergeEditIntoLiveFileDoc('file-order', 'a', { version: 1 })
+    const b = mergeEditIntoLiveFileDoc('file-order', 'b', { version: 2 })
     await flush()
     expect(applied).toEqual(['stream']) // A and B queued behind streaming
 

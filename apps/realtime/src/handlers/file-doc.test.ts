@@ -565,6 +565,34 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
+  it('orders a streaming merge by streamedAt but never records it (stays behind the durable version)', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original')) // seed version 1
+    const { io } = createIo()
+    const { handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
+
+    // A newer durable version lands and is recorded as the synced version.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', 100)).toBe('applied')
+
+    // A delayed streaming snapshot OLDER than that durable version — e.g. a throttled copilot snapshot
+    // from another process arriving late — is stale, so it can't regress the doc back toward its content.
+    // (`version` omitted, `streamedAt` passed as the 4th arg.)
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# older stream', undefined, 50)).toBe(
+      'stale'
+    )
+
+    // A streaming snapshot NEWER than the durable version applies (it advances the live view)...
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer stream', undefined, 200)).toBe(
+      'applied'
+    )
+    // ...but it is never RECORDED as the synced version: a durable write between the two (150) still
+    // applies. Had the streaming 200 been recorded, 150 would have been rejected as stale.
+    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', 150)).toBe('applied')
+  })
+
   it('serializes concurrent merges for the same file (second waits for the first)', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original'))
     const { io } = createIo()

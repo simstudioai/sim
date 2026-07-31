@@ -540,14 +540,15 @@ const fileDocMergeChains = new Map<string, Promise<unknown>>()
 export function applyMarkdownToLiveFileDoc(
   fileId: string,
   markdown: string,
-  version?: number
+  version?: number,
+  streamedAt?: number
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const name = roomName(fileDocRoom(fileId))
   const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
   // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
   const run = prior
     .catch(() => {})
-    .then(() => mergeMarkdownIntoRoom(name, fileId, markdown, version))
+    .then(() => mergeMarkdownIntoRoom(name, fileId, markdown, version, streamedAt))
   fileDocMergeChains.set(
     name,
     run.finally(() => {
@@ -561,14 +562,17 @@ async function mergeMarkdownIntoRoom(
   name: string,
   fileId: string,
   markdown: string,
-  version?: number
+  version?: number,
+  streamedAt?: number
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const store = getFileDocStore()
 
   // The durable version this merge carries is now incorporated in the live doc — record it (cluster-wide
   // in Redis for multi-task, plus this task's room) so the persist If-Match guard treats this write as
   // synced rather than an out-of-band conflict. AWAITED so the version is durable before the merge lock
-  // releases, so the next lock holder's staleness check (below) reads a consistent value.
+  // releases, so the next lock holder's staleness check (below) reads a consistent value. Only a durable
+  // `version` is recorded — a streaming `streamedAt` orders the merge (below) but is never a checkpoint,
+  // so the synced version stays pinned to the last durable write.
   const recordVersion = async () => {
     if (version === undefined) return
     const room = fileDocRooms.get(name)
@@ -579,12 +583,16 @@ async function mergeMarkdownIntoRoom(
     await store.setSyncedVersion(name, version)
   }
 
-  // A versioned (durable) merge that is not NEWER than the version the doc already incorporates is
-  // stale — a newer durable write already landed (possibly on another process, out of dispatch order).
-  // Diffing toward its older markdown would regress the live doc while the monotonic token stays high,
-  // so a later persist could write that stale content back over the durable file. Skip it. Streaming
-  // (versionless) merges carry no durable version and are ordered per-process by the caller.
-  const isStale = (current: number): boolean => version !== undefined && version <= current
+  // Position this merge on the file's monotonic version line: a durable write by its `version`, a
+  // streaming snapshot by its `streamedAt` production time. A merge not NEWER than the version the doc
+  // already incorporates is stale — a newer durable write already landed (possibly on another process,
+  // out of dispatch order). Diffing toward its older markdown would regress the live doc while the
+  // monotonic token stays high, so a later persist could write that stale content back over the durable
+  // file. Skip it. This is what stops a delayed streaming snapshot from clobbering a newer durable merge
+  // across processes (the per-process caller chain cannot). A merge with neither key is never stale.
+  const orderingVersion = version ?? streamedAt
+  const isStale = (current: number): boolean =>
+    orderingVersion !== undefined && orderingVersion <= current
 
   if (store.enabled) {
     // Serialize merges to this file ACROSS tasks — the per-file chain above only covers this process.

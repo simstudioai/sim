@@ -11,7 +11,13 @@ import {
 
 const { mergeEditIntoLiveFileDocMock, isLiveDocMergeInFlightMock } = vi.hoisted(() => ({
   mergeEditIntoLiveFileDocMock:
-    vi.fn<(fileId: string, markdown: string, version?: number) => Promise<void>>(),
+    vi.fn<
+      (
+        fileId: string,
+        markdown: string,
+        order?: { version?: number; streamedAt?: number }
+      ) => Promise<void>
+    >(),
   isLiveDocMergeInFlightMock: vi.fn<(fileId: string) => boolean>(),
 }))
 
@@ -136,15 +142,17 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
 
     expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(2)
     const [first, second] = mergeEditIntoLiveFileDocMock.mock.calls
-    // A full-file snapshot (base + streamed), never a diff; it grows across deltas; no version arg on
-    // either streaming merge — the durable version rides the final edit_content write.
+    // A full-file snapshot (base + streamed), never a diff; it grows across deltas. Each streaming merge
+    // carries `streamedAt` (its wall-clock time) to order it — never `version`, which rides the final
+    // edit_content write; so the relay orders the snapshot without recording it as a durable checkpoint.
     expect(first[0]).toBe('file-grow')
-    expect(first).toHaveLength(2)
     expect(first[1]).toContain('Base.')
     expect(first[1]).toContain('Hello')
-    expect(second).toHaveLength(2)
+    expect(typeof first[2]?.streamedAt).toBe('number')
+    expect(first[2]?.version).toBeUndefined()
     expect(second[1]).toContain('Hello world')
     expect(second[1].length).toBeGreaterThan(first[1].length)
+    expect(typeof second[2]?.streamedAt).toBe('number')
   })
 
   it('throttles merges: two deltas within LIVE_DOC_MERGE_THROTTLE_MS yield one merge', async () => {
