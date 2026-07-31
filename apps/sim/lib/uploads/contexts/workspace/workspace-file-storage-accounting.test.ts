@@ -364,11 +364,9 @@ describe('workspace file metadata and storage accounting', () => {
       Buffer.from('# new content', 'utf-8')
     )
 
-    expect(mockMergeEditIntoLiveFileDoc).toHaveBeenCalledWith(
-      MD_ROW.id,
-      '# new content',
-      updatedFile.contentUpdatedAt.getTime()
-    )
+    expect(mockMergeEditIntoLiveFileDoc).toHaveBeenCalledWith(MD_ROW.id, '# new content', {
+      version: updatedFile.contentUpdatedAt.getTime(),
+    })
   })
 
   it('does NOT merge when syncLiveDoc is false (the relay persist / empty-shell opt-out)', async () => {
