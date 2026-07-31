@@ -16,6 +16,7 @@ import {
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { copilotToolCanWrite } from '@/lib/copilot/tools/permissions'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -139,10 +140,6 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [enrichmentRunServerTool.name]: ['*'],
 }
 
-function isWritePermission(userPermission: string): boolean {
-  return userPermission === 'write' || userPermission === 'admin'
-}
-
 function isWriteAction(toolName: string, action: string | undefined): boolean {
   const writeActions = WRITE_ACTIONS[toolName]
   if (!writeActions) return false
@@ -211,7 +208,7 @@ export async function routeExecution(
   if (WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
     const action = (p?.operation ?? p?.action) as string | undefined
-    if (isWriteAction(toolName, action) && !isWritePermission(context?.userPermission ?? '')) {
+    if (isWriteAction(toolName, action) && !copilotToolCanWrite(context?.userPermission)) {
       const actionLabel = action ? `'${action}' on ` : ''
       throw new Error(
         `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
