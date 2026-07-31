@@ -12,7 +12,12 @@ export const QUICKBOOKS_MAX_USER_INFO_BYTES = 1024 * 1024
 export type QuickBooksEnvironment = 'sandbox' | 'production'
 
 export function getQuickBooksEnvironment(): QuickBooksEnvironment {
-  const value = env.QUICKBOOKS_ENV ?? 'sandbox'
+  const value = env.QUICKBOOKS_ENV
+  if (!value) {
+    throw new Error(
+      'QUICKBOOKS_ENV must be explicitly configured as either "sandbox" or "production"'
+    )
+  }
   if (value !== 'sandbox' && value !== 'production') {
     throw new Error('QUICKBOOKS_ENV must be either "sandbox" or "production"')
   }

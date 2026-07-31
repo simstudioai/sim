@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createQuickBooksAccountId,
   fetchQuickBooksConnectionProfile,
@@ -12,8 +13,13 @@ import { QUICKBOOKS_MAX_USER_INFO_BYTES } from '@/lib/quickbooks/client'
 const TEST_UUID = '01234567-89ab-4def-8abc-0123456789ab'
 const originalFetch = global.fetch
 
+beforeEach(() => {
+  setEnv({ QUICKBOOKS_ENV: 'sandbox' })
+})
+
 afterEach(() => {
   global.fetch = originalFetch
+  resetEnvMock()
 })
 
 describe('QuickBooks account identity', () => {

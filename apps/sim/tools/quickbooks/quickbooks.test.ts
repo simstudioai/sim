@@ -41,9 +41,11 @@ describe('QuickBooks request construction', () => {
     )
   })
 
-  it('defaults to sandbox and rejects an invalid environment at the API boundary', () => {
+  it('requires an explicit valid environment at the API boundary', () => {
     setEnv({ QUICKBOOKS_ENV: undefined })
-    expect(getQuickBooksEnvironment()).toBe('sandbox')
+    expect(() => getQuickBooksEnvironment()).toThrow(
+      'QUICKBOOKS_ENV must be explicitly configured as either "sandbox" or "production"'
+    )
 
     setEnv({ QUICKBOOKS_ENV: 'staging' })
     expect(() => getQuickBooksEnvironment()).toThrow(
