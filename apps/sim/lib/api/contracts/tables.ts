@@ -56,18 +56,44 @@ export const selectOptionsSchema = z
   .max(MAX_SELECT_OPTIONS, `A select column cannot have more than ${MAX_SELECT_OPTIONS} options`)
 
 /**
+ * ISO 4217 code for a `currency` column, normalized to upper case.
+ *
+ * Deliberately shape-only. Whether a code is one the runtime can actually
+ * format is checked server-side in `validateColumnDefinition`, because this
+ * same schema parses RESPONSES: pinning the boundary to the *client's* ICU
+ * table would make any divergence between the two runtimes' currency lists
+ * reject an entire table schema over one column's code.
+ */
+export const currencyCodeSchema = z
+  .string()
+  .regex(/^[A-Za-z]{3}$/, 'Must be a 3-letter ISO 4217 currency code, e.g. USD')
+  .transform((code) => code.toUpperCase())
+
+/**
  * Cross-field rule: a `select` column must declare a non-empty option set;
- * other types must not carry options or `multiple`. Skipped when `type` is
- * absent (an options-only update on an existing select column).
+ * other types must not carry options or `multiple`, and only a `currency`
+ * column may carry `currencyCode`. Skipped when `type` is absent (a
+ * metadata-only update on an existing column).
  */
 function refineColumnOptions(
   data: {
     type?: (typeof COLUMN_TYPES)[number]
     options?: z.infer<typeof selectOptionsSchema>
     multiple?: boolean
+    currencyCode?: string
   },
   ctx: z.RefinementCtx
 ): void {
+  // `currencyCode` on a non-currency column is inert until a later
+  // convert-to-currency inherits it, silently overriding the currency the user
+  // picked in that request.
+  if (data.type !== undefined && data.type !== 'currency' && data.currencyCode !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['currencyCode'],
+      message: 'currencyCode is only allowed on currency columns',
+    })
+  }
   if (data.type === 'select') {
     if (!data.options || data.options.length === 0) {
       ctx.addIssue({
@@ -165,6 +191,8 @@ export const tableColumnSchema = z
     options: selectOptionsSchema.optional(),
     /** A `select` column that accepts multiple options per cell. */
     multiple: z.boolean().optional(),
+    /** ISO 4217 code for a `currency` column. */
+    currencyCode: currencyCodeSchema.optional(),
   })
   .superRefine(refineColumnOptions)
 
@@ -242,6 +270,7 @@ export const createTableColumnBodySchema = z.object({
       position: z.number().int().min(0).optional(),
       options: selectOptionsSchema.optional(),
       multiple: z.boolean().optional(),
+      currencyCode: currencyCodeSchema.optional(),
     })
     .superRefine(refineColumnOptions),
 })
@@ -257,6 +286,7 @@ export const updateTableColumnBodySchema = z.object({
       unique: z.boolean().optional(),
       options: selectOptionsSchema.optional(),
       multiple: z.boolean().optional(),
+      currencyCode: currencyCodeSchema.optional(),
     })
     .superRefine(refineColumnOptions),
 })
