@@ -159,6 +159,13 @@ export async function createLandingOgImage({
     </div>,
     {
       ...size,
+      /**
+       * These endpoints are social-card assets, not destinations. `noindex`
+       * keeps them out of search results while leaving them fetchable, so
+       * unfurl bots (which ignore the header) still render previews — unlike a
+       * robots.txt `Disallow`, which would block the fetch itself.
+       */
+      headers: { 'X-Robots-Tag': 'noindex' },
       fonts: [
         ...(regularFontData
           ? [
