@@ -129,6 +129,23 @@ describe('QuickBooks sales reader', () => {
     })
   })
 
+  it('rejects malformed records without usable QuickBooks IDs', async () => {
+    await expect(
+      quickbooksReadSalesTransactionsTool.transformResponse!(
+        Response.json({ QueryResponse: { Invoice: [null] } }),
+        listParams
+      )
+    ).rejects.toThrow('malformed Invoice record')
+
+    await expect(
+      quickbooksReadSalesTransactionsTool.transformResponse!(Response.json({ Invoice: {} }), {
+        ...listParams,
+        readMode: 'by_id',
+        transactionId: '12',
+      })
+    ).rejects.toThrow('without an Id')
+  })
+
   it('rejects unknown types, modes, and missing by-ID values before a request', () => {
     const requestUrl = quickbooksReadSalesTransactionsTool.request.url as (
       params: QuickBooksReadSalesTransactionsParams
@@ -328,6 +345,17 @@ describe('QuickBooks customer payments and voids', () => {
         invoiceAllocations: [{ invoiceId: '12', amount: 101 }],
       })
     ).toThrow('cannot exceed')
+
+    expect(
+      buildQuickBooksCreatePaymentBody({
+        ...params,
+        totalAmount: 0.06,
+        invoiceAllocations: [
+          { invoiceId: '12', amount: 0.01 },
+          { invoiceId: '13', amount: 0.05 },
+        ],
+      })
+    ).toMatchObject({ TotalAmt: 0.06 })
   })
 
   it('builds sparse payment updates and rejects allocations without a replacement total', () => {
@@ -353,6 +381,19 @@ describe('QuickBooks customer payments and voids', () => {
         invoiceAllocations: [{ invoiceId: '12', amount: 25 }],
       })
     ).toThrow('totalAmount is required')
+
+    expect(
+      buildQuickBooksUpdatePaymentBody({
+        ...authParams,
+        paymentId: '15',
+        syncToken: '2',
+        totalAmount: 0.06,
+        invoiceAllocations: [
+          { invoiceId: '12', amount: 0.01 },
+          { invoiceId: '13', amount: 0.05 },
+        ],
+      })
+    ).toMatchObject({ TotalAmt: 0.06 })
   })
 
   it('uses the verified payment endpoints', () => {

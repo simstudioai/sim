@@ -52,7 +52,7 @@ function isConditionPrimitive(value: unknown): value is ConditionValue {
  * Evaluates an output condition against subBlock values.
  * Returns true if the condition is met and the output should be shown.
  */
-function evaluateOutputCondition(
+export function evaluateOutputCondition(
   condition: OutputCondition,
   subBlocks: Record<string, SubBlockWithValue> | undefined
 ): boolean {
@@ -91,6 +91,10 @@ function evaluateOutputCondition(
     }
 
     matches = matches && andMatches
+  }
+
+  if (condition.or) {
+    matches = matches || evaluateOutputCondition(condition.or, subBlocks)
   }
 
   return matches

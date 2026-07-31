@@ -1,4 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
+import Decimal from 'decimal.js'
 import type {
   QuickBooksCreateCustomerPaymentParams,
   QuickBooksCreateSalesDocumentParams,
@@ -190,8 +191,11 @@ function buildPaymentLines(
   if (totalAmount === undefined) {
     throw new Error('totalAmount is required when invoice allocations are supplied')
   }
-  const allocationTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0)
-  if (allocationTotal > totalAmount) {
+  const allocationTotal = allocations.reduce(
+    (sum, allocation) => sum.plus(allocation.amount),
+    new Decimal(0)
+  )
+  if (allocationTotal.greaterThan(totalAmount)) {
     throw new Error('Invoice allocation amounts cannot exceed totalAmount')
   }
   return allocations.map((allocation) => ({

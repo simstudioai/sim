@@ -44,6 +44,17 @@ interface QuickBooksQueryResponse<T> {
   time?: string
 }
 
+function assertQuickBooksEntity<T>(candidate: unknown, entity: QuickBooksQueryEntity): T {
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    throw new Error(`QuickBooks ${entity} response contains a malformed ${entity} record`)
+  }
+  const recordId = (candidate as { Id?: unknown }).Id
+  if (typeof recordId !== 'string' || !recordId.trim()) {
+    throw new Error(`QuickBooks ${entity} response contains a record without an Id`)
+  }
+  return candidate as T
+}
+
 export const QUICKBOOKS_MASTER_DATA_ENTITIES = {
   account: { entity: 'Account', resource: 'account' },
   customer: { entity: 'Customer', resource: 'customer' },
@@ -173,7 +184,7 @@ export async function transformQuickBooksListResponse<T>(
     throw new Error(`QuickBooks ${entity} response contains a malformed entity list`)
   }
 
-  const items = (candidate ?? []) as T[]
+  const items = (candidate ?? []).map((item) => assertQuickBooksEntity<T>(item, entity))
   const startPosition = Number.isInteger(queryResponse.startPosition)
     ? (queryResponse.startPosition as number)
     : params.startPosition
@@ -202,11 +213,11 @@ export async function transformQuickBooksEntityResponse<
     `QuickBooks ${entity} response`
   )
   const candidate = data[entity]
-  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+  if (!candidate) {
     throw new Error(`QuickBooks ${entity} response is missing ${entity}`)
   }
   return {
-    item: candidate as T,
+    item: assertQuickBooksEntity<T>(candidate, entity),
     time: typeof data.time === 'string' ? data.time : null,
   }
 }

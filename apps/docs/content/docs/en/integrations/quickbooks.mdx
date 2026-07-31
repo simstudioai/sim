@@ -10,6 +10,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2CA01C"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+Connect one QuickBooks Online company per credential. During OAuth, choose the company that the workflow should access; Sim binds that company to the credential automatically, so you do not enter a realm ID or API host.
+
+Master Data and Sales transaction reads support **List** and **By ID** modes. List actions return at most one page. Use `nextStartPosition` in another workflow step when `hasMore` is true. Sim does not paginate, retry, or fetch related records automatically.
+
+QuickBooks updates are sparse: provide the record ID, its current `SyncToken`, and only the fields you want to change. Use the latest `SyncToken` returned by a read or mutation. Voiding keeps the transaction in QuickBooks with a zeroed financial effect; it is not deletion and requires explicit confirmation. Create actions accept an optional `requestId` that QuickBooks uses for idempotency when the same request may be submitted again.
+
+Sandbox credentials call only Intuit's sandbox API and are suitable for disposable test data. Production credentials call the production API and affect the selected live company.
+
+Reports and attachments are not exposed by this version of the block, so report date-range and attachment-size controls do not apply here.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Connect one QuickBooks Online company to manage master data and bounded sales and receivables workflows, while preserving existing purchase-order and bill reads.

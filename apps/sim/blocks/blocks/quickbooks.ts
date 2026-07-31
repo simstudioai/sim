@@ -1,6 +1,6 @@
 import { QuickBooksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, OutputCondition } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   parseQuickBooksInvoiceAllocations,
@@ -69,16 +69,16 @@ const MUTATION_OPERATIONS = [
   ...VENDOR_OPERATIONS,
   ...SALES_MUTATION_OPERATIONS,
 ] as const
-const PAGINATED_OPERATIONS = [
-  MASTER_DATA_OPERATION,
-  SALES_READ_OPERATION,
-  'quickbooks_list_purchase_orders',
-  'quickbooks_list_bills',
-] as const
 const TRANSACTION_LIST_OPERATIONS = [
   'quickbooks_list_purchase_orders',
   'quickbooks_list_bills',
 ] as const
+const LIST_OUTPUT_CONDITION: OutputCondition = {
+  field: 'operation',
+  value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION],
+  and: { field: 'readMode', value: 'list' },
+  or: { field: 'operation', value: [...TRANSACTION_LIST_OPERATIONS] },
+}
 const QUICKBOOKS_OPERATIONS = [
   'quickbooks_get_company_info',
   MASTER_DATA_OPERATION,
@@ -1022,27 +1022,27 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'array',
       description:
         'Master-data, sales transaction, PurchaseOrder, or Bill objects with native QuickBooks fields',
-      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+      condition: LIST_OUTPUT_CONDITION,
     },
     startPosition: {
       type: 'number',
       description: 'One-based position of the first returned list item',
-      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+      condition: LIST_OUTPUT_CONDITION,
     },
     maxResults: {
       type: 'number',
       description: 'Actual number of items reported for the list response',
-      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+      condition: LIST_OUTPUT_CONDITION,
     },
     nextStartPosition: {
       type: 'number',
       description: 'Position to pass into an explicit next-page request',
-      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+      condition: LIST_OUTPUT_CONDITION,
     },
     hasMore: {
       type: 'boolean',
       description: 'Conservative indication that another list page may exist',
-      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+      condition: LIST_OUTPUT_CONDITION,
     },
     record: {
       type: 'json',

@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { evaluateOutputCondition } from '@/lib/workflows/blocks/block-outputs'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
@@ -1016,13 +1017,32 @@ describe('QuickBooks tool and block boundaries', () => {
     })
     expect(QuickBooksBlock.outputs.items.condition).toEqual({
       field: 'operation',
-      value: [
-        'quickbooks_read_master_data',
-        'quickbooks_read_sales_transactions',
-        'quickbooks_list_purchase_orders',
-        'quickbooks_list_bills',
-      ],
+      value: ['quickbooks_read_master_data', 'quickbooks_read_sales_transactions'],
+      and: { field: 'readMode', value: 'list' },
+      or: {
+        field: 'operation',
+        value: ['quickbooks_list_purchase_orders', 'quickbooks_list_bills'],
+      },
     })
+    const listOutputCondition = QuickBooksBlock.outputs.items.condition!
+    expect(
+      evaluateOutputCondition(listOutputCondition, {
+        operation: { value: 'quickbooks_read_sales_transactions' },
+        readMode: { value: 'by_id' },
+      })
+    ).toBe(false)
+    expect(
+      evaluateOutputCondition(listOutputCondition, {
+        operation: { value: 'quickbooks_read_sales_transactions' },
+        readMode: { value: 'list' },
+      })
+    ).toBe(true)
+    expect(
+      evaluateOutputCondition(listOutputCondition, {
+        operation: { value: 'quickbooks_list_bills' },
+        readMode: { value: 'by_id' },
+      })
+    ).toBe(true)
     expect(subBlocks.syncToken.condition).toEqual({
       field: 'operation',
       value: [
