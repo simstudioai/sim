@@ -12,7 +12,11 @@ import { cn } from '../../lib/cn'
  * Variants, theme-aware via workspace tokens:
  * - `mono` — borderless, sharing the {@link ChipSwitch} trough surface
  *   (`--surface-5` light / `--surface-4` dark) with strong `--text-primary` text
- *   for emphasis (e.g. a discount next to a primary CTA).
+ *   for emphasis (e.g. a discount next to a primary CTA). Because its fill *is*
+ *   the trough/field surface, it disappears on one — use `field` there.
+ * - `field` — `mono` with the fill stepped one level away from the form-field
+ *   surface (`--surface-6` light / `--surface-3` dark), so the pill stays legible
+ *   when it sits *on* a `--surface-5` input, combobox trigger, or tag container.
  * - `gray` — a light surface over a slightly darker inset ring with muted
  *   `--text-secondary` text for low-emphasis status labels.
  * - `solid` — a filled inverse tag: a dark neutral surface (`--text-secondary`)
@@ -31,6 +35,8 @@ const chipTagVariants = cva(
     variants: {
       variant: {
         mono: 'h-5 gap-[3px] px-1 bg-[var(--surface-5)] text-[var(--text-primary)] dark:bg-[var(--surface-4)]',
+        field:
+          'h-5 gap-[3px] px-1 bg-[var(--surface-6)] text-[var(--text-primary)] dark:bg-[var(--surface-3)]',
         gray: 'h-5 gap-[3px] px-1 bg-[var(--surface-5)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border-1)]',
         solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
         invite:

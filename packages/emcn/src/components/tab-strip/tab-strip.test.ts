@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { isTabTitleTruncated, type TabStripItem, tabDropIndex } from './tab-strip'
 
@@ -76,5 +77,32 @@ describe('tab tooltips', () => {
     const tab: TabStripItem = { id: '1', title: 'GitHub', pinned: true }
 
     expect(tooltipFor(tab, false)).toBe('GitHub')
+  })
+})
+
+describe('tab strip vertical overflow', () => {
+  const source = readFileSync(new URL('./tab-strip.tsx', import.meta.url), 'utf8')
+  /** Declarations only — the comments here discuss the very class they removed. */
+  const markup = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+  /**
+   * A source-level guard, which is weaker than asserting rendered geometry and is a
+   * deliberate compromise: this package's vitest runs in `node`, has no browser mode, and
+   * the repo's only Playwright harness drives Electron against static HTML fixtures, so
+   * nothing here can lay out a React tree against the compiled CSS. The behaviour was
+   * instead measured directly in a renderer — the row went from scrollHeight 30 against
+   * clientHeight 29 to 30 against 30 — and this guard pins the invariant that produced it.
+   */
+  it('keeps every negative bottom margin outside the horizontally scrolling row', () => {
+    // The active tab has to hang one pixel over the strip's bottom border. Anything inside
+    // the row that does so overflows it, and `overflow-x: auto` computes the visible
+    // `overflow-y` to `auto` as well — so the strip became scrollable by that one pixel.
+    // Asserting the count, not just the row's own class, catches the regression wherever a
+    // descendant reintroduces it rather than only on the tab it came from originally.
+    const negativeBottomMargins = markup.match(/-mb-px/g) ?? []
+    expect(negativeBottomMargins).toHaveLength(1)
+
+    const scrollRow = markup.match(/className='([^']*overflow-x-auto[^']*)'/)?.[1] ?? ''
+    expect(scrollRow).toContain('-mb-px')
   })
 })

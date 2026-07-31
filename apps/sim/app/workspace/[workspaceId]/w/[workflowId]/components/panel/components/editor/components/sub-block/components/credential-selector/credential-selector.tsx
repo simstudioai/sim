@@ -511,16 +511,14 @@ export function CredentialSelector({
         />
       )}
 
-      {showSetupModal && serviceAccountService?.serviceAccountProviderId && (
+      {showSetupModal && serviceAccountTarget && (
         <ConnectServiceAccountModal
           open={showSetupModal}
           onOpenChange={setShowSetupModal}
           workspaceId={workspaceId}
-          serviceAccountProviderId={
-            serviceAccountService.serviceAccountProviderId as ServiceAccountProviderId
-          }
-          serviceName={serviceAccountService.name}
-          serviceIcon={serviceAccountService.icon}
+          serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          serviceName={serviceAccountTarget.serviceName}
+          serviceIcon={serviceAccountTarget.serviceIcon}
           onCreated={(newCredentialId) => {
             setStoreValue(newCredentialId)
             refetchCredentials()

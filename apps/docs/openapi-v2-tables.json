@@ -457,7 +457,7 @@
       "patch": {
         "operationId": "updateTableColumn",
         "summary": "Update Column",
-        "description": "Update a column by name — rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
+        "description": "Update a column by name \u2014 rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -601,7 +601,7 @@
       "get": {
         "operationId": "listTableRows",
         "summary": "List rows",
-        "description": "Plain cursor page over the default row order. Filtering and sorting are not part of this surface — use `POST /api/v2/tables/{tableId}/query` for predicate-filtered, sorted reads. The cursor is opaque; page by passing the previous response's `nextCursor` back as `cursor` and stop when it is `null`.",
+        "description": "Plain cursor page over the default row order. Filtering and sorting are not part of this surface \u2014 use `POST /api/v2/tables/{tableId}/query` for predicate-filtered, sorted reads. The cursor is opaque; page by passing the previous response's `nextCursor` back as `cursor` and stop when it is `null`.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -1337,7 +1337,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` — a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`.",
+        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` \u2014 a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1382,7 +1382,7 @@
                     "minimum": 0,
                     "maximum": 1000,
                     "default": 100,
-                    "description": "Omitted → 100. `1..1000` → page size. `0` → the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
+                    "description": "Omitted \u2192 100. `1..1000` \u2192 page size. `0` \u2192 the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
                   },
                   "cursor": {
                     "type": "string",
@@ -1632,7 +1632,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["string", "number", "boolean", "date", "json"],
+            "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
             "description": "Data type of the column."
           },
           "required": {
@@ -1659,6 +1659,12 @@
           "multiple": {
             "type": "boolean",
             "description": "A `select` column that accepts multiple options per cell."
+          },
+          "currencyCode": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{3}$",
+            "description": "ISO 4217 currency code for a `currency` column, e.g. `USD`. Normalized to uppercase. Only meaningful on a `currency` column.",
+            "example": "USD"
           }
         }
       },
@@ -1676,7 +1682,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["string", "number", "boolean", "date", "json"],
+            "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
             "description": "Data type of the column."
           },
           "required": {
@@ -1691,7 +1697,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable column id. Server-assigned — normally omit."
+            "description": "Stable column id. Server-assigned \u2014 normally omit."
           },
           "options": {
             "type": "array",
@@ -1703,6 +1709,12 @@
           "multiple": {
             "type": "boolean",
             "description": "A `select` column that accepts multiple options per cell."
+          },
+          "currencyCode": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{3}$",
+            "description": "ISO 4217 currency code for a `currency` column, e.g. `USD`. Normalized to uppercase. Only meaningful on a `currency` column.",
+            "example": "USD"
           }
         }
       },
@@ -1919,7 +1931,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["string", "number", "boolean", "date", "json"],
+                "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
                 "description": "New data type for the column."
               },
               "required": {
@@ -1940,6 +1952,12 @@
               "multiple": {
                 "type": "boolean",
                 "description": "A `select` column that accepts multiple options per cell."
+              },
+              "currencyCode": {
+                "type": "string",
+                "pattern": "^[A-Za-z]{3}$",
+                "description": "ISO 4217 currency code for a `currency` column, e.g. `USD`. Normalized to uppercase. Only meaningful on a `currency` column.",
+                "example": "USD"
               }
             }
           }
@@ -2379,7 +2397,7 @@
         }
       },
       "Predicate": {
-        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1–100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
+        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1\u2013100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
         "oneOf": [
           {
             "type": "object",
@@ -2431,7 +2449,7 @@
           "field": {
             "type": "string",
             "maxLength": 128,
-            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase — snake_case is treated as a user column and matches nothing)."
+            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase \u2014 snake_case is treated as a user column and matches nothing)."
           },
           "op": {
             "enum": [
@@ -2456,7 +2474,7 @@
               "isNull",
               "isNotNull"
             ],
-            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches — except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
+            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches \u2014 except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
           },
           "value": {
             "description": "Operand. Omit for the `is*` operators. Ranges on `number` columns require numbers, on `date` columns ISO strings (compared as UTC, independent of any session timezone); ranges on `boolean`/`json` columns are rejected."
@@ -2469,7 +2487,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Stable option id — the value stored in cells."
+            "description": "Stable option id \u2014 the value stored in cells."
           },
           "name": {
             "type": "string",

@@ -18,6 +18,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isPayloadSizeLimitError,
@@ -37,6 +38,7 @@ import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
+import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 import type {
   BYOKProviderId,
   OAuthTokenPayload,
@@ -366,18 +368,18 @@ async function injectHostedKeyIfNeeded(
       workflowId,
     })
 
-    const error = new Error(acquireResult.error || `Rate limit exceeded for ${tool.id}`)
-    ;(error as any).status = 429
-    ;(error as any).retryAfterMs = acquireResult.retryAfterMs
-    throw error
+    throw new HostedKeyRateLimitedError(
+      acquireResult.error || `Rate limit exceeded for ${tool.id}`,
+      acquireResult.retryAfterMs
+    )
   }
 
   // Handle no keys configured (503)
   if (!acquireResult.success) {
     logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
-    const error = new Error(acquireResult.error || `No hosted keys configured for ${tool.id}`)
-    ;(error as any).status = 503
-    throw error
+    throw new HostedKeyUnavailableError(
+      acquireResult.error || `No hosted keys configured for ${tool.id}`
+    )
   }
 
   params[apiKeyParam] = acquireResult.key
@@ -1297,7 +1299,20 @@ export async function executeTool(
       const { runCustomBlockTool } = await import(
         '@/executor/handlers/workflow/custom-block-tool-runner'
       )
-      const result = await runCustomBlockTool(contextParams)
+      // Forward the INVOKING run's identifiers so the child's log correlation
+      // names a real execution instead of a freshly-minted phantom id. Taken
+      // from the server-resolved scope, never from model-supplied params.
+      const result = await runCustomBlockTool(
+        {
+          ...contextParams,
+          _context: {
+            ...(contextParams._context as Record<string, unknown> | undefined),
+            ...(scope.executionId ? { executionId: scope.executionId } : {}),
+            requestId,
+          },
+        },
+        { abortSignal: effectiveSignal }
+      )
       const endTime = new Date()
       return {
         ...result,
@@ -1522,6 +1537,10 @@ export async function executeTool(
       success: false,
       output: errorDetails,
       error: errorMessage,
+      // Sim's own status (hosted-key 429/503) survives the flattening from a
+      // thrown error into a result object; an upstream provider's status stays
+      // on `output` where it cannot be mistaken for ours.
+      ...(error instanceof HttpError ? { statusCode: error.statusCode } : {}),
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,

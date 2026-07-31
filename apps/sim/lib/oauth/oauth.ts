@@ -4,6 +4,7 @@ import { truncate } from '@sim/utils/string'
 import {
   AirtableIcon,
   AsanaIcon,
+  AtlassianIcon,
   AttioIcon,
   AzureIcon,
   BoxCompanyIcon,
@@ -509,15 +510,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   },
   atlassian: {
     name: 'Atlassian',
-    icon: JiraIcon,
+    icon: AtlassianIcon,
     services: {
       'atlassian-service-account': {
         name: 'Atlassian Service Account',
         description:
           'Authenticate as an Atlassian service account using a scoped API token from admin.atlassian.com.',
         providerId: 'atlassian-service-account',
-        icon: JiraIcon,
-        baseProviderIcon: JiraIcon,
+        icon: AtlassianIcon,
+        baseProviderIcon: AtlassianIcon,
         scopes: [],
         authType: 'service_account',
       },

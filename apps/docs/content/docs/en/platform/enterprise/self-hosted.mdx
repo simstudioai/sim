@@ -23,7 +23,7 @@ ENTERPRISE_ENABLED=true
 NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
-That turns on organizations, permission groups, SSO, whitelabeling, audit logs, session policies, data retention, data drains, workspace forks, and the inbox.
+That turns on organizations, permission groups, SSO, whitelabeling, audit logs, session policies, data retention, data drains, workspace forks, sandboxes, and the inbox.
 
 ### Turning one feature off
 
@@ -51,6 +51,9 @@ The individual flags also work on their own if you would rather opt in one at a 
 | Data drains | `DATA_DRAINS_ENABLED` | `NEXT_PUBLIC_DATA_DRAINS_ENABLED` |
 | Workspace forks | `FORKING_ENABLED` | — |
 | Sim Mailer inbox | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
+| Sandboxes | `SANDBOXES_ENABLED` | `NEXT_PUBLIC_SANDBOXES_ENABLED` |
+
+Sandboxes also need a remote execution provider, since the deployment builds the images itself: set `E2B_API_KEY`, or `SANDBOX_PROVIDER=daytona` with a `DAYTONA_API_KEY` that has `write:snapshots` and `write:sandboxes`. Without one the settings section appears but builds fail.
 
 <Callout type="warning">
   Data retention is the one feature that deletes data. Its flag controls the cleanup pass, not the settings screen — retention windows are always configurable. Nothing is ever deleted until you enable it, and even then only against windows you configured explicitly. Sim never applies the hosted plan defaults to a self-hosted deployment.

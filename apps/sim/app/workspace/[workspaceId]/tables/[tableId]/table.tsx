@@ -71,7 +71,7 @@ import {
   WorkflowSidebar,
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
-import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
+import { columnTypeIcon } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
 import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
@@ -1047,7 +1047,7 @@ export function Table({
         id: getColumnId(col),
         label: col.name,
         type: col.type,
-        icon: COLUMN_TYPE_ICONS[col.type],
+        icon: columnTypeIcon(col.type),
       })),
     [columns]
   )

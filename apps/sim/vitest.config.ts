@@ -25,13 +25,6 @@ export default defineConfig({
     fileParallelism: true,
     maxConcurrency: 10,
     testTimeout: 10000,
-    deps: {
-      optimizer: {
-        web: {
-          enabled: true,
-        },
-      },
-    },
   },
   resolve: {
     alias: [

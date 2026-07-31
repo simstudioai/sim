@@ -20,6 +20,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { enrichSandboxPackages } from '@/lib/execution/remote-sandbox/wand-enricher'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
@@ -90,6 +91,9 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
   },
 
   'table-schema': enrichTableSchema,
+  // Both the JavaScript and Python code prompts generate under this type — the
+  // Python swap in `code.tsx` replaces the prompt text but keeps the type.
+  'javascript-function-body': enrichSandboxPackages,
 }
 
 async function updateUserStatsForWand(

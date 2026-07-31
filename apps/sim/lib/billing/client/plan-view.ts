@@ -1,4 +1,4 @@
-import { CREDIT_TIERS } from '@/lib/billing/constants'
+import { MAX_TIER_CREDITS } from '@/lib/billing/constants'
 import { getPlanTierCredits, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
 
 /**
@@ -45,8 +45,6 @@ export interface PlanView {
   /** Credit balances are meaningless for enterprise (custom limits) and are hidden. */
   showCredits: boolean
 }
-
-const MAX_TIER_CREDITS = CREDIT_TIERS[1].credits
 
 /** Tier ordering used to derive upgrade/downgrade/highlight relationships. */
 const PLAN_RANK: Record<PlanTier, number> = { free: 0, pro: 1, max: 2, enterprise: 3 }

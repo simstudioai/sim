@@ -16,7 +16,16 @@ export interface BillingEntityBlockStatus {
   billingBlockedReason: 'payment_failed' | 'dispute' | null
 }
 
-async function getUserBillingBlockStatus(userId: string): Promise<BillingEntityBlockStatus> {
+/**
+ * Reads one user's own `user_stats` row, without re-deriving the block that
+ * their organization membership would imply.
+ *
+ * Only the organization branch of {@link getBillingEntityBlockStatus} wants this
+ * narrow read: an organization's debt is its owner's own debt, and some other
+ * org the owner merely belongs to is not this organization's problem. Callers
+ * asking whether a *user* is blocked want {@link getEffectiveBillingStatus}.
+ */
+async function getUserStatsBlockStatus(userId: string): Promise<BillingEntityBlockStatus> {
   const [stats] = await db
     .select({
       billingBlocked: userStats.billingBlocked,
@@ -34,14 +43,27 @@ async function getUserBillingBlockStatus(userId: string): Promise<BillingEntityB
 }
 
 /**
- * Reads the block state of one exact personal or organization payer.
+ * Reads the effective block state of one payer, personal or organization.
+ *
+ * A personal payer resolves through {@link getEffectiveBillingStatus}, so a
+ * delinquent organization blocks its members on their personal resources too.
+ * That is the policy `blockOrgMembers` already writes; re-deriving it here
+ * instead of trusting the fan-out is what keeps the read correct for a member
+ * who joined *after* the block landed and whose own row was never marked.
+ *
+ * Every gate that asks "is this payer blocked?" must come through here or
+ * {@link getEffectiveBillingStatus}. A direct `userStats.billingBlocked` select
+ * answers a narrower question and will disagree with them.
  */
 export async function getBillingEntityBlockStatus(billingEntity: {
   type: 'user' | 'organization'
   id: string
 }): Promise<BillingEntityBlockStatus> {
   if (billingEntity.type === 'user') {
-    return getUserBillingBlockStatus(billingEntity.id)
+    const { billingBlocked, billingBlockedReason } = await getEffectiveBillingStatus(
+      billingEntity.id
+    )
+    return { billingBlocked, billingBlockedReason }
   }
 
   const [owner] = await db
@@ -58,7 +80,7 @@ export async function getBillingEntityBlockStatus(billingEntity: {
     return { billingBlocked: false, billingBlockedReason: null }
   }
 
-  return getUserBillingBlockStatus(owner.userId)
+  return getUserStatsBlockStatus(owner.userId)
 }
 
 /**

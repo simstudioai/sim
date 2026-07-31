@@ -34,15 +34,18 @@ import {
   sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   addTableColumn,
   deleteColumn,
   deleteColumns,
   renameColumn,
   updateColumnConstraints,
+  updateColumnCurrency,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
@@ -1540,6 +1543,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 position?: number
                 options?: unknown
                 multiple?: boolean
+                currencyCode?: string
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1554,6 +1558,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          if (col.currencyCode !== undefined && !isSupportedCurrencyCode(col.currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${col.currencyCode}". Use an ISO 4217 code, e.g. USD`,
+            }
+          }
           // Agent authors select options by name; generate their stable ids here.
           const columnToAdd =
             col.type === 'select'
@@ -1653,15 +1663,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
           const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
+          const currencyCode = (args as Record<string, unknown>).currencyCode as string | undefined
           if (
             newType === undefined &&
             uniqFlag === undefined &&
             rawOptions === undefined &&
-            multiple === undefined
+            multiple === undefined &&
+            currencyCode === undefined
           ) {
             return {
               success: false,
-              message: 'At least one of newType, unique, options, or multiple must be provided',
+              message:
+                'At least one of newType, unique, options, multiple, or currencyCode must be provided',
+            }
+          }
+          if (currencyCode !== undefined && !isSupportedCurrencyCode(currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${currencyCode}". Use an ISO 4217 code, e.g. USD`,
             }
           }
           const tableForUpdate = await getTableById(args.tableId)
@@ -1693,10 +1712,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // update on an existing select column carries the same hazard as a
           // conversion. Same guard the HTTP column routes apply.
           const resultingType = newType ?? currentColumn?.type
-          if (uniqFlag === true && resultingType === 'select') {
+          if (uniqFlag === true && !columnTypeById(resultingType).supportsUnique) {
             return {
               success: false,
-              message: `Cannot set column "${colName}" as unique: select columns cannot be unique.`,
+              message: `Cannot set column "${colName}" as unique: ${resultingType} columns cannot be unique.`,
             }
           }
           if (typeChanging) {
@@ -1708,6 +1727,27 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 newType: newType as (typeof COLUMN_TYPES)[number],
                 options,
                 multiple,
+                ...(currencyCode !== undefined ? { currencyCode } : {}),
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
+              requestId
+            )
+          } else if (currencyCode !== undefined) {
+            // Re-denominating an existing currency column: schema-only, no cell
+            // rewrite. Mirrors the HTTP columns routes.
+            if (currentColumn?.type !== 'currency') {
+              return {
+                success: false,
+                message: `Column "${colName}" is not a currency column. Pass newType: "currency" with currencyCode to convert it.`,
+              }
+            }
+            assertNotAborted()
+            result = await updateColumnCurrency(
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                currencyCode,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
             )
@@ -1725,11 +1765,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
             assertNotAborted()
             result = await updateColumnOptions(
-              { tableId: args.tableId, columnName: colName, options: nextOptions, multiple },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                options: nextOptions,
+                multiple,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
               requestId
             )
           }
-          if (uniqFlag !== undefined) {
+          // Skipped when a typed write ran: that write already applied and
+          // validated the constraint, in one transaction with the change it
+          // accompanies. Mirrors the HTTP columns routes.
+          if (uniqFlag !== undefined && result === undefined) {
             assertNotAborted()
             result = await updateColumnConstraints(
               { tableId: args.tableId, columnName: colName, unique: uniqFlag },

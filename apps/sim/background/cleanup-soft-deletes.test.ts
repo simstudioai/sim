@@ -49,13 +49,6 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
   batchDeleteByWorkspaceAndTimestamp: mockBatchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete: mockChunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE: 1000,
-  chunkArray: (items: string[], size: number) => {
-    const chunks: string[][] = []
-    for (let index = 0; index < items.length; index += size) {
-      chunks.push(items.slice(index, index + size))
-    }
-    return chunks
-  },
   deleteRowsById: mockDeleteRowsById,
   selectRowsByIdChunks: mockSelectRowsByIdChunks,
 }))
