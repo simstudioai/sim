@@ -54,18 +54,36 @@ describe('requestJson query serialization', () => {
     expect(calledUrl).not.toContain('[object Object]')
   })
 
-  it('throws instead of silently corrupting an array-of-objects query param', async () => {
-    mockFetchReturning({ ok: true })
+  it('JSON-encodes an array-of-objects query param instead of corrupting or throwing', async () => {
+    // A SortSpec ([{field, direction}]) is the everyday case: repeat-append
+    // would send "[object Object]", so the whole array travels as ONE JSON
+    // string param, mirroring plain objects; the server contract decodes it.
+    const fetchMock = mockFetchReturning({ ok: true })
 
-    const badContract = defineRouteContract({
+    const contract = defineRouteContract({
       method: 'GET',
       path: '/api/test',
       query: z.object({ items: z.array(z.object({ a: z.string() })) }),
       response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
     })
 
-    await expect(requestJson(badContract, { query: { items: [{ a: 'x' }] } })).rejects.toThrow(
-      /arrays of objects are not URL-safe/
-    )
+    await requestJson(contract, { query: { items: [{ a: 'x' }] } })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(decodeURIComponent(url)).toContain('items=[{"a":"x"}]')
+  })
+
+  it('keeps repeat-append for scalar arrays', async () => {
+    const fetchMock = mockFetchReturning({ ok: true })
+
+    const contract = defineRouteContract({
+      method: 'GET',
+      path: '/api/test',
+      query: z.object({ tags: z.array(z.string()) }),
+      response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
+    })
+
+    await requestJson(contract, { query: { tags: ['a', 'b'] } })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('tags=a&tags=b')
   })
 })

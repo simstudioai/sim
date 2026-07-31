@@ -36,6 +36,38 @@ const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
     }
   : {}
 
+/**
+ * Marketing routes (`app/(landing)/**`, plus the root) exempted from COEP.
+ *
+ * COEP is a *document* header and is inherited across client-side `<Link>`
+ * navigations, so `/demo`'s own exemption only applies on a direct load. Any
+ * landing page left isolated soft-navigates into `/demo` still credentialless,
+ * where the Cal.com booker iframe loads uncredentialed and hangs forever.
+ * Every route under `app/(landing)` must be listed here.
+ */
+const LANDING_ROUTES = [
+  'blog',
+  'careers',
+  'changelog',
+  'comparisons',
+  'contact',
+  'demo',
+  'enterprise',
+  'files',
+  'integrations',
+  'knowledge',
+  'library',
+  'logs',
+  'models',
+  'pricing',
+  'privacy',
+  'scheduled-tasks',
+  'solutions',
+  'tables',
+  'terms',
+  'workflows',
+] as const
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
@@ -255,17 +287,27 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker
+        // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
         // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
         source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
         headers: [
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'credentialless',
-          },
-          {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
+          },
+        ],
+      },
+      {
+        // COEP stays on by default - a new route is cross-origin isolated unless
+        // it is named here. The exemptions are the app surfaces that embed
+        // credentialed third parties (Drive Picker, Vercel resources) and the
+        // marketing surface, which must opt out wholesale: see LANDING_ROUTES.
+        // The trailing `|$` exempts the root path.
+        source: `/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|${LANDING_ROUTES.join('|')}|$).*)`,
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'credentialless',
           },
         ],
       },

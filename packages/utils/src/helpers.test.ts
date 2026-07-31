@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { noop, sleep } from './helpers.js'
+import { chunkArray, noop, sleep } from './helpers.js'
 
 describe('sleep', () => {
   beforeEach(() => {
@@ -37,5 +37,15 @@ describe('noop', () => {
 
   it('returns undefined', () => {
     expect(noop()).toBeUndefined()
+  })
+})
+
+describe('chunkArray', () => {
+  it('preserves order while bounding chunk size', () => {
+    expect(chunkArray([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]])
+  })
+
+  it('rejects a non-positive chunk size', () => {
+    expect(() => chunkArray([1], 0)).toThrow('positive integer')
   })
 })

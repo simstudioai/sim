@@ -111,7 +111,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
             }
           }
 
-          if (result.rows.length < EXPORT_BATCH_SIZE) break
+          // A page can be cut by the byte budget before reaching EXPORT_BATCH_SIZE,
+          // so a short page does NOT mean the export is done — only a null cursor does.
+          if (!result.nextCursor) break
           offset += result.rows.length
         }
 

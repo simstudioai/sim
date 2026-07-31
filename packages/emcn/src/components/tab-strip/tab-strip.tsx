@@ -180,7 +180,7 @@ function Tab({
             aria-current={tab.active ? 'page' : undefined}
             aria-label={tab.pinned ? tab.title : undefined}
             className={cn(
-              '-mb-px h-[30px] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 font-normal text-caption',
+              'h-[30px] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 font-normal text-caption',
               tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
               closeable && !tab.pinned && 'pr-7',
               tab.active &&
@@ -317,8 +317,16 @@ export function TabStrip({
         and scrolls horizontally instead of growing, which pins the button back
         at the right edge rather than pushing it out of view.
       */}
+      {/*
+        `-mb-px` sits on this row rather than on the tabs inside it. The active tab has to
+        extend one pixel past the strip to cover its bottom border, and while that pixel
+        came from the tab it overflowed THIS element — which is a scroll container, since
+        `overflow-x: auto` computes the visible `overflow-y` to `auto` as well. The result
+        was a tab strip you could scroll vertically by exactly one pixel. Pulling the whole
+        row down instead keeps the tabs flush inside it, so there is nothing to scroll.
+      */}
       <div
-        className='flex min-w-0 shrink select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        className='-mb-px flex min-w-0 shrink select-none items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         onDragOver={(event) => {
           if (draggedIdRef.current) event.preventDefault()
         }}

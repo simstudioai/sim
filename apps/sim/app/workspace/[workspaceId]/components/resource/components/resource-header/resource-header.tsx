@@ -31,6 +31,7 @@ import {
 } from '@sim/emcn'
 import { ArrowUpLeft } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
@@ -131,7 +132,10 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className='flex min-h-[48px] items-center border-[var(--border)] border-b px-4 py-[8.5px]'
+      className={cn(
+        'flex min-h-[48px] items-center border-[var(--border)] border-b px-4 pb-[8.5px]',
+        TITLE_BAR_LANE_PT
+      )}
     >
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>

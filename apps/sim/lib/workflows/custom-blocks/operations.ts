@@ -398,6 +398,26 @@ export class CustomBlockValidationError extends Error {
  * Reject exposed outputs whose name shadows a system output field. Authoritative
  * check: also covers callers that bypass the HTTP contract (copilot handler).
  */
+/**
+ * Every field a consumer receives must be one the publisher explicitly chose.
+ *
+ * There is deliberately no "expose the whole result" fallback: the child's
+ * terminal block state carries execution metadata that is legitimate INSIDE a
+ * workflow but must not cross an invocation boundary — an agent's `toolCalls`
+ * (arguments and results), `providerTiming.thinkingContent` and `cost`, or a
+ * nested workflow block's name/id/snapshot id. Curation is what makes the
+ * boundary's guarantee structural instead of a deny-list someone has to keep
+ * current as new block types gain outputs.
+ *
+ * Authoritative here as well as in the route contract, because the copilot
+ * publish handler bypasses the HTTP boundary.
+ */
+function assertCuratedOutputs(exposedOutputs: CustomBlockOutput[] | undefined): void {
+  if (!exposedOutputs || exposedOutputs.length === 0) {
+    throw new CustomBlockValidationError('Select at least one output to expose to consumers')
+  }
+}
+
 function assertNoReservedOutputNames(exposedOutputs: CustomBlockOutput[] | undefined): void {
   const reserved = exposedOutputs?.find((o) => isReservedOutputName(o.name))
   if (reserved) {
@@ -424,7 +444,8 @@ export async function publishCustomBlock(params: {
   description: string
   iconUrl?: string
   inputs?: InputPlaceholder[]
-  exposedOutputs?: CustomBlockOutput[]
+  /** Required — see {@link assertCuratedOutputs}. */
+  exposedOutputs: CustomBlockOutput[]
 }): Promise<CustomBlockWithInputs> {
   const {
     organizationId,
@@ -439,6 +460,7 @@ export async function publishCustomBlock(params: {
   } = params
 
   assertNoReservedOutputNames(exposedOutputs)
+  assertCuratedOutputs(exposedOutputs)
 
   const [wf] = await db
     .select({
@@ -534,7 +556,10 @@ export async function updateCustomBlock(
     exposedOutputs?: CustomBlockOutput[]
   }
 ): Promise<void> {
-  if (updates.exposedOutputs !== undefined) assertNoReservedOutputNames(updates.exposedOutputs)
+  if (updates.exposedOutputs !== undefined) {
+    assertNoReservedOutputNames(updates.exposedOutputs)
+    assertCuratedOutputs(updates.exposedOutputs)
+  }
   const patch: Partial<typeof customBlock.$inferInsert> = { updatedAt: new Date() }
   if (updates.name !== undefined) patch.name = updates.name
   if (updates.description !== undefined) patch.description = updates.description

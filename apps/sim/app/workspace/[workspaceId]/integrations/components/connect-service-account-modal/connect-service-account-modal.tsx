@@ -22,6 +22,7 @@ import {
   getTokenServiceAccountDescriptor,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -59,6 +60,17 @@ function openDocs(url: string): void {
  * that doesn't look like `<tenant>.atlassian.net`.
  */
 const ATLASSIAN_DOMAIN_HINT_REGEX = /^[a-z0-9-]+\.atlassian\.net$/i
+
+/**
+ * States the token's reach up front — the ambiguity this modal exists to remove.
+ * Sits on the API token field, not Site domain: it describes the token, and
+ * `ChipModalField` hides a `hint` whenever that field shows an `error`, which
+ * would drop it exactly while the user is correcting a domain typo. Derived
+ * from the catalog so it cannot drift as Atlassian integrations are added.
+ */
+const ATLASSIAN_COVERAGE_HINT = getServiceAccountCoverageSentence(
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
+)
 
 /**
  * Maps server `error.code` values returned by the Atlassian service-account
@@ -491,21 +503,24 @@ function AtlassianServiceAccountModal({
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='API token' required>
-          <SecretInput
-            value={apiToken}
-            onChange={(value) => {
-              setApiToken(value)
-              if (error) setError(null)
-            }}
-            placeholder='Paste API token'
-            name='atlassian_service_account_api_token'
-            autoComplete='new-password'
-            autoCorrect='off'
-            autoCapitalize='off'
-            data-lpignore='true'
-            data-form-type='other'
-          />
+        <ChipModalField type='custom' title='API token' required hint={ATLASSIAN_COVERAGE_HINT}>
+          {(aria) => (
+            <SecretInput
+              {...aria}
+              value={apiToken}
+              onChange={(value) => {
+                setApiToken(value)
+                if (error) setError(null)
+              }}
+              placeholder='Paste API token'
+              name='atlassian_service_account_api_token'
+              autoComplete='new-password'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+            />
+          )}
         </ChipModalField>
 
         <ChipModalField

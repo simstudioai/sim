@@ -15,6 +15,7 @@ import {
 } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
@@ -242,7 +243,7 @@ function InlineDateEditor({
   )
 }
 
-/** Inline editor for `string`/`number`/`json` columns — single-line text input. Number columns use `type="number"` so the browser rejects non-numeric input. */
+/** Inline editor for `string`/`number`/`currency`/`json` columns — single-line text input. Numeric columns get a decimal keypad and reject a draft that cannot be parsed. */
 function InlineTextEditor({
   value,
   column,
@@ -291,8 +292,11 @@ function InlineTextEditor({
       rejectDraft('Invalid JSON', reason)
       return
     }
-    if (column.type === 'number' && cleaned === null && draft.trim() !== '') {
-      rejectDraft('Invalid number', reason)
+    // `cleanCellValue` nulls an unparseable draft rather than throwing; types
+    // that declare a message reject it instead of silently clearing the cell.
+    const parseError = columnTypeOf(column).parseErrorMessage
+    if (cleaned === null && draft.trim() !== '' && parseError) {
+      rejectDraft(parseError, reason)
       return
     }
     doneRef.current = true
@@ -313,13 +317,13 @@ function InlineTextEditor({
     }
   }
 
-  const isNumber = column.type === 'number'
+  const inputMode = columnTypeOf(column).inputMode
 
   return (
     <input
       ref={inputRef}
       type='text'
-      inputMode={isNumber ? 'decimal' : undefined}
+      inputMode={inputMode}
       value={draft ?? ''}
       onChange={(e) => {
         setDraft(e.target.value)
@@ -425,13 +429,16 @@ function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorPro
   )
 }
 
-/** Dispatches to the right editor variant based on the column type. */
+/** Dispatches to the editor variant the column type declares. */
 export function InlineEditor(props: InlineEditorProps) {
-  if (props.column.type === 'date') {
-    return <InlineDateEditor {...props} />
+  switch (columnTypeOf(props.column).editor) {
+    case 'date':
+      return <InlineDateEditor {...props} />
+    case 'select':
+      return <InlineSelectEditor {...props} />
+    // `toggle` types never open an editor — the grid flips them in place — so
+    // reaching here at all means a text draft is the sane fallback.
+    default:
+      return <InlineTextEditor {...props} />
   }
-  if (props.column.type === 'select') {
-    return <InlineSelectEditor {...props} />
-  }
-  return <InlineTextEditor {...props} />
 }

@@ -21,6 +21,7 @@ import {
   DEFAULTS,
   EDGE,
   isSentinelBlockType,
+  isWorkflowBlockType,
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
@@ -450,10 +451,25 @@ export class BlockExecutor {
       errorOutput.content = partialContent
     }
 
+    // Only real workflow blocks surface a child workflow name. A custom block's
+    // source workflow is never named to its consumer — and before the handler
+    // resolves the real name this field still holds the source workflow id, so
+    // an early throw (e.g. the call-chain depth limit) would leak it outright.
     if (ChildWorkflowError.isChildWorkflowError(error)) {
-      errorOutput.childWorkflowName = error.childWorkflowName
-      if (error.childWorkflowSnapshotId) {
-        errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
+      if (isWorkflowBlockType(block.metadata?.id)) {
+        errorOutput.childWorkflowName = error.childWorkflowName
+        if (error.childWorkflowSnapshotId) {
+          errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
+        }
+      }
+      // A custom block's consumer gets a machine-readable failure class and an
+      // opaque handle to the failed run — enough to branch on and to quote in a
+      // support request, without naming anything inside the source workflow.
+      if (error.consumerFacing) {
+        errorOutput.errorType = error.consumerFacing.errorType
+        if (error.consumerFacing.ref) {
+          errorOutput.errorRef = error.consumerFacing.ref
+        }
       }
     }
 

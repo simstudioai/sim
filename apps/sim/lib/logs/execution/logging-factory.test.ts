@@ -772,3 +772,39 @@ describe('calculateCostSummary', () => {
     expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
   })
 })
+
+describe('calculateCostSummary base charge override', () => {
+  test('an invoked child adds no execution fee when given zero', () => {
+    const result = calculateCostSummary([], { baseExecutionCharge: 0 })
+
+    expect(result.baseExecutionCharge).toBe(0)
+    expect(result.totalCost).toBe(0)
+  })
+
+  test('total equals the span sum exactly with no base charge', () => {
+    const spans = [
+      {
+        id: 's1',
+        name: 'Agent',
+        type: 'agent',
+        duration: 0,
+        startTime: '',
+        endTime: '',
+        model: 'gpt-4o',
+        cost: { input: 0.001, output: 0.002, total: 0.003 },
+        tokens: { input: 10, output: 20, total: 30 },
+      },
+    ] as any
+
+    const result = calculateCostSummary(spans, { baseExecutionCharge: 0 })
+
+    expect(result.baseExecutionCharge).toBe(0)
+    expect(result.totalCost).toBeCloseTo(0.003, 10)
+  })
+
+  test('defaults to the standard base charge when no option is passed', () => {
+    const withDefault = calculateCostSummary([])
+    expect(withDefault.baseExecutionCharge).toBeGreaterThan(0)
+    expect(withDefault.totalCost).toBe(withDefault.baseExecutionCharge)
+  })
+})

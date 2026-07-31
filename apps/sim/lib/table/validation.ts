@@ -7,25 +7,50 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
+import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
+  COLUMN_TYPE_REGISTRY,
   COLUMN_TYPES,
+  columnTypeOf,
+  isColumnType,
+  TYPE_SPECIFIC_COLUMN_KEYS,
+  validateTypeMetadata,
+} from '@/lib/table/column-types'
+import {
   getMaxRowSizeBytes,
-  MAX_SELECT_OPTIONS,
   NAME_PATTERN,
   TABLE_LIMITS,
+  USER_TABLE_ROWS_SQL_NAME,
 } from '@/lib/table/constants'
-import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
+import { resolveSelectOptionId, splitMultiSelectInput } from '@/lib/table/select-options'
+import { fieldPredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
   JsonValue,
   RowData,
-  SelectOption,
   TableSchema,
   ValidationResult,
 } from '@/lib/table/types'
 
 export type { ColumnDefinition, TableSchema, ValidationResult }
+
+/**
+ * Re-exported so existing importers keep working; the implementations moved to
+ * `select-options.ts` to break this module's drizzle dependency for clients.
+ */
+export { resolveSelectOptionId, splitMultiSelectInput }
+
+/**
+ * How each type-specific key is named when it appears on a type that doesn't
+ * own it. `Record<TypeSpecificColumnKey, …>` keeps this exhaustive — a new
+ * key cannot be added without giving it a message.
+ */
+const FOREIGN_METADATA_VERB: Record<TypeSpecificColumnKey, string> = {
+  options: 'define options',
+  multiple: 'be multiple',
+  currencyCode: 'define a currency',
+}
 
 type ValidationSuccess = { valid: true }
 type ValidationFailure = { valid: false; response: NextResponse }
@@ -232,95 +257,11 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
 
     if (value === null || value === undefined) continue
 
-    switch (column.type) {
-      case 'string':
-        if (typeof value !== 'string') {
-          errors.push(`${column.name} must be string, got ${typeof value}`)
-        }
-        break
-      case 'number':
-        if (typeof value !== 'number' || Number.isNaN(value)) {
-          errors.push(`${column.name} must be number`)
-        }
-        break
-      case 'boolean':
-        if (typeof value !== 'boolean') {
-          errors.push(`${column.name} must be boolean`)
-        }
-        break
-      case 'date':
-        if (
-          !(value instanceof Date) &&
-          (typeof value !== 'string' || Number.isNaN(Date.parse(value)))
-        ) {
-          errors.push(`${column.name} must be valid date`)
-        }
-        break
-      case 'json':
-        try {
-          JSON.stringify(value)
-        } catch {
-          errors.push(`${column.name} must be valid JSON`)
-        }
-        break
-      case 'select': {
-        const ids = optionIds(column)
-        if (column.multiple) {
-          if (!Array.isArray(value)) {
-            errors.push(`${column.name} must be a list of options`)
-          } else if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
-            errors.push(`${column.name} must only contain defined options`)
-          } else if (column.required && value.length === 0) {
-            errors.push(`Missing required field: ${column.name}`)
-          }
-        } else if (typeof value !== 'string' || !ids.has(value)) {
-          errors.push(`${column.name} must be one of the defined options`)
-        }
-        break
-      }
-    }
+    const error = columnTypeOf(column).validateCell(value, column)
+    if (error !== null) errors.push(error)
   }
 
   return { valid: errors.length === 0, errors }
-}
-
-/** Set of valid option ids for a `select`/`multiselect` column. */
-function optionIds(column: ColumnDefinition): Set<string> {
-  return new Set((column.options ?? []).map((o) => o.id))
-}
-
-/**
- * Resolves a raw cell value to a declared option id, accepting either the
- * stable id or (tolerant for tool/import writes) the option's display name.
- * Returns null when no option matches. Exported so the column-type-conversion
- * path can gate a `select`/`multiselect` change on whether existing values
- * actually fit the target option set.
- */
-export function resolveSelectOptionId(value: JsonValue, options: SelectOption[]): string | null {
-  if (typeof value !== 'string') return null
-  const byId = options.find((o) => o.id === value)
-  if (byId) return byId.id
-  const byName =
-    options.find((o) => o.name === value) ??
-    options.find((o) => o.name.toLowerCase() === value.toLowerCase())
-  return byName ? byName.id : null
-}
-
-/**
- * Splits a raw value into the parts a multi-select cell should resolve. A cell
- * may arrive as an array (canonical) or as a single comma-delimited string —
- * the shape a multi cell exports, copies, and converts to text as — so both the
- * write-path coercion and the column-conversion compatibility check read it
- * through here rather than each deciding for itself. Option names that
- * themselves contain commas are an accepted ambiguity.
- */
-export function splitMultiSelectInput(value: JsonValue): JsonValue[] {
-  if (Array.isArray(value)) return value
-  if (typeof value !== 'string') return [value]
-  return value
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part !== '')
 }
 
 /**
@@ -329,68 +270,8 @@ export function splitMultiSelectInput(value: JsonValue): JsonValue[] {
  * ambiguity (e.g. the string `"1999"` to the number `1999`), and `ok: false`
  * when no safe conversion exists.
  */
-function coerceValueToColumnType(
-  value: JsonValue,
-  column: ColumnDefinition
-): { ok: true; value: JsonValue } | { ok: false } {
-  switch (column.type) {
-    case 'string':
-      if (typeof value === 'string') return { ok: true, value }
-      if (typeof value === 'number' || typeof value === 'boolean') {
-        return { ok: true, value: String(value) }
-      }
-      return { ok: false }
-    case 'number':
-      if (typeof value === 'number') {
-        return Number.isFinite(value) ? { ok: true, value } : { ok: false }
-      }
-      if (typeof value === 'string' && value.trim() !== '') {
-        const parsed = Number(value)
-        return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false }
-      }
-      return { ok: false }
-    case 'boolean':
-      if (typeof value === 'boolean') return { ok: true, value }
-      if (typeof value === 'string') {
-        const normalized = value.trim().toLowerCase()
-        if (normalized === 'true') return { ok: true, value: true }
-        if (normalized === 'false') return { ok: true, value: false }
-      }
-      return { ok: false }
-    case 'date': {
-      if (typeof value === 'string') {
-        const normalized = normalizeDateCellValue(value)
-        return normalized === null ? { ok: false } : { ok: true, value: normalized }
-      }
-      // Date instances and epoch numbers may still be out of the representable
-      // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
-      // an Invalid Date, so an over-range value degrades to `{ ok: false }`
-      // rather than crashing the write.
-      const date =
-        value instanceof Date ? value : typeof value === 'number' ? new Date(value) : null
-      if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
-      return { ok: false }
-    }
-    case 'select': {
-      const options = column.options ?? []
-      if (column.multiple) {
-        const raw = splitMultiSelectInput(value)
-        const ids: string[] = []
-        for (const entry of raw) {
-          const id = resolveSelectOptionId(entry, options)
-          if (id !== null && !ids.includes(id)) ids.push(id)
-        }
-        return { ok: true, value: ids }
-      }
-      // Single: tolerate an array (e.g. right after a multiple→single toggle) by
-      // resolving its first element so the value isn't dropped wholesale.
-      const single = Array.isArray(value) ? value[0] : value
-      const id = single === undefined ? null : resolveSelectOptionId(single, options)
-      return id !== null ? { ok: true, value: id } : { ok: false }
-    }
-    default:
-      return { ok: true, value }
-  }
+function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): CoerceResult {
+  return columnTypeOf(column).coerce(value, column)
 }
 
 /**
@@ -469,12 +350,8 @@ export function validateUniqueConstraints(
 
     const duplicate = existingRows.find((row) => {
       if (excludeRowId && row.id === excludeRowId) return false
-
-      const existingValue = row.data[key]
-      if (typeof value === 'string' && typeof existingValue === 'string') {
-        return value.toLowerCase() === existingValue.toLowerCase()
-      }
-      return value === existingValue
+      // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
+      return value === row.data[key]
     })
 
     if (duplicate) {
@@ -517,27 +394,13 @@ export async function checkUniqueConstraintsDb(
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
-    if (!NAME_PATTERN.test(key)) {
-      throw new Error(`Invalid column id: ${key}`)
-    }
-
     const value = data[key]
     if (value === null || value === undefined) continue
 
-    if (typeof value === 'string') {
-      conditions.push({
-        column,
-        value,
-        sql: sql`lower(${userTableRows.data}->>${sql.raw(`'${key}'`)}) = ${value.toLowerCase()}`,
-      })
-    } else {
-      // For other types, use direct JSONB comparison
-      conditions.push({
-        column,
-        value,
-        sql: sql`(${userTableRows.data}->${sql.raw(`'${key}'`)})::jsonb = ${JSON.stringify(value)}::jsonb`,
-      })
-    }
+    // Same leaf as the upsert conflict probe → case-sensitive JSONB containment
+    // (GIN-indexed). `eq` always yields a clause for a non-null value.
+    const clause = fieldPredicate(USER_TABLE_ROWS_SQL_NAME, key, 'eq', value, column)
+    if (clause) conditions.push({ column, value, sql: clause })
   }
 
   if (conditions.length === 0) {
@@ -545,9 +408,9 @@ export async function checkUniqueConstraintsDb(
   }
 
   // Query for each unique column separately to provide specific error messages.
-  // Tenant-bounded: `lower(data->>'col') = ...` is unestimatable, so the planner
-  // otherwise seq-scans the whole shared relation per check — 3.5s on every
-  // insert/edit when the value is unique (no early exit). With an external
+  // The predicate is now case-sensitive JSONB containment (`data @> {...}`),
+  // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
+  // bounded) defensively for the small-table / cold-stats case. With an external
   // transaction the flag is set on it directly — opening our own transaction
   // inside the caller's would be the nested pool checkout the migration-
   // hardening work eliminated (self-deadlock under pool exhaustion).
@@ -635,8 +498,7 @@ export async function checkBatchUniqueConstraintsDb(
       const value = rowData[key]
       if (value === null || value === undefined) continue
 
-      const normalizedValue =
-        typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
+      const normalizedValue = JSON.stringify(value)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -672,14 +534,25 @@ export async function checkBatchUniqueConstraintsDb(
 
       const valueArray = Array.from(values)
       const valueConditions = valueArray.map((normalizedValue) => {
-        // Check if the original values are strings (normalized values for strings are lowercase)
-        // We need to determine the type from the column definition or the first row that has this value
-        const isStringColumn = column.type === 'string'
-
-        if (isStringColumn) {
-          return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnId}'`)}) = ${normalizedValue}`
+        // Reconstruct the original typed value from its normalized key. Both
+        // directions go through JSON unconditionally: keying the write on the
+        // value's RUNTIME type while keying the read on the column's DECLARED
+        // type made them disagree for any non-`string` type that stores a
+        // string — a unique `date` column normalized to a bare `2024-01-01`
+        // and then threw `SyntaxError` trying to parse it back.
+        const originalValue: JsonValue = JSON.parse(normalizedValue)
+        // Same case-sensitive containment leaf as every other matcher.
+        const clause = fieldPredicate(
+          USER_TABLE_ROWS_SQL_NAME,
+          columnId,
+          'eq',
+          originalValue,
+          column
+        )
+        if (!clause) {
+          throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
         }
-        return sql`(${userTableRows.data}->${sql.raw(`'${columnId}'`)})::jsonb = ${normalizedValue}::jsonb`
+        return clause
       })
 
       const conflictingRows = await ex
@@ -697,9 +570,7 @@ export async function checkBatchUniqueConstraintsDb(
         const conflictData = conflict.data as RowData
         const conflictValue = conflictData[columnId]
         const normalizedConflictValue =
-          typeof conflictValue === 'string'
-            ? conflictValue.toLowerCase()
-            : JSON.stringify(conflictValue)
+          typeof conflictValue === 'string' ? conflictValue : JSON.stringify(conflictValue)
 
         // Find which batch rows have this conflicting value
         for (let i = 0; i < rows.length; i++) {
@@ -707,7 +578,7 @@ export async function checkBatchUniqueConstraintsDb(
           if (rowValue === null || rowValue === undefined) continue
 
           const normalizedRowValue =
-            typeof rowValue === 'string' ? rowValue.toLowerCase() : JSON.stringify(rowValue)
+            typeof rowValue === 'string' ? rowValue : JSON.stringify(rowValue)
 
           if (normalizedRowValue === normalizedConflictValue) {
             // Check if this row already has errors for this column
@@ -761,67 +632,34 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     )
   }
 
-  if (!COLUMN_TYPES.includes(column.type)) {
+  if (!isColumnType(column.type)) {
     errors.push(
       `Column "${column.name}" has invalid type "${column.type}". Valid types: ${COLUMN_TYPES.join(', ')}`
     )
+    // Every check below reads the type's own rules; without a known type there
+    // are none to apply.
+    return { valid: false, errors }
   }
 
-  if (column.type === 'select') {
-    errors.push(...validateSelectOptions(column))
-    // Uniqueness on a select compares the stored option id, so it caps each
-    // option at one row for the whole table — and the UI hides the toggle, so a
-    // constraint set through the API or an agent could never be cleared.
-    if (column.unique) {
-      errors.push(`Column "${column.name}" of type "select" cannot be unique`)
-    }
-  } else {
-    if (column.options !== undefined) {
-      errors.push(`Column "${column.name}" cannot define options for type "${column.type}"`)
-    }
-    // A stored `multiple` on a non-select column is inert until the column is
-    // converted, at which point `updateColumnType` inherits it — silently
-    // turning an intended single-select into a multiselect and rewriting every
-    // cell as an array.
-    if (column.multiple) {
-      errors.push(`Column "${column.name}" cannot be multiple for type "${column.type}"`)
-    }
+  const definition = COLUMN_TYPE_REGISTRY[column.type]
+  errors.push(...validateTypeMetadata(column))
+
+  // Uniqueness compares the stored value, which is meaningless for a type whose
+  // storage is an opaque id — it would cap each option at one row for the whole
+  // table, and the UI hides the toggle so it could never be cleared again.
+  if (column.unique && !definition.supportsUnique) {
+    errors.push(`Column "${column.name}" of type "${column.type}" cannot be unique`)
+  }
+
+  // Type-specific metadata stored on the wrong type is inert until a later
+  // conversion inherits it — silently overriding what that request asked for.
+  const owned = new Set<string>(definition.ownedMetadata)
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    if (column[key] === undefined || owned.has(key)) continue
+    errors.push(
+      `Column "${column.name}" cannot ${FOREIGN_METADATA_VERB[key]} for type "${column.type}"`
+    )
   }
 
   return { valid: errors.length === 0, errors }
-}
-
-/** Validates the option set declared on a `select` column. */
-function validateSelectOptions(column: ColumnDefinition): string[] {
-  const errors: string[] = []
-  const options = column.options
-  if (!Array.isArray(options) || options.length === 0) {
-    errors.push(`Column "${column.name}" of type "${column.type}" must define at least one option`)
-    return errors
-  }
-  if (options.length > MAX_SELECT_OPTIONS) {
-    errors.push(`Column "${column.name}" cannot have more than ${MAX_SELECT_OPTIONS} options`)
-  }
-  const ids = new Set<string>()
-  const names = new Set<string>()
-  for (const opt of options) {
-    if (!opt.id || typeof opt.id !== 'string') {
-      errors.push(`Column "${column.name}" has an option missing an id`)
-    } else if (ids.has(opt.id)) {
-      errors.push(`Column "${column.name}" has duplicate option id "${opt.id}"`)
-    } else {
-      ids.add(opt.id)
-    }
-    if (!opt.name || typeof opt.name !== 'string') {
-      errors.push(`Column "${column.name}" has an option missing a name`)
-    } else {
-      const key = opt.name.toLowerCase()
-      if (names.has(key)) {
-        errors.push(`Column "${column.name}" has duplicate option name "${opt.name}"`)
-      } else {
-        names.add(key)
-      }
-    }
-  }
-  return errors
 }
