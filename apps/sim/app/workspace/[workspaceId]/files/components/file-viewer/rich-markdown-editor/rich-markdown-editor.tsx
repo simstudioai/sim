@@ -921,13 +921,20 @@ export function LoadedRichMarkdownEditor({
         const finalBody = splitFrontmatter(content).body
         const session = agentStreamSessionRef.current
         agentStreamSessionRef.current = null
-        runOffRender(() => {
-          if (session && finalBody !== lastSyncedBodyRef.current) {
-            if (applyAgentStreamFrame(editor, session, finalBody))
+        if (session) {
+          runOffRender(() => {
+            if (
+              finalBody !== lastSyncedBodyRef.current &&
+              applyAgentStreamFrame(editor, session, finalBody)
+            ) {
               lastSyncedBodyRef.current = finalBody
-          }
-          if (session) endAgentStream(session)
-        })
+            }
+          })
+          // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
+          // can supersede the run token and drop the apply above, but the shadow must always be
+          // destroyed. Queued after the apply, so it frees the shadow only once that has had its chance.
+          queueMicrotask(() => endAgentStream(session))
+        }
       }
       return
     }
