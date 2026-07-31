@@ -96,6 +96,21 @@ export interface PerformFullDeployParams {
   actorId?: string
 }
 
+/**
+ * Resolves a mutation-lock denial to a message instead of throwing, so the entry
+ * points below return their `{ success: false }` result shape rather than
+ * surfacing a 500 to callers that expect one — matching `performRevertToVersion`.
+ */
+async function workflowLockDenial(workflowId: string): Promise<string | null> {
+  try {
+    await assertWorkflowMutable(workflowId)
+    return null
+  } catch (error) {
+    if (error instanceof WorkflowLockedError) return error.message
+    throw error
+  }
+}
+
 export interface PerformFullDeployResult {
   success: boolean
   deployedAt?: Date
@@ -121,7 +136,8 @@ export async function performFullDeploy(
 
   // Backstop for every caller — routes may assert first to render their own 423,
   // but the copilot deploy tools call this directly.
-  await assertWorkflowMutable(workflowId)
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'validation' }
 
   const [workflowRecord] = await db
     .select()
@@ -462,7 +478,8 @@ export async function performFullUndeploy(
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
-  await assertWorkflowMutable(workflowId)
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial }
 
   const [workflowRecord] = await db
     .select()
@@ -574,7 +591,8 @@ export async function performActivateVersion(
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
-  await assertWorkflowMutable(workflowId)
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'validation' }
 
   const [versionRow] = await db
     .select({

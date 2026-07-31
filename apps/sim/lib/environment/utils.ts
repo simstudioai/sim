@@ -375,7 +375,7 @@ export async function upsertWorkspaceEnvVars(
 
   // Read-modify-write on a single jsonb column, so serialize against the
   // route's identically-locked transaction or concurrent writers lose keys.
-  await db.transaction(async (tx) => {
+  const existingEncrypted = await db.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
     )
@@ -386,10 +386,8 @@ export async function upsertWorkspaceEnvVars(
       .from(workspaceEnvironment)
       .where(eq(workspaceEnvironment.workspaceId, workspaceId))
       .limit(1)
-    const merged = {
-      ...((existingRow?.variables as Record<string, string>) || {}),
-      ...newlyEncrypted,
-    }
+    const existing = (existingRow?.variables as Record<string, string>) || {}
+    const merged = { ...existing, ...newlyEncrypted }
 
     await tx
       .insert(workspaceEnvironment)
@@ -404,10 +402,15 @@ export async function upsertWorkspaceEnvVars(
         target: [workspaceEnvironment.workspaceId],
         set: { variables: merged, updatedAt: new Date() },
       })
+
+    return existing
   })
 
   invalidateEffectiveDecryptedEnvCache({ workspaceId })
-  const newKeys = updatedKeys.filter((key) => !knownKeys.has(key))
+  // Derived from the stored variables, not from the credential rows: a legacy
+  // secret present in the jsonb map without a credential row is NOT new, and
+  // minting an ACL for it would make the caller its secret-admin.
+  const newKeys = updatedKeys.filter((key) => !(key in existingEncrypted))
   await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
 
   recordAudit({

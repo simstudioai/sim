@@ -9,12 +9,18 @@ const {
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
   mockRecordAudit,
+  mockTx,
 } = vi.hoisted(() => ({
   mockCreateWorkspaceEnvCredentials: vi.fn(),
   mockEncryptSecret: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
+  mockTx: {
+    execute: vi.fn(),
+    select: vi.fn(),
+    insert: vi.fn(),
+  },
 }))
 
 // vitest.setup.ts mocks this module globally; this suite tests the real one.
@@ -34,6 +40,11 @@ vi.mock('@/lib/credentials/environment', () => ({
   getAccessibleEnvCredentials: vi.fn(),
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser: vi.fn(),
+}))
+vi.mock('@sim/db', () => ({
+  db: {
+    transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(mockTx)),
+  },
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: vi.fn(),
@@ -80,12 +91,23 @@ describe('upsertWorkspaceEnvVars', () => {
     expect(mockEncryptSecret).not.toHaveBeenCalled()
   })
 
+  function stubStoredVariables(variables: Record<string, string>) {
+    mockTx.execute.mockResolvedValue(undefined)
+    mockTx.select.mockReturnValue({
+      from: () => ({ where: () => ({ limit: async () => [{ variables }] }) }),
+    })
+    mockTx.insert.mockReturnValue({
+      values: () => ({ onConflictDoUpdate: async () => undefined }),
+    })
+  }
+
   it('allows a key admin to rotate the key they administer', async () => {
     mockGetUserEntityPermissions.mockResolvedValue('write')
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set(['STRIPE_KEY']),
       knownKeys: new Set(['STRIPE_KEY']),
     })
+    stubStoredVariables({ STRIPE_KEY: 'old-cipher' })
 
     await expect(
       upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1')
@@ -103,6 +125,7 @@ describe('upsertWorkspaceEnvVars', () => {
       adminKeys: new Set<string>(),
       knownKeys: new Set(['STRIPE_KEY']),
     })
+    stubStoredVariables({ STRIPE_KEY: 'old-cipher' })
 
     await expect(
       upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1')
@@ -114,5 +137,38 @@ describe('upsertWorkspaceEnvVars', () => {
 
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('does not mint a credential for a legacy secret already in the stored map', async () => {
+    // A secret written before credential rows existed has no ACL. Treating it as
+    // new would create one and make the caller its secret-admin — the route
+    // derives newKeys from the stored variables for exactly this reason.
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set<string>(),
+    })
+    stubStoredVariables({ LEGACY_KEY: 'old-cipher' })
+
+    await upsertWorkspaceEnvVars('ws-1', { LEGACY_KEY: 'rotated' }, 'user-1')
+
+    expect(mockCreateWorkspaceEnvCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ newKeys: [] })
+    )
+  })
+
+  it('mints a credential for a genuinely new key', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('write')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set<string>(),
+    })
+    stubStoredVariables({})
+
+    await upsertWorkspaceEnvVars('ws-1', { BRAND_NEW: 'value' }, 'user-1')
+
+    expect(mockCreateWorkspaceEnvCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ newKeys: ['BRAND_NEW'] })
+    )
   })
 })
