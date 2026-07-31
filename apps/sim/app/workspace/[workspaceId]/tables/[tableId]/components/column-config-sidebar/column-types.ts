@@ -1,14 +1,7 @@
 import type React from 'react'
-import {
-  Calendar as CalendarIcon,
-  PlayOutline,
-  TagIcon,
-  TypeBoolean,
-  TypeJson,
-  TypeNumber,
-  TypeText,
-} from '@sim/emcn/icons'
+import { PlayOutline } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
+import { ALL_COLUMN_TYPES } from '@/lib/table/column-types'
 
 /**
  * UI-only column type. `'workflow'` is the virtual entry users pick from the
@@ -23,13 +16,17 @@ export interface ColumnTypeOption {
   icon: React.ComponentType<{ className?: string }>
 }
 
+/**
+ * Real column types come from the registry — adding one there makes it appear
+ * in every picker automatically. `workflow` is appended because it is a UI
+ * affordance, not a storable type.
+ */
 export const COLUMN_TYPE_OPTIONS: ColumnTypeOption[] = [
-  { type: 'string', label: 'Text', icon: TypeText },
-  { type: 'number', label: 'Number', icon: TypeNumber },
-  { type: 'boolean', label: 'Boolean', icon: TypeBoolean },
-  { type: 'date', label: 'Date', icon: CalendarIcon },
-  { type: 'json', label: 'JSON', icon: TypeJson },
-  { type: 'select', label: 'Select', icon: TagIcon },
+  ...ALL_COLUMN_TYPES.map((definition) => ({
+    type: definition.id,
+    label: definition.label,
+    icon: definition.icon,
+  })),
   { type: 'workflow', label: 'Workflow', icon: PlayOutline },
 ]
 

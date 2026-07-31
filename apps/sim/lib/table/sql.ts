@@ -9,6 +9,12 @@ import { isRecordLike } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
+import {
+  columnTypeById,
+  filterOperatorsFor,
+  MULTI_SELECT_OPERATORS,
+  SINGLE_SELECT_OPERATORS,
+} from '@/lib/table/column-types'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
@@ -23,20 +29,16 @@ import type {
   TablePredicate,
 } from '@/lib/table/types'
 
+/**
+ * Re-exported: the `$`-prefixed wire whitelists now live with the `select` type
+ * definition, but this module is where callers and tests already look for them.
+ */
+export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
+
 type ColumnType = ColumnDefinition['type']
 type ColumnMap = ReadonlyMap<string, ColumnDefinition>
 
 /**
- * Operators that make sense on a `select` column (whose values are opaque option
- * ids), split by cardinality. A single-select cell holds one id, so it compares
- * for equality; a multi-select cell holds an array of ids, so the question is
- * membership — hence contains / does-not-contain. `$eq` against an array cell
- * can never be true (`{"t":["a"]} @> {"t":"a"}` is false in Postgres), so
- * allowing it would silently match nothing.
- */
-export const SINGLE_SELECT_OPERATORS = new Set(['$eq', '$ne', '$in', '$nin', '$empty'])
-export const MULTI_SELECT_OPERATORS = new Set(['$contains', '$ncontains', '$empty'])
-
 /**
  * The same allowlists in the v2 bare-operator grammar, applied inside
  * `fieldPredicate` so both wire formats gate identically. Not derived from the
@@ -71,14 +73,7 @@ const MULTI_SELECT_OPS = new Set<FilterOp>([
  * paths from drifting apart.
  */
 function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestamptz' | null {
-  switch (type) {
-    case 'number':
-      return 'numeric'
-    case 'date':
-      return 'timestamptz'
-    default:
-      return null
-  }
+  return columnTypeById(type).jsonbCast
 }
 
 /**
@@ -405,6 +400,9 @@ function buildFieldCondition(
   const columnType = column?.type
   const isSelect = columnType === 'select'
   const isMultiSelect = isSelect && column?.multiple === true
+  // Types whose stored value is opaque (a select's option ids) restrict which
+  // operators mean anything; `null` means the type accepts them all.
+  const allowedOperators = column ? filterOperatorsFor(column) : null
   const conditions: SQL[] = []
 
   if (isRecordLike(condition)) {
@@ -412,14 +410,10 @@ function buildFieldCondition(
       // Validate against the legacy `$`-whitelist, then normalize onto the shared
       // `FilterOp` so v1 and v2 emit byte-identical leaf SQL.
       validateOperator(op)
-      // Select values are opaque option ids — range/pattern operators are meaningless.
-      if (isSelect) {
-        const allowed = isMultiSelect ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
-        if (!allowed.has(op)) {
-          throw new TableQueryValidationError(
-            `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
-          )
-        }
+      if (allowedOperators && !allowedOperators.has(op)) {
+        throw new TableQueryValidationError(
+          `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : columnType} column "${field}". Allowed: ${Array.from(allowedOperators).join(', ')}`
+        )
       }
 
       if (op === '$empty') {

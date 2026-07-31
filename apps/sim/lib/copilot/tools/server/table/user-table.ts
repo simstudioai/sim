@@ -29,12 +29,14 @@ import {
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId, sortSpecNamesToIds } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   addTableColumn,
   deleteColumn,
   deleteColumns,
   renameColumn,
 } from '@/lib/table/columns/service'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
@@ -1509,6 +1511,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 position?: number
                 options?: unknown
                 multiple?: boolean
+                currencyCode?: string
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1523,6 +1526,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          if (col.currencyCode !== undefined && !isSupportedCurrencyCode(col.currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${col.currencyCode}". Use an ISO 4217 code, e.g. USD`,
+            }
+          }
           // Agent authors select options by name; generate their stable ids here.
           const columnToAdd =
             col.type === 'select'
@@ -1622,15 +1631,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
           const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
+          const currencyCode = (args as Record<string, unknown>).currencyCode as string | undefined
           if (
             newType === undefined &&
             uniqFlag === undefined &&
             rawOptions === undefined &&
-            multiple === undefined
+            multiple === undefined &&
+            currencyCode === undefined
           ) {
             return {
               success: false,
-              message: 'At least one of newType, unique, options, or multiple must be provided',
+              message:
+                'At least one of newType, unique, options, multiple, or currencyCode must be provided',
+            }
+          }
+          if (currencyCode !== undefined && !isSupportedCurrencyCode(currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${currencyCode}". Use an ISO 4217 code, e.g. USD`,
             }
           }
           if (newType !== undefined && !(COLUMN_TYPES as readonly string[]).includes(newType)) {
@@ -1653,6 +1671,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               ...(rawOptions !== undefined ? { options: rawOptions } : {}),
               ...(multiple !== undefined ? { multiple } : {}),
+              ...(currencyCode !== undefined ? { currencyCode } : {}),
             },
           })
           if (!outcome.success) {

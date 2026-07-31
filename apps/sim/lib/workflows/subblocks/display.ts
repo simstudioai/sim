@@ -544,3 +544,26 @@ export function resolveSkillsLabel(
 
   return summarizeNames(names)
 }
+
+/**
+ * Resolves the Function block's stored sandbox id to the sandbox name.
+ *
+ * Unlike its siblings there is no dedicated subblock type to match on: the picker
+ * is a plain `combobox` whose options load asynchronously, so its static
+ * `options` array is empty and {@link resolveDropdownLabel} finds nothing —
+ * leaving the block card printing a raw UUID. Matching the field id is what
+ * narrows this to the one picker that needs it.
+ *
+ * An id with no matching sandbox returns `null` rather than a guess, so a deleted
+ * sandbox falls through to the caller's own placeholder.
+ */
+export function resolveSandboxLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown,
+  sandboxes: Array<{ id: string; name: string }>
+): string | null {
+  if (subBlock?.id !== 'sandboxId' || subBlock.type !== 'combobox') return null
+  if (typeof rawValue !== 'string' || !rawValue) return null
+
+  return sandboxes.find((sandbox) => sandbox.id === rawValue)?.name ?? null
+}

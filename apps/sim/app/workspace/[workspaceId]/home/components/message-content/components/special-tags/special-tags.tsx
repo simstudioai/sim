@@ -10,6 +10,7 @@ import {
   ExpandableContent,
   SecretInput,
   SecretReveal,
+  SquareArrowUpRight,
   Tooltip,
   toast,
 } from '@sim/emcn'
@@ -17,9 +18,11 @@ import { Cursor, TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
@@ -1846,9 +1849,16 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { getSettingsHref } = useSettingsNavigation()
-  const settingsPath = getSettingsHref({ section: 'billing' })
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
-  const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
+
+  // Self-hosted plan and limit both live on the hosted account, so local
+  // workspace billing roles say nothing about who may change them.
+  const href = isHosted
+    ? getSettingsHref({ section: 'billing' })
+    : data.action === 'upgrade_plan'
+      ? buildHostedUpgradeUrl()
+      : HOSTED_BILLING_SETTINGS_URL
+  const canManageBilling = !isHosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
   const unavailableMessage = hostContext.hostOrganizationId
     ? 'Contact an organization admin to manage this workspace’s usage limits.'
     : 'Only the workspace owner can manage this workspace’s usage limits.'
@@ -1880,11 +1890,14 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       </p>
       {canManageBilling ? (
         <a
-          href={settingsPath}
+          href={href}
+          target={isHosted ? undefined : '_blank'}
+          rel={isHosted ? undefined : 'noopener noreferrer'}
+          aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
           className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
-          <ArrowRight className='size-3' />
+          {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
         <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>

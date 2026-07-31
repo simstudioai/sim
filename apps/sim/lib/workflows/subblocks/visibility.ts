@@ -519,11 +519,36 @@ export function resolveDependencyValue(
 }
 
 /**
+ * Whether a subblock only applies when the block is used as an agent tool.
+ *
+ * `paramVisibility` filters what appears *inside* tool-input but cannot hide a
+ * subblock from the canvas, so this is a separate axis rather than another
+ * visibility level.
+ */
+export function isToolInputOnlySubBlock(subBlock: Pick<SubBlockConfig, 'context'>): boolean {
+  return subBlock.context === 'tool-input'
+}
+
+/**
+ * Whether any env var named by an env-gate spec is truthy.
+ *
+ * A gate may name several vars, comma-separated, meaning "any of these" — that
+ * is what lets a renamed flag ship without every existing deployment losing the
+ * field until it sets the new var. Shared by both gates so the two cannot
+ * interpret their value differently.
+ */
+function anyEnvSet(spec: string): boolean {
+  return spec.split(',').some((name) => isTruthy(getEnv(name.trim())))
+}
+
+/**
  * Check if a subblock is gated by a feature flag.
  */
-export function isSubBlockFeatureEnabled(subBlock: SubBlockConfig): boolean {
+export function isSubBlockFeatureEnabled(
+  subBlock: Pick<SubBlockConfig, 'showWhenEnvSet'>
+): boolean {
   if (!subBlock.showWhenEnvSet) return true
-  return isTruthy(getEnv(subBlock.showWhenEnvSet))
+  return anyEnvSet(subBlock.showWhenEnvSet)
 }
 
 /**
@@ -539,6 +564,6 @@ export function isSubBlockHidden(
 ): boolean {
   const hosted = options?.hosted ?? isHosted
   if (subBlock.hideWhenHosted && hosted) return true
-  if (subBlock.hideWhenEnvSet && isTruthy(getEnv(subBlock.hideWhenEnvSet))) return true
+  if (subBlock.hideWhenEnvSet && anyEnvSet(subBlock.hideWhenEnvSet)) return true
   return false
 }

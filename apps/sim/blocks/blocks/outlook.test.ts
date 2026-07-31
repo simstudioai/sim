@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest'
 import { tools as toolRegistry } from '@/tools/registry'
 import { OutlookBlock } from './outlook'
 
+/**
+ * Uses the real tool registry: these assertions are about tool registration and
+ * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
+ */
+vi.unmock('@/tools/registry')
+
 const block = OutlookBlock
 
 /** Every calendar operation exposed by the block's operation dropdown. */

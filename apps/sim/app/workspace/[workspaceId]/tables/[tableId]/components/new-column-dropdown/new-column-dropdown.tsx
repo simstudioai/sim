@@ -86,7 +86,11 @@ export function NewColumnDropdown({
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+      {/* Taller than the 240px shared default: the full type list is 9 items
+          (295px with its separator and padding), so the default cut the last
+          two off behind a scrollbar. Sized here rather than in the shared
+          component, which every other dropdown in the app relies on. */}
+      <DropdownMenuContent align='start' side='bottom' sideOffset={4} className='max-h-[320px]'>
         <>
           <DropdownMenuItem onSelect={onPickEnrichment}>
             <Sparkles className='size-[14px] text-[var(--text-icon)]' />

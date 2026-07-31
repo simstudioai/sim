@@ -84,7 +84,7 @@ export interface ServiceAccountIntegrationMatch {
  * both arbitrary and a poor landing page. A caller that names a specific
  * integration still gets that integration.
  */
-const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> = {
+export const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> = {
   'google-service-account': 'google-drive',
   google: 'google-drive',
   'atlassian-service-account': 'jira',

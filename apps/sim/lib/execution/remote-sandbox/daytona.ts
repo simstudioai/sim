@@ -20,7 +20,13 @@ function toSeconds(timeoutMs: number): number {
   return Math.max(1, Math.ceil(timeoutMs / 1000))
 }
 
-function snapshotFor(kind: SandboxKind): string {
+function snapshotFor(kind: SandboxKind, imageRef?: string): string {
+  // An operator-supplied snapshot may only displace the general shell image.
+  // `doc` and `pi` keep their vetted snapshots unconditionally, so nothing a
+  // workspace configures can land under the doc compiler or the coding agent.
+  if (imageRef && (kind === 'code' || kind === 'shell')) {
+    return imageRef
+  }
   // Mirrors the E2B provider's fail-closed behaviour: never let LLM-authored code
   // run in a provider default image just because a snapshot id is unset.
   const snapshot =
@@ -56,7 +62,10 @@ class DaytonaSandboxHandle implements SandboxHandle {
     return this.sandbox.id
   }
 
-  async runCode(code: string, options: { timeoutMs: number }): Promise<SandboxCodeResult> {
+  async runCode(
+    code: string,
+    options: { timeoutMs: number; envs?: Record<string, string> }
+  ): Promise<SandboxCodeResult> {
     // Python goes through CodeInterpreter because it reports a structured
     // `{ name, value, traceback }` error — the same shape E2B returns, which the
     // route's line-offset error formatting depends on. CodeInterpreter is
@@ -65,6 +74,7 @@ class DaytonaSandboxHandle implements SandboxHandle {
     if (this.language === CodeLanguage.Python) {
       const result = await this.sandbox.codeInterpreter.runCode(code, {
         timeout: toSeconds(options.timeoutMs),
+        ...(options.envs ? { envs: options.envs } : {}),
       })
       return {
         text: '',
@@ -80,7 +90,11 @@ class DaytonaSandboxHandle implements SandboxHandle {
       }
     }
 
-    const result = await this.sandbox.process.codeRun(code, undefined, toSeconds(options.timeoutMs))
+    const result = await this.sandbox.process.codeRun(
+      code,
+      options.envs ? { env: options.envs } : undefined,
+      toSeconds(options.timeoutMs)
+    )
     const output: string = result.result ?? ''
     if (result.exitCode !== 0) {
       // `process.codeRun` has no structured error channel — the interpreter's
@@ -242,14 +256,24 @@ function lastNonEmptyLine(output: string): string {
   return lines.length > 0 ? lines[lines.length - 1] : 'Execution failed'
 }
 
+/**
+ * Daytona takes the `runtime` strategy and exposes no image builder.
+ *
+ * Prebuilt images are not available at any tier: the 30-active-snapshot quota
+ * lives on the organization rather than the plan, snapshots auto-deactivate
+ * after 14 days unused, and raising the quota needs Daytona support. Since
+ * builds are content-addressed and shared, 30 would be the ceiling for all of
+ * Sim rather than per workspace. Installing per execution consumes no quota.
+ */
 export const daytonaProvider: SandboxProvider = {
   id: 'daytona',
+  dependencyStrategy: 'runtime',
   async create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle> {
     const apiKey = env.DAYTONA_API_KEY
     if (!apiKey) {
       throw new Error('DAYTONA_API_KEY is required when the Daytona sandbox provider is selected')
     }
-    const snapshot = snapshotFor(kind)
+    const snapshot = snapshotFor(kind, options?.imageRef)
     const language = options?.language ?? CodeLanguage.Python
     logger.info('Creating Daytona sandbox', { kind, snapshot })
 

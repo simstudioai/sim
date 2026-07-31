@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Sim API v2 — Knowledge Bases",
-    "description": "The v2 Knowledge Bases API lets you create and manage knowledge bases, upload and inspect documents, and run vector and tag search over your indexed content.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** — Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque — do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` ⇄ `NOT_FOUND`).\n- **Rate limiting** — Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.",
+    "title": "Sim API v2 \u2014 Knowledge Bases",
+    "description": "The v2 Knowledge Bases API lets you create and manage knowledge bases, upload and inspect documents, and run vector and tag search over your indexed content.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** \u2014 Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque \u2014 do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` \u21c4 `NOT_FOUND`).\n- **Rate limiting** \u2014 Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -631,7 +631,7 @@
       "post": {
         "operationId": "uploadKnowledgeDocument",
         "summary": "Upload Document",
-        "description": "Upload a single document to a knowledge base as `multipart/form-data`. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the file body is buffered. The maximum file size is 100 MB. Processing is asynchronous: the document is returned with `processingStatus: \"pending\"` and indexing continues in the background — poll the Get Document endpoint to observe progress.",
+        "description": "Upload a single document to a knowledge base as `multipart/form-data`. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the file body is buffered. The maximum file size is 100 MB. Processing is asynchronous: the document is returned with `processingStatus: \"pending\"` and indexing continues in the background \u2014 poll the Get Document endpoint to observe progress.",
         "tags": ["Knowledge Bases"],
         "x-codeSamples": [
           {
@@ -1521,6 +1521,12 @@
             "items": {
               "$ref": "#/components/schemas/SearchTagFilter"
             }
+          },
+          "searchMode": {
+            "type": "string",
+            "enum": ["vector", "hybrid"],
+            "default": "vector",
+            "description": "Retrieval strategy. `vector` is semantic-only; `hybrid` additionally runs a full-text leg and fuses the two by reciprocal rank, which recovers exact tokens (error codes, ticket keys, identifiers) that embeddings rank poorly."
           }
         }
       },
@@ -1573,7 +1579,7 @@
           },
           "similarity": {
             "type": "number",
-            "description": "Similarity score in the range 0–1 for vector search (higher is more similar). 1 for tag-only matches.",
+            "description": "Similarity score in the range 0\u20131 for vector search (higher is more similar). 1 for tag-only matches.",
             "example": 0.8423
           }
         }

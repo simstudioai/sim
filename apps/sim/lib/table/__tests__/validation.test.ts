@@ -131,6 +131,38 @@ describe('Validation', () => {
     })
   })
 
+  describe('validateColumnDefinition — currency', () => {
+    const base: ColumnDefinition = { name: 'price', type: 'currency' }
+
+    it('accepts a currency column with no code (it defaults on write)', () => {
+      expect(validateColumnDefinition(base).valid).toBe(true)
+    })
+
+    it('accepts a supported ISO 4217 code', () => {
+      expect(validateColumnDefinition({ ...base, currencyCode: 'JPY' }).valid).toBe(true)
+    })
+
+    it('rejects a code no runtime can format', () => {
+      const result = validateColumnDefinition({ ...base, currencyCode: 'ZZZ' })
+      expect(result.valid).toBe(false)
+      expect(result.errors.join(' ')).toContain('invalid currency code')
+    })
+
+    it('rejects a currency code stashed on a non-currency column', () => {
+      const result = validateColumnDefinition({
+        name: 'price',
+        type: 'number',
+        currencyCode: 'USD',
+      })
+      expect(result.valid).toBe(false)
+      expect(result.errors.join(' ')).toContain('cannot define a currency')
+    })
+
+    it('allows a unique constraint, unlike select', () => {
+      expect(validateColumnDefinition({ ...base, unique: true }).valid).toBe(true)
+    })
+  })
+
   describe('validateTableSchema', () => {
     it('should accept valid schema', () => {
       const schema: TableSchema = {
@@ -468,6 +500,40 @@ describe('Validation', () => {
         const patch: Record<string, unknown> = { tags: ['Alpha', 'opt_a', 'Beta'] }
         coerceRowValues(patch as never, selectSchema)
         expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+    })
+
+    describe('currency coercion', () => {
+      const currencySchema: TableSchema = {
+        columns: [
+          { id: 'price', name: 'price', type: 'currency', currencyCode: 'USD' },
+          { id: 'cost', name: 'cost', type: 'currency', currencyCode: 'EUR', required: true },
+        ],
+      }
+
+      it('parses a formatted amount down to a bare number', () => {
+        const patch: Record<string, unknown> = { price: '$1,234.56' }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.price).toBe(1234.56)
+      })
+
+      it('leaves an already-numeric cell untouched', () => {
+        const patch: Record<string, unknown> = { price: 42 }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.price).toBe(42)
+      })
+
+      it('nulls an unreadable amount on an optional column', () => {
+        const patch: Record<string, unknown> = { price: 'ask sales' }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.price).toBeNull()
+      })
+
+      it('leaves an unreadable amount in place on a required column so validation reports it', () => {
+        const patch: Record<string, unknown> = { cost: 'ask sales' }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.cost).toBe('ask sales')
+        expect(validateRowAgainstSchema(patch as never, currencySchema).valid).toBe(false)
       })
     })
   })

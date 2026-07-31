@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
@@ -890,6 +891,37 @@ function resetWorkerIdleTimeout(workerId: number) {
   }
 }
 
+/**
+ * Environment for the sandbox worker process. The worker runs untrusted user
+ * code, so it must never inherit the app's `process.env` (DB URLs, encryption
+ * keys, provider API keys — see `.claude/rules/sim-sandbox.md`): a V8 isolate
+ * escape would read every inherited secret from the worker's environment.
+ * Only an explicit allowlist is forwarded — `PATH` so `spawn('node', ...)` can
+ * resolve the binary, `NODE_ENV`, the two `IVM_*` limits the worker reads,
+ * timezone/locale vars so `Date`/`Intl` behavior inside isolates matches the
+ * host, and the Windows system vars Node needs to boot (undefined elsewhere
+ * and stripped).
+ * Any new env var the worker reads must be added here and to the allowlist
+ * regression test in `isolated-vm.test.ts`.
+ */
+function buildWorkerEnv(): NodeJS.ProcessEnv {
+  const allowed: Record<string, string | undefined> = {
+    PATH: process.env.PATH,
+    IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
+    TZ: process.env.TZ,
+    LANG: process.env.LANG,
+    LC_ALL: process.env.LC_ALL,
+    SYSTEMROOT: process.env.SYSTEMROOT,
+    WINDIR: process.env.WINDIR,
+    COMSPEC: process.env.COMSPEC,
+    PATHEXT: process.env.PATHEXT,
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+  }
+  return { ...filterUndefined(allowed), NODE_ENV: process.env.NODE_ENV }
+}
+
 function spawnWorker(): Promise<WorkerInfo> {
   const workerId = nextWorkerId++
   spawnInProgress++
@@ -955,6 +987,7 @@ function spawnWorker(): Promise<WorkerInfo> {
         const proc = spawn('node', ['--no-node-snapshot', workerPath], {
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           serialization: 'json',
+          env: buildWorkerEnv(),
         })
         childProcess = proc
 
