@@ -390,15 +390,6 @@ export function LoadedRichMarkdownEditor({
   streamOperationRef.current = streamOperation
   /** The live agent-stream shadow replica, held for the current stream and freed on settle/unmount. */
   const agentStreamSessionRef = useRef<AgentStreamSession | null>(null)
-  /**
-   * True once THIS client has applied at least one mid-stream frame for the current stream — i.e. it was
-   * the elected leader whose shadow is up to date. Gates the settle apply LOCALLY (not on a settle-time
-   * re-election, which is racy: a straggler that settles after the leader clears its announcement would
-   * self-elect and re-insert the whole doc via its base-seeded shadow). A client that never applied
-   * (non-leader, a held `update`, or a pre-seed stream) converges to the final state via Yjs + the
-   * durable write instead. Reset on settle.
-   */
-  const didApplyStreamRef = useRef(false)
   /** True once this client has announced candidacy in the agent-stream election for the current stream. */
   const agentAnnouncedRef = useRef(false)
   const router = useRouter()
@@ -894,7 +885,6 @@ export function LoadedRichMarkdownEditor({
         // from the CURRENT doc, already carrying the prior leader's ops, never a stale base.
         if (!agentAnnouncedRef.current) {
           agentAnnouncedRef.current = true
-          didApplyStreamRef.current = false
           if (collaboration) announceAgentApplying(collaboration.awareness)
         }
         const body = splitFrontmatter(content).body
@@ -949,7 +939,6 @@ export function LoadedRichMarkdownEditor({
             streamRafRef.current = null
             return
           }
-          didApplyStreamRef.current = true
           streamRafRef.current = null
           lastStreamedBodyRef.current = pending
           lastStreamParseAtRef.current = performance.now()
@@ -962,26 +951,23 @@ export function LoadedRichMarkdownEditor({
         cancelAnimationFrame(streamRafRef.current)
         streamRafRef.current = null
       }
-      // Settle: only a client that actually applied mid-stream (the elected leader, `didApplyStreamRef`)
-      // applies the FINAL body — its shadow is up to date, so this just catches a throttled last frame, so
-      // the Y.Doc exactly equals the streamed result. A client that never applied (a non-leader, a held
-      // `update`, or a pre-seed stream) has no shadow and skips — it converges via Yjs + the durable write.
-      // This is a LOCAL decision (no settle-time re-election), so a straggler can't self-elect after the
-      // leader clears its announcement.
+      // Settle: apply the FINAL body so the Y.Doc exactly equals the streamed result. The mid-stream
+      // leader REUSES its up-to-date shadow (just catching a throttled last frame); a client that never
+      // applied mid-stream (a non-leader, a held `update`, or a pre-seed stream) opens a FRESH shadow
+      // seeded from the CURRENT doc. Reconciling current→final is idempotent — a client that settles after
+      // another already wrote the final reconciles to a noop — so there is NO settle-time election and no
+      // base-shadow duplication, and a lone client (incl. an `update`) still applies rather than waiting on
+      // the durable merge. That durable `edit_content` write then lands as a noop diff too.
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
-        const didApply = didApplyStreamRef.current
-        didApplyStreamRef.current = false
         agentAnnouncedRef.current = false
         if (collaboration) clearAgentApplying(collaboration.awareness)
         lastStreamedBodyRef.current = null
-        const session = agentStreamSessionRef.current
+        const finalBody = splitFrontmatter(content).body
+        const session = agentStreamSessionRef.current ?? beginAgentStream(editor)
         agentStreamSessionRef.current = null
         if (session) {
-          if (didApply) {
-            const finalBody = splitFrontmatter(content).body
-            runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
-          }
+          runOffRender(() => applyAgentStreamFrame(editor, session, finalBody))
           // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
           // can supersede the run token and drop the apply above, but the shadow must always be
           // destroyed. Queued after the apply, so it frees the shadow only once that has had its chance.
@@ -1095,7 +1081,6 @@ export function LoadedRichMarkdownEditor({
         agentStreamSessionRef.current = null
       }
       lastStreamedBodyRef.current = null
-      didApplyStreamRef.current = false
       agentAnnouncedRef.current = false
     },
     []
