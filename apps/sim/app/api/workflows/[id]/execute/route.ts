@@ -730,6 +730,24 @@ async function handleExecutePost(
       )
     }
 
+    /**
+     * External callers may not override the trigger type: `manual`/`chat` turn
+     * rate limiting off entirely (`preprocessExecution` defaults `checkRateLimit`
+     * from the trigger type), so a caller-supplied value is a quota bypass.
+     * `'api'` (the value they would get anyway) stays accepted for compatibility
+     * with callers that send it redundantly.
+     */
+    if (
+      (auth.authType === AuthType.API_KEY || isPublicApiAccess) &&
+      body.triggerType !== undefined &&
+      body.triggerType !== 'api'
+    ) {
+      return NextResponse.json(
+        { error: 'External callers cannot override triggerType' },
+        { status: 400 }
+      )
+    }
+
     if (auth.authType === 'api_key') {
       if (isClientSession) {
         return NextResponse.json(
