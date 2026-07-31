@@ -6,8 +6,11 @@
  * resizing, cell paragraph reset) stay in rich-markdown-editor.css.
  */
 
+/* `overflow-wrap` matches what `.rich-markdown-prose` sets on its own root: cells hold arbitrary
+   file data, so an unbreakable token (a URL, a hash) must break rather than overflow its cell. */
 .document-table {
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .rich-markdown-prose table,

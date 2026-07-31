@@ -52,8 +52,8 @@ afterEach(() => {
   containers = []
 })
 
-/** Mounts a one-cell table inside `rootClass` and returns its `th` and `td`. */
-function mountTable(rootClass: string): { th: HTMLElement; td: HTMLElement } {
+/** Mounts a one-cell table inside `rootClass` and returns the root plus its `th` and `td`. */
+function mountTable(rootClass: string): { root: HTMLElement; th: HTMLElement; td: HTMLElement } {
   const container = document.createElement('div')
   container.className = rootClass
   container.innerHTML =
@@ -63,7 +63,7 @@ function mountTable(rootClass: string): { th: HTMLElement; td: HTMLElement } {
   const th = container.querySelector('th')
   const td = container.querySelector('td')
   if (!th || !td) throw new Error('table cells not found')
-  return { th, td }
+  return { root: container, th, td }
 }
 
 function declarations(el: Element, props: readonly string[]): Record<string, string> {
@@ -98,6 +98,21 @@ describe('document-table chrome is shared with markdown tables', () => {
     expect(declarations(preview.th, SHARED_CELL_PROPS)).toEqual(
       declarations(prose.th, SHARED_CELL_PROPS)
     )
+  })
+
+  /**
+   * Cells hold arbitrary file data, so an unbreakable token (a URL, a hash) must break rather than
+   * overflow — the previews lost `whitespace-nowrap` and would otherwise have no wrapping rule at
+   * all. `overflow-wrap` is inherited from each surface's root (jsdom does not propagate inherited
+   * properties to descendants, so the roots are what can be asserted).
+   */
+  it('both roots declare the same wrapping for unbreakable cell values', () => {
+    const prose = mountTable('rich-markdown-prose')
+    const preview = mountTable('document-table')
+
+    const wrap = getComputedStyle(prose.root).getPropertyValue('overflow-wrap')
+    expect(wrap).toBe('anywhere')
+    expect(getComputedStyle(preview.root).getPropertyValue('overflow-wrap')).toBe(wrap)
   })
 
   it('the resolved values are the markdown editor values, not jsdom defaults', () => {
