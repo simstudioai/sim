@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { BlockType, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { parseJSON } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -53,12 +54,10 @@ export class ApiBlockHandler implements BlockHandler {
 
       if (processedInputs.body !== undefined) {
         if (typeof processedInputs.body === 'string') {
-          try {
-            const trimmedBody = processedInputs.body.trim()
-            if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
-              processedInputs.body = JSON.parse(trimmedBody)
-            }
-          } catch (e) {}
+          const trimmedBody = processedInputs.body.trim()
+          if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
+            processedInputs.body = parseJSON(trimmedBody, processedInputs.body)
+          }
         } else if (processedInputs.body === null) {
           processedInputs.body = undefined
         }
