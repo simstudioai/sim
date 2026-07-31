@@ -71,6 +71,27 @@ function buildColumnMap(columns: ColumnDefinition[]): ColumnMap {
 }
 
 /**
+ * Row columns that live as real top-level columns on `user_table_rows` rather than
+ * inside the `data` JSONB. Filter and sort must reference these by their physical
+ * column name (`created_at`, not the `createdAt` wire name) — extracting them from
+ * JSONB (`data->>'createdAt'`) always yields NULL, so filtering on them silently
+ * matched nothing and sorting pointed at a column that doesn't exist. `type` drives
+ * the same value casts a user column of that type gets.
+ */
+const BUILTIN_COLUMNS: Record<string, { column: string; type: ColumnType }> = {
+  id: { column: 'id', type: 'string' },
+  createdAt: { column: 'created_at', type: 'date' },
+  updatedAt: { column: 'updated_at', type: 'date' },
+}
+
+const RANGE_OPERATORS: Record<string, '>' | '>=' | '<' | '<='> = {
+  $gt: '>',
+  $gte: '>=',
+  $lt: '<',
+  $lte: '<=',
+}
+
+/**
  * Whitelist of allowed operators for query filtering.
  * Only these operators can be used in filter conditions.
  */
@@ -321,6 +342,13 @@ function buildFieldCondition(
 ): SQL[] {
   validateFieldName(field)
 
+  // Built-in columns (id/createdAt/updatedAt) live top-level, not in `data` — a user
+  // column with the same key still wins so real cell data is never shadowed.
+  const builtin = column ? undefined : BUILTIN_COLUMNS[field]
+  if (builtin) {
+    return buildBuiltinFieldCondition(tableName, field, condition, builtin)
+  }
+
   const columnType = column?.type
   const isSelect = columnType === 'select'
   const isMultiSelect = isSelect && column?.multiple === true
@@ -451,6 +479,99 @@ function buildFieldCondition(
         ? buildArrayMembershipClause(tableName, field, condition as JsonValue)
         : buildContainmentClause(tableName, field, condition as JsonValue)
     )
+  }
+
+  return conditions
+}
+
+/**
+ * Builds conditions for a {@link BUILTIN_COLUMNS} field against its physical
+ * top-level column instead of the JSONB `data` blob. Equality compiles to `=`/`IN`
+ * (the JSONB containment operator the data path uses can't touch a real column);
+ * date columns cast the comparison value to `timestamptz` so ISO strings compare
+ * chronologically, mirroring the `data` date path. Built-in columns are `NOT NULL`,
+ * so `$empty` and the pattern operators need no null-inclusion handling.
+ */
+function buildBuiltinFieldCondition(
+  tableName: string,
+  field: string,
+  condition: JsonValue | ConditionOperators,
+  builtin: { column: string; type: ColumnType }
+): SQL[] {
+  const cell = sql.raw(`${tableName}.${builtin.column}`)
+  const cast = jsonbCastForType(builtin.type)
+  const bind = (value: JsonValue): SQL =>
+    cast === 'timestamptz' ? sql`${value}::timestamptz` : sql`${value}`
+
+  if (!isRecordLike(condition)) {
+    // Simple value — shorthand for equality, e.g. { createdAt: '2024-01-01T00:00:00Z' }.
+    return [sql`${cell} = ${bind(condition as JsonValue)}`]
+  }
+
+  const conditions: SQL[] = []
+  for (const [op, value] of Object.entries(condition)) {
+    validateOperator(op)
+
+    const rangeOp = RANGE_OPERATORS[op]
+    if (rangeOp) {
+      if (cast) validateComparisonValue(field, builtin.type, cast, value as number | string)
+      conditions.push(sql`${cell} ${sql.raw(rangeOp)} ${bind(value as JsonValue)}`)
+      continue
+    }
+
+    switch (op) {
+      case '$eq':
+        conditions.push(sql`${cell} = ${bind(value as JsonValue)}`)
+        break
+
+      case '$ne':
+        conditions.push(sql`${cell} <> ${bind(value as JsonValue)}`)
+        break
+
+      case '$in':
+        if (Array.isArray(value) && value.length > 0) {
+          const items = value.map((v) => bind(v as JsonValue))
+          conditions.push(sql`${cell} IN (${sql.join(items, sql.raw(', '))})`)
+        }
+        break
+
+      case '$nin':
+        if (Array.isArray(value) && value.length > 0) {
+          const items = value.map((v) => bind(v as JsonValue))
+          conditions.push(sql`${cell} NOT IN (${sql.join(items, sql.raw(', '))})`)
+        }
+        break
+
+      case '$empty':
+        conditions.push(
+          coerceEmptyFlag(field, value) ? sql`${cell} IS NULL` : sql`${cell} IS NOT NULL`
+        )
+        break
+
+      case '$contains':
+      case '$ncontains':
+      case '$startsWith':
+      case '$endsWith': {
+        const text = String(value)
+        if (text.length === 0) {
+          throw new TableQueryValidationError(
+            `${op} on column "${field}" requires a non-empty value`
+          )
+        }
+        const escaped = escapeLikePattern(text)
+        const pattern =
+          op === '$startsWith' ? `${escaped}%` : op === '$endsWith' ? `%${escaped}` : `%${escaped}%`
+        conditions.push(
+          op === '$ncontains'
+            ? sql`${cell}::text NOT ILIKE ${pattern}`
+            : sql`${cell}::text ILIKE ${pattern}`
+        )
+        break
+      }
+
+      default:
+        throw new Error(`Unsupported operator: ${op}`)
+    }
   }
 
   return conditions
@@ -654,8 +775,11 @@ function buildSortFieldClause(
   const escapedField = field.replace(/'/g, "''")
   const directionSql = direction.toUpperCase()
 
-  if (field === 'createdAt' || field === 'updatedAt') {
-    return sql.raw(`${tableName}.${escapedField} ${directionSql}`)
+  // Built-in columns (id/createdAt/updatedAt) order by their physical top-level
+  // column; a user column with the same key still wins. NOT NULL, so no NULLS LAST.
+  const builtin = column ? undefined : BUILTIN_COLUMNS[field]
+  if (builtin) {
+    return sql.raw(`${tableName}.${builtin.column} ${directionSql}`)
   }
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`
