@@ -15,7 +15,7 @@ const { mergeEditIntoLiveFileDocMock, isLiveDocMergeInFlightMock } = vi.hoisted(
       (
         fileId: string,
         markdown: string,
-        order?: { version?: number; streamedAt?: number }
+        order?: { version?: number; baseVersion?: number }
       ) => Promise<void>
     >(),
   isLiveDocMergeInFlightMock: vi.fn<(fileId: string) => boolean>(),
@@ -46,6 +46,8 @@ import type { ActiveFileIntent, ExecutionContext, StreamEvent } from '@/lib/copi
 const STREAM_ID = 'stream-1'
 const EDIT_TOOL_CALL_ID = 'edit-content-1'
 const WORKSPACE_FILE_TOOL_CALL_ID = 'workspace-file-1'
+/** The durable version (`contentUpdatedAt`, epoch ms) the streamed base content is at. */
+const BASE_VERSION_MS = 900_000
 
 /** One args_delta chunk of the streamed `edit_content` JSON, as a driveable StreamEvent. */
 function editContentDelta(argumentsDelta: string): StreamEvent {
@@ -104,8 +106,12 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     vi.clearAllMocks()
     mergeEditIntoLiveFileDocMock.mockResolvedValue(undefined)
     isLiveDocMergeInFlightMock.mockReturnValue(false)
-    // Default: an append/patch base is available (a non-empty file), so the base-present gate passes.
-    peekFileIntentMock.mockResolvedValue({ existingContent: 'Base.' })
+    // Default: an append/patch base is available (a non-empty file) at durable version BASE_VERSION_MS,
+    // so the base-present gate passes and the streaming merge carries that base version.
+    peekFileIntentMock.mockResolvedValue({
+      existingContent: 'Base.',
+      fileRecord: { contentUpdatedAt: new Date(BASE_VERSION_MS) },
+    })
     state = createFilePreviewAdapterState()
     nowMs = 1_000_000
     vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
@@ -129,7 +135,7 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     })
   }
 
-  it('merges the growing full content (no version arg) into the live doc as it streams', async () => {
+  it('merges the growing full content (base version, no durable version) into the live doc as it streams', async () => {
     const intent = makeIntent({ operation: 'append', fileId: 'file-grow', fileName: 'notes.md' })
 
     await drive(editContentDelta('{"content":"Hello'), intent)
@@ -143,16 +149,17 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     expect(mergeEditIntoLiveFileDocMock).toHaveBeenCalledTimes(2)
     const [first, second] = mergeEditIntoLiveFileDocMock.mock.calls
     // A full-file snapshot (base + streamed), never a diff; it grows across deltas. Each streaming merge
-    // carries `streamedAt` (its wall-clock time) to order it — never `version`, which rides the final
-    // edit_content write; so the relay orders the snapshot without recording it as a durable checkpoint.
+    // carries `baseVersion` (the durable version it was built from) to order it — never `version`, which
+    // rides the final edit_content write; so the relay drops it if a newer durable write has since landed
+    // but never records it as a durable checkpoint.
     expect(first[0]).toBe('file-grow')
     expect(first[1]).toContain('Base.')
     expect(first[1]).toContain('Hello')
-    expect(typeof first[2]?.streamedAt).toBe('number')
+    expect(first[2]?.baseVersion).toBe(BASE_VERSION_MS)
     expect(first[2]?.version).toBeUndefined()
     expect(second[1]).toContain('Hello world')
     expect(second[1].length).toBeGreaterThan(first[1].length)
-    expect(typeof second[2]?.streamedAt).toBe('number')
+    expect(second[2]?.baseVersion).toBe(BASE_VERSION_MS)
   })
 
   it('throttles merges: two deltas within LIVE_DOC_MERGE_THROTTLE_MS yield one merge', async () => {

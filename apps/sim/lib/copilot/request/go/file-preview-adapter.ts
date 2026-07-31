@@ -23,6 +23,7 @@ import { peekFileIntent } from '@/lib/copilot/tools/server/files/file-intent-sto
 import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
+  type WorkspaceFilePreviewBase,
 } from '@/lib/copilot/tools/server/files/file-preview'
 import { isLiveDocMergeInFlight, mergeEditIntoLiveFileDoc } from '@/lib/realtime/notify'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -272,6 +273,7 @@ function buildPreviewSessionFromIntent(
     operation: intent.operation,
     ...(intent.edit ? { edit: intent.edit } : {}),
     ...(typeof current?.baseContent === 'string' ? { baseContent: current.baseContent } : {}),
+    ...(typeof current?.baseVersion === 'number' ? { baseVersion: current.baseVersion } : {}),
     previewText: current?.previewText ?? '',
     previewVersion: current?.previewVersion ?? 0,
     status: current?.status ?? 'pending',
@@ -396,21 +398,24 @@ export async function processFilePreviewStreamEvent(input: {
       setIntent(intent)
 
       if (isContentOp && previewTargetKind) {
-        let previewBaseContent: string | undefined
+        let previewBase: WorkspaceFilePreviewBase | undefined
         if (
           execContext.workspaceId &&
           fileId &&
           (operation === 'append' || operation === 'patch')
         ) {
-          previewBaseContent = await loadWorkspaceFileTextForPreview(
-            execContext.workspaceId,
-            fileId
-          )
+          previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, fileId)
         }
 
         let session = buildPreviewSessionFromIntent(streamId, intent)
-        if (previewBaseContent !== undefined) {
-          session = { ...session, baseContent: previewBaseContent }
+        if (previewBase !== undefined) {
+          session = {
+            ...session,
+            baseContent: previewBase.text,
+            ...(previewBase.baseVersion !== undefined
+              ? { baseVersion: previewBase.baseVersion }
+              : {}),
+          }
         }
         filePreviewState.set(toolCallId, {
           session,
@@ -469,20 +474,23 @@ export async function processFilePreviewStreamEvent(input: {
       }
       setIntent(intent)
 
-      let previewBaseContent: string | undefined
+      let previewBase: WorkspaceFilePreviewBase | undefined
       if (
         execContext.workspaceId &&
         (intent.operation === 'append' || intent.operation === 'patch')
       ) {
-        previewBaseContent = await loadWorkspaceFileTextForPreview(
-          execContext.workspaceId,
-          result.fileId
-        )
+        previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, result.fileId)
       }
 
       let session = buildPreviewSessionFromIntent(streamId, intent)
-      if (previewBaseContent !== undefined) {
-        session = { ...session, baseContent: previewBaseContent }
+      if (previewBase !== undefined) {
+        session = {
+          ...session,
+          baseContent: previewBase.text,
+          ...(previewBase.baseVersion !== undefined
+            ? { baseVersion: previewBase.baseVersion }
+            : {}),
+        }
       }
       filePreviewState.set(intent.toolCallId, {
         session,
@@ -611,9 +619,11 @@ export async function processFilePreviewStreamEvent(input: {
             }
           )
           if (typeof intentBase?.existingContent === 'string') {
+            const baseVersion = intentBase.fileRecord?.contentUpdatedAt?.getTime()
             const seededSession: FilePreviewSession = {
               ...currentPreview.session,
               baseContent: intentBase.existingContent,
+              ...(baseVersion !== undefined ? { baseVersion } : {}),
               ...(intentBase.edit ? { edit: intentBase.edit } : {}),
             }
             currentPreview = {
@@ -654,12 +664,13 @@ export async function processFilePreviewStreamEvent(input: {
           // Stream the growing content into the file's LIVE collaborative Y.Doc (when a room is open)
           // so collaborators watching the file see the copilot write stream in via Yjs — the AI as a
           // CRDT peer, applied by the relay as a minimal `updateYFragment` diff. Fire-and-forget so a
-          // slow relay never stalls the stream. Pass `streamedAt` (this snapshot's wall-clock time) so
-          // the relay orders it on the file's version line — a delayed snapshot older than a newer
-          // durable write, even from another process, is dropped rather than regressing the doc — but
-          // never records it as a durable checkpoint (the final `edit_content` write carries the real
-          // version and reconciles the durable file). No-op for `create` (never streams here) and for a
-          // file with no open room (the relay reports `applied: false`).
+          // slow relay never stalls the stream. Pass `baseVersion` (the durable version this snapshot is
+          // built from) so the relay drops it if a NEWER durable write has landed since — e.g. a
+          // concurrent human save — rather than diffing the live doc back toward stale content and
+          // clobbering that edit (which a later persist would then write over the durable file). It is
+          // never recorded as a checkpoint; the final `edit_content` write carries the real version and
+          // reconciles the durable file. No-op for `create` (never streams here) and for a file with no
+          // open room (the relay reports `applied: false`).
           //
           // Gates: markdown only (non-markdown has no collaborative room). Only `append`/`patch` stream
           // — they build on the existing content, so they need the base loaded (a base-less snapshot
@@ -678,7 +689,7 @@ export async function processFilePreviewStreamEvent(input: {
           const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt
           if (dueForLiveMerge && nextSession.fileId) {
             void mergeEditIntoLiveFileDoc(nextSession.fileId, nextSession.previewText, {
-              streamedAt: now,
+              baseVersion: nextSession.baseVersion,
             })
           }
 

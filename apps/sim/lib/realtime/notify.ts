@@ -114,10 +114,13 @@ export async function notifyFolderResourceChanged(
  * never both; passing neither applies the merge without ordering it (legacy).
  */
 export interface LiveFileDocMergeOrder {
-  /** A durable write's `contentUpdatedAt` (epoch ms): orders the merge AND is recorded as the synced version. */
+  /** A durable write's `contentUpdatedAt` (epoch ms): applied only if newer than the version the doc
+   *  already incorporates, AND recorded as the synced version. */
   version?: number
-  /** A streaming snapshot's production time (epoch ms): orders the merge only — never recorded as a checkpoint. */
-  streamedAt?: number
+  /** A streaming snapshot's causal base — the durable `contentUpdatedAt` it was built from. The relay
+   *  drops the snapshot if a NEWER durable version was recorded than this (a concurrent write landed), and
+   *  never records it as a checkpoint. */
+  baseVersion?: number
 }
 
 /**
@@ -136,11 +139,13 @@ export interface LiveFileDocMergeOrder {
  * streaming caller fires and forgets it. Bounded to {@link APPLY_EDIT_TIMEOUT_MS}, so it adds latency
  * only when the socket pod is unreachable.
  *
- * `order` ({@link LiveFileDocMergeOrder}) positions this merge so a stale write never regresses the doc:
- * the relay drops any merge not NEWER than the version the doc already incorporates. A durable `version`
- * is recorded as the synced version (the persist If-Match guard); a streaming `streamedAt` is checked but
- * never recorded, so the synced version stays pinned to the last durable write — which the copilot tool's
- * final `edit_content` write carries, reconciling the durable file.
+ * `order` ({@link LiveFileDocMergeOrder}) positions this merge so a stale write never regresses the doc.
+ * A durable `version` applies only if newer than the version the doc already incorporates, and is recorded
+ * as the synced version (the persist If-Match guard). A streaming `baseVersion` is the durable version the
+ * snapshot was built from: the relay drops the snapshot if a NEWER durable write has since landed — so a
+ * concurrent human edit is never clobbered (nor later persisted over the file) — and never records it, so
+ * the synced version stays pinned to the last durable write, which the copilot tool's final `edit_content`
+ * write carries, reconciling the durable file.
  *
  * Ordering is enforced at two scales. Within this process, merges for a file run on a single serialized
  * chain — each chained after the current tail — so a durable write applies after any in-flight streaming
@@ -189,13 +194,13 @@ async function applyLiveFileDocMerge(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
       // `version` (durable `contentUpdatedAt`) records the synced version the live doc now incorporates
-      // (the persist If-Match guard); `streamedAt` orders a streaming snapshot without recording it.
-      // JSON.stringify drops whichever is undefined, so the wire shape is unchanged for durable writes.
+      // (the persist If-Match guard); `baseVersion` is a streaming snapshot's causal base, checked (drop
+      // if a newer durable landed) but never recorded. JSON.stringify drops whichever is undefined.
       body: JSON.stringify({
         fileId,
         markdown,
         version: order.version,
-        streamedAt: order.streamedAt,
+        baseVersion: order.baseVersion,
       }),
       signal: AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS),
     })

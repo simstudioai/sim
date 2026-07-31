@@ -24,21 +24,22 @@ describe('mergeEditIntoLiveFileDoc', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'x-api-key': 'secret' }),
-        // A durable write sends `version`; the undefined `streamedAt` is dropped by JSON.stringify.
+        // A durable write sends `version`; the undefined `baseVersion` is dropped by JSON.stringify.
         body: JSON.stringify({ fileId: 'file-1', markdown: '# hello', version: 42 }),
       })
     )
   })
 
-  it('sends streamedAt (not version) for a streaming snapshot', async () => {
+  it('sends baseVersion (not version) for a streaming snapshot', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
-    await mergeEditIntoLiveFileDoc('file-1', '# hello', { streamedAt: 1234 })
+    await mergeEditIntoLiveFileDoc('file-1', '# hello', { baseVersion: 1234 })
 
-    // The relay orders the snapshot by streamedAt without recording it — version stays absent on the wire.
+    // The relay orders the snapshot by its causal baseVersion without recording it — durable version
+    // stays absent on the wire.
     expect(fetchMock.mock.calls[0][1].body).toBe(
-      JSON.stringify({ fileId: 'file-1', markdown: '# hello', streamedAt: 1234 })
+      JSON.stringify({ fileId: 'file-1', markdown: '# hello', baseVersion: 1234 })
     )
   })
 

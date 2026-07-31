@@ -209,16 +209,16 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
     if (req.method === 'POST' && req.url === '/api/file-doc/apply-edit') {
       try {
         const body = await readRequestBody(req)
-        const { fileId, markdown, version, streamedAt } = JSON.parse(body)
+        const { fileId, markdown, version, baseVersion } = JSON.parse(body)
         if (!isNonEmptyString(fileId) || typeof markdown !== 'string') {
           return sendError(res, 'Invalid fileId or markdown', 400)
         }
         // `version` (the durable updatedAt this markdown was written with) records that the live doc now
         // incorporates that durable version, so the persist If-Match guard won't flag it as a conflict.
-        // `streamedAt` orders a streaming snapshot on the same version line without recording it.
+        // `baseVersion` is a streaming snapshot's causal base: dropped if a newer durable write landed.
         const result = await applyMarkdownToLiveFileDoc(fileId, markdown, {
           version: typeof version === 'number' ? version : undefined,
-          streamedAt: typeof streamedAt === 'number' ? streamedAt : undefined,
+          baseVersion: typeof baseVersion === 'number' ? baseVersion : undefined,
         })
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ applied: result === 'applied' }))
