@@ -21,11 +21,7 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  FloatingOverflowText,
-  Resource,
-} from '@/app/workspace/[workspaceId]/components'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -948,13 +944,9 @@ export function Document({
         cells: {
           content: {
             content: (
-              <FloatingOverflowText
-                label={chunk.content}
-                showWhen={previewContent !== chunk.content}
-                className='block truncate text-[var(--text-primary)] text-sm'
-              >
+              <span className='block truncate text-[var(--text-primary)] text-sm'>
                 <SearchHighlight text={previewContent} searchQuery={searchQuery} />
-              </FloatingOverflowText>
+              </span>
             ),
           },
           index: {

@@ -33,7 +33,6 @@ import { ArrowUpLeft } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 export interface DropdownOption {
   label: string
@@ -195,10 +194,9 @@ export const ResourceHeader = memo(function ResourceHeader({
             <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
               {TitleIcon && <TitleIcon className={chipContentIconClass} />}
               {titleLabel && (
-                <FloatingOverflowText
-                  label={titleLabel}
-                  className='block whitespace-nowrap text-[var(--text-body)] text-sm'
-                />
+                <span className='block whitespace-nowrap text-[var(--text-body)] text-sm'>
+                  {titleLabel}
+                </span>
               )}
             </span>
           )}

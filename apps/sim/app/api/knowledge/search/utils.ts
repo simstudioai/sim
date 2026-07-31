@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import type { StructuredFilter } from '@/lib/knowledge/types'
+
+const logger = createLogger('KnowledgeSearch')
 
 export interface DocumentMetadata {
   filename: string
@@ -306,6 +310,36 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
   return conditions
 }
 
+/**
+ * Text-search configuration used to build the query. Must match the config the
+ * generated `embedding.content_tsv` column was built with
+ * (`to_tsvector('english', content)`) — a mismatch silently stops Postgres from
+ * using the `emb_content_fts_idx` GIN index and degrades to a sequential scan.
+ */
+const FTS_CONFIG = 'english'
+
+/**
+ * Reciprocal-rank-fusion damping constant. 60 is the value from the original RRF
+ * paper and matches the docs Ask-AI retriever (`apps/docs/app/api/chat/route.ts`).
+ */
+export const RRF_K = 60
+
+/**
+ * Row visibility predicates shared by every search leg: a chunk is only
+ * retrievable when both it and its document are enabled, the document finished
+ * processing, and it has not been excluded, archived, or soft-deleted.
+ */
+function getVisibilityConditions() {
+  return [
+    eq(embedding.enabled, true),
+    eq(document.enabled, true),
+    eq(document.processingStatus, 'completed'),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+  ]
+}
+
 export function getQueryStrategy(kbCount: number, topK: number) {
   const useParallel = kbCount > 4 || (kbCount > 2 && topK > 50)
   const distanceThreshold = kbCount > 3 ? 0.8 : 1.0
@@ -512,6 +546,185 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
     .limit(topK)
 }
 
+export interface KeywordSearchParams {
+  knowledgeBaseIds: string[]
+  topK: number
+  query: string
+  /** Query embedding, so keyword-only hits still carry a real cosine distance. */
+  queryVector: string
+  structuredFilters?: StructuredFilter[]
+}
+
+/**
+ * Lexical (full-text) retrieval leg. Matches chunks against the generated
+ * `content_tsv` column via `websearch_to_tsquery`, which tolerates arbitrary
+ * user input and supports quoted phrases and `-negation`.
+ *
+ * Results carry the true cosine distance rather than a placeholder, so callers
+ * can report `similarity` for rows only the lexical leg found. Unlike the vector
+ * leg there is no distance threshold — surfacing exact-token matches that are
+ * semantically distant is the entire point of this leg.
+ *
+ * Candidate gathering mirrors the vector leg's `getQueryStrategy`: across many
+ * knowledge bases a single global `LIMIT` lets whichever base ranks strongest
+ * lexically consume every slot, so an exact-token hit in a smaller base would
+ * never reach fusion. Both legs must draw candidates the same way, or rank
+ * fusion is combining rankings taken over differently-shaped pools.
+ *
+ * Ranking and hydration are two steps on purpose. Projecting the cosine
+ * distance in the ranking query makes Postgres detoast the 1536-dimension
+ * vector and compute a distance for *every* full-text match before the `LIMIT`
+ * applies — work that scales with how common the query term is rather than
+ * with `topK` (measured at ~59x the buffer reads on a 20k-chunk base for a term
+ * matching every row). Ranking therefore touches no vectors, and only the rows
+ * that survive the limit are hydrated.
+ */
+export async function executeKeywordSearch(params: KeywordSearchParams): Promise<SearchResult[]> {
+  const { knowledgeBaseIds, topK, query, queryVector, structuredFilters } = params
+
+  if (!query.trim()) {
+    return []
+  }
+
+  const tsQuery = sql`websearch_to_tsquery(${FTS_CONFIG}, ${query})`
+  const rankExpr = sql<number>`ts_rank_cd(${embedding.contentTsv}, ${tsQuery})`
+  const tagFilterConditions = structuredFilters?.length
+    ? getStructuredTagFilters(structuredFilters, embedding)
+    : []
+
+  const rankConditions = (kbScope: SQL | undefined) =>
+    and(
+      kbScope,
+      ...getVisibilityConditions(),
+      sql`${embedding.contentTsv} @@ ${tsQuery}`,
+      ...tagFilterConditions
+    )
+
+  /** Ranking pass: ids and relevance only, so no vector is read. */
+  const rankRows = (kbScope: SQL | undefined, limit: number) =>
+    db
+      .select({ id: embedding.id, keywordRank: rankExpr.as('keyword_rank') })
+      .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
+      .where(rankConditions(kbScope))
+      .orderBy(sql`${rankExpr} DESC`)
+      .limit(limit)
+
+  const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
+
+  let ranked: { id: string; keywordRank: number }[]
+  if (strategy.useParallel) {
+    const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
+    const perBase = await Promise.all(
+      knowledgeBaseIds.map((kbId) => rankRows(eq(embedding.knowledgeBaseId, kbId), parallelLimit))
+    )
+    ranked = perBase.flat().sort((a, b) => b.keywordRank - a.keywordRank)
+  } else {
+    ranked = await rankRows(inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
+  }
+
+  const topIds = ranked.slice(0, topK).map((row) => row.id)
+  if (topIds.length === 0) {
+    return []
+  }
+
+  /** Hydration pass: full rows plus the cosine distance, bounded to the survivors. */
+  const hydrated = await db
+    .select(
+      getSearchResultFields(
+        sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+      )
+    )
+    .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
+    .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions()))
+
+  const rowById = new Map(hydrated.map((row) => [row.id, row]))
+  return topIds.map((id) => rowById.get(id)).filter((row): row is SearchResult => row !== undefined)
+}
+
+/**
+ * Fuse independently-ranked result lists by reciprocal rank:
+ * `score(row) = Σ 1 / (RRF_K + rank)` across the lists it appears in.
+ *
+ * Rank fusion is used rather than score normalization because cosine distance
+ * and `ts_rank_cd` are on incomparable scales with no corpus-independent
+ * mapping between them. Rows are deduped by chunk id, first occurrence wins.
+ *
+ * Equal scores are common and must not be broken by list order: rank *n* in one
+ * leg always ties rank *n* in every other leg, so sorting alone would let the
+ * first list monopolize the head of the output and starve the others entirely
+ * at small `topK`. Selection therefore drains each tie group round-robin,
+ * preferring the candidate whose least-served leg has been served least.
+ *
+ * A row is credited to *every* leg that returned it, not to one chosen leg: it
+ * satisfied all of them, and charging a shared hit to a single leg would leave
+ * the round-robin owing the other one a slot it has already been served —
+ * which at small `topK` evicts a row only the shared hit's leg could produce.
+ * A total tie goes to the earliest list, so callers put the leg whose hits the
+ * other leg cannot produce first.
+ */
+export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number): SearchResult[] {
+  const scores = new Map<string, number>()
+  const rowById = new Map<string, SearchResult>()
+  const legsOfRow = new Map<string, number[]>()
+
+  rankedLists.forEach((list, leg) => {
+    list.forEach((row, index) => {
+      scores.set(row.id, (scores.get(row.id) ?? 0) + 1 / (RRF_K + index + 1))
+      if (!rowById.has(row.id)) {
+        rowById.set(row.id, row)
+      }
+      const legs = legsOfRow.get(row.id)
+      if (legs) {
+        if (!legs.includes(leg)) legs.push(leg)
+      } else {
+        legsOfRow.set(row.id, [leg])
+      }
+    })
+  })
+
+  // Stable sort keeps rowById insertion order (earliest leg first) inside each tie group.
+  const ordered = [...rowById.values()].sort(
+    (a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0)
+  )
+
+  const contributed = rankedLists.map(() => 0)
+  /** How starved a candidate's most-neglected leg is; lower wins the tie. */
+  const starvation = (id: string) =>
+    Math.min(...(legsOfRow.get(id) ?? [0]).map((leg) => contributed[leg]))
+
+  const fused: SearchResult[] = []
+  let groupStart = 0
+
+  while (groupStart < ordered.length && fused.length < topK) {
+    const groupScore = scores.get(ordered[groupStart].id) ?? 0
+    let groupEnd = groupStart
+    while (groupEnd < ordered.length && (scores.get(ordered[groupEnd].id) ?? 0) === groupScore) {
+      groupEnd++
+    }
+
+    const group = ordered.slice(groupStart, groupEnd)
+    while (group.length > 0 && fused.length < topK) {
+      let pick = 0
+      for (let i = 1; i < group.length; i++) {
+        if (starvation(group[i].id) < starvation(group[pick].id)) {
+          pick = i
+        }
+      }
+      const [row] = group.splice(pick, 1)
+      fused.push(row)
+      for (const leg of legsOfRow.get(row.id) ?? []) {
+        contributed[leg]++
+      }
+    }
+
+    groupStart = groupEnd
+  }
+
+  return fused
+}
+
 export async function handleTagAndVectorSearch(params: SearchParams): Promise<SearchResult[]> {
   const { knowledgeBaseIds, topK, structuredFilters, queryVector, distanceThreshold } = params
 
@@ -536,4 +749,89 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
     topK,
     distanceThreshold
   )
+}
+
+/**
+ * `hybrid` fuses lexical and vector retrieval; `vector` is the legacy
+ * semantic-only path, kept as an opt-out.
+ */
+export type KnowledgeSearchMode = 'hybrid' | 'vector'
+
+export interface ExecuteKnowledgeSearchParams {
+  knowledgeBaseIds: string[]
+  /** Candidate count each leg retrieves and the fused list is trimmed to. */
+  topK: number
+  searchMode: KnowledgeSearchMode
+  query?: string
+  /** Required whenever `query` is present. */
+  queryVector?: string
+  structuredFilters?: StructuredFilter[]
+}
+
+/**
+ * Single retrieval entry point shared by the internal and v1 search routes.
+ * Callers remain responsible for auth, embedding generation, billing, and for
+ * rejecting requests that carry neither a query nor tag filters.
+ */
+export async function executeKnowledgeSearch(
+  params: ExecuteKnowledgeSearchParams
+): Promise<SearchResult[]> {
+  const { knowledgeBaseIds, topK, searchMode, query, queryVector, structuredFilters } = params
+
+  const hasQuery = Boolean(query?.trim())
+  const hasFilters = Boolean(structuredFilters && structuredFilters.length > 0)
+
+  if (!hasQuery) {
+    if (!hasFilters) {
+      throw new Error('A search query or tag filters are required')
+    }
+    return await handleTagOnlySearch({ knowledgeBaseIds, topK, structuredFilters })
+  }
+
+  if (!queryVector) {
+    throw new Error('Query vector is required when searching with a query')
+  }
+
+  const { distanceThreshold } = getQueryStrategy(knowledgeBaseIds.length, topK)
+
+  const vectorSearch = hasFilters
+    ? handleTagAndVectorSearch({
+        knowledgeBaseIds,
+        topK,
+        structuredFilters,
+        queryVector,
+        distanceThreshold,
+      })
+    : handleVectorOnlySearch({ knowledgeBaseIds, topK, queryVector, distanceThreshold })
+
+  if (searchMode === 'vector') {
+    return await vectorSearch
+  }
+
+  /**
+   * The lexical leg is best-effort: a failure there falls back to vector-only
+   * results rather than failing the whole search.
+   */
+  const keywordSearch = executeKeywordSearch({
+    knowledgeBaseIds,
+    topK,
+    query: query!,
+    queryVector,
+    structuredFilters,
+  }).catch((error) => {
+    logger.warn('Keyword search leg failed; falling back to vector-only results', {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return [] as SearchResult[]
+  })
+
+  const [vectorResults, keywordResults] = await Promise.all([vectorSearch, keywordSearch])
+
+  /**
+   * Lexical leg first: on a total tie it wins, which is the behavior this mode
+   * exists for — an exact-token chunk the vector leg ranked below its distance
+   * threshold is precisely what a caller opted into hybrid to recover, and at
+   * `topK: 1` something has to win.
+   */
+  return fuseByReciprocalRank([keywordResults, vectorResults], topK)
 }

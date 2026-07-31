@@ -23,9 +23,6 @@ vi.mock('@/lib/billing/core/billing', () => ({
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPriorityPersonalSubscription: vi.fn(),
 }))
-vi.mock('@/lib/cleanup/batch-delete', () => ({
-  chunkArray: vi.fn((items: unknown[]) => (items.length > 0 ? [items] : [])),
-}))
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn(() => ({ enqueue: mockEnqueue })),
 }))

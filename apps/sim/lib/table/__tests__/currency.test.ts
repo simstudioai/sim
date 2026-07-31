@@ -160,6 +160,79 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('CHF 1’234.56')).toBe(1234.56)
   })
 
+  it('reads a lone dot as the decimal point people type', () => {
+    // Typing `1.234` in a USD cell means 1.234, which the display rounds to
+    // $1.23 exactly as a spreadsheet does. Reading it as 1,234 would be a
+    // thousandfold surprise, marker or no marker.
+    expect(parseCurrencyInput('$1.234', 'USD')).toBe(1.234)
+    expect(parseCurrencyInput('1.234')).toBe(1.234)
+    expect(parseCurrencyInput('1.234', 'EUR')).toBe(1.234)
+  })
+
+  it('groups a lone dot only for a zero-decimal currency that came formatted', () => {
+    // `1.235 ¥` cannot be a fraction of a yen, and is the single lone-separator
+    // form a formatter emits — but a formatter always emits its marker too.
+    expect(parseCurrencyInput('1.235 ¥', 'JPY')).toBe(1235)
+    expect(parseCurrencyInput('JPY 1.235', 'JPY')).toBe(1235)
+    // Bare, it is someone typing. Inflating that to 1235 would be a silent
+    // thousandfold error; read literally it stores 1.235 and displays ¥1 —
+    // wrong in a way the writer can see and fix.
+    expect(parseCurrencyInput('1.235', 'JPY')).toBe(1.235)
+    expect(parseCurrencyInput('1.235', 'CLP')).toBe(1.235)
+  })
+
+  it('reads a lone comma as grouping, except where the currency has three decimals', () => {
+    // `1,500` is fifteen hundred by convention. A three-decimal currency's
+    // trailing three digits are decimals however the value arrived — which
+    // matters most for CSV import, where nothing carries a marker.
+    expect(parseCurrencyInput('1,500', 'USD')).toBe(1500)
+    expect(parseCurrencyInput('1,500')).toBe(1500)
+    expect(parseCurrencyInput('0,500', 'KWD')).toBe(0.5)
+    expect(parseCurrencyInput('0,500 KWD', 'KWD')).toBe(0.5)
+    expect(parseCurrencyInput('12,000', 'TND')).toBe(12)
+    expect(parseCurrencyInput('12,000 TND', 'TND')).toBe(12)
+  })
+
+  it('refuses a scale suffix rather than shrinking the value', () => {
+    // `1.2 M` read as 1.2 would rewrite a column of millions a millionfold too
+    // small — the same invented-value failure as an identifier, inverted.
+    expect(parseCurrencyInput('1.2 M')).toBeNull()
+    expect(parseCurrencyInput('5 K')).toBeNull()
+    expect(parseCurrencyInput('3.4 bn')).toBeNull()
+    expect(parseCurrencyInput('10 B')).toBeNull()
+    // `kr` is a currency marker, not a scale suffix, despite starting with k.
+    expect(parseCurrencyInput('1 234,56 kr')).toBe(1234.56)
+  })
+
+  it('refuses non-English magnitude words too', () => {
+    // These are why the marker check is an allowlist. As a denylist each one
+    // had to be named, and any that was missed read as a bare number — `1,2
+    // mio` as 1.2 rather than 1.2 million.
+    expect(parseCurrencyInput('1,2 mio')).toBeNull()
+    expect(parseCurrencyInput('3,4 mrd')).toBeNull()
+    expect(parseCurrencyInput('5 tsd')).toBeNull()
+    expect(parseCurrencyInput('2,5 mln')).toBeNull()
+    expect(parseCurrencyInput('1,5 bio')).toBeNull()
+    expect(parseCurrencyInput('7 md')).toBeNull()
+    // Anything else beside a number is refused by the same rule, so the parser
+    // no longer has to enumerate what a magnitude word looks like.
+    expect(parseCurrencyInput('12 units')).toBeNull()
+    expect(parseCurrencyInput('12 pcs')).toBeNull()
+  })
+
+  it('keeps every ISO code strippable — no code is a magnitude word', () => {
+    // The allowlist is only safe because these two sets do not overlap. If a
+    // future ISO code ever collided with a magnitude abbreviation, this fails
+    // and the marker rule needs a tiebreak.
+    const codes = new Set(
+      (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf(
+        'currency'
+      )
+    )
+    const magnitudeWords = ['K', 'M', 'B', 'T', 'BN', 'MN', 'MIO', 'MRD', 'TSD', 'MLN', 'BIO', 'MD']
+    expect(magnitudeWords.filter((w) => codes.has(w))).toEqual([])
+  })
+
   it('rejects an identifier whose letters touch its digits', () => {
     // The distinguishing rule: a currency marker is always separated from the
     // number by a space or a symbol, so letters touching digits mean this is a

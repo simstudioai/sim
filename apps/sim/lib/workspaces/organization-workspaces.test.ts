@@ -11,6 +11,7 @@ const {
   mockAcquireOrganizationMutationLock,
   mockAcquireInvitationMutationLocks,
   mockChangeWorkspaceStoragePayersInTx,
+  mockInvalidateWorkspaceTableLimitsCache,
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganizationTx: vi.fn(),
   mockSyncUsageLimitsFromSubscription: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockAcquireOrganizationMutationLock: vi.fn(),
   mockAcquireInvitationMutationLocks: vi.fn(),
   mockChangeWorkspaceStoragePayersInTx: vi.fn(),
+  mockInvalidateWorkspaceTableLimitsCache: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -32,6 +34,10 @@ vi.mock('@/lib/billing/storage/payer-transfer', () => ({
 
 vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
+}))
+
+vi.mock('@/lib/table/billing', () => ({
+  invalidateWorkspaceTableLimitsCache: mockInvalidateWorkspaceTableLimitsCache,
 }))
 
 vi.mock('@/lib/billing/core/usage', () => ({
@@ -122,10 +128,17 @@ describe('organization workspace helpers', () => {
       'owner-1',
       'org-1'
     )
+    expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.for.mock.invocationCallOrder[0]
+    )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ organizationAssignedAt: expect.any(Date) })
     )
     expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+    expect(mockInvalidateWorkspaceTableLimitsCache).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
       mockEnsureUserInOrganizationTx.mock.invocationCallOrder[0]
     )

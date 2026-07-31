@@ -689,6 +689,7 @@ function SubBlockComponent({
               fetchOptionById={config.fetchOptionById}
               dependsOn={config.dependsOn}
               searchable={config.searchable}
+              preserveLabelCase={config.preserveLabelCase}
             />
           </div>
         )

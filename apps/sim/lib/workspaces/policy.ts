@@ -5,7 +5,10 @@ import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { getUserOrganization } from '@/lib/billing/organizations/membership'
+import {
+  acquireOrganizationUserMutationLocks,
+  getUserOrganization,
+} from '@/lib/billing/organizations/membership'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
@@ -90,6 +93,68 @@ export interface WorkspaceCreationPolicy {
   observedOrganizationId: string | null
   /** Discriminant for blocked states the workspace mode cannot distinguish. */
   blockedReasonCode?: 'organization-subscription-inactive'
+}
+
+export class WorkspaceCreationContextChangedError extends Error {
+  constructor() {
+    super('Workspace creation context changed before the workspace was inserted')
+    this.name = 'WorkspaceCreationContextChangedError'
+  }
+}
+
+/**
+ * Serializes the final creation-policy check with membership/ownership
+ * mutations and row-locks the paid entitlement used by organization mode.
+ * Returns the live billing owner. The caller must invoke this in the same
+ * transaction as the workspace insert.
+ */
+export async function lockWorkspaceCreationContext(
+  tx: DbOrTx,
+  {
+    userId,
+    organizationId,
+    observedOrganizationId,
+  }: {
+    userId: string
+    organizationId: string | null
+    observedOrganizationId: string | null
+  }
+): Promise<{ billedAccountUserId: string }> {
+  await acquireOrganizationUserMutationLocks(tx, {
+    userId,
+    organizationIds: organizationId ? [organizationId] : [],
+  })
+  const currentMembership = await getUserOrganization(userId, tx)
+  if (
+    (currentMembership?.organizationId ?? null) !== observedOrganizationId ||
+    (organizationId !== null && currentMembership?.organizationId !== organizationId)
+  ) {
+    throw new WorkspaceCreationContextChangedError()
+  }
+
+  if (!organizationId) return { billedAccountUserId: userId }
+
+  if (isBillingEnabled) {
+    if (!currentMembership || !isOrgAdminRole(currentMembership.role)) {
+      throw new WorkspaceCreationContextChangedError()
+    }
+    const currentSubscription = await getOrganizationSubscription(organizationId, {
+      executor: tx,
+      onError: 'throw',
+      forUpdate: true,
+    })
+    if (
+      !currentSubscription ||
+      !hasUsableSubscriptionStatus(currentSubscription.status) ||
+      (!isTeam(currentSubscription.plan) && !isEnterprise(currentSubscription.plan))
+    ) {
+      throw new WorkspaceCreationContextChangedError()
+    }
+  }
+
+  const currentOwnerId = await getOrganizationOwnerId(organizationId, tx)
+  if (!currentOwnerId) throw new WorkspaceCreationContextChangedError()
+  return { billedAccountUserId: currentOwnerId }
 }
 
 interface GetWorkspaceCreationPolicyParams {
@@ -466,8 +531,11 @@ async function countNonOrganizationOwnedWorkspaces(userId: string): Promise<numb
  * caller so data-integrity issues surface loudly rather than being
  * silently fallen back to the caller's identity.
  */
-export async function getOrganizationOwnerId(organizationId: string): Promise<string | null> {
-  const [ownerMembership] = await db
+export async function getOrganizationOwnerId(
+  organizationId: string,
+  executor: DbOrTx = db
+): Promise<string | null> {
+  const [ownerMembership] = await executor
     .select({ userId: member.userId })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))

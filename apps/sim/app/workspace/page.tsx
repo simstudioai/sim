@@ -11,6 +11,11 @@ import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
+import {
+  buildUpgradeHref,
+  isUpgradeReason,
+  UPGRADE_REASON_PARAM,
+} from '@/lib/billing/upgrade-reasons'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
@@ -115,6 +120,20 @@ export default function WorkspacePage() {
 
     if (isWorkspacesLoading || workspacesError || !data) return
 
+    const urlParams = new URLSearchParams(window.location.search)
+    const redirectWorkflowId = urlParams.get('redirect_workflow')
+    const redirectTarget = urlParams.get('redirect')
+    const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
+
+    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
+    // self-hosted deployment, an email — reaches the plan picker. It has to
+    // survive workspace creation too: a first-time visitor has no workspace to
+    // resolve, and dropping the intent lands them on home with no explanation.
+    const destinationFor = (id: string) =>
+      redirectTarget === 'upgrade'
+        ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
+        : `/workspace/${id}`
+
     const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
     if (workspaces.length === 0) {
@@ -135,14 +154,11 @@ export default function WorkspacePage() {
         return
       }
       hasRedirectedRef.current = true
-      handleNoWorkspaces(router, () => setRecoveryFailed(true))
+      handleNoWorkspaces(router, () => setRecoveryFailed(true), destinationFor)
       return
     }
 
     hasRedirectedRef.current = true
-
-    const urlParams = new URLSearchParams(window.location.search)
-    const redirectWorkflowId = urlParams.get('redirect_workflow')
 
     const localRecentId = WorkspaceRecencyStorage.getMostRecent()
     const findWorkspace = (id: string | null) =>
@@ -157,7 +173,7 @@ export default function WorkspacePage() {
     }
 
     logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
-    router.replace(workspaceLandingPath(targetWorkspace.id))
+    router.replace(destinationFor(targetWorkspace.id))
   }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
   const blockedPolicy =
@@ -219,18 +235,6 @@ export default function WorkspacePage() {
   )
 }
 
-/**
- * The workspace landing path. `/workspace/{id}` resolves server-side to either
- * the chat composer or the workspace's first workflow, so callers never hardcode
- * a module route. The query string is carried across because OAuth and billing
- * flows return to `/workspace?...` and their signals (`billing=updated`,
- * `trello_connected`, `error=...`) are consumed after this hop.
- */
-function workspaceLandingPath(workspaceId: string): string {
-  const search = typeof window === 'undefined' ? '' : window.location.search
-  return `/workspace/${workspaceId}${search}`
-}
-
 async function handleWorkflowRedirect(
   workflowId: string,
   fallbackWorkspaceId: string,
@@ -249,12 +253,13 @@ async function handleWorkflowRedirect(
   } catch (error) {
     logger.error('Error fetching workflow for redirect:', error)
   }
-  router.replace(workspaceLandingPath(fallbackWorkspaceId))
+  router.replace(`/workspace/${fallbackWorkspaceId}`)
 }
 
 async function handleNoWorkspaces(
   router: ReturnType<typeof useRouter>,
-  onUnrecoverable: () => void
+  onUnrecoverable: () => void,
+  destinationFor: (workspaceId: string) => string
 ): Promise<void> {
   logger.warn('No workspaces found, creating default workspace')
   try {
@@ -264,7 +269,7 @@ async function handleNoWorkspaces(
     if (data.workspace?.id) {
       logger.info(`Created default workspace: ${data.workspace.id}`)
       sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
-      router.replace(workspaceLandingPath(data.workspace.id))
+      router.replace(destinationFor(data.workspace.id))
       return
     }
     logger.error('Failed to create default workspace')

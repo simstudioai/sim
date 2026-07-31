@@ -532,7 +532,43 @@ describe('runCloudPi', () => {
           return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
         }
         if (command.includes('pi -p')) {
-          options.onStdout?.('{"type":"error","error":"model exploded"}\n')
+          options.onStdout?.(
+            `${[
+              JSON.stringify({
+                type: 'message_end',
+                message: {
+                  role: 'assistant',
+                  content: [{ type: 'text', text: '' }],
+                  usage: { input: 0, output: 0, totalTokens: 0 },
+                  stopReason: 'error',
+                  errorMessage: 'model rejected sk-byok',
+                },
+              }),
+              JSON.stringify({
+                type: 'turn_end',
+                message: {
+                  role: 'assistant',
+                  usage: { input: 0, output: 0, totalTokens: 0 },
+                  stopReason: 'error',
+                  errorMessage: 'model rejected sk-byok',
+                },
+                toolResults: [],
+              }),
+              JSON.stringify({
+                type: 'agent_end',
+                willRetry: false,
+                messages: [
+                  {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: '' }],
+                    usage: { input: 0, output: 0, totalTokens: 0 },
+                    stopReason: 'error',
+                    errorMessage: 'model rejected sk-byok',
+                  },
+                ],
+              }),
+            ].join('\n')}\n`
+          )
           return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
         }
         return Promise.resolve({
@@ -543,9 +579,11 @@ describe('runCloudPi', () => {
       }
     )
 
-    await expect(runCloudPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(/model exploded/)
+    await expect(runCloudPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
+      'model rejected ***'
+    )
+    expect(mockRun).toHaveBeenCalledTimes(2)
     expect(mockExecuteTool).not.toHaveBeenCalled()
-    expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
   })
 
   it('fails (no PR) when finalize reports neither no-changes nor a push', async () => {

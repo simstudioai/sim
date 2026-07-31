@@ -100,6 +100,31 @@ export async function acquireOrgMembershipLock(
   )
 }
 
+/**
+ * Acquires the canonical organization → user-billing-identity → membership
+ * lock sequence for a mutation whose validity depends on a user's standing in
+ * one or more organizations.
+ *
+ * Keeping this order in one helper lets organization access removal and
+ * credential creation share the same serialization fence. If credential
+ * creation wins, a later transfer sees the new source-owned credential and
+ * blocks. If transfer wins, credential creation re-reads access after the
+ * transfer and refuses the insert.
+ */
+export async function acquireOrganizationUserMutationLocks(
+  tx: DbOrTx,
+  params: { userId: string; organizationIds: string[] }
+): Promise<void> {
+  const organizationIds = [...new Set(params.organizationIds)].sort()
+  for (const organizationId of organizationIds) {
+    await acquireOrganizationMutationLock(tx, organizationId)
+  }
+  await acquireUserBillingIdentityLock(tx, params.userId)
+  for (const organizationId of organizationIds) {
+    await acquireOrgMembershipLock(tx, params.userId, organizationId)
+  }
+}
+
 export type BillingBlockReason = 'payment_failed' | 'dispute'
 
 /**
@@ -858,34 +883,6 @@ async function applyPaidOrgJoinBillingTx(
 }
 
 /**
- * Re-applies paid-org join billing for a user who is already a member of
- * the organization. Used on re-upgrade after a dormant transition: members
- * kept their org membership but had their personal Pro subscriptions
- * restored (`cancelAtPeriodEnd=false`) during the cancel/downgrade. When
- * the org becomes paid again, those Pros must be re-paused so the user
- * isn't double-billed.
- *
- * No-op when the org has no active Team/Enterprise subscription.
- */
-export async function reapplyPaidOrgJoinBillingForExistingMember(
-  userId: string,
-  organizationId: string
-): Promise<PaidOrgJoinBillingActions> {
-  return db.transaction(async (tx) => {
-    await acquireOrganizationMutationLock(tx, organizationId)
-    const [existingMembership] = await tx
-      .select({ id: member.id })
-      .from(member)
-      .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-      .limit(1)
-    if (!existingMembership) {
-      return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
-    }
-    return reapplyPaidOrgJoinBillingForExistingMemberTx(tx, userId, organizationId)
-  })
-}
-
-/**
  * Transaction-enlisted variant used by subscription webhooks. Keeping the
  * subscription upsert, effective-limit update, provisioning completion, and
  * existing-member Pro handling in one transaction prevents a partially
@@ -989,16 +986,11 @@ export async function withInvitationSafeOrganizationAccessMutation<T>(
           invitationIds: candidate.invitationIds,
           workspaceIds: candidate.workspaceIds,
         })
-        const organizationIds = [
-          ...new Set([params.organizationId, ...(params.additionalOrganizationIds ?? [])]),
-        ].sort()
-        for (const organizationId of organizationIds) {
-          await acquireOrganizationMutationLock(tx, organizationId)
-        }
-        await acquireUserBillingIdentityLock(tx, params.userId)
-        for (const organizationId of organizationIds) {
-          await acquireOrgMembershipLock(tx, params.userId, organizationId)
-        }
+        const organizationIds = [params.organizationId, ...(params.additionalOrganizationIds ?? [])]
+        await acquireOrganizationUserMutationLocks(tx, {
+          userId: params.userId,
+          organizationIds,
+        })
 
         const current = await getInvitationRemovalLockSnapshot(tx, params)
         const candidateInvitations = new Set(candidate.invitationIds)
@@ -1636,6 +1628,8 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           .limit(1)
         if (currentMember) throw new Error('User is an organization member')
 
+        await setOrgMemberUsageLimit(organizationId, userId, null, undefined, tx)
+
         const cancelledInvitations = invitationIds.length
           ? await tx
               .update(invitation)
@@ -2053,23 +2047,6 @@ export async function isSoleOwnerOfPaidOrganization(userId: string): Promise<{
     organizationName: orgRow?.name,
     plan: orgSub.plan,
   }
-}
-
-export async function isUserMemberOfOrganization(
-  userId: string,
-  organizationId: string
-): Promise<{ isMember: boolean; role?: string; memberId?: string }> {
-  const [memberRecord] = await db
-    .select({ id: member.id, role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-    .limit(1)
-
-  if (memberRecord) {
-    return { isMember: true, role: memberRecord.role, memberId: memberRecord.id }
-  }
-
-  return { isMember: false }
 }
 
 /**

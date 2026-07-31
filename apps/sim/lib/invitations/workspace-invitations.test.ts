@@ -1,18 +1,29 @@
 /**
  * @vitest-environment node
  */
+import { member, user as userTable } from '@sim/db/schema'
 import {
   auditMock,
   createMockRequest,
+  dbChainMock,
   dbChainMockFns,
+  queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbOrTx } from '@/lib/db/types'
+import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
 
 const {
+  MockConflictingPendingInvitationError,
+  MockDirectGrantContextChangedError,
+  mockAcquireOrganizationMutationLock,
+  mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
+  mockGetEffectiveWorkspacePermission,
+  mockGetWorkspaceWithOwner,
   mockValidateSeatAvailability,
   mockGrantWorkspaceAccessDirectly,
   mockCreatePendingInvitation,
@@ -25,7 +36,13 @@ const {
   mockWorkspaceMemberInvited,
   mockCaptureServerEvent,
 } = vi.hoisted(() => ({
+  MockConflictingPendingInvitationError: class extends Error {},
+  MockDirectGrantContextChangedError: class extends Error {},
+  mockAcquireOrganizationMutationLock: vi.fn(),
+  mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
+  mockGetEffectiveWorkspacePermission: vi.fn(),
+  mockGetWorkspaceWithOwner: vi.fn(),
   mockValidateSeatAvailability: vi.fn(),
   mockGrantWorkspaceAccessDirectly: vi.fn(),
   mockCreatePendingInvitation: vi.fn(),
@@ -42,6 +59,8 @@ const {
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
+  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
   getUserOrganization: mockGetUserOrganization,
 }))
 
@@ -54,10 +73,12 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 
 vi.mock('@/lib/invitations/direct-grant', () => ({
+  DirectGrantContextChangedError: MockDirectGrantContextChangedError,
   grantWorkspaceAccessDirectly: mockGrantWorkspaceAccessDirectly,
 }))
 
 vi.mock('@/lib/invitations/send', () => ({
+  ConflictingPendingInvitationError: MockConflictingPendingInvitationError,
   createPendingInvitation: mockCreatePendingInvitation,
   sendInvitationEmail: mockSendInvitationEmail,
   cancelPendingInvitation: mockCancelPendingInvitation,
@@ -70,7 +91,9 @@ vi.mock('@/lib/posthog/server', () => ({
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(),
+  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
+  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
+  hasWorkspaceAdminAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/organization', () => ({
@@ -147,6 +170,16 @@ describe('createWorkspaceInvitation', () => {
     /** Production default; the billing-disabled case opts out explicitly. */
     setEnvFlags({ isBillingEnabled: true })
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
+    mockAcquireOrganizationMutationLock.mockResolvedValue(undefined)
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'ws-1',
+      name: 'Workspace ws-1',
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'user-1',
+    })
+    mockGetEffectiveWorkspacePermission.mockResolvedValue('admin')
     mockGrantWorkspaceAccessDirectly.mockResolvedValue({ outcome: 'added', permission: 'write' })
     mockCreatePendingInvitation.mockResolvedValue({
       invitationId: 'inv-1',
@@ -155,6 +188,8 @@ describe('createWorkspaceInvitation', () => {
       created: true,
       addedWorkspaceIds: ['ws-1'],
       grants: [{ workspaceId: 'ws-1', permission: 'write' }],
+      mutationUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+      mutationOrganizationId: 'org-1',
     })
     mockSendInvitationEmail.mockResolvedValue({ success: true })
     mockFindPendingGrantWorkspaceIds.mockResolvedValue(new Set())
@@ -241,6 +276,45 @@ describe('createWorkspaceInvitation', () => {
     expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'workspace', membershipIntent: 'internal', role: 'member' })
     )
+  })
+
+  it('rechecks invitee membership after locks and rejects a concurrent org join', async () => {
+    queueTableRows(userTable, [{ id: 'user-4', email: 'noorg@example.com' }])
+    mockGetUserOrganization
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
+    mockCreatePendingInvitation.mockImplementationOnce(
+      async (input: CreatePendingInvitationInput) => {
+        await input.validateLockedContext?.({
+          tx: dbChainMock.db as unknown as DbOrTx,
+          organizationId: 'org-1',
+          workspaceIds: ['ws-1'],
+        })
+        throw new Error('unreachable')
+      }
+    )
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'noorg@example.com',
+        permission: 'write',
+        request,
+      })
+    ).rejects.toMatchObject({ status: 409 })
+
+    expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'user-4',
+      organizationIds: ['org-1'],
+    })
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetWorkspaceWithOwner.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
+      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.from).toHaveBeenCalledWith(member)
   })
 
   it('creates a pending invitation for a brand-new email', async () => {
@@ -406,6 +480,8 @@ describe('createWorkspaceInvitation', () => {
         { workspaceId: 'ws-1', permission: 'write' },
         { workspaceId: 'ws-2', permission: 'write' },
       ],
+      mutationUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+      mutationOrganizationId: 'org-1',
     })
 
     const result = await createWorkspaceInvitation({
@@ -470,6 +546,8 @@ describe('createWorkspaceInvitation', () => {
         { workspaceId: 'ws-1', permission: 'write' },
         { workspaceId: 'ws-2', permission: 'write' },
       ],
+      mutationUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+      mutationOrganizationId: 'org-1',
     })
     mockSendInvitationEmail.mockResolvedValueOnce({ success: false, error: 'smtp down' })
 
@@ -486,6 +564,8 @@ describe('createWorkspaceInvitation', () => {
     expect(mockRevertPendingInvitationGrants).toHaveBeenCalledWith({
       invitationId: 'inv-existing',
       workspaceIds: ['ws-2'],
+      expectedUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+      expectedOrganizationId: 'org-1',
     })
   })
 })

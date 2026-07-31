@@ -27,12 +27,9 @@ import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
+  executeKnowledgeSearch,
   generateSearchEmbedding,
   getDocumentMetadataByIds,
-  getQueryStrategy,
-  handleTagAndVectorSearch,
-  handleTagOnlySearch,
-  handleVectorOnlySearch,
   type SearchResult,
 } from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
@@ -318,32 +315,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       : validatedData.topK
 
     if (!hasQuery && hasFilters) {
-      results = await handleTagOnlySearch({
+      results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK: validatedData.topK,
+        searchMode: validatedData.searchMode,
         structuredFilters,
       })
-    } else if (hasQuery && hasFilters) {
-      logger.debug(`[${requestId}] Executing tag + vector search with filters:`, structuredFilters)
-      const strategy = getQueryStrategy(accessibleKbIds.length, candidateTopK)
+    } else if (hasQuery) {
+      logger.debug(
+        `[${requestId}] Executing ${validatedData.searchMode} search`,
+        hasFilters ? { structuredFilters } : undefined
+      )
       const queryVector = JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)
 
-      results = await handleTagAndVectorSearch({
+      results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK: candidateTopK,
-        structuredFilters,
+        searchMode: validatedData.searchMode,
+        query: validatedData.query,
         queryVector,
-        distanceThreshold: strategy.distanceThreshold,
-      })
-    } else if (hasQuery && !hasFilters) {
-      const strategy = getQueryStrategy(accessibleKbIds.length, candidateTopK)
-      const queryVector = JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)
-
-      results = await handleVectorOnlySearch({
-        knowledgeBaseIds: accessibleKbIds,
-        topK: candidateTopK,
-        queryVector,
-        distanceThreshold: strategy.distanceThreshold,
+        structuredFilters: hasFilters ? structuredFilters : undefined,
       })
     } else {
       return NextResponse.json(

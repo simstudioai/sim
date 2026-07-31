@@ -1,0 +1,46 @@
+/*
+ * Canonical table chrome for the file viewer. Both surfaces that render a table for a file — the
+ * rich markdown editor (`.rich-markdown-prose table`) and the tabular previews CSV/XLSX render
+ * through `DataTable` (`.document-table`) — share this one definition so a table looks the same
+ * whichever file it came from. Editor-only concerns (prose block margin, fixed layout for column
+ * resizing, cell paragraph reset) stay in rich-markdown-editor.css.
+ */
+
+/* `overflow-wrap` matches what `.rich-markdown-prose` sets on its own root: cells hold arbitrary
+   file data, so an unbreakable token (a URL, a hash) must break rather than overflow its cell. */
+.document-table {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.rich-markdown-prose table,
+.document-table table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+.rich-markdown-prose th,
+.rich-markdown-prose td,
+.document-table th,
+.document-table td {
+  position: relative;
+  border: 1px solid var(--divider);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  font-size: 14px;
+  line-height: 1.5rem;
+}
+
+.rich-markdown-prose th,
+.document-table th {
+  background: var(--surface-4);
+  font-weight: 600;
+}
+
+/* Cell editors are invisible until focused: they take the cell's own typography and color. */
+.document-table input {
+  font: inherit;
+  color: inherit;
+}

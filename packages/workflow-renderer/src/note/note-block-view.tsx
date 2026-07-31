@@ -4,6 +4,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { cn, handleKeyboardActivation } from '@sim/emcn'
 import { getEmbedInfo } from '@sim/utils/media-embed'
+import { OverflowSpan } from '../lib/overflow-span'
 
 const EMBED_SCALE = 0.78
 const EMBED_INVERSE_SCALE = `${(1 / EMBED_SCALE) * 100}%`
@@ -217,15 +218,13 @@ export function NoteBlockView({
 
         <div className='flex items-center justify-between border-[var(--divider)] border-b p-2'>
           <div className='flex min-w-0 flex-1 items-center'>
-            <span
+            <OverflowSpan
+              value={name ?? ''}
               className={cn(
                 'truncate font-medium text-md',
                 !isEnabled && 'text-[var(--text-muted)]'
               )}
-              title={name}
-            >
-              {name}
-            </span>
+            />
           </div>
         </div>
 

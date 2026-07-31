@@ -13,6 +13,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { task } from '@trigger.dev/sdk'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
@@ -23,7 +24,6 @@ import {
 } from '@/lib/billing/storage'
 import {
   batchDeleteByWorkspaceAndTimestamp,
-  chunkArray,
   chunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE,
   selectRowsByIdChunks,
