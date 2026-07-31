@@ -8,6 +8,23 @@ import {
   getQuickBooksUserInfoUrl,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
+import {
+  quickbooksCreateCreditMemoTool,
+  quickbooksCreateCustomerPaymentTool,
+  quickbooksCreateEstimateTool,
+  quickbooksCreateInvoiceTool,
+  quickbooksCreateRefundReceiptTool,
+  quickbooksCreateSalesReceiptTool,
+  quickbooksReadSalesTransactionsTool,
+  quickbooksUpdateCreditMemoTool,
+  quickbooksUpdateCustomerPaymentTool,
+  quickbooksUpdateEstimateTool,
+  quickbooksUpdateInvoiceTool,
+  quickbooksUpdateRefundReceiptTool,
+  quickbooksUpdateSalesReceiptTool,
+  quickbooksVoidCustomerPaymentTool,
+  quickbooksVoidInvoiceTool,
+} from '@/tools/quickbooks'
 import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer'
 import { quickbooksCreateItemTool } from '@/tools/quickbooks/create_item'
 import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
@@ -777,19 +794,34 @@ describe('QuickBooks item mutations', () => {
 
 describe('QuickBooks tool and block boundaries', () => {
   const tools = [
+    quickbooksCreateCreditMemoTool,
     quickbooksCreateCustomerTool,
+    quickbooksCreateCustomerPaymentTool,
+    quickbooksCreateEstimateTool,
     quickbooksCreateItemTool,
+    quickbooksCreateInvoiceTool,
+    quickbooksCreateRefundReceiptTool,
+    quickbooksCreateSalesReceiptTool,
     quickbooksCreateVendorTool,
     quickbooksGetCompanyInfoTool,
     quickbooksListBillsTool,
     quickbooksListPurchaseOrdersTool,
     quickbooksReadMasterDataTool,
+    quickbooksReadSalesTransactionsTool,
+    quickbooksUpdateCreditMemoTool,
     quickbooksUpdateCustomerTool,
+    quickbooksUpdateCustomerPaymentTool,
+    quickbooksUpdateEstimateTool,
     quickbooksUpdateItemTool,
+    quickbooksUpdateInvoiceTool,
+    quickbooksUpdateRefundReceiptTool,
+    quickbooksUpdateSalesReceiptTool,
     quickbooksUpdateVendorTool,
+    quickbooksVoidCustomerPaymentTool,
+    quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly ten bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 25 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
@@ -800,7 +832,7 @@ describe('QuickBooks tool and block boundaries', () => {
     }
   })
 
-  it('exposes the ten compact operations and unique subblock IDs', () => {
+  it('exposes the 25 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
@@ -811,6 +843,21 @@ describe('QuickBooks tool and block boundaries', () => {
       { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
       { label: 'Create Item', id: 'quickbooks_create_item' },
       { label: 'Update Item', id: 'quickbooks_update_item' },
+      { label: 'Read Sales Transactions', id: 'quickbooks_read_sales_transactions' },
+      { label: 'Create Estimate', id: 'quickbooks_create_estimate' },
+      { label: 'Update Estimate', id: 'quickbooks_update_estimate' },
+      { label: 'Create Invoice', id: 'quickbooks_create_invoice' },
+      { label: 'Update Invoice', id: 'quickbooks_update_invoice' },
+      { label: 'Void Invoice', id: 'quickbooks_void_invoice' },
+      { label: 'Create Sales Receipt', id: 'quickbooks_create_sales_receipt' },
+      { label: 'Update Sales Receipt', id: 'quickbooks_update_sales_receipt' },
+      { label: 'Create Customer Payment', id: 'quickbooks_create_customer_payment' },
+      { label: 'Update Customer Payment', id: 'quickbooks_update_customer_payment' },
+      { label: 'Void Customer Payment', id: 'quickbooks_void_customer_payment' },
+      { label: 'Create Credit Memo', id: 'quickbooks_create_credit_memo' },
+      { label: 'Update Credit Memo', id: 'quickbooks_update_credit_memo' },
+      { label: 'Create Refund Receipt', id: 'quickbooks_create_refund_receipt' },
+      { label: 'Update Refund Receipt', id: 'quickbooks_update_refund_receipt' },
       { label: 'List Purchase Orders', id: 'quickbooks_list_purchase_orders' },
       { label: 'List Bills', id: 'quickbooks_list_bills' },
     ])
@@ -971,13 +1018,26 @@ describe('QuickBooks tool and block boundaries', () => {
       field: 'operation',
       value: [
         'quickbooks_read_master_data',
+        'quickbooks_read_sales_transactions',
         'quickbooks_list_purchase_orders',
         'quickbooks_list_bills',
       ],
     })
     expect(subBlocks.syncToken.condition).toEqual({
       field: 'operation',
-      value: ['quickbooks_update_customer', 'quickbooks_update_item', 'quickbooks_update_vendor'],
+      value: [
+        'quickbooks_update_customer',
+        'quickbooks_update_item',
+        'quickbooks_update_vendor',
+        'quickbooks_update_estimate',
+        'quickbooks_update_invoice',
+        'quickbooks_update_sales_receipt',
+        'quickbooks_update_credit_memo',
+        'quickbooks_update_refund_receipt',
+        'quickbooks_update_customer_payment',
+        'quickbooks_void_invoice',
+        'quickbooks_void_customer_payment',
+      ],
     })
     expect(subBlocks.itemType.condition).toEqual({
       field: 'operation',

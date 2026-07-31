@@ -2,25 +2,76 @@ import { QuickBooksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  parseQuickBooksInvoiceAllocations,
+  parseQuickBooksSalesLines,
+} from '@/tools/quickbooks/sales_utils'
 import type { QuickBooksResponse } from '@/tools/quickbooks/types'
 import { parseQuickBooksAddress } from '@/tools/quickbooks/utils'
 
 const MASTER_DATA_OPERATION = 'quickbooks_read_master_data'
+const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
 const CUSTOMER_OPERATIONS = ['quickbooks_create_customer', 'quickbooks_update_customer'] as const
 const VENDOR_OPERATIONS = ['quickbooks_create_vendor', 'quickbooks_update_vendor'] as const
 const ITEM_OPERATIONS = ['quickbooks_create_item', 'quickbooks_update_item'] as const
-const UPDATE_OPERATIONS = [
+const SALES_DOCUMENT_CREATE_OPERATIONS = [
+  'quickbooks_create_estimate',
+  'quickbooks_create_invoice',
+  'quickbooks_create_sales_receipt',
+  'quickbooks_create_credit_memo',
+  'quickbooks_create_refund_receipt',
+] as const
+const SALES_DOCUMENT_UPDATE_OPERATIONS = [
+  'quickbooks_update_estimate',
+  'quickbooks_update_invoice',
+  'quickbooks_update_sales_receipt',
+  'quickbooks_update_credit_memo',
+  'quickbooks_update_refund_receipt',
+] as const
+const SALES_DOCUMENT_OPERATIONS = [
+  ...SALES_DOCUMENT_CREATE_OPERATIONS,
+  ...SALES_DOCUMENT_UPDATE_OPERATIONS,
+] as const
+const PAYMENT_OPERATIONS = [
+  'quickbooks_create_customer_payment',
+  'quickbooks_update_customer_payment',
+] as const
+const SALES_CREATE_OPERATIONS = [
+  ...SALES_DOCUMENT_CREATE_OPERATIONS,
+  'quickbooks_create_customer_payment',
+] as const
+const SALES_UPDATE_OPERATIONS = [
+  ...SALES_DOCUMENT_UPDATE_OPERATIONS,
+  'quickbooks_update_customer_payment',
+] as const
+const SALES_VOID_OPERATIONS = [
+  'quickbooks_void_invoice',
+  'quickbooks_void_customer_payment',
+] as const
+const MASTER_DATA_UPDATE_OPERATIONS = [
   'quickbooks_update_customer',
   'quickbooks_update_item',
   'quickbooks_update_vendor',
+] as const
+const SALES_MUTATION_OPERATIONS = [
+  ...SALES_CREATE_OPERATIONS,
+  ...SALES_UPDATE_OPERATIONS,
+  ...SALES_VOID_OPERATIONS,
+] as const
+const UPDATE_OPERATIONS = [
+  ...MASTER_DATA_UPDATE_OPERATIONS,
+  ...SALES_UPDATE_OPERATIONS,
+  ...SALES_VOID_OPERATIONS,
 ] as const
 const MUTATION_OPERATIONS = [
   ...CUSTOMER_OPERATIONS,
   ...ITEM_OPERATIONS,
   ...VENDOR_OPERATIONS,
+  ...SALES_MUTATION_OPERATIONS,
 ] as const
 const PAGINATED_OPERATIONS = [
   MASTER_DATA_OPERATION,
+  SALES_READ_OPERATION,
   'quickbooks_list_purchase_orders',
   'quickbooks_list_bills',
 ] as const
@@ -31,6 +82,7 @@ const TRANSACTION_LIST_OPERATIONS = [
 const QUICKBOOKS_OPERATIONS = [
   'quickbooks_get_company_info',
   MASTER_DATA_OPERATION,
+  SALES_READ_OPERATION,
   ...MUTATION_OPERATIONS,
   'quickbooks_list_purchase_orders',
   'quickbooks_list_bills',
@@ -79,16 +131,32 @@ function paginationCondition(values?: Record<string, unknown>) {
   if (values?.operation === MASTER_DATA_OPERATION) {
     return { field: 'readMode', value: 'list' }
   }
+  if (values?.operation === SALES_READ_OPERATION) {
+    return { field: 'readMode', value: 'list' }
+  }
   return { field: 'operation', value: [...TRANSACTION_LIST_OPERATIONS] }
+}
+
+function salesTransactionIdCondition(values?: Record<string, unknown>) {
+  if (values?.operation === SALES_READ_OPERATION) {
+    return { field: 'readMode', value: 'by_id' }
+  }
+  return { field: 'operation', value: [...SALES_UPDATE_OPERATIONS, ...SALES_VOID_OPERATIONS] }
+}
+
+function parseConfirmation(value: unknown): boolean {
+  if (value === true || value === 'yes') return true
+  if (value === false || value === 'no' || value == null || value === '') return false
+  throw new Error('confirmVoid must be yes or no')
 }
 
 export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   type: 'quickbooks',
   name: 'QuickBooks',
-  description: 'Read and manage QuickBooks Online company and master data',
+  description: 'Manage QuickBooks Online company, master data, sales, and receivables',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Connect one QuickBooks Online company to read company, master-data, purchase-order, and bill records and to create or update customers, vendors, and basic products or services.',
+    'Connect one QuickBooks Online company to manage master data and bounded sales and receivables workflows, while preserving existing purchase-order and bill reads.',
   docsLink: 'https://docs.sim.ai/integrations/quickbooks',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -108,6 +176,21 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
         { label: 'Create Item', id: 'quickbooks_create_item' },
         { label: 'Update Item', id: 'quickbooks_update_item' },
+        { label: 'Read Sales Transactions', id: 'quickbooks_read_sales_transactions' },
+        { label: 'Create Estimate', id: 'quickbooks_create_estimate' },
+        { label: 'Update Estimate', id: 'quickbooks_update_estimate' },
+        { label: 'Create Invoice', id: 'quickbooks_create_invoice' },
+        { label: 'Update Invoice', id: 'quickbooks_update_invoice' },
+        { label: 'Void Invoice', id: 'quickbooks_void_invoice' },
+        { label: 'Create Sales Receipt', id: 'quickbooks_create_sales_receipt' },
+        { label: 'Update Sales Receipt', id: 'quickbooks_update_sales_receipt' },
+        { label: 'Create Customer Payment', id: 'quickbooks_create_customer_payment' },
+        { label: 'Update Customer Payment', id: 'quickbooks_update_customer_payment' },
+        { label: 'Void Customer Payment', id: 'quickbooks_void_customer_payment' },
+        { label: 'Create Credit Memo', id: 'quickbooks_create_credit_memo' },
+        { label: 'Update Credit Memo', id: 'quickbooks_update_credit_memo' },
+        { label: 'Create Refund Receipt', id: 'quickbooks_create_refund_receipt' },
+        { label: 'Update Refund Receipt', id: 'quickbooks_update_refund_receipt' },
         { label: 'List Purchase Orders', id: 'quickbooks_list_purchase_orders' },
         { label: 'List Bills', id: 'quickbooks_list_bills' },
       ],
@@ -146,8 +229,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'List', id: 'list' },
         { label: 'By ID', id: 'by_id' },
       ],
-      condition: { field: 'operation', value: MASTER_DATA_OPERATION },
-      required: { field: 'operation', value: MASTER_DATA_OPERATION },
+      condition: { field: 'operation', value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION] },
+      required: { field: 'operation', value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION] },
       value: () => 'list',
     },
     {
@@ -165,6 +248,30 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         value: MASTER_DATA_OPERATION,
         and: { field: 'readMode', value: 'by_id' },
       },
+    },
+    {
+      id: 'transactionType',
+      title: 'Transaction Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Estimate', id: 'estimate' },
+        { label: 'Invoice', id: 'invoice' },
+        { label: 'Sales Receipt', id: 'sales_receipt' },
+        { label: 'Customer Payment', id: 'payment' },
+        { label: 'Credit Memo', id: 'credit_memo' },
+        { label: 'Refund Receipt', id: 'refund_receipt' },
+      ],
+      condition: { field: 'operation', value: SALES_READ_OPERATION },
+      required: { field: 'operation', value: SALES_READ_OPERATION },
+      value: () => 'invoice',
+    },
+    {
+      id: 'transactionId',
+      title: 'Transaction ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks transaction ID',
+      condition: salesTransactionIdCondition,
+      required: salesTransactionIdCondition,
     },
     {
       id: 'startPosition',
@@ -189,8 +296,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'Customer ID',
       type: 'short-input',
       placeholder: 'QuickBooks customer ID',
-      condition: { field: 'operation', value: 'quickbooks_update_customer' },
-      required: { field: 'operation', value: 'quickbooks_update_customer' },
+      condition: {
+        field: 'operation',
+        value: ['quickbooks_update_customer', ...SALES_DOCUMENT_OPERATIONS, ...PAYMENT_OPERATIONS],
+      },
+      required: {
+        field: 'operation',
+        value: ['quickbooks_update_customer', ...SALES_CREATE_OPERATIONS],
+      },
     },
     {
       id: 'vendorId',
@@ -435,8 +548,177 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Active', id: 'active' },
         { label: 'Inactive', id: 'inactive' },
       ],
-      condition: { field: 'operation', value: [...UPDATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...MASTER_DATA_UPDATE_OPERATIONS] },
       value: () => 'unchanged',
+    },
+    {
+      id: 'lines',
+      title: 'Lines (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"lineType":"item","amount":100,"itemId":"7","description":"Consulting"}]',
+      condition: { field: 'operation', value: [...SALES_DOCUMENT_OPERATIONS] },
+      required: { field: 'operation', value: [...SALES_DOCUMENT_CREATE_OPERATIONS] },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of QuickBooks sales lines. Use item lines with lineType, positive amount, itemId, and optional description, quantity, unitPrice, and serviceDate; or description lines with lineType and description. Return ONLY the JSON array - no explanations, no extra text.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'totalAmount',
+      title: 'Total Amount',
+      type: 'short-input',
+      placeholder: '100.00',
+      condition: { field: 'operation', value: [...PAYMENT_OPERATIONS] },
+      required: { field: 'operation', value: 'quickbooks_create_customer_payment' },
+    },
+    {
+      id: 'transactionDate',
+      title: 'Transaction Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: {
+        field: 'operation',
+        value: [...SALES_CREATE_OPERATIONS, ...SALES_UPDATE_OPERATIONS],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'dueDate',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: {
+        field: 'operation',
+        value: ['quickbooks_create_invoice', 'quickbooks_update_invoice'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'expirationDate',
+      title: 'Expiration Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: {
+        field: 'operation',
+        value: ['quickbooks_create_estimate', 'quickbooks_update_estimate'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'documentNumber',
+      title: 'Document Number',
+      type: 'short-input',
+      placeholder: 'Optional QuickBooks document number',
+      condition: { field: 'operation', value: [...SALES_DOCUMENT_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'privateNote',
+      title: 'Private Note',
+      type: 'long-input',
+      placeholder: 'Internal note',
+      condition: {
+        field: 'operation',
+        value: [...SALES_CREATE_OPERATIONS, ...SALES_UPDATE_OPERATIONS],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'customerMemo',
+      title: 'Customer Memo',
+      type: 'long-input',
+      placeholder: 'Customer-facing memo',
+      condition: { field: 'operation', value: [...SALES_DOCUMENT_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'paymentMethodId',
+      title: 'Payment Method ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks payment method ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'quickbooks_create_sales_receipt',
+          'quickbooks_update_sales_receipt',
+          'quickbooks_create_refund_receipt',
+          'quickbooks_update_refund_receipt',
+          ...PAYMENT_OPERATIONS,
+        ],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'paymentReferenceNumber',
+      title: 'Payment Reference Number',
+      type: 'short-input',
+      placeholder: 'Check or payment reference',
+      condition: {
+        field: 'operation',
+        value: [
+          'quickbooks_create_sales_receipt',
+          'quickbooks_update_sales_receipt',
+          'quickbooks_create_refund_receipt',
+          'quickbooks_update_refund_receipt',
+          ...PAYMENT_OPERATIONS,
+        ],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'depositAccountId',
+      title: 'Deposit Account ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks deposit account ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'quickbooks_create_sales_receipt',
+          'quickbooks_update_sales_receipt',
+          'quickbooks_create_refund_receipt',
+          'quickbooks_update_refund_receipt',
+          ...PAYMENT_OPERATIONS,
+        ],
+      },
+      required: { field: 'operation', value: 'quickbooks_create_refund_receipt' },
+    },
+    {
+      id: 'invoiceAllocations',
+      title: 'Invoice Allocations (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"invoiceId":"42","amount":75}]',
+      condition: { field: 'operation', value: [...PAYMENT_OPERATIONS] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of QuickBooks invoice allocations using only invoiceId and a positive amount. Return ONLY the JSON array - no explanations, no extra text.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'requestId',
+      title: 'Request ID',
+      type: 'short-input',
+      placeholder: 'Optional idempotency key (max 50 characters)',
+      condition: { field: 'operation', value: [...SALES_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'confirmVoid',
+      title: 'Confirm Void',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'no' },
+        { label: 'Yes', id: 'yes' },
+      ],
+      condition: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
+      required: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
+      value: () => 'no',
     },
   ],
   tools: {
@@ -449,6 +731,21 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_update_vendor',
       'quickbooks_create_item',
       'quickbooks_update_item',
+      'quickbooks_read_sales_transactions',
+      'quickbooks_create_estimate',
+      'quickbooks_update_estimate',
+      'quickbooks_create_invoice',
+      'quickbooks_update_invoice',
+      'quickbooks_void_invoice',
+      'quickbooks_create_sales_receipt',
+      'quickbooks_update_sales_receipt',
+      'quickbooks_create_customer_payment',
+      'quickbooks_update_customer_payment',
+      'quickbooks_void_customer_payment',
+      'quickbooks_create_credit_memo',
+      'quickbooks_update_credit_memo',
+      'quickbooks_create_refund_receipt',
+      'quickbooks_update_refund_receipt',
       'quickbooks_list_purchase_orders',
       'quickbooks_list_bills',
     ],
@@ -479,6 +776,85 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             readMode: params.readMode,
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
+          }
+        }
+        if (operation === SALES_READ_OPERATION) {
+          if (params.readMode === 'by_id') {
+            return {
+              credential: oauthCredentialValue,
+              transactionType: params.transactionType,
+              readMode: params.readMode,
+              transactionId: optionalValue(params.transactionId),
+            }
+          }
+          return {
+            credential: oauthCredentialValue,
+            transactionType: params.transactionType,
+            readMode: params.readMode,
+            startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
+            maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
+          }
+        }
+        if (SALES_VOID_OPERATIONS.includes(operation as (typeof SALES_VOID_OPERATIONS)[number])) {
+          return {
+            credential: oauthCredentialValue,
+            transactionId: optionalValue(params.transactionId),
+            syncToken: optionalValue(params.syncToken),
+            confirmVoid: parseConfirmation(params.confirmVoid),
+          }
+        }
+        if (
+          SALES_DOCUMENT_OPERATIONS.includes(
+            operation as (typeof SALES_DOCUMENT_OPERATIONS)[number]
+          )
+        ) {
+          const isCreate = SALES_DOCUMENT_CREATE_OPERATIONS.includes(
+            operation as (typeof SALES_DOCUMENT_CREATE_OPERATIONS)[number]
+          )
+          const isInvoice =
+            operation === 'quickbooks_create_invoice' || operation === 'quickbooks_update_invoice'
+          const isEstimate =
+            operation === 'quickbooks_create_estimate' || operation === 'quickbooks_update_estimate'
+          const isReceipt =
+            operation === 'quickbooks_create_sales_receipt' ||
+            operation === 'quickbooks_update_sales_receipt' ||
+            operation === 'quickbooks_create_refund_receipt' ||
+            operation === 'quickbooks_update_refund_receipt'
+          return {
+            credential: oauthCredentialValue,
+            transactionId: isCreate ? undefined : optionalValue(params.transactionId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
+            customerId: optionalValue(params.customerId),
+            lines: parseQuickBooksSalesLines(params.lines),
+            transactionDate: optionalValue(params.transactionDate),
+            dueDate: isInvoice ? optionalValue(params.dueDate) : undefined,
+            expirationDate: isEstimate ? optionalValue(params.expirationDate) : undefined,
+            documentNumber: optionalValue(params.documentNumber),
+            privateNote: optionalValue(params.privateNote),
+            customerMemo: optionalValue(params.customerMemo),
+            paymentMethodId: isReceipt ? optionalValue(params.paymentMethodId) : undefined,
+            paymentReferenceNumber: isReceipt
+              ? optionalValue(params.paymentReferenceNumber)
+              : undefined,
+            depositAccountId: isReceipt ? optionalValue(params.depositAccountId) : undefined,
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
+          }
+        }
+        if (PAYMENT_OPERATIONS.includes(operation as (typeof PAYMENT_OPERATIONS)[number])) {
+          const isCreate = operation === 'quickbooks_create_customer_payment'
+          return {
+            credential: oauthCredentialValue,
+            paymentId: isCreate ? undefined : optionalValue(params.transactionId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
+            customerId: optionalValue(params.customerId),
+            totalAmount: parseOptionalNumber(params.totalAmount, 'totalAmount'),
+            transactionDate: optionalValue(params.transactionDate),
+            privateNote: optionalValue(params.privateNote),
+            paymentReferenceNumber: optionalValue(params.paymentReferenceNumber),
+            paymentMethodId: optionalValue(params.paymentMethodId),
+            depositAccountId: optionalValue(params.depositAccountId),
+            invoiceAllocations: parseQuickBooksInvoiceAllocations(params.invoiceAllocations),
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
         if (
@@ -560,6 +936,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     recordType: { type: 'string', description: 'Master-data entity type' },
     readMode: { type: 'string', description: 'List or by-ID read mode' },
     recordId: { type: 'string', description: 'Master-data record ID' },
+    transactionType: { type: 'string', description: 'Sales transaction entity type' },
+    transactionId: { type: 'string', description: 'Sales transaction ID' },
     startPosition: {
       type: 'number',
       description: 'One-based position of the first list item to request',
@@ -568,7 +946,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'number',
       description: 'Number of list items to request, from 1 through 100',
     },
-    customerId: { type: 'string', description: 'Customer ID for an update' },
+    customerId: { type: 'string', description: 'QuickBooks customer ID' },
     vendorId: { type: 'string', description: 'Vendor ID for an update' },
     itemId: { type: 'string', description: 'Item ID for an update' },
     syncToken: { type: 'string', description: 'Current entity sync token' },
@@ -593,6 +971,26 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     purchaseCost: { type: 'number', description: 'Item purchase cost' },
     expenseAccountId: { type: 'string', description: 'Item expense account ID' },
     activeStatus: { type: 'string', description: 'Entity active-status change' },
+    lines: { type: 'json', description: 'Bounded item and description sales lines' },
+    totalAmount: { type: 'number', description: 'Customer payment total' },
+    transactionDate: { type: 'string', description: 'Transaction date in YYYY-MM-DD format' },
+    dueDate: { type: 'string', description: 'Invoice due date in YYYY-MM-DD format' },
+    expirationDate: {
+      type: 'string',
+      description: 'Estimate expiration date in YYYY-MM-DD format',
+    },
+    documentNumber: { type: 'string', description: 'QuickBooks document number' },
+    privateNote: { type: 'string', description: 'Internal transaction note' },
+    customerMemo: { type: 'string', description: 'Customer-facing transaction memo' },
+    paymentMethodId: { type: 'string', description: 'QuickBooks payment method ID' },
+    paymentReferenceNumber: { type: 'string', description: 'Payment reference number' },
+    depositAccountId: { type: 'string', description: 'QuickBooks deposit account ID' },
+    invoiceAllocations: {
+      type: 'json',
+      description: 'Bounded customer-payment allocations to invoices',
+    },
+    requestId: { type: 'string', description: 'Optional Intuit idempotency request ID' },
+    confirmVoid: { type: 'boolean', description: 'Explicit confirmation for a void operation' },
   },
   outputs: {
     company: {
@@ -606,20 +1004,24 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       description: 'Master-data record type returned by the read',
       condition: { field: 'operation', value: MASTER_DATA_OPERATION },
     },
+    transactionType: {
+      type: 'string',
+      description: 'Sales transaction type returned by the read',
+      condition: { field: 'operation', value: SALES_READ_OPERATION },
+    },
     item: {
       type: 'json',
-      description:
-        'Single Account, Customer, Vendor, Item, or Employee with native QuickBooks fields',
+      description: 'Single master-data or sales transaction record with native QuickBooks fields',
       condition: {
         field: 'operation',
-        value: MASTER_DATA_OPERATION,
+        value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION],
         and: { field: 'readMode', value: 'by_id' },
       },
     },
     items: {
       type: 'array',
       description:
-        'Account, Customer, Vendor, Item, Employee, PurchaseOrder, or Bill objects with native QuickBooks fields',
+        'Master-data, sales transaction, PurchaseOrder, or Bill objects with native QuickBooks fields',
       condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     startPosition: {
@@ -644,18 +1046,24 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     record: {
       type: 'json',
-      description: 'Created or updated Customer, Vendor, or Item with native QuickBooks fields',
+      description:
+        'Created, updated, or voided master-data or sales record with native QuickBooks fields',
       condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
     },
     recordId: {
       type: 'string',
-      description: 'ID of the created or updated QuickBooks record',
+      description: 'ID of the created, updated, or voided QuickBooks record',
       condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
     },
     syncToken: {
       type: 'string',
       description: 'Latest QuickBooks sync token for a subsequent update',
       condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
+    },
+    voided: {
+      type: 'boolean',
+      description: 'True when QuickBooks successfully voided the transaction',
+      condition: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
     },
     time: {
       type: 'string',
@@ -703,6 +1111,42 @@ export const QuickBooksBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'audit', 'data-quality'],
+    },
+    {
+      icon: QuickBooksIcon,
+      title: 'QuickBooks estimate preparation',
+      prompt:
+        'Build a workflow that receives an approved customer quote and line items, creates a QuickBooks estimate, and stores its ID and sync token for controlled revisions.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'estimates', 'sales'],
+    },
+    {
+      icon: QuickBooksIcon,
+      title: 'QuickBooks invoice creation',
+      prompt:
+        'Create a workflow that validates approved customer and item IDs, creates a QuickBooks invoice without emailing it, and stores the returned ID and sync token.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'invoices', 'receivables'],
+    },
+    {
+      icon: QuickBooksIcon,
+      title: 'QuickBooks partial-payment application',
+      prompt:
+        'Build a workflow that records a customer payment, applies bounded amounts to approved QuickBooks invoice IDs, and reports any unapplied remainder.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'payments', 'receivables'],
+    },
+    {
+      icon: QuickBooksIcon,
+      title: 'QuickBooks credit and refund review',
+      prompt:
+        'Build a controlled workflow that creates approved QuickBooks credit memos or refund receipts, stores their IDs and sync tokens, and sends the resulting records for review.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'credits', 'refunds'],
     },
     {
       icon: QuickBooksIcon,
@@ -760,24 +1204,28 @@ export const QuickBooksBlockMeta = {
         '# Audit QuickBooks Master Data\n\n## Steps\n1. Use Read Master Data in List mode for the required record types.\n2. Continue only with explicit `nextStartPosition` values while `hasMore` is true.\n3. Report incomplete or inconsistent records with their QuickBooks IDs.\n\n## Output\nReturn a read-only audit with source IDs and supporting values.',
     },
     {
-      name: 'reconcile-pos-to-bills',
-      description:
-        'Compare QuickBooks purchase orders and bills and flag likely reconciliation exceptions.',
+      name: 'prepare-quickbooks-estimates',
+      description: 'Create and revise bounded QuickBooks estimates from approved quote details.',
       content:
-        '# Reconcile QuickBooks Purchase Orders to Bills\n\n## Steps\n1. List Purchase Orders and Bills for the required explicit pages.\n2. Match records using vendor references, document numbers, dates, lines, and amounts.\n3. Flag missing matches, amount differences, and duplicate candidates.\n\n## Output\nReturn a reconciliation report with QuickBooks IDs. Do not modify bills or close purchase orders.',
+        '# Prepare QuickBooks Estimates\n\n## Steps\n1. Validate the customer, item IDs, amounts, and dates.\n2. Use Estimates: Create with bounded item or description lines.\n3. For a revision, use the estimate ID and latest `syncToken` with Estimates: Update.\n\n## Output\nReturn the native Estimate, ID, and latest sync token. Do not claim to email or accept the estimate.',
     },
     {
-      name: 'report-unpaid-bills',
-      description: 'Report QuickBooks bills that retain an unpaid balance.',
+      name: 'create-quickbooks-invoices',
+      description: 'Create approved QuickBooks invoices and retain identifiers for later updates.',
       content:
-        '# Report Unpaid QuickBooks Bills\n\n## Steps\n1. List Bills page by page as needed.\n2. Keep bills whose populated `Balance` is greater than zero.\n3. Group by vendor, currency, and due date while retaining bill IDs.\n\n## Output\nReturn unpaid bill details and subtotals. Do not mark bills paid or change due dates.',
+        '# Create QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Invoices: Create with at least one bounded line.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the native Invoice and identifiers. Do not claim to email the invoice or collect payment automatically.',
     },
     {
-      name: 'reactivate-master-data-records',
-      description:
-        'Reactivate a known customer, vendor, or supported item using its current token.',
+      name: 'apply-quickbooks-customer-payments',
+      description: 'Record customer payments with bounded optional invoice allocations.',
       content:
-        '# Reactivate QuickBooks Master Data\n\n## Steps\n1. Read the inactive record by ID to obtain its current `SyncToken`.\n2. Use the matching Update operation with Active Status set to Active.\n3. Retain the returned latest sync token.\n\n## Output\nReturn the reactivated record and identifiers. Account and employee administration is unsupported.',
+        '# Apply QuickBooks Customer Payments\n\n## Steps\n1. Validate the customer ID and positive payment total.\n2. Optionally allocate positive amounts to known invoice IDs without exceeding the payment total.\n3. Use Customer Payments: Create and store the returned ID and sync token.\n\n## Output\nReturn the native Payment and any unapplied remainder reported by QuickBooks.',
+    },
+    {
+      name: 'manage-quickbooks-credits-and-refunds',
+      description: 'Create or update bounded customer credit memos and refund receipts.',
+      content:
+        '# Manage QuickBooks Credits and Refunds\n\n## Steps\n1. Validate the approved customer, line items, and account references.\n2. Use Credit Memos or Refund Receipts Create; provide a deposit account for a refund receipt.\n3. Use the returned ID and current sync token for any approved update.\n\n## Output\nReturn the native transaction and identifiers. Do not claim to administer taxes or payment collection.',
     },
   ],
 } as const satisfies BlockMeta
