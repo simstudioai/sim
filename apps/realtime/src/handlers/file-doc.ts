@@ -719,10 +719,12 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     // snapshot on catch-up (REDIS_SNAPSHOT_ORIGIN) also counts: it folds real edits into one frame, so a
     // fresh task catching up purely from it must not treat the doc as unedited. The seed transition
     // itself is never counted, so a seeded-but-unedited doc is never projected back over the file. NOTE:
-    // in the multi-replica path a copilot merge is NOT excluded — it round-trips through the stream as
-    // REDIS_ORIGIN, indistinguishable from a peer edit, so it marks `edited`. That only ever causes an
-    // extra idempotent persist of content copilot already wrote directly (safe over-persist, never a lost
-    // edit); the single-replica path applies the merge locally with no origin and does not count it.
+    // an agent-streamed frame ({@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}) is not counted on the
+    // ORIGINATING task (it applies under an AgentSyncOrigin — see the handler), but in the multi-replica
+    // path it is published to the stream and PEER tasks apply it as REDIS_ORIGIN, indistinguishable from a
+    // peer edit, so it marks `edited` there. That only ever causes an extra idempotent persist of content
+    // the copilot's final `edit_content` write persists durably anyway (safe over-persist, never a lost
+    // edit); fully suppressing it would require tagging the stream entry as no-persist across replicas.
     const seededBefore = room.seededObserved
     if (isDocSeeded(room.doc)) room.seededObserved = true
     if (

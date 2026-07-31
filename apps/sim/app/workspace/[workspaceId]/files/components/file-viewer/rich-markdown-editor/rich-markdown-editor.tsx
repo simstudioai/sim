@@ -338,6 +338,14 @@ export function LoadedRichMarkdownEditor({
   const lastSyncedBodyRef = useRef<string | null>(
     streamingAtMountRef.current ? null : splitFrontmatter(content).body
   )
+  /**
+   * The body the AGENT last streamed into the collaborative doc — the extend-gate baseline for the collab
+   * streaming path. Written ONLY at stream start (snapshotting the pre-stream base) and by the streaming
+   * tick, never by `onUpdate`, so a concurrent PEER edit (which does clobber {@link lastSyncedBodyRef} via
+   * `onUpdate`) can't make the agent's growing snapshot stop prefixing the shown body and stall the stream.
+   * Reset to `null` on settle so the next stream re-captures its own baseline.
+   */
+  const lastStreamedBodyRef = useRef<string | null>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
@@ -864,22 +872,32 @@ export function LoadedRichMarkdownEditor({
         // re-runs and applies once it lands (the read-only placeholder shows the base content meanwhile —
         // see `showPlaceholder`).
         if (!collabReady) return
+        // Open the stream's shadow on the FIRST ready frame — BEFORE the extend gate — so its shadow
+        // captures the pre-stream base (immune to later peer edits) even for an `update` whose every frame
+        // is gated out until settle. Snapshot that base as the agent's private extend-gate baseline.
+        if (agentStreamSessionRef.current === null) {
+          agentStreamSessionRef.current = beginAgentStream(editor)
+          lastStreamedBodyRef.current = lastSyncedBodyRef.current
+        }
+        const session = agentStreamSessionRef.current
         const body = splitFrontmatter(content).body
-        if (body === lastSyncedBodyRef.current) return
+        if (body === lastStreamedBodyRef.current) return
         pendingStreamBodyRef.current = body
         if (streamRafRef.current !== null) return
         const tick = () => {
           const pending = pendingStreamBodyRef.current
-          if (pending === null || pending === lastSyncedBodyRef.current) {
+          if (pending === null || pending === lastStreamedBodyRef.current) {
             streamRafRef.current = null
             return
           }
-          const shownBody = lastSyncedBodyRef.current
+          const shownBody = lastStreamedBodyRef.current
           const extendsShown = shownBody === null || pending.startsWith(shownBody)
-          // Every snapshot except a mid-document `patch` must EXTEND what's shown: a from-scratch rebuild
-          // (`create`/`update`) is only revealed as it grows, and an `append` snapshot that doesn't extend
-          // the base is a base-less fragment (the server emits one before the base loads) which would
-          // reconcile the seeded doc down to a wipe. Only `patch` legitimately replaces a mid-region.
+          // Every snapshot except a mid-document `patch` must EXTEND what the AGENT last streamed: a
+          // from-scratch rebuild (`create`/`update`) is only revealed as it grows, and an `append`
+          // snapshot that doesn't extend the base is a base-less fragment (the server emits one before the
+          // base loads) which would reconcile the seeded doc down to a wipe. Only `patch` replaces a
+          // mid-region. The baseline is the agent's own last frame (not the editor body), so a concurrent
+          // peer edit can't make the growing snapshot stop prefixing it and stall the stream.
           if (!extendsShown && streamOperationRef.current !== 'patch') {
             streamRafRef.current = null
             return
@@ -893,8 +911,6 @@ export function LoadedRichMarkdownEditor({
           }
           const el = containerRef.current
           const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
-          agentStreamSessionRef.current ??= beginAgentStream(editor)
-          const session = agentStreamSessionRef.current
           // Defensive: a ready collab editor always has a ySync binding, so this applies; if one is
           // somehow absent, bail this frame without advancing rather than looping.
           if (!session || !applyAgentStreamFrame(editor, session, pending)) {
@@ -902,7 +918,7 @@ export function LoadedRichMarkdownEditor({
             return
           }
           streamRafRef.current = null
-          lastSyncedBodyRef.current = pending
+          lastStreamedBodyRef.current = pending
           lastStreamParseAtRef.current = performance.now()
           if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
         }
@@ -913,22 +929,20 @@ export function LoadedRichMarkdownEditor({
         cancelAnimationFrame(streamRafRef.current)
         streamRafRef.current = null
       }
-      // Settle: once seeded, apply the final body once (the last streaming frame may have been throttled)
-      // so the Y.Doc exactly equals the streamed result; the durable server write then lands as a noop
-      // diff. If the seed has not arrived, keep `wasStreamingRef` set so the post-seed re-run applies.
+      // Settle: apply the FINAL body once so the Y.Doc exactly equals the streamed result — even when
+      // every mid-stream frame was gated out (an `update` rewrite never extends the base) or the stream
+      // finished before the seed, cases where no frame applied. Reuse the stream's shadow when it exists
+      // (seeded from the pre-stream base, so peer edits survive); otherwise open one on demand. The
+      // durable server write then lands as a noop diff.
       if (wasStreamingRef.current && collabReady) {
         wasStreamingRef.current = false
         const finalBody = splitFrontmatter(content).body
-        const session = agentStreamSessionRef.current
+        const session = agentStreamSessionRef.current ?? beginAgentStream(editor)
         agentStreamSessionRef.current = null
+        lastStreamedBodyRef.current = null
         if (session) {
           runOffRender(() => {
-            if (
-              finalBody !== lastSyncedBodyRef.current &&
-              applyAgentStreamFrame(editor, session, finalBody)
-            ) {
-              lastSyncedBodyRef.current = finalBody
-            }
+            applyAgentStreamFrame(editor, session, finalBody)
           })
           // Free the shadow with an UNGUARDED microtask (not `runOffRender`): a rapid follow-up stream
           // can supersede the run token and drop the apply above, but the shadow must always be
@@ -1042,6 +1056,7 @@ export function LoadedRichMarkdownEditor({
         endAgentStream(agentStreamSessionRef.current)
         agentStreamSessionRef.current = null
       }
+      lastStreamedBodyRef.current = null
     },
     []
   )
