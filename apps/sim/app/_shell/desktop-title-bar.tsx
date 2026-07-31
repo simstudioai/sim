@@ -5,6 +5,9 @@ import { getDesktopBridge } from '@/lib/desktop'
 
 export type DesktopTitleBarMode = 'fullscreen' | 'inset' | null
 
+/** The document marker every lane owner reads and writes. */
+export const DESKTOP_TITLE_BAR_ATTRIBUTE = 'data-sim-desktop-title-bar'
+
 /**
  * Whether this surface reserves the macOS traffic-light lane itself.
  *
@@ -25,10 +28,10 @@ export function applyDesktopTitleBarMode(
   mode: DesktopTitleBarMode
 ): void {
   if (mode === null) {
-    root.removeAttribute('data-sim-desktop-title-bar')
+    root.removeAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE)
     return
   }
-  root.setAttribute('data-sim-desktop-title-bar', mode)
+  root.setAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE, mode)
 }
 
 /**
@@ -64,7 +67,17 @@ export function DesktopTitleBarController() {
     }
 
     const windowState = bridge?.windowState
-    applyDesktopTitleBarMode(root, 'inset')
+    /**
+     * Seed `inset` only when nobody has established a mode yet.
+     *
+     * The pre-paint script sets this before first paint and `WorkspaceChrome` maintains it
+     * for workspace routes, so writing unconditionally clobbered whatever they had:
+     * mounting a lane-aware overlay during native fullscreen forced the traffic-light lane
+     * back on and jumped the content, and left it wrong entirely if `getState()` rejected.
+     */
+    if (!root.hasAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE)) {
+      applyDesktopTitleBarMode(root, 'inset')
+    }
     if (!windowState) return
 
     let disposed = false
