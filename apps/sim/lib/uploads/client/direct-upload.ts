@@ -292,7 +292,15 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
     })
 
     xhr.open('PUT', presignedUrl)
-    xhr.setRequestHeader('Content-Type', getFileContentType(file))
+    // XHR appends on repeated setRequestHeader calls, so when the server's
+    // signed headers already carry Content-Type (GCS), setting it here too
+    // produces a doubled value ("x, x") that breaks the URL signature.
+    const providesContentType =
+      uploadHeaders &&
+      Object.keys(uploadHeaders).some((key) => key.toLowerCase() === 'content-type')
+    if (!providesContentType) {
+      xhr.setRequestHeader('Content-Type', getFileContentType(file))
+    }
     if (uploadHeaders) {
       for (const [key, value] of Object.entries(uploadHeaders)) {
         xhr.setRequestHeader(key, value)
