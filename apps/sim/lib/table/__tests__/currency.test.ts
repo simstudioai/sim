@@ -172,6 +172,19 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('1,500')).toBe(1500)
   })
 
+  it('reads a lone separator against the currency, not just the marker', () => {
+    // A currency with decimals always formats with BOTH separators, so a lone
+    // one never comes from a formatter for those — only zero-decimal
+    // currencies produce `1.235 ¥`. And a three-decimal currency's trailing
+    // three digits are decimals however the value arrived, which matters for
+    // CSV import, where nothing carries a marker.
+    expect(parseCurrencyInput('1.235 ¥', 'JPY')).toBe(1235)
+    expect(parseCurrencyInput('0,500', 'KWD')).toBe(0.5)
+    expect(parseCurrencyInput('12,000', 'TND')).toBe(12)
+    expect(parseCurrencyInput('1,500', 'USD')).toBe(1500)
+    expect(parseCurrencyInput('1.234')).toBe(1.234)
+  })
+
   it('refuses a scale suffix rather than shrinking the value', () => {
     // `1.2 M` read as 1.2 would rewrite a column of millions a millionfold too
     // small — the same invented-value failure as an identifier, inverted.

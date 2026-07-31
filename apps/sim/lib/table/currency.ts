@@ -314,9 +314,15 @@ function loneSeparatorIsGrouping(
   currencyCode: string | undefined
 ): boolean {
   if (!new RegExp(`\\${separator}\\d{3}$`).test(digitsAndSeps)) return false
-  if (separator === ',' && !hadMarker) return true
-  if (!hadMarker) return false
-  return currencyFractionDigits(currencyCode) !== 3
+  // A currency with three decimal places (KWD, TND) legitimately ends in three
+  // digits after its separator, so for those the reading is always decimal —
+  // regardless of how the value arrived, since a CSV import carries no marker.
+  if (currencyFractionDigits(currencyCode) === 3) return false
+  // A comma tail of exactly three digits is grouping by convention (`1,500`).
+  if (separator === ',') return true
+  // A dot is the decimal point in the notation most users type, so it only
+  // reads as grouping when a marker shows a formatter produced the string.
+  return hadMarker
 }
 
 /** A currency's conventional decimal places, defaulting to 2 when unknown. */
