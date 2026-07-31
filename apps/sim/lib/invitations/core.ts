@@ -1328,7 +1328,7 @@ async function acceptLockedInvitation(
   effects.membershipAlreadyExists = membershipAlreadyExists
 
   const redirectPath =
-    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}/home` : '/workspace'
+    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}` : '/workspace'
 
   return {
     success: true,

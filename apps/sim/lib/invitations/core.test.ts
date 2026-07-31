@@ -1131,7 +1131,7 @@ describe('acceptInvitation', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.redirectPath).toBe('/workspace/workspace-1/home')
+      expect(result.redirectPath).toBe('/workspace/workspace-1')
     }
     expect(mockAttachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(
       expect.anything(),
@@ -1580,7 +1580,7 @@ describe('acceptInvitation', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.redirectPath).toBe('/workspace/workspace-1/home')
+      expect(result.redirectPath).toBe('/workspace/workspace-1')
     }
   })
 

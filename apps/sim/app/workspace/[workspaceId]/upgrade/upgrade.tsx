@@ -69,7 +69,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
 
   const handleBack = useCallback(() => {
-    router.replace(origin ?? `/workspace/${workspaceId}/home`)
+    router.replace(origin ?? `/workspace/${workspaceId}`)
   }, [origin, router, workspaceId])
 
   // Enterprise manages billing out-of-band, so there is no plan to pick here.
@@ -77,7 +77,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   // state — page.tsx resolves those before this ever mounts.
   useEffect(() => {
     if (canManageBilling && !state.isLoading && state.subscription.isEnterprise) {
-      router.replace(`/workspace/${workspaceId}/home`)
+      router.replace(`/workspace/${workspaceId}`)
     }
   }, [canManageBilling, state.isLoading, state.subscription.isEnterprise, router, workspaceId])
 
