@@ -683,11 +683,15 @@ export async function processFilePreviewStreamEvent(input: {
           // it mid-stream, so it applies atomically at the final durable write instead. Skip while a
           // merge is in flight for this file — one at a time, and don't advance the throttle on a
           // no-op — so a slow relay can't backlog stale snapshots or make the doc lag the stream.
+          // Require a numeric `baseVersion`: without it the relay can't order the snapshot and would
+          // treat it as unordered (never stale), so a rare base with no version (no file record) is
+          // fail-closed — skip the live merge rather than risk clobbering a concurrent durable write.
           const dueForLiveMerge =
             nextSession.fileId !== undefined &&
             isMarkdownFile({ type: editIntent.contentType, name: nextSession.fileName ?? '' }) &&
             (editIntent.operation === 'append' || editIntent.operation === 'patch') &&
             currentPreview.session.baseContent !== undefined &&
+            nextSession.baseVersion !== undefined &&
             !isLiveDocMergeInFlight(nextSession.fileId) &&
             now - currentPreview.lastLiveMergeAt >= LIVE_DOC_MERGE_THROTTLE_MS
           const nextLiveMergeAt = dueForLiveMerge ? now : currentPreview.lastLiveMergeAt

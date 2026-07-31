@@ -206,6 +206,18 @@ describe('processFilePreviewStreamEvent — live-doc streaming merge', () => {
     expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
   })
 
+  it('does not merge when base content loads without a version (unordered-wipe guard)', async () => {
+    // Base text is available but the intent carries no file record → no baseVersion. The relay would
+    // treat a versionless snapshot as unordered (never stale), so it must be skipped fail-closed.
+    peekFileIntentMock.mockResolvedValue({ existingContent: 'Base.' })
+    const intent = makeIntent({ operation: 'append', fileId: 'file-nover', fileName: 'notes.md' })
+
+    await drive(editContentDelta('{"content":"Hello'), intent)
+    await flushMicrotasks()
+
+    expect(mergeEditIntoLiveFileDocMock).not.toHaveBeenCalled()
+  })
+
   it('does not merge an append before base content loads (base-less-wipe guard)', async () => {
     // No pending intent base is available yet → session.baseContent stays undefined.
     peekFileIntentMock.mockResolvedValue(undefined)
