@@ -47,15 +47,6 @@ const RENDERED_PDF_BUFFER = Buffer.from('%PDF-1.4 rendered', 'utf8')
 
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadFileFromStorage: mockDownloadFile,
-  // Mirrors the real module: resolveBase64 narrows on this class to decide whether a
-  // strict caller sees the failure, so omitting it from the mock would break that
-  // check rather than exercise it.
-  UnrenderableDocumentError: class UnrenderableDocumentError extends Error {
-    constructor(fileName: string) {
-      super(`File ${fileName} could not be rendered`)
-      this.name = 'UnrenderableDocumentError'
-    }
-  },
   downloadServableFileFromStorage: async (
     file: UserFile,
     requestId: string,

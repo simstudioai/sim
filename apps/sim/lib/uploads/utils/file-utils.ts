@@ -1031,3 +1031,32 @@ export function getViewerUrl(fileKey: string, workspaceId?: string): string | nu
 
   return `/workspace/${resolvedWorkspaceId}/files/${fileKey}`
 }
+
+/**
+ * Thrown when a file's stored bytes are not the format its name claims and could
+ * not be rendered into it.
+ *
+ * Every caller of `downloadServableFileFromStorage` hands the bytes to something
+ * that expects the real document — an email attachment, a cloud upload, a zip
+ * entry, a provider attachment — and none of them can tell a rendered artifact
+ * from raw generation source once it is just a Buffer. Returning the bytes under
+ * an honest content type would still be wrong, because the filename travels
+ * separately and downstream re-infers the type from it. Failing at the download
+ * boundary is what reliably keeps source text from going out under a `.pdf`.
+ *
+ * Lives here rather than beside that function because `file-utils.server.ts` is a
+ * `'use server'` module, whose exports must all be async functions — a class
+ * export there fails the build.
+ *
+ * The file-serve route deliberately does NOT go through that helper: it resolves
+ * bytes directly and keeps the graceful passthrough, which is the one place a
+ * human downloading the file has a use for them.
+ */
+export class UnrenderableDocumentError extends Error {
+  constructor(fileName: string) {
+    super(
+      `File ${fileName} could not be rendered; its stored bytes are not the format its name claims.`
+    )
+    this.name = 'UnrenderableDocumentError'
+  }
+}

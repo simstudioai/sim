@@ -500,7 +500,16 @@ function compiledCacheSet(key: string, buffer: Buffer): void {
  * {@link compiledDocCache}, so an edit to the file produces a new key and gets a
  * fresh attempt.
  */
-const unrenderableSources = new Set<string>()
+const unrenderableSources = new Map<string, number>()
+
+/**
+ * How long a failed render is remembered. Bounded rather than permanent because the
+ * isolated-vm engine cannot tell a bad source from a sandbox outage, so an infra
+ * blip would otherwise strand a perfectly renderable document for the life of the
+ * process. Long enough to stop a read loop spending a sandbox run per read, short
+ * enough that a transient failure self-heals without a deploy.
+ */
+const UNRENDERABLE_TTL_MS = 5 * 60 * 1000
 
 /**
  * Renders in flight, keyed identically to {@link compiledDocCache}. An artifact
@@ -538,9 +547,17 @@ function coalesceRender(
 
 function markUnrenderable(key: string): void {
   if (unrenderableSources.size >= MAX_COMPILED_DOC_CACHE) {
-    unrenderableSources.delete(unrenderableSources.values().next().value as string)
+    unrenderableSources.delete(unrenderableSources.keys().next().value as string)
   }
-  unrenderableSources.add(key)
+  unrenderableSources.set(key, Date.now() + UNRENDERABLE_TTL_MS)
+}
+
+function isKnownUnrenderable(key: string): boolean {
+  const expiresAt = unrenderableSources.get(key)
+  if (expiresAt === undefined) return false
+  if (expiresAt > Date.now()) return true
+  unrenderableSources.delete(key)
+  return false
 }
 
 /**
@@ -645,7 +662,7 @@ export async function resolveServableDocBytes(args: {
     return passthrough()
   }
 
-  if (unrenderableSources.has(renderKey)) {
+  if (isKnownUnrenderable(renderKey)) {
     return unrendered('previous render attempt for these bytes failed')
   }
 

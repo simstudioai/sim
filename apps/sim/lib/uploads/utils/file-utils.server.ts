@@ -25,6 +25,7 @@ import {
   processSingleFileToUserFile,
   type RawFileInput,
   resolveTrustedFileContext,
+  UnrenderableDocumentError,
 } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -354,31 +355,6 @@ export interface ServableFile {
    * them — see {@link UnrenderableDocumentError}.
    */
   unrendered?: boolean
-}
-
-/**
- * Thrown when a file's stored bytes are not the format its name claims and could
- * not be rendered into it.
- *
- * Every caller of {@link downloadServableFileFromStorage} hands the bytes to
- * something that expects the real document — an email attachment, a cloud upload,
- * a zip entry, a provider attachment — and none of them can tell a rendered
- * artifact from raw generation source once it is just a Buffer. Returning the
- * bytes with an honest content type would still be wrong, because the filename
- * travels separately and downstream re-infers the type from it. Failing here is
- * the only place that reliably prevents source text going out under a `.pdf`.
- *
- * The file-serve route deliberately does NOT go through this helper: it resolves
- * bytes directly and keeps the graceful passthrough, because a human downloading
- * the file and seeing what it actually is has a use for it.
- */
-export class UnrenderableDocumentError extends Error {
-  constructor(fileName: string) {
-    super(
-      `File ${fileName} could not be rendered; its stored bytes are not the format its name claims.`
-    )
-    this.name = 'UnrenderableDocumentError'
-  }
 }
 
 /**

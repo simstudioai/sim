@@ -27,6 +27,7 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
+import { UnrenderableDocumentError } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -453,11 +454,11 @@ async function resolveBase64(
       // graph (remote sandbox, sandbox task runner, execution limits), and a static
       // import here would load all of it for every hydration consumer — mirroring
       // the deliberate dynamic import in file-utils.server.ts.
-      const [{ isDocNotReadyError }, { UnrenderableDocumentError }] = await Promise.all([
-        import('@/lib/uploads/utils/servable-file-response'),
-        import('@/lib/uploads/utils/file-utils.server'),
-      ])
-      if (isDocNotReadyError(error) || error instanceof UnrenderableDocumentError) {
+      if (error instanceof UnrenderableDocumentError) {
+        throw error
+      }
+      const { isDocNotReadyError } = await import('@/lib/uploads/utils/servable-file-response')
+      if (isDocNotReadyError(error)) {
         throw error
       }
     }
