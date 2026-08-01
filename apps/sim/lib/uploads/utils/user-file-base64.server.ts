@@ -27,7 +27,6 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
-import { UnrenderableDocumentError } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -444,23 +443,15 @@ async function resolveBase64(
     // already-finished result opt out, so a late compile cannot retroactively
     // fail completed work.
     if (options.throwOnDocNotReady) {
-      // This caller cannot use a file without content, so any reason the bytes are
-      // missing must reach it verbatim. Degrading to null here is what produced the
-      // misleading "may exceed size limit or no longer accessible" message for a
-      // document that was actually still compiling, or one whose stored bytes are
-      // not the format its name claims.
+      // This caller cannot use a file without content, so every failure reaches it
+      // verbatim — still compiling, unrenderable, a sandbox outage, a storage error.
       //
-      // Imported lazily: `servable-file-response` pulls in the doc-compile module
-      // graph (remote sandbox, sandbox task runner, execution limits), and a static
-      // import here would load all of it for every hydration consumer — mirroring
-      // the deliberate dynamic import in file-utils.server.ts.
-      if (error instanceof UnrenderableDocumentError) {
-        throw error
-      }
-      const { isDocNotReadyError } = await import('@/lib/uploads/utils/servable-file-response')
-      if (isDocNotReadyError(error)) {
-        throw error
-      }
+      // Deliberately not narrowed to specific error classes. Doing that produced
+      // three consecutive rounds of "this particular failure is still swallowed",
+      // because `readUserFileContent` now runs document compiles and can fail in
+      // ways this module has no business enumerating. The flag means "do not
+      // degrade", not "do not degrade for the failures we thought of".
+      throw error
     }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
     return null

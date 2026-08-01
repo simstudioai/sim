@@ -541,6 +541,11 @@ function coalesceRender(
   const existing = inFlightRenders.get(key)
   if (existing) return existing
   const started = run().finally(() => inFlightRenders.delete(key))
+  // Every caller races this against its own signal, so all of them can walk away
+  // before it settles. Attach a terminal handler so a later rejection with no
+  // waiters left is not reported as an unhandled rejection — callers still observe
+  // it through their own reference.
+  started.catch(() => {})
   inFlightRenders.set(key, started)
   return started
 }
@@ -675,7 +680,11 @@ export async function resolveServableDocBytes(args: {
     // (content-addressed), so racing a still-running write-time compile is wasteful
     // but correct.
     try {
-      return await coalesceRender(renderKey, () => compileDoc({ source, fileName, workspaceId }))
+      // Same shape as the isolated-vm branch below: the shared run carries no
+      // caller's signal, and each caller races its own so an aborting reader gives
+      // up promptly without cancelling the render for everyone else.
+      const shared = coalesceRender(renderKey, () => compileDoc({ source, fileName, workspaceId }))
+      return await (signal ? Promise.race([shared, rejectOnAbort(signal)]) : shared)
     } catch (error) {
       // Only a script error is deterministic — the same bytes will never render, so
       // remembering that is safe. Infra failures (sandbox create/timeout, S3, an

@@ -37,7 +37,7 @@ async function compileDocumentIfNeeded(
   raw: boolean,
   ownerKey: string | undefined,
   signal: AbortSignal | undefined
-): Promise<{ buffer: Buffer; contentType: string }> {
+): Promise<{ buffer: Buffer; contentType: string; unrendered?: boolean }> {
   if (raw) return { buffer, contentType: getContentType(filename) }
   return resolveServableDocBytes({
     rawBuffer: buffer,
@@ -67,6 +67,10 @@ const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
  * bumps on every edit — so the browser may cache it indefinitely; re-opens and
  * focus refetches then resolve from cache with no round trip. Unversioned workspace
  * reads stay revalidated because the same storage key is edited in place.
+ *
+ * Callers pass `versioned && !unrendered`: a render that failed returns the stored
+ * bytes as opaque data, and marking that immutable for a year would pin the failure
+ * to the URL long after a later compile succeeds on the same version.
  */
 function resolveServeCacheControl(
   versioned: boolean,
@@ -195,14 +199,11 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
-      rawBuffer,
-      displayName,
-      workspaceId,
-      raw,
-      ownerKey,
-      signal
-    )
+    const {
+      buffer: fileBuffer,
+      contentType,
+      unrendered,
+    } = await compileDocumentIfNeeded(rawBuffer, displayName, workspaceId, raw, ownerKey, signal)
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
@@ -210,7 +211,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(versioned, contextParam),
+      cacheControl: resolveServeCacheControl(versioned && !unrendered, contextParam),
     })
   } catch (error) {
     logger.error('Error reading local file:', error)
@@ -257,14 +258,11 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
-      rawBuffer,
-      displayName,
-      workspaceId,
-      raw,
-      ownerKey,
-      signal
-    )
+    const {
+      buffer: fileBuffer,
+      contentType,
+      unrendered,
+    } = await compileDocumentIfNeeded(rawBuffer, displayName, workspaceId, raw, ownerKey, signal)
 
     logger.info('Cloud file served', {
       userId,
@@ -277,7 +275,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(versioned, context),
+      cacheControl: resolveServeCacheControl(versioned && !unrendered, context),
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)
