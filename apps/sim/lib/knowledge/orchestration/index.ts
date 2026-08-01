@@ -7,6 +7,7 @@ export {
   performDeleteKnowledgeConnector,
   performSyncKnowledgeConnector,
   performUpdateKnowledgeConnector,
+  type SourceConfigRejection,
 } from './connectors'
 export {
   type CreatedKnowledgeDocument,

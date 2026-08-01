@@ -8,13 +8,17 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockAssertBillingAttributionSnapshot,
   mockCheckKnowledgeBaseWriteAccess,
+  mockGetKnowledgeBaseById,
   mockPerformCreateKnowledgeConnector,
+  mockPerformDeleteKnowledgeBase,
   mockPerformDeleteKnowledgeConnector,
   mockPerformSyncKnowledgeConnector,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn(),
   mockCheckKnowledgeBaseWriteAccess: vi.fn(),
+  mockGetKnowledgeBaseById: vi.fn(),
   mockPerformCreateKnowledgeConnector: vi.fn(),
+  mockPerformDeleteKnowledgeBase: vi.fn(),
   mockPerformDeleteKnowledgeConnector: vi.fn(),
   mockPerformSyncKnowledgeConnector: vi.fn(),
 }))
@@ -38,8 +42,8 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 }))
 vi.mock('@/lib/knowledge/orchestration', () => ({
   performCreateKnowledgeBase: vi.fn(),
+  performDeleteKnowledgeBase: mockPerformDeleteKnowledgeBase,
   performCreateKnowledgeConnector: mockPerformCreateKnowledgeConnector,
-  performDeleteKnowledgeBase: vi.fn(),
   performDeleteKnowledgeConnector: mockPerformDeleteKnowledgeConnector,
   performDeleteKnowledgeDocument: vi.fn(),
   performSyncKnowledgeConnector: mockPerformSyncKnowledgeConnector,
@@ -49,7 +53,7 @@ vi.mock('@/lib/knowledge/orchestration', () => ({
   performUploadKnowledgeDocument: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: vi.fn(),
+  getKnowledgeBaseById: mockGetKnowledgeBaseById,
 }))
 vi.mock('@/lib/knowledge/tags/service', () => ({
   createTagDefinition: vi.fn(),
@@ -154,6 +158,53 @@ describe('knowledge base connector Copilot operations', () => {
     expect(await call.resolveBillingAttribution()).toEqual(BILLING_ATTRIBUTION)
     expect(call.source).toBe('agent')
     expect(mockAssertBillingAttributionSnapshot).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+  })
+
+  it('reports a failed knowledge base delete as failed, not as missing', async () => {
+    mockGetKnowledgeBaseById.mockResolvedValue({
+      id: 'knowledge-base-1',
+      name: 'Paid KB',
+      workspaceId: 'workspace-paid',
+    })
+    mockPerformDeleteKnowledgeBase.mockResolvedValue({
+      success: false,
+      error: 'Knowledge base is locked',
+      errorCode: 'conflict',
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'delete', args: { knowledgeBaseId: 'knowledge-base-1' } },
+      CONTEXT
+    )
+
+    // A knowledge base that exists but could not be archived is neither deleted
+    // nor missing — folding it into notFound told the user it was never there.
+    expect(result.data.notFound).toEqual([])
+    expect(result.data.failed).toEqual([
+      { id: 'knowledge-base-1', name: 'Paid KB', reason: 'Knowledge base is locked' },
+    ])
+    expect(result.message).toContain('Knowledge base is locked')
+  })
+
+  it('never relays an unclassified fault to the agent verbatim', async () => {
+    mockGetKnowledgeBaseById.mockResolvedValue({
+      id: 'knowledge-base-1',
+      name: 'Paid KB',
+      workspaceId: 'workspace-paid',
+    })
+    mockPerformDeleteKnowledgeBase.mockResolvedValue({
+      success: false,
+      error: 'select "id" from "knowledge_base" — connection terminated',
+      errorCode: 'internal',
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'delete', args: { knowledgeBaseId: 'knowledge-base-1' } },
+      CONTEXT
+    )
+
+    expect(result.data.failed[0].reason).toBe('Failed to delete knowledge base')
+    expect(result.message).not.toContain('connection terminated')
   })
 
   it('reports that a deleted connector kept its documents, because it did', async () => {

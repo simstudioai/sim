@@ -13,7 +13,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
@@ -45,6 +45,12 @@ export type KnowledgeConnectorRow = typeof knowledgeConnector.$inferSelect
 type ConnectorRow = KnowledgeConnectorRow
 /** The connector row as it reaches every caller: never carrying the stored API key. */
 export type ConnectorWithoutSecret = Omit<ConnectorRow, 'encryptedApiKey'>
+
+/** A refused `sourceConfig`, with the failure class the caller wants surfaced. */
+export interface SourceConfigRejection {
+  message: string
+  errorCode: OrchestrationErrorCode
+}
 
 /** The knowledge base a connector operation targets, already authorized by the caller. */
 export interface ConnectorKnowledgeBase {
@@ -225,6 +231,17 @@ export async function performCreateKnowledgeConnector(
     finalSourceConfig = { ...finalSourceConfig, tagSlotMapping }
   }
 
+  // Resolved before the write, not after: every guard that can cheaply reject
+  // the request has already run, and `requireBillingAttributionHeader` throws on
+  // a malformed header. Resolving it post-commit would leave a live connector
+  // behind a 500 and let a retry create a duplicate.
+  let billingAttribution: BillingAttributionSnapshot
+  try {
+    billingAttribution = await resolveBillingAttribution()
+  } catch (error) {
+    return classifyKnowledgeFailure(error, requestId, `Create ${connectorType} connector`)
+  }
+
   const now = new Date()
   const connectorId = generateId()
   const nextSyncAt =
@@ -319,7 +336,6 @@ export async function performCreateKnowledgeConnector(
     ...(request ? { request } : {}),
   })
 
-  const billingAttribution = await resolveBillingAttribution()
   const dispatchSync = await loadDispatchSync()
   dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
     logger.error(
@@ -342,12 +358,16 @@ export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperatio
   /**
    * Validates a replacement `sourceConfig` against the live source. Supplied by
    * the caller because resolving the connector's token needs the requesting
-   * identity. Returning a message rejects the update.
+   * identity. Returning a rejection fails the update.
+   *
+   * The rejection carries its own `errorCode` so a stale credential and a bad
+   * config stay distinguishable — collapsing every rejection to `validation`
+   * flattened the route's 401 and 409 into a 400.
    */
   validateSourceConfig?: (
     connector: KnowledgeConnectorRow,
     sourceConfig: Record<string, unknown>
-  ) => Promise<string | null>
+  ) => Promise<SourceConfigRejection | null>
 }
 
 /** Loads an active connector scoped to its knowledge base. */
@@ -409,7 +429,7 @@ export async function performUpdateKnowledgeConnector(
   if (updates.sourceConfig !== undefined && validateSourceConfig) {
     const rejection = await validateSourceConfig(existing, updates.sourceConfig)
     if (rejection) {
-      return fail(rejection, 'validation')
+      return fail(rejection.message, rejection.errorCode)
     }
   }
 
@@ -660,7 +680,14 @@ export async function performSyncKnowledgeConnector(
   if (!kb.workspaceId) {
     return fail('Knowledge base is missing workspace billing context', 'conflict')
   }
-  const billingAttribution = await resolveBillingAttribution()
+  // Resolved before the audit is written, so a rejected payer lookup returns a
+  // classified failure rather than escaping as a 500 with a sync already recorded.
+  let billingAttribution: BillingAttributionSnapshot
+  try {
+    billingAttribution = await resolveBillingAttribution()
+  } catch (error) {
+    return classifyKnowledgeFailure(error, requestId, `Sync connector ${connectorId}`)
+  }
 
   logger.info(
     `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`

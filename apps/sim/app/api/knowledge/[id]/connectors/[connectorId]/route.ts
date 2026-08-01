@@ -22,6 +22,7 @@ import {
   type KnowledgeConnectorRow,
   performDeleteKnowledgeConnector,
   performUpdateKnowledgeConnector,
+  type SourceConfigRejection,
 } from '@/lib/knowledge/orchestration'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -94,28 +95,43 @@ function makeSourceConfigValidator(
   return async (
     connector: KnowledgeConnectorRow,
     sourceConfig: Record<string, unknown>
-  ): Promise<string | null> => {
+  ): Promise<SourceConfigRejection | null> => {
     const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
     if (!connectorConfig) {
-      return `Unknown connector type: ${connector.connectorType}`
+      return {
+        message: `Unknown connector type: ${connector.connectorType}`,
+        errorCode: 'validation',
+      }
     }
 
     let accessToken: string | null = null
     if (connectorConfig.auth.mode === 'apiKey') {
       if (!connector.encryptedApiKey) {
-        return 'API key not found. Please reconfigure the connector.'
+        return {
+          message: 'API key not found. Please reconfigure the connector.',
+          errorCode: 'validation',
+        }
       }
       accessToken = (await decryptApiKey(connector.encryptedApiKey)).decrypted
     } else {
       if (!connector.credentialId) {
-        return 'OAuth credential not found. Please reconfigure the connector.'
+        return {
+          message: 'OAuth credential not found. Please reconfigure the connector.',
+          errorCode: 'validation',
+        }
       }
       if (!workspaceId) {
-        return 'Knowledge base is missing workspace context'
+        return {
+          message: 'Knowledge base is missing workspace context',
+          errorCode: 'conflict',
+        }
       }
       const identity = await resolveCredentialTokenIdentity(connector.credentialId, workspaceId)
       if (!identity) {
-        return 'Credential is no longer usable in this workspace. Please reconnect it.'
+        return {
+          message: 'Credential is no longer usable in this workspace. Please reconnect it.',
+          errorCode: 'validation',
+        }
       }
       accessToken = await refreshAccessTokenIfNeeded(
         connector.credentialId,
@@ -126,11 +142,19 @@ function makeSourceConfigValidator(
     }
 
     if (!accessToken) {
-      return 'Failed to refresh access token. Please reconnect your account.'
+      // A stale stored credential, not an unauthenticated caller — but the route
+      // has always answered 401 here, so keep that rather than silently
+      // reclassifying it as part of this refactor.
+      return {
+        message: 'Failed to refresh access token. Please reconnect your account.',
+        errorCode: 'unauthorized',
+      }
     }
 
     const validation = await connectorConfig.validateConfig(accessToken, sourceConfig)
-    return validation.valid ? null : validation.error || 'Invalid source configuration'
+    return validation.valid
+      ? null
+      : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
   }
 }
 

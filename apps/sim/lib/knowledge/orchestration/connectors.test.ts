@@ -157,7 +157,10 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: { sourceConfig: { database: 'gone' } },
-      validateSourceConfig: async () => 'Database not found',
+      validateSourceConfig: async () => ({
+        message: 'Database not found',
+        errorCode: 'validation' as const,
+      }),
     })
 
     expect(outcome).toMatchObject({
@@ -165,6 +168,25 @@ describe('performUpdateKnowledgeConnector', () => {
       errorCode: 'validation',
       error: 'Database not found',
     })
+  })
+
+  it('preserves the failure class the validator chose', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+
+    // A stale stored credential kept the route's 401; collapsing every
+    // rejection to `validation` had flattened it (and the 409) into a 400.
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'x' } },
+      validateSourceConfig: async () => ({
+        message: 'Failed to refresh access token. Please reconnect your account.',
+        errorCode: 'unauthorized' as const,
+      }),
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'unauthorized' })
   })
 
   it('clears the failure counters when a paused connector is resumed', async () => {
@@ -195,6 +217,24 @@ describe('performSyncKnowledgeConnector', () => {
   })
 
   afterAll(resetDbChainMock)
+
+  it('resolves the payer before writing the audit, not after', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    const rejects = vi.fn().mockRejectedValue(new Error('billing attribution header is malformed'))
+
+    const outcome = await performSyncKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      resolveBillingAttribution: rejects,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
 
   it('refuses to stack a sync on one already running', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([

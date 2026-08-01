@@ -18,6 +18,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import {
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+} from '@/lib/core/orchestration/types'
 import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import {
   performCreateKnowledgeBase,
@@ -65,6 +69,20 @@ function requireKnowledgeBillingAttribution(
     throw new Error('Knowledge billing attribution does not match its actor and workspace')
   }
   return attribution
+}
+
+/**
+ * The message the agent — and therefore the user — is shown for a failed
+ * operation. Mirrors `messageForOrchestrationError` on the HTTP surfaces: a
+ * classified failure is caller-fixable and safe to relay, an unclassified one
+ * carries whatever text the fault happened to have (a driver's failed SQL, say)
+ * and is replaced by the operation's own wording.
+ */
+function agentFacingError(
+  outcome: { error?: string; errorCode?: OrchestrationErrorCode },
+  fallback: string
+): string {
+  return messageForOrchestrationError(outcome, fallback)
 }
 
 type KnowledgeBaseArgs = {
@@ -142,7 +160,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             chunkingConfig: args.chunkingConfig,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to create knowledge base'),
+            }
           }
 
           const newKnowledgeBase = outcome.knowledgeBase
@@ -446,7 +467,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             updates,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to update knowledge base'),
+            }
           }
 
           const updatedKb = outcome.knowledgeBase
@@ -476,6 +500,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const deleted: Array<{ id: string; name: string }> = []
           const notFound: string[] = []
+          // A knowledge base that exists but could not be archived is neither
+          // deleted nor missing. Folding it into `notFound` told the user it was
+          // never there instead of why the delete failed.
+          const failed: Array<{ id: string; name: string; reason: string }> = []
 
           for (const kbId of kbIds) {
             const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
@@ -501,19 +529,33 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               },
             })
             if (!outcome.success) {
-              notFound.push(kbId)
+              if (outcome.errorCode === 'not_found') {
+                notFound.push(kbId)
+              } else {
+                failed.push({
+                  id: kbId,
+                  name: kbToDelete.name,
+                  reason: agentFacingError(outcome, 'Failed to delete knowledge base'),
+                })
+              }
               continue
             }
             deleted.push({ id: kbId, name: kbToDelete.name })
           }
 
+          const deleteSummary = [
+            deleted.length > 0 ? `Deleted: ${deleted.map((d) => d.name).join(', ')}` : null,
+            failed.length > 0
+              ? `Failed: ${failed.map((f) => `${f.name} (${f.reason})`).join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('. ')
+
           return {
             success: deleted.length > 0,
-            message:
-              deleted.length > 0
-                ? `Deleted: ${deleted.map((d) => d.name).join(', ')}`
-                : 'No knowledge bases found',
-            data: { deleted, notFound },
+            message: deleteSummary || 'No knowledge bases found',
+            data: { deleted, notFound, failed },
           }
         }
 
@@ -611,7 +653,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             updates: updateData,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to update document'),
+            }
           }
 
           return {
@@ -929,7 +974,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 ?.accessToken ?? null,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return { success: false, message: agentFacingError(outcome, 'Failed to add connector') }
           }
 
           const connector = outcome.connector
@@ -982,7 +1027,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             updates,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to update connector'),
+            }
           }
 
           return {
@@ -1019,7 +1067,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             connectorId: args.connectorId,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to delete connector'),
+            }
           }
 
           // Report what the delete actually did. The documents are kept — this
@@ -1079,7 +1130,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             resolveBillingAttribution: async () => billingAttribution,
           })
           if (!outcome.success) {
-            return { success: false, message: outcome.error }
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to sync connector'),
+            }
           }
 
           return {

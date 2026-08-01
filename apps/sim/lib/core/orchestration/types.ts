@@ -1,5 +1,11 @@
 export type OrchestrationErrorCode =
   | 'validation'
+  /**
+   * The credentials this operation depends on are no longer usable — a stored
+   * third-party token that will not refresh, not an unauthenticated caller.
+   * Distinct from `forbidden`, which is the caller lacking permission.
+   */
+  | 'unauthorized'
   | 'not_found'
   | 'forbidden'
   | 'conflict'
@@ -14,6 +20,7 @@ export type OrchestrationErrorCode =
  */
 export function statusForOrchestrationError(code: OrchestrationErrorCode | undefined): number {
   if (code === 'validation') return 400
+  if (code === 'unauthorized') return 401
   if (code === 'forbidden') return 403
   if (code === 'not_found') return 404
   if (code === 'conflict') return 409

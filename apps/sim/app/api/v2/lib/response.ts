@@ -159,6 +159,7 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
 
 const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode> = {
   validation: 'BAD_REQUEST',
+  unauthorized: 'UNAUTHORIZED',
   forbidden: 'FORBIDDEN',
   not_found: 'NOT_FOUND',
   conflict: 'CONFLICT',
