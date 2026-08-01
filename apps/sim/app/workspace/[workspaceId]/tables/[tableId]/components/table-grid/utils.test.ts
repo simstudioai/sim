@@ -8,7 +8,12 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { DisplayColumn } from './types'
-import { buildTableSelectionContext, canWriteRowsWithChip, selectedColumnIds } from './utils'
+import {
+  buildTableSelectionContext,
+  canWriteRowsWithChip,
+  chipRowCount,
+  selectedColumnIds,
+} from './utils'
 
 function columns(count: number): DisplayColumn[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -106,4 +111,23 @@ describe('canWriteRowsWithChip', () => {
     expect(canWriteRowsWithChip({ ...ok, rowCount: TABLE_LIMITS.MAX_COPY_ROWS })).toBe(true)
     expect(canWriteRowsWithChip({ ...ok, rowCount: TABLE_LIMITS.MAX_COPY_ROWS + 1 })).toBe(false)
   })
+})
+
+describe('chipRowCount', () => {
+  it.each([1, 42, MAX_TABLE_SELECTION_ROWS, MAX_TABLE_SELECTION_ROWS + 250, 50_000])(
+    'agrees with what a context carries for %i requested rows',
+    (requested) => {
+      // The invariant that keeps breaking: a label derived from the raw
+      // selection size over-promises once the context caps its rowIds, and one
+      // derived from the loaded page under-promises. Both must equal this.
+      const context = buildTableSelectionContext({
+        tableId: 't1',
+        tableName: 'Sales',
+        rowIds: rowIds(requested),
+      })
+
+      if (context?.kind !== 'table_selection') throw new Error('expected a table_selection')
+      expect(chipRowCount(requested)).toBe(context.rowIds.length)
+    }
+  )
 })

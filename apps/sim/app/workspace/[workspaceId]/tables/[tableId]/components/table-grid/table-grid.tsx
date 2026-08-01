@@ -69,6 +69,7 @@ import {
   type CellCoord,
   canWriteRowsWithChip,
   checkboxColLayout,
+  chipRowCount,
   classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
@@ -4592,7 +4593,9 @@ export function TableGrid({
         disableDelete={!canDeleteRow}
         onAddToChat={addToChatRowIds.length > 0 ? handleAddSelectionToChat : undefined}
         addToChatCellScoped={Boolean(contextMenuColumnIds)}
-        addToChatRowCount={contextMenuIsSelectAll ? selectedRowCount : addToChatRowIds.length}
+        addToChatRowCount={chipRowCount(
+          contextMenuIsSelectAll ? selectedRowCount : addToChatRowIds.length
+        )}
       />
 
       <ExpandedCellPopover

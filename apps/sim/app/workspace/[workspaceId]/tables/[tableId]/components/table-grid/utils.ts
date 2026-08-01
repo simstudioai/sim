@@ -405,6 +405,15 @@ export function buildTableSelectionContext(opts: {
 }
 
 /**
+ * Rows a chip will actually reference for a selection of `requested` rows —
+ * {@link buildTableSelectionContext} caps its `rowIds`, so any count shown to
+ * the user must pass through here or the UI promises more than it sends.
+ */
+export function chipRowCount(requested: number): number {
+  return Math.min(requested, MAX_TABLE_SELECTION_ROWS)
+}
+
+/**
  * Whether a copy can be written synchronously on the event — the only way a
  * chat-selection chip survives, since the paged path's async Clipboard API write
  * replaces the whole clipboard and cannot carry a custom MIME type.
