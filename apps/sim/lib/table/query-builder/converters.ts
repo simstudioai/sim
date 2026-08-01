@@ -5,7 +5,7 @@
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { columnMatchesRef } from '@/lib/table/column-keys'
-import { columnTypeOf, storesMultipleValues } from '@/lib/table/column-types'
+import { columnTypeOf, predicateOperatorsFor, storesMultipleValues } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
   MULTI_SELECT_FILTER_OPERATORS,
@@ -125,6 +125,12 @@ export function pruneFilterForColumns(
  * Predicate-grammar sibling of {@link pruneFilterForColumns}: drops conditions a
  * `select` column no longer accepts (operator stranded by a type/`multiple`
  * change), so a stale applied filter can't fail every subsequent rows query.
+ *
+ * Gated on `predicateOperatorsFor` — the **v2** allowlist — not on the UI sets
+ * its legacy sibling uses. The two grammars are deliberately not 1:1:
+ * `isNull`/`isNotNull` are meaningful on a select column and have no `$`
+ * equivalent, so gating this on the legacy set stripped a saved predicate that
+ * the rows query would have accepted, silently widening the filter.
  */
 export function prunePredicateForColumns(
   predicate: TablePredicate | null,
@@ -138,11 +144,9 @@ export function prunePredicateForColumns(
   const rules = predicateToFilterRules(predicate)
   const kept = rules.filter((rule) => {
     const column = columns.find((c) => columnMatchesRef(c, rule.column))
-    if (!column || !columnTypeOf(column).storesOpaqueIds) return true
-    const allowed = storesMultipleValues(column)
-      ? MULTI_SELECT_FILTER_OPERATORS
-      : SINGLE_SELECT_FILTER_OPERATORS
-    return allowed.has(rule.operator)
+    if (!column) return true
+    const allowed = predicateOperatorsFor(column)
+    return allowed === null || allowed.has(rule.operator)
   })
 
   if (kept.length === rules.length) return predicate

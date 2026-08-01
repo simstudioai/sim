@@ -21,7 +21,7 @@ import {
   pickMetadata,
 } from '@/lib/table/column-types'
 import { coerceValue } from '@/lib/table/import'
-import { filterRulesToFilter } from '@/lib/table/query-builder/converters'
+import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const column = (type: ColumnDefinition['type'], extra: Partial<ColumnDefinition> = {}) =>
@@ -293,6 +293,31 @@ describe('review-round-2 regressions', () => {
     // A purely presentational key must NOT force a row refetch.
     expect(metadataRewritesCells(column('currency'), ['currencyCode'])).toBe(false)
     expect(metadataRewritesCells(column('number'), ['precision'])).toBe(false)
+  })
+})
+
+describe('review-round-4 regressions', () => {
+  const selectColumn: ColumnDefinition = {
+    id: 'c',
+    name: 'c',
+    type: 'select',
+    options: [{ id: 'opt_1', name: 'One' }],
+  }
+
+  it('keeps isNull/isNotNull on a select column through the v2 pruner', () => {
+    // The v2 SQL leaf accepts them (they are meaningful on any column and have
+    // no `$` equivalent); gating the pruner on the legacy set stripped them
+    // client-side before the query ran, silently widening the filter.
+    for (const op of ['isNull', 'isNotNull'] as const) {
+      const predicate = { all: [{ field: 'c', op }] } as const
+      expect(prunePredicateForColumns(predicate, [selectColumn]), op).toEqual(predicate)
+    }
+  })
+
+  it('still prunes an operator the select grammar genuinely strands', () => {
+    // A `contains` left behind by a multi -> single toggle must still go.
+    const predicate = { all: [{ field: 'c', op: 'contains' as const, value: 'opt_1' }] }
+    expect(prunePredicateForColumns(predicate, [selectColumn])).toBeNull()
   })
 })
 
