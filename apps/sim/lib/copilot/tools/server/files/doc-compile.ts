@@ -502,6 +502,27 @@ function compiledCacheSet(key: string, buffer: Buffer): void {
  */
 const unrenderableSources = new Set<string>()
 
+/**
+ * Renders in flight, keyed identically to {@link compiledDocCache}. An artifact
+ * miss is the same for every concurrent reader — a freshly forked workspace whose
+ * document several viewers open at once, or one request whose blocks read the same
+ * file — and rendering is the expensive step, so they share one run instead of each
+ * paying for it. The entry is dropped as soon as the render settles, so a later read
+ * re-renders normally rather than replaying a stale result.
+ */
+const inFlightRenders = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>()
+
+function coalesceRender(
+  key: string,
+  run: () => Promise<{ buffer: Buffer; contentType: string }>
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const existing = inFlightRenders.get(key)
+  if (existing) return existing
+  const started = run().finally(() => inFlightRenders.delete(key))
+  inFlightRenders.set(key, started)
+  return started
+}
+
 function markUnrenderable(key: string): void {
   if (unrenderableSources.size >= MAX_COMPILED_DOC_CACHE) {
     unrenderableSources.delete(unrenderableSources.values().next().value as string)
@@ -624,7 +645,7 @@ export async function resolveServableDocBytes(args: {
     // (content-addressed), so racing a still-running write-time compile is wasteful
     // but correct.
     try {
-      return await compileDoc({ source, fileName, workspaceId })
+      return await coalesceRender(renderKey, () => compileDoc({ source, fileName, workspaceId }))
     } catch (error) {
       // Only a script error is deterministic — the same bytes will never render, so
       // remembering that is safe. Infra failures (sandbox create/timeout, S3, an
@@ -646,13 +667,15 @@ export async function resolveServableDocBytes(args: {
   }
 
   try {
-    const compiled = await runSandboxTask(
-      format.taskId,
-      { code: source, workspaceId: workspaceId || '' },
-      { ownerKey, signal }
-    )
-    compiledCacheSet(renderKey, compiled)
-    return { buffer: compiled, contentType: format.contentType }
+    return await coalesceRender(renderKey, async () => {
+      const compiled = await runSandboxTask(
+        format.taskId,
+        { code: source, workspaceId: workspaceId || '' },
+        { ownerKey, signal }
+      )
+      compiledCacheSet(renderKey, compiled)
+      return { buffer: compiled, contentType: format.contentType }
+    })
   } catch (error) {
     // Unlike the E2B engine, the isolated-vm task does not distinguish a script
     // error from an infra one, so the only signal available here is cancellation —
