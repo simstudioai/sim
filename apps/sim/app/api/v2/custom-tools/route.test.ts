@@ -238,6 +238,18 @@ describe('POST /api/v2/custom-tools', () => {
     expect((await res.json()).error.code).toBe('CONFLICT')
   })
 
+  it('409s when the unique index rejects the loser of a title race', async () => {
+    const pgError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: '23505',
+    })
+    mockUpsertCustomTools.mockRejectedValue(pgError)
+
+    const res = await callCreate(VALID_BODY)
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe('CONFLICT')
+  })
+
   it('creates the tool and returns 201 with the single tool', async () => {
     const res = await callCreate(VALID_BODY)
     const body = await res.json()

@@ -101,7 +101,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     const { id } = parsed.data.params
     const { workspaceId, ...changes } = parsed.data.body
 
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    /**
+     * Credential mutations are gated per credential, not per workspace:
+     * `performUpdateCredential` requires credential admin, and the internal
+     * surface applies no workspace-level bar at all. Requiring workspace `write`
+     * here would lock out a credential admin who only holds `read`.
+     */
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
     // Tenant-scope the id before the orchestration re-derives access from the
@@ -109,12 +115,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     const existing = await getWorkspaceCredential({ workspaceId, credentialId: id })
     if (!existing) return v2Error('NOT_FOUND', 'Credential not found')
 
+    const actor = await getCredentialActorContext(id, userId)
+    if (!actor.member && !actor.isAdmin) return v2Error('NOT_FOUND', 'Credential not found')
+
     const result = await performUpdateCredential({ ...changes, credentialId: id, userId, request })
 
     if (!result.success) {
       return v2CredentialOrchestrationError(
         result.errorCode,
-        result.error ?? 'Failed to update credential'
+        result.error ?? 'Failed to update credential',
+        { providerUnavailable: result.providerErrorCode === 'provider_unavailable' }
       )
     }
 
@@ -151,11 +161,22 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     const { id } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    // Gated per credential by `performDeleteCredential`, same as PATCH above.
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
     const existing = await getWorkspaceCredential({ workspaceId, credentialId: id })
     if (!existing) return v2Error('NOT_FOUND', 'Credential not found')
+
+    /**
+     * A credential the caller cannot see answers 404, matching GET, so a
+     * workspace member cannot tell an inaccessible credential from a missing one
+     * and enumerate ids. A credential they *can* see but cannot administer still
+     * gets the orchestration's 403 — that distinction is not a leak, since GET
+     * already shows them the credential.
+     */
+    const actor = await getCredentialActorContext(id, userId)
+    if (!actor.member && !actor.isAdmin) return v2Error('NOT_FOUND', 'Credential not found')
 
     const result = await performDeleteCredential({ credentialId: id, userId, request })
     if (!result.success) {

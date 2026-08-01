@@ -188,6 +188,7 @@ describe('PATCH /api/v2/credentials/[id]', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceCredential.mockResolvedValue(buildRow())
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'admin' }, isAdmin: true })
     mockPerformUpdateCredential.mockResolvedValue({ success: true })
   })
 
@@ -246,6 +247,35 @@ describe('PATCH /api/v2/credentials/[id]', () => {
     expect((await res.json()).error.code).toBe('FORBIDDEN')
   })
 
+  it('gates on workspace read, leaving admin rights to the per-credential check', async () => {
+    await callPatch({ workspaceId: WORKSPACE_ID, displayName: 'Renamed' })
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      WORKSPACE_ID,
+      'read'
+    )
+  })
+
+  it('masks a credential the caller cannot see as 404, not 403', async () => {
+    mockGetCredentialActorContext.mockResolvedValue({ member: null, isAdmin: false })
+    const res = await callPatch({ workspaceId: WORKSPACE_ID, displayName: 'Renamed' })
+    expect(res.status).toBe(404)
+    expect(mockPerformUpdateCredential).not.toHaveBeenCalled()
+  })
+
+  it('503s when the provider is unreachable during a secret rotation', async () => {
+    mockPerformUpdateCredential.mockResolvedValue({
+      success: false,
+      error: 'provider_unavailable',
+      errorCode: 'validation',
+      providerErrorCode: 'provider_unavailable',
+    })
+    const res = await callPatch({ workspaceId: WORKSPACE_ID, apiToken: 'tok' })
+    expect(res.status).toBe(503)
+    expect((await res.json()).error.code).toBe('SERVICE_UNAVAILABLE')
+  })
+
   it('rotates a secret without echoing it back', async () => {
     const res = await callPatch({ workspaceId: WORKSPACE_ID, apiToken: 'brand-new-token' })
     const body = await res.json()
@@ -268,6 +298,7 @@ describe('DELETE /api/v2/credentials/[id]', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceCredential.mockResolvedValue(buildRow())
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'admin' }, isAdmin: true })
     mockPerformDeleteCredential.mockResolvedValue({ success: true })
   })
 
@@ -304,6 +335,23 @@ describe('DELETE /api/v2/credentials/[id]', () => {
 
   it('404s when the credential belongs to another workspace', async () => {
     mockGetWorkspaceCredential.mockResolvedValue(null)
+    const res = await callDelete()
+    expect(res.status).toBe(404)
+    expect(mockPerformDeleteCredential).not.toHaveBeenCalled()
+  })
+
+  it('gates on workspace read, leaving admin rights to the per-credential check', async () => {
+    await callDelete()
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      WORKSPACE_ID,
+      'read'
+    )
+  })
+
+  it('masks a credential the caller cannot see as 404, not 403', async () => {
+    mockGetCredentialActorContext.mockResolvedValue({ member: null, isAdmin: false })
     const res = await callDelete()
     expect(res.status).toBe(404)
     expect(mockPerformDeleteCredential).not.toHaveBeenCalled()

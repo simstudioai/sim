@@ -1601,7 +1601,7 @@
       "patch": {
         "operationId": "updateCredential",
         "summary": "Update Credential",
-        "description": "Rename a credential, change its description, or rotate its stored secret. Requires credential admin.\n\nSending a secret field rotates that secret in place: it is re-verified against the provider and re-encrypted, and the display name is preserved. Secrets are never returned in the response.",
+        "description": "Rename a credential, change its description, or rotate its stored secret. Requires credential admin \u2014 access to the workspace plus admin rights on the credential itself. Workspace `write` is not required: credentials are gated per credential, not per workspace.\n\nSending a secret field rotates that secret in place: it is re-verified against the provider and re-encrypted, and the display name is preserved. Secrets are never returned in the response. If the provider cannot be reached to verify the new secret, the request returns `503`.\n\nA credential you cannot see answers `404` rather than `403`, so its existence is never disclosed.",
         "tags": ["Credentials"],
         "x-codeSamples": [
           {
@@ -1673,13 +1673,14 @@
           "404": { "$ref": "#/components/responses/NotFound" },
           "409": { "$ref": "#/components/responses/Conflict" },
           "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
         }
       },
       "delete": {
         "operationId": "deleteCredential",
         "summary": "Delete Credential",
-        "description": "Delete a credential. Requires credential admin. Blocks and workflows configured against it stop authenticating, and any environment variable it backed is removed.",
+        "description": "Delete a credential. Requires credential admin \u2014 access to the workspace plus admin rights on the credential itself; workspace `write` is not required. Blocks and workflows configured against it stop authenticating, and any environment variable it backed is removed.\n\nA credential you cannot see answers `404` rather than `403`.",
         "tags": ["Credentials"],
         "x-codeSamples": [
           {
