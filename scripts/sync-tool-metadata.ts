@@ -37,7 +37,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tools } from '../apps/sim/tools/registry'
+import { hasToolId } from '../apps/sim/tools/tool-ids'
 import type { ToolConfig } from '../apps/sim/tools/types'
+import { getTool } from '../apps/sim/tools/utils'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -221,6 +223,36 @@ export default ${exportName}
 `
 }
 
+/**
+ * Asserts the two tool-id resolvers agree.
+ *
+ * `@/tools/utils` resolves against the live registry; `@/tools/tool-ids` against
+ * the generated id list. Both exist deliberately — the registry-backed one keeps
+ * a newly-added tool resolvable before regeneration, the list-backed one lets
+ * client code resolve without importing 4,300 tools. Nothing structurally keeps
+ * the two in step, so it is checked here rather than left to trust.
+ *
+ * Runs only after the staleness check passes, since a stale id list would
+ * otherwise report a divergence that is really just a missing regeneration. It
+ * cannot live in a vitest suite: `vitest.setup.ts` globally mocks
+ * `@/tools/registry` to an empty map, so `getTool` resolves nothing there.
+ */
+function assertResolverParity() {
+  const ids = Object.keys(tools)
+  const probes = new Set([...ids, ...ids.map((id) => id.replace(/_v\d+$/, '')), '__not_a_tool__'])
+  const divergent: string[] = []
+  for (const probe of probes) {
+    if (Boolean(getTool(probe)) !== hasToolId(probe)) divergent.push(probe)
+  }
+  if (divergent.length > 0) {
+    throw new Error(
+      `Tool id resolvers disagree on ${divergent.length} of ${probes.size} names ` +
+        `(e.g. ${divergent.slice(0, 5).join(', ')}).\n` +
+        'resolveToolId in apps/sim/tools/utils.ts and apps/sim/tools/tool-ids.ts have drifted.'
+    )
+  }
+}
+
 async function main() {
   const checkOnly = process.argv.includes('--check')
   const { ids, metadata, outputs, toolCount } = build(tools as ToolRecord)
@@ -234,7 +266,8 @@ async function main() {
     if (existingIds !== ids || existingMetadata !== metadata || existingOutputs !== outputs) {
       throw new Error('Generated tool metadata is stale. Run: bun run tool-metadata:generate')
     }
-    console.log(`✓ tool metadata in sync (${toolCount} tools)`)
+    assertResolverParity()
+    console.log(`✓ tool metadata in sync (${toolCount} tools), resolvers agree`)
     return
   }
 
