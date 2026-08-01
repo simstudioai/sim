@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
-import type { RoomRef, RoomType } from '@sim/realtime-protocol/rooms'
+import {
+  ROOM_ACCESS_REVOKED_EVENT,
+  type RoomAccessRevokedBroadcast,
+} from '@sim/realtime-protocol/events'
+import { type RoomRef, type RoomType, roomName } from '@sim/realtime-protocol/rooms'
 import type { Server } from 'socket.io'
+import type { AuthenticatedSocket } from '@/middleware/auth'
 
 const logger = createLogger('RoomEviction')
 
@@ -39,4 +44,33 @@ export function runRoomEvictionHandler(socketId: string, room: RoomRef, io: Serv
   } catch (error) {
     logger.warn(`Room eviction cleanup failed for socket ${socketId} on ${room.type}`, error)
   }
+}
+
+/**
+ * Evicts one socket from one non-workflow room after a confirmed loss of access:
+ * tell the client, stop it receiving room broadcasts, and drop the handler-local
+ * state that would otherwise still accept its frames.
+ *
+ * The single eviction path shared by both enforcement points — the periodic
+ * re-validation sweep and the per-frame gates that catch a revocation first — so
+ * they cannot diverge on what "evicted" means. Everything here is synchronous and
+ * pod-local; any Redis presence removal is the caller's own follow-up (the sweep
+ * owns a retrying cleanup lane for it).
+ *
+ * Workflow rooms keep their own `access-revoked` wire event for client
+ * compatibility and are deliberately not routed through here.
+ */
+export function evictSocketFromRoom(
+  socket: AuthenticatedSocket,
+  room: RoomRef,
+  message: string,
+  io: Server
+): void {
+  const payload: RoomAccessRevokedBroadcast = { room, message, timestamp: Date.now() }
+  socket.emit(ROOM_ACCESS_REVOKED_EVENT, payload)
+  socket.leave(roomName(room))
+  runRoomEvictionHandler(socket.id, room, io)
+  logger.info(
+    `Revoked live access for user ${socket.userId} on ${roomName(room)} (socket ${socket.id})`
+  )
 }

@@ -1,9 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
-import {
-  ROOM_ACCESS_REVOKED_EVENT,
-  type RoomAccessRevokedBroadcast,
-} from '@sim/realtime-protocol/events'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import {
   type JoinTablePayload,
@@ -12,6 +8,7 @@ import {
   type TableCellSelection,
 } from '@sim/realtime-protocol/table-presence'
 import { resolveAvatarUrl } from '@/handlers/avatar'
+import { evictSocketFromRoom } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
@@ -92,24 +89,17 @@ function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
 }
 
 /**
- * Evicts a socket from a table room after a confirmed loss of access: emit the
- * revocation, leave the Socket.IO room, and drop its presence so peers stop seeing
- * its selection. Best-effort on the presence half — the socket has already left the
- * room, and the sweep's cleanup lane retries any removal that fails here.
+ * Evicts a socket from a table room after a confirmed loss of access, then drops
+ * its presence so peers stop seeing its selection. The presence half is
+ * best-effort — the socket has already left the room, and the sweep's cleanup lane
+ * retries any removal that fails here.
  */
 async function evictFromTable(
   socket: AuthenticatedSocket,
   roomManager: IRoomManager,
   room: RoomRef
 ): Promise<void> {
-  const payload: RoomAccessRevokedBroadcast = {
-    room,
-    message: 'Your access to this table has been revoked',
-    timestamp: Date.now(),
-  }
-  socket.emit(ROOM_ACCESS_REVOKED_EVENT, payload)
-  socket.leave(roomName(room))
-  logger.warn(`Evicted user ${socket.userId} from table room ${room.id}: access revoked`)
+  evictSocketFromRoom(socket, room, 'Your access to this table has been revoked', roomManager.io)
   try {
     await roomManager.removeUserFromRoom(room, socket.id)
     await roomManager.broadcastPresenceUpdate(room, socket.id)

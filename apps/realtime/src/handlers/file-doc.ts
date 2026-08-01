@@ -26,10 +26,6 @@
 import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import {
-  ROOM_ACCESS_REVOKED_EVENT,
-  type RoomAccessRevokedBroadcast,
-} from '@sim/realtime-protocol/events'
-import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
@@ -56,7 +52,7 @@ import {
   REDIS_ORIGIN,
   REDIS_SNAPSHOT_ORIGIN,
 } from '@/handlers/file-doc-store'
-import { registerRoomEvictionHandler } from '@/handlers/room-eviction'
+import { evictSocketFromRoom, registerRoomEvictionHandler } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
@@ -852,29 +848,6 @@ function emitJoinError(
 const FILE_DOC_ACTION = ROOM_MEMBERSHIP_ACTIONS[ROOM_TYPES.WORKSPACE_FILE_DOC]
 
 /**
- * Evicts a socket from its file-doc room: emit the revocation, leave the Socket.IO
- * room, and drop the pod-local binding + presence. Dropping `socketToRoomName` is
- * the load-bearing part — {@link handleMessage} gates every inbound frame on it, so
- * once it is gone the socket cannot apply another document update, even if it keeps
- * sending them.
- */
-function evictFromFileDoc(
-  socket: AuthenticatedSocket,
-  io: Server,
-  name: string,
-  fileId: string
-): void {
-  const payload: RoomAccessRevokedBroadcast = {
-    room: fileDocRoom(fileId),
-    message: 'Your access to this document has been revoked',
-    timestamp: Date.now(),
-  }
-  socket.emit(ROOM_ACCESS_REVOKED_EVENT, payload)
-  socket.leave(name)
-  cleanupFileDocForSocket(socket.id, io)
-}
-
-/**
  * Per-frame authorization for a socket's inbound document/awareness frames.
  *
  * Room membership alone is NOT a standing right to write: a collaborator removed
@@ -909,7 +882,11 @@ function isFileDocWriteAllowed(socket: AuthenticatedSocket, io: Server, name: st
   logger.warn(
     `Dropping file-doc frame from user ${userId} whose access to file ${fileId} no longer permits writing`
   )
-  evictFromFileDoc(socket, io, name, fileId)
+  // Evicting (not just dropping the frame) is what makes this stick: the registered
+  // eviction handler clears `socketToRoomName`, and every inbound frame is gated on
+  // that binding — so the socket cannot apply another document update even if it
+  // keeps sending them.
+  evictSocketFromRoom(socket, room, 'Your access to this document has been revoked', io)
   return false
 }
 

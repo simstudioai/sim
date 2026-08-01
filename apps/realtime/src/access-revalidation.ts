@@ -1,10 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
-import {
-  type AccessRevokedBroadcast,
-  ROOM_ACCESS_REVOKED_EVENT,
-  type RoomAccessRevokedBroadcast,
-} from '@sim/realtime-protocol/events'
+import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
 import {
   parseRoomName,
   ROOM_TYPES,
@@ -13,7 +9,7 @@ import {
   roomName,
 } from '@sim/realtime-protocol/rooms'
 import { sleep } from '@sim/utils/helpers'
-import { runRoomEvictionHandler } from '@/handlers/room-eviction'
+import { evictSocketFromRoom, runRoomEvictionHandler } from '@/handlers/room-eviction'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -266,24 +262,20 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
     // gates its document writes). Redis presence cleanup is only ENQUEUED here —
     // the cleanup lane performs that work, so eviction never blocks on it.
     if (room.type === ROOM_TYPES.WORKFLOW) {
+      // Workflow keeps its historical wire event and payload shape, which existing
+      // clients key off `workflowId`; every other type shares the generic path.
       const payload: AccessRevokedBroadcast = {
         workflowId: room.id,
         message: 'Your access to this workflow has been revoked',
         timestamp: Date.now(),
       }
       socket.emit('access-revoked', payload)
+      socket.leave(name)
+      runRoomEvictionHandler(socket.id, room, io)
+      logger.info(`Revoked live access for user ${socket.userId} on ${name} (socket ${socket.id})`)
     } else {
-      const payload: RoomAccessRevokedBroadcast = {
-        room,
-        message: 'Your access to this resource has been revoked',
-        timestamp: Date.now(),
-      }
-      socket.emit(ROOM_ACCESS_REVOKED_EVENT, payload)
+      evictSocketFromRoom(socket, room, 'Your access to this resource has been revoked', io)
     }
-    socket.leave(name)
-    runRoomEvictionHandler(socket.id, room, io)
-
-    logger.info(`Revoked live access for user ${socket.userId} on ${name} (socket ${socket.id})`)
 
     if (PRESENCE_ROOM_TYPES.has(room.type)) {
       pendingCleanups.set(`${socket.id}:${name}`, { socketId: socket.id, room })
