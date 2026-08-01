@@ -5,7 +5,7 @@ import { instagramPublishCarouselContract } from '@/lib/api/contracts/tools/inst
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveInstagramCarouselMedia } from '@/lib/integrations/instagram/resolve-media'
+import { resolveInstagramCarouselMedia } from '@/app/api/tools/instagram/resolve-media'
 import {
   createMediaContainer,
   publishMediaContainer,

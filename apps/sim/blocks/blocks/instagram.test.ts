@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { InstagramBlock } from '@/blocks/blocks/instagram'
+import { InstagramBlock, InstagramBlockMeta } from '@/blocks/blocks/instagram'
 
 describe('InstagramBlock', () => {
   const buildParams = InstagramBlock.tools.config.params!
@@ -10,6 +10,10 @@ describe('InstagramBlock', () => {
 
   it('stays hidden from discovery until the Instagram integration is approved', () => {
     expect(InstagramBlock.hideFromToolbar).toBe(true)
+  })
+
+  it('provides the required integration templates', () => {
+    expect(InstagramBlockMeta.templates).toHaveLength(7)
   })
 
   it('clears stale operation parameters from the runtime input merge', () => {
