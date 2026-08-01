@@ -1,4 +1,3 @@
-import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
@@ -15,6 +14,7 @@ import {
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -22,7 +22,10 @@ import {
   type WebhookAttachment,
   WebhookAttachmentProcessor,
 } from '@/lib/webhooks/attachment-processor'
-import { resolveWebhookRecordProviderConfig } from '@/lib/webhooks/env-resolver'
+import {
+  resolveWebhookRecordProviderConfig,
+  type WebhookEnvResolutionOptions,
+} from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
   executeWorkflowCore,
@@ -40,6 +43,7 @@ import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -316,10 +320,13 @@ export async function resolveWebhookExecutionProviderConfig<
   webhookRecord: T,
   provider: string,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: WebhookEnvResolutionOptions
 ): Promise<T & { providerConfig: Record<string, unknown> }> {
   try {
-    return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
+    return options
+      ? await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId, options)
+      : await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
   } catch (error) {
     const errorMessage = toError(error).message
     throw new Error(
@@ -489,11 +496,29 @@ async function executeWebhookJobInternal(
       throw new Error(`Webhook record not found: ${payload.webhookId}`)
     }
 
+    const secretEnvironment = await getPersonalAndWorkspaceEnv(workflowRecord.userId, workspaceId)
+    const resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: secretEnvironment.personalEncrypted,
+      workspaceEncrypted: secretEnvironment.workspaceEncrypted,
+      personalDecrypted: secretEnvironment.personalDecrypted,
+      workspaceDecrypted: secretEnvironment.workspaceDecrypted,
+      decryptionFailures: secretEnvironment.decryptionFailures,
+      scope: { userId: workflowRecord.userId, workspaceId },
+    })
+    loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
+    const secretEnvVars = {
+      ...secretEnvironment.personalDecrypted,
+      ...secretEnvironment.workspaceDecrypted,
+    }
     const resolvedWebhookRecord = await resolveWebhookExecutionProviderConfig(
       webhookRecord,
       payload.provider,
       workflowRecord.userId,
-      workspaceId
+      workspaceId,
+      {
+        envVars: secretEnvVars,
+        onResolved: (name, value) => resolvedSecretTraceRegistry.recordResolved(name, value),
+      }
     )
 
     if (handler.formatInput) {
@@ -665,6 +690,7 @@ async function executeWebhookJobInternal(
       snapshot,
       callbacks: {},
       loggingSession,
+      trustedInitialResolvedSecretTraceProvenance: resolvedSecretTraceRegistry.exportProvenance(),
       includeFileBase64: false,
       base64MaxBytes: undefined,
       abortSignal: timeoutController.signal,
@@ -712,10 +738,6 @@ async function executeWebhookJobInternal(
     // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
     // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
     if (wasExecutionFinalizedByCore(error, executionId)) {
-      // Record the exception on the run span so it stays visible in traces without
-      // marking the span as ERROR — that status is what faults the trigger.dev run.
-      trace.getActiveSpan()?.recordException(toError(error))
-
       return {
         success: false,
         workflowId: payload.workflowId,
@@ -757,6 +779,7 @@ async function executeWebhookJobInternal(
           stackTrace: errorStack,
         },
         traceSpans,
+        executionState: executionResult.executionState,
       })
     } catch (loggingError) {
       logger.error(`[${requestId}] Failed to complete logging session`, loggingError)

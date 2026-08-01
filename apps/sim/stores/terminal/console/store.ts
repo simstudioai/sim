@@ -15,7 +15,11 @@ import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useExecutionStore } from '@/stores/execution'
-import { consolePersistence, loadConsoleData } from '@/stores/terminal/console/storage'
+import {
+  CONSOLE_STORAGE_VERSION,
+  consolePersistence,
+  loadConsoleData,
+} from '@/stores/terminal/console/storage'
 import type {
   ConsoleEntry,
   ConsoleEntryLocation,
@@ -644,6 +648,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             updatedEntry.agentStreamThinking = update.agentStreamThinking
           }
 
+          if (update.clearAgentStreamThinking) {
+            updatedEntry.agentStreamThinking = undefined
+          }
+
           if (update.agentStreamToolCalls !== undefined) {
             updatedEntry.agentStreamToolCalls = update.agentStreamToolCalls
           }
@@ -852,6 +860,7 @@ if (typeof window !== 'undefined') {
   consolePersistence.bind(() => {
     const state = useTerminalConsoleStore.getState()
     return {
+      storageVersion: CONSOLE_STORAGE_VERSION,
       workflowEntries: state.workflowEntries,
       isOpen: state.isOpen,
     }

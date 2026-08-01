@@ -34,6 +34,7 @@ import {
   getProviderModels,
   supportsNativeStructuredOutputs,
 } from '@/providers/models'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -52,7 +53,6 @@ import {
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('BedrockProvider')
 
@@ -654,7 +654,7 @@ export const bedrockProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
+            const result = await executeProviderTool(toolName, executionParams, {
               signal: request.abortSignal,
             })
             const toolCallEndTime = Date.now()

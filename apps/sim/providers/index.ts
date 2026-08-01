@@ -16,6 +16,10 @@ import {
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
 import { getProviderExecutor } from '@/providers/registry'
+import {
+  type ProviderRuntimeContext,
+  runWithProviderRuntimeContext,
+} from '@/providers/runtime-context'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   generateStructuredOutputInstructions,
@@ -95,7 +99,8 @@ function applyStreamingCostPolicy(response: StreamingExecution, policy: ModelCos
 
 export async function executeProviderRequest(
   providerId: string,
-  request: ProviderRequest
+  request: ProviderRequest,
+  runtimeContext?: ProviderRuntimeContext
 ): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
   const provider = await getProviderExecutor(providerId as ProviderId)
   if (!provider) {
@@ -163,7 +168,9 @@ export async function executeProviderRequest(
   await attachLargeFileRemoteUrls(sanitizedRequest, providerId)
   await uploadLargeFilesToProvider(sanitizedRequest, providerId)
 
-  const response = await provider.executeRequest(sanitizedRequest)
+  const response = await runWithProviderRuntimeContext(runtimeContext, () =>
+    provider.executeRequest(sanitizedRequest)
+  )
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })

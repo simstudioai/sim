@@ -9,14 +9,20 @@ const dbMocks = vi.hoisted(() => ({
 
 const {
   completeWorkflowExecutionMock,
+  prepareTraceSpansForProjectionMock,
   startWorkflowExecutionMock,
   loadWorkflowStateForExecutionMock,
   releaseExecutionSlotMock,
+  createOTelSpansMock,
+  workflowExecutedMock,
 } = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
+  prepareTraceSpansForProjectionMock: vi.fn(),
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
   releaseExecutionSlotMock: vi.fn(),
+  createOTelSpansMock: vi.fn(),
+  workflowExecutedMock: vi.fn(),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -29,11 +35,17 @@ vi.mock('@/lib/logs/execution/logger', () => ({
   executionLogger: {
     startWorkflowExecution: startWorkflowExecutionMock,
     completeWorkflowExecution: completeWorkflowExecutionMock,
+    prepareTraceSpansForProjection: prepareTraceSpansForProjectionMock,
   },
 }))
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: releaseExecutionSlotMock,
+}))
+
+vi.mock('@/lib/core/telemetry', () => ({
+  createOTelSpansForWorkflowExecution: createOTelSpansMock,
+  PlatformEvents: { workflowExecuted: workflowExecutedMock },
 }))
 
 const {
@@ -73,10 +85,66 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
 }))
 
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
-import { createEnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
+import type {
+  ResolvedSecretTraceMatch,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { LoggingSession } from './logging-session'
 
 afterAll(resetDbChainMock)
+
+function createSecretRegistry(
+  matches: ResolvedSecretTraceMatch[],
+  complete = true
+): ResolvedSecretTraceRegistry {
+  return {
+    isComplete: () => complete,
+    getActiveMatches: () => matches,
+    exportProvenance: () => ({ version: 1, complete, entries: [] }),
+  } as unknown as ResolvedSecretTraceRegistry
+}
+
+describe('LoggingSession terminal provenance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([])
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    releaseExecutionSlotMock.mockResolvedValue(undefined)
+  })
+
+  it.each([
+    [
+      'error',
+      (session: LoggingSession) => session.completeWithError({ error: { message: 'failed' } }),
+    ],
+    ['cancellation', (session: LoggingSession) => session.completeWithCancellation()],
+    ['pause', (session: LoggingSession) => session.completeWithPause()],
+  ])('persists complete zero-entry provenance on %s finalization', async (_name, finalize) => {
+    const session = new LoggingSession('workflow-1', `execution-${_name}`, 'manual')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+
+    await finalize(session)
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionState: expect.objectContaining({
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [],
+          },
+        }),
+      })
+    )
+  })
+})
+
+beforeEach(() => {
+  prepareTraceSpansForProjectionMock.mockImplementation(
+    async ({ traceSpans }: { traceSpans: unknown[] }) => traceSpans
+  )
+})
 
 describe('LoggingSession start snapshots', () => {
   beforeEach(() => {
@@ -225,6 +293,7 @@ describe('LoggingSession completion retries', () => {
 
   it('starts a new error completion attempt after a non-error completion and fallback both fail', async () => {
     const session = new LoggingSession('workflow-1', 'execution-3', 'api', 'req-1')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
 
     completeWorkflowExecutionMock
       .mockRejectedValueOnce(new Error('success finalize failed'))
@@ -251,6 +320,7 @@ describe('LoggingSession completion retries', () => {
 
   it('preserves successful final output during fallback completion', async () => {
     const session = new LoggingSession('workflow-1', 'execution-5', 'api', 'req-1')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
 
     completeWorkflowExecutionMock
       .mockRejectedValueOnce(new Error('success finalize failed'))
@@ -269,7 +339,7 @@ describe('LoggingSession completion retries', () => {
     )
   })
 
-  it('sanitizes workflow output and final trace spans without mutating runtime values', async () => {
+  it('projects only TraceSpans while preserving functional completion values', async () => {
     const session = new LoggingSession('workflow-1', 'execution-safe', 'api', 'req-1')
     const secret = 'sk-demo / trace?token=7f3a91'
     const rawFinalOutput = {
@@ -289,39 +359,32 @@ describe('LoggingSession completion retries', () => {
         startTime: '2026-07-01T00:00:00.000Z',
         endTime: '2026-07-01T00:00:00.001Z',
         status: 'success',
-        output: { echoed: secret },
+        output: { echoed: secret, encoded: encodeURIComponent(secret) },
       },
     ]
+    const rawWorkflowInput = { prompt: `use ${secret}` }
 
-    session.setEnvironmentSecretSanitizer(
-      createEnvironmentSecretSanitizer(
-        { code: 'return "{{OPENAI_API_KEY}}"' },
-        {
-          OPENAI_API_KEY: secret,
-          UNREFERENCED_REGION: 'us-east-1',
-        }
-      )
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: secret, replacement: '{{OPENAI_API_KEY}}' }])
     )
     completeWorkflowExecutionMock.mockResolvedValue({})
 
     await session.safeComplete({
       finalOutput: rawFinalOutput,
       traceSpans: rawTraceSpans as any,
+      workflowInput: rawWorkflowInput,
     })
 
     expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        finalOutput: {
-          result: {
-            resolvedAtRuntime: true,
-            echoed: 'prefix:{{OPENAI_API_KEY}}:suffix',
-            encoded: '{{OPENAI_API_KEY}}',
-            ordinary: 'us-east-1',
-          },
-        },
+        finalOutput: rawFinalOutput,
+        workflowInput: rawWorkflowInput,
         traceSpans: [
           expect.objectContaining({
-            output: { echoed: '{{OPENAI_API_KEY}}' },
+            output: {
+              echoed: '{{OPENAI_API_KEY}}',
+              encoded: encodeURIComponent(secret),
+            },
           }),
         ],
       })
@@ -329,46 +392,64 @@ describe('LoggingSession completion retries', () => {
     expect(rawFinalOutput.result.echoed).toBe(`prefix:${secret}:suffix`)
     expect(rawTraceSpans[0].output.echoed).toBe(secret)
     expect(calculateCostSummary).toHaveBeenCalledWith(rawTraceSpans, undefined)
+
+    const persistedSpans = completeWorkflowExecutionMock.mock.calls[0]?.[0].traceSpans
+    expect(createOTelSpansMock).toHaveBeenCalledWith(
+      expect.objectContaining({ traceSpans: persistedSpans })
+    )
+    expect(createOTelSpansMock.mock.calls[0]?.[0].traceSpans).toBe(persistedSpans)
   })
 
-  it('sanitizes synthetic workflow errors and completion failure metadata', async () => {
+  it('projects synthetic error spans without copying the raw error into OTel metadata', async () => {
     const session = new LoggingSession('workflow-1', 'execution-error-safe', 'api', 'req-1')
     const secret = 'sk-demo-error-7f3a91'
 
-    session.setEnvironmentSecretSanitizer(
-      createEnvironmentSecretSanitizer(
-        { code: 'throw new Error("{{OPENAI_API_KEY}}")' },
-        { OPENAI_API_KEY: secret }
-      )
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: secret, replacement: '{{OPENAI_API_KEY}}' }])
     )
     completeWorkflowExecutionMock.mockResolvedValue({})
+    const rawExecutionState = {
+      blockStates: { 'function-1': { output: { result: secret } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+    }
 
     await session.safeCompleteWithError({
       error: { message: `Function failed with ${secret}` },
+      executionState: rawExecutionState,
     })
 
     expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        finalOutput: { error: 'Function failed with {{OPENAI_API_KEY}}' },
+        finalOutput: { error: `Function failed with ${secret}` },
         traceSpans: [
           expect.objectContaining({
             output: { error: 'Function failed with {{OPENAI_API_KEY}}' },
           }),
         ],
-        completionFailure: 'Function failed with {{OPENAI_API_KEY}}',
+        completionFailure: `Function failed with ${secret}`,
+        executionState: expect.objectContaining({
+          blockStates: { 'function-1': { output: { result: secret } } },
+        }),
       })
+    )
+    expect(createOTelSpansMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ error: expect.anything() })
+    )
+    expect(workflowExecutedMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ errorMessage: expect.anything() })
     )
   })
 
-  it('keeps workflow output sanitized when completion falls back to cost-only persistence', async () => {
+  it('keeps fallback functional output unchanged', async () => {
     const session = new LoggingSession('workflow-1', 'execution-fallback-safe', 'api', 'req-1')
     const secret = 'sk-demo-fallback-7f3a91'
 
-    session.setEnvironmentSecretSanitizer(
-      createEnvironmentSecretSanitizer(
-        { code: 'return "{{OPENAI_API_KEY}}"' },
-        { OPENAI_API_KEY: secret }
-      )
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: secret, replacement: '{{OPENAI_API_KEY}}' }])
     )
     completeWorkflowExecutionMock
       .mockRejectedValueOnce(new Error('primary persistence failed'))
@@ -380,10 +461,181 @@ describe('LoggingSession completion retries', () => {
 
     expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        finalOutput: { echoed: '{{OPENAI_API_KEY}}' },
+        finalOutput: { echoed: secret },
         finalizationPath: 'fallback_completed',
       })
     )
+  })
+
+  it('persists structural-only spans when installed provenance is incomplete', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-incomplete', 'api', 'req-1')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([], false))
+    completeWorkflowExecutionMock.mockResolvedValue({})
+
+    await session.safeComplete({
+      finalOutput: { raw: 'functional-data' },
+      traceSpans: [
+        {
+          id: 'span-1',
+          name: 'Agent',
+          type: 'agent',
+          duration: 1,
+          startTime: '2026-07-01T00:00:00.000Z',
+          endTime: '2026-07-01T00:00:00.001Z',
+          status: 'success',
+          output: { raw: 'unknown-provenance' },
+        },
+      ],
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalOutput: { raw: 'functional-data' },
+        traceSpans: [
+          expect.not.objectContaining({
+            output: expect.anything(),
+          }),
+        ],
+      })
+    )
+  })
+
+  it('fails closed to structural-only spans when provenance was not installed', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-no-registry', 'api', 'req-1')
+    completeWorkflowExecutionMock.mockResolvedValue({})
+
+    await session.safeComplete({
+      traceSpans: [
+        {
+          id: 'span-1',
+          name: 'Function',
+          type: 'function',
+          duration: 1,
+          startTime: '2026-07-01T00:00:00.000Z',
+          endTime: '2026-07-01T00:00:00.001Z',
+          output: { unknown: 'provenance' },
+        },
+      ],
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalOutput: {},
+        traceSpans: [expect.not.objectContaining({ output: expect.anything() })],
+      })
+    )
+  })
+
+  it('projects live block errors and terminal block logs without mutating raw callback data', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-display-safe', 'manual', 'req-1')
+    const secret = '1234'
+    const rawError = `Reference Error: Line 1: return blah +${secret} - blah is not defined`
+    const rawLog = {
+      blockId: 'function-1',
+      blockName: 'Function 1',
+      blockType: 'function',
+      startedAt: '2026-07-01T00:00:00.000Z',
+      endedAt: '2026-07-01T00:00:00.001Z',
+      durationMs: 1,
+      success: false,
+      executionOrder: 1,
+      input: { code: `return blah +${secret}` },
+      output: { error: rawError },
+      error: rawError,
+    }
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: secret, replacement: '{{NUMBER_SECRET}}' }])
+    )
+
+    const display = await session.projectDisplayContent({
+      input: rawLog.input,
+      output: rawLog.output,
+      error: rawError,
+    })
+    const [displayLog] = await session.projectBlockLogsForDisplay([rawLog])
+
+    expect(display).toEqual({
+      input: { code: 'return blah +{{NUMBER_SECRET}}' },
+      output: {
+        error: 'Reference Error: Line 1: return blah +{{NUMBER_SECRET}} - blah is not defined',
+      },
+      error: 'Reference Error: Line 1: return blah +{{NUMBER_SECRET}} - blah is not defined',
+      clearLiveDisplay: true,
+    })
+    expect(displayLog.input).toEqual(display.input)
+    expect(displayLog.output).toEqual(display.output)
+    expect(displayLog.error).toBe(display.error)
+    expect(displayLog.clearLiveDisplay).toBe(true)
+    expect(rawLog.input.code).toBe(`return blah +${secret}`)
+    expect(rawLog.output.error).toBe(rawError)
+    expect(rawLog.error).toBe(rawError)
+  })
+
+  it('projects large terminal log sets in bounded batches without dropping rows', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-display-batches', 'manual', 'req-1')
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'raw-secret', replacement: '{{TOKEN}}' }])
+    )
+    const rawLogs = Array.from({ length: 129 }, (_, index) => ({
+      blockId: `function-${index}`,
+      blockName: `Function ${index}`,
+      blockType: 'function',
+      startedAt: '2026-07-01T00:00:00.000Z',
+      endedAt: '2026-07-01T00:00:00.001Z',
+      durationMs: 1,
+      success: true,
+      executionOrder: index,
+      output: { value: `row-${index}:raw-secret` },
+    }))
+
+    const displayLogs = await session.projectBlockLogsForDisplay(rawLogs)
+
+    expect(displayLogs).toHaveLength(rawLogs.length)
+    expect(displayLogs[0].output).toEqual({ value: 'row-0:{{TOKEN}}' })
+    expect(displayLogs[128].output).toEqual({ value: 'row-128:{{TOKEN}}' })
+    expect(rawLogs[128].output.value).toBe('row-128:raw-secret')
+  })
+
+  it('projects a numeric Function result produced by a resolved numeric secret', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-numeric-secret', 'manual', 'req-1')
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: '1234', replacement: '{{OPENAI_API_KEY}}' }])
+    )
+    const rawLog = {
+      blockId: 'function-1',
+      blockName: 'Function 1',
+      blockType: 'function',
+      startedAt: '2026-07-01T00:00:00.000Z',
+      endedAt: '2026-07-01T00:00:00.001Z',
+      durationMs: 1,
+      success: true,
+      executionOrder: 1,
+      input: { code: 'return 1234' },
+      output: { result: 1234, stdout: '' },
+    }
+
+    const [displayLog] = await session.projectBlockLogsForDisplay([rawLog])
+
+    expect(displayLog.input).toEqual({ code: 'return {{OPENAI_API_KEY}}' })
+    expect(displayLog.output).toEqual({ result: '{{OPENAI_API_KEY}}', stdout: '' })
+    expect(rawLog.output.result).toBe(1234)
+  })
+
+  it('suppresses live deltas once a resolved secret is active', async () => {
+    const active = new LoggingSession('workflow-1', 'execution-live-active', 'manual', 'req-1')
+    active.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'split-secret', replacement: '{{SECRET}}' }])
+    )
+
+    const inactive = new LoggingSession('workflow-1', 'execution-live-inactive', 'manual', 'req-1')
+    inactive.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+
+    await expect(active.projectLiveDisplayText('chunk', 'split-')).resolves.toEqual({
+      clearLiveDisplay: true,
+    })
+    await expect(inactive.projectLiveDisplayText('chunk', 'ordinary text')).resolves.toEqual({
+      chunk: 'ordinary text',
+    })
   })
 
   it('derives fallback cost from trace spans when the primary completion fails', async () => {
@@ -446,6 +698,7 @@ describe('LoggingSession completion retries', () => {
 
   it('persists failed error semantics when completeWithError receives non-error trace spans', async () => {
     const session = new LoggingSession('workflow-1', 'execution-4', 'api', 'req-1')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
     const traceSpans = [
       {
         id: 'span-1',
@@ -785,11 +1038,22 @@ describe('completeWithError cancelled-status guard', () => {
     dbChainMockFns.limit.mockRejectedValueOnce(new Error('DB connection lost'))
     completeWorkflowExecutionMock.mockResolvedValue({})
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+    }
 
-    await session.safeCompleteWithError({ error: { message: 'block failed' } })
+    await session.safeCompleteWithError({
+      error: { message: 'block failed' },
+      executionState,
+    })
 
     expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ finalizationPath: 'force_failed' })
+      expect.objectContaining({ finalizationPath: 'force_failed', executionState })
     )
     expect(session.hasCompleted()).toBe(true)
   })

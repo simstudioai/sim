@@ -6,6 +6,8 @@ import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   type CostSummaryOptions,
@@ -21,6 +23,7 @@ import {
   setLastCompletedBlock,
   setLastStartedBlock,
 } from '@/lib/logs/execution/progress-markers'
+import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type {
   ExecutionEnvironment,
@@ -32,7 +35,8 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
-import type { EnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
+import type { BlockLog } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 type TriggerData = Record<string, unknown> & {
   correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
@@ -84,12 +88,31 @@ function buildCompletedMarkerPersistenceQuery(params: {
 
 /** Progress-marker and status writes on `workflow_execution_logs` use the exec pool. */
 const execDb = dbFor('exec')
+const BLOCK_LOG_PROJECTION_BATCH_SIZE = 64
+
+function structuralBlockLog(log: BlockLog): BlockLog {
+  const {
+    input: _input,
+    output: _output,
+    error: _error,
+    childTraceSpans: _childTraceSpans,
+    ...structural
+  } = log
+  return structural
+}
 
 const logger = createLogger('LoggingSession')
 
 type CompletionAttempt = 'complete' | 'error' | 'cancelled' | 'paused'
 
-const identityEnvironmentSecretSanitizer: EnvironmentSecretSanitizer = <T>(value: T): T => value
+export interface SecretSafeDisplayContent {
+  input?: unknown
+  output?: unknown
+  error?: string
+  text?: string
+  chunk?: string
+  clearLiveDisplay?: true
+}
 
 export interface SessionStartParams {
   userId?: string
@@ -123,6 +146,7 @@ export interface SessionErrorCompleteParams {
   }
   traceSpans?: TraceSpan[]
   skipCost?: boolean
+  executionState?: SerializableExecutionState
 }
 
 export interface SessionCancelledParams {
@@ -169,8 +193,8 @@ export class LoggingSession {
   private costOptions?: CostSummaryOptions
   private pendingProgressWrites = new Set<Promise<void>>()
   private postExecutionPromise: Promise<void> | null = null
-  private environmentSecretSanitizer: EnvironmentSecretSanitizer =
-    identityEnvironmentSecretSanitizer
+  private resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  private traceLargeValueAccess: LargeValueStoreContext = {}
 
   constructor(
     workflowId: string,
@@ -191,17 +215,174 @@ export class LoggingSession {
         : undefined
   }
 
-  /**
-   * Installs the workflow-scoped sanitizer used only for persisted and emitted
-   * observability values. The closure is retained in memory for this session
-   * and is never added to execution data.
-   */
-  setEnvironmentSecretSanitizer(sanitizer: EnvironmentSecretSanitizer): void {
-    this.environmentSecretSanitizer = sanitizer
+  /** Installs the run-scoped provenance used only at the terminal TraceSpan boundary. */
+  setResolvedSecretTraceRegistry(registry: ResolvedSecretTraceRegistry): void {
+    this.resolvedSecretTraceRegistry = registry
   }
 
-  private sanitizeForLog<T>(value: T): T {
-    return this.environmentSecretSanitizer(value)
+  /** Adds the trusted execution-ref scope needed to rewrite offloaded trace content. */
+  setTraceLargeValueAccess(context: LargeValueStoreContext): void {
+    this.traceLargeValueAccess = context
+  }
+
+  private getSecretProjectionStore(): LargeValueStoreContext {
+    return {
+      ...this.traceLargeValueAccess,
+      workspaceId: this.environment?.workspaceId,
+      workflowId: this.workflowId,
+      executionId: this.executionId,
+      userId: this.actorUserId ?? this.environment?.userId,
+    }
+  }
+
+  private async projectRawTraceSpans(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
+    return projectTraceSpansForSecrets(traceSpans, {
+      registry: this.resolvedSecretTraceRegistry,
+      store: this.getSecretProjectionStore(),
+    })
+  }
+
+  /**
+   * Produces a display-only copy of known observability content through the same
+   * projector used for persisted TraceSpans. Runtime values and callback payloads
+   * remain untouched, and an unavailable projection yields no content fields.
+   */
+  async projectDisplayContent(
+    content: SecretSafeDisplayContent
+  ): Promise<SecretSafeDisplayContent> {
+    try {
+      const envelope: Record<string, unknown> = {}
+      for (const key of ['input', 'output', 'error', 'text', 'chunk'] as const) {
+        if (Object.hasOwn(content, key)) envelope[key] = content[key]
+      }
+
+      const now = new Date().toISOString()
+      const [projectedSpan] = await this.projectRawTraceSpans([
+        {
+          id: 'secret-safe-display-projection',
+          name: 'Display Projection',
+          type: 'display',
+          duration: 0,
+          startTime: now,
+          endTime: now,
+          output: envelope,
+        },
+      ])
+      const projected = this.readProjectedDisplayContent(projectedSpan?.output)
+      return this.shouldClearLiveDisplay() ? { ...projected, clearLiveDisplay: true } : projected
+    } catch {
+      logger.warn('Display secret projection failed; omitting display content')
+      return {}
+    }
+  }
+
+  private readProjectedDisplayContent(
+    projectedEnvelope: TraceSpan['output'] | undefined
+  ): SecretSafeDisplayContent {
+    if (!projectedEnvelope) return {}
+
+    const projected: SecretSafeDisplayContent = {}
+    if (Object.hasOwn(projectedEnvelope, 'input')) projected.input = projectedEnvelope.input
+    if (Object.hasOwn(projectedEnvelope, 'output')) projected.output = projectedEnvelope.output
+    if (typeof projectedEnvelope.error === 'string') projected.error = projectedEnvelope.error
+    if (typeof projectedEnvelope.text === 'string') projected.text = projectedEnvelope.text
+    if (typeof projectedEnvelope.chunk === 'string') projected.chunk = projectedEnvelope.chunk
+    return projected
+  }
+
+  /**
+   * Projects terminal reconciliation logs without changing the executor-owned
+   * BlockLogs. Child traces use the identical TraceSpan projection boundary.
+   */
+  async projectBlockLogsForDisplay(blockLogs: BlockLog[]): Promise<SecretSafeBlockLog[]> {
+    const now = new Date().toISOString()
+    const displayLogs: SecretSafeBlockLog[] = []
+    const clearLiveDisplay = this.shouldClearLiveDisplay()
+
+    for (let offset = 0; offset < blockLogs.length; offset += BLOCK_LOG_PROJECTION_BATCH_SIZE) {
+      const batch = blockLogs.slice(offset, offset + BLOCK_LOG_PROJECTION_BATCH_SIZE)
+      let projectedLogs: TraceSpan[]
+      try {
+        projectedLogs = await this.projectRawTraceSpans(
+          batch.map((log, index) => ({
+            id: `secret-safe-block-log-${offset + index}`,
+            name: 'Block Log Display Projection',
+            type: 'display',
+            duration: 0,
+            startTime: now,
+            endTime: now,
+            output: {
+              ...(log.input !== undefined ? { input: log.input } : {}),
+              ...(log.output !== undefined ? { output: log.output } : {}),
+              ...(log.error !== undefined ? { error: log.error } : {}),
+            },
+            ...(log.childTraceSpans ? { children: log.childTraceSpans } : {}),
+          }))
+        )
+      } catch {
+        logger.warn('Block-log secret projection failed; retaining structural logs only')
+        displayLogs.push(...batch.map(structuralBlockLog))
+        continue
+      }
+
+      for (let index = 0; index < batch.length; index += 1) {
+        const log = batch[index]
+        const display = this.readProjectedDisplayContent(projectedLogs[index]?.output)
+        displayLogs.push({
+          ...structuralBlockLog(log),
+          ...(clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+          ...(Object.hasOwn(display, 'input')
+            ? { input: display.input as Record<string, unknown> }
+            : {}),
+          ...(Object.hasOwn(display, 'output')
+            ? { output: display.output as BlockLog['output'] }
+            : {}),
+          ...(display.error !== undefined ? { error: display.error } : {}),
+          ...(projectedLogs[index]?.children
+            ? { childTraceSpans: projectedLogs[index].children }
+            : {}),
+        })
+      }
+    }
+
+    return displayLogs
+  }
+
+  /**
+   * Live deltas may split one literal across multiple events. Once provenance is
+   * active (or incomplete), suppress their display copy instead of attempting a
+   * per-chunk replacement that could miss the split value.
+   */
+  async projectLiveDisplayText(
+    field: 'text' | 'chunk',
+    value: string
+  ): Promise<SecretSafeDisplayContent> {
+    if (
+      !this.resolvedSecretTraceRegistry?.isComplete() ||
+      this.resolvedSecretTraceRegistry.getActiveMatches().length > 0
+    ) {
+      return { clearLiveDisplay: true }
+    }
+    return this.projectDisplayContent({ [field]: value })
+  }
+
+  private shouldClearLiveDisplay(): boolean {
+    return (
+      !this.resolvedSecretTraceRegistry?.isComplete() ||
+      this.resolvedSecretTraceRegistry.getActiveMatches().length > 0
+    )
+  }
+
+  private async projectTraceSpans(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
+    const preparedTraceSpans = await executionLogger.prepareTraceSpansForProjection({
+      executionId: this.executionId,
+      workflowId: this.workflowId,
+      workspaceId: this.environment?.workspaceId ?? null,
+      userId: this.actorUserId ?? this.environment?.userId,
+      traceSpans,
+      isResume: this.isResume,
+    })
+    return this.projectRawTraceSpans(preparedTraceSpans)
   }
 
   async onBlockStart(
@@ -321,24 +502,18 @@ export class LoggingSession {
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<void> {
-    const finalOutput = this.sanitizeForLog(params.finalOutput)
-    const traceSpans = this.sanitizeForLog(params.traceSpans)
-    const completionFailure =
-      params.completionFailure === undefined
-        ? undefined
-        : this.sanitizeForLog(params.completionFailure)
-
+    const executionState = this.withResolvedSecretTraceProvenance(params.executionState)
     await executionLogger.completeWorkflowExecution({
       executionId: this.executionId,
       endedAt: params.endedAt,
       totalDurationMs: params.totalDurationMs,
       costSummary: params.costSummary,
-      finalOutput,
-      traceSpans,
+      finalOutput: params.finalOutput,
+      traceSpans: params.traceSpans,
       workflowInput: params.workflowInput,
-      executionState: params.executionState,
+      executionState,
       finalizationPath: params.finalizationPath,
-      completionFailure,
+      completionFailure: params.completionFailure,
       isResume: this.isResume,
       level: params.level,
       status: params.status,
@@ -359,6 +534,27 @@ export class LoggingSession {
           error: toError(error).message,
         })
       }
+    }
+  }
+
+  private withResolvedSecretTraceProvenance(
+    executionState?: SerializableExecutionState
+  ): SerializableExecutionState | undefined {
+    if (!this.resolvedSecretTraceRegistry) return executionState
+
+    const resolvedSecretTraceProvenance = this.resolvedSecretTraceRegistry.exportProvenance()
+    if (executionState) {
+      return { ...executionState, resolvedSecretTraceProvenance }
+    }
+
+    return {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+      resolvedSecretTraceProvenance,
     }
   }
 
@@ -396,6 +592,14 @@ export class LoggingSession {
     } = params
     this.actorUserId = billingAttribution?.actorUserId ?? actorUserId ?? userId ?? null
     this.billingAttribution = billingAttribution
+    if (!this.resolvedSecretTraceRegistry) {
+      const scopeUserId = userId ?? this.actorUserId
+      this.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+        [],
+        scopeUserId ? { userId: scopeUserId, workspaceId } : undefined
+      )
+      if (skipLogCreation) this.resolvedSecretTraceRegistry.markIncomplete()
+    }
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -445,14 +649,15 @@ export class LoggingSession {
     this.completing = true
 
     const { endedAt, totalDurationMs, workflowInput, executionState } = params
-    const finalOutput = this.sanitizeForLog(params.finalOutput || {})
+    const finalOutput = params.finalOutput || {}
     const rawTraceSpans = params.traceSpans || []
-    const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
     try {
       const costSummary = calculateCostSummary(rawTraceSpans, this.costOptions)
       const endTime = endedAt || new Date().toISOString()
       const duration = totalDurationMs || 0
+      const hasErrors = traceSpansIndicateFailure(rawTraceSpans)
+      const traceSpans = await this.projectTraceSpans(rawTraceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime,
@@ -463,6 +668,8 @@ export class LoggingSession {
         workflowInput,
         executionState,
         finalizationPath: 'completed',
+        level: hasErrors ? 'error' : 'info',
+        status: hasErrors ? 'failed' : 'completed',
       })
 
       this.completed = true
@@ -472,8 +679,6 @@ export class LoggingSession {
           const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
             '@/lib/core/telemetry'
           )
-
-          const hasErrors = traceSpansIndicateFailure(rawTraceSpans)
 
           PlatformEvents.workflowExecuted({
             workflowId: this.workflowId,
@@ -542,13 +747,12 @@ export class LoggingSession {
 
       const { endedAt, totalDurationMs, error, skipCost } = params
       const rawTraceSpans = params.traceSpans || []
-      const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
       const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
 
-      const hasProvidedSpans = traceSpans.length > 0
+      const hasProvidedSpans = rawTraceSpans.length > 0
 
       // calculateCostSummary([]) / (undefined) already returns the base-charge
       // summary, so the no-spans branch needs no separate literal.
@@ -566,7 +770,7 @@ export class LoggingSession {
           }
         : calculateCostSummary(rawTraceSpans, this.costOptions)
 
-      const message = this.sanitizeForLog(error?.message || 'Run failed before starting blocks')
+      const message = error?.message || 'Run failed before starting blocks'
 
       const errorSpan: TraceSpan = {
         id: 'workflow-error-root',
@@ -580,7 +784,7 @@ export class LoggingSession {
         output: { error: message },
       }
 
-      const spans = hasProvidedSpans ? traceSpans : [errorSpan]
+      const spans = await this.projectTraceSpans(hasProvidedSpans ? rawTraceSpans : [errorSpan])
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -588,6 +792,7 @@ export class LoggingSession {
         costSummary,
         finalOutput: { error: message },
         traceSpans: spans,
+        executionState: params.executionState,
         level: 'error',
         status: 'failed',
         finalizationPath: 'force_failed',
@@ -607,7 +812,6 @@ export class LoggingSession {
           trigger: this.triggerType,
           blocksExecuted: spans.length,
           hasErrors: true,
-          errorMessage: message,
         })
 
         createOTelSpansForWorkflowExecution({
@@ -620,7 +824,6 @@ export class LoggingSession {
           endTime: endTime.toISOString(),
           totalDurationMs: Math.max(1, durationMs),
           status: 'error',
-          error: message,
         })
       } catch (_e) {
         // Silently fail
@@ -653,7 +856,6 @@ export class LoggingSession {
     try {
       const { endedAt, totalDurationMs } = params
       const rawTraceSpans = params.traceSpans || []
-      const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -678,6 +880,7 @@ export class LoggingSession {
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
       const costSummary = calculateCostSummary(rawTraceSpans, this.costOptions)
+      const traceSpans = await this.projectTraceSpans(rawTraceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -749,7 +952,6 @@ export class LoggingSession {
     try {
       const { endedAt, totalDurationMs, workflowInput } = params
       const rawTraceSpans = params.traceSpans || []
-      const traceSpans = this.sanitizeForLog(rawTraceSpans)
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -774,6 +976,7 @@ export class LoggingSession {
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
       const costSummary = calculateCostSummary(rawTraceSpans, this.costOptions)
+      const traceSpans = await this.projectTraceSpans(rawTraceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -1009,6 +1212,7 @@ export class LoggingSession {
         finalOutput: {
           error: params?.error?.message || `Execution failed to store trace spans: ${errorMsg}`,
         },
+        executionState: params?.executionState,
         status: 'failed',
       })
     }
@@ -1161,6 +1365,7 @@ export class LoggingSession {
     isError: boolean
     finalizationPath: ExecutionFinalizationPath
     finalOutput?: Record<string, unknown>
+    executionState?: SerializableExecutionState
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<void> {
     if (this.completed || this.completing) {
@@ -1188,6 +1393,7 @@ export class LoggingSession {
         costSummary,
         finalOutput,
         traceSpans: [],
+        executionState: params.executionState,
         finalizationPath: params.finalizationPath,
         completionFailure: params.errorMessage,
         level: params.isError ? 'error' : 'info',

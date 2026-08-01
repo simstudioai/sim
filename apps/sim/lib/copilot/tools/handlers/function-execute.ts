@@ -509,5 +509,9 @@ export async function executeFunctionExecute(
     enforceCredentialAccess: true,
   }
 
-  return executeAppTool('function_execute', enrichedParams)
+  return context.resolvedSecretTraceRegistry
+    ? executeAppTool('function_execute', enrichedParams, {
+        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+      })
+    : executeAppTool('function_execute', enrichedParams)
 }

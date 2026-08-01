@@ -433,6 +433,15 @@ export interface SnapshotCreationResult {
 }
 
 export interface ExecutionLoggerService {
+  prepareTraceSpansForProjection(params: {
+    executionId: string
+    workflowId: string
+    workspaceId: string | null
+    userId?: string | null
+    traceSpans: TraceSpan[]
+    isResume?: boolean
+  }): Promise<TraceSpan[]>
+
   startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string

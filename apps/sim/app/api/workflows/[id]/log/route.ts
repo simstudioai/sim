@@ -13,9 +13,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import type { ExecutionResult } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowLogAPI')
 
@@ -119,6 +121,29 @@ export const POST = withRouteHandler(
         const isChatExecution = result.metadata?.source === 'chat'
         const triggerType = isChatExecution ? 'chat' : 'manual'
         const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
+        const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
+          userId: actorUserId,
+          workspaceId: existingLog.workspaceId,
+        })
+        const trustedExecutionData = await materializeExecutionData(
+          existingLog.executionData as Record<string, unknown>,
+          {
+            workspaceId: existingLog.workspaceId,
+            workflowId: existingLog.workflowId,
+            executionId,
+          }
+        )
+        const trustedExecutionState = trustedExecutionData.executionState
+        const trustedProvenance =
+          trustedExecutionState && typeof trustedExecutionState === 'object'
+            ? (trustedExecutionState as Record<string, unknown>).resolvedSecretTraceProvenance
+            : undefined
+        if (trustedProvenance === undefined) {
+          resolvedSecretTraceRegistry.markIncomplete()
+        } else {
+          await resolvedSecretTraceRegistry.importProvenance(trustedProvenance, { trusted: true })
+        }
+        loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
 
         await loggingSession.start({
           userId: actorUserId,

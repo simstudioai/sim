@@ -8,7 +8,6 @@ import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
-import { createEnvironmentSecretSanitizer } from '@/executor/utils/environment-secret-sanitizer'
 
 const { mockDownloadFile } = vi.hoisted(() => ({
   mockDownloadFile: vi.fn(),
@@ -1308,80 +1307,6 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(sawAbort).toBe(true)
     expect(events.some((event) => event.event === 'final')).toBe(false)
     expect(events).toContainEqual({ event: 'error', error: 'Client cancelled request' })
-  })
-
-  it('does not replace sanitized trace content with raw streamed text', async () => {
-    const secret = 'raw-stream-secret'
-    const sanitizer = createEnvironmentSecretSanitizer(
-      { prompt: 'Use {{TRACE_SECRET}}' },
-      { TRACE_SECRET: secret }
-    )
-    const persistedCompletion = vi.fn()
-    const safeComplete = vi.fn(async (params: Record<string, any>) => {
-      persistedCompletion({
-        ...params,
-        finalOutput: sanitizer(params.finalOutput),
-        traceSpans: sanitizer(params.traceSpans),
-      })
-    })
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      streamConfig: {},
-      executeFn: async ({ onStream }) => {
-        const textStream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            controller.enqueue(new TextEncoder().encode(`Echo ${secret}`))
-            controller.close()
-          },
-        })
-
-        await onStream({
-          stream: textStream,
-          streamFormat: 'text',
-          execution: {
-            blockId: 'agent-1',
-            success: true,
-            output: { content: `Echo ${secret}` },
-            logs: [],
-            metadata: {},
-          },
-        } as any)
-
-        return {
-          success: true,
-          output: { content: `Echo ${secret}` },
-          logs: [
-            {
-              blockId: 'agent-1',
-              blockName: 'Agent',
-              blockType: 'agent',
-              input: { prompt: 'Use {{TRACE_SECRET}}' },
-              output: { content: 'Echo {{TRACE_SECRET}}' },
-              startedAt: '2026-01-01T00:00:00.000Z',
-              endedAt: '2026-01-01T00:00:00.001Z',
-              durationMs: 1,
-              executionOrder: 1,
-              success: true,
-            },
-          ],
-          _streamingMetadata: {
-            loggingSession: { safeComplete },
-            processedInput: {},
-          },
-        } as any
-      },
-    })
-
-    const events = await collectSSEEvents(stream)
-
-    expect(safeComplete).toHaveBeenCalledOnce()
-    expect(persistedCompletion).toHaveBeenCalledOnce()
-    const serializedCompletion = JSON.stringify(persistedCompletion.mock.calls[0][0])
-    expect(serializedCompletion).not.toContain(secret)
-    expect(serializedCompletion).toContain('{{TRACE_SECRET}}')
-
-    const finalEvent = events.find((event) => event.event === 'final')
-    expect(JSON.stringify(finalEvent)).toContain(secret)
   })
 
   it('thinking never enters streamedChunks / log content rewrite', async () => {

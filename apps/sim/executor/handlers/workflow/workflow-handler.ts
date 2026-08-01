@@ -45,6 +45,7 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
+import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { isRunMetadataEnabled, resolveExecutorStartBlock } from '@/executor/utils/start-block'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
@@ -269,6 +270,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     /** Set for custom blocks only: the child's own execution id / log row. */
     let childExecutionId: string | undefined
     let childSession: LoggingSession | undefined
+    let childResolvedSecretTraceRegistry = ctx.resolvedSecretTraceRegistry
     let childSessionStarted = false
     /** Set once the child's session reached a terminal state, so the catch doesn't re-complete it. */
     let childSessionFinalized = false
@@ -431,6 +433,24 @@ export class WorkflowBlockHandler implements BlockHandler {
           ...ownerEnv.personalEncrypted,
           ...ownerEnv.workspaceEncrypted,
         }
+        childResolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+          personalEncrypted: ownerEnv.personalEncrypted,
+          workspaceEncrypted: ownerEnv.workspaceEncrypted,
+          personalDecrypted: ownerEnv.personalDecrypted,
+          workspaceDecrypted: ownerEnv.workspaceDecrypted,
+          decryptionFailures: ownerEnv.decryptionFailures,
+          scope: { userId: loadUserId, workspaceId: sourceWorkspaceId },
+        })
+        if (ctx.resolvedSecretTraceRegistry) {
+          const crossingProvenance = ctx.resolvedSecretTraceRegistry.exportProvenanceForValue(
+            childWorkflowInput,
+            { anonymous: true }
+          )
+          await childResolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
+            trusted: true,
+            anonymous: true,
+          })
+        }
         // Custom-block children authenticate internal tool calls as the source
         // owner in the source workspace, so the consumer's snapshot would fail
         // the internal routes' actor/workspace scope match. Resolve the
@@ -459,6 +479,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           // child is part of that same logical run and must not add a second.
           { baseExecutionCharge: 0 }
         )
+        childSession.setResolvedSecretTraceRegistry(childResolvedSecretTraceRegistry)
         const correlation = buildCustomBlockCorrelation({
           invokerExecutionId: ctx.executionId,
           invokerRequestId: ctx.metadata.requestId,
@@ -509,6 +530,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         for (const id of [ctx.executionId, childExecutionId]) {
           if (id && !sharedLargeValueIds.includes(id)) sharedLargeValueIds.push(id)
         }
+        childSession.setTraceLargeValueAccess({
+          largeValueExecutionIds: sharedLargeValueIds,
+          largeValueKeys: ctx.largeValueKeys,
+          fileKeys: ctx.fileKeys,
+          allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+        })
       }
 
       // Trusted run metadata for the child's Start block. Every field describes
@@ -570,6 +597,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           // internal tool calls (knowledge, guardrails, MCP, Mothership) can
           // attach the required billing attribution header.
           billingAttribution: childBillingAttribution,
+          resolvedSecretTraceRegistry: childResolvedSecretTraceRegistry,
           // Fall back to the inherited metadata so a toggle-off intermediate
           // child still carries the trusted identity chain to deeper children.
           startRunMetadata: childStartRunMetadata ?? inherited,
@@ -672,7 +700,18 @@ export class WorkflowBlockHandler implements BlockHandler {
       // failures surface identically; we just reshape the successful output. The
       // child's spend is billed by its own session, not rolled onto this block.
       if (isCustomBlock) {
-        return this.projectCustomBlockOutput(executionResult, exposedOutputs)
+        const exposedOutput = this.projectCustomBlockOutput(executionResult, exposedOutputs)
+        if (ctx.resolvedSecretTraceRegistry && childResolvedSecretTraceRegistry) {
+          const crossingProvenance = childResolvedSecretTraceRegistry.exportProvenanceForValue(
+            exposedOutput,
+            { anonymous: true }
+          )
+          await ctx.resolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
+            trusted: true,
+            anonymous: true,
+          })
+        }
+        return exposedOutput
       }
 
       return mappedResult
@@ -792,6 +831,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       totalDurationMs: totalDuration ?? 0,
       error: { message: normalized.message, stackTrace: normalized.stack },
       traceSpans,
+      executionState: executionResult?.executionState,
     })
   }
 

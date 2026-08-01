@@ -1,4 +1,4 @@
-import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
@@ -9,6 +9,10 @@ import {
   WorkflowBlockHandler,
 } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
+import {
+  ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
 const {
@@ -24,6 +28,8 @@ const {
   mockSafeComplete,
   mockSafeCompleteWithError,
   mockSafeCompleteWithCancellation,
+  mockSetResolvedSecretTraceRegistry,
+  mockSetTraceLargeValueAccess,
   mockDispose,
   executorOptions,
   loggingSessionArgs,
@@ -40,6 +46,8 @@ const {
   mockSafeComplete: vi.fn(),
   mockSafeCompleteWithError: vi.fn(),
   mockSafeCompleteWithCancellation: vi.fn(),
+  mockSetResolvedSecretTraceRegistry: vi.fn(),
+  mockSetTraceLargeValueAccess: vi.fn(),
   mockDispose: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
   loggingSessionArgs: [] as Array<any[]>,
@@ -54,6 +62,8 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
     safeComplete = mockSafeComplete
     safeCompleteWithError = mockSafeCompleteWithError
     safeCompleteWithCancellation = mockSafeCompleteWithCancellation
+    setResolvedSecretTraceRegistry = mockSetResolvedSecretTraceRegistry
+    setTraceLargeValueAccess = mockSetTraceLargeValueAccess
     onBlockStart = vi.fn()
     onBlockComplete = vi.fn()
   },
@@ -61,6 +71,11 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: mockBuildTraceSpans,
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+  encryptSecret: encryptionMockFns.mockEncryptSecret,
 }))
 
 vi.mock('@/lib/workflows/custom-blocks/child-execution', () => ({
@@ -1147,6 +1162,54 @@ describe('WorkflowBlockHandler', () => {
       expect(ctx.largeValueExecutionIds).toContain('grandchild-execution-id')
     })
 
+    it('imports only publisher secret provenance that crosses the curated output boundary', async () => {
+      encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({
+        decrypted: 'publisher-secret',
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValueOnce({
+        personalDecrypted: { SECRET: 'publisher-secret', UNUSED: 'unused-secret' },
+        workspaceDecrypted: {},
+        personalEncrypted: {
+          SECRET: 'publisher-ciphertext',
+          UNUSED: 'unused-ciphertext',
+        },
+        workspaceEncrypted: {},
+        decryptionFailures: [],
+      })
+      mockExecutorExecute.mockImplementationOnce(async () => {
+        const childRegistry = executorOptions.at(-1)?.contextExtensions
+          .resolvedSecretTraceRegistry as ResolvedSecretTraceRegistry
+        childRegistry.recordResolved('SECRET', 'publisher-secret')
+        childRegistry.recordResolved('UNUSED', 'unused-secret')
+        return {
+          success: true,
+          output: {},
+          logs: [
+            {
+              blockId: 'b1',
+              success: true,
+              output: { content: 'value=publisher-secret' },
+            },
+          ],
+        }
+      })
+      const parentRegistry = new ResolvedSecretTraceRegistry()
+      const result = await handler.execute(
+        customBlockContext({ resolvedSecretTraceRegistry: parentRegistry }),
+        customBlock(),
+        {}
+      )
+
+      expect(result).toMatchObject({ answer: 'value=publisher-secret', success: true })
+      expect(parentRegistry.getActiveMatches()).toEqual([
+        {
+          plaintext: 'publisher-secret',
+          replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+        },
+      ])
+      expect(mockSetResolvedSecretTraceRegistry).toHaveBeenCalledTimes(1)
+    })
+
     it('does not duplicate ids across repeated invocations', async () => {
       const ctx = customBlockContext()
       await handler.execute(ctx, customBlock(), {})
@@ -1407,12 +1470,14 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('leaves regular workflow blocks entirely alone', async () => {
+      const registry = new ResolvedSecretTraceRegistry()
       const ctx = {
         ...mockContext,
         workspaceId: 'workspace-1',
         executionId: 'parent-execution-id',
         onBlockStart: vi.fn(),
         onStream: vi.fn(),
+        resolvedSecretTraceRegistry: registry,
       } as unknown as ExecutionContext
       mockFetch.mockResolvedValue({
         ok: true,
@@ -1431,6 +1496,7 @@ describe('WorkflowBlockHandler', () => {
       expect(loggingSessionArgs).toHaveLength(0)
       const extensions = executorOptions[0].contextExtensions
       expect(extensions.executionId).toBe('parent-execution-id')
+      expect(extensions.resolvedSecretTraceRegistry).toBe(registry)
       expect(extensions.onStream).toBe(ctx.onStream)
       expect(extensions.childWorkflowContext).toBeDefined()
     })

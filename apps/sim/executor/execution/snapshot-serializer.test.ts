@@ -6,6 +6,7 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
@@ -38,6 +39,45 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
 }
 
 describe('serializePauseSnapshot', () => {
+  it('persists encrypted resolved-secret provenance and the source execution id', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'raw-secret')
+    const context = createContext({ resolvedSecretTraceRegistry: registry })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.sourceExecutionId).toBe('execution-1')
+    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    })
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+  })
+
+  it('persists a complete zero-entry provenance state for a fresh execution', () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    const snapshot = serializePauseSnapshot(
+      createContext({ resolvedSecretTraceRegistry: registry }),
+      ['next-block']
+    )
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
   it('serializes batched parallel accumulated outputs for cross-process resume', () => {
     const context = createContext({
       parallelExecutions: new Map([

@@ -51,8 +51,9 @@ import {
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
+  copyTraceSpansWithoutCosts,
   externalizeExecutionData,
-  stripSpanCosts,
+  materializeExecutionData,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 import type {
@@ -186,13 +187,87 @@ function summarizeValueForExecutionData(value: unknown, maxBytes: number): unkno
   }
 }
 
-function summarizeTextForExecutionData(value: string | undefined): string | undefined {
-  if (!value) return value
-  const size = getJsonByteSize(value, MAX_TRACE_IO_BYTES)
-  if (size === undefined || size <= MAX_TRACE_IO_BYTES) {
-    return value
+function retainBoundedTraceContent<T>(value: T, maxBytes = MAX_TRACE_IO_BYTES): T | undefined {
+  const size = getJsonByteSize(value, maxBytes)
+  return size !== undefined && size <= maxBytes ? value : undefined
+}
+
+function stripModelToolCallArguments(
+  calls: NonNullable<TraceSpan['modelToolCalls']>
+): NonNullable<TraceSpan['modelToolCalls']> {
+  return calls.map(({ arguments: _arguments, ...call }) => call as (typeof calls)[number])
+}
+
+function compactModelToolCalls(
+  calls: NonNullable<TraceSpan['modelToolCalls']>
+): NonNullable<TraceSpan['modelToolCalls']> | undefined {
+  const compacted = calls.map(({ arguments: callArguments, ...call }) => {
+    const retainedArguments = retainBoundedTraceContent(callArguments)
+    return {
+      ...call,
+      ...(retainedArguments !== undefined ? { arguments: retainedArguments } : {}),
+    } as (typeof calls)[number]
+  })
+  return retainBoundedTraceContent(compacted)
+}
+
+function compactLegacyToolCalls(
+  calls: NonNullable<TraceSpan['toolCalls']>
+): NonNullable<TraceSpan['toolCalls']> | undefined {
+  const compacted = calls.map(({ input, output, error, ...call }) => ({
+    ...call,
+    ...(retainBoundedTraceContent(input) !== undefined ? { input } : {}),
+    ...(retainBoundedTraceContent(output) !== undefined ? { output } : {}),
+    ...(retainBoundedTraceContent(error) !== undefined ? { error } : {}),
+  }))
+  return retainBoundedTraceContent(compacted)
+}
+
+function stripLegacyToolCallContent(
+  calls: NonNullable<TraceSpan['toolCalls']>
+): NonNullable<TraceSpan['toolCalls']> {
+  return calls.map(({ input: _input, output: _output, error: _error, ...call }) => call)
+}
+
+function compactProviderTiming(
+  providerTiming: NonNullable<TraceSpan['providerTiming']>
+): NonNullable<TraceSpan['providerTiming']> {
+  return {
+    ...providerTiming,
+    segments: providerTiming.segments.map(
+      ({ assistantContent, thinkingContent, errorMessage, toolCalls, ...segment }) => ({
+        ...segment,
+        ...(retainBoundedTraceContent(assistantContent) !== undefined ? { assistantContent } : {}),
+        ...(retainBoundedTraceContent(thinkingContent) !== undefined ? { thinkingContent } : {}),
+        ...(retainBoundedTraceContent(errorMessage) !== undefined ? { errorMessage } : {}),
+        ...(toolCalls
+          ? {
+              toolCalls: compactModelToolCalls(toolCalls) ?? stripModelToolCallArguments(toolCalls),
+            }
+          : {}),
+      })
+    ),
   }
-  return `[Truncated ${size} byte text value due to execution log size limit]`
+}
+
+function stripProviderTimingContent(
+  providerTiming: NonNullable<TraceSpan['providerTiming']>
+): NonNullable<TraceSpan['providerTiming']> {
+  return {
+    ...providerTiming,
+    segments: providerTiming.segments.map(
+      ({
+        assistantContent: _assistantContent,
+        thinkingContent: _thinkingContent,
+        errorMessage: _errorMessage,
+        toolCalls,
+        ...segment
+      }) => ({
+        ...segment,
+        ...(toolCalls ? { toolCalls: stripModelToolCallArguments(toolCalls) } : {}),
+      })
+    ),
+  }
 }
 
 function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
@@ -201,33 +276,39 @@ function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpa
   }
 
   return traceSpans.map((span) => {
-    const { input, output, children, thinking, modelToolCalls, ...rest } = span
+    const {
+      input,
+      output,
+      children,
+      thinking,
+      errorMessage,
+      modelToolCalls,
+      toolCalls,
+      providerTiming,
+      ...rest
+    } = span
     const summarized: TraceSpan = { ...rest }
 
-    if (input !== undefined) {
-      summarized.input = summarizeValueForExecutionData(input, MAX_TRACE_IO_BYTES) as Record<
-        string,
-        unknown
-      >
-    }
-    if (output !== undefined) {
-      summarized.output = summarizeValueForExecutionData(output, MAX_TRACE_IO_BYTES) as Record<
-        string,
-        unknown
-      >
-    }
+    const retainedInput = retainBoundedTraceContent(input)
+    if (retainedInput !== undefined) summarized.input = retainedInput
+    const retainedOutput = retainBoundedTraceContent(output)
+    if (retainedOutput !== undefined) summarized.output = retainedOutput
     if (children?.length) {
       summarized.children = summarizeTraceSpansForExecutionData(children)
     }
-    if (thinking !== undefined) {
-      summarized.thinking = summarizeTextForExecutionData(thinking)
+    const retainedThinking = retainBoundedTraceContent(thinking)
+    if (retainedThinking !== undefined) summarized.thinking = retainedThinking
+    const retainedError = retainBoundedTraceContent(errorMessage)
+    if (retainedError !== undefined) summarized.errorMessage = retainedError
+    if (modelToolCalls) {
+      summarized.modelToolCalls =
+        compactModelToolCalls(modelToolCalls) ?? stripModelToolCallArguments(modelToolCalls)
     }
-    if (
-      modelToolCalls !== undefined &&
-      (getJsonByteSize(modelToolCalls, MAX_TRACE_IO_BYTES) ?? 0) <= MAX_TRACE_IO_BYTES
-    ) {
-      summarized.modelToolCalls = modelToolCalls
+    if (toolCalls) {
+      summarized.toolCalls =
+        compactLegacyToolCalls(toolCalls) ?? stripLegacyToolCallContent(toolCalls)
     }
+    if (providerTiming) summarized.providerTiming = compactProviderTiming(providerTiming)
 
     return summarized
   })
@@ -244,11 +325,17 @@ function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpan[] | u
       output: _output,
       children,
       thinking: _thinking,
-      modelToolCalls: _modelToolCalls,
+      errorMessage: _errorMessage,
+      modelToolCalls,
+      toolCalls,
+      providerTiming,
       ...rest
     } = span
     return {
       ...rest,
+      ...(modelToolCalls ? { modelToolCalls: stripModelToolCallArguments(modelToolCalls) } : {}),
+      ...(toolCalls ? { toolCalls: stripLegacyToolCallContent(toolCalls) } : {}),
+      ...(providerTiming ? { providerTiming: stripProviderTimingContent(providerTiming) } : {}),
       ...(children?.length ? { children: summarizeTraceSpansWithoutIo(children) } : {}),
     }
   })
@@ -698,6 +785,64 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
   }
 
+  /** Restores server-only lifecycle metadata after broad execution-state PII masking. */
+  private preservePrivateExecutionStateMetadata(
+    redactedState: SerializableExecutionState | undefined,
+    originalState: SerializableExecutionState | undefined
+  ): SerializableExecutionState | undefined {
+    const provenance = originalState?.resolvedSecretTraceProvenance
+    const trustedLargeValueAccess = originalState?.trustedLargeValueAccess
+    return redactedState
+      ? {
+          ...redactedState,
+          ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
+          ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
+        }
+      : redactedState
+  }
+
+  async prepareTraceSpansForProjection(params: {
+    executionId: string
+    workflowId: string
+    workspaceId: string | null
+    userId?: string | null
+    traceSpans: TraceSpan[]
+    isResume?: boolean
+  }): Promise<TraceSpan[]> {
+    let sourceSpans = params.traceSpans
+    if (params.isResume && sourceSpans.length === 0) {
+      const [existingLog] = await execDb
+        .select({ executionData: workflowExecutionLogs.executionData })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, params.executionId))
+        .limit(1)
+      const executionData = await materializeExecutionData(
+        existingLog?.executionData as Record<string, unknown> | null,
+        {
+          workspaceId: params.workspaceId,
+          workflowId: params.workflowId,
+          executionId: params.executionId,
+        }
+      )
+      if (Array.isArray(executionData.traceSpans)) {
+        sourceSpans = executionData.traceSpans as TraceSpan[]
+      }
+    }
+
+    const filtered = filterForDisplay(sourceSpans)
+    const redacted = redactApiKeys(filtered)
+    const pii = await this.applyPiiRedaction(
+      params.workspaceId,
+      { traceSpans: redacted },
+      {
+        workflowId: params.workflowId,
+        executionId: params.executionId,
+        userId: params.userId ?? undefined,
+      }
+    )
+    return pii.traceSpans as TraceSpan[]
+  }
+
   async completeWorkflowExecution(params: {
     executionId: string
     endedAt: string
@@ -785,11 +930,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const status = statusOverride ?? (hasErrors ? 'failed' : 'completed')
 
     // For resume executions, rebuild trace spans from the aggregated logs
-    const mergedTraceSpans = isResume
-      ? traceSpans && traceSpans.length > 0
-        ? traceSpans
-        : existingExecutionData?.traceSpans || []
-      : traceSpans
+    const mergedTraceSpans = traceSpans
 
     const executionCost = {
       total: costSummary.totalCost,
@@ -826,13 +967,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       builtExecutionData.workflowInput
     )
 
-    const filteredTraceSpans = filterForDisplay(builtExecutionData.traceSpans)
+    const preparedTraceSpans = builtExecutionData.traceSpans
     const filteredFinalOutput = filterForDisplay(builtExecutionData.finalOutput)
     const filteredWorkflowInput =
       builtExecutionData.workflowInput !== undefined
         ? filterForDisplay(builtExecutionData.workflowInput)
         : undefined
-    const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
     const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
     const redactedWorkflowInput =
       filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
@@ -840,7 +980,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const pii = await this.applyPiiRedaction(
       existingLog?.workspaceId ?? null,
       {
-        traceSpans: redactedTraceSpans,
+        traceSpans: [],
         finalOutput: redactedFinalOutput,
         ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
         ...(builtExecutionData.error !== undefined ? { error: builtExecutionData.error } : {}),
@@ -899,9 +1039,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? Math.max(0, Math.round(rawDurationMs))
         : 0
 
+    const safeExecutionState = this.preservePrivateExecutionStateMetadata(
+      pii.executionState as SerializableExecutionState | undefined,
+      builtExecutionData.executionState
+    )
+
     const cleanExecutionData: ExecutionData = {
       ...builtExecutionData,
-      traceSpans: pii.traceSpans as TraceSpan[],
+      traceSpans: copyTraceSpansWithoutCosts(preparedTraceSpans),
       finalOutput: pii.finalOutput as BlockOutputData,
       ...(pii.workflowInput !== undefined ? { workflowInput: pii.workflowInput } : {}),
       ...(pii.error !== undefined ? { error: pii.error as string } : {}),
@@ -909,9 +1054,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? { completionFailure: pii.completionFailure as string }
         : {}),
       ...(pii.trigger !== undefined ? { trigger: pii.trigger as ExecutionTrigger } : {}),
-      ...(pii.executionState !== undefined
-        ? { executionState: pii.executionState as SerializableExecutionState }
-        : {}),
+      ...(safeExecutionState !== undefined ? { executionState: safeExecutionState } : {}),
       ...(pii.environment !== undefined
         ? { environment: pii.environment as ExecutionEnvironment }
         : {}),
@@ -919,8 +1062,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? { correlation: pii.correlation as ExecutionData['correlation'] }
         : {}),
     }
-
-    stripSpanCosts((cleanExecutionData as Record<string, unknown>).traceSpans)
 
     // Bounded in-memory form. Returned to callers (notification delivery/events)
     // and reused as the inline-storage fallback below. This is a no-op for

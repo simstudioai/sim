@@ -9,6 +9,7 @@ import {
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -114,6 +115,27 @@ function createResolver(
 }
 
 describe('VariableResolver function block inputs', () => {
+  it('records a secret reached through workflow-variable indirection', async () => {
+    const { ctx, resolver } = createResolver()
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'resolved-secret', encryptedValue: 'ciphertext' },
+    ])
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'indirect', type: 'string', value: '{{TOKEN}}' },
+    }
+    ctx.environmentVariables = { TOKEN: 'resolved-secret' }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    const result = await resolver.resolveInputs(ctx, 'function', {
+      value: '<variable.indirect>',
+    })
+
+    expect(result.value).toBe('resolved-secret')
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'resolved-secret', replacement: '{{TOKEN}}' },
+    ])
+  })
+
   it('returns empty inputs when params are missing', async () => {
     const { block, ctx, resolver } = createResolver()
 
@@ -135,47 +157,6 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
     expect(result.displayInputs.code).toBe('return "hello world"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
-  it('resolves environment variables only in runtime function code', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-    ctx.environmentVariables = { API_SECRET: 'resolved-secret' }
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return "{{API_SECRET}}"' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe('return "resolved-secret"')
-    expect(result.displayInputs.code).toBe('return "{{API_SECRET}}"')
-  })
-
-  it('preserves environment references in multi-part function display code', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-    ctx.environmentVariables = { API_SECRET: 'resolved-secret' }
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      {
-        code: [
-          { language: 'javascript', content: 'const key = "{{API_SECRET}}"' },
-          { language: 'javascript', content: 'return "{{API_SECRET}}"' },
-        ],
-      },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toEqual([
-      { language: 'javascript', content: 'const key = "resolved-secret"' },
-      { language: 'javascript', content: 'return "resolved-secret"' },
-    ])
-    expect(result.displayInputs.code).toEqual([
-      { language: 'javascript', content: 'const key = "{{API_SECRET}}"' },
-      { language: 'javascript', content: 'return "{{API_SECRET}}"' },
-    ])
   })
 
   it('allows Variables block assignments to receive whole large refs', async () => {

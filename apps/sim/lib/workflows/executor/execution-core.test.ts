@@ -23,7 +23,10 @@ const {
   onBlockStartPersistenceMock,
   executorConstructorMock,
   findStartBlockMock,
-  setEnvironmentSecretSanitizerMock,
+  setResolvedSecretTraceRegistryMock,
+  setTraceLargeValueAccessMock,
+  projectDisplayContentMock,
+  decryptSecretMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -39,7 +42,10 @@ const {
   onBlockStartPersistenceMock: vi.fn(),
   executorConstructorMock: vi.fn(),
   findStartBlockMock: vi.fn(),
-  setEnvironmentSecretSanitizerMock: vi.fn(),
+  setResolvedSecretTraceRegistryMock: vi.fn(),
+  setTraceLargeValueAccessMock: vi.fn(),
+  projectDisplayContentMock: vi.fn(),
+  decryptSecretMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
@@ -53,6 +59,10 @@ const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunC
 
 vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: decryptSecretMock,
 }))
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
@@ -112,7 +122,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     hasCompleted: hasCompletedMock,
     onBlockStart: onBlockStartPersistenceMock,
     onBlockComplete: vi.fn(),
-    setEnvironmentSecretSanitizer: setEnvironmentSecretSanitizerMock,
+    projectDisplayContent: projectDisplayContentMock,
+    setResolvedSecretTraceRegistry: setResolvedSecretTraceRegistryMock,
+    setTraceLargeValueAccess: setTraceLargeValueAccessMock,
     setPostExecutionPromise: vi.fn(),
     waitForPostExecution: vi.fn().mockResolvedValue(undefined),
   }
@@ -191,8 +203,17 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     safeCompleteWithPauseMock.mockResolvedValue(undefined)
     hasCompletedMock.mockReturnValue(true)
     onBlockStartPersistenceMock.mockResolvedValue(undefined)
+    projectDisplayContentMock.mockImplementation(async (content) => content)
     updateWorkflowRunCountsMock.mockResolvedValue(undefined)
     clearExecutionCancellationMock.mockResolvedValue(undefined)
+    decryptSecretMock.mockImplementation(async (encryptedValue: string) => ({
+      decrypted:
+        encryptedValue === 'webhook-ciphertext'
+          ? 'webhook-secret-value'
+          : encryptedValue === 'old-secret-ciphertext'
+            ? 'old-secret-value'
+            : encryptedValue,
+    }))
   })
 
   it('loads workflow state and env vars concurrently, then starts logging before constructing the executor', async () => {
@@ -503,7 +524,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     ])
   })
 
-  it('registers a workflow-scoped log sanitizer while preserving raw runtime output', async () => {
+  it('registers an inert resolution-scoped registry while preserving raw runtime output', async () => {
     const secret = 'sk-demo-core-7f3a91'
     const runtimeOutput = {
       keyWasResolved: true,
@@ -549,13 +570,12 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
     await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
-    const sanitizer = setEnvironmentSecretSanitizerMock.mock.calls[0]?.[0]
-    expect(sanitizer).toBeTypeOf('function')
-    expect(sanitizer(runtimeOutput)).toEqual({
-      keyWasResolved: true,
-      echoedKey: '{{OPENAI_API_KEY}}',
-      ordinary: 'us-east-1',
-    })
+    const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.recordResolved('OPENAI_API_KEY', secret)).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: secret, replacement: '{{OPENAI_API_KEY}}' },
+    ])
     expect(result.output).toEqual(runtimeOutput)
     expect(result.output.echoedKey).toBe(secret)
     expect(safeCompleteMock).toHaveBeenCalledWith(
@@ -563,61 +583,42 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
   })
 
-  it('rebuilds the log sanitizer with current environment values for resumed runs', async () => {
-    const firstSecret = 'sk-demo-before-resume'
-    const resumedSecret = 'sk-demo-after-resume'
-    const workflowWithSecret = {
-      blocks: [
-        {
-          id: 'function-1',
-          config: {
-            tool: 'function',
-            params: { code: 'return "{{OPENAI_API_KEY}}"' },
-          },
-        },
-      ],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-
-    serializeWorkflowMock.mockReturnValue(workflowWithSecret)
-    getPersonalAndWorkspaceEnvMock
-      .mockResolvedValueOnce({
-        personalEncrypted: {},
-        workspaceEncrypted: { OPENAI_API_KEY: 'encrypted-before' },
-        personalDecrypted: {},
-        workspaceDecrypted: { OPENAI_API_KEY: firstSecret },
-      })
-      .mockResolvedValueOnce({
-        personalEncrypted: {},
-        workspaceEncrypted: { OPENAI_API_KEY: 'encrypted-after' },
-        personalDecrypted: {},
-        workspaceDecrypted: { OPENAI_API_KEY: resumedSecret },
-      })
-    executorExecuteMock
-      .mockResolvedValueOnce({
-        success: true,
-        status: 'completed',
-        output: { echoedKey: firstSecret },
-        logs: [],
-        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        status: 'completed',
-        output: { echoedKey: resumedSecret },
-        logs: [],
-        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
-      })
+  it('activates trusted pre-execution provenance on the installed execution registry', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
 
     await executeWorkflowCore({
       snapshot: createSnapshot() as any,
       callbacks: {},
       loggingSession: loggingSession as any,
+      trustedInitialResolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'WEBHOOK_SECRET', encryptedValue: 'webhook-ciphertext' }],
+        scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
+      },
     })
     await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
+    const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'webhook-secret-value', replacement: '{{WEBHOOK_SECRET}}' },
+    ])
+  })
+
+  it('marks a trusted legacy resume with inherited state incomplete', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
     const resumedSnapshot = createSnapshot()
     resumedSnapshot.metadata = {
       ...resumedSnapshot.metadata,
@@ -625,25 +626,206 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       resumeFromSnapshot: true,
       resumeTerminalNoop: true,
     } as any
+    ;(resumedSnapshot as any).state = {
+      blockStates: { previous: { output: { value: 'cached' } } },
+      executedBlocks: ['previous'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
 
-    const resumedResult = await executeWorkflowCore({
+    await executeWorkflowCore({
       snapshot: resumedSnapshot as any,
       callbacks: {},
       loggingSession: loggingSession as any,
       skipLogCreation: true,
     })
-    await loggingSession.setPostExecutionPromise.mock.calls[1][0]
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
-    const initialSanitizer = setEnvironmentSecretSanitizerMock.mock.calls[0]?.[0]
-    const resumedSanitizer = setEnvironmentSecretSanitizerMock.mock.calls[1]?.[0]
-    expect(initialSanitizer({ echoedKey: firstSecret })).toEqual({
-      echoedKey: '{{OPENAI_API_KEY}}',
-    })
-    expect(resumedSanitizer({ echoedKey: resumedSecret })).toEqual({
-      echoedKey: '{{OPENAI_API_KEY}}',
-    })
-    expect(resumedResult.output).toEqual({ echoedKey: resumedSecret })
+    const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+    expect(registry.isComplete()).toBe(false)
   })
+
+  it('marks a trusted legacy resume without provenance incomplete even when cached state is empty', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      executionId: 'execution-resumed',
+      resumeFromSnapshot: true,
+      resumeTerminalNoop: true,
+    } as any
+    ;(resumedSnapshot as any).state = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+
+    await executeWorkflowCore({
+      snapshot: resumedSnapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      skipLogCreation: true,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+    expect(registry.isComplete()).toBe(false)
+  })
+
+  it('marks inherited client run-from-block provenance incomplete', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      runFromBlock: {
+        startBlockId: 'start-block',
+        sourceSnapshot: {
+          blockStates: { previous: { output: { value: 'cached' } } },
+          executedBlocks: ['previous'],
+          blockLogs: [],
+          decisions: { router: {}, condition: {} },
+          completedLoops: [],
+          activeExecutionPath: [],
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'FORGED_SECRET', encryptedValue: 'old-secret-ciphertext' }],
+            scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
+          },
+        },
+      },
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('restores provenance from a server-loaded run-from-block execution', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      runFromBlock: {
+        startBlockId: 'start-block',
+        sourceExecutionId: 'source-execution',
+        sourceSnapshot: {
+          blockStates: { previous: { output: { value: 'cached' } } },
+          executedBlocks: ['previous'],
+          blockLogs: [],
+          decisions: { router: {}, condition: {} },
+          completedLoops: [],
+          activeExecutionPath: [],
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'RESTORED_SECRET', encryptedValue: 'old-secret-ciphertext' }],
+            scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
+          },
+        },
+      },
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'old-secret-value', replacement: '{{RESTORED_SECRET}}' },
+    ])
+  })
+
+  it.each([
+    {
+      scenario: 'rotation',
+      workspaceEncrypted: { ROTATED_SECRET: 'new-secret-ciphertext' },
+      workspaceDecrypted: { ROTATED_SECRET: 'new-secret-value' },
+    },
+    {
+      scenario: 'deletion',
+      workspaceEncrypted: {},
+      workspaceDecrypted: {},
+    },
+  ])(
+    'preserves pre-pause secret provenance after $scenario',
+    async ({ workspaceEncrypted, workspaceDecrypted }) => {
+      getPersonalAndWorkspaceEnvMock.mockResolvedValue({
+        personalEncrypted: {},
+        workspaceEncrypted,
+        personalDecrypted: {},
+        workspaceDecrypted,
+      })
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+      })
+      const resumedSnapshot = createSnapshot()
+      resumedSnapshot.metadata = {
+        ...resumedSnapshot.metadata,
+        executionId: 'execution-resumed',
+        resumeFromSnapshot: true,
+        resumeTerminalNoop: true,
+      } as any
+      ;(resumedSnapshot as any).state = {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'ROTATED_SECRET', encryptedValue: 'old-secret-ciphertext' }],
+          scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
+        },
+      }
+
+      await executeWorkflowCore({
+        snapshot: resumedSnapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+        skipLogCreation: true,
+      })
+      await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+      const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
+      expect(registry.isComplete()).toBe(true)
+      expect(registry.getActiveMatches()).toEqual([
+        { plaintext: 'old-secret-value', replacement: '{{ROTATED_SECRET}}' },
+      ])
+    }
+  )
 
   it('awaits wrapped lifecycle persistence before terminal finalization returns', async () => {
     let releaseBlockStart: (() => void) | undefined
@@ -755,6 +937,73 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     expect(result.status).toBe('completed')
     expect(callOrder).toEqual(['executor:return', 'callback:start', 'callback:end', 'core:return'])
+  })
+
+  it('preserves the exact block callback payload shape', async () => {
+    const rawInput = { code: 'return 1234' }
+    const rawOutput = { error: 'Syntax error near 1234' }
+    const rawCallbackData = {
+      input: rawInput,
+      output: rawOutput,
+      executionTime: 10,
+      startedAt: 'start',
+      executionOrder: 1,
+      endedAt: 'end',
+    }
+    const onBlockComplete = vi.fn()
+    executorExecuteMock.mockImplementation(async () => {
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      void contextExtensions.onBlockComplete('block-1', 'Function 1', 'function', rawCallbackData)
+      return {
+        success: false,
+        status: 'completed',
+        output: rawOutput,
+        logs: [],
+        metadata: { duration: 10, startTime: 'start', endTime: 'end' },
+      }
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: { onBlockComplete },
+      loggingSession: loggingSession as any,
+    })
+
+    expect(projectDisplayContentMock).not.toHaveBeenCalled()
+    expect(onBlockComplete.mock.calls[0]?.[3]).toBe(rawCallbackData)
+  })
+
+  it('does not invoke display projection at the functional callback boundary', async () => {
+    const onBlockComplete = vi.fn()
+    executorExecuteMock.mockImplementation(async () => {
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      void contextExtensions.onBlockComplete('block-1', 'Function 1', 'function', {
+        output: { ok: true },
+        executionTime: 1,
+        startedAt: 'start',
+        executionOrder: 1,
+        endedAt: 'end',
+      })
+      return {
+        success: true,
+        status: 'completed',
+        output: { ok: true },
+        logs: [],
+        metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+      }
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: { onBlockComplete },
+      loggingSession: loggingSession as any,
+    })
+
+    expect(projectDisplayContentMock).not.toHaveBeenCalled()
+    expect(onBlockComplete.mock.calls[0]?.[3]).toEqual(
+      expect.objectContaining({ output: { ok: true } })
+    )
+    expect(onBlockComplete.mock.calls[0]?.[3]).not.toHaveProperty('display')
   })
 
   it('preserves successful execution when success finalization throws', async () => {
@@ -896,6 +1145,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
   it('finalizes errors before rethrowing and marks them as core-finalized', async () => {
     const error = new Error('engine failed')
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+    }
     const executionResult = {
       success: false,
       status: 'failed',
@@ -903,6 +1155,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       error: 'engine failed',
       logs: [],
       metadata: { duration: 55, startTime: 'start', endTime: 'end' },
+      executionState,
     }
 
     Object.assign(error, { executionResult })
@@ -917,6 +1170,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     ).rejects.toBe(error)
 
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState })
+    )
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
     expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
   })

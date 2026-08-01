@@ -5,15 +5,21 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import type { McpServerConfig } from '@/lib/mcp/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import {
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpResolveConfig')
 
 export interface ResolveMcpConfigOptions {
   /** If true, throws an error when env vars are missing. Default: true */
   strict?: boolean
+  onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
 
 /**
@@ -31,22 +37,53 @@ export async function resolveMcpConfigEnvVars(
   userId: string,
   workspaceId?: string,
   options: ResolveMcpConfigOptions = {}
-): Promise<{ config: McpServerConfig; missingVars: string[] }> {
+): Promise<{
+  config: McpServerConfig
+  missingVars: string[]
+  resolvedSecretTraceProvenance: ResolvedSecretTraceProvenanceV1
+}> {
   const { strict = true } = options
   const allMissingVars: string[] = []
+  const scope = { userId, ...(workspaceId ? { workspaceId } : {}) }
 
   let envVars: Record<string, string> = {}
+  let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
   try {
-    envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+    const env = await getPersonalAndWorkspaceEnv(userId, workspaceId)
+    envVars = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+    resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: env.personalEncrypted,
+      workspaceEncrypted: env.workspaceEncrypted,
+      personalDecrypted: env.personalDecrypted,
+      workspaceDecrypted: env.workspaceDecrypted,
+      decryptionFailures: env.decryptionFailures,
+      scope,
+    })
   } catch (error) {
     logger.error('Failed to fetch environment variables for MCP config:', error)
-    return { config, missingVars: [] }
+    resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([], scope)
+    resolvedSecretTraceRegistry.markIncomplete()
+    const provenance = resolvedSecretTraceRegistry.exportProvenance()
+    options.onResolvedSecretTraceProvenance?.(provenance)
+    return {
+      config,
+      missingVars: [],
+      resolvedSecretTraceProvenance: provenance,
+    }
   }
 
   const resolveValue = (value: string): string => {
     const missingVars: string[] = []
     const resolved = resolveEnvVarReferences(value, envVars, {
       missingKeys: missingVars,
+      onResolved: (name, resolvedValue) => {
+        if (
+          resolvedValue.length > 0 &&
+          !resolvedSecretTraceRegistry.recordResolved(name, resolvedValue)
+        ) {
+          resolvedSecretTraceRegistry.markIncomplete()
+        }
+      },
     }) as string
     allMissingVars.push(...missingVars)
     return resolved
@@ -66,7 +103,9 @@ export async function resolveMcpConfigEnvVars(
     resolvedConfig.headers = resolvedHeaders
   }
 
-  // Handle missing vars based on strict mode
+  const resolvedSecretTraceProvenance = resolvedSecretTraceRegistry.exportProvenance()
+  options.onResolvedSecretTraceProvenance?.(resolvedSecretTraceProvenance)
+
   if (allMissingVars.length > 0) {
     const uniqueMissing = Array.from(new Set(allMissingVars))
 
@@ -81,5 +120,9 @@ export async function resolveMcpConfigEnvVars(
     })
   }
 
-  return { config: resolvedConfig, missingVars: allMissingVars }
+  return {
+    config: resolvedConfig,
+    missingVars: allMissingVars,
+    resolvedSecretTraceProvenance,
+  }
 }

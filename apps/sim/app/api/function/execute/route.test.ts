@@ -796,16 +796,115 @@ describe('Function Execute API Route', () => {
 
   describe('Template Variable Resolution', () => {
     it.concurrent('should resolve environment variables with {{var_name}} syntax', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return {{API_KEY}}',
-        envVars: {
-          API_KEY: 'secret-key-123',
+      const req = createMockRequest(
+        'POST',
+        {
+          code: 'return {{API_KEY}}',
+          envVars: {
+            API_KEY: 'secret-key-123',
+          },
         },
-      })
+        {
+          'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+        }
+      )
 
       const response = await POST(req)
+      const data = await response.json()
 
       expect(response.status).toBe(200)
+      expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
+    })
+
+    it('reports only successful references sourced from scoped environment variables', async () => {
+      const envResponse = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return {{SHARED}} + {{ENV_ONLY}} + {{MISSING}}',
+            params: { SHARED: 'param-value', MISSING: 'ordinary-param' },
+            envVars: { SHARED: 'secret-value', ENV_ONLY: 'other-secret' },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+      const envData = await envResponse.json()
+
+      const directResponse = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return environmentVariables.API_KEY + params.API_KEY',
+            params: { API_KEY: 'ordinary-param' },
+            envVars: { API_KEY: 'secret-value' },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+      const directData = await directResponse.json()
+
+      expect(envData.__resolvedSecretNames).toEqual(['ENV_ONLY', 'SHARED'])
+      expect(directData.__resolvedSecretNames).toEqual([])
+    })
+
+    it('reports shell {{NAME}} substitutions but not direct shell environment access', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const referencedResponse = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'printf "%s" "{{API_KEY}}"',
+            language: 'shell',
+            envVars: { API_KEY: 'secret-value' },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+      const referencedData = await referencedResponse.json()
+
+      const directResponse = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'printf "%s" "$API_KEY"',
+            language: 'shell',
+            envVars: { API_KEY: 'secret-value' },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+      const directData = await directResponse.json()
+
+      expect(referencedData.__resolvedSecretNames).toEqual(['API_KEY'])
+      expect(directData.__resolvedSecretNames).toEqual([])
+    })
+
+    it('reports only substitutions allowed by the Function secret scope', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return {{ALLOWED}} + {{BLOCKED}}',
+            envVars: { ALLOWED: 'allowed-secret', BLOCKED: 'blocked-secret' },
+            secretScope: 'selected',
+            mountedSecrets: ['ALLOWED'],
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+
+      expect((await response.json()).__resolvedSecretNames).toEqual(['ALLOWED'])
     })
 
     it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {

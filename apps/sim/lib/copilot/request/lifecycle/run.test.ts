@@ -10,6 +10,7 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
 
@@ -146,6 +147,44 @@ describe('runCopilotLifecycle', () => {
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+  })
+
+  it('threads trace provenance through server execution context only', async () => {
+    const registry = {} as ResolvedSecretTraceRegistry
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      decryptedEnvVars: {},
+    }
+    let capturedExecutionContext: ExecutionContext | undefined
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _url: string,
+        request: RequestInit,
+        _streamingContext: StreamingContext,
+        context: ExecutionContext
+      ) => {
+        capturedExecutionContext = context
+        capturedRequestBody = String(request.body)
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-private-context' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(capturedExecutionContext?.resolvedSecretTraceRegistry).toBe(registry)
+    expect(capturedRequestBody).not.toContain('resolvedSecretTraceRegistry')
+    expect(capturedRequestBody).not.toContain('resolved-secret-provenance')
+    expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 
   describe('tool permission feature flag', () => {

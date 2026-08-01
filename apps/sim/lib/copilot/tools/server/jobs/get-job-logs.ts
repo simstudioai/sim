@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { GetScheduledTaskLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan } from '@/lib/logs/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -188,34 +189,47 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
       .orderBy(desc(jobExecutionLogs.startedAt))
       .limit(executionId ? 1 : clampedLimit)
 
-    const entries: JobLogEntry[] = rows.map((row) => {
-      const executionData = row.executionData as any
-      const details = includeDetails ? extractOutputAndError(executionData) : null
+    const entries: JobLogEntry[] = await Promise.all(
+      rows.map(async (row) => {
+        const executionData = await materializeExecutionDataForDisplay(
+          row.executionData as Record<string, unknown> | null,
+          {
+            workspaceId: wsId,
+            workflowId: null,
+            executionId: row.executionId,
+            userId: context.userId,
+          }
+        )
+        const details = includeDetails ? extractOutputAndError(executionData) : null
 
-      const entry: JobLogEntry = {
-        executionId: row.executionId,
-        status: row.status,
-        trigger: row.trigger,
-        startedAt: row.startedAt.toISOString(),
-        endedAt: row.endedAt ? row.endedAt.toISOString() : null,
-        durationMs: row.totalDurationMs ?? null,
-      }
-
-      if (details) {
-        if (details.error) entry.error = details.error
-        if (details.toolCalls.length > 0) entry.toolCalls = details.toolCalls
-        if (details.output) entry.output = details.output
-        if (details.cost) entry.cost = details.cost
-        if (details.tokens) entry.tokens = details.tokens
-      } else {
-        const errorMsg = executionData?.error || executionData?.traceSpans?.[0]?.output?.error
-        if (row.status === 'error' && errorMsg) {
-          entry.error = typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)
+        const entry: JobLogEntry = {
+          executionId: row.executionId,
+          status: row.status,
+          trigger: row.trigger,
+          startedAt: row.startedAt.toISOString(),
+          endedAt: row.endedAt ? row.endedAt.toISOString() : null,
+          durationMs: row.totalDurationMs ?? null,
         }
-      }
 
-      return entry
-    })
+        if (details) {
+          if (details.error) entry.error = details.error
+          if (details.toolCalls.length > 0) entry.toolCalls = details.toolCalls
+          if (details.output) entry.output = details.output
+          if (details.cost) entry.cost = details.cost
+          if (details.tokens) entry.tokens = details.tokens
+        } else {
+          const traceSpans = Array.isArray(executionData.traceSpans)
+            ? (executionData.traceSpans as TraceSpan[])
+            : []
+          const errorMsg = executionData.error || traceSpans[0]?.output?.error
+          if (row.status === 'error' && errorMsg) {
+            entry.error = typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)
+          }
+        }
+
+        return entry
+      })
+    )
 
     logger.info('Job logs prepared', {
       jobId,

@@ -447,20 +447,29 @@ async function buildMinimalResult(
   return minimalResult
 }
 
-function updateLogsWithStreamCompletionTimes(
+function updateLogsWithStreamedContent(
   logs: BlockLog[],
+  streamedContent: Map<string, string>,
   streamCompletionTimes: Map<string, number>
 ): BlockLog[] {
   return logs.map((log: BlockLog) => {
-    if (!streamCompletionTimes.has(log.blockId)) {
+    if (!streamedContent.has(log.blockId)) {
       return log
     }
 
+    const content = streamedContent.get(log.blockId)
     const updatedLog = { ...log }
-    const completionTime = streamCompletionTimes.get(log.blockId)!
-    const startTime = new Date(log.startedAt).getTime()
-    updatedLog.endedAt = new Date(completionTime).toISOString()
-    updatedLog.durationMs = completionTime - startTime
+
+    if (streamCompletionTimes.has(log.blockId)) {
+      const completionTime = streamCompletionTimes.get(log.blockId)!
+      const startTime = new Date(log.startedAt).getTime()
+      updatedLog.endedAt = new Date(completionTime).toISOString()
+      updatedLog.durationMs = completionTime - startTime
+    }
+
+    if (log.output && content) {
+      updatedLog.output = { ...log.output, content }
+    }
 
     return updatedLog
   })
@@ -813,8 +822,9 @@ export async function createStreamingResponse(
           state.streamedChunks.size > 0 ? resolveStreamedContent(state) : new Map<string, string>()
 
         if (result.logs && streamedContent.size > 0) {
-          result.logs = updateLogsWithStreamCompletionTimes(
+          result.logs = updateLogsWithStreamedContent(
             result.logs,
+            streamedContent,
             state.streamCompletionTimes
           )
           processStreamingBlockLogs(result.logs, streamedContent)
