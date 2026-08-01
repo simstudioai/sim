@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -18,7 +17,12 @@ import { updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
 import { performDeleteTableRow } from '@/lib/table/orchestration'
-import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  orchestrationErrorResponse,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -190,21 +194,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
-    const errorMessage = toError(error).message
-
-    if (errorMessage === 'Row not found') {
-      return NextResponse.json({ error: errorMessage }, { status: 404 })
-    }
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
@@ -258,9 +249,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
-    if (error instanceof Error && error.message === 'Row not found') {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }

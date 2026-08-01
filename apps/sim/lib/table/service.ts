@@ -14,6 +14,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
@@ -39,10 +40,15 @@ import { stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableService')
 
-export class TableConflictError extends Error {
-  readonly code = 'TABLE_EXISTS' as const
+/**
+ * A table name already taken in the workspace. Kept as its own class because
+ * several routes branch on it specifically, and typed as a `conflict` so the
+ * generic classifiers reach the same 409 without reading the message.
+ */
+export class TableConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A table named "${name}" already exists in this workspace`)
+    super('conflict', `A table named "${name}" already exists in this workspace`)
+    this.name = 'TableConflictError'
   }
 }
 
@@ -101,7 +107,7 @@ export async function withLockedTable<T>(
     )
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table) {
-      throw new Error('Table not found')
+      throw new OrchestrationError('not_found', 'Table not found')
     }
     return mutate(table, trx)
   })
@@ -283,13 +289,19 @@ export async function createTable(
   // Validate table name
   const nameValidation = validateTableName(data.name)
   if (!nameValidation.valid) {
-    throw new Error(`Invalid table name: ${nameValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Invalid table name: ${nameValidation.errors.join(', ')}`
+    )
   }
 
   // Validate schema
   const schemaValidation = validateTableSchema(data.schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Invalid schema: ${schemaValidation.errors.join(', ')}`
+    )
   }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`
@@ -353,7 +365,12 @@ export async function createTable(
         )
 
       if (Number(existingCount) >= maxTables) {
-        throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
+        // A quota ceiling, not bad input — both create routes have always
+        // answered 403 for it.
+        throw new OrchestrationError(
+          'forbidden',
+          `Workspace has reached maximum table limit (${maxTables})`
+        )
       }
 
       const duplicateName = await trx
@@ -472,23 +489,26 @@ export async function addTableColumnsWithTx(
 
   for (const column of columns) {
     if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
       )
     }
     if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
       )
     }
     if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
       )
     }
     const lower = column.name.toLowerCase()
     if (usedNames.has(lower)) {
-      throw new Error(`Column "${column.name}" already exists`)
+      throw new OrchestrationError('validation', `Column "${column.name}" already exists`)
     }
     usedNames.add(lower)
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
@@ -504,7 +524,8 @@ export async function addTableColumnsWithTx(
   }
 
   if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-    throw new Error(
+    throw new OrchestrationError(
+      'validation',
       `Adding ${additions.length} column(s) would exceed maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
     )
   }
@@ -574,7 +595,7 @@ export async function renameTable(
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
-    throw new Error(nameValidation.errors.join(', '))
+    throw new OrchestrationError('validation', nameValidation.errors.join(', '))
   }
 
   const now = new Date()
@@ -586,7 +607,7 @@ export async function renameTable(
       .returning({ id: userTableDefinitions.id })
 
     if (result.length === 0) {
-      throw new Error(`Table ${tableId} not found`)
+      throw new OrchestrationError('not_found', `Table ${tableId} not found`)
     }
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
@@ -643,7 +664,7 @@ export async function moveTableToFolder(
     })
 
   if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    throw new OrchestrationError('not_found', `Table ${tableId} not found`)
   }
 
   const { name } = result[0]
@@ -831,18 +852,18 @@ export async function restoreTable(
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
-    throw new Error('Table not found')
+    throw new OrchestrationError('not_found', 'Table not found')
   }
 
   if (!table.archivedAt) {
-    throw new Error('Table is not archived')
+    throw new OrchestrationError('validation', 'Table is not archived')
   }
 
   if (table.workspaceId) {
     const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
     const ws = await getWorkspaceWithOwner(table.workspaceId)
     if (!ws || ws.archivedAt) {
-      throw new Error('Cannot restore table into an archived workspace')
+      throw new OrchestrationError('validation', 'Cannot restore table into an archived workspace')
     }
   }
 

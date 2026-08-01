@@ -16,6 +16,7 @@ import { checkAccess, normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  v2CaughtOrchestrationError,
   v2Data,
   v2Error,
   v2ErrorForOrchestration,
@@ -84,14 +85,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
-    if (error instanceof Error) {
-      if (error.message.includes('already exists') || error.message.includes('maximum column')) {
-        return v2Error('BAD_REQUEST', error.message)
-      }
-      if (error.message === 'Table not found') {
-        return v2Error('NOT_FOUND', error.message)
-      }
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error adding column to table`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -208,14 +203,8 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) return v2ValidationError(error)
 
-      if (error instanceof Error) {
-        if (error.message.includes('not found') || error.message === 'Table not found') {
-          return v2Error('NOT_FOUND', error.message)
-        }
-        if (error.message.includes('Cannot delete') || error.message.includes('last column')) {
-          return v2Error('BAD_REQUEST', error.message)
-        }
-      }
+      const classified = v2CaughtOrchestrationError(error)
+      if (classified) return classified
 
       logger.error(`[${requestId}] Error deleting column from table`, {
         error: getErrorMessage(error, 'Unknown error'),

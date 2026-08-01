@@ -79,6 +79,7 @@ vi.mock('@/lib/table/billing', () => ({
     limit >= 0 && current + added > limit,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/[tableId]/import/route'
 
@@ -372,7 +373,10 @@ describe('POST /api/table/[tableId]/import', () => {
 
   it('surfaces unique violations from importAppendRows as 400', async () => {
     mockImportAppendRows.mockRejectedValueOnce(
-      new Error('Row 1: Column "name" must be unique. Value "Alice" already exists in row row_xxx')
+      new OrchestrationError(
+        'validation',
+        'Row 1: Column "name" must be unique. Value "Alice" already exists in row row_xxx'
+      )
     )
     const response = await callPost(
       createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
@@ -516,7 +520,9 @@ describe('POST /api/table/[tableId]/import', () => {
     })
 
     it('surfaces column-creation failures from importAppendRows as 400', async () => {
-      mockImportAppendRows.mockRejectedValueOnce(new Error('Column "email" already exists'))
+      mockImportAppendRows.mockRejectedValueOnce(
+        new OrchestrationError('validation', 'Column "email" already exists')
+      )
       const response = await callPost(
         createFormData(createCsvFile('name,age,email\nAlice,30,a@x.io'), {
           mode: 'append',
@@ -529,7 +535,9 @@ describe('POST /api/table/[tableId]/import', () => {
     })
 
     it('surfaces row insert failures without success when schema was mutated', async () => {
-      mockImportAppendRows.mockRejectedValueOnce(new Error('must be unique'))
+      mockImportAppendRows.mockRejectedValueOnce(
+        new OrchestrationError('validation', 'must be unique')
+      )
       const response = await callPost(
         createFormData(createCsvFile('name,age,email\nAlice,30,a@x.io'), {
           mode: 'append',

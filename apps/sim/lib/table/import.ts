@@ -12,6 +12,7 @@
  */
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
@@ -274,11 +275,11 @@ export async function parseCsvBuffer(
   const parsed = parse(text, options) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
-    throw new Error('CSV file has no data rows')
+    throw new OrchestrationError('validation', 'CSV file has no data rows')
   }
 
   if (headers.length === 0) {
-    throw new Error('CSV file has no headers')
+    throw new OrchestrationError('validation', 'CSV file has no headers')
   }
 
   return { headers, rows: parsed }
@@ -648,15 +649,18 @@ export function parseJsonRows(buffer: Buffer | string): {
   const text = typeof buffer === 'string' ? buffer : buffer.toString('utf-8')
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed)) {
-    throw new Error('JSON file must contain an array of objects')
+    throw new OrchestrationError('validation', 'JSON file must contain an array of objects')
   }
   if (parsed.length === 0) {
-    throw new Error('JSON file contains an empty array')
+    throw new OrchestrationError('validation', 'JSON file contains an empty array')
   }
   const headerSet = new Set<string>()
   for (const row of parsed) {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) {
-      throw new Error('Each element in the JSON array must be a plain object')
+      throw new OrchestrationError(
+        'validation',
+        'Each element in the JSON array must be a plain object'
+      )
     }
     for (const key of Object.keys(row)) headerSet.add(key)
   }
@@ -685,5 +689,8 @@ export async function parseFileRows(
     )
     return parseCsvBuffer(buffer, delimiter)
   }
-  throw new Error(`Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`)
+  throw new OrchestrationError(
+    'validation',
+    `Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`
+  )
 }

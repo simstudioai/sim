@@ -1,21 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import type {
-  OrchestrationErrorCode,
-  OrchestrationRequestContext,
+import {
+  OrchestrationError,
+  type OrchestrationErrorCode,
+  type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { deleteRow } from '@/lib/table/rows/service'
-import {
-  deleteTable,
-  moveTableToFolder,
-  renameTable,
-  TableConflictError,
-  updateTableLocks,
-} from '@/lib/table/service'
+import { deleteTable, moveTableToFolder, renameTable, updateTableLocks } from '@/lib/table/service'
 import {
   TABLE_LOCK_FLAGS,
   TABLE_LOCK_KINDS,
@@ -60,6 +55,9 @@ export async function performDeleteTable(
   } catch (error) {
     if (error instanceof TableLockedError) {
       return { success: false, error: error.message, errorCode: 'locked' }
+    }
+    if (error instanceof OrchestrationError) {
+      return { success: false, error: error.message, errorCode: error.code }
     }
     logger.error(`[${requestId}] Failed to delete table ${table.id}`, { error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
@@ -120,8 +118,8 @@ export async function performDeleteTableRow(
     if (error instanceof TableLockedError) {
       return { success: false, error: error.message, errorCode: 'locked' }
     }
-    if (error instanceof Error && error.message === 'Row not found') {
-      return { success: false, error: 'Row not found', errorCode: 'not_found' }
+    if (error instanceof OrchestrationError) {
+      return { success: false, error: error.message, errorCode: error.code }
     }
     logger.error(`[${requestId}] Failed to delete row ${rowId} from table ${table.id}`, { error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
@@ -148,22 +146,18 @@ function classifyTableMutation(error: unknown, requestId: string, tableId: strin
   if (error instanceof TableLockedError) {
     return { success: false as const, error: error.message, errorCode: 'locked' as const }
   }
-  // A name collision is a conflict, not bad input — the same class
-  // `performRestoreTable` reports, and the 409 the UI route returned before it
-  // delegated. Matched on the type, not on "already exists" appearing in the
-  // message, so a rewording cannot silently demote it to a 400.
-  if (error instanceof TableConflictError) {
-    return { success: false as const, error: error.message, errorCode: 'conflict' as const }
-  }
-  const message = toError(error).message
-  if (message.includes('not found')) {
-    return { success: false as const, error: message, errorCode: 'not_found' as const }
-  }
-  if (message.includes('Invalid')) {
-    return { success: false as const, error: message, errorCode: 'validation' as const }
+  // `TableConflictError` is an `OrchestrationError('conflict')`, so a duplicate
+  // rename reaches 409 through this branch — by class, not by the message
+  // happening to contain "already exists".
+  if (error instanceof OrchestrationError) {
+    return { success: false as const, error: error.message, errorCode: error.code }
   }
   logger.error(`[${requestId}] Table mutation failed for ${tableId}`, { error })
-  return { success: false as const, error: message, errorCode: 'internal' as const }
+  return {
+    success: false as const,
+    error: toError(error).message,
+    errorCode: 'internal' as const,
+  }
 }
 
 /** Renames a table and records the rename against `userId`. */

@@ -8,6 +8,7 @@ import {
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
@@ -42,8 +43,9 @@ export async function tablesV2GateError(
  * Maps a {@link TableLockedError} thrown by the service layer to a 423 response
  * carrying `{ error, lock }`; returns `null` for any other error so the caller
  * falls through to its existing handling. Call this as the FIRST statement of a
- * table route's catch block — otherwise `rowWriteErrorResponse` (and the other
- * substring funnels) turn the lock error into a generic 500.
+ * table route's catch block — `TableLockedError` is an `HttpError`, not an
+ * `OrchestrationError`, so nothing else classifies it and it would otherwise
+ * reach the route's generic 500.
  *
  * The body deliberately omits a `details` array: the client's `isValidationError`
  * treats any `ApiClientError` with array-valued `details` as a field-validation
@@ -106,47 +108,35 @@ export function rootErrorMessage(error: unknown): string {
 }
 
 /**
- * Known user-facing row-write failures (service validation + the best-effort
- * plan row-limit check). Anything outside this list stays a generic 500 —
- * unknown errors can carry SQL/internals that don't belong in a toast.
+ * Maps a classified domain failure to its status, carrying the real message so
+ * client toasts can show the actual reason; `null` when the error carries no
+ * classification and the caller should log it and return its own generic 500 —
+ * an unrecognized error can hold SQL/internals that don't belong in a toast.
+ *
+ * This is the whole classification story for the UI and v1 table routes. It
+ * replaced per-route lists of message substrings, which decided a status by
+ * searching prose and so silently changed one whenever a message was reworded.
  */
-const ROW_WRITE_ERROR_PATTERNS = [
-  'row limit',
-  'Insufficient capacity',
-  'Schema validation',
-  'must be unique',
-  'must be valid',
-  'must be string',
-  'must be number',
-  'must be boolean',
-  'unique column',
-  'Unique constraint violation',
-  'Row size exceeds',
-  'conflictTarget',
-  'Upsert requires',
-  'Rows not found',
-  'Filter is required',
-] as const
-
-/**
- * Maps a known user-facing row-write failure to a 400 carrying the real message
- * (so client toasts can show the actual reason); `null` when the error is
- * unrecognized and the caller should log it and return its generic 500.
- */
-export function rowWriteErrorResponse(error: unknown): NextResponse | null {
-  // A lock violation is a 423, not a 400/500 — check before the pattern match,
-  // which would otherwise let it fall through to the caller's generic 500.
+export function orchestrationErrorResponse(error: unknown): NextResponse | null {
+  // A lock violation is a 423, and `TableLockedError` is an `HttpError` rather
+  // than an `OrchestrationError`, so it needs its own check first.
   const lockResponse = tableLockErrorResponse(error)
   if (lockResponse) return lockResponse
 
-  const message = rootErrorMessage(error)
+  const classified = asOrchestrationError(error)
+  if (!classified) return null
 
-  if (ROW_WRITE_ERROR_PATTERNS.some((p) => message.includes(p)) || /^Row .+?:/.test(message)) {
-    return NextResponse.json({ error: message }, { status: 400 })
-  }
-
-  return null
+  return NextResponse.json(
+    { error: classified.message },
+    { status: statusForOrchestrationError(classified.code) }
+  )
 }
+
+/**
+ * {@link orchestrationErrorResponse} under the name the row-write routes call
+ * it by. Row writes have no classification rules of their own any more.
+ */
+export const rowWriteErrorResponse = orchestrationErrorResponse
 
 /**
  * Next.js buffers the request body for the proxy and silently truncates it past this

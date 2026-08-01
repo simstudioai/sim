@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertRowCapacity,
   getMaxRowsPerTable,
@@ -124,13 +125,16 @@ export async function insertRow(
   // Validate row size
   const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
-    throw new Error(sizeValidation.errors.join(', '))
+    throw new OrchestrationError('validation', sizeValidation.errors.join(', '))
   }
 
   // Validate against schema
   const schemaValidation = coerceRowToSchema(data.data, table.schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Schema validation failed: ${schemaValidation.errors.join(', ')}`
+    )
   }
 
   // Check unique constraints using optimized database query
@@ -138,7 +142,7 @@ export async function insertRow(
   if (uniqueColumns.length > 0) {
     const uniqueValidation = await checkUniqueConstraintsDb(data.tableId, data.data, table.schema)
     if (!uniqueValidation.valid) {
-      throw new Error(uniqueValidation.errors.join(', '))
+      throw new OrchestrationError('validation', uniqueValidation.errors.join(', '))
     }
   }
 
@@ -261,12 +265,18 @@ export async function batchInsertRowsWithTx(
 
     const sizeValidation = validateRowSize(row)
     if (!sizeValidation.valid) {
-      throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${i + 1}: ${sizeValidation.errors.join(', ')}`
+      )
     }
 
     const schemaValidation = coerceRowToSchema(row, table.schema)
     if (!schemaValidation.valid) {
-      throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${i + 1}: ${schemaValidation.errors.join(', ')}`
+      )
     }
   }
 
@@ -282,7 +292,7 @@ export async function batchInsertRowsWithTx(
       const errorMessages = uniqueResult.errors
         .map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`)
         .join('; ')
-      throw new Error(errorMessages)
+      throw new OrchestrationError('validation', errorMessages)
     }
   }
 
@@ -422,12 +432,18 @@ export async function replaceTableRowsWithTx(
 
     const sizeValidation = validateRowSize(row)
     if (!sizeValidation.valid) {
-      throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${i + 1}: ${sizeValidation.errors.join(', ')}`
+      )
     }
 
     const schemaValidation = coerceRowToSchema(row, table.schema)
     if (!schemaValidation.valid) {
-      throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${i + 1}: ${schemaValidation.errors.join(', ')}`
+      )
     }
   }
 
@@ -449,7 +465,8 @@ export async function replaceTableRowsWithTx(
         const normalized = typeof value === 'string' ? value : JSON.stringify(value)
         const map = seen.get(colId)!
         if (map.has(normalized)) {
-          throw new Error(
+          throw new OrchestrationError(
+            'validation',
             `Row ${i + 1}: Column "${col.name}" must be unique. Value "${String(value)}" duplicates row ${map.get(normalized)! + 1} in batch`
           )
         }
@@ -538,7 +555,8 @@ export async function upsertRow(
   const uniqueColumns = getUniqueColumns(schema)
 
   if (uniqueColumns.length === 0) {
-    throw new Error(
+    throw new OrchestrationError(
+      'validation',
       'Upsert requires at least one unique column in the schema. Please add a unique constraint to a column or use insert instead.'
     )
   }
@@ -552,7 +570,8 @@ export async function upsertRow(
       (c) => getColumnId(c) === data.conflictTarget || c.name === data.conflictTarget
     )
     if (!col) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Column "${data.conflictTarget}" is not a unique column. Available unique columns: ${uniqueColumns.map((c) => c.name).join(', ')}`
       )
     }
@@ -560,7 +579,8 @@ export async function upsertRow(
   } else if (uniqueColumns.length === 1) {
     targetColumnKey = getColumnId(uniqueColumns[0])
   } else {
-    throw new Error(
+    throw new OrchestrationError(
+      'validation',
       `Table has multiple unique columns (${uniqueColumns.map((c) => c.name).join(', ')}). Specify a conflict column to indicate which one to match on.`
     )
   }
@@ -568,12 +588,15 @@ export async function upsertRow(
   // Validate row data
   const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
-    throw new Error(sizeValidation.errors.join(', '))
+    throw new OrchestrationError('validation', sizeValidation.errors.join(', '))
   }
 
   const schemaValidation = coerceRowToSchema(data.data, schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Schema validation failed: ${schemaValidation.errors.join(', ')}`
+    )
   }
 
   // Read the conflict-target value *after* coercion so `matchFilter` branches on
@@ -583,7 +606,10 @@ export async function upsertRow(
     // Surface the display name, not the internal id — v1 callers pass a name.
     const targetColumnName =
       uniqueColumns.find((c) => getColumnId(c) === targetColumnKey)?.name ?? targetColumnKey
-    throw new Error(`Upsert requires a value for the conflict target column "${targetColumnName}"`)
+    throw new OrchestrationError(
+      'validation',
+      `Upsert requires a value for the conflict target column "${targetColumnName}"`
+    )
   }
 
   // Build the conflict probe through the SAME leaf as the unique-constraint check
@@ -636,7 +662,10 @@ export async function upsertRow(
       trx
     )
     if (!uniqueValidation.valid) {
-      throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Unique constraint violation: ${uniqueValidation.errors.join(', ')}`
+      )
     }
 
     const now = new Date()
@@ -1429,7 +1458,7 @@ export async function updateRow(
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
   if (!existingRow) {
-    throw new Error('Row not found')
+    throw new OrchestrationError('not_found', 'Row not found')
   }
 
   // Merge partial update with existing row data so callers can pass only changed fields
@@ -1453,13 +1482,16 @@ export async function updateRow(
   // Validate size
   const sizeValidation = validateRowSize(mergedData)
   if (!sizeValidation.valid) {
-    throw new Error(sizeValidation.errors.join(', '))
+    throw new OrchestrationError('validation', sizeValidation.errors.join(', '))
   }
 
   // Validate against schema
   const schemaValidation = coerceRowToSchema(mergedData, table.schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Schema validation failed: ${schemaValidation.errors.join(', ')}`
+    )
   }
 
   // Check unique constraints using optimized database query
@@ -1472,7 +1504,7 @@ export async function updateRow(
       data.rowId // Exclude current row
     )
     if (!uniqueValidation.valid) {
-      throw new Error(uniqueValidation.errors.join(', '))
+      throw new OrchestrationError('validation', uniqueValidation.errors.join(', '))
     }
   }
 
@@ -1612,7 +1644,7 @@ export async function deleteRow(
     workspaceId: table.workspaceId,
     proof,
   })
-  if (!deleted) throw new Error('Row not found')
+  if (!deleted) throw new OrchestrationError('not_found', 'Row not found')
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
 }
@@ -1636,7 +1668,7 @@ export async function updateRowsByFilter(
 
   const filterClause = buildFilterClause(data.filter, tableName, table.schema.columns)
   if (!filterClause) {
-    throw new Error('Filter is required for bulk update')
+    throw new OrchestrationError('validation', 'Filter is required for bulk update')
   }
 
   const baseConditions = and(
@@ -1678,12 +1710,18 @@ export async function updateRowsByFilter(
 
     const sizeValidation = validateRowSize(mergedData)
     if (!sizeValidation.valid) {
-      throw new Error(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${row.id}: ${sizeValidation.errors.join(', ')}`
+      )
     }
 
     const schemaValidation = coerceRowToSchema(mergedData, table.schema)
     if (!schemaValidation.valid) {
-      throw new Error(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${row.id}: ${schemaValidation.errors.join(', ')}`
+      )
     }
   }
 
@@ -1691,7 +1729,8 @@ export async function updateRowsByFilter(
   const uniqueColumnsInUpdate = uniqueColumns.filter((col) => col.name in data.data)
   if (uniqueColumnsInUpdate.length > 0) {
     if (matchingRows.length > 1) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Cannot set unique column values when updating multiple rows. ` +
           `Columns with unique constraint: ${uniqueColumnsInUpdate.map((c) => c.name).join(', ')}. ` +
           `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`
@@ -1708,7 +1747,10 @@ export async function updateRowsByFilter(
       row.id
     )
     if (!uniqueValidation.valid) {
-      throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Unique constraint violation: ${uniqueValidation.errors.join(', ')}`
+      )
     }
   }
 
@@ -1826,7 +1868,7 @@ export async function batchUpdateRows(
 
   const missing = rowIds.filter((id) => !existingMap.has(id))
   if (missing.length > 0) {
-    throw new Error(`Rows not found: ${missing.join(', ')}`)
+    throw new OrchestrationError('validation', `Rows not found: ${missing.join(', ')}`)
   }
 
   const mergedUpdates: Array<{
@@ -1856,12 +1898,18 @@ export async function batchUpdateRows(
 
     const sizeValidation = validateRowSize(merged)
     if (!sizeValidation.valid) {
-      throw new Error(`Row ${update.rowId}: ${sizeValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${update.rowId}: ${sizeValidation.errors.join(', ')}`
+      )
     }
 
     const schemaValidation = coerceRowToSchema(merged, table.schema)
     if (!schemaValidation.valid) {
-      throw new Error(`Row ${update.rowId}: ${schemaValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${update.rowId}: ${schemaValidation.errors.join(', ')}`
+      )
     }
 
     mergedUpdates.push({
@@ -1884,7 +1932,10 @@ export async function batchUpdateRows(
         rowId
       )
       if (!uniqueValidation.valid) {
-        throw new Error(`Row ${rowId}: ${uniqueValidation.errors.join(', ')}`)
+        throw new OrchestrationError(
+          'validation',
+          `Row ${rowId}: ${uniqueValidation.errors.join(', ')}`
+        )
       }
     }
   }
@@ -2006,7 +2057,7 @@ export async function deleteRowsByFilter(
   // Build filter clause
   const filterClause = buildFilterClause(data.filter, tableName, table.schema.columns)
   if (!filterClause) {
-    throw new Error('Filter is required for bulk delete')
+    throw new OrchestrationError('validation', 'Filter is required for bulk delete')
   }
 
   // Find matching rows

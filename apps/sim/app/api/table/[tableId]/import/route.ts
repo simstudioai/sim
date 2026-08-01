@@ -14,6 +14,7 @@ import {
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -349,21 +350,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           createdColumns: additions.length,
           error: message,
         })
-        const isClientError =
-          message.includes('row limit') ||
-          message.includes('Insufficient capacity') ||
-          message.includes('Schema validation') ||
-          message.includes('must be unique') ||
-          message.includes('Row size exceeds') ||
-          message.includes('already exists') ||
-          message.includes('Invalid column name') ||
-          /^Row \d+:/.test(message)
+        const classified = asOrchestrationError(err)
         return NextResponse.json(
           {
-            error: isClientError ? message : 'Failed to import CSV',
+            error: classified ? classified.message : 'Failed to import CSV',
             data: { insertedCount: 0 },
           },
-          { status: isClientError ? 400 : 500 }
+          { status: classified ? statusForOrchestrationError(classified.code) : 500 }
         )
       }
     }
@@ -400,17 +393,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         },
       })
     } catch (err) {
-      const message = toError(err).message
-      const isClientError =
-        message.includes('row limit') ||
-        message.includes('Schema validation') ||
-        message.includes('must be unique') ||
-        message.includes('Row size exceeds') ||
-        message.includes('already exists') ||
-        message.includes('Invalid column name') ||
-        /^Row \d+:/.test(message)
-      if (isClientError) {
-        return NextResponse.json({ error: message }, { status: 400 })
+      const classified = asOrchestrationError(err)
+      if (classified) {
+        return NextResponse.json(
+          { error: classified.message },
+          { status: statusForOrchestrationError(classified.code) }
+        )
       }
       throw err
     }
@@ -419,17 +407,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (lockError) return lockError
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
-    const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
 
-    const isClientError =
-      message.includes('CSV file has no') ||
-      message.includes('already exists') ||
-      message.includes('Invalid column name')
-
+    const classified = asOrchestrationError(error)
     return NextResponse.json(
-      { error: isClientError ? message : 'Failed to import CSV' },
-      { status: isClientError ? 400 : 500 }
+      { error: classified ? classified.message : 'Failed to import CSV' },
+      { status: classified ? statusForOrchestrationError(classified.code) : 500 }
     )
   } finally {
     fileStream?.destroy()

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import {
@@ -20,6 +20,7 @@ import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  v2CaughtOrchestrationError,
   v2Data,
   v2Error,
   v2ErrorForOrchestration,
@@ -165,18 +166,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
-    const errorMessage = toError(error).message
-    if (errorMessage === 'Row not found') return v2Error('NOT_FOUND', errorMessage)
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column')
-    ) {
-      return v2Error('BAD_REQUEST', errorMessage)
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error updating row`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -226,9 +217,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
   } catch (error) {
     const lockError = v2TableLockError(error)
     if (lockError) return lockError
-    if (error instanceof Error && error.message === 'Row not found') {
-      return v2Error('NOT_FOUND', 'Row not found')
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
     logger.error(`[${requestId}] Error deleting row`, {
       error: getErrorMessage(error, 'Unknown error'),
     })

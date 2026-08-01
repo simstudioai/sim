@@ -4,26 +4,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const {
-  mockDeleteTable,
-  mockDeleteRow,
-  mockRenameTable,
-  mockCaptureServerEvent,
-  mockRecordAudit,
-  MockTableConflictError,
-} = vi.hoisted(() => ({
-  mockDeleteTable: vi.fn(),
-  mockDeleteRow: vi.fn(),
-  mockRenameTable: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  MockTableConflictError: class extends Error {
-    readonly code = 'TABLE_EXISTS' as const
-    constructor(name: string) {
-      super(`A table named "${name}" already exists in this workspace`)
-    }
-  },
-}))
+const { mockDeleteTable, mockDeleteRow, mockRenameTable, mockCaptureServerEvent, mockRecordAudit } =
+  vi.hoisted(() => ({
+    mockDeleteTable: vi.fn(),
+    mockDeleteRow: vi.fn(),
+    mockRenameTable: vi.fn(),
+    mockCaptureServerEvent: vi.fn(),
+    mockRecordAudit: vi.fn(),
+  }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { TABLE_DELETED: 'table.deleted', TABLE_UPDATED: 'table.updated' },
@@ -36,11 +24,11 @@ vi.mock('@/lib/table/service', () => ({
   moveTableToFolder: vi.fn(),
   renameTable: mockRenameTable,
   updateTableLocks: vi.fn(),
-  TableConflictError: MockTableConflictError,
 }))
 vi.mock('@/lib/table/rows/service', () => ({ deleteRow: mockDeleteRow }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
   performDeleteTable,
@@ -106,11 +94,23 @@ describe('performRenameTable', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('classifies a name collision as a conflict, not bad input', async () => {
-    mockRenameTable.mockRejectedValue(new MockTableConflictError('Tasks'))
+    // `TableConflictError` is an `OrchestrationError('conflict')` — the class
+    // decides the status, so the 409 no longer rides on the message wording.
+    mockRenameTable.mockRejectedValue(
+      new OrchestrationError('conflict', 'A table named "Tasks" already exists in this workspace')
+    )
 
     const result = await performRenameTable({ table: TABLE, newName: 'Tasks', userId: 'user-1' })
 
     expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+  })
+
+  it('keeps an unclassified rename failure internal', async () => {
+    mockRenameTable.mockRejectedValue(new Error('A table named "Tasks" already exists'))
+
+    expect(
+      (await performRenameTable({ table: TABLE, newName: 'Tasks', userId: 'user-1' })).errorCode
+    ).toBe('internal')
   })
 })
 
@@ -133,7 +133,7 @@ describe('performDeleteTableRow', () => {
   })
 
   it('classifies a missing row as not_found', async () => {
-    mockDeleteRow.mockRejectedValue(new Error('Row not found'))
+    mockDeleteRow.mockRejectedValue(new OrchestrationError('not_found', 'Row not found'))
 
     expect((await performDeleteTableRow({ table: TABLE, rowId: 'row-1' })).errorCode).toBe(
       'not_found'

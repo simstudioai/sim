@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
-import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
 
 /**
@@ -159,6 +159,7 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
 
 const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode> = {
   validation: 'BAD_REQUEST',
+  forbidden: 'FORBIDDEN',
   not_found: 'NOT_FOUND',
   conflict: 'CONFLICT',
   locked: 'LOCKED',
@@ -176,4 +177,15 @@ export function v2ErrorForOrchestration(
 ): NextResponse {
   const v2Code = code ? V2_CODE_BY_ORCHESTRATION_ERROR[code] : 'INTERNAL_ERROR'
   return v2Error(v2Code, v2Code === 'INTERNAL_ERROR' ? 'Internal server error' : message)
+}
+
+/**
+ * Renders a thrown domain failure in the v2 envelope, or `null` when the error
+ * carries no classification and the caller should log it and return its own
+ * generic 500. The v2 counterpart of `orchestrationErrorResponse`.
+ */
+export function v2CaughtOrchestrationError(error: unknown): NextResponse | null {
+  const classified = asOrchestrationError(error)
+  if (!classified) return null
+  return v2ErrorForOrchestration(classified.code, classified.message)
 }

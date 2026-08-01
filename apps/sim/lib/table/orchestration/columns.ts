@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import type {
-  OrchestrationErrorCode,
-  OrchestrationRequestContext,
+import {
+  OrchestrationError,
+  type OrchestrationErrorCode,
+  type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
@@ -47,37 +48,12 @@ export interface PerformUpdateTableColumnResult {
   table?: TableDefinition
 }
 
-/**
- * Messages the column services raise for caller-fixable problems. They are
- * thrown as plain `Error`s, so the classification lives here rather than being
- * re-derived by each route.
- */
-const VALIDATION_MESSAGE_FRAGMENTS = [
-  'already exists',
-  'Cannot delete the last column',
-  'Cannot set column',
-  'Cannot set unique column',
-  'Invalid column',
-  'exceeds maximum',
-  'incompatible',
-  'duplicate',
-  'option',
-  'currency',
-  'is already type',
-] as const
-
 function classify(error: unknown): PerformUpdateTableColumnResult {
   if (error instanceof TableLockedError) {
     return { success: false, error: error.message, errorCode: 'locked' }
   }
-  if (error instanceof Error) {
-    const message = error.message
-    if (message.includes('not found') || message.includes('Table not found')) {
-      return { success: false, error: message, errorCode: 'not_found' }
-    }
-    if (VALIDATION_MESSAGE_FRAGMENTS.some((fragment) => message.includes(fragment))) {
-      return { success: false, error: message, errorCode: 'validation' }
-    }
+  if (error instanceof OrchestrationError) {
+    return { success: false, error: error.message, errorCode: error.code }
   }
   return { success: false, error: 'Failed to update column', errorCode: 'internal' }
 }

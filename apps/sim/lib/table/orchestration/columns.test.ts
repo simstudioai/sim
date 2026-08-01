@@ -37,6 +37,7 @@ vi.mock('@/lib/table/columns/service', () => ({
   updateColumnType: mockUpdateColumnType,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { performUpdateTableColumn } from '@/lib/table/orchestration/columns'
 
@@ -185,16 +186,31 @@ describe('performUpdateTableColumn', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
-  it('classifies a caller-fixable service error as validation', async () => {
-    mockUpdateColumnConstraints.mockRejectedValue(new Error('Column "State" already exists'))
+  it('reports the code the service failure carries', async () => {
+    mockUpdateColumnConstraints.mockRejectedValue(
+      new OrchestrationError('validation', 'Column "State" already exists')
+    )
 
     expect((await run({ required: true })).errorCode).toBe('validation')
   })
 
   it('classifies a missing column as not_found', async () => {
-    mockUpdateColumnConstraints.mockRejectedValue(new Error('Column "Nope" not found'))
+    mockUpdateColumnConstraints.mockRejectedValue(
+      new OrchestrationError('not_found', 'Column "Nope" not found')
+    )
 
     expect((await run({ required: true })).errorCode).toBe('not_found')
+  })
+
+  it('keeps an unclassified fault internal and hides its message', async () => {
+    // Wording alone must never buy a status: this reads exactly like the
+    // caller-fixable failure above but carries no classification.
+    mockUpdateColumnConstraints.mockRejectedValue(new Error('Column "State" already exists'))
+
+    const result = await run({ required: true })
+
+    expect(result.errorCode).toBe('internal')
+    expect(result.error).toBe('Failed to update column')
   })
 
   it('audits a successful update on every caller', async () => {

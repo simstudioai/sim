@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -21,7 +20,7 @@ import { rowWireTranslators } from '@/app/api/table/row-wire'
 import {
   accessError,
   checkAccess,
-  rootErrorMessage,
+  orchestrationErrorResponse,
   rowWriteErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
@@ -175,10 +174,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       },
     })
   } catch (error) {
-    if (rootErrorMessage(error) === 'Row not found') {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
     const response = rowWriteErrorResponse(error)
     if (response) return response
 
@@ -233,11 +228,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
 
-    const errorMessage = toError(error).message
-
-    if (errorMessage === 'Row not found') {
-      return NextResponse.json({ error: errorMessage }, { status: 404 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
