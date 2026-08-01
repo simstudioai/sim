@@ -22,8 +22,11 @@ describe('buildFileSelectionLabel', () => {
     expect(buildFileSelectionLabel('notes.md', 12)).toBe('notes.md:12')
   })
 
-  it('falls back to just the file name when the source has no line numbers', () => {
-    expect(buildFileSelectionLabel('notes.md')).toBe('notes.md')
+  it('marks a line-less selection so it cannot collide with the whole-file chip', () => {
+    // A bare 'notes.md' would equal the whole-file chip's label, and menu inserts
+    // silently reject an already-taken label — blocking the file's own mention.
+    expect(buildFileSelectionLabel('notes.md')).toBe('notes.md (selection)')
+    expect(buildFileSelectionLabel('notes.md')).not.toBe('notes.md')
   })
 })
 

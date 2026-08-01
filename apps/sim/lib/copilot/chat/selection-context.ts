@@ -44,9 +44,14 @@ export function truncateSelectionText(text: string): string {
 }
 
 /**
- * Builds the IDE-style chip label for a file selection, e.g. `notes.md:12-40`,
- * `notes.md:12`, or just `notes.md` when the source has no line numbers (the
- * rich-markdown editor, whose document model has no source lines).
+ * Builds the IDE-style chip label for a file selection, e.g. `notes.md:12-40` or
+ * `notes.md:12`. Without a line range — the rich-markdown editor, whose document
+ * model has no source lines — it falls back to `notes.md (selection)`.
+ *
+ * That suffix is load-bearing, not decoration: a bare file name would be
+ * identical to the whole-file `@notes.md` chip's label, and menu-driven inserts
+ * reject any context whose label is already taken (`isContextAlreadySelected`).
+ * A markdown selection would then silently block mentioning its own file.
  *
  * Kept ASCII so the label survives being inserted as an inline mention token in
  * the chat input. Labels must be unique across a message's chips — the caller
@@ -57,7 +62,7 @@ export function buildFileSelectionLabel(
   startLine?: number,
   endLine?: number
 ): string {
-  if (!startLine) return fileName
+  if (!startLine) return `${fileName} (selection)`
   const range = endLine && endLine !== startLine ? `${startLine}-${endLine}` : `${startLine}`
   return `${fileName}:${range}`
 }
