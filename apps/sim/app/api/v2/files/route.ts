@@ -207,8 +207,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * `uploadWorkspaceFile` returns the executor-facing `UserFile`, which carries
      * neither the folder path nor the persisted timestamps, so the stored record
      * is the source for the response projection.
+     *
+     * `throwOnError` matters here: by default this reader swallows a query
+     * failure and returns `null`, which would make a transient blip on the read
+     * indistinguishable from the row being gone. The row was committed by the
+     * upload moments earlier on the same primary, so a genuine `null` is an
+     * invariant break — worth a 500 — while a transient failure should surface
+     * as itself rather than being reported as a missing file.
      */
-    const fileRecord = await getWorkspaceFile(workspaceId, userFile.id)
+    const fileRecord = await getWorkspaceFile(workspaceId, userFile.id, { throwOnError: true })
     if (!fileRecord) {
       throw new Error(`Uploaded file ${userFile.id} could not be read back`)
     }
