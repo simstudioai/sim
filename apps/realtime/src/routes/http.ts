@@ -67,6 +67,8 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
   const workflowRoomService = new WorkflowRoomService(roomManager)
 
   return async (req: IncomingMessage, res: ServerResponse) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+
     // Health check doesn't require auth
     if (req.method === 'GET' && req.url === '/health') {
       try {

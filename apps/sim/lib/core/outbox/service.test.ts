@@ -24,7 +24,11 @@ vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-event-id'),
 }))
 
-import { enqueueOutboxEvent, processOutboxEvents } from './service'
+import {
+  enqueueOrReschedulePendingOutboxEvent,
+  enqueueOutboxEvent,
+  processOutboxEvents,
+} from './service'
 
 function makePendingRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
@@ -87,6 +91,90 @@ describe('enqueueOutboxEvent', () => {
     expect((dbChainMockFns.values.mock.calls[0][0] as { availableAt: Date }).availableAt).toBe(
       future
     )
+  })
+})
+
+describe('enqueueOrReschedulePendingOutboxEvent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('inserts normally when the subject has no pending event', async () => {
+    const availableAt = new Date('2026-07-30T12:01:00.000Z')
+
+    const id = await enqueueOrReschedulePendingOutboxEvent(
+      dbChainMock.db,
+      'invitation.send-migrated-link',
+      { invitationId: 'invite-1' },
+      {
+        availableAt,
+        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
+      }
+    )
+
+    expect(id).toBe('test-event-id')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'test-event-id',
+        eventType: 'invitation.send-migrated-link',
+        payload: { invitationId: 'invite-1' },
+        availableAt,
+      })
+    )
+  })
+
+  it('extends one pending event instead of inserting a duplicate for the same subject', async () => {
+    const existingAvailableAt = new Date('2026-07-30T12:00:00.000Z')
+    const nextAvailableAt = new Date('2026-07-30T12:01:00.000Z')
+    queueTableRows(outboxEvent, [
+      makePendingRow({
+        id: 'evt-existing',
+        payload: { invitationId: 'invite-1' },
+        availableAt: existingAvailableAt,
+      }),
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'evt-existing' }])
+
+    const id = await enqueueOrReschedulePendingOutboxEvent(
+      dbChainMock.db,
+      'invitation.send-migrated-link',
+      { invitationId: 'invite-1' },
+      {
+        availableAt: nextAvailableAt,
+        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
+      }
+    )
+
+    expect(id).toBe('evt-existing')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ availableAt: nextAvailableAt })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+
+  it('keeps a later existing delivery deadline when another mutation settles sooner', async () => {
+    const existingAvailableAt = new Date('2026-07-30T12:02:00.000Z')
+    const requestedAvailableAt = new Date('2026-07-30T12:01:00.000Z')
+    queueTableRows(outboxEvent, [
+      makePendingRow({
+        id: 'evt-existing',
+        payload: { invitationId: 'invite-1' },
+        availableAt: existingAvailableAt,
+      }),
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'evt-existing' }])
+
+    await enqueueOrReschedulePendingOutboxEvent(
+      dbChainMock.db,
+      'invitation.send-migrated-link',
+      { invitationId: 'invite-1' },
+      {
+        availableAt: requestedAvailableAt,
+        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
+      }
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ availableAt: existingAvailableAt })
   })
 })
 

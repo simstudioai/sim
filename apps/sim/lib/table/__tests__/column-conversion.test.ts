@@ -8,11 +8,32 @@ import { describe, expect, it } from 'vitest'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
 import {
   applyPendingRename,
-  isValueCompatibleWithType,
+  isValueCompatibleWithColumn,
   selectValueForConversion,
 } from '@/lib/table/columns/service'
 import { resolveSelectOptionId } from '@/lib/table/select-options'
-import type { ColumnDefinition, SelectOption } from '@/lib/table/types'
+import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
+
+/**
+ * Marshals the loose per-type arguments these cases are written in into the
+ * target column the gate takes. Lives here rather than in the service so
+ * production has only the whole-column form, which cannot drop a metadata key.
+ */
+function isValueCompatibleWithType(
+  value: unknown,
+  targetType: ColumnType,
+  targetOptions: SelectOption[] = [],
+  targetMultiple = false,
+  targetRequired = false
+): boolean {
+  return isValueCompatibleWithColumn(value, {
+    name: '',
+    type: targetType,
+    options: targetOptions,
+    multiple: targetMultiple,
+    required: targetRequired,
+  })
+}
 
 const OPTIONS: SelectOption[] = [
   { id: 'opt_a', name: 'Alpha' },

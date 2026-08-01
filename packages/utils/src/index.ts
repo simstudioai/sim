@@ -10,7 +10,7 @@ export {
   formatTimeWithSeconds,
   getTimezoneAbbreviation,
 } from './formatting.js'
-export { noop, sleep } from './helpers.js'
+export { chunkArray, noop, sleep } from './helpers.js'
 export { generateId, generateShortId, isValidUuid } from './id.js'
 export type { EmbedInfo } from './media-embed.js'
 export { getEmbedInfo } from './media-embed.js'

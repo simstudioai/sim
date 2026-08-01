@@ -749,15 +749,14 @@ export async function updateColumnType(
     // once the column is text/number/etc. Check compatibility against the option
     // NAME — that's what the cell will actually become (migrated below).
     const convertingAwayFromSelect = column.type === 'select' && !isSelectType
-    // The constraint the column ends up with, which may be arriving in this same
-    // request. `updateColumnConstraints` runs as its own transaction afterwards,
-    // so validating against the column's CURRENT flag would let the conversion
-    // commit and only then fail the constraint.
+    // The constraint the column ends up with, which may be arriving in this
+    // same request — this write applies it, so the scan below has to judge
+    // against the target value rather than the current one.
     const targetRequired = !!(data.required ?? column.required)
 
     // Rows missing the key (or holding null/`[]`) are filtered out of `rows`
     // entirely, so the loop below can never see them — they have to be counted
-    // separately, through the same predicate the constraint write will use.
+    // separately, through the same predicate `applyConstraints` uses.
     if (targetRequired) {
       const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
       if (emptyCount > 0) {
@@ -802,15 +801,7 @@ export async function updateColumnType(
 
       const effective = convertingAwayFromSelect ? selectValueForConversion(column, value) : value
 
-      if (
-        !isValueCompatibleWithType(
-          effective,
-          data.newType,
-          targetOptions,
-          !!targetMultiple,
-          targetRequired
-        )
-      ) {
+      if (!isValueCompatibleWithColumn(effective, convertedColumn)) {
         // A cell the target cannot read but that is merely EMPTY is not a
         // conversion failure — the write path already turns an unreadable value
         // into null on an optional column, so the conversion does the same. Only
@@ -1331,29 +1322,24 @@ export function selectValueForConversion(column: ColumnDefinition, value: unknow
 }
 
 /**
- * Checks if a value is compatible with a target column type. For `select`,
- * `targetOptions` is the option set the column will carry after the change: a
- * value is compatible only if every part of it resolves to one of those options
- * (by id or name). This blocks a conversion that would otherwise strand or
- * silently drop values on the next row write.
+ * Checks a value against the column definition the table will end up with.
+ *
+ * Takes the whole target column rather than loose per-type arguments: the gate
+ * has to read the SAME metadata the later coercion does, and a hand-built stub
+ * silently omits whatever key its author did not think of. Today that key would
+ * be `currencyCode` — a three-decimal column reads `0,500` as a half dinar
+ * while a stub without the code reads it as five hundred.
+ *
+ * That divergence is currently invisible, because whether an amount parses at
+ * all does not depend on the currency, only which number it yields — and the
+ * write-back already coerces against the real column. Passing the real column
+ * here means it cannot become visible when that stops being true.
  *
  * Callers converting *away* from `select` must pass the resolved option
  * name(s), not the stored ids — see {@link selectValueForConversion}.
  */
-export function isValueCompatibleWithType(
-  value: unknown,
-  targetType: (typeof COLUMN_TYPES)[number],
-  targetOptions: SelectOption[] = [],
-  targetMultiple = false,
-  targetRequired = false
-): boolean {
+export function isValueCompatibleWithColumn(value: unknown, target: ColumnDefinition): boolean {
   if (value === null || value === undefined) return true
   // Each type reads only the metadata it owns.
-  return isValueCompatible(value, {
-    name: '',
-    type: targetType,
-    options: targetOptions,
-    multiple: targetMultiple,
-    required: targetRequired,
-  })
+  return isValueCompatible(value, target)
 }

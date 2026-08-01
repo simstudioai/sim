@@ -202,6 +202,32 @@ async function reconcileManualEnterpriseSubscription(
       if (validCorrelation && operationPayload) {
         correlatedOperation = operationPayload
         operationNewlyApplied = !operationPayload.applicationResult
+      } else if (
+        operationRow?.eventType === ENTERPRISE_PROVISION_EVENT_TYPE &&
+        (!operationPayload || !operationPayload.applicationResult)
+      ) {
+        /**
+         * An admin issuance is only complete once Stripe reflects the exact
+         * commercial terms recorded in its durable outbox intent. In
+         * particular, paused collection is applied immediately after the
+         * subscription create call, so the create webhook can race ahead of
+         * that second Stripe write. Treating the interim object as an
+         * unrelated manual subscription would grant the wrong entitlement and
+         * strand the issuance in `awaiting_webhook`.
+         *
+         * Throwing makes Stripe retry. The next delivery performs another
+         * authoritative Stripe read and can apply once the worker has finished
+         * the external operation. Already-applied operations are intentionally
+         * excluded so later manual metadata edits still reconcile normally.
+         */
+        logger.warn('[subscription] Enterprise operation is not ready for reconciliation', {
+          operationId,
+          subscriptionId: stripeSubscription.id,
+          referenceId,
+        })
+        throw new Error(
+          `Enterprise issuance operation ${operationId} does not yet match the Stripe subscription`
+        )
       } else {
         logger.warn('[subscription] Ignoring invalid Enterprise operation correlation', {
           operationId,

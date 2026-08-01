@@ -282,7 +282,7 @@ function ColumnConfigBody({
                 value={typeInput}
                 onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
                 placeholder='Select type'
-                maxHeight={260}
+                maxHeight={300}
               />
             </div>
           </>

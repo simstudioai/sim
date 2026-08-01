@@ -134,6 +134,8 @@ describe('POST /api/workspaces/invitations/batch', () => {
         created: true,
         addedWorkspaceIds: input.grants.map((grant) => grant.workspaceId),
         grants: input.grants,
+        mutationUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+        mutationOrganizationId: 'org-1',
       })
     )
     mockSendInvitationEmail.mockResolvedValue({ success: true })
@@ -464,6 +466,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
         failed: [{ email: 'new@example.com', error: 'mailer unavailable' }],
       })
     )
-    expect(mockCancelPendingInvitation).toHaveBeenCalledWith('inv-1')
+    expect(mockCancelPendingInvitation).toHaveBeenCalledWith('inv-1', {
+      expectedUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+      expectedOrganizationId: 'org-1',
+    })
   })
 })

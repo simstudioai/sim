@@ -24,6 +24,7 @@ export const adminDashboardWorkspacePreflightQuerySchema = z.object({
 
 export const adminDashboardWorkspaceMoveBodySchema = z.object({
   destinationOrganizationId: z.string().min(1).max(200),
+  expectedOwnerId: z.string().min(1).max(200).optional(),
 })
 
 const adminDashboardWorkspaceCandidateSchema = z.object({
@@ -78,9 +79,7 @@ const adminDashboardWorkspacePreflightResponseSchema = z.object({
 })
 
 const adminDashboardWorkspaceMoveResponseSchema = z.object({
-  data: adminDashboardWorkspacePreflightSchema.extend({
-    invitationEmailFailures: z.array(z.string()),
-  }),
+  data: adminDashboardWorkspacePreflightSchema,
 })
 
 export const adminDashboardWorkspaceSearchContract = defineRouteContract({

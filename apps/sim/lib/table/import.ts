@@ -385,7 +385,7 @@ export function inferSchemaFromCsv(
 export function coerceValue(
   value: unknown,
   colType: CsvColumnType,
-  options?: NormalizeDateCellOptions
+  options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
@@ -394,9 +394,11 @@ export function coerceValue(
       return Number.isNaN(n) ? null : n
     }
     // Importing into an existing currency column: the file carries the
-    // formatted amount (`$1,234.56`) but the cell stores a bare number.
+    // formatted amount (`$1,234.56`) but the cell stores a bare number. The
+    // column's currency is forwarded because it decides how a lone separator
+    // reads — a three-decimal currency's `0,500` is a half, not five hundred.
     case 'currency':
-      return parseCurrencyInput(value)
+      return parseCurrencyInput(value, options?.currencyCode)
     case 'boolean': {
       const s = String(value).toLowerCase()
       if (s === 'true') return true
@@ -590,7 +592,10 @@ export function coerceRowsForTable(
       const col = colByName.get(colName)
       if (!col) continue
       const colType = (col.type as CsvColumnType) ?? 'string'
-      coerced[getColumnId(col)] = coerceValue(value, colType, options) as RowData[string]
+      coerced[getColumnId(col)] = coerceValue(value, colType, {
+        ...options,
+        ...(col.currencyCode !== undefined ? { currencyCode: col.currencyCode } : {}),
+      }) as RowData[string]
     }
     return coerced
   })

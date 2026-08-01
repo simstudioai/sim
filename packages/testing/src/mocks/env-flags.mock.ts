@@ -3,8 +3,9 @@ import { vi } from 'vitest'
 /**
  * Mutable value-export state for the shared `@/lib/core/config/env-flags` mock.
  * Defaults mirror the real module evaluated under the vitest environment
- * (NODE_ENV=test, no feature env vars set): only `isTest` and
- * `isEmailPasswordEnabled` are true.
+ * (NODE_ENV=test, no feature env vars set): only `isTest`,
+ * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
+ * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
  */
 export interface EnvFlagsMockState {
   isProd: boolean
@@ -13,6 +14,7 @@ export interface EnvFlagsMockState {
   isHosted: boolean
   isCopilotBillingAttributionV1Enabled: boolean
   isCopilotBillingProtocolRequired: boolean
+  isChatEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
@@ -58,6 +60,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isHosted: false,
   isCopilotBillingAttributionV1Enabled: false,
   isCopilotBillingProtocolRequired: false,
+  isChatEnabled: true,
   isCopilotToolPermissionsEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,

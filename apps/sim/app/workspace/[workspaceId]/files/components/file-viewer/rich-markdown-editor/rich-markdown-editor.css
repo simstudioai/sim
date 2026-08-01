@@ -355,34 +355,15 @@
   border-radius: 4px;
 }
 
-/* `overflow: visible` (not `hidden`) so a collaborator's caret name label, which
- * pops above the caret, can escape the table box instead of being clipped by it.
- * With `table-layout: fixed; width: 100%` columns can't exceed the table, so there
- * is nothing to clip here anyway; the only absolutely-positioned descendant is the
- * decorative column-resize handle, whose 2px right sliver is clipped by the editor's
- * own scroll container. */
+/* Borders, padding, typography, and header fill come from document-table.css — the chrome shared
+   with the CSV/XLSX previews. Only the editor-specific bits live here: `table-layout: fixed` is
+   required by prosemirror-tables' column-resizing plugin, the block margin is prose rhythm, and
+   `overflow: visible` lets a collaborator's caret name label escape the table box instead of being
+   clipped (fixed layout means columns can't exceed the table width, so nothing else needs clipping). */
 .rich-markdown-prose table {
-  width: 100%;
-  border-collapse: collapse;
   table-layout: fixed;
   margin: 1rem 0;
   overflow: visible;
-}
-
-.rich-markdown-prose th,
-.rich-markdown-prose td {
-  position: relative;
-  border: 1px solid var(--divider);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  vertical-align: top;
-  font-size: 14px;
-  line-height: 1.5rem;
-}
-
-.rich-markdown-prose th {
-  background: var(--surface-4);
-  font-weight: 600;
 }
 
 .rich-markdown-prose th > p,

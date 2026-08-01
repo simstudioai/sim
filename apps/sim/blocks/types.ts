@@ -437,6 +437,15 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  /**
+   * Dropdown-specific: render option labels verbatim instead of lowercasing them.
+   *
+   * The editor lowercases dropdown labels as a typographic convention, which
+   * suits authored operation names ("Send Message"). It corrupts labels that are
+   * case-sensitive identifiers the user must reproduce elsewhere — a workspace
+   * secret shown as `stripe_key` cannot be referenced as `{{stripe_key}}`.
+   */
+  preserveLabelCase?: boolean
   // Combobox specific: Enable search input in dropdown
   searchable?: boolean
   /** Dropdown-specific: include static options as Cmd K search entries that preset this subblock. */

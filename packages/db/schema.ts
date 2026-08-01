@@ -511,6 +511,12 @@ export const executionLargeValues = pgTable(
     tombstoneCleanupIdx: index('execution_large_values_tombstone_cleanup_idx')
       .on(table.workspaceId, table.deletedAt, table.key)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    /**
+     * Backs the `ON DELETE SET NULL` referential trigger, which runs
+     * `UPDATE ... WHERE workflow_id = $1` once per deleted workflow row and
+     * would otherwise sequentially scan this table each time.
+     */
+    workflowIdIdx: index('execution_large_values_workflow_id_idx').on(table.workflowId),
   })
 )
 
@@ -531,6 +537,8 @@ export const executionLargeValueReferences = pgTable(
     workspaceExecutionSourceIdx: index(
       'execution_large_value_references_workspace_execution_source_idx'
     ).on(table.workspaceId, table.executionId, table.source),
+    /** Backs the `ON DELETE SET NULL` referential trigger — see `executionLargeValues`. */
+    workflowIdIdx: index('execution_large_value_references_workflow_id_idx').on(table.workflowId),
   })
 )
 

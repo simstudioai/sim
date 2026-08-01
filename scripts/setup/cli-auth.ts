@@ -76,7 +76,7 @@ export async function browserKeyFlow(origin: string): Promise<string | null> {
     'Confirm this code in your browser'
   )
   p.log.info(
-    `Opening your browser — sign in and approve; the key comes back automatically.\n   If it doesn't open: ${link(authUrl, authUrl)}`
+    `Opening your browser — create your account (or sign in) and approve; the key comes back automatically.\n   If it doesn't open: ${link(authUrl, authUrl)}`
   )
   openBrowser(authUrl)
 

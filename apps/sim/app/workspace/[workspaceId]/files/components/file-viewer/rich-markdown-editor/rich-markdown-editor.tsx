@@ -57,6 +57,7 @@ import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import { firstHeadingTitle } from './title-heading'
 import '@sim/emcn/components/code/code.css'
+import '../document-table.css'
 import './rich-markdown-editor.css'
 
 const PLACEHOLDER = "Write something, or press '/' for commands…"

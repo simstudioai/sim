@@ -1,5 +1,5 @@
 {
-  "id": "4412f212-ec95-493a-978d-f0a576715543",
+  "id": "bf6b474b-067f-435c-b7c6-afad310421a3",
   "prevId": "3944d26f-f7b1-48e8-87a5-fd9bc577e10a",
   "version": "7",
   "dialect": "postgresql",
@@ -5713,6 +5713,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "execution_large_value_references_workflow_id_idx": {
+          "name": "execution_large_value_references_workflow_id_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -5862,6 +5877,21 @@
           ],
           "isUnique": false,
           "where": "\"execution_large_values\".\"deleted_at\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "execution_large_values_workflow_id_idx": {
+          "name": "execution_large_values_workflow_id_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -17066,54 +17096,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workspace_file_collab_state": {
-      "name": "workspace_file_collab_state",
-      "schema": "",
-      "columns": {
-        "file_id": {
-          "name": "file_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "doc_state": {
-          "name": "doc_state",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_hash": {
-          "name": "source_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "workspace_file_collab_state_file_id_workspace_files_id_fk": {
-          "name": "workspace_file_collab_state_file_id_workspace_files_id_fk",
-          "tableFrom": "workspace_file_collab_state",
-          "tableTo": "workspace_files",
-          "columnsFrom": ["file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.workspace_files": {
       "name": "workspace_files",
       "schema": "",
@@ -17205,13 +17187,6 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "content_updated_at": {
-          "name": "content_updated_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
