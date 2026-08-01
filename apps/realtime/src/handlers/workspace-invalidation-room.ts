@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ROOM_MEMBERSHIP_ACTIONS } from '@sim/platform-authz/room-policy'
 import { type RoomRef, type RoomType, roomName } from '@sim/realtime-protocol/rooms'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -89,7 +90,7 @@ export function setupWorkspaceInvalidationRoom(
       const authorized = await resolveRoomJoinAuth({
         userId: socket.userId,
         room: ref,
-        action: 'read',
+        action: ROOM_MEMBERSHIP_ACTIONS[roomType],
         logger,
         logLabel: `${roomType} room for ${socket.userId}`,
         messages: {

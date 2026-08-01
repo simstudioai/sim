@@ -20,6 +20,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 }))
 
 import { setupTablesHandlers } from '@/handlers/tables'
+import { recordRoomPermission } from '@/middleware/permissions'
 
 const TABLE_ROOM = { type: ROOM_TYPES.TABLE, id: 'table-1' }
 
@@ -172,6 +173,77 @@ describe('setupTablesHandlers', () => {
       socketId: 'socket-1',
       cell,
     })
+  })
+
+  it('does not join when access was revoked while the join was in flight', async () => {
+    // The sweep records a revocation before it evicts, so a join whose authorize
+    // completed just before that must not put the socket back in the room.
+    const { socket, handlers } = createSocket({ id: 'socket-race', userId: 'user-race' })
+    const roomManager = createRoomManager()
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    mockAuthorizeRoom.mockImplementation(async () => {
+      recordRoomPermission('user-race', { type: ROOM_TYPES.TABLE, id: 'table-race' }, null)
+      return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' }
+    })
+
+    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-race' })
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      TABLE_PRESENCE_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+    )
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+  })
+
+  it('drops a cell selection and evicts once the viewer loses access mid-session', async () => {
+    // Distinct user/table so the recorded revocation cannot leak into sibling tests
+    // through the module-global role cache.
+    vi.useFakeTimers()
+    try {
+      const room = { type: ROOM_TYPES.TABLE, id: 'table-revoked' }
+      const { socket, handlers, toEmit } = createSocket({ id: 'socket-9', userId: 'user-9' })
+      const roomManager = createRoomManager({
+        getRoomForSocket: vi.fn().mockResolvedValue(room),
+      })
+      setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+      await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-revoked' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // Access removed, and the join-time decision expires.
+      mockAuthorizeRoom.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        workspaceId: 'ws-1',
+        workspacePermission: null,
+      })
+      await vi.advanceTimersByTimeAsync(31_000)
+
+      const cell = {
+        anchor: { rowId: 'row-1', columnId: 'col-a' },
+        focus: { rowId: 'row-1', columnId: 'col-a' },
+      }
+      // First selection after expiry finds nothing cached: accepted, and it kicks off the
+      // authoritative re-read rather than blocking the relay on a DB round-trip.
+      await handlers[TABLE_PRESENCE_EVENTS.CELL_SELECTION]({ cell })
+      await vi.advanceTimersByTimeAsync(0)
+
+      toEmit.mockClear()
+      await handlers[TABLE_PRESENCE_EVENTS.CELL_SELECTION]({ cell })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(toEmit).not.toHaveBeenCalled()
+      expect(socket.emit).toHaveBeenCalledWith(
+        'room-access-revoked',
+        expect.objectContaining({ room })
+      )
+      expect(socket.leave).toHaveBeenCalledWith('table:table-revoked')
+      expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(room, 'socket-9')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('drops a malformed cell selection without storing or relaying it', async () => {

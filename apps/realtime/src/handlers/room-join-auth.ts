@@ -1,6 +1,7 @@
 import type { createLogger } from '@sim/logger'
 import { authorizeRoom } from '@sim/platform-authz/rooms'
 import type { RoomRef } from '@sim/realtime-protocol/rooms'
+import { recordRoomPermissionIfUnchanged, snapshotRoomPermission } from '@/middleware/permissions'
 
 type Authorized = Awaited<ReturnType<typeof authorizeRoom>>
 
@@ -34,12 +35,26 @@ export async function resolveRoomJoinAuth(
   const { userId, room, action, logger, logLabel, messages, emitError } = params
 
   let authorized: Authorized
+  // Captured before the query so a decision recorded WHILE it was in flight (the
+  // access-revalidation sweep evicting this user) is never overwritten by this
+  // older read — see {@link recordRoomPermissionIfUnchanged}.
+  const snapshot = snapshotRoomPermission(userId, room)
   try {
     authorized = await authorizeRoom({ userId, room, action })
   } catch (error) {
     logger.warn(`Error authorizing ${logLabel}:`, error)
     emitError({ error: messages.verifyFailed, code: 'VERIFY_ACCESS_FAILED', retryable: true })
     return null
+  }
+
+  // Feed the fresh authoritative read into the shared role cache that the access
+  // re-validation sweep and the per-frame write gates consult, so both start warm on
+  // the room this socket just joined — and so a re-granted user's join immediately
+  // supersedes a cached revocation instead of waiting out its TTL. A 400 (room type
+  // not authorizable here) resolved no permission at all and is deliberately not
+  // recorded. A 404 records `null`: the resource is genuinely gone.
+  if (authorized.status !== 400) {
+    recordRoomPermissionIfUnchanged(userId, room, authorized.workspacePermission, snapshot)
   }
 
   if (!authorized.allowed) {

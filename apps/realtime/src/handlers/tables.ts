@@ -1,4 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
+import {
+  ROOM_ACCESS_REVOKED_EVENT,
+  type RoomAccessRevokedBroadcast,
+} from '@sim/realtime-protocol/events'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import {
   type JoinTablePayload,
@@ -9,6 +14,7 @@ import {
 import { resolveAvatarUrl } from '@/handlers/avatar'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
+import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager, UserPresence } from '@/rooms'
 import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
 
@@ -19,6 +25,41 @@ const MAX_CELL_ID_LENGTH = 200
 
 /** The table presence room ref for a table id. */
 const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: tableId })
+
+/**
+ * The permission occupying a table room requires. Sourced from the shared map so
+ * the join check, the per-operation gate below, and the access re-validation sweep
+ * can never drift apart.
+ */
+const TABLE_ACTION = ROOM_MEMBERSHIP_ACTIONS[ROOM_TYPES.TABLE]
+
+/**
+ * Per-operation authorization for an already-joined socket, mirroring the file-doc
+ * gate: room membership is not a standing right, so a collaborator whose workspace
+ * access was revoked stops publishing presence into the room without waiting for
+ * the next re-validation sweep.
+ *
+ * Reads the shared role cache without awaiting (`undefined` = nothing fresh cached,
+ * which means "unknown", not "denied") and kicks off a background refresh in that
+ * case, so the exposure window is the cache TTL rather than the socket's lifetime.
+ * On a confirmed loss of access it evicts, which also clears the room mapping this
+ * handler resolves every operation through.
+ */
+function isTableAccessAllowed(
+  socket: AuthenticatedSocket,
+  room: RoomRef
+): { allowed: boolean; revoked: boolean } {
+  const userId = socket.userId
+  if (!userId) return { allowed: false, revoked: false }
+
+  const cached = peekRoomPermission(userId, room)
+  if (cached === undefined) {
+    void resolveCurrentRoomPermission(userId, room, TABLE_ACTION).catch(() => {})
+    return { allowed: true, revoked: false }
+  }
+  if (satisfiesRoomMembership(cached, ROOM_TYPES.TABLE)) return { allowed: true, revoked: false }
+  return { allowed: false, revoked: true }
+}
 
 function isCellRef(value: unknown): value is TableCellRef {
   if (typeof value !== 'object' || value === null) return false
@@ -47,6 +88,33 @@ function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
     anchor: { rowId: candidate.anchor.rowId, columnId: candidate.anchor.columnId },
     focus: { rowId: candidate.focus.rowId, columnId: candidate.focus.columnId },
     ...(candidate.editing === true ? { editing: true } : {}),
+  }
+}
+
+/**
+ * Evicts a socket from a table room after a confirmed loss of access: emit the
+ * revocation, leave the Socket.IO room, and drop its presence so peers stop seeing
+ * its selection. Best-effort on the presence half — the socket has already left the
+ * room, and the sweep's cleanup lane retries any removal that fails here.
+ */
+async function evictFromTable(
+  socket: AuthenticatedSocket,
+  roomManager: IRoomManager,
+  room: RoomRef
+): Promise<void> {
+  const payload: RoomAccessRevokedBroadcast = {
+    room,
+    message: 'Your access to this table has been revoked',
+    timestamp: Date.now(),
+  }
+  socket.emit(ROOM_ACCESS_REVOKED_EVENT, payload)
+  socket.leave(roomName(room))
+  logger.warn(`Evicted user ${socket.userId} from table room ${room.id}: access revoked`)
+  try {
+    await roomManager.removeUserFromRoom(room, socket.id)
+    await roomManager.broadcastPresenceUpdate(room, socket.id)
+  } catch (error) {
+    logger.warn(`Presence cleanup failed for evicted table socket ${socket.id}`, error)
   }
 }
 
@@ -135,7 +203,7 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       const authorized = await resolveRoomJoinAuth({
         userId,
         room,
-        action: 'read',
+        action: TABLE_ACTION,
         logger,
         logLabel: `table room for ${userId}`,
         messages: {
@@ -185,6 +253,21 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
       // awaits above bumped the generation, or the socket disconnected. Abort before registering.
       if (superseded()) return
+
+      // Re-check the cached decision too: the access re-validation sweep records a
+      // revocation BEFORE it evicts, so a join that authorized just before the
+      // revocation cannot complete afterwards and put the socket back in the room.
+      // `undefined` (nothing cached) is "unknown", never a denial.
+      const recheck = peekRoomPermission(userId, room)
+      if (recheck !== undefined && !satisfiesRoomMembership(recheck, ROOM_TYPES.TABLE)) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Access denied to table',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
 
       socket.join(roomName(room))
 
@@ -297,6 +380,14 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
       if (!room) return
+
+      // Membership was authorized at join; re-check it here so a revoked viewer
+      // stops publishing presence into the room mid-session.
+      const access = isTableAccessAllowed(socket, room)
+      if (!access.allowed) {
+        if (access.revoked) await evictFromTable(socket, roomManager, room)
+        return
+      }
 
       // Persist so a later joiner sees this viewer's current selection in the join ack.
       await roomManager.updateUserActivity(room, socket.id, { cell: selection })
