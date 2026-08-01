@@ -1051,7 +1051,7 @@
       "post": {
         "operationId": "bulkArchiveFileItems",
         "summary": "Archive Files and Folders",
-        "description": "Archive (soft delete) files and/or folders in one call. Archiving a folder cascades to everything under it, so `deletedItems` reports totals larger than the selection. Archived items remain listable via `scope=archived` and can be restored.",
+        "description": "Archive (soft delete) files and/or folders in one call. Archiving a folder cascades to everything under it, so `deletedItems` reports totals larger than the selection. Archived items remain listable via `scope=archived` and can be restored.\n\n**This endpoint is best-effort and idempotent.** Ids that do not exist, belong to another workspace, or are already archived are skipped rather than failing the request — the call still returns `200`. `deletedItems` is what was actually archived, so compare it against your selection if you need to detect that something was skipped. The single-item `DELETE /api/v2/files/{fileId}` does return `404` for a missing id.",
         "tags": ["Files"],
         "x-codeSamples": [
           {

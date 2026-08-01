@@ -15,7 +15,6 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  FileConflictError,
   getWorkspaceFile,
   listWorkspaceFiles,
   uploadWorkspaceFile,
@@ -26,6 +25,7 @@ import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   decodeCursor,
   encodeCursor,
+  v2CaughtOrchestrationError,
   v2CursorList,
   v2Data,
   v2Error,
@@ -226,17 +226,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return v2Error('PAYLOAD_TOO_LARGE', error.message)
     }
 
-    const message = getErrorMessage(error, 'Failed to upload file')
-    if (error instanceof FileConflictError || message.includes('already exists')) {
-      return v2Error('CONFLICT', message)
-    }
-    if (message === 'Target folder not found') {
-      return v2Error('NOT_FOUND', message)
-    }
-    if (message.includes('Storage limit') || message.includes('storage limit')) {
-      return v2Error('PAYLOAD_TOO_LARGE', 'Storage limit exceeded')
-    }
+    // Conflicts, a missing target folder, and a blown storage quota all arrive classified
+    // now, so the status comes off the error's code rather than its wording.
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
+    const message = getErrorMessage(error, 'Failed to upload file')
     logger.error('Error uploading file', { error: message })
     return v2Error('INTERNAL_ERROR', 'Internal server error')
   }

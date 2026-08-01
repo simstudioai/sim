@@ -53,6 +53,7 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { FILE: 'file' },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, POST } from '@/app/api/v2/files/route'
 
 const WS = 'workspace-1'
@@ -287,11 +288,35 @@ describe('POST /api/v2/files', () => {
   })
 
   it('404s when the target folder does not exist', async () => {
-    mockUploadWorkspaceFile.mockRejectedValue(new Error('Target folder not found'))
+    mockUploadWorkspaceFile.mockRejectedValue(
+      new OrchestrationError('not_found', 'Target folder not found')
+    )
 
     const res = await callUpload(`workspaceId=${WS}&folderId=missing`)
 
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('NOT_FOUND')
+  })
+
+  it('413s on a blown storage quota by class, not by message wording', async () => {
+    mockUploadWorkspaceFile.mockRejectedValue(
+      new OrchestrationError('payload_too_large', 'Quota exceeded for this workspace')
+    )
+
+    const res = await callUpload(`workspaceId=${WS}`)
+
+    expect(res.status).toBe(413)
+    expect((await res.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
+  })
+
+  it('409s on a duplicate-name conflict by class', async () => {
+    mockUploadWorkspaceFile.mockRejectedValue(
+      new OrchestrationError('conflict', 'A file named "data.csv" already exists in this workspace')
+    )
+
+    const res = await callUpload(`workspaceId=${WS}`)
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe('CONFLICT')
   })
 })

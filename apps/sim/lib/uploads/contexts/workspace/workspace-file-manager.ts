@@ -52,10 +52,15 @@ const logger = createLogger('WorkspaceFileStorage')
 
 export type WorkspaceFileScope = 'active' | 'archived' | 'all'
 
-export class FileConflictError extends Error {
-  readonly code = 'FILE_EXISTS' as const
+/**
+ * An {@link OrchestrationError} so every surface reaches 409 by class rather than by
+ * searching the message for "already exists". Carries the inherited `code: 'conflict'`;
+ * the old `'FILE_EXISTS'` discriminator had no readers.
+ */
+export class FileConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A file named "${name}" already exists in this workspace`)
+    super('conflict', `A file named "${name}" already exists in this workspace`)
+    this.name = 'FileConflictError'
   }
 }
 
@@ -424,8 +429,15 @@ export async function uploadWorkspaceFile(
         )
         continue
       }
+      // A classified failure (a blown storage quota, a missing target folder) keeps its class:
+      // re-wrapping it in a bare Error is what forced every caller to substring-match the
+      // message to recover the status.
+      const classified = asOrchestrationError(error)
+      if (classified) throw classified
       logger.error(`Failed to upload workspace file ${fileName}:`, error)
-      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
+      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`, {
+        cause: error,
+      })
     }
   }
 
