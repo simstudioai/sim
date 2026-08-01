@@ -24,7 +24,7 @@ vi.mock('@/lib/table/rows/service', () => ({
   queryRows: mockQueryRows,
 }))
 
-import { GET } from '@/app/api/table/[tableId]/export/route'
+import { GET, HEAD } from '@/app/api/table/[tableId]/export/route'
 
 /** Table with an id-native column whose stable id (`col_email`) differs from its display name. */
 function buildTable(): TableDefinition {
@@ -54,6 +54,13 @@ function callGet(format: string) {
     method: 'GET',
   })
   return GET(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+}
+
+function callHead(format: string) {
+  const req = new NextRequest(`http://localhost:3000/api/table/tbl_1/export?format=${format}`, {
+    method: 'HEAD',
+  })
+  return HEAD(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
 }
 
 describe('table export route — id→name translation', () => {
@@ -91,5 +98,13 @@ describe('table export route — id→name translation', () => {
     const parsed = JSON.parse(await res.text())
     expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
     expect(JSON.stringify(parsed)).not.toContain('col_email')
+  })
+
+  it('preflights authorization without starting the export query', async () => {
+    const res = await callHead('csv')
+
+    expect(res.status).toBe(204)
+    expect(mockCheckAccess).toHaveBeenCalledWith('tbl_1', 'user-1', 'read')
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 })
