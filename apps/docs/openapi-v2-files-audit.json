@@ -144,7 +144,7 @@
       "post": {
         "operationId": "uploadFile",
         "summary": "Upload File",
-        "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace — and the optional target `folderId` — are supplied as query parameters (not form fields) so authorization runs before the request body is buffered. Maximum file size is 100MB. A name already taken in the destination folder is rejected with `409`; the in-app uploader instead auto-suffixes, so the two surfaces differ here on purpose. Returns `201 Created`.\n\nPresigned upload is not part of the public API: it debits the storage quota only in a separate register step, so a caller that never registers would leave unaccounted bytes in storage. This buffered path debits inside the upload transaction.",
+        "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace — and the optional target `folderId` — are supplied as query parameters (not form fields) so authorization runs before the request body is buffered. Maximum file size is 100MB. A name already taken in the destination folder is **not** an error: the name is auto-suffixed (`data.csv` -> `data (1).csv`), matching the in-app uploader, so a `201` can come back with a `name` different from the one you sent — always read `name` from the response rather than assuming it. `409` is returned only if a unique name cannot be allocated after several attempts. Use `PATCH /api/v2/files/{fileId}` if you need a specific name to be exact-or-fail. Returns `201 Created`.\n\nPresigned upload is not part of the public API: it debits the storage quota only in a separate register step, so a caller that never registers would leave unaccounted bytes in storage. This buffered path debits inside the upload transaction.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -247,7 +247,7 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "409": {
-            "description": "A file with the same name already exists in this workspace.",
+            "description": "A unique filename could not be allocated in the destination folder after several attempts. An ordinary name collision is auto-suffixed instead, not rejected.",
             "content": {
               "application/json": {
                 "schema": {
@@ -256,7 +256,7 @@
                 "example": {
                   "error": {
                     "code": "CONFLICT",
-                    "message": "A file with this name already exists in the workspace"
+                    "message": "A file named \"data.csv\" already exists in this workspace"
                   }
                 }
               }

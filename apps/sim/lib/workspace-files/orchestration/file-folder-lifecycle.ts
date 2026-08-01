@@ -193,6 +193,10 @@ export async function performDeleteWorkspaceFileItems(
     return { success: true, deletedItems }
   } catch (error) {
     logger.error('Failed to delete workspace file items', { error })
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
+    }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }
@@ -270,6 +274,10 @@ export async function performMoveWorkspaceFileItems(
     }
     if (error instanceof WorkspaceFileItemsNotFoundError) {
       return { success: false, error: error.message, errorCode: 'not_found' }
+    }
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
@@ -442,6 +450,10 @@ export async function performCreateWorkspaceFileFolder(
     ) {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
     }
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
+    }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }
@@ -489,6 +501,10 @@ export async function performUpdateWorkspaceFileFolder(
         errorCode: 'conflict',
       }
     }
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
+    }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }
@@ -529,6 +545,10 @@ export async function performRestoreWorkspaceFileFolder(
         error: 'A folder with this name already exists in this location',
         errorCode: 'conflict',
       }
+    }
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
