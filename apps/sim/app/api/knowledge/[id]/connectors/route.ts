@@ -1,28 +1,25 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { knowledgeBase, knowledgeBaseTagDefinitions, knowledgeConnector } from '@sim/db/schema'
+import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { encryptApiKey } from '@/lib/api-key/crypto'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
   requireBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
+import {
+  messageForOrchestrationError,
+  OrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { dispatchSync } from '@/lib/knowledge/connectors/queue'
-import { allocateTagSlots } from '@/lib/knowledge/constants'
-import { createTagDefinition } from '@/lib/knowledge/tags/service'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { performCreateKnowledgeConnector } from '@/lib/knowledge/orchestration'
 import { getCredential } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 
 const logger = createLogger('KnowledgeConnectorsAPI')
 
@@ -80,263 +77,71 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
     const { id: knowledgeBaseId } = await context.params
 
-    try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      const writeCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
-      if (!writeCheck.hasAccess) {
-        const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
-        return NextResponse.json(
-          { error: status === 404 ? 'Not found' : 'Unauthorized' },
-          { status }
-        )
-      }
+    const writeCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
+    if (!writeCheck.hasAccess) {
+      const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
+      return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
+    }
 
-      const parsed = await parseRequest(createKnowledgeConnectorContract, request, context)
-      if (!parsed.success) return parsed.response
+    const parsed = await parseRequest(createKnowledgeConnectorContract, request, context)
+    if (!parsed.success) return parsed.response
 
-      const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } =
-        parsed.data.body
+    const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } =
+      parsed.data.body
 
-      const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId
-      if (!kbWorkspaceId) {
-        return NextResponse.json(
-          { error: 'Knowledge base is missing workspace billing context' },
-          { status: 409 }
-        )
-      }
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId
+    if (!kbWorkspaceId) {
+      return NextResponse.json(
+        { error: 'Knowledge base is missing workspace billing context' },
+        { status: 409 }
+      )
+    }
 
-      if (syncIntervalMinutes > 0 && syncIntervalMinutes < 60) {
-        const canUseLiveSync = await hasWorkspaceLiveSyncAccess(kbWorkspaceId)
-        if (!canUseLiveSync) {
-          return NextResponse.json(
-            { error: 'Live sync requires a Max or Enterprise plan' },
-            { status: 403 }
-          )
-        }
-      }
-
-      const billingAttribution =
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: {
+        id: knowledgeBaseId,
+        name: writeCheck.knowledgeBase.name,
+        workspaceId: kbWorkspaceId,
+      },
+      connectorType,
+      credentialId,
+      apiKey,
+      sourceConfig,
+      syncIntervalMinutes,
+      resolveBillingAttribution: async () =>
         auth.authType === AuthType.INTERNAL_JWT
           ? requireBillingAttributionHeader(request.headers, {
-              actorUserId: auth.userId,
+              actorUserId: auth.userId as string,
               workspaceId: kbWorkspaceId,
             })
-          : await resolveBillingAttribution({
-              actorUserId: auth.userId,
+          : resolveBillingAttribution({
+              actorUserId: auth.userId as string,
               workspaceId: kbWorkspaceId,
-            })
-
-      const connectorConfig = CONNECTOR_REGISTRY[connectorType]
-      if (!connectorConfig) {
-        return NextResponse.json(
-          { error: `Unknown connector type: ${connectorType}` },
-          { status: 400 }
-        )
-      }
-
-      let resolvedCredentialId: string | null = null
-      let resolvedEncryptedApiKey: string | null = null
-      let accessToken: string
-
-      if (connectorConfig.auth.mode === 'apiKey') {
-        if (!apiKey) {
-          return NextResponse.json({ error: 'API key is required' }, { status: 400 })
-        }
-        accessToken = apiKey
-      } else {
-        if (!credentialId) {
-          return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-        }
-
-        const credential = await getCredential(requestId, credentialId, auth.userId)
-        if (!credential) {
-          return NextResponse.json({ error: 'Credential not found' }, { status: 400 })
-        }
-
-        if (!credential.accessToken) {
-          return NextResponse.json(
-            { error: 'Credential has no access token. Please reconnect your account.' },
-            { status: 400 }
-          )
-        }
-
-        accessToken = credential.accessToken
-        resolvedCredentialId = credentialId
-      }
-
-      const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
-      if (!configValidation.valid) {
-        return NextResponse.json(
-          { error: configValidation.error || 'Invalid source configuration' },
-          { status: 400 }
-        )
-      }
-
-      let finalSourceConfig: Record<string, unknown> = { ...sourceConfig }
-
-      if (connectorConfig.auth.mode === 'apiKey' && apiKey) {
-        const { encrypted } = await encryptApiKey(apiKey)
-        resolvedEncryptedApiKey = encrypted
-      }
-
-      const tagSlotMapping: Record<string, string> = {}
-      let newTagSlots: Record<string, string> = {}
-
-      if (connectorConfig.tagDefinitions?.length) {
-        const disabledIds = new Set((sourceConfig.disabledTagIds as string[] | undefined) ?? [])
-        const enabledDefs = connectorConfig.tagDefinitions.filter((td) => !disabledIds.has(td.id))
-
-        const existingDefs = await db
-          .select({
-            tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-            displayName: knowledgeBaseTagDefinitions.displayName,
-            fieldType: knowledgeBaseTagDefinitions.fieldType,
-          })
-          .from(knowledgeBaseTagDefinitions)
-          .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
-
-        const usedSlots = new Set<string>(existingDefs.map((d) => d.tagSlot))
-        const existingByName = new Map(
-          existingDefs.map((d) => [d.displayName, { tagSlot: d.tagSlot, fieldType: d.fieldType }])
-        )
-
-        const defsNeedingSlots: typeof enabledDefs = []
-        for (const td of enabledDefs) {
-          const existing = existingByName.get(td.displayName)
-          if (existing && existing.fieldType === td.fieldType) {
-            tagSlotMapping[td.id] = existing.tagSlot
-          } else {
-            defsNeedingSlots.push(td)
-          }
-        }
-
-        const { mapping, skipped: skippedTags } = allocateTagSlots(defsNeedingSlots, usedSlots)
-        Object.assign(tagSlotMapping, mapping)
-        newTagSlots = mapping
-
-        for (const name of skippedTags) {
-          logger.warn(`[${requestId}] No available slots for "${name}"`)
-        }
-
-        if (skippedTags.length > 0 && Object.keys(tagSlotMapping).length === 0) {
-          return NextResponse.json(
-            { error: `No available tag slots. Could not assign: ${skippedTags.join(', ')}` },
-            { status: 422 }
-          )
-        }
-
-        finalSourceConfig = { ...finalSourceConfig, tagSlotMapping }
-      }
-
-      const now = new Date()
-      const connectorId = generateId()
-      const nextSyncAt =
-        syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60 * 1000) : null
-
-      await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
-
-        const activeKb = await tx
-          .select({ id: knowledgeBase.id })
-          .from(knowledgeBase)
-          .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-          .limit(1)
-
-        if (activeKb.length === 0) {
-          throw new Error('Knowledge base not found')
-        }
-
-        for (const [semanticId, slot] of Object.entries(newTagSlots)) {
-          const td = connectorConfig.tagDefinitions!.find((d) => d.id === semanticId)!
-          await createTagDefinition(
-            {
-              knowledgeBaseId,
-              tagSlot: slot,
-              displayName: td.displayName,
-              fieldType: td.fieldType,
-            },
-            requestId,
-            tx
-          )
-        }
-
-        await tx.insert(knowledgeConnector).values({
-          id: connectorId,
-          knowledgeBaseId,
-          connectorType,
-          credentialId: resolvedCredentialId,
-          encryptedApiKey: resolvedEncryptedApiKey,
-          sourceConfig: finalSourceConfig,
-          syncIntervalMinutes,
-          status: 'active',
-          nextSyncAt,
-          createdAt: now,
-          updatedAt: now,
-        })
-      })
-
-      logger.info(`[${requestId}] Created connector ${connectorId} for KB ${knowledgeBaseId}`)
-
-      captureServerEvent(
-        auth.userId,
-        'knowledge_base_connector_added',
-        {
-          knowledge_base_id: knowledgeBaseId,
-          workspace_id: kbWorkspaceId,
-          connector_type: connectorType,
-          sync_interval_minutes: syncIntervalMinutes,
-        },
-        {
-          groups: kbWorkspaceId ? { workspace: kbWorkspaceId } : undefined,
-          setOnce: { first_connector_added_at: new Date().toISOString() },
-        }
+            }),
+      resolveAccessToken: async (id) => {
+        const credential = await getCredential(requestId, id, auth.userId as string)
+        if (!credential) throw new OrchestrationError('validation', 'Credential not found')
+        return credential.accessToken ?? null
+      },
+      userId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      source: 'ui',
+      requestId,
+      request,
+    })
+    if (!outcome.success) {
+      return NextResponse.json(
+        { error: messageForOrchestrationError(outcome, 'Internal server error') },
+        { status: statusForOrchestrationError(outcome.errorCode) }
       )
-
-      recordAudit({
-        workspaceId: writeCheck.knowledgeBase.workspaceId,
-        actorId: auth.userId,
-        actorName: auth.userName,
-        actorEmail: auth.userEmail,
-        action: AuditAction.CONNECTOR_CREATED,
-        resourceType: AuditResourceType.CONNECTOR,
-        resourceId: connectorId,
-        resourceName: connectorType,
-        description: `Created ${connectorType} connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
-        metadata: {
-          knowledgeBaseId,
-          knowledgeBaseName: writeCheck.knowledgeBase.name,
-          connectorType,
-          syncIntervalMinutes,
-          authMode: connectorConfig.auth.mode,
-        },
-        request,
-      })
-
-      dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
-        logger.error(
-          `[${requestId}] Failed to dispatch initial sync for connector ${connectorId}`,
-          error
-        )
-      })
-
-      const created = await db
-        .select()
-        .from(knowledgeConnector)
-        .where(eq(knowledgeConnector.id, connectorId))
-        .limit(1)
-
-      const { encryptedApiKey: _, ...createdData } = created[0]
-      return NextResponse.json({ success: true, data: createdData }, { status: 201 })
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Knowledge base not found') {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-      logger.error(`[${requestId}] Error creating connector`, error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
+
+    return NextResponse.json({ success: true, data: outcome.connector }, { status: 201 })
   }
 )

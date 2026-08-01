@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1ListKnowledgeDocumentsContract,
@@ -11,18 +10,18 @@ import {
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
+import {
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  createSingleDocument,
-  type DocumentData,
-  getDocuments,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+import { getDocuments } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
@@ -189,47 +188,29 @@ export const POST = withRouteHandler(
         contentType
       )
 
-      const newDocument = await createSingleDocument(
-        {
+      const outcome = await performUploadKnowledgeDocument({
+        knowledgeBase: { id: knowledgeBaseId, name: result.kb.name, workspaceId },
+        document: {
           filename: file.name,
           fileUrl: uploadedFile.url,
           fileSize: file.size,
           mimeType: contentType,
         },
-        knowledgeBaseId,
+        startProcessing: 'queue',
+        billingAttribution,
+        uploadedBy: billingActorUserId,
+        userId,
+        source: 'api',
         requestId,
-        billingActorUserId
-      )
-
-      const documentData: DocumentData = {
-        documentId: newDocument.id,
-        filename: file.name,
-        fileUrl: uploadedFile.url,
-        fileSize: file.size,
-        mimeType: contentType,
-      }
-
-      processDocumentsWithQueue(
-        [documentData],
-        knowledgeBaseId,
-        {},
-        requestId,
-        billingAttribution
-      ).catch(() => {
-        // Processing errors are logged internally
-      })
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.DOCUMENT_UPLOADED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: newDocument.id,
-        resourceName: file.name,
-        description: `Uploaded document "${file.name}" to knowledge base via API`,
-        metadata: { knowledgeBaseId, fileSize: file.size, mimeType: contentType },
         request,
       })
+      if (!outcome.success) {
+        return NextResponse.json(
+          { error: messageForOrchestrationError(outcome, 'Failed to upload document') },
+          { status: statusForOrchestrationError(outcome.errorCode) }
+        )
+      }
+      const newDocument = outcome.document
 
       return NextResponse.json({
         success: true,

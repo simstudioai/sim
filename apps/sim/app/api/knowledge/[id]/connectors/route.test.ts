@@ -118,7 +118,8 @@ describe('Knowledge Connectors API Route', () => {
     })
     mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
     mockResolveBillingAttribution.mockResolvedValue(BILLING_ATTRIBUTION)
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'knowledge-base-1' }]).mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'knowledge-base-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
       {
         id: 'connector-1',
         knowledgeBaseId: 'knowledge-base-1',
@@ -173,6 +174,8 @@ describe('Knowledge Connectors API Route', () => {
 
     expect(response.status).toBe(403)
     expect(mockHasWorkspaceLiveSyncAccess).toHaveBeenCalledWith('workspace-free')
+    // The payer is resolved lazily, so a request the plan gate rejects never
+    // pays for the lookup.
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })

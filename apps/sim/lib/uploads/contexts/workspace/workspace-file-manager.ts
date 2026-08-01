@@ -19,6 +19,7 @@ import {
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -51,10 +52,15 @@ const logger = createLogger('WorkspaceFileStorage')
 
 export type WorkspaceFileScope = 'active' | 'archived' | 'all'
 
-export class FileConflictError extends Error {
-  readonly code = 'FILE_EXISTS' as const
+/**
+ * An {@link OrchestrationError} so every surface reaches 409 by class rather than by
+ * searching the message for "already exists". Carries the inherited `code: 'conflict'`;
+ * the old `'FILE_EXISTS'` discriminator had no readers.
+ */
+export class FileConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A file named "${name}" already exists in this workspace`)
+    super('conflict', `A file named "${name}" already exists in this workspace`)
+    this.name = 'FileConflictError'
   }
 }
 
@@ -423,8 +429,15 @@ export async function uploadWorkspaceFile(
         )
         continue
       }
+      // A classified failure (a blown storage quota, a missing target folder) keeps its class:
+      // re-wrapping it in a bare Error is what forced every caller to substring-match the
+      // message to recover the status.
+      const classified = asOrchestrationError(error)
+      if (classified) throw classified
       logger.error(`Failed to upload workspace file ${fileName}:`, error)
-      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
+      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`, {
+        cause: error,
+      })
     }
   }
 
@@ -1072,7 +1085,7 @@ export async function updateWorkspaceFileContent(
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
@@ -1122,7 +1135,7 @@ export async function updateWorkspaceFileContent(
           .for('update')
           .limit(1)
         if (!currentFile) {
-          throw new Error('File not found')
+          throw new OrchestrationError('not_found', 'File not found')
         }
 
         // Optimistic-concurrency guard: the row is `FOR UPDATE`-locked, so comparing its committed
@@ -1169,7 +1182,7 @@ export async function updateWorkspaceFileContent(
           )
           .returning()
         if (!updatedFile) {
-          throw new Error('File not found or could not be updated')
+          throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
 
         let updatedUsage: number | undefined
@@ -1255,8 +1268,15 @@ export async function updateWorkspaceFileContent(
     // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
     // by the inner finalization catch before it propagated here.
     if (error instanceof ContentVersionConflictError) throw error
+    // Same reasoning for an already-classified failure: a missing file and a blown storage quota are
+    // caller-fixable outcomes that every surface maps to 404/413 by class. Re-wrapping them in a bare
+    // Error stripped that classification and turned both into a 500.
+    const classified = asOrchestrationError(error)
+    if (classified) throw classified
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
-    throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
+    throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`, {
+      cause: error,
+    })
   }
 }
 
@@ -1275,7 +1295,7 @@ export async function renameWorkspaceFile(
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   if (fileRecord.name === normalizedName) {
@@ -1288,10 +1308,11 @@ export async function renameWorkspaceFile(
   }
 
   let updated: { id: string }[]
+  const renamedAt = new Date()
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: normalizedName, updatedAt: new Date() })
+      .set({ originalName: normalizedName, updatedAt: renamedAt })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -1308,7 +1329,7 @@ export async function renameWorkspaceFile(
   }
 
   if (updated.length === 0) {
-    throw new Error('File not found or could not be renamed')
+    throw new OrchestrationError('not_found', 'File not found or could not be renamed')
   }
 
   logger.info(`Successfully renamed workspace file ${fileId} to "${normalizedName}"`)
@@ -1316,6 +1337,7 @@ export async function renameWorkspaceFile(
   return {
     ...fileRecord,
     name: normalizedName,
+    updatedAt: renamedAt,
   }
 }
 
@@ -1336,7 +1358,7 @@ export async function moveRenameWorkspaceFile(params: {
 
   const fileRecord = await getWorkspaceFile(params.workspaceId, params.fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   const targetFolderId = await assertWorkspaceFileFolderTarget(
@@ -1376,7 +1398,7 @@ export async function moveRenameWorkspaceFile(params: {
   }
 
   if (updated.length === 0) {
-    throw new Error('File not found or could not be moved')
+    throw new OrchestrationError('not_found', 'File not found or could not be moved')
   }
 
   return {
@@ -1399,7 +1421,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
   try {
     const fileRecord = await findWorkspaceFileForLifecycle(db, workspaceId, fileId)
     if (!fileRecord) {
-      throw new Error('File not found')
+      throw new OrchestrationError('not_found', 'File not found')
     }
     if (fileRecord.deletedAt) return
 
@@ -1432,7 +1454,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
 
   const fileRecord = await findWorkspaceFileForLifecycle(db, workspaceId, fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   if (!fileRecord.deletedAt) {
@@ -1441,7 +1463,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
 
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
-    throw new Error('Cannot restore file into an archived workspace')
+    throw new OrchestrationError('validation', 'Cannot restore file into an archived workspace')
   }
 
   /**

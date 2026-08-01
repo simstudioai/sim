@@ -20,6 +20,7 @@ import {
   resolveStorageBillingContext,
   type StorageBillingContext,
 } from '@/lib/billing/storage'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import type {
@@ -31,22 +32,39 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
 
-export class KnowledgeBaseConflictError extends Error {
-  readonly code = 'KNOWLEDGE_BASE_EXISTS' as const
+/**
+ * Every caller-fixable knowledge-base failure is an {@link OrchestrationError},
+ * so `lib/knowledge/orchestration` classifies it by class and each surface maps
+ * that one class to its own status. Message text is then free to change without
+ * silently moving a 409 to a 400.
+ */
+export class KnowledgeBaseConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A knowledge base named "${name}" already exists in this workspace`)
+    super('conflict', `A knowledge base named "${name}" already exists in this workspace`)
+    this.name = 'KnowledgeBaseConflictError'
   }
 }
 
-export class KnowledgeBasePermissionError extends Error {
-  readonly code = 'KNOWLEDGE_BASE_FORBIDDEN' as const
+export class KnowledgeBasePermissionError extends OrchestrationError {
+  constructor(message: string) {
+    super('forbidden', message)
+    this.name = 'KnowledgeBasePermissionError'
+  }
 }
 
 /** Raised when a caller files a knowledge base under a folder it may not use. */
-export class KnowledgeBaseFolderError extends Error {
-  readonly code = 'KNOWLEDGE_BASE_FOLDER_INVALID' as const
+export class KnowledgeBaseFolderError extends OrchestrationError {
   constructor() {
-    super('Folder not found in this workspace')
+    super('validation', 'Folder not found in this workspace')
+    this.name = 'KnowledgeBaseFolderError'
+  }
+}
+
+/** Raised when a knowledge base the caller named does not exist (or is archived). */
+export class KnowledgeBaseNotFoundError extends OrchestrationError {
+  constructor(knowledgeBaseId: string) {
+    super('not_found', `Knowledge base ${knowledgeBaseId} not found`)
+    this.name = 'KnowledgeBaseNotFoundError'
   }
 }
 
@@ -341,7 +359,7 @@ export async function updateKnowledgeBase(
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
         .limit(1)
       if (!snapshot) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+        throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
       }
       effectiveWorkspaceId = snapshot.workspaceId
     }
@@ -365,7 +383,7 @@ export async function updateKnowledgeBase(
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
     if (!kbSnapshot) {
-      throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     }
     const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
     const destinationWorkspaceId = updates.workspaceId ?? null
@@ -450,7 +468,7 @@ export async function updateKnowledgeBase(
         .limit(1)
 
       if (!currentKb) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+        throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
       }
 
       if (storageMove && (currentKb.workspaceId ?? null) !== storageMove.sourceWorkspaceId) {
@@ -666,7 +684,7 @@ export async function updateKnowledgeBase(
     .limit(1)
 
   if (updatedKb.length === 0) {
-    throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+    throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
   }
 
   logger.info(`[${requestId}] Updated knowledge base: ${knowledgeBaseId}`)
@@ -809,18 +827,21 @@ export async function restoreKnowledgeBase(
     .limit(1)
 
   if (!kb) {
-    throw new Error('Knowledge base not found')
+    throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
   }
 
   if (!kb.deletedAt) {
-    throw new Error('Knowledge base is not archived')
+    throw new OrchestrationError('conflict', 'Knowledge base is not archived')
   }
 
   if (kb.workspaceId) {
     const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
     const ws = await getWorkspaceWithOwner(kb.workspaceId)
     if (!ws || ws.archivedAt) {
-      throw new Error('Cannot restore knowledge base into an archived workspace')
+      throw new OrchestrationError(
+        'conflict',
+        'Cannot restore knowledge base into an archived workspace'
+      )
     }
   }
 

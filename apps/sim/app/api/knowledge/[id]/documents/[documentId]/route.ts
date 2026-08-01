@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
@@ -8,15 +7,19 @@ import {
   requireBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  deleteDocument,
-  markDocumentAsFailedTimeout,
-  retryDocumentProcessing,
-  updateDocument,
-} from '@/lib/knowledge/documents/service'
-import { captureServerEvent } from '@/lib/posthog/server'
+  performDeleteKnowledgeDocument,
+  performMarkKnowledgeDocumentTimedOut,
+  performRetryKnowledgeDocumentProcessing,
+  performUpdateKnowledgeDocument,
+} from '@/lib/knowledge/orchestration'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentByIdAPI')
@@ -108,58 +111,30 @@ export const PUT = withRouteHandler(
       )
       if (!parsed.success) return parsed.response
 
-      const validatedData = parsed.data.body
+      const { markFailedDueToTimeout, retryProcessing, ...documentUpdates } = parsed.data.body
+      const doc = accessCheck.document
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? null
 
-      const updateData: any = {}
+      const failed = (outcome: { error?: string; errorCode?: OrchestrationErrorCode }) =>
+        NextResponse.json(
+          { error: messageForOrchestrationError(outcome, 'Failed to update document') },
+          { status: statusForOrchestrationError(outcome.errorCode) }
+        )
 
-      if (validatedData.markFailedDueToTimeout) {
-        const doc = accessCheck.document
+      if (markFailedDueToTimeout) {
+        const outcome = await performMarkKnowledgeDocumentTimedOut({
+          document: doc,
+          requestId,
+        })
+        if (!outcome.success) return failed(outcome)
 
-        if (doc.processingStatus !== 'processing') {
-          return NextResponse.json(
-            { error: `Document is not in processing state (current: ${doc.processingStatus})` },
-            { status: 400 }
-          )
-        }
+        return NextResponse.json({
+          success: true,
+          data: { documentId, status: outcome.status, message: outcome.message },
+        })
+      }
 
-        if (!doc.processingStartedAt) {
-          return NextResponse.json(
-            { error: 'Document has no processing start time' },
-            { status: 400 }
-          )
-        }
-
-        try {
-          await markDocumentAsFailedTimeout(documentId, doc.processingStartedAt, requestId)
-
-          return NextResponse.json({
-            success: true,
-            data: {
-              documentId,
-              status: 'failed',
-              message: 'Document marked as failed due to timeout',
-            },
-          })
-        } catch (error) {
-          if (error instanceof Error) {
-            return NextResponse.json({ error: error.message }, { status: 400 })
-          }
-          throw error
-        }
-      } else if (validatedData.retryProcessing) {
-        const doc = accessCheck.document
-
-        if (doc.processingStatus !== 'failed') {
-          return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
-        }
-
-        const docData = {
-          filename: doc.filename,
-          fileUrl: doc.fileUrl,
-          fileSize: doc.fileSize,
-          mimeType: doc.mimeType,
-        }
-        const workspaceId = accessCheck.knowledgeBase?.workspaceId
+      if (retryProcessing) {
         const billingAttribution = workspaceId
           ? auth.authType === AuthType.INTERNAL_JWT
             ? requireBillingAttributionHeader(req.headers, {
@@ -172,56 +147,38 @@ export const PUT = withRouteHandler(
               })
           : undefined
 
-        const result = await retryDocumentProcessing(
+        const outcome = await performRetryKnowledgeDocumentProcessing({
           knowledgeBaseId,
-          documentId,
-          docData,
+          document: doc,
+          billingAttribution,
           requestId,
-          billingAttribution
-        )
+        })
+        if (!outcome.success) return failed(outcome)
 
         return NextResponse.json({
           success: true,
-          data: {
-            documentId,
-            status: result.status,
-            message: result.message,
-          },
-        })
-      } else {
-        const updatedDocument = await updateDocument(documentId, validatedData, requestId)
-
-        logger.info(
-          `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
-        )
-
-        recordAudit({
-          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-          actorId: userId,
-          actorName: auth.userName,
-          actorEmail: auth.userEmail,
-          action: AuditAction.DOCUMENT_UPDATED,
-          resourceType: AuditResourceType.DOCUMENT,
-          resourceId: documentId,
-          resourceName: validatedData.filename ?? accessCheck.document?.filename,
-          description: `Updated document "${validatedData.filename ?? accessCheck.document?.filename}" in knowledge base "${knowledgeBaseId}"`,
-          metadata: {
-            knowledgeBaseId,
-            knowledgeBaseName: accessCheck.knowledgeBase?.name,
-            fileName: validatedData.filename ?? accessCheck.document?.filename,
-            updatedFields: Object.keys(validatedData).filter(
-              (k) => validatedData[k as keyof typeof validatedData] !== undefined
-            ),
-            ...(validatedData.enabled !== undefined && { enabled: validatedData.enabled }),
-          },
-          request: req,
-        })
-
-        return NextResponse.json({
-          success: true,
-          data: updatedDocument,
+          data: { documentId, status: outcome.status, message: outcome.message },
         })
       }
+
+      const outcome = await performUpdateKnowledgeDocument({
+        knowledgeBase: {
+          id: knowledgeBaseId,
+          name: accessCheck.knowledgeBase?.name,
+          workspaceId,
+        },
+        document: { id: documentId, filename: doc.filename },
+        updates: documentUpdates,
+        userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        source: 'ui',
+        requestId,
+        request: req,
+      })
+      if (!outcome.success) return failed(outcome)
+
+      return NextResponse.json({ success: true, data: outcome.document })
     } catch (error) {
       logger.error(`[${requestId}] Error updating document ${documentId}`, error)
       return NextResponse.json({ error: 'Failed to update document' }, { status: 500 })
@@ -257,43 +214,30 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const result = await deleteDocument(documentId, requestId)
-
-      logger.info(
-        `[${requestId}] Document deleted: ${documentId} from knowledge base ${knowledgeBaseId}`
-      )
-
-      recordAudit({
-        workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-        actorId: userId,
+      const outcome = await performDeleteKnowledgeDocument({
+        knowledgeBase: {
+          id: knowledgeBaseId,
+          name: accessCheck.knowledgeBase?.name,
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+        },
+        document: accessCheck.document,
+        userId,
         actorName: auth.userName,
         actorEmail: auth.userEmail,
-        action: AuditAction.DOCUMENT_DELETED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: documentId,
-        resourceName: accessCheck.document?.filename,
-        description: `Deleted document "${accessCheck.document?.filename}" from knowledge base "${knowledgeBaseId}"`,
-        metadata: {
-          knowledgeBaseId,
-          knowledgeBaseName: accessCheck.knowledgeBase?.name,
-          fileName: accessCheck.document?.filename,
-          fileSize: accessCheck.document?.fileSize,
-          mimeType: accessCheck.document?.mimeType,
-        },
+        source: 'ui',
+        requestId,
         request: req,
       })
-
-      const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId ?? ''
-      captureServerEvent(
-        userId,
-        'knowledge_base_document_deleted',
-        { knowledge_base_id: knowledgeBaseId, workspace_id: kbWorkspaceId },
-        kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
-      )
+      if (!outcome.success) {
+        return NextResponse.json(
+          { error: messageForOrchestrationError(outcome, 'Failed to delete document') },
+          { status: statusForOrchestrationError(outcome.errorCode) }
+        )
+      }
 
       return NextResponse.json({
         success: true,
-        data: result,
+        data: { success: true, message: 'Document deleted successfully' },
       })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting document`, error)

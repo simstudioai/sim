@@ -1,23 +1,19 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getFileShareContract, upsertFileShareContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  getShareForResource,
-  ShareValidationError,
-  upsertFileShare,
-} from '@/lib/public-shares/share-manager'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+  performGetWorkspaceFileShare,
+  performUpsertWorkspaceFileShare,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import {
-  PublicFileSharingNotAllowedError,
-  validatePublicFileSharing,
-} from '@/ee/access-control/utils/permission-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,40 +27,30 @@ export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
     const requestId = generateRequestId()
 
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      const parsed = await parseRequest(getFileShareContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { id: workspaceId, fileId } = parsed.data.params
+    const parsed = await parseRequest(getFileShareContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
 
-      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-      if (permission === null) {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks access to workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
+    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    if (permission === null) {
+      logger.warn(`[${requestId}] User ${session.user.id} lacks access to workspace ${workspaceId}`)
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
-      const file = await getWorkspaceFile(workspaceId, fileId)
-      if (!file) {
-        return NextResponse.json({ error: 'File not found' }, { status: 404 })
-      }
-
-      const share = await getShareForResource('file', fileId)
-      return NextResponse.json({ share })
-    } catch (error) {
-      logger.error(`[${requestId}] Error fetching file share:`, error)
+    const result = await performGetWorkspaceFileShare({ workspaceId, fileId })
+    if (!result.success) {
       return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to fetch share') },
-        {
-          status: 500,
-        }
+        { error: messageForOrchestrationError(result, 'Failed to fetch share') },
+        { status: statusForOrchestrationError(result.errorCode) }
       )
     }
+
+    return NextResponse.json({ share: result.share ?? null })
   }
 )
 
@@ -76,89 +62,45 @@ export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
     const requestId = generateRequestId()
 
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      const parsed = await parseRequest(upsertFileShareContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { id: workspaceId, fileId } = parsed.data.params
-      const { isActive, authType, password, allowedEmails, token } = parsed.data.body
+    const parsed = await parseRequest(upsertFileShareContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
+    const { isActive, authType, password, allowedEmails, token } = parsed.data.body
 
-      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-      if (permission !== 'admin' && permission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
+    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    if (permission !== 'admin' && permission !== 'write') {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
+      )
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
-      const file = await getWorkspaceFile(workspaceId, fileId)
-      if (!file) {
-        return NextResponse.json({ error: 'File not found' }, { status: 404 })
-      }
+    const result = await performUpsertWorkspaceFileShare({
+      workspaceId,
+      fileId,
+      userId: session.user.id,
+      isActive,
+      authType,
+      password,
+      allowedEmails,
+      token,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      request,
+    })
 
-      // Enabling a share is gated by the org's access-control policy (both the
-      // master on/off and the per-auth-type allow-list); disabling is always
-      // allowed so users can still un-share after the policy is turned on.
-      if (isActive) {
-        // Validate the auth type that will ACTUALLY be persisted. upsertFileShare
-        // falls back to the existing share's authType when none is passed, so a bare
-        // re-enable must be checked against that stored mode — not 'public' — or a
-        // now-disallowed password/email/sso share could be silently reactivated.
-        const existingShare = await getShareForResource('file', fileId)
-        const effectiveAuthType = authType ?? existingShare?.authType ?? 'public'
-        try {
-          await validatePublicFileSharing(session.user.id, workspaceId, effectiveAuthType)
-        } catch (error) {
-          if (error instanceof PublicFileSharingNotAllowedError) {
-            logger.warn(`[${requestId}] Public file sharing disabled for workspace ${workspaceId}`)
-            return NextResponse.json({ error: error.message }, { status: 403 })
-          }
-          throw error
-        }
-      }
-
-      const share = await upsertFileShare({
-        workspaceId,
-        fileId,
-        userId: session.user.id,
-        isActive,
-        authType,
-        password,
-        allowedEmails,
-        token,
-      })
-
-      logger.info(`[${requestId}] ${isActive ? 'Enabled' : 'Disabled'} share for file ${fileId}`)
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: isActive ? AuditAction.FILE_SHARED : AuditAction.FILE_SHARE_DISABLED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: fileId,
-        resourceName: file.name,
-        description: `${isActive ? 'Enabled' : 'Disabled'} public share for "${file.name}"`,
-        request,
-      })
-
-      return NextResponse.json({ share })
-    } catch (error) {
-      if (error instanceof ShareValidationError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      logger.error(`[${requestId}] Error updating file share:`, error)
+    if (!result.success || !result.share) {
       return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to update share') },
-        {
-          status: 500,
-        }
+        { error: messageForOrchestrationError(result, 'Failed to update share') },
+        { status: statusForOrchestrationError(result.errorCode) }
       )
     }
+
+    return NextResponse.json({ share: result.share })
   }
 )

@@ -148,10 +148,11 @@ export async function performRestoreResource(
         const result = await performRestoreKnowledgeBase({
           knowledgeBaseId: id,
           userId,
+          source: 'agent',
           requestId,
         })
-        if (!result.success || !result.knowledgeBase) {
-          return { success: false, error: result.error || 'Failed to restore knowledge base' }
+        if (!result.success) {
+          return { success: false, error: result.error }
         }
 
         logger.info('Knowledge base restored via restore_resource', { knowledgeBaseId: id })

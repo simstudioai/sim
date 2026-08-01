@@ -1,20 +1,29 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { document, embedding, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
+import { knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
+import {
+  deleteKnowledgeConnectorContract,
+  updateKnowledgeConnectorContract,
+} from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
-import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
-import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
-import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  getKnowledgeConnector,
+  type KnowledgeConnectorRow,
+  performDeleteKnowledgeConnector,
+  performUpdateKnowledgeConnector,
+  type SourceConfigRejection,
+} from '@/lib/knowledge/orchestration'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -42,20 +51,8 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
     }
 
-    const connectorRows = await db
-      .select()
-      .from(knowledgeConnector)
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-      .limit(1)
-
-    if (connectorRows.length === 0) {
+    const connector = await getKnowledgeConnector(knowledgeBaseId, connectorId)
+    if (!connector) {
       return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
@@ -66,7 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
       .limit(10)
 
-    const { encryptedApiKey: _, ...connectorData } = connectorRows[0]
+    const { encryptedApiKey: _, ...connectorData } = connector
     return NextResponse.json({
       success: true,
       data: {
@@ -81,357 +78,179 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 })
 
 /**
+ * Validates a replacement `sourceConfig` against the live source, resolving the
+ * connector's own token first. Returns a rejection message, or `null` to accept.
+ *
+ * Stays with the route rather than moving into orchestration because resolving
+ * the token needs the requesting identity: workspace credentials are shared and
+ * token reads are scoped to `account.userId`, so the credential's own account
+ * owner is used — not the knowledge base owner, and not the acting user when a
+ * service account mints its own token.
+ */
+function makeSourceConfigValidator(
+  actingUserId: string,
+  workspaceId: string | null,
+  connectorId: string
+) {
+  return async (
+    connector: KnowledgeConnectorRow,
+    sourceConfig: Record<string, unknown>
+  ): Promise<SourceConfigRejection | null> => {
+    const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
+    if (!connectorConfig) {
+      return {
+        message: `Unknown connector type: ${connector.connectorType}`,
+        errorCode: 'validation',
+      }
+    }
+
+    let accessToken: string | null = null
+    if (connectorConfig.auth.mode === 'apiKey') {
+      if (!connector.encryptedApiKey) {
+        return {
+          message: 'API key not found. Please reconfigure the connector.',
+          errorCode: 'validation',
+        }
+      }
+      accessToken = (await decryptApiKey(connector.encryptedApiKey)).decrypted
+    } else {
+      if (!connector.credentialId) {
+        return {
+          message: 'OAuth credential not found. Please reconfigure the connector.',
+          errorCode: 'validation',
+        }
+      }
+      if (!workspaceId) {
+        return {
+          message: 'Knowledge base is missing workspace context',
+          errorCode: 'conflict',
+        }
+      }
+      const identity = await resolveCredentialTokenIdentity(connector.credentialId, workspaceId)
+      if (!identity) {
+        return {
+          message: 'Credential is no longer usable in this workspace. Please reconnect it.',
+          errorCode: 'validation',
+        }
+      }
+      accessToken = await refreshAccessTokenIfNeeded(
+        connector.credentialId,
+        // Service accounts mint their own token and ignore the acting user.
+        identity.kind === 'oauth' ? identity.userId : actingUserId,
+        `patch-${connectorId}`
+      )
+    }
+
+    if (!accessToken) {
+      // A stale stored credential, not an unauthenticated caller — but the route
+      // has always answered 401 here, so keep that rather than silently
+      // reclassifying it as part of this refactor.
+      return {
+        message: 'Failed to refresh access token. Please reconnect your account.',
+        errorCode: 'unauthorized',
+      }
+    }
+
+    const validation = await connectorConfig.validateConfig(accessToken, sourceConfig)
+    return validation.valid
+      ? null
+      : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
+  }
+}
+
+/**
  * PATCH /api/knowledge/[id]/connectors/[connectorId] - Update a connector
  */
 export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await context.params
 
-  try {
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const writeCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
-    if (!writeCheck.hasAccess) {
-      const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
-      return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
-    }
-
-    const parsed = await parseRequest(updateKnowledgeConnectorContract, request, context)
-    if (!parsed.success) return parsed.response
-    const body = parsed.data.body
-
-    if (
-      body.syncIntervalMinutes !== undefined &&
-      body.syncIntervalMinutes > 0 &&
-      body.syncIntervalMinutes < 60
-    ) {
-      const workspaceId = writeCheck.knowledgeBase.workspaceId
-      if (!workspaceId) {
-        return NextResponse.json(
-          { error: 'Knowledge base is missing workspace billing context' },
-          { status: 409 }
-        )
-      }
-      const canUseLiveSync = await hasWorkspaceLiveSyncAccess(workspaceId)
-      if (!canUseLiveSync) {
-        return NextResponse.json(
-          { error: 'Live sync requires a Max or Enterprise plan' },
-          { status: 403 }
-        )
-      }
-    }
-
-    if (body.sourceConfig !== undefined) {
-      const existingRows = await db
-        .select()
-        .from(knowledgeConnector)
-        .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
-        )
-        .limit(1)
-
-      if (existingRows.length === 0) {
-        return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
-      }
-
-      const existing = existingRows[0]
-      const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
-
-      if (!connectorConfig) {
-        return NextResponse.json(
-          { error: `Unknown connector type: ${existing.connectorType}` },
-          { status: 400 }
-        )
-      }
-
-      let accessToken: string | null = null
-      if (connectorConfig.auth.mode === 'apiKey') {
-        if (!existing.encryptedApiKey) {
-          return NextResponse.json(
-            { error: 'API key not found. Please reconfigure the connector.' },
-            { status: 400 }
-          )
-        }
-        accessToken = (await decryptApiKey(existing.encryptedApiKey)).decrypted
-      } else {
-        if (!existing.credentialId) {
-          return NextResponse.json(
-            { error: 'OAuth credential not found. Please reconfigure the connector.' },
-            { status: 400 }
-          )
-        }
-        const connectorWorkspaceId = writeCheck.knowledgeBase.workspaceId
-        if (!connectorWorkspaceId) {
-          return NextResponse.json(
-            { error: 'Knowledge base is missing workspace context' },
-            { status: 409 }
-          )
-        }
-        /**
-         * Resolve the credential's own account owner, not the knowledge base owner:
-         * workspace credentials are shared, and token reads are scoped to
-         * `account.userId`.
-         */
-        const identity = await resolveCredentialTokenIdentity(
-          existing.credentialId,
-          connectorWorkspaceId
-        )
-        if (!identity) {
-          return NextResponse.json(
-            { error: 'Credential is no longer usable in this workspace. Please reconnect it.' },
-            { status: 400 }
-          )
-        }
-        accessToken = await refreshAccessTokenIfNeeded(
-          existing.credentialId,
-          // Service accounts mint their own token and ignore the acting user.
-          identity.kind === 'oauth' ? identity.userId : auth.userId,
-          `patch-${connectorId}`
-        )
-      }
-
-      if (!accessToken) {
-        return NextResponse.json(
-          { error: 'Failed to refresh access token. Please reconnect your account.' },
-          { status: 401 }
-        )
-      }
-
-      const validation = await connectorConfig.validateConfig(accessToken, body.sourceConfig)
-      if (!validation.valid) {
-        return NextResponse.json(
-          { error: validation.error || 'Invalid source configuration' },
-          { status: 400 }
-        )
-      }
-    }
-
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (body.sourceConfig !== undefined) {
-      updates.sourceConfig = body.sourceConfig
-    }
-    if (body.syncIntervalMinutes !== undefined) {
-      updates.syncIntervalMinutes = body.syncIntervalMinutes
-      if (body.syncIntervalMinutes > 0) {
-        updates.nextSyncAt = new Date(Date.now() + body.syncIntervalMinutes * 60 * 1000)
-      } else {
-        updates.nextSyncAt = null
-      }
-    }
-    if (body.status !== undefined) {
-      updates.status = body.status
-      if (body.status === 'active') {
-        updates.consecutiveFailures = 0
-        updates.lastSyncError = null
-        if (updates.nextSyncAt === undefined) {
-          updates.nextSyncAt = new Date()
-        }
-      }
-    }
-
-    await db
-      .update(knowledgeConnector)
-      .set(updates)
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-
-    const updated = await db
-      .select()
-      .from(knowledgeConnector)
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-      .limit(1)
-
-    const { encryptedApiKey: __, ...updatedData } = updated[0]
-
-    recordAudit({
-      workspaceId: writeCheck.knowledgeBase.workspaceId,
-      actorId: auth.userId,
-      actorName: auth.userName,
-      actorEmail: auth.userEmail,
-      action: AuditAction.CONNECTOR_UPDATED,
-      resourceType: AuditResourceType.CONNECTOR,
-      resourceId: connectorId,
-      resourceName: updatedData.connectorType,
-      description: `Updated connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: {
-        knowledgeBaseId,
-        knowledgeBaseName: writeCheck.knowledgeBase.name,
-        connectorType: updatedData.connectorType,
-        updatedFields: Object.keys(parsed.data),
-        ...(body.syncIntervalMinutes !== undefined && {
-          syncIntervalMinutes: body.syncIntervalMinutes,
-        }),
-        ...(body.status !== undefined && { newStatus: body.status }),
-      },
-      request,
-    })
-
-    return NextResponse.json({ success: true, data: updatedData })
-  } catch (error) {
-    logger.error(`[${requestId}] Error updating connector`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const writeCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
+  if (!writeCheck.hasAccess) {
+    const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
+    return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
+  }
+
+  const parsed = await parseRequest(updateKnowledgeConnectorContract, request, context)
+  if (!parsed.success) return parsed.response
+
+  const outcome = await performUpdateKnowledgeConnector({
+    knowledgeBase: {
+      id: knowledgeBaseId,
+      name: writeCheck.knowledgeBase.name,
+      workspaceId: writeCheck.knowledgeBase.workspaceId ?? null,
+    },
+    connectorId,
+    updates: parsed.data.body,
+    validateSourceConfig: makeSourceConfigValidator(
+      auth.userId,
+      writeCheck.knowledgeBase.workspaceId ?? null,
+      connectorId
+    ),
+    userId: auth.userId,
+    actorName: auth.userName,
+    actorEmail: auth.userEmail,
+    source: 'ui',
+    requestId,
+    request,
+  })
+  if (!outcome.success) {
+    return NextResponse.json(
+      { error: messageForOrchestrationError(outcome, 'Internal server error') },
+      { status: statusForOrchestrationError(outcome.errorCode) }
+    )
+  }
+
+  return NextResponse.json({ success: true, data: outcome.connector })
 })
 
 /**
  * DELETE /api/knowledge/[id]/connectors/[connectorId] - Hard-delete a connector
  */
-export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+export const DELETE = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const { id: knowledgeBaseId, connectorId } = await context.params
 
-  try {
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const writeCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
-    if (!writeCheck.hasAccess) {
-      const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
-      return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
-    }
-
-    const existingConnector = await db
-      .select({ id: knowledgeConnector.id, connectorType: knowledgeConnector.connectorType })
-      .from(knowledgeConnector)
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-      .limit(1)
-
-    if (existingConnector.length === 0) {
-      return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const deleteDocuments = searchParams.get('deleteDocuments') === 'true'
-
-    const { deletedDocs, docCount } = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
-
-      // Includes pending-removal (tombstoned) docs — the connector is being
-      // deleted, so there's no future sync left to confirm or resurrect them.
-      const docs = await tx
-        .select({ id: document.id, fileUrl: document.fileUrl })
-        .from(document)
-        .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
-
-      const documentIds = docs.map((doc) => doc.id)
-      if (deleteDocuments) {
-        if (documentIds.length > 0) {
-          await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
-          await tx.delete(document).where(inArray(document.id, documentIds))
-        }
-      } else if (documentIds.length > 0) {
-        // Kept documents become normal standalone KB entries once their connector
-        // is gone — resurrect any pending-removal ones rather than leaving them
-        // invisible tombstones with no future sync left to ever confirm or
-        // resurrect them.
-        await tx.update(document).set({ deletedAt: null }).where(inArray(document.id, documentIds))
-      }
-
-      const deletedConnectors = await tx
-        .delete(knowledgeConnector)
-        .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
-        )
-        .returning({ id: knowledgeConnector.id })
-
-      if (deletedConnectors.length === 0) {
-        throw new Error('Connector not found')
-      }
-
-      return { deletedDocs: deleteDocuments ? docs : [], docCount: docs.length }
-    })
-
-    const kbWorkspaceId = writeCheck.knowledgeBase?.workspaceId ?? null
-
-    if (deleteDocuments) {
-      await Promise.all([
-        deletedDocs.length > 0
-          ? deleteDocumentStorageFiles(
-              deletedDocs.map((doc) => ({ ...doc, workspaceId: kbWorkspaceId })),
-              requestId
-            )
-          : Promise.resolve(),
-        cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
-          logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
-        }),
-      ])
-    }
-
-    logger.info(
-      `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
-    )
-
-    captureServerEvent(
-      auth.userId,
-      'knowledge_base_connector_removed',
-      {
-        knowledge_base_id: knowledgeBaseId,
-        workspace_id: kbWorkspaceId ?? '',
-        connector_type: existingConnector[0].connectorType,
-        documents_deleted: deleteDocuments ? docCount : 0,
-      },
-      kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
-    )
-
-    recordAudit({
-      workspaceId: writeCheck.knowledgeBase.workspaceId,
-      actorId: auth.userId,
-      actorName: auth.userName,
-      actorEmail: auth.userEmail,
-      action: AuditAction.CONNECTOR_DELETED,
-      resourceType: AuditResourceType.CONNECTOR,
-      resourceId: connectorId,
-      resourceName: existingConnector[0].connectorType,
-      description: `Deleted connector from knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: {
-        knowledgeBaseId,
-        knowledgeBaseName: writeCheck.knowledgeBase.name,
-        connectorType: existingConnector[0].connectorType,
-        deleteDocuments,
-        documentsDeleted: deleteDocuments ? docCount : 0,
-        documentsKept: deleteDocuments ? 0 : docCount,
-      },
-      request,
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    logger.error(`[${requestId}] Error deleting connector`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const writeCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
+  if (!writeCheck.hasAccess) {
+    const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
+    return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
+  }
+
+  const parsed = await parseRequest(deleteKnowledgeConnectorContract, request, context)
+  if (!parsed.success) return parsed.response
+
+  const outcome = await performDeleteKnowledgeConnector({
+    knowledgeBase: {
+      id: knowledgeBaseId,
+      name: writeCheck.knowledgeBase.name,
+      workspaceId: writeCheck.knowledgeBase.workspaceId ?? null,
+    },
+    connectorId,
+    deleteDocuments: parsed.data.query.deleteDocuments,
+    userId: auth.userId,
+    actorName: auth.userName,
+    actorEmail: auth.userEmail,
+    source: 'ui',
+    requestId,
+    request,
+  })
+  if (!outcome.success) {
+    return NextResponse.json(
+      { error: messageForOrchestrationError(outcome, 'Internal server error') },
+      { status: statusForOrchestrationError(outcome.errorCode) }
+    )
+  }
+
+  return NextResponse.json({ success: true })
 })

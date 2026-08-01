@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -346,7 +347,7 @@ export async function assertWorkspaceFileFolderTarget(
 
   const folder = await getWorkspaceFileFolder(workspaceId, normalized)
   if (!folder) {
-    throw new Error('Target folder not found')
+    throw new OrchestrationError('not_found', 'Target folder not found')
   }
 
   return normalized
@@ -380,7 +381,7 @@ export async function createWorkspaceFileFolder(params: {
         .limit(1)
 
       if (!target) {
-        throw new Error('Target folder not found')
+        throw new OrchestrationError('not_found', 'Target folder not found')
       }
     }
 
@@ -558,7 +559,7 @@ export async function updateWorkspaceFileFolder(params: {
       )
       .limit(1)
 
-    if (!existing) throw new Error('Folder not found')
+    if (!existing) throw new OrchestrationError('not_found', 'Folder not found')
 
     const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
     const finalName =
@@ -568,7 +569,8 @@ export async function updateWorkspaceFileFolder(params: {
     const finalParentId =
       params.parentId !== undefined ? normalizeParentId(params.parentId) : existing.parentId
 
-    if (finalParentId === params.folderId) throw new Error('Folder cannot be its own parent')
+    if (finalParentId === params.folderId)
+      throw new OrchestrationError('validation', 'Folder cannot be its own parent')
 
     if (finalParentId) {
       const [target] = await tx
@@ -585,7 +587,7 @@ export async function updateWorkspaceFileFolder(params: {
         .limit(1)
 
       if (!target) {
-        throw new Error('Target folder not found')
+        throw new OrchestrationError('not_found', 'Target folder not found')
       }
     }
 
@@ -603,7 +605,10 @@ export async function updateWorkspaceFileFolder(params: {
 
       const descendants = collectDescendantFolderIds(activeFolders, params.folderId)
       if (finalParentId && descendants.includes(finalParentId)) {
-        throw new Error('Cannot move a folder into one of its descendants')
+        throw new OrchestrationError(
+          'validation',
+          'Cannot move a folder into one of its descendants'
+        )
       }
     }
 
@@ -653,7 +658,7 @@ export async function updateWorkspaceFileFolder(params: {
         )
         .returning()
 
-      if (!updatedFolder) throw new Error('Folder not found')
+      if (!updatedFolder) throw new OrchestrationError('not_found', 'Folder not found')
       return updatedFolder
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
@@ -717,12 +722,12 @@ export async function moveWorkspaceFileItems(params: {
         .limit(1)
 
       if (!target) {
-        throw new Error('Target folder not found')
+        throw new OrchestrationError('not_found', 'Target folder not found')
       }
     }
 
     if (folderIds.includes(targetFolderId ?? '')) {
-      throw new Error('Cannot move a folder into itself')
+      throw new OrchestrationError('validation', 'Cannot move a folder into itself')
     }
 
     if (folderIds.length > 0) {
@@ -740,7 +745,10 @@ export async function moveWorkspaceFileItems(params: {
       for (const folderId of folderIds) {
         const descendants = collectDescendantFolderIds(activeFolders, folderId)
         if (targetFolderId && descendants.includes(targetFolderId)) {
-          throw new Error('Cannot move a folder into one of its descendants')
+          throw new OrchestrationError(
+            'validation',
+            'Cannot move a folder into one of its descendants'
+          )
         }
       }
     }
@@ -891,7 +899,7 @@ export async function archiveWorkspaceFileFolderRecursive(
       )
       .limit(1)
 
-    if (!folder) throw new Error('Folder not found')
+    if (!folder) throw new OrchestrationError('not_found', 'Folder not found')
 
     const activeFolders = await tx
       .select({ id: folderTable.id, parentId: folderTable.parentId })
@@ -944,7 +952,7 @@ export async function restoreWorkspaceFileFolder(
 ): Promise<WorkspaceFileFolderRestoreResult> {
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
-    throw new Error('Cannot restore folder into an archived workspace')
+    throw new OrchestrationError('validation', 'Cannot restore folder into an archived workspace')
   }
 
   const { restored, restoredItems } = await db.transaction(async (tx) => {
@@ -959,8 +967,8 @@ export async function restoreWorkspaceFileFolder(
       .limit(1)
       .then((rows) => rows[0] ?? null)
 
-    if (!raw) throw new Error('Folder not found')
-    if (!raw.deletedAt) throw new Error('Folder is not archived')
+    if (!raw) throw new OrchestrationError('not_found', 'Folder not found')
+    if (!raw.deletedAt) throw new OrchestrationError('validation', 'Folder is not archived')
 
     const folderDeletedAt = raw.deletedAt
 

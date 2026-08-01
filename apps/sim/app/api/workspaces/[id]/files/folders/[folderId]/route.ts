@@ -6,12 +6,12 @@ import {
 } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   performDeleteWorkspaceFileItems,
   performUpdateWorkspaceFileFolder,
-  workspaceFilesOrchestrationStatus,
 } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -47,7 +47,7 @@ export const PATCH = withRouteHandler(
       if (!result.success || !result.folder) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
+          { status: statusForOrchestrationError(result.errorCode) }
         )
       }
       captureServerEvent(

@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -8,8 +7,12 @@ import {
   v1GetKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteDocument } from '@/lib/knowledge/documents/service'
+import { performDeleteKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
@@ -152,19 +155,24 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Document not found' }, { status: 404 })
       }
 
-      await deleteDocument(documentId, requestId)
-
-      recordAudit({
-        workspaceId: parsed.data.query.workspaceId,
-        actorId: userId,
-        action: AuditAction.DOCUMENT_DELETED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: documentId,
-        resourceName: docs[0].filename,
-        description: `Deleted document "${docs[0].filename}" from knowledge base via API`,
-        metadata: { knowledgeBaseId },
+      const outcome = await performDeleteKnowledgeDocument({
+        knowledgeBase: {
+          id: knowledgeBaseId,
+          name: result.kb.name,
+          workspaceId: parsed.data.query.workspaceId,
+        },
+        document: { id: documentId, filename: docs[0].filename },
+        userId,
+        source: 'api',
+        requestId,
         request,
       })
+      if (!outcome.success) {
+        return NextResponse.json(
+          { error: messageForOrchestrationError(outcome, 'Failed to delete document') },
+          { status: statusForOrchestrationError(outcome.errorCode) }
+        )
+      }
 
       return NextResponse.json({
         success: true,

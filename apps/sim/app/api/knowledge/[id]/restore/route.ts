@@ -4,6 +4,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { restoreKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -45,12 +49,17 @@ export const POST = withRouteHandler(
       const result = await performRestoreKnowledgeBase({
         knowledgeBaseId: id,
         userId: auth.userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        source: 'ui',
         requestId,
+        request,
       })
       if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 500
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: messageForOrchestrationError(result, 'Failed to restore knowledge base') },
+          { status: statusForOrchestrationError(result.errorCode) }
+        )
       }
 
       logger.info(`[${requestId}] Restored knowledge base ${id}`)
