@@ -256,10 +256,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         }
       }
 
-      // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
-      // awaits above bumped the generation, or the socket disconnected. Abort before registering.
-      if (superseded()) return
-
       // Re-check access too: the access re-validation sweep records a revocation BEFORE
       // it evicts, so a join that authorized just before the revocation must not
       // complete afterwards and put the socket back in the room. RE-RESOLVES rather
@@ -276,6 +272,12 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         })
         return
       }
+
+      // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
+      // awaits above — including the access re-resolve — bumped the generation, or the socket
+      // disconnected. This is the LAST await before registering, so nothing can interleave
+      // between it and the commit.
+      if (superseded()) return
 
       socket.join(roomName(room))
 

@@ -104,10 +104,6 @@ export function setupWorkspaceInvalidationRoom(
       })
       if (!authorized) return
 
-      // A newer join started on this socket during authorize (or it dropped): abort so a
-      // stale join can't leave the room the client has since switched to.
-      if (joinGeneration !== joinAttempt || socket.disconnected) return
-
       // Re-check access before committing: the access re-validation sweep records a
       // revocation BEFORE it evicts, so a join that authorized just before the
       // revocation must not complete afterwards and put the socket back in the room.
@@ -129,6 +125,11 @@ export function setupWorkspaceInvalidationRoom(
         })
         return
       }
+
+      // A newer join started on this socket during the awaits above — including the access
+      // re-resolve — or it dropped: abort so a stale join can't leave the room the client has
+      // since switched to. Last await before the commit, so nothing interleaves after it.
+      if (joinGeneration !== joinAttempt || socket.disconnected) return
 
       // Leave any previously-joined room of this type (workspace switch), read straight from the
       // socket's native room membership so there's no presence store to keep in sync.
