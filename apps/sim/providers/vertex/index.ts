@@ -35,7 +35,13 @@ export const vertexProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     const vertexProject = request.vertexProject || env.VERTEX_PROJECT
-    const vertexLocation = request.vertexLocation || env.VERTEX_LOCATION || 'us-central1'
+    // Hostnames are case-insensitive, so a mixed-case location reaches Google fine
+    // today. Normalize before validating rather than rejecting it as malformed.
+    const vertexLocation = (
+      request.vertexLocation ||
+      env.VERTEX_LOCATION ||
+      'us-central1'
+    ).toLowerCase()
 
     if (!vertexProject) {
       throw new Error(

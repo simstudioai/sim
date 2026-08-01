@@ -91,6 +91,12 @@ describe('vertexProvider location and project validation', () => {
     expect(mockExecuteGeminiRequest).toHaveBeenCalledTimes(1)
   })
 
+  it('normalizes a mixed-case location rather than rejecting it', async () => {
+    await vertexProvider.executeRequest(request({ vertexLocation: 'US-Central1' }))
+
+    expect(genAIArgs[0]).toMatchObject({ location: 'us-central1' })
+  })
+
   it('defaults to us-central1 when no location is supplied', async () => {
     await vertexProvider.executeRequest(request())
 
