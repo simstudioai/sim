@@ -153,6 +153,49 @@ describe('single-resource rendering', () => {
     expect(printed.join('\n')).toMatch(/Deepwiki/)
   })
 
+  it('renders nested fields instead of dropping them', async () => {
+    // `workflows export` printed `version` and `exportedAt` and nothing else:
+    // the record builder kept only scalars, so `workflow` and `state` — the
+    // entire export — vanished with no indication anything was missing.
+    const printed = await lines(
+      ['workflows', 'get', 'wf_1'],
+      { id: 'wf_1', name: 'Onboarding', inputs: [{ name: 'email', type: 'string' }] },
+      'text'
+    )
+
+    expect(printed.join('\n')).toMatch(/inputs/)
+    expect(printed.join('\n')).toMatch(/email/)
+  })
+
+  it('truncates a nested value rather than flooding the terminal', async () => {
+    const printed = await lines(
+      ['workflows', 'get', 'wf_1'],
+      { id: 'wf_1', state: { blocks: 'x'.repeat(5000) } },
+      'text'
+    )
+
+    const stateLine = printed.find((line) => line.startsWith('state')) ?? ''
+    expect(stateLine.length).toBeLessThan(300)
+    expect(stateLine).toMatch(/…$/)
+  })
+
+  it('emits a document command as JSON whatever the display format is', async () => {
+    // Redirecting this to a file has to yield something `import` accepts, so
+    // `table`/`text` — which flatten and truncate — must not be honoured here.
+    const printed = await lines(
+      ['workflows', 'export', 'wf_1'],
+      { version: '1.0', exportedAt: 'now', workflow: { id: 'wf_1' }, state: { blocks: {} } },
+      'text'
+    )
+
+    expect(JSON.parse(printed.join('\n'))).toEqual({
+      version: '1.0',
+      exportedAt: 'now',
+      workflow: { id: 'wf_1' },
+      state: { blocks: {} },
+    })
+  })
+
   it('leaves a payload with sibling keys intact', async () => {
     // `upsertTableRow` returns `{ row, operation }` — two real fields, not an
     // envelope. Unwrapping there would drop whether it inserted or updated.

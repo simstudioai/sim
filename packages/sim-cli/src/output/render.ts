@@ -201,6 +201,21 @@ export function printList<T>(format: OutputFormat, rows: T[], columns: Column<T>
   console.log(renderTable(rows, columns))
 }
 
+/**
+ * Prints a payload whose value IS the deliverable — `workflows export`, which
+ * is meant to be redirected to a file and fed back to `import`.
+ *
+ * `table` and `text` are display formats: they flatten, truncate and colour, so
+ * neither can round-trip a document. Rather than emit something that looks like
+ * an export but cannot be re-imported, those two fall back to JSON. Only `yaml`
+ * is honoured, because it round-trips.
+ */
+export function printDocument(format: OutputFormat, raw: unknown): void {
+  console.log(
+    format === 'yaml' ? (renderMachine('yaml', raw) as string) : JSON.stringify(raw, null, 2)
+  )
+}
+
 /** Prints a single record: machine formats from the raw value, otherwise aligned lines. */
 export function printRecord(format: OutputFormat, fields: Array<[string, string]>, raw: unknown) {
   const machine = renderMachine(format, raw)

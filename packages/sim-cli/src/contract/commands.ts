@@ -200,6 +200,14 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
+  // ─── Documents, not records ───────────────────────────────────────────────
+  // The payload is the artifact: `sim workflows export <id> > wf.json` has to
+  // produce something `sim workflows import` accepts back.
+  exportWorkflow: {
+    describe: 'Print a workflow as a portable JSON document',
+    document: true,
+  },
+
   // ─── Execution ────────────────────────────────────────────────────────────
   // The derived names land badly here: `/execute` and `/cancel` are verbs in
   // the path, but neither is in the action list, so POST would derive

@@ -84,6 +84,15 @@ export interface CommandSpec {
    * the point is that the caller can tell whether they meant it.
    */
   confirm?: string
+  /**
+   * The response IS a document, not a record to look at.
+   *
+   * `workflows export` exists to be redirected into a file and fed back to
+   * `import`, so a key/value view of it is wrong at any fidelity — the useful
+   * artifact is the payload itself. Document commands emit raw JSON (or YAML
+   * when the profile says so) whatever the profile's display format is.
+   */
+  document?: boolean
   /** Keep the operation out of the CLI surface entirely. */
   hidden?: boolean
 }

@@ -8,6 +8,7 @@ import {
   bytes,
   type Column,
   duration,
+  printDocument,
   printList,
   printRecord,
   sanitize,
@@ -54,6 +55,25 @@ function renderCell(value: unknown, format: ColumnSpec['format']): string {
       // Server-supplied: strip terminal control sequences before it can reach a tty.
       return sanitize(typeof value === 'object' ? JSON.stringify(value) : String(value))
   }
+}
+
+/**
+ * How wide a nested value may get before a record line stops being readable.
+ * A workflow's `state` serializes to tens of kilobytes on one line.
+ */
+const NESTED_CELL_WIDTH = 160
+
+/**
+ * A field in a record view.
+ *
+ * Nested values are rendered, not skipped: a record that quietly omits half of
+ * what the server sent is worse than a long line, because nothing tells the
+ * caller anything is missing. Long ones are cut with an ellipsis — visibly
+ * partial, and `sim configure --set-output json` prints them whole.
+ */
+function recordCell(value: unknown): string {
+  const rendered = renderCell(value, 'auto')
+  return rendered.length > NESTED_CELL_WIDTH ? `${rendered.slice(0, NESTED_CELL_WIDTH)}…` : rendered
 }
 
 function columnsFrom(specs: ColumnSpec[]): Column<unknown>[] {
@@ -282,7 +302,14 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
       query: request.query,
       body: request.body,
     })
-    const data = unwrapResource(result?.data ?? result)
+    const raw = result?.data ?? result
+
+    if (spec.document) {
+      printDocument(profile.output, raw)
+      return
+    }
+
+    const data = unwrapResource(raw)
 
     if (Array.isArray(data)) {
       // Reached when a non-paginated operation answers with a collection.
@@ -291,11 +318,11 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
       return
     }
 
+    // Every field, nested ones included. Filtering to scalars here is what made
+    // `workflows export` print its two timestamps and drop the actual workflow.
     const fields: Array<[string, string]> =
-      data && typeof data === 'object' && !Array.isArray(data)
-        ? Object.entries(data)
-            .filter(([, value]) => value === null || typeof value !== 'object')
-            .map(([key, value]) => [key, renderCell(value, 'auto')])
+      data && typeof data === 'object'
+        ? Object.entries(data).map(([key, value]) => [key, recordCell(value)])
         : []
 
     printRecord(profile.output, fields, data)
