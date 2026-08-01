@@ -83,6 +83,25 @@ export interface NormalizedSelection {
   anchorCol: number
 }
 
+/**
+ * Whether a (row, col) index pair falls inside a normalized selection rectangle.
+ * Row/col may be `undefined` (e.g. an id that didn't resolve to an index) → `false`.
+ */
+export function isCellInSelection(
+  row: number | undefined,
+  col: number | undefined,
+  sel: NormalizedSelection
+): boolean {
+  return (
+    row !== undefined &&
+    col !== undefined &&
+    row >= sel.startRow &&
+    row <= sel.endRow &&
+    col >= sel.startCol &&
+    col <= sel.endCol
+  )
+}
+
 /** A run of consecutive `displayColumns` rendered together in the meta header row. */
 export type HeaderGroup =
   | { kind: 'plain'; size: 1; startColIndex: number }

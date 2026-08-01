@@ -40,6 +40,7 @@ import {
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -122,7 +123,12 @@ export const Panel = memo(function Panel() {
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { activeTab, setActiveTab, _hasHydrated, setHasHydrated } = usePanelStore(
+  const {
+    activeTab: storedActiveTab,
+    setActiveTab,
+    _hasHydrated,
+    setHasHydrated,
+  } = usePanelStore(
     useShallow((state) => ({
       activeTab: state.activeTab,
       setActiveTab: state.setActiveTab,
@@ -146,6 +152,16 @@ export const Panel = memo(function Panel() {
   // Hooks
   const userPermissions = useUserPermissionsContext()
   const { config: permissionConfig } = usePermissionConfig()
+
+  /**
+   * The Chat tab is hidden when the deployment has Chat off, or when the user's
+   * permission group hides it. Tab bodies stay mounted and are toggled with
+   * `hidden`, so a persisted `activeTab: 'copilot'` would hide all three and
+   * paint an empty panel — resolve it to the toolbar instead.
+   */
+  const isCopilotTabAvailable = isChatEnabled && !permissionConfig.hideCopilot
+  const activeTab: PanelTab =
+    storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
@@ -257,7 +273,7 @@ export const Panel = memo(function Panel() {
   )
 
   const { data: copilotChatList = EMPTY_COPILOT_CHATS } = useCopilotChats(
-    activeWorkflowId ?? undefined
+    isCopilotTabAvailable ? (activeWorkflowId ?? undefined) : undefined
   )
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
@@ -278,7 +294,10 @@ export const Panel = memo(function Panel() {
   // chat was deleted in another tab).
   const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
   useEffect(() => {
-    if (!activeWorkflowId) return
+    // The list query is skipped when the tab is unavailable, so an empty list
+    // there means "not fetched", not "deleted elsewhere" — clearing on it would
+    // discard the selection and latch the ref against ever restoring it.
+    if (!activeWorkflowId || !isCopilotTabAvailable) return
 
     if (copilotChatId && !copilotChatList.find((c) => c.id === copilotChatId)) {
       setCopilotChatId(undefined)
@@ -290,7 +309,7 @@ export const Panel = memo(function Panel() {
     if (copilotChatList.length === 0) return
     autoSelectAttemptedForRef.current.add(activeWorkflowId)
     setCopilotChatId(copilotChatList[0].id)
-  }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
+  }, [copilotChatList, copilotChatId, activeWorkflowId, isCopilotTabAvailable, setCopilotChatId])
 
   useEffect(() => {
     posthogRef.current = posthog
@@ -456,7 +475,15 @@ export const Panel = memo(function Panel() {
     setHasHydrated(true)
   }, [setHasHydrated])
 
+  /**
+   * Only claims handoffs while the Chat tab can actually receive them. The
+   * handler's `preventDefault()` is what tells `sendMothershipMessage` a host
+   * consumed the message, so listening with the tab hidden would swallow it and
+   * skip the caller's own fallback.
+   */
   useEffect(() => {
+    if (!isCopilotTabAvailable) return
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
@@ -466,7 +493,7 @@ export const Panel = memo(function Panel() {
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
-  }, [setActiveTab, copilotSendMessage])
+  }, [isCopilotTabAvailable, setActiveTab, copilotSendMessage])
 
   useEffect(() => {
     if (activeTab !== 'copilot') return
@@ -759,7 +786,7 @@ export const Panel = memo(function Panel() {
           {/* Tabs */}
           <div className='flex flex-shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
-              {!permissionConfig.hideCopilot && (
+              {isCopilotTabAvailable && (
                 <Button
                   className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
                     _hasHydrated && activeTab === 'copilot'
@@ -802,7 +829,7 @@ export const Panel = memo(function Panel() {
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
           <div className='flex-1 overflow-hidden pt-3'>
-            {!permissionConfig.hideCopilot && (
+            {isCopilotTabAvailable && (
               <div
                 className={
                   _hasHydrated && activeTab === 'copilot'

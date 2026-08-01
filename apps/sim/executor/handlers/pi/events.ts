@@ -136,8 +136,23 @@ export function normalizePiEvent(raw: unknown): PiEvent | null {
       const usage = extractUsage(ev)
       return usage ? { type: 'usage', ...usage } : { type: 'other' }
     }
-    case 'agent_end':
+    case 'agent_end': {
+      if (ev.willRetry === true) return { type: 'other' }
+      const messages = Array.isArray(ev.messages) ? ev.messages : []
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        const message = asRecord(messages[index])
+        if (!message || asString(message.role) !== 'assistant') continue
+        const stopReason = asString(message.stopReason)
+        if (stopReason === 'error' || stopReason === 'aborted') {
+          return {
+            type: 'error',
+            message: asString(message.errorMessage) || `Pi request ${stopReason}`,
+          }
+        }
+        break
+      }
       return { type: 'final' }
+    }
     case 'error':
       return {
         type: 'error',

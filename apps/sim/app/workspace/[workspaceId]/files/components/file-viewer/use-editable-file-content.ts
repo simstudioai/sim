@@ -61,6 +61,13 @@ interface UseEditableFileContentOptions {
    * the at-rest baseline, never while an agent stream is in flight. Stable reference required.
    */
   normalizeBaseline?: (raw: string) => string
+  /**
+   * Extra gate on autosave (and draft persistence). When `false`, saving is
+   * suppressed even when otherwise eligible — the collaborative editor uses it to
+   * hold saves until the shared document is synced AND seeded, so an empty or
+   * partially-synced doc can never overwrite the real file. Defaults to `true`.
+   */
+  canAutosave?: boolean
 }
 
 interface EditableFileContent {
@@ -136,6 +143,7 @@ export function useEditableFileContent({
   saveRef,
   discardRef,
   normalizeBaseline,
+  canAutosave = true,
 }: UseEditableFileContentOptions): EditableFileContent {
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
@@ -234,7 +242,7 @@ export function useEditableFileContent({
     [workspaceId, file.id, markSavedContent]
   )
 
-  const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
+  const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked && canAutosave
 
   const { saveStatus, saveImmediately, isDirty, discard } = useAutosave({
     content,
@@ -249,9 +257,16 @@ export function useEditableFileContent({
       ),
   })
 
+  // When the client can't autosave it isn't the durability owner: the collaborative editor holds
+  // `canAutosave` permanently false because the relay persists the doc server-side (debounced + on
+  // last-disconnect), so `savedContent` never advances and raw `isDirty` would latch true after any
+  // local OR remote keystroke — surfacing a spurious "Unsaved changes" navigation prompt whose
+  // "Discard" discards nothing real. With nothing the user can save, there is nothing to warn about.
+  const isDirtyForCaller = canAutosave && isDirty
+
   useEffect(() => {
-    onDirtyChangeRef.current?.(isDirty)
-  }, [isDirty])
+    onDirtyChangeRef.current?.(isDirtyForCaller)
+  }, [isDirtyForCaller])
 
   useEffect(() => {
     onSaveStatusChangeRef.current?.(
@@ -299,6 +314,6 @@ export function useEditableFileContent({
     hasContentError: streamingContent === undefined && Boolean(error) && !isInitialized,
     saveStatus,
     saveImmediately,
-    isDirty,
+    isDirty: isDirtyForCaller,
   }
 }

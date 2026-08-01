@@ -19,6 +19,7 @@ import {
   updateTableLocks,
 } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
@@ -185,6 +186,8 @@ export const PATCH = withRouteHandler(
 
       if (validated.name !== undefined) {
         await renameTable(tableId, validated.name, requestId, authResult.userId)
+        // Live-collab: tell open viewers the definition changed so they refetch.
+        signalTableSchemaChanged(tableId)
       }
 
       if (validated.folderId !== undefined) {

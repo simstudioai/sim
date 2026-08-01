@@ -174,9 +174,43 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
+    // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
+    'jsdom',
+    // The collab-doc converter runs TipTap + Yjs headlessly server-side. Two reasons these must be
+    // external (native Node require), not bundled: (1) the server bundler gives bundled TipTap a
+    // `window` that does NOT read `globalThis`, so `elementFromString` throws "no window object" even
+    // after the converter installs a jsdom window; (2) bundling would load a SECOND copy of `yjs`, so
+    // `@tiptap/y-tiptap`'s `item instanceof Y.XmlElement` checks — against the external `yjs` — would
+    // fail on nodes the app created with the bundled `yjs` ("Unexpected case"). One external copy fixes
+    // both. Server-only — the client editor bundles its own copies for the browser.
+    'yjs',
+    'y-protocols',
+    'lib0',
+    '@tiptap/core',
+    '@tiptap/pm',
+    '@tiptap/markdown',
+    '@tiptap/y-tiptap',
+    '@tiptap/starter-kit',
+    '@tiptap/extension-code',
+    '@tiptap/extension-code-block',
+    '@tiptap/extension-image',
+    '@tiptap/extension-list',
+    '@tiptap/extension-paragraph',
+    '@tiptap/extension-table',
+    '@tiptap/extension-highlight',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
+    // The seed, merge, and persist endpoints all lazily `require('jsdom')` (via the collab-doc
+    // converter), which is invisible to the standalone file tracer, so force jsdom (and its transitive
+    // deps, followed from its static requires) into the trace — otherwise a Docker/standalone build
+    // omits it and the endpoint 500s with MODULE_NOT_FOUND. (The Yjs external stack — yjs/lib0/
+    // y-protocols — is copied whole in docker/app.Dockerfile: its glob would resolve against apps/sim
+    // but those deps hoist to the monorepo root, so a trace include can't reach them.)
+    '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
