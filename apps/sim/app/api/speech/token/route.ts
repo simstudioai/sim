@@ -22,7 +22,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 

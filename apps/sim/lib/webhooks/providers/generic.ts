@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { canonicalizeIp, getAssertedOriginIp } from '@sim/security/client-ip'
 import { NextResponse } from 'next/server'
-import { getClientIp } from '@/lib/core/utils/request'
 import type {
   AuthContext,
   EventFilterContext,
@@ -31,9 +31,26 @@ export const genericHandler: WebhookProviderHandler = {
 
     const allowedIps = providerConfig.allowedIps
     if (allowedIps && Array.isArray(allowedIps) && allowedIps.length > 0) {
-      const clientIp = getClientIp(request)
+      /**
+       * Matches the *asserted* origin — the leftmost forwarded hop — because the
+       * operator's allowlist names the sending service (Stripe, GitHub, …), not
+       * the proxy in front of us. Rate-limit keys deliberately use the opposite
+       * end of the chain; see {@link getAssertedOriginIp} for why this value is
+       * a filter against honest senders rather than authentication. `requireAuth`
+       * is the control that actually authenticates.
+       *
+       * Both sides are canonicalized so an entry written as `::ffff:1.2.3.4` or
+       * `01.02.03.04` still matches the same address on the wire.
+       */
+      const clientIp = getAssertedOriginIp(request)
+      const allowed = new Set(
+        allowedIps.flatMap((entry) => {
+          const canonical = typeof entry === 'string' ? canonicalizeIp(entry) : null
+          return canonical ? [canonical] : []
+        })
+      )
 
-      if (clientIp === 'unknown' || !allowedIps.includes(clientIp)) {
+      if (!clientIp || !allowed.has(clientIp)) {
         logger.warn(`[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`)
         return new NextResponse('Forbidden - IP not allowed', {
           status: 403,

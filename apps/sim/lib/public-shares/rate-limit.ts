@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
 
 const rateLimiter = new RateLimiter()
 

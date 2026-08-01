@@ -1,5 +1,6 @@
 import {
   authMock,
+  clientIpMock,
   databaseMock,
   drizzleOrmMock,
   envFlagsMock,
@@ -38,6 +39,7 @@ vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@/lib/core/utils/client-ip', () => clientIpMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/env', () => envMock)
 vi.mock('@/lib/core/utils/urls', () => urlsMock)

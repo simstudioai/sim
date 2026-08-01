@@ -10,7 +10,7 @@ import {
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
 
 const logger = createLogger('DeploymentAuth')
 
@@ -23,6 +23,31 @@ const rateLimiter = new RateLimiter()
 const PASSWORD_IP_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 10,
   refillRate: 10,
+  refillIntervalMs: 15 * 60_000,
+}
+
+/**
+ * Bounds *consecutive failed* guesses against one deployment secret, keyed on
+ * the resource rather than the caller. The IP bucket above cannot be the only
+ * defense: a distributed caller simply gets a fresh IP bucket per source, which
+ * leaves the secret itself with no ceiling at all.
+ *
+ * A token is consumed per attempt and the bucket is reset the moment a password
+ * verifies, so this counts *consecutive* failures — a resource that anyone is
+ * successfully signing into never drifts toward the limit.
+ *
+ * The ceiling is a deliberate trade, not a free win: because the check must run
+ * before the comparison to be worth anything, an exhausted bucket also rejects
+ * the correct password, so whoever burns it through locks out new visitors for
+ * the rest of the window (holders of an auth cookie are unaffected — that path
+ * returns before this one). It is sized so that only a genuinely distributed
+ * attack can get there: at 10 attempts per IP per window, tripping it takes ~50
+ * distinct source addresses, while still capping blind guessing at 500 per 15
+ * minutes instead of the unbounded rate a single spoofed header used to buy.
+ */
+const PASSWORD_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 500,
+  refillRate: 500,
   refillIntervalMs: 15 * 60_000,
 }
 
@@ -122,10 +147,30 @@ export async function validateDeploymentAuth(
         }
       }
 
+      const resourceKey = `${cookiePrefix}-password:resource:${resource.id}`
+      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+        resourceKey,
+        PASSWORD_RESOURCE_RATE_LIMIT
+      )
+      if (!resourceRateLimit.allowed) {
+        logger.warn(
+          `[${requestId}] Password attempt resource rate limit exceeded for ${resource.id}`
+        )
+        return {
+          authorized: false,
+          error: 'Too many attempts. Please try again later.',
+          status: 429,
+          retryAfterMs:
+            resourceRateLimit.retryAfterMs ?? PASSWORD_RESOURCE_RATE_LIMIT.refillIntervalMs,
+        }
+      }
+
       const { decrypted } = await decryptSecret(resource.password)
       if (!safeCompare(password, decrypted)) {
         return { authorized: false, error: 'Invalid password' }
       }
+
+      await rateLimiter.resetRateLimitBucket(resourceKey)
 
       return { authorized: true }
     } catch (error) {

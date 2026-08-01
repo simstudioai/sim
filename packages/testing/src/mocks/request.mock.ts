@@ -67,7 +67,8 @@ export function createMockFormDataRequest(
 }
 
 /**
- * Controllable mock functions for `@/lib/core/utils/request`.
+ * Controllable mock functions for `@/lib/core/utils/request` and
+ * `@/lib/core/utils/client-ip`.
  *
  * @example
  * ```ts
@@ -92,6 +93,19 @@ export const requestUtilsMockFns = {
  */
 export const requestUtilsMock = {
   generateRequestId: requestUtilsMockFns.mockGenerateRequestId,
-  getClientIp: requestUtilsMockFns.mockGetClientIp,
   noop: () => {},
+}
+
+/**
+ * Static mock module for `@/lib/core/utils/client-ip`. Separate from
+ * {@link requestUtilsMock} because the real module pulls `ipaddr.js` and the
+ * app env, which is exactly why it is not part of `utils/request`.
+ *
+ * @example
+ * ```ts
+ * vi.mock('@/lib/core/utils/client-ip', () => clientIpMock)
+ * ```
+ */
+export const clientIpMock = {
+  getClientIp: requestUtilsMockFns.mockGetClientIp,
 }

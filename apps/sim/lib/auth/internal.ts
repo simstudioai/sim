@@ -3,7 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { jwtVerify, SignJWT } from 'jose'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
 
 const logger = createLogger('CronAuth')
 

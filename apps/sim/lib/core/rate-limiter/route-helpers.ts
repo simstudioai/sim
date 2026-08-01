@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
 
 const logger = createLogger('RouteRateLimit')
 const rateLimiter = new RateLimiter()

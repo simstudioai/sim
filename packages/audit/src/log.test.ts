@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  auditMock,
-  dbChainMock,
-  dbChainMockFns,
-  requestUtilsMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
@@ -75,12 +69,6 @@ describe('recordAudit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    requestUtilsMockFns.mockGetClientIp.mockImplementation(
-      (request: { headers: { get(name: string): string | null } }) =>
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip')?.trim() ||
-        'unknown'
-    )
   })
 
   afterEach(() => {
@@ -139,7 +127,7 @@ describe('recordAudit', () => {
     )
   })
 
-  it('extracts IP address from x-forwarded-for header', async () => {
+  it('records the proxy-supplied x-forwarded-for hop, not the caller-supplied one', async () => {
     const request = new Request('https://example.com', {
       headers: {
         'x-forwarded-for': '1.2.3.4, 5.6.7.8',
@@ -161,9 +149,31 @@ describe('recordAudit', () => {
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
-        ipAddress: '1.2.3.4',
+        ipAddress: '5.6.7.8',
         userAgent: 'TestAgent/1.0',
       })
+    )
+  })
+
+  it('does not let a caller forge the audited IP by prepending to x-forwarded-for', async () => {
+    const request = new Request('https://example.com', {
+      headers: { 'x-forwarded-for': '203.0.113.9, 5.6.7.8' },
+    })
+
+    recordAudit({
+      workspaceId: 'ws-1',
+      actorId: 'user-1',
+      actorName: 'Test',
+      actorEmail: 'test@test.com',
+      action: AuditAction.MEMBER_INVITED,
+      resourceType: AuditResourceType.WORKSPACE,
+      request,
+    })
+
+    await flush()
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ ipAddress: '5.6.7.8' })
     )
   })
 

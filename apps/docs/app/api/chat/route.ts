@@ -1,4 +1,5 @@
 import { openai } from '@ai-sdk/openai'
+import { parseTrustedProxies, resolveClientIp } from '@sim/security/client-ip'
 import {
   convertToModelMessages,
   jsonSchema,
@@ -69,11 +70,21 @@ const RATE_LIMIT_MAX = 20
 const RATE_LIMIT_WINDOW_MS = 60_000
 const rateLimitHits = new Map<string, { count: number; resetAt: number }>()
 
-/** Resolve the client IP from forwarding headers, falling back to a shared bucket. */
+/**
+ * Reverse-proxy hops trusted for forwarded-IP resolution — the same
+ * `AUTH_TRUSTED_PROXIES` the main app reads. Parsed once at module load.
+ */
+const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
+
+/**
+ * Resolve the client IP from forwarding headers, falling back to a shared
+ * bucket. Walks the chain right to left: the leftmost `X-Forwarded-For` entry is
+ * caller-supplied, so keying this limit on it would let anyone rotate the header
+ * to mint a fresh bucket per request — and, on this endpoint, unmetered model
+ * spend plus unbounded growth of `rateLimitHits`. See {@link resolveClientIp}.
+ */
 function getClientIp(req: Request): string {
-  const forwarded = req.headers.get('x-forwarded-for')
-  if (forwarded) return forwarded.split(',')[0].trim()
-  return req.headers.get('x-real-ip') ?? 'unknown'
+  return resolveClientIp(req, trustedProxies)
 }
 
 /** Fixed-window check. Returns retry-after seconds when the caller is over the limit, else null. */

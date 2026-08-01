@@ -80,9 +80,13 @@ app:
     # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
     TRUSTED_ORIGINS: ""
     # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in front of the app
-    # (ingress controller, load balancer). Better Auth walks x-forwarded-for right to left, skips
-    # these hops, and uses the first untrusted address as the client IP. Required for correct
-    # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
+    # (ingress controller, load balancer). Better Auth AND Sim's own per-IP throttles walk
+    # x-forwarded-for right to left, skip these hops, and use the first untrusted address as the
+    # client IP — never the leftmost entry, which the caller supplies and could otherwise be
+    # rotated to mint a fresh rate-limit bucket per request. Empty trusts no hop and keys on the
+    # rightmost (proxy-written) entry: safe, but behind a multi-hop chain (e.g. CDN in front of
+    # ingress) it collapses callers onto the edge addresses. Set your real hops (e.g. "10.0.0.0/16")
+    # for per-client keying and correct session IPs.
     AUTH_TRUSTED_PROXIES: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
