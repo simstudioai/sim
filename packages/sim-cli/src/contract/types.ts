@@ -30,9 +30,16 @@ export interface FlagSpec {
   /** Short alias, e.g. `w` for `--workspace`. */
   short?: string
   /**
-   * Accept a repeated flag and send it comma-joined. For fields the schema
-   * types as `string` but the route splits — invisible to any type-driven
-   * generator, so it has to be stated.
+   * Accept the flag more than once.
+   *
+   * Only says that several values are allowed — how they reach the wire is
+   * decided by the field's kind, not here. A `string` field is one the route
+   * splits on commas (`workflowIds`), so the values are joined; anything else
+   * genuinely wants an array (`rowIds`, `knowledgeBaseIds`). Conflating the two
+   * turned multi-value `--kb` and `--row` into a single bogus value.
+   *
+   * Still needed on the string case because "this string is really a list" is
+   * invisible to any type-driven generator.
    */
   list?: boolean
   /** Take a JSON string. Implied for object/array/unknown fields. */

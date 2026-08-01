@@ -47,11 +47,21 @@ export function takesJson(field: FieldSpec, flag: FlagSpec): boolean {
 export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName: string): unknown {
   if (raw === undefined) return undefined
 
-  // A repeated flag whose wire form is one comma-joined string. The schema
-  // types these as `string`, so only the contract knows.
+  /**
+   * A repeated flag. `list` says the CLI accepts several values; the *wire*
+   * encoding follows the field's own kind, because the two are not the same
+   * question:
+   *
+   * - `string` — the route splits on commas (`workflowIds`, `folderIds`,
+   *   `triggers`), so the values are joined.
+   * - anything else — the wire genuinely wants an array (`rowIds`,
+   *   `selectedOutputs`) or a string-or-array union whose array branch is the
+   *   right one (`knowledgeBaseIds`). Joining those produced a single bogus id
+   *   or failed validation outright.
+   */
   if (flag.list) {
     const values = Array.isArray(raw) ? raw : [raw]
-    return values.join(',')
+    return field.kind === 'string' ? values.join(',') : values
   }
 
   if (takesJson(field, flag)) {

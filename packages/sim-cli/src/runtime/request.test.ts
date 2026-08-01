@@ -110,3 +110,33 @@ describe('deriveCommandPath', () => {
     expect(deriveCommandPath('searchKnowledge')).toEqual(['knowledge', 'search'])
   })
 })
+
+describe('repeated flags encode per the field kind, not uniformly', () => {
+  it('joins a string field the route splits', () => {
+    const built = buildRequest('listLogs', [], { workflow: ['wf_1', 'wf_2'] }, WORKSPACE)
+    expect(built.query.workflowIds).toBe('wf_1,wf_2')
+  })
+
+  it('keeps an array field as an array', () => {
+    // Joining these produced a string where the wire wants an array, so
+    // `--row a b` failed validation — and so did a single `--row a`.
+    const built = buildRequest('deleteTableRows', ['tbl_1'], { row: ['r1', 'r2'] }, WORKSPACE)
+    expect(built.body?.rowIds).toEqual(['r1', 'r2'])
+  })
+
+  it('keeps a single repeated value as a one-element array, not a bare string', () => {
+    const built = buildRequest('deleteTableRows', ['tbl_1'], { row: ['r1'] }, WORKSPACE)
+    expect(built.body?.rowIds).toEqual(['r1'])
+  })
+
+  it('sends the array branch of a string-or-array union', () => {
+    // `knowledgeBaseIds` accepts either; joining made "kb_1,kb_2" a single id.
+    const built = buildRequest(
+      'searchKnowledge',
+      [],
+      { kb: ['kb_1', 'kb_2'], query: 'refunds' },
+      WORKSPACE
+    )
+    expect(built.body?.knowledgeBaseIds).toEqual(['kb_1', 'kb_2'])
+  })
+})
