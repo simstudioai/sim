@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { ROOM_MEMBERSHIP_ACTIONS } from '@sim/platform-authz/room-policy'
+import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import { type RoomRef, type RoomType, roomName } from '@sim/realtime-protocol/rooms'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
+import { peekRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('WorkspaceInvalidationRoom')
@@ -106,6 +107,22 @@ export function setupWorkspaceInvalidationRoom(
       // A newer join started on this socket during authorize (or it dropped): abort so a
       // stale join can't leave the room the client has since switched to.
       if (joinGeneration !== joinAttempt || socket.disconnected) return
+
+      // Re-check the cached decision before committing: the access re-validation sweep
+      // records a revocation BEFORE it evicts, so a join that authorized just before the
+      // revocation must not complete afterwards and put the socket back in the room.
+      // `undefined` (nothing cached) is "unknown", never a denial — the authorize above
+      // is then the freshest word we have. Mirrors the file-doc and table joins.
+      const recheck = peekRoomPermission(socket.userId, ref)
+      if (recheck !== undefined && !satisfiesRoomMembership(recheck, roomType)) {
+        socket.emit(errorEvent, {
+          workspaceId,
+          error: 'Access denied to workspace',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
 
       // Leave any previously-joined room of this type (workspace switch), read straight from the
       // socket's native room membership so there's no presence store to keep in sync.

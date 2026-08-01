@@ -19,6 +19,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 }))
 
 import { setupWorkspaceInvalidationRoom } from '@/handlers/workspace-invalidation-room'
+import { recordRoomPermission } from '@/middleware/permissions'
 
 type Payload = { workspaceId?: string }
 
@@ -155,6 +156,30 @@ describe.each([ROOM_TYPES.WORKSPACE_FILES, ROOM_TYPES.WORKSPACE_TABLES] as const
       // The room is live-list-only: no room-manager presence is tracked or broadcast.
       expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
       expect(roomManager.broadcastPresenceUpdate).not.toHaveBeenCalled()
+    })
+
+    it('does not join when access was revoked while the join was in flight', async () => {
+      // The sweep records a revocation before it evicts, so a join whose authorize
+      // completed just before that must not put the socket back in the room.
+      const { handlers, socket } = createSocket({ id: 'socket-race', userId: 'user-race' })
+      setupWorkspaceInvalidationRoom(
+        socket as unknown as Parameters<typeof setupWorkspaceInvalidationRoom>[0],
+        createRoomManager(),
+        roomType
+      )
+
+      mockAuthorizeRoom.mockImplementation(async () => {
+        recordRoomPermission('user-race', { type: roomType, id: 'ws-race' }, null)
+        return { allowed: true, status: 200, workspaceId: 'ws-race', workspacePermission: 'admin' }
+      })
+
+      await handlers[joinEvent]({ workspaceId: 'ws-race' })
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        errorEvent,
+        expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+      )
+      expect(socket.join).not.toHaveBeenCalled()
     })
 
     it('leaves a previously-joined room when switching workspaces', async () => {
