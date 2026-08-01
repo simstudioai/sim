@@ -76,7 +76,7 @@ import {
 import type { ProviderId } from '@/providers/types'
 import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
 import type { ProviderName } from '@/stores/providers'
-import { getTool } from '@/tools/utils'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('AccessControlGroupDetail')
 
@@ -741,7 +741,7 @@ function BlockToolRow({
   const checkboxId = `block-${block.type}`
 
   const toolItems = useMemo<DenylistGridItem[]>(
-    () => (block.tools?.access ?? []).map((id) => ({ id, label: getTool(id)?.name ?? id })),
+    () => (block.tools?.access ?? []).map((id) => ({ id, label: getToolMetadata(id)?.name ?? id })),
     [block.tools?.access]
   )
   const isExpandable = toolItems.length > 1

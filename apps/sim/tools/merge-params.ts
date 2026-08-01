@@ -2,14 +2,21 @@ import { isRecordLike } from '@sim/utils/object'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 
 /**
- * Pure parameter-merging helpers, split out of `@/tools/params` so that
- * consumers needing only the merge logic do not pull in `@/tools/utils` —
- * and through it the full `@/tools/registry` module graph (~247 tools).
+ * Merging of user-provided and LLM-generated tool parameters.
+ *
+ * Deliberately kept in its own leaf module rather than in `@/tools/params`.
+ * `params.ts` imports `getTool` from `@/tools/utils`, which statically imports
+ * the 4,300-entry `@/tools/registry` barrel — so importing anything from
+ * `params.ts` drags the whole tool registry into the caller's module graph
+ * (4,926 modules, versus 17 without that edge).
+ *
+ * `providers/utils.ts` needs only `mergeToolParameters`, and this function needs
+ * no tool lookup at all, so it lives here and that import edge stays cheap.
+ * Nothing in this file may import `@/tools/utils`, `@/tools/registry`, or
+ * `@/tools/params`.
  */
 
-/**
- * Checks if a value is non-empty (not undefined, null, or empty string)
- */
+/** Checks if a value is non-empty (not undefined, null, or empty string). */
 export function isNonEmpty(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
 }
@@ -17,6 +24,9 @@ export function isNonEmpty(value: unknown): boolean {
 /**
  * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
  * User-provided non-empty values take precedence.
+ *
+ * Module-private: only {@link mergeToolParameters} needs it. It was exported from
+ * `@/tools/params` but never imported anywhere.
  */
 function deepMergeInputMapping(
   llmInputMapping: Record<string, unknown> | undefined,

@@ -26,6 +26,7 @@
       "!**/public/workbox-*.js",
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
+      "!**/apps/sim/tools/generated",
       "!**/apps/docs/.source",
       "!**/apps/desktop/release",
       "!**/venv",
