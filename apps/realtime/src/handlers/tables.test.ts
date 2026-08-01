@@ -19,6 +19,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
 }))
 
+import { setEvictionCleanupSink } from '@/handlers/room-eviction'
 import { setupTablesHandlers } from '@/handlers/tables'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
@@ -247,6 +248,50 @@ describe('setupTablesHandlers', () => {
       expect(socket.leave).toHaveBeenCalledWith('table:table-revoked')
       expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(room, 'socket-9')
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('hands a failed presence removal to the sweep so the eviction stays retryable', async () => {
+    // The eviction already left the Socket.IO room, so the sweep's scan can no longer
+    // rediscover this socket — a failed removal here would strand a ghost collaborator
+    // until disconnect unless it is handed to the retrying cleanup lane.
+    vi.useFakeTimers()
+    const owed: Array<{ socketId: string; roomId: string }> = []
+    setEvictionCleanupSink((socketId, room) => owed.push({ socketId, roomId: room.id }))
+    try {
+      const room = { type: ROOM_TYPES.TABLE, id: 'table-defer' }
+      const { socket, handlers } = createSocket({ id: 'socket-defer', userId: 'user-defer' })
+      const roomManager = createRoomManager({
+        getRoomForSocket: vi.fn().mockResolvedValue(room),
+        removeUserFromRoom: vi.fn().mockRejectedValue(new Error('redis down')),
+      })
+      setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+      await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-defer' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      mockAuthorizeRoom.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        workspaceId: 'ws-1',
+        workspacePermission: null,
+      })
+      await vi.advanceTimersByTimeAsync(31_000)
+
+      const cell = {
+        anchor: { rowId: 'row-1', columnId: 'col-a' },
+        focus: { rowId: 'row-1', columnId: 'col-a' },
+      }
+      await handlers[TABLE_PRESENCE_EVENTS.CELL_SELECTION]({ cell })
+      await vi.advanceTimersByTimeAsync(0)
+      await handlers[TABLE_PRESENCE_EVENTS.CELL_SELECTION]({ cell })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(socket.leave).toHaveBeenCalledWith('table:table-defer')
+      expect(owed).toEqual([{ socketId: 'socket-defer', roomId: 'table-defer' }])
+    } finally {
+      setEvictionCleanupSink(null)
       vi.useRealTimers()
     }
   })

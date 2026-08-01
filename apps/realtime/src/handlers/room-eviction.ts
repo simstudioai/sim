@@ -46,6 +46,37 @@ export function runRoomEvictionHandler(socketId: string, room: RoomRef, io: Serv
   }
 }
 
+/** Enqueues a presence cleanup owed for an evicted socket. */
+type EvictionCleanupSink = (socketId: string, room: RoomRef) => void
+
+let evictionCleanupSink: EvictionCleanupSink | null = null
+
+/**
+ * Registers the retrying presence-cleanup lane (owned by the access-revalidation
+ * sweep) that handler-initiated evictions hand failed cleanups to.
+ *
+ * An eviction removes the socket from the Socket.IO room synchronously, which is
+ * also how the sweep discovers work — so once a handler evicts, the sweep can no
+ * longer find that (socket, room) pair to retry a Redis removal that failed. This
+ * sink is the handoff that keeps the sweep's retry semantics (re-join guard,
+ * moved-room guard, no infinite retry) as the single implementation instead of a
+ * second, subtly different retry loop per handler. Unset outside a running sweep,
+ * where {@link requestEvictionCleanup} is a no-op.
+ */
+export function setEvictionCleanupSink(sink: EvictionCleanupSink | null): void {
+  evictionCleanupSink = sink
+}
+
+/**
+ * Asks the sweep's cleanup lane to (re)try presence removal for a socket already
+ * evicted from `room`. Call only when the immediate best-effort removal failed —
+ * the happy path stays immediate so peers see the departure without waiting for a
+ * sweep tick.
+ */
+export function requestEvictionCleanup(socketId: string, room: RoomRef): void {
+  evictionCleanupSink?.(socketId, room)
+}
+
 /**
  * Evicts one socket from one non-workflow room after a confirmed loss of access:
  * tell the client, stop it receiving room broadcasts, and drop the handler-local

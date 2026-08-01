@@ -9,7 +9,11 @@ import {
   roomName,
 } from '@sim/realtime-protocol/rooms'
 import { sleep } from '@sim/utils/helpers'
-import { evictSocketFromRoom, runRoomEvictionHandler } from '@/handlers/room-eviction'
+import {
+  evictSocketFromRoom,
+  runRoomEvictionHandler,
+  setEvictionCleanupSink,
+} from '@/handlers/room-eviction'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -255,6 +259,14 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
       })
   }
 
+  // Handler-initiated evictions (the per-frame gates) hand failed presence cleanups
+  // here: they have already left the Socket.IO room, so the scan can no longer
+  // rediscover them, and this lane is the only thing that retries.
+  setEvictionCleanupSink((socketId, room) => {
+    pendingCleanups.set(`${socketId}:${roomName(room)}`, { socketId, room })
+    launchCleanups()
+  })
+
   function revokeSocket(socket: AuthenticatedSocket, room: RoomRef, name: string): void {
     // Security-critical, pod-local, and synchronous: stop this socket receiving
     // room broadcasts immediately, and drop the handler-local state that would
@@ -380,7 +392,10 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   )
 
   return {
-    stop: () => clearInterval(timer),
+    stop: () => {
+      clearInterval(timer)
+      setEvictionCleanupSink(null)
+    },
     runOnce,
   }
 }

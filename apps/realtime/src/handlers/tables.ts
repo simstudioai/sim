@@ -8,7 +8,7 @@ import {
   type TableCellSelection,
 } from '@sim/realtime-protocol/table-presence'
 import { resolveAvatarUrl } from '@/handlers/avatar'
-import { evictSocketFromRoom } from '@/handlers/room-eviction'
+import { evictSocketFromRoom, requestEvictionCleanup } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
@@ -90,9 +90,14 @@ function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
 
 /**
  * Evicts a socket from a table room after a confirmed loss of access, then drops
- * its presence so peers stop seeing its selection. The presence half is
- * best-effort — the socket has already left the room, and the sweep's cleanup lane
- * retries any removal that fails here.
+ * its presence so peers stop seeing its selection.
+ *
+ * The eviction leaves the Socket.IO room immediately, which is also how the sweep
+ * discovers work — so a presence removal that fails here would be unretryable and
+ * strand a ghost collaborator until disconnect. The removal is therefore attempted
+ * inline (peers see the departure at once) and handed to the sweep's retrying
+ * cleanup lane if it fails or reports nothing removed, which is the same signal
+ * the sweep treats as a deferrable failure.
  */
 async function evictFromTable(
   socket: AuthenticatedSocket,
@@ -101,10 +106,21 @@ async function evictFromTable(
 ): Promise<void> {
   evictSocketFromRoom(socket, room, 'Your access to this table has been revoked', roomManager.io)
   try {
-    await roomManager.removeUserFromRoom(room, socket.id)
+    // `false` conflates "already gone" with a transport error the manager swallowed;
+    // deferring on it is harmless (the lane drops a cleanup it finds already clean)
+    // and is the only signal a swallowed failure gives us.
+    const removed = await roomManager.removeUserFromRoom(room, socket.id)
+    if (!removed) {
+      requestEvictionCleanup(socket.id, room)
+      return
+    }
     await roomManager.broadcastPresenceUpdate(room, socket.id)
   } catch (error) {
-    logger.warn(`Presence cleanup failed for evicted table socket ${socket.id}`, error)
+    logger.warn(
+      `Presence cleanup failed for evicted table socket ${socket.id}; deferring to the sweep`,
+      error
+    )
+    requestEvictionCleanup(socket.id, room)
   }
 }
 
