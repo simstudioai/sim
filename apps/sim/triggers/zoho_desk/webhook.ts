@@ -1,5 +1,6 @@
 import { ZohoDeskIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { fetchZohoDeskOrganizationOptions } from '@/blocks/blocks/zoho-desk-org-options'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -28,7 +29,7 @@ const ZOHO_DESK_EVENT_OPTIONS = [
 
 const ZOHO_DESK_SETUP_INSTRUCTIONS = [
   'Connect your Zoho Desk account above. Webhooks require a Zoho Desk edition of Professional or higher (Free and Standard cannot create webhooks).',
-  'Enter your Organization ID. You can find it with the "List Organizations" operation on the Zoho Desk block.',
+  'Select your Organization from the dropdown (populated automatically from your connected Zoho Desk account).',
   'Choose the event to subscribe to. For "Ticket Updated" you can optionally list up to 5 ticket field API names to watch; previous field values are included in the payload. For "Ticket Thread Added" you can filter by direction (incoming/outgoing).',
   'Optionally restrict events to specific departments by entering comma-separated department IDs.',
   'Click Save above. Sim creates the webhook subscription in Zoho Desk for you and tears it down automatically when the workflow is undeployed.',
@@ -61,10 +62,14 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
     },
     {
       id: 'orgId',
-      title: 'Organization ID',
-      type: 'short-input',
-      placeholder: 'e.g. 700123456',
+      title: 'Organization',
+      type: 'combobox',
+      placeholder: 'Select or enter an organization ID',
       description: 'The Zoho Desk organization (portal) to subscribe in.',
+      options: [],
+      fetchOptions: fetchZohoDeskOrganizationOptions,
+      commandSearchable: true,
+      dependsOn: ['triggerCredentials'],
       required: true,
       mode: 'trigger',
     },
@@ -124,7 +129,8 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
     orgId: { type: 'string', description: 'Zoho Desk organization ID' },
     payload: {
       type: 'json',
-      description: 'The full resource that changed (ticket, comment, thread, etc.)',
+      description:
+        'The full resource that changed (ticket, comment, thread, etc.). For comment/thread events a derived plain-text `contentText` is added alongside the raw `content` + `contentType`.',
     },
     prevState: { type: 'json', description: 'Previous state of the resource (update events only)' },
   },

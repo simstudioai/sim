@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDeskResponse> = {
@@ -58,26 +59,13 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
       visibility: 'user-or-llm',
       description: 'Whether the comment is public',
     },
-    ignoreSourceId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description:
-        'Source ID echoed back on the resulting webhook event so this write can be filtered out (loop guard)',
-    },
   },
 
   request: {
     url: (params) =>
       `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}/comments`,
     method: 'POST',
-    headers: (params) => {
-      const headers = buildZohoDeskHeaders(params)
-      // Echo the webhook subscription's ignoreSourceId so Zoho tags the resulting
-      // event with this sourceId, letting our own trigger drop self-posted comments.
-      if (params.ignoreSourceId) headers.sourceId = params.ignoreSourceId
-      return headers
-    },
+    headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => ({
       content: params.content,
       contentType: params.contentType || 'plainText',
@@ -94,7 +82,7 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
     }
     return {
       success: true,
-      output: { comment: data },
+      output: { comment: withDerivedContentText(data) },
     }
   },
 

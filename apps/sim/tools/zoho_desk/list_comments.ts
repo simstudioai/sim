@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, ZohoDeskResponse> = {
@@ -73,7 +74,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
         getZohoDeskErrorMessage(data, `Failed to list comments (HTTP ${response.status})`)
       )
     }
-    const comments = Array.isArray(data.data) ? data.data : []
+    const comments = (Array.isArray(data.data) ? data.data : []).map(withDerivedContentText)
     return {
       success: true,
       output: { comments, count: comments.length },

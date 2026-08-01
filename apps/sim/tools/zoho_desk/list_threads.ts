@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, ZohoDeskResponse> = {
@@ -73,7 +74,7 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
         getZohoDeskErrorMessage(data, `Failed to list threads (HTTP ${response.status})`)
       )
     }
-    const threads = Array.isArray(data.data) ? data.data : []
+    const threads = (Array.isArray(data.data) ? data.data : []).map(withDerivedContentText)
     return {
       success: true,
       output: { threads, count: threads.length },

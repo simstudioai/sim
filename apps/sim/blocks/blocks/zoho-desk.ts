@@ -1,12 +1,8 @@
 import { ZohoDeskIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { zohoDeskListOrganizationsContract } from '@/lib/api/contracts/tools/zoho-desk'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { fetchZohoDeskOrganizationOptions } from '@/blocks/blocks/zoho-desk-org-options'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { fetchOAuthToken } from '@/hooks/selectors/helpers'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { getTrigger } from '@/triggers'
 
@@ -22,27 +18,6 @@ const OPERATIONS_NEEDING_ORG = [
   'get_contact',
   'get_attachment',
 ]
-
-/** Populate the organization selector from the connected Zoho Desk credential. */
-async function fetchZohoDeskOrganizationOptions(
-  blockId: string
-): Promise<Array<{ label: string; id: string }>> {
-  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-  if (!activeWorkflowId) return []
-  const blockValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]
-  const credentialId =
-    (blockValues?.credential as string) || (blockValues?.manualCredential as string)
-  if (!credentialId) return []
-  const bundle = await fetchOAuthToken(credentialId, activeWorkflowId)
-  if (!bundle) return []
-  const data = await requestJson(zohoDeskListOrganizationsContract, {
-    body: { accessToken: bundle.accessToken, apiDomain: bundle.apiDomain ?? null },
-  })
-  return data.organizations.map((org) => ({
-    label: org.companyName ? `${org.companyName} (${org.id})` : org.id,
-    id: org.id,
-  }))
-}
 
 export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
   type: 'zoho_desk',
@@ -180,14 +155,6 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       type: 'switch',
       defaultValue: false,
       condition: { field: 'operation', value: 'add_comment' },
-    },
-    {
-      id: 'ignoreSourceId',
-      title: 'Ignore Source ID',
-      type: 'short-input',
-      mode: 'advanced',
-      placeholder: 'Loop-guard source ID (from a Zoho Desk trigger)',
-      condition: { field: 'operation', value: ['add_comment', 'update_ticket'] },
     },
     // Update ticket
     {
@@ -346,8 +313,16 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // Pull raw pagination out of the spread so invalid values never reach the
         // tool; only re-add them when Number() yields a finite value (a non-numeric
         // typo would otherwise become NaN and produce an invalid Zoho query param).
-        const { oauthCredential, from: rawFrom, limit: rawLimit, ...rest } = params
+        const { oauthCredential, from: rawFrom, limit: rawLimit, contentType, ...rest } = params
         const result: Record<string, unknown> = { ...rest, oauthCredential }
+
+        // contentType is the comment's content type; its default would otherwise
+        // serialize for every operation (e.g. get_attachment, which has no such
+        // param). Only forward it for add_comment so the UI can't imply an option
+        // that has no effect elsewhere.
+        if (params.operation === 'add_comment' && typeof contentType === 'string' && contentType) {
+          result.contentType = contentType
+        }
 
         if (rawFrom !== undefined && rawFrom !== '') {
           const from = Number(rawFrom)
@@ -381,7 +356,6 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     content: { type: 'string', description: 'Comment content' },
     contentType: { type: 'string', description: 'Comment content type (plainText/html)' },
     isPublic: { type: 'boolean', description: 'Whether a comment is public' },
-    ignoreSourceId: { type: 'string', description: 'Loop-guard source ID for writes' },
     subject: { type: 'string', description: 'Ticket subject' },
     status: { type: 'string', description: 'Ticket status' },
     priority: { type: 'string', description: 'Ticket priority' },

@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskGetThreadTool: ToolConfig<ZohoDeskGetThreadParams, ZohoDeskResponse> = {
@@ -64,7 +65,7 @@ export const zohoDeskGetThreadTool: ToolConfig<ZohoDeskGetThreadParams, ZohoDesk
     }
     return {
       success: true,
-      output: { thread: data },
+      output: { thread: withDerivedContentText(data) },
     }
   },
 

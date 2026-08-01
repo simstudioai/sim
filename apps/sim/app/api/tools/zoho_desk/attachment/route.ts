@@ -5,7 +5,11 @@ import { zohoDeskGetAttachmentContract } from '@/lib/api/contracts/tools/zoho-de
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildZohoDeskHeaders, getZohoDeskApiBase } from '@/tools/zoho_desk/utils'
+import {
+  buildZohoDeskHeaders,
+  deriveAttachmentName,
+  getZohoDeskApiBase,
+} from '@/tools/zoho_desk/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,10 +102,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const contentDisposition = response.headers.get('content-disposition') || ''
-    const dispositionName = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(contentDisposition)?.[1]
-    const filename =
-      fileName || (dispositionName ? decodeURIComponent(dispositionName) : 'attachment')
+    // ToolFileData (consumed by FileToolProcessor) keys the file name as `name`.
+    const name = deriveAttachmentName(
+      fileName,
+      response.headers.get('content-disposition'),
+      downloadUrl.pathname
+    )
     const mimeType = response.headers.get('content-type') || 'application/octet-stream'
 
     return NextResponse.json({
@@ -110,7 +116,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         file: {
           data: Buffer.from(arrayBuffer).toString('base64'),
           mimeType,
-          filename,
+          name,
         },
       },
     })

@@ -37,7 +37,6 @@ export interface ZohoDeskUpdateTicketParams extends ZohoDeskBaseParams {
   subCategory?: string
   dueDate?: string
   customFields?: Record<string, unknown>
-  ignoreSourceId?: string
 }
 
 export interface ZohoDeskListCommentsParams extends ZohoDeskBaseParams {
@@ -51,7 +50,6 @@ export interface ZohoDeskAddCommentParams extends ZohoDeskBaseParams {
   content: string
   contentType?: string
   isPublic?: boolean
-  ignoreSourceId?: string
 }
 
 export interface ZohoDeskListThreadsParams extends ZohoDeskBaseParams {
@@ -94,7 +92,14 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
   subject: { type: 'string', description: 'Ticket subject', optional: true },
   description: {
     type: 'string',
-    description: 'Ticket description',
+    description: 'Ticket description (raw; may be HTML)',
+    optional: true,
+    nullable: true,
+  },
+  descriptionText: {
+    type: 'string',
+    description:
+      'Plain-text rendering of the description; HTML stripped when Zoho marks it HTML, otherwise mirrors description',
     optional: true,
     nullable: true,
   },
@@ -147,8 +152,13 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
 
 export const ZOHO_DESK_COMMENT_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'Comment ID' },
-  content: { type: 'string', description: 'Comment content', optional: true },
+  content: { type: 'string', description: 'Comment content (raw; may be HTML)', optional: true },
   contentType: { type: 'string', description: 'Content type (plainText/html)', optional: true },
+  contentText: {
+    type: 'string',
+    description: 'Plain-text rendering of content (HTML stripped when contentType is html)',
+    optional: true,
+  },
   isPublic: { type: 'boolean', description: 'Whether the comment is public', optional: true },
   commenterId: { type: 'string', description: 'Commenter ID', optional: true },
   commentedTime: { type: 'string', description: 'Commented timestamp', optional: true },
@@ -170,8 +180,19 @@ export const ZOHO_DESK_THREAD_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'Thread ID' },
   channel: { type: 'string', description: 'Thread channel', optional: true },
   direction: { type: 'string', description: 'Direction (in/out)', optional: true },
-  content: { type: 'string', description: 'Thread content', optional: true, nullable: true },
+  content: {
+    type: 'string',
+    description: 'Thread content (raw; may be HTML)',
+    optional: true,
+    nullable: true,
+  },
   contentType: { type: 'string', description: 'Content type', optional: true },
+  contentText: {
+    type: 'string',
+    description: 'Plain-text rendering of content (HTML stripped when contentType is html)',
+    optional: true,
+    nullable: true,
+  },
   summary: { type: 'string', description: 'Thread summary', optional: true, nullable: true },
   responderId: { type: 'string', description: 'Responder ID', optional: true, nullable: true },
   createdTime: { type: 'string', description: 'Created timestamp', optional: true },

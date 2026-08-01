@@ -940,7 +940,11 @@ export async function saveTriggerWebhooksForDeploy({
             (cleanupFailure as Error)?.message ||
             (error as Error)?.message ||
             'Failed to create external subscription',
-          status: 500,
+          // Propagate a 4xx from the provider handler (e.g. a permanent Zoho
+          // config/permission/invalid-data failure) so the outbox classifies it
+          // as non-retryable; anything else (network, provider 5xx) stays 500 and
+          // retryable. cleanupFailure never overrides the root cause's status.
+          status: (error as { status?: number })?.status ?? 500,
         },
       }
     }

@@ -95,25 +95,12 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
       visibility: 'user-or-llm',
       description: 'Custom field values as a JSON object',
     },
-    ignoreSourceId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description:
-        'Source ID echoed back on the resulting webhook event so this write can be filtered out (loop guard)',
-    },
   },
 
   request: {
     url: (params) => `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}`,
     method: 'PATCH',
-    headers: (params) => {
-      const headers = buildZohoDeskHeaders(params)
-      // Echo the webhook subscription's ignoreSourceId so Zoho tags the resulting
-      // Ticket_Update event with this sourceId, letting our own trigger drop self-writes.
-      if (params.ignoreSourceId) headers.sourceId = params.ignoreSourceId
-      return headers
-    },
+    headers: (params) => buildZohoDeskHeaders(params),
     body: (params) =>
       filterUndefined({
         subject: params.subject,

@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import * as jose from 'jose'
@@ -18,6 +17,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { withDerivedContentText } from '@/tools/zoho_desk/utils'
 
 const logger = createLogger('WebhookProvider:ZohoDesk')
 
@@ -68,28 +68,75 @@ function splitCsv(value: unknown): string[] {
     .filter(Boolean)
 }
 
-/** Map a Zoho Desk webhook-creation failure to a loud, actionable error. */
-function mapZohoWebhookError(status: number, bodyText: string): Error {
+/** Error carrying an HTTP status so the deploy outbox can classify retryability. */
+function statusError(message: string, status: number): Error {
+  const err = new Error(message) as Error & { status: number }
+  err.status = status
+  return err
+}
+
+/** Zoho errorCode / message patterns that genuinely indicate a permission or edition denial. */
+const ZOHO_EDITION_PERMISSION_PATTERN =
+  /permission|not\s+(allowed|permitted|supported)|edition|upgrade|feature/i
+
+/**
+ * Map a Zoho Desk webhook-creation failure to an actionable error that surfaces
+ * Zoho's real errorCode / message / field errors instead of a catch-all. The
+ * returned error carries an HTTP `status`: permanent client failures (4xx -
+ * invalid data, permission, unprocessable) keep their 4xx so the deploy outbox
+ * fails the deploy terminally (NonRetryableDeploymentError) with the true
+ * reason; rate limits and provider 5xx map to 5xx so they stay retryable.
+ */
+export function mapZohoWebhookError(status: number, bodyText: string): Error {
   let errorCode: string | undefined
+  let message: string | undefined
+  let fieldErrors: string[] = []
   try {
-    const parsed = JSON.parse(bodyText)
-    if (parsed && typeof parsed.errorCode === 'string') errorCode = parsed.errorCode
+    const parsed = JSON.parse(bodyText) as {
+      errorCode?: unknown
+      message?: unknown
+      errors?: Array<{ fieldName?: unknown; errorMessage?: unknown }>
+    }
+    if (typeof parsed.errorCode === 'string') errorCode = parsed.errorCode
+    if (typeof parsed.message === 'string') message = parsed.message
+    if (Array.isArray(parsed.errors)) {
+      fieldErrors = parsed.errors
+        .map((e) =>
+          typeof e?.errorMessage === 'string'
+            ? typeof e.fieldName === 'string'
+              ? `${e.fieldName}: ${e.errorMessage}`
+              : e.errorMessage
+            : undefined
+        )
+        .filter((v): v is string => Boolean(v))
+    }
   } catch {
     // non-JSON body
   }
-  if (status === 403 || status === 422) {
-    if (errorCode === 'MAX_COUNT_EXCEEDED' || /limit|max/i.test(bodyText)) {
-      return new Error(
-        'Zoho Desk webhook limit reached for this edition. Disable an existing webhook and try again.'
-      )
-    }
-    return new Error(
-      'Zoho Desk webhooks require a Professional edition or higher. Free and Standard editions cannot create webhooks.'
-    )
+
+  const detail =
+    fieldErrors.length > 0
+      ? fieldErrors.join('; ')
+      : message || truncate(bodyText, 200) || `HTTP ${status}`
+  const codePrefix = errorCode ? `${errorCode}: ` : ''
+  let realMessage = `Zoho Desk webhook creation failed (HTTP ${status}) - ${codePrefix}${detail}`
+
+  // Only claim the edition/permission cause when Zoho's response actually says so.
+  const indicatesEditionOrPermission =
+    status === 403 ||
+    (errorCode ? ZOHO_EDITION_PERMISSION_PATTERN.test(errorCode) : false) ||
+    ZOHO_EDITION_PERMISSION_PATTERN.test(detail)
+  if (indicatesEditionOrPermission) {
+    realMessage +=
+      ' (Zoho Desk webhooks require a Professional edition or higher and the Desk.webhooks.CREATE scope.)'
   }
-  return new Error(
-    `Failed to create Zoho Desk webhook (HTTP ${status}): ${truncate(bodyText, 200)}`
-  )
+
+  // Rate limits and provider-side 5xx are transient -> keep retryable.
+  if (status === 429 || status >= 500) {
+    return statusError(realMessage, 503)
+  }
+  // Other client errors cannot succeed on retry -> carry the 4xx status.
+  return statusError(realMessage, status >= 400 && status < 500 ? status : 422)
 }
 
 export const zohoDeskHandler: WebhookProviderHandler = {
@@ -129,10 +176,6 @@ export const zohoDeskHandler: WebhookProviderHandler = {
 
     const apiDomain = await resolveZohoDeskApiDomain(owner.accountId)
     const notificationUrl = getNotificationUrl(webhookRecord)
-    const ignoreSourceId =
-      typeof config.ignoreSourceId === 'string' && config.ignoreSourceId
-        ? config.ignoreSourceId
-        : generateId()
 
     const filter: Record<string, unknown> = {}
     const departmentIds = splitCsv(config.departmentIds)
@@ -154,11 +197,12 @@ export const zohoDeskHandler: WebhookProviderHandler = {
         orgId,
         'Content-Type': 'application/json',
       },
+      // Zoho's ignoreSourceId only accepts a genuine Zoho source id, not an
+      // arbitrary UUID (it rejects one with INVALID_DATA), so it is omitted.
       body: JSON.stringify({
         url: notificationUrl,
         name: `sim-${webhookRecord.id}`.slice(0, 50),
         subscriptions: { [eventType]: filter },
-        ignoreSourceId,
         isEnabled: true,
       }),
       signal: AbortSignal.timeout(15_000),
@@ -179,11 +223,21 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     } catch {
       // Zoho returns JSON on success; tolerate an empty body.
     }
-    const externalId = typeof created.id === 'string' ? created.id : String(created.id ?? '')
+    const idValue = created.id
+    const externalId =
+      typeof idValue === 'string' ? idValue : typeof idValue === 'number' ? String(idValue) : ''
+    // Never persist a subscription without its id: the id is the JWT `aud` claim
+    // verifyAuth checks, so an empty one would force verification to fail open.
+    if (!externalId) {
+      throw new Error('Zoho Desk webhook creation succeeded but returned no webhook id')
+    }
 
     logger.info(`[${requestId}] Created Zoho Desk webhook`, { externalId })
     return {
-      providerConfigUpdates: { externalId, webhookId: externalId, ignoreSourceId, apiDomain },
+      // externalId (the JWT `aud` claim) and apiDomain are provider-managed and
+      // are SYSTEM_MANAGED_FIELDS, so they are excluded from the redeploy config
+      // diff to avoid delete/recreate churn on every deploy.
+      providerConfigUpdates: { externalId, apiDomain },
     }
   },
 
@@ -245,10 +299,19 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     }
 
     const orgId = typeof providerConfig.orgId === 'string' ? providerConfig.orgId : ''
+    // `webhookId` was persisted on older rows; `externalId` is the canonical id.
     const webhookId =
-      (typeof providerConfig.webhookId === 'string' && providerConfig.webhookId) ||
       (typeof providerConfig.externalId === 'string' && providerConfig.externalId) ||
+      (typeof providerConfig.webhookId === 'string' && providerConfig.webhookId) ||
       ''
+    // Fail closed: without both identifiers we cannot bind the JWT to this
+    // subscription, so accepting any org-JWKS RS256 token matching only the
+    // issuer would be a verification bypass. Reject instead of skipping a claim.
+    if (!orgId || !webhookId) {
+      logger.warn(`[${requestId}] Zoho Desk webhook missing orgId/webhookId; rejecting`)
+      return new NextResponse('Unauthorized - webhook not fully provisioned', { status: 401 })
+    }
+
     const apiDomain =
       typeof providerConfig.apiDomain === 'string'
         ? providerConfig.apiDomain
@@ -264,8 +327,8 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     try {
       await jose.jwtVerify(token, getJwks(deskHost), {
         algorithms: ['RS256'],
-        ...(orgId ? { issuer: `orgId:${orgId}` } : {}),
-        ...(webhookId ? { audience: `webhookId:${webhookId}` } : {}),
+        issuer: `orgId:${orgId}`,
+        audience: `webhookId:${webhookId}`,
       })
       return null
     } catch (error) {
@@ -287,12 +350,16 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       return { input: body }
     }
     const record = event as Record<string, unknown>
+    // Comment / thread event payloads carry a raw `content` + `contentType`
+    // ('html' | 'plainText') pair; augment the payload with a derived plain-text
+    // `contentText` (HTML stripped) alongside the untouched raw content. Payloads
+    // without a content pair (e.g. ticket / contact events) pass through unchanged.
     return {
       input: {
         eventType: record.eventType ?? null,
         eventTime: record.eventTime ?? null,
         orgId: record.orgId ?? null,
-        payload: record.payload ?? null,
+        payload: record.payload != null ? withDerivedContentText(record.payload) : null,
         prevState: record.prevState ?? null,
       },
     }

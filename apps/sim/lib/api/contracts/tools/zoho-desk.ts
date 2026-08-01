@@ -42,7 +42,8 @@ export const zohoDeskGetAttachmentBodySchema = z.object({
 const zohoDeskFileSchema = z.object({
   data: z.string(),
   mimeType: z.string(),
-  filename: z.string(),
+  // FileToolProcessor (ToolFileData) reads the file name from `name`.
+  name: z.string(),
 })
 
 export const zohoDeskGetAttachmentResponseSchema = z.object({

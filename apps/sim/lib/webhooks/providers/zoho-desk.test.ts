@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/app/api/auth/oauth/utils', () => ({
   refreshAccessTokenIfNeeded: vi.fn(),
@@ -12,7 +12,17 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getNotificationUrl: vi.fn(() => 'https://example.com/api/webhooks/trigger/path'),
 }))
 
-import { zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
+import {
+  matchesPendingWebhookVerificationProbe,
+  requiresPendingWebhookVerification,
+} from '@/lib/webhooks/pending-verification'
+import { getCredentialOwner } from '@/lib/webhooks/provider-subscription-utils'
+import { mapZohoWebhookError, zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+
+function errorStatus(err: unknown): number | undefined {
+  return (err as { status?: number })?.status
+}
 
 function makeAuthContext(headers: Record<string, string>, providerConfig: Record<string, unknown>) {
   return {
@@ -104,6 +114,169 @@ describe('zohoDeskHandler', () => {
         requestId: 'test',
       })
       expect(result?.input).toBe(body)
+    })
+
+    it('derives a plain-text contentText for html comment/thread payloads', async () => {
+      const result = await zohoDeskHandler.formatInput?.({
+        webhook: {},
+        workflow: { id: 'wf', userId: 'user' },
+        body: [
+          {
+            eventType: 'Ticket_Comment_Add',
+            eventTime: '1700000000000',
+            orgId: '700123',
+            payload: {
+              id: 'comment-1',
+              content: '<div style="direction: ltr;"><div>testing</div></div>',
+              contentType: 'html',
+            },
+            prevState: null,
+          },
+        ],
+        headers: {},
+        requestId: 'test',
+      })
+      const payload = (result?.input as { payload: Record<string, unknown> }).payload
+      expect(payload.content).toBe('<div style="direction: ltr;"><div>testing</div></div>')
+      expect(payload.contentType).toBe('html')
+      expect(payload.contentText).toBe('testing')
+    })
+
+    it('mirrors plainText content into contentText', async () => {
+      const result = await zohoDeskHandler.formatInput?.({
+        webhook: {},
+        workflow: { id: 'wf', userId: 'user' },
+        body: [
+          {
+            eventType: 'Ticket_Comment_Add',
+            eventTime: '1700000000000',
+            orgId: '700123',
+            payload: { id: 'comment-2', content: 'just text', contentType: 'plainText' },
+            prevState: null,
+          },
+        ],
+        headers: {},
+        requestId: 'test',
+      })
+      const payload = (result?.input as { payload: Record<string, unknown> }).payload
+      expect(payload.contentText).toBe('just text')
+      expect(payload.content).toBe('just text')
+    })
+  })
+
+  describe('createSubscription request body', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      vi.mocked(getCredentialOwner).mockReset()
+      vi.mocked(refreshAccessTokenIfNeeded).mockReset()
+    })
+
+    it('omits ignoreSourceId (Zoho rejects an arbitrary UUID) and returns no such id', async () => {
+      vi.mocked(getCredentialOwner).mockResolvedValue({
+        accountId: 'acc-1',
+        userId: 'user-1',
+        // biome-ignore lint/suspicious/noExplicitAny: partial owner shape for the test
+      } as any)
+      vi.mocked(refreshAccessTokenIfNeeded).mockResolvedValue('zoho-token')
+
+      let sentBody: Record<string, unknown> = {}
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        sentBody = JSON.parse(String((init as RequestInit).body))
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ id: 'wh-123' }),
+        } as unknown as Response
+      })
+
+      const result = await zohoDeskHandler.createSubscription?.({
+        webhook: {
+          id: 'w1',
+          path: 'p1',
+          providerConfig: { credentialId: 'cred-1', orgId: '700123', eventType: 'Ticket_Add' },
+        },
+        workflow: {},
+        userId: 'user-1',
+        requestId: 'test',
+        // biome-ignore lint/suspicious/noExplicitAny: request is unused on this path
+        request: {} as any,
+      })
+
+      expect(sentBody).not.toHaveProperty('ignoreSourceId')
+      expect(sentBody.subscriptions).toHaveProperty('Ticket_Add')
+      expect(sentBody.isEnabled).toBe(true)
+      expect(result?.providerConfigUpdates).toMatchObject({ externalId: 'wh-123' })
+      expect(result?.providerConfigUpdates).not.toHaveProperty('ignoreSourceId')
+    })
+  })
+
+  describe('mapZohoWebhookError', () => {
+    it('surfaces INVALID_DATA field errors and is non-retryable (4xx)', () => {
+      const err = mapZohoWebhookError(
+        422,
+        JSON.stringify({
+          errorCode: 'INVALID_DATA',
+          errors: [
+            {
+              fieldName: '/ignoreSourceId',
+              errorMessage:
+                "The value passed for field '/ignoreSourceId' does not match the allowed values.",
+            },
+          ],
+        })
+      )
+      expect(err.message).toContain('INVALID_DATA')
+      expect(err.message).toContain('/ignoreSourceId')
+      expect(err.message).not.toContain('Professional edition')
+      expect(errorStatus(err)).toBe(422)
+    })
+
+    it('surfaces UNPROCESSABLE_ENTITY (URL validation) verbatim, non-retryable', () => {
+      const err = mapZohoWebhookError(
+        422,
+        JSON.stringify({
+          errorCode: 'UNPROCESSABLE_ENTITY',
+          message:
+            'Validation failed for the condition : The endpoint failed to respond with status code 200',
+        })
+      )
+      expect(err.message).toContain('endpoint failed to respond with status code 200')
+      expect(err.message).not.toContain('Professional edition')
+      expect(errorStatus(err)).toBe(422)
+    })
+
+    it('only claims the edition/permission cause when Zoho indicates it', () => {
+      const err = mapZohoWebhookError(
+        403,
+        JSON.stringify({ errorCode: 'PERMISSION_DENIED', message: 'You do not have permission' })
+      )
+      expect(err.message).toContain('permission')
+      expect(err.message).toContain('Professional edition')
+      expect(errorStatus(err)).toBe(403)
+    })
+
+    it('keeps provider 5xx retryable', () => {
+      const err = mapZohoWebhookError(500, JSON.stringify({ errorCode: 'INTERNAL_ERROR' }))
+      expect(errorStatus(err)).toBe(503)
+    })
+  })
+
+  describe('create-time URL verification probe', () => {
+    it('opts Zoho Desk into pending webhook verification', () => {
+      expect(requiresPendingWebhookVerification('zoho_desk')).toBe(true)
+    })
+
+    it('answers Zoho GET/HEAD probes but not real POST deliveries', () => {
+      const entry = { provider: 'zoho_desk', path: 'p1', expiresAt: Date.now() + 60_000 }
+      expect(
+        matchesPendingWebhookVerificationProbe(entry, { method: 'GET', body: undefined })
+      ).toBe(true)
+      expect(
+        matchesPendingWebhookVerificationProbe(entry, { method: 'HEAD', body: undefined })
+      ).toBe(true)
+      expect(
+        matchesPendingWebhookVerificationProbe(entry, { method: 'POST', body: { eventType: 'x' } })
+      ).toBe(false)
     })
   })
 })
