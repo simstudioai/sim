@@ -9,7 +9,7 @@ import {
 import type { Edge } from 'reactflow'
 import { describe, expect, it } from 'vitest'
 import { normalizeName } from '@/executor/constants'
-import { getUniqueBlockName, regenerateBlockIds } from './utils'
+import { filterNewEdges, getUniqueBlockName, regenerateBlockIds } from './utils'
 
 describe('normalizeName', () => {
   it.concurrent('should convert to lowercase', () => {
@@ -104,6 +104,33 @@ describe('normalizeName', () => {
     for (const { input, expected } of realWorldNames) {
       expect(normalizeName(input)).toBe(expected)
     }
+  })
+})
+
+describe('filterNewEdges', () => {
+  const makeEdge = (id: string, sourceHandle: string, targetHandle: string): Edge => ({
+    id,
+    source: 'source',
+    target: 'target',
+    sourceHandle,
+    targetHandle,
+  })
+
+  it('treats legacy positioned handles as the same logical connection', () => {
+    const currentEdges = [makeEdge('legacy', 'source-left', 'target-top')]
+    const candidates = [
+      makeEdge('current', 'source-right', 'target-left'),
+      makeEdge('legacy-vertical', 'source-bottom', 'target-bottom'),
+    ]
+
+    expect(filterNewEdges(candidates, currentEdges)).toEqual([])
+  })
+
+  it('keeps semantic routing handles distinct', () => {
+    const currentEdges = [makeEdge('true-route', 'condition-true', 'target-left')]
+    const candidates = [makeEdge('false-route', 'condition-false', 'target-left')]
+
+    expect(filterNewEdges(candidates, currentEdges)).toEqual(candidates)
   })
 })
 
