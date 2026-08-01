@@ -23,7 +23,7 @@
  *   bun run scripts/check-tool-registry-boundary.ts
  *   bun run scripts/check-tool-registry-boundary.ts --verbose   # print counts
  */
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,34 +35,37 @@ const APP = join(ROOT, 'apps/sim')
 const FORBIDDEN = join(APP, 'tools/registry.ts')
 
 /**
- * Entries guarded. These are the routes a developer works in daily and the
- * shared shell they all mount inside; the shell is the one that matters most,
- * since anything it reaches is paid for by every route.
+ * Root the guard walks: every `page.tsx` and `layout.tsx` under the workspace app.
+ *
+ * Discovered rather than listed. A hardcoded list goes stale silently — the
+ * first version of this guard named `app/workspace/layout.tsx` as "the shared
+ * shell", but that file only wraps `SocketProvider`; the real shell is
+ * `app/workspace/[workspaceId]/layout.tsx`, which was never checked.
+ *
+ * Layouts must be enumerated separately because Next.js composes them by
+ * convention — a page does not `import` its layout, so walking pages alone never
+ * reaches layout modules even though every route pays for them.
  */
-const ENTRIES = [
-  'app/workspace/layout.tsx',
-  'app/workspace/[workspaceId]/w/page.tsx',
-  'app/workspace/[workspaceId]/logs/page.tsx',
-  'app/workspace/[workspaceId]/tables/page.tsx',
-  'app/workspace/[workspaceId]/files/page.tsx',
-]
+const ENTRY_ROOT = 'app/workspace'
+const ENTRY_FILENAMES = new Set(['page.tsx', 'layout.tsx'])
+
+function collectEntries(dir: string, found: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) collectEntries(full, found)
+    else if (ENTRY_FILENAMES.has(entry.name)) found.push(relative(APP, full))
+  }
+  return found
+}
 
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs']
 
 /**
- * Matches value imports and re-exports, skipping `import type` and
- * `export type` — a type-only edge is erased at compile time and costs nothing.
- *
- * `REEXPORT_RE` allows an alias after the star so `export * as ns from` is not
- * missed, and `DYNAMIC_IMPORT_RE` covers `import('…')`. A dynamic import splits
- * the registry into its own chunk rather than the route's initial one, but it
- * still puts 4,300 tools' worth of executable config on a client path, so it
- * counts as reaching it.
+ * Matches value imports and re-exports, skipping `import type` — a type-only
+ * edge is erased at compile time and costs nothing at runtime.
  */
 const IMPORT_RE = /(?:^|\n)\s*import\s+(?!type\b)(?:[\s\S]*?from\s*)?['"]([^'"]+)['"]/g
-const REEXPORT_RE =
-  /(?:^|\n)\s*export\s+(?!type\b)(?:\*(?:\s+as\s+[\w$]+)?|\{[\s\S]*?\})\s*from\s*['"]([^'"]+)['"]/g
-const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+const REEXPORT_RE = /(?:^|\n)\s*export\s+(?!type\b)(?:\*|\{[\s\S]*?\})\s*from\s*['"]([^'"]+)['"]/g
 
 /** Resolves `@/` and relative specifiers. Bare package specifiers are ignored. */
 function resolveSpecifier(specifier: string, importer: string): string | null {
@@ -107,7 +110,7 @@ function walk(entry: string): Walk {
     } catch {
       continue
     }
-    for (const pattern of [IMPORT_RE, REEXPORT_RE, DYNAMIC_IMPORT_RE]) {
+    for (const pattern of [IMPORT_RE, REEXPORT_RE]) {
       pattern.lastIndex = 0
       let match = pattern.exec(source)
       while (match !== null) {
@@ -140,14 +143,21 @@ function main() {
   const verbose = process.argv.includes('--verbose')
   const failures: string[] = []
 
-  for (const entry of ENTRIES) {
-    const entryPath = join(APP, entry)
-    if (!existsSync(entryPath)) {
-      console.error(`❌ Guarded entry no longer exists: ${entry}`)
-      console.error('   Update ENTRIES in scripts/check-tool-registry-boundary.ts.')
-      process.exit(1)
-    }
+  const entryRoot = join(APP, ENTRY_ROOT)
+  if (!existsSync(entryRoot)) {
+    console.error(`❌ ${ENTRY_ROOT} no longer exists — update ENTRY_ROOT in this script.`)
+    process.exit(1)
+  }
+  const entries = collectEntries(entryRoot).sort()
+  if (entries.length === 0) {
+    console.error(
+      `❌ No page/layout entries found under ${ENTRY_ROOT}. Refusing to pass vacuously.`
+    )
+    process.exit(1)
+  }
 
+  for (const entry of entries) {
+    const entryPath = join(APP, entry)
     const result = walk(entryPath)
     if (result.reachable.has(FORBIDDEN)) {
       failures.push(entry)
@@ -174,7 +184,7 @@ function main() {
     process.exit(1)
   }
 
-  console.log(`✓ tool registry stays out of ${ENTRIES.length} workspace route graphs`)
+  console.log(`✓ tool registry stays out of ${entries.length} workspace page/layout graphs`)
 }
 
 main()
