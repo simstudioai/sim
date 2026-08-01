@@ -113,7 +113,7 @@ export function EnterprisePlatformLoop({
         </div>
         <div
           className={cn(
-            'h-full shrink-0 overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
+            'h-full shrink-0 overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
             stageOpen ? 'w-1/2 border-l' : 'w-0 min-w-0 border-l-0'
           )}
         >
