@@ -12,7 +12,12 @@
  * the win it exists to provide. This script drops the whole cache once it crosses a
  * threshold; Turbopack rebuilds it on the next run (one cold compile, ~32s).
  *
- * Runs automatically on `predev`. Also invokable directly:
+ * Also the remedy when Turbopack aborts with `Cache corruption detected:
+ * checksum mismatch` — it does not self-heal from a corrupted cache, so prune
+ * and restart. (An ordinary hard kill does not corrupt it; Turbopack discards a
+ * partial write and rebuilds silently.)
+ *
+ * Runs automatically before every `dev` script. Also invokable directly:
  *   bun run scripts/prune-turbopack-cache.ts            # prune if over the cap
  *   bun run scripts/prune-turbopack-cache.ts --force    # always prune
  *   bun run scripts/prune-turbopack-cache.ts --dry-run  # report only

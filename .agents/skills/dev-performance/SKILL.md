@@ -39,6 +39,23 @@ The dev cache is unbounded on disk — an abandoned one in this repo reached **7
 
 Chained explicitly rather than via a `predev` lifecycle hook: Turbo does fire `pre*` hooks (verified), but an explicit `&&` is visible in the command, survives any invocation path, and needs no per-variant `predev:*` duplicate.
 
+### If the dev server dies with a Turbopack panic
+
+An on-disk cache can be corrupted (disk full, an OS crash, a bad write). Turbopack does **not** self-heal from that — it detects the checksum mismatch and aborts:
+
+```
+FATAL: An unexpected Turbopack error occurred.
+Cache corruption detected: checksum mismatch in block 4 of 00000221.sst
+```
+
+The fix is one command, then restart:
+
+```bash
+bun run dev:cache:prune
+```
+
+This is the known cost of the cache being on, and it is worth it: the cache buys a 5.4x faster restart, and the failure is loud and single-command rather than silent or subtle. Note that an ordinary hard kill does **not** corrupt the cache — Turbopack discards a partially-written cache and rebuilds it silently (which is why a `kill -9` benchmark reads as "no cache win").
+
 ## How to benchmark a dev-performance change
 
 Anything less than this and the number is not trustworthy.
