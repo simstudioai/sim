@@ -569,7 +569,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         enabled: true,
         prompt:
           'Generate a JSON array of QuickBooks sales lines. Use item lines with lineType, positive amount, itemId, and optional description, positive quantity, positive unitPrice, and serviceDate. When quantity and unitPrice are both present, amount must equal quantity multiplied by unitPrice. Use description lines with lineType and description. Return ONLY the JSON array - no explanations, no extra text.',
-        generationType: 'json-object',
       },
     },
     {
@@ -703,7 +702,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         enabled: true,
         prompt:
           'Generate a JSON array of QuickBooks invoice allocations using only invoiceId and a positive amount. Return ONLY the JSON array - no explanations, no extra text.',
-        generationType: 'json-object',
       },
     },
     {

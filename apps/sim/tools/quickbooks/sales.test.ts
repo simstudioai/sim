@@ -475,6 +475,14 @@ describe('QuickBooks customer payments and voids', () => {
 })
 
 describe('QuickBooks sales block coercion', () => {
+  it('does not force array-valued wand prompts through JSON-object generation', () => {
+    for (const id of ['lines', 'invoiceAllocations']) {
+      const subBlock = QuickBooksBlock.subBlocks.find((candidate) => candidate.id === id)
+      expect(subBlock?.wandConfig?.enabled).toBe(true)
+      expect(subBlock?.wandConfig?.generationType).toBeUndefined()
+    }
+  })
+
   it('parses dynamic JSON and numeric values only in block parameter mapping', () => {
     expect(
       QuickBooksBlock.tools.config!.params!({
