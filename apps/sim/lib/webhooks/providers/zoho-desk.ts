@@ -121,9 +121,10 @@ export function mapZohoWebhookError(status: number, bodyText: string): Error {
   const codePrefix = errorCode ? `${errorCode}: ` : ''
   let realMessage = `Zoho Desk webhook creation failed (HTTP ${status}) - ${codePrefix}${detail}`
 
-  // Only claim the edition/permission cause when Zoho's response actually says so.
+  // Only claim the edition/permission cause when Zoho's own errorCode or message
+  // says so. A bare 403 can equally mean a wrong org, a missing scope, or a bad
+  // token, and those must not get the misleading "requires Professional" suffix.
   const indicatesEditionOrPermission =
-    status === 403 ||
     (errorCode ? ZOHO_EDITION_PERMISSION_PATTERN.test(errorCode) : false) ||
     ZOHO_EDITION_PERMISSION_PATTERN.test(detail)
   if (indicatesEditionOrPermission) {

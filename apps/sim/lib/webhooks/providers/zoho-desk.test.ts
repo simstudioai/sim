@@ -255,6 +255,17 @@ describe('zohoDeskHandler', () => {
       expect(errorStatus(err)).toBe(403)
     })
 
+    it('does not add the edition hint to a 403 whose body is unrelated to edition/permission', () => {
+      const err = mapZohoWebhookError(
+        403,
+        JSON.stringify({ errorCode: 'INVALID_OAUTH', message: 'Invalid OAuth token' })
+      )
+      expect(err.message).toContain('INVALID_OAUTH')
+      expect(err.message).toContain('Invalid OAuth token')
+      expect(err.message).not.toContain('Professional edition')
+      expect(errorStatus(err)).toBe(403)
+    })
+
     it('keeps provider 5xx retryable', () => {
       const err = mapZohoWebhookError(500, JSON.stringify({ errorCode: 'INTERNAL_ERROR' }))
       expect(errorStatus(err)).toBe(503)
