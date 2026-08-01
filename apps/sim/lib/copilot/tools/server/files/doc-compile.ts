@@ -566,7 +566,7 @@ export async function resolveServableDocBytes(args: {
   isGeneratedSource?: boolean
   ownerKey?: string
   signal?: AbortSignal
-}): Promise<{ buffer: Buffer; contentType: string }> {
+}): Promise<{ buffer: Buffer; contentType: string; unrendered?: boolean }> {
   const { rawBuffer, fileName, workspaceId, isGeneratedSource, ownerKey, signal } = args
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const extNoDot = ext.replace(/^\./, '')
@@ -595,7 +595,7 @@ export async function resolveServableDocBytes(args: {
    */
   const unrendered = (reason: string) => {
     logger.warn('Serving stored bytes unrendered', { fileName, workspaceId, reason })
-    return { buffer: rawBuffer, contentType: 'application/octet-stream' }
+    return { buffer: rawBuffer, contentType: 'application/octet-stream', unrendered: true }
   }
 
   if (workspaceId) {
@@ -626,8 +626,14 @@ export async function resolveServableDocBytes(args: {
     try {
       return await compileDoc({ source, fileName, workspaceId })
     } catch (error) {
+      // Only a script error is deterministic — the same bytes will never render, so
+      // remembering that is safe. Infra failures (sandbox create/timeout, S3, an
+      // aborted request) are transient: memoizing them would strand a perfectly good
+      // document for the life of the process, and swallowing them would report an
+      // outage as an unrenderable file. Let those propagate.
+      if (!(error instanceof DocCompileUserError)) throw error
       markUnrenderable(renderKey)
-      return unrendered(getErrorMessage(error, 'sandbox render failed'))
+      return unrendered(getErrorMessage(error, 'document source failed to render'))
     }
   }
 
@@ -648,7 +654,12 @@ export async function resolveServableDocBytes(args: {
     compiledCacheSet(renderKey, compiled)
     return { buffer: compiled, contentType: format.contentType }
   } catch (error) {
+    // Unlike the E2B engine, the isolated-vm task does not distinguish a script
+    // error from an infra one, so the only signal available here is cancellation —
+    // an aborted run says nothing about the source and must stay retryable rather
+    // than stranding a renderable document for the life of the process.
+    if (signal?.aborted) throw error
     markUnrenderable(renderKey)
-    return unrendered(getErrorMessage(error, 'sandbox render failed'))
+    return unrendered(getErrorMessage(error, 'document source failed to render'))
   }
 }

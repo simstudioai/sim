@@ -27,7 +27,6 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
-import { isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -443,8 +442,15 @@ async function resolveBase64(
     // actionable "still being generated" message. Callers that only decorate an
     // already-finished result opt out, so a late compile cannot retroactively
     // fail completed work.
-    if (options.throwOnDocNotReady && isDocNotReadyError(error)) {
-      throw error
+    if (options.throwOnDocNotReady) {
+      // Imported lazily: `servable-file-response` pulls in the doc-compile module
+      // graph (remote sandbox, sandbox task runner, execution limits), and a static
+      // import here would load all of it for every hydration consumer — mirroring
+      // the deliberate dynamic import in file-utils.server.ts.
+      const { isDocNotReadyError } = await import('@/lib/uploads/utils/servable-file-response')
+      if (isDocNotReadyError(error)) {
+        throw error
+      }
     }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
     return null

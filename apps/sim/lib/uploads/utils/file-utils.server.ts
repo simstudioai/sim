@@ -347,6 +347,13 @@ export async function downloadFileFromStorage(
 export interface ServableFile {
   buffer: Buffer
   contentType: string
+  /**
+   * Set when the bytes could not be rendered and are being served as-is under a
+   * generic content type. The bytes are NOT the document the filename claims, so a
+   * consumer that hands them to something expecting that format (a provider
+   * attachment, a document parser) must refuse rather than relabel them.
+   */
+  unrendered?: boolean
 }
 
 /**
@@ -384,8 +391,13 @@ export async function downloadServableFileFromStorage(
   // check on the actual stored bytes decides — real binaries pass through there
   // unchanged. (The files/download route gates type-first instead; its type is the
   // server-written DB record, which workflow state never is.)
-  const needsRendering =
-    isGeneratedDocumentSourceType(userFile.type) || isRenderableDocumentName(userFile.name)
+  // Normalize once: a stored type can arrive padded or upper-cased, and deciding the
+  // gate on the raw value while deciding `isGeneratedSource` on the normalized one
+  // would let a padded marker skip the resolver entirely when the name is not a
+  // renderable document.
+  const declaredType = userFile.type?.trim().toLowerCase()
+  const isGeneratedSource = isGeneratedDocumentSourceType(declaredType)
+  const needsRendering = isGeneratedSource || isRenderableDocumentName(userFile.name)
   if (!needsRendering) {
     const ext = getFileExtension(userFile.name)
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
@@ -402,10 +414,8 @@ export async function downloadServableFileFromStorage(
     fileName: userFile.name,
     workspaceId,
     // Only the positive case carries meaning: the resolver reads this solely to decide
-    // whether compiling is warranted where no artifact lookup is possible. Normalize
-    // first — `inferAttachmentMimeType` lowercases before the same Set lookup, and a
-    // stored type can arrive padded or upper-cased.
-    isGeneratedSource: isGeneratedDocumentSourceType(userFile.type?.trim().toLowerCase()),
+    // whether compiling is warranted where no artifact lookup is possible.
+    isGeneratedSource,
     ownerKey: options.ownerKey,
     signal: options.signal,
   })

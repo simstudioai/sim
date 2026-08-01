@@ -114,6 +114,22 @@ describe('readUserFileContent generated-document resolution', () => {
     expect(isExecutionResourceLimitError(error)).toBe(false)
   })
 
+  it('refuses bytes the resolver could not render rather than letting them be relabelled', async () => {
+    // readUserFileContent returns only a string, so the resolver's honest
+    // application/octet-stream cannot travel with it — an attachment builder
+    // downstream would infer application/pdf from the name and ship source bytes
+    // as a document. Refusing is the only way to keep that from happening.
+    mockResolveServableDocBytes.mockResolvedValue({
+      buffer: Buffer.from('<html>not a pdf</html>'),
+      contentType: 'application/octet-stream',
+      unrendered: true,
+    })
+
+    await expect(
+      readUserFileContent(generatedDoc(), { userId: 'user-1', encoding: 'base64' })
+    ).rejects.toThrow(/could not be rendered/)
+  })
+
   it('passes a plain file through without consulting the document resolver', async () => {
     const plainText = Buffer.from('just notes', 'utf8')
     mockDownloadFile.mockResolvedValue(plainText)
