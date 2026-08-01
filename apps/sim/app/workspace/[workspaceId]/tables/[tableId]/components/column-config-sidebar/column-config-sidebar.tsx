@@ -117,6 +117,22 @@ function ColumnConfigBody({
   const [typeInput, setTypeInput] = useState<ColumnDefinition['type']>(() =>
     config.mode === 'edit' ? (existingColumn?.type ?? 'string') : config.type
   )
+  // What "include time" means for the column as it stands today.
+  //
+  // Only an EXISTING date column answers from its own value, where absent means
+  // a column predating the key and therefore holding instants. Every other
+  // starting point — creating a column, or converting one that is not yet a
+  // date — takes the same date-only default a newly created date column gets.
+  //
+  // Read off a non-date column, `includeTime !== false` answers `true` (the key
+  // is simply absent there), which made converting a text column to Date
+  // silently opt it into times while creating one gave date-only. The seed and
+  // the dirty-check both read this so they cannot answer differently.
+  const baselineIncludeTime =
+    config.mode === 'edit' && existingColumn?.type === 'date'
+      ? existingColumn.includeTime !== false
+      : false
+
   const [uniqueInput, setUniqueInput] = useState<boolean>(() =>
     config.mode === 'edit' ? !!existingColumn?.unique : false
   )
@@ -142,11 +158,7 @@ function ColumnConfigBody({
       ? String(existingColumn.precision)
       : ''
   )
-  const [includeTimeInput, setIncludeTimeInput] = useState<boolean>(() =>
-    // Absent means a column created before the key existed, and those hold
-    // instants — so the toggle reflects what the column actually stores.
-    config.mode === 'edit' ? existingColumn?.includeTime !== false : false
-  )
+  const [includeTimeInput, setIncludeTimeInput] = useState<boolean>(() => baselineIncludeTime)
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -228,8 +240,7 @@ function ColumnConfigBody({
       const currencyChanged =
         wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
       const precisionChanged = wantsPrecision && existingColumn?.precision !== parsedPrecision
-      const includeTimeChanged =
-        wantsIncludeTime && (existingColumn?.includeTime !== false) !== includeTimeInput
+      const includeTimeChanged = wantsIncludeTime && baselineIncludeTime !== includeTimeInput
 
       const updates: {
         name?: string
