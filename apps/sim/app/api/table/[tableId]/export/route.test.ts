@@ -5,6 +5,7 @@ import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const { mockCheckAccess, mockQueryRows } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -106,5 +107,52 @@ describe('table export route — id→name translation', () => {
     expect(res.status).toBe(204)
     expect(mockCheckAccess).toHaveBeenCalledWith('tbl_1', 'user-1', 'read')
     expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('continues a virtual export with the keyset cursor returned by the previous page', async () => {
+    const firstRow = {
+      id: 'r1',
+      data: { col_email: 'first@b.c', legacy: 'x' },
+      executions: {},
+      position: 0,
+      orderKey: '2026-01-02T00:00:00.000Z',
+    }
+    const nextCursor = encodeCursor({
+      lastRow: firstRow,
+      keysetValid: true,
+      nextOffset: 1,
+    })
+    mockQueryRows
+      .mockResolvedValueOnce({
+        rows: [firstRow],
+        rowCount: 1,
+        totalCount: null,
+        limit: 1000,
+        offset: 0,
+        nextCursor,
+      })
+      .mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+        totalCount: null,
+        limit: 1000,
+        offset: 0,
+        nextCursor: null,
+      })
+
+    const res = await callGet('csv')
+    await res.text()
+
+    expect(mockQueryRows).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      {
+        limit: 1000,
+        offset: 0,
+        after: { orderKey: firstRow.orderKey, id: firstRow.id },
+        includeTotal: false,
+      },
+      expect.any(String)
+    )
   })
 })

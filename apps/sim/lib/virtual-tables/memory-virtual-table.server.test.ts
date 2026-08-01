@@ -333,7 +333,7 @@ describe('Memory virtual table', () => {
     expect(result.hasMore).toBe(true)
   })
 
-  it('still returns one transcript that alone exceeds the query byte budget', async () => {
+  it('rejects a transcript that alone exceeds the query byte budget', async () => {
     const oversized = {
       id: 'memory-1',
       key: 'conversation-1',
@@ -344,17 +344,41 @@ describe('Memory virtual table', () => {
       rowBytes: 5 * 1024 * 1024 + 1,
     }
     queueTableRows(schemaMock.memory, [oversized])
-    queueTableRows(schemaMock.memory, [{ id: oversized.id, data: oversized.data }])
+    await expect(
+      queryMemoryTableRows({
+        workspaceId: 'workspace-1',
+        limit: 1000,
+        includeTotal: false,
+      })
+    ).rejects.toThrow('Memory transcript exceeds the 5MB table query limit')
+
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns a continuation anchor when every selected transcript disappears during hydration', async () => {
+    const candidate = {
+      id: 'memory-1',
+      key: 'conversation-1',
+      createdAt: CREATED_AT,
+      updatedAt: UPDATED_AT,
+      messageCount: 1,
+      rowBytes: 100,
+    }
+    queueTableRows(schemaMock.memory, [candidate])
+    queueTableRows(schemaMock.memory, [])
 
     const result = await queryMemoryTableRows({
       workspaceId: 'workspace-1',
-      limit: 1000,
+      limit: 1,
       includeTotal: false,
     })
 
-    expect(result.rows).toHaveLength(1)
-    expect(result.rows[0]?.id).toBe(oversized.id)
-    expect(result.hasMore).toBe(false)
+    expect(result.rows).toEqual([])
+    expect(result.hasMore).toBe(true)
+    expect(result.continuation).toEqual({
+      lastRow: { id: candidate.id, orderKey: UPDATED_AT.toISOString() },
+      nextOffset: 1,
+    })
   })
 
   it('finds matching cells in one storage query and preserves filtered sort ordinals', async () => {

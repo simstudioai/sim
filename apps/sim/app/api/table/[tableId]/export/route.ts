@@ -11,6 +11,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvCell } from '@/lib/table/export-format'
+import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -106,11 +107,12 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
         }
 
         let offset = 0
+        let after: { orderKey: string | null; id: string } | undefined
         let firstJsonRow = true
         while (true) {
           const result = await queryRows(
             table,
-            { limit: EXPORT_BATCH_SIZE, offset, includeTotal: false },
+            { limit: EXPORT_BATCH_SIZE, offset, after, includeTotal: false },
             requestId
           )
 
@@ -128,7 +130,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
           // A page can be cut by the byte budget before reaching EXPORT_BATCH_SIZE,
           // so a short page does NOT mean the export is done — only a null cursor does.
           if (!result.nextCursor) break
-          offset += result.rows.length
+          const decoded = decodeCursor(result.nextCursor)
+          after = decoded.after
+          offset = decoded.offset ?? 0
         }
 
         if (format === 'json') controller.enqueue(encoder.encode(']'))

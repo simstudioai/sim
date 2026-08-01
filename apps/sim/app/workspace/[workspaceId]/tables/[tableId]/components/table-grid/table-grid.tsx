@@ -2538,6 +2538,16 @@ export function TableGrid({
       }
 
       if (e.key === 'Enter' || e.key === 'F2') {
+        if (isVirtualTableRef.current) {
+          e.preventDefault()
+          const col = cols[anchor.colIndex]
+          const row = currentRows[anchor.rowIndex]
+          if (!col || !row) return
+          setSelectionFocus(null)
+          setIsColumnSelection(false)
+          setExpandedCell({ rowId: row.id, columnName: col.key, columnKey: col.key })
+          return
+        }
         if (!canEditRef.current) return
         e.preventDefault()
         // The primary keyboard edit path — same lock notice as double-click and
@@ -2563,6 +2573,16 @@ export function TableGrid({
       }
 
       if (e.key === ' ' && !e.shiftKey) {
+        if (isVirtualTableRef.current) {
+          e.preventDefault()
+          const col = cols[anchor.colIndex]
+          const row = currentRows[anchor.rowIndex]
+          if (!col || !row) return
+          setSelectionFocus(null)
+          setIsColumnSelection(false)
+          setExpandedCell({ rowId: row.id, columnName: col.key, columnKey: col.key })
+          return
+        }
         if (!canEditRef.current) return
         e.preventDefault()
         // Space opens the same row editor as double-click, so it follows the

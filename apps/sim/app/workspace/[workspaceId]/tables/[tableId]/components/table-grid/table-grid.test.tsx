@@ -82,11 +82,17 @@ vi.mock('./table-primitives', () => ({
 vi.mock('./data-row', () => ({
   DataRow: ({
     onDoubleClick,
+    onCellMouseDown,
   }: {
     onDoubleClick: (rowId: string, name: string, key: string) => void
+    onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   }) => (
     <tr>
-      <td data-testid='cell' onDoubleClick={() => onDoubleClick('row-1', 'value', 'value')}>
+      <td
+        data-testid='cell'
+        onMouseDown={() => onCellMouseDown(0, 0, false)}
+        onDoubleClick={() => onDoubleClick('row-1', 'value', 'value')}
+      >
         Cell
       </td>
     </tr>
@@ -195,6 +201,69 @@ describe('TableGrid virtual cells', () => {
     expect(container.querySelector('[data-testid="new-column"]')).toBeNull()
     act(() => {
       cell?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+
+    expect(container.querySelector('[data-testid="expanded-cell"]')?.textContent).toBe('row-1')
+    expect(mockBlockedAction).not.toHaveBeenCalled()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it.each(['Enter', 'F2', ' '])('opens the read-only viewer with the %s keyboard path', (key) => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <TableGrid
+          workspaceId='workspace-1'
+          tableId='virtual-table'
+          remoteSelections={[]}
+          emitCellSelection={vi.fn()}
+          locks={{
+            schemaLocked: true,
+            insertLocked: true,
+            updateLocked: true,
+            deleteLocked: true,
+          }}
+          onBlockedAction={mockBlockedAction}
+          sidebarReservedPx={0}
+          onOpenColumnConfig={vi.fn()}
+          onOpenWorkflowConfig={vi.fn()}
+          onOpenEnrichments={vi.fn()}
+          onOpenEnrichmentConfig={vi.fn()}
+          onOpenExecutionDetails={vi.fn()}
+          onOpenEnrichmentDetails={vi.fn()}
+          onOpenRowModal={vi.fn()}
+          onRequestDeleteRows={vi.fn()}
+          onRequestDeleteAllByFilter={vi.fn()}
+          onRequestDeleteColumns={vi.fn()}
+          onRunColumn={vi.fn()}
+          onRunRow={vi.fn()}
+          onRunRows={vi.fn()}
+          onStopRows={vi.fn()}
+          onStopAllRows={vi.fn()}
+          onStopRow={vi.fn()}
+          onSelectionChange={vi.fn()}
+          queryOptions={{}}
+          columnRenameSinkRef={{ current: null }}
+          afterDeleteRowsSinkRef={{ current: null }}
+          afterDeleteAllSinkRef={{ current: null }}
+          confirmDeleteColumnsSinkRef={{ current: null }}
+          pushTableRenameUndoSinkRef={{ current: null }}
+        />
+      )
+    })
+
+    const cell = container.querySelector<HTMLElement>('[data-testid="cell"]')
+    const scroll = container.querySelector<HTMLElement>('[data-table-scroll]')
+    act(() => {
+      cell?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    act(() => {
+      scroll?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
     })
 
     expect(container.querySelector('[data-testid="expanded-cell"]')?.textContent).toBe('row-1')

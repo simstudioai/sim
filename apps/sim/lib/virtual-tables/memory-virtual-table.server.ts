@@ -200,22 +200,25 @@ export async function queryMemoryTableRows({
     ? db.select({ value: count() }).from(memoryRows).where(baseWhere)
     : Promise.resolve(null)
   const [candidates, totalRows] = await Promise.all([candidatePromise, totalPromise])
-  const pageByteBudget = getMaxPageBytes() ?? TABLE_LIMITS.MAX_QUERY_RESULT_BYTES
+  const pageByteBudget = Math.min(
+    getMaxPageBytes() ?? TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
+    TABLE_LIMITS.MAX_QUERY_RESULT_BYTES
+  )
   const selectedCandidates: typeof candidates = []
   let selectedBytes = 0
-  let hasMore = false
+  let hasMore = candidates.length === limit
 
   for (const candidate of candidates) {
     const rowBytes = Number(candidate.rowBytes)
     if (!Number.isFinite(rowBytes) || rowBytes < 0) {
       throw new TableQueryValidationError('Memory table returned an invalid row size')
     }
-    // Matches `fetchRowsBounded` on the persisted path: a bounded page always
-    // yields at least one row, even one that alone exceeds the budget. Memory
-    // transcripts have no write-time size cap (unlike persisted rows, which are
-    // held to MAX_ROW_SIZE_BYTES), so refusing an over-budget first row would
-    // make one long conversation render the whole table unreadable with no way
-    // to page past it.
+    if (rowBytes > pageByteBudget) {
+      throw new TableQueryValidationError(
+        `Memory transcript exceeds the ${Math.floor(pageByteBudget / (1024 * 1024))}MB table query limit`,
+        'TABLE_QUERY_RESULT_TOO_LARGE'
+      )
+    }
     if (selectedCandidates.length > 0 && selectedBytes + rowBytes > pageByteBudget) {
       hasMore = true
       break
@@ -257,12 +260,23 @@ export async function queryMemoryTableRows({
       ),
     ]
   })
+  const lastSelectedCandidate = selectedCandidates[selectedCandidates.length - 1]
 
   return {
     rows,
     totalCount: totalRows ? Number(totalRows[0].value) : null,
     keysetValid: !sort,
     hasMore,
+    continuation:
+      hasMore && lastSelectedCandidate
+        ? {
+            lastRow: {
+              id: lastSelectedCandidate.id,
+              orderKey: lastSelectedCandidate.updatedAt.toISOString(),
+            },
+            nextOffset: offset + selectedCandidates.length,
+          }
+        : undefined,
   }
 }
 /** Searches Memory cells in PostgreSQL while preserving the active view's row ordinals. */

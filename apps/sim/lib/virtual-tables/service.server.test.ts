@@ -152,6 +152,30 @@ describe('virtual table service', () => {
     })
   })
 
+  it('continues after scanned candidates when hydration drops every returned row', async () => {
+    mockQueryMemoryRows.mockResolvedValue({
+      rows: [],
+      totalCount: 2,
+      keysetValid: true,
+      hasMore: true,
+      continuation: {
+        lastRow: { id: 'memory-1', orderKey: '2026-01-02T00:00:00.000Z' },
+        nextOffset: 1,
+      },
+    })
+
+    const result = await queryVirtualTableRows(MEMORY_TABLE, {
+      limit: 1000,
+      offset: 0,
+      includeTotal: true,
+    })
+
+    expect(result.rows).toEqual([])
+    expect(decodeCursor(result.nextCursor as string)).toEqual({
+      after: { orderKey: '2026-01-02T00:00:00.000Z', id: 'memory-1' },
+    })
+  })
+
   it('emits a sort-bound offset cursor when a provider cannot use a keyset', async () => {
     const firstRow = createRow('memory-1', '2026-01-02T00:00:00.000Z')
     const witnessRow = createRow('memory-2', '2026-01-01T00:00:00.000Z')

@@ -16,6 +16,10 @@ interface VirtualTablePage {
   totalCount: number | null
   keysetValid: boolean
   hasMore?: boolean
+  continuation?: {
+    lastRow: Pick<TableRow, 'id' | 'orderKey'>
+    nextOffset: number
+  }
 }
 
 interface VirtualTable {
@@ -79,9 +83,15 @@ export async function queryVirtualTableRows(
     limit: limit + 1,
     offset,
   })
-  const hasMore = page.hasMore === true || page.rows.length > limit
+  const exceedsLimit = page.rows.length > limit
+  const hasMore = page.hasMore === true || exceedsLimit
   const rows = page.rows.slice(0, limit)
-  const lastRow = rows[rows.length - 1]
+  const continuation =
+    !exceedsLimit && page.continuation
+      ? page.continuation
+      : rows.length > 0
+        ? { lastRow: rows[rows.length - 1], nextOffset: offset + rows.length }
+        : null
 
   return {
     rows,
@@ -90,11 +100,11 @@ export async function queryVirtualTableRows(
     limit,
     offset,
     nextCursor:
-      hasMore && lastRow
+      hasMore && continuation
         ? encodeCursor({
-            lastRow,
+            lastRow: continuation.lastRow,
             keysetValid: page.keysetValid,
-            nextOffset: offset + rows.length,
+            nextOffset: continuation.nextOffset,
             sort: options.sort,
           })
         : null,
