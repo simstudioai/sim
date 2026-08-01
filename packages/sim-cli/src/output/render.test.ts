@@ -14,6 +14,7 @@ import {
 } from './render.js'
 
 const ESC = String.fromCharCode(27)
+const BEL = String.fromCharCode(7)
 
 /** Colour is stripped when not writing to a TTY, so force it on for these assertions. */
 const coloured = new Chalk({ level: 1 })
@@ -237,6 +238,15 @@ describe('sanitize', () => {
 
   it('is applied to values passing through text()', () => {
     expect(text(`${ESC}]0;x\u0007safe`)).toBe('safe')
+  })
+
+  it('is applied to a table header, not only its cells', () => {
+    // A table's column names are user-defined, so the header is remote content
+    // too — sanitizing cells alone left the sequences executable one row up.
+    const hostile = `${ESC}]0;pwned${BEL}email`
+    printList('table', [{ v: 'a@b.co' }], [{ header: hostile, value: () => 'a@b.co' }])
+    expect(logged[0]).not.toContain(ESC)
+    expect(logged[0]).toContain('EMAIL')
   })
 
   it('is applied to an unparseable timestamp, which is echoed verbatim', () => {

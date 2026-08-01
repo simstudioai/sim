@@ -134,13 +134,17 @@ function pad(value: string, width: number): string {
 function renderTable<T>(rows: T[], columns: Column<T>[]): string {
   if (rows.length === 0) return chalk.dim('No results.')
 
+  // A header can be a user-defined column name (a table's own columns), so it is
+  // remote content and gets the same treatment as a cell. Doing it here rather
+  // than only at each call site means a future column source cannot reopen this.
+  const headers = columns.map((column) => sanitize(column.header))
   const cells = rows.map((row) => columns.map((column) => column.value(row)))
-  const widths = columns.map((column, index) =>
-    Math.max(visibleWidth(column.header), ...cells.map((line) => visibleWidth(line[index])))
+  const widths = columns.map((_column, index) =>
+    Math.max(visibleWidth(headers[index]), ...cells.map((line) => visibleWidth(line[index])))
   )
 
-  const header = columns
-    .map((column, index) => chalk.dim(pad(column.header.toUpperCase(), widths[index])))
+  const header = headers
+    .map((label, index) => chalk.dim(pad(label.toUpperCase(), widths[index])))
     .join('  ')
     .trimEnd()
 

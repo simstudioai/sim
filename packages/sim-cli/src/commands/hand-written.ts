@@ -96,7 +96,9 @@ function rowColumns(rows: Row[]): Column<Row>[] {
   return [
     { header: 'id', value: (row) => row.id },
     ...keys.map((key) => ({
-      header: key,
+      // A table's column names are user-defined, so the header is remote
+      // content just as much as the cell beneath it.
+      header: sanitize(key),
       value: (row: Row) => {
         const value = row.data[key]
         if (value === null || value === undefined) return text(null)

@@ -86,7 +86,10 @@ function inferColumns(rows: unknown[]): Column<unknown>[] {
   }
 
   return keys.map((key) => ({
-    header: key,
+    // The key itself is remote data when the rows are user-defined, and the
+    // header is printed just like a cell — sanitizing values but not headers
+    // left the same control sequences executable one row higher.
+    header: sanitize(key),
     value: (row: unknown) => renderCell(at(row, key), 'auto'),
   }))
 }
@@ -211,7 +214,19 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
     }
 
     const { client, profile } = clientFrom(host)
-    const request = buildRequest(operation, positional, flags, profile.workspaceId)
+    // `requireWorkspace` checks the key first on purpose, so a fresh install is
+    // told to log in rather than to set a workspace it cannot use yet. Reading
+    // `profile.workspaceId` directly skipped that ordering.
+    const needsWorkspace = Boolean(
+      (operationSpec.query && PROFILE_INJECTED_FIELD in operationSpec.query) ||
+        (operationSpec.body && PROFILE_INJECTED_FIELD in operationSpec.body)
+    )
+    const request = buildRequest(
+      operation,
+      positional,
+      flags,
+      needsWorkspace ? client.requireWorkspace() : profile.workspaceId
+    )
 
     const paging = cursorSlot(operation)
     if (paging) {

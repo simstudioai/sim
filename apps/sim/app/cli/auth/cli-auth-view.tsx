@@ -71,11 +71,21 @@ export function CliAuthView() {
    */
   const loadingWorkspaces = isPlatform && workspaces.isPending
 
-  // The terminal's suggestion, then the user's last active workspace. Derived at
-  // render rather than synced into state through an effect, so the first paint
-  // after the list loads already shows the right row.
-  const workspaceId =
-    selected ?? request.suggestedWorkspaceId ?? workspaces.data?.lastActiveWorkspaceId ?? null
+  /**
+   * The terminal's suggestion, then the user's last active workspace. Derived at
+   * render rather than synced into state through an effect, so the first paint
+   * after the list loads already shows the right row.
+   *
+   * The suggestion only counts when it resolves to a workspace the user
+   * actually has. It comes from a profile the CLI wrote earlier, so it can name
+   * a workspace they have since left or one that no longer exists — and being
+   * merely truthy, it used to shadow the last-active fallback and leave the card
+   * on "no workspace" with a perfectly good one available.
+   */
+  const suggested = workspaces.data?.workspaces.some((w) => w.id === request.suggestedWorkspaceId)
+    ? request.suggestedWorkspaceId
+    : null
+  const workspaceId = selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null
   const chosen = workspaces.data?.workspaces.find((w) => w.id === workspaceId)
 
   // Only an admin can bind a key to a workspace. Anything less still gets a
