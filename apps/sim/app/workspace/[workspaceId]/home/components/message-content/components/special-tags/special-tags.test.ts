@@ -246,17 +246,20 @@ describe('parseSpecialTags with <question>', () => {
   })
 
   it('does not rescan the interior of a body that carried no markers', () => {
-    // Pins WHY the two literal reasons resume at different offsets. A
-    // not-viable-json body resumes past the CLOSE; resuming past the opener
-    // instead would rescan the interior, and since the marker scan runs on the
-    // blanked body, a tag quoted inside a JSON string is invisible to it and
-    // would be re-parsed as a real tag on the second pass — then dropped,
-    // deleting the very text this parser exists to preserve.
+    // Pins WHY a settled span resumes past the CLOSE, never past the opener.
+    // Resuming past the opener would rescan the interior, and since the marker
+    // scan runs on the blanked body, a tag quoted inside a JSON string is
+    // invisible to it and would be re-parsed as a REAL tag on the second pass —
+    // painting the quoted JSON verbatim as raw text (its escaped quotes cannot
+    // re-parse as a card), the exact failure `discard` exists to prevent. The
+    // span itself opens `{"` and will not parse (trailing junk), so it is an
+    // attempted payload and is discarded whole; what must never happen is a
+    // partial re-parse of its quoted interior.
     const raw =
       'A <question>{"a":"<options>{\\"k\\":{\\"title\\":\\"x\\",\\"description\\":\\"y\\"}}</options>"} junk</question> B'
     const { segments } = parseSpecialTags(raw, false)
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-    expect(renderedText(segments)).toBe(raw)
+    expect(renderedText(segments)).toBe('A  B')
   })
 
   it('keeps prose a tag wrapped instead of a payload', () => {
@@ -374,6 +377,32 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(parseSpecialTags(raw, false).segments)).toBe(raw)
   })
 
+  it('treats brace-wrapped quoted prose as an attempted payload, by design', () => {
+    // The deliberate edge of the opener heuristic, pinned so it stays a
+    // decision: `{"..."}` reads as a payload the model started and botched (a
+    // key with no value), not prose — prose the reader was meant to see arrives
+    // unwrapped or in bare quotes, and both of those stay rendered (see the
+    // cases above). The array twin parses as JSON, so it was already dropped as
+    // `wrong-shape` before the opener heuristic existed.
+    const braceWrapped = 'see <options>{"the Q4 report"}</options> end'
+    expect(renderedText(parseSpecialTags(braceWrapped, false).segments)).toBe('see  end')
+    const arrayWrapped = 'see <options>["some list item"]</options> end'
+    expect(renderedText(parseSpecialTags(arrayWrapped, false).segments)).toBe('see  end')
+  })
+
+  it('discards a broken payload whose strings legitimately mention tag syntax', () => {
+    // The prompt quotes a tag name, so a raw scan sees a marker — but the
+    // body's quotes are balanced, so the blanked scan already proved the marker
+    // sits inside a string. Treating it as a nested tag would render the broken
+    // payload as raw JSON, the exact failure `discard` exists to prevent. The
+    // raw rescan is reserved for mispaired quotes, where blanked offsets lie.
+    const raw =
+      'Prose before. <question>{"type": "single_select", "prompt": "Use the <options> tag", "options": [{"id": "a", "label": "x"}}]}</question>'
+    const { segments } = parseSpecialTags(raw, false)
+    expect(renderedText(segments)).toBe('Prose before. ')
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+  })
+
   it('does not flash the payload while the closing tag is still arriving', () => {
     // Each frame below is a real mid-stream state: the JSON value has closed, so
     // without tolerating an arriving close the trailing `</opt` reads as stray
@@ -386,6 +415,23 @@ describe('parseSpecialTags with <question>', () => {
       expect(hasPendingTag).toBe(true)
       expect(renderedText(segments)).toBe('see ')
     }
+  })
+
+  it('never flashes a broken payload at any streamed frame', () => {
+    // A body that goes non-viable mid-stream (the stray `]}` lands before the
+    // close does) used to release as literal text at that frame, then vanish
+    // when the close arrived and classified it not-parsable — raw JSON painted
+    // on screen only for the close to retract it. Suppression must hold at
+    // EVERY frame from the completed opener on, and the settled parse must
+    // agree with what the frames showed.
+    const raw =
+      'Prose before. <options>{"1": {"title": "Define the criteria", "description": "Populate"}}]}</options> after.'
+    const bodyStart = raw.indexOf('<options>') + '<options>'.length
+    for (let end = bodyStart; end <= raw.length; end++) {
+      const { segments } = parseSpecialTags(raw.slice(0, end), true)
+      expect(renderedText(segments), `frame ${end}`).not.toContain('{')
+    }
+    expect(renderedText(parseSpecialTags(raw, false).segments)).toBe('Prose before.  after.')
   })
 
   it('still rejects a close whose name is wrong rather than merely unfinished', () => {

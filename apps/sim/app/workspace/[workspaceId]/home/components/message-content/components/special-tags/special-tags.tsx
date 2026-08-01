@@ -640,6 +640,33 @@ function blankJsonStringLiterals(body: string): string {
 }
 
 /**
+ * Whether `body` ends inside a JSON string literal, under the same quote and
+ * escape rules as {@link blankJsonStringLiterals}.
+ *
+ * True means the body's quotes are mispaired, so blanking assigned at least one
+ * region to the wrong side of a string boundary — the one condition under which
+ * a marker missing from the blanked copy may still be real. With balanced
+ * quotes the blanked scan already saw every marker outside a string, so a
+ * marker visible only in the raw text really was quoted content (see
+ * {@link classifyBody}).
+ */
+function endsInsideJsonString(body: string): boolean {
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < body.length; i++) {
+    const char = body[i]
+    if (escaped) {
+      escaped = false
+    } else if (char === '\\' && inString) {
+      escaped = true
+    } else if (char === '"') {
+      inString = !inString
+    }
+  }
+  return inString
+}
+
+/**
  * True while `scannable` could still grow into a single valid JSON value.
  *
  * Checking only the first character is not enough: a body like
@@ -674,6 +701,33 @@ function isViableJsonPrefixOf(scannable: string): boolean {
 
   return true
 }
+
+/**
+ * Index just past the close of `scannable`'s top-level JSON value, or -1 while
+ * the value is still open. Same depth rules as {@link isViableJsonPrefixOf},
+ * and takes the same blanked form, so braces inside JSON strings do not count.
+ */
+function jsonValueEndIn(scannable: string): number {
+  let depth = 0
+  for (let i = 0; i < scannable.length; i++) {
+    const char = scannable[i]
+    if (char === '{' || char === '[') {
+      depth++
+    } else if (char === '}' || char === ']') {
+      depth--
+      if (depth <= 0) return i + 1
+    }
+  }
+  return -1
+}
+
+/**
+ * Nothing but JSON punctuation and whitespace — what a fumbled payload's tail
+ * looks like on the BLANKED body, where string contents are already spaces. A
+ * letter or digit here means the model moved on to prose instead (see
+ * {@link resolveTagAt}).
+ */
+const JSON_DEBRIS_ONLY = /^[\s[\]{}",:]*$/
 
 /**
  * Whether `text` contains a marker for one of the tags this parser knows.
@@ -989,17 +1043,24 @@ function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string)
 
   if (unparseable) {
     // literalTextReason blanked this body's quoted regions on the assumption it
-    // was valid JSON. It is not, so that assumption is void — and a body with
-    // an odd number of `"` blanks the WRONG regions, which can hide a real
-    // marker and misread a mispaired span as this tag's own body. The
-    // difference is not academic: both classes below resume past the close,
-    // flattening or discarding a genuine tag inside the span, so a card already
-    // on screen un-renders when the close finally arrives. With the JSON
-    // premise gone, the raw text is the honest evidence, and a marker in it
-    // means the close we matched belongs elsewhere. Only after both marker
-    // scans come up empty may the opener test decide the remaining two classes.
-    const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
-    if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
+    // was valid JSON. It is not — but the blanked offsets only LIE when the
+    // body's quotes are mispaired: an odd `"` blanks the wrong regions, which
+    // can hide a real marker and misread a mispaired span as this tag's own
+    // body. The difference is not academic: both failure classes below resume
+    // past the close, flattening or discarding a genuine tag inside the span,
+    // so a card already on screen un-renders when the close finally arrives.
+    // With mispaired quotes the raw text is the honest evidence, and a marker
+    // in it means the close we matched belongs elsewhere. With BALANCED quotes
+    // the blanked scan above already saw every marker outside a string, so a
+    // marker visible only in the raw text is quoted content — rescanning would
+    // classify a broken payload whose strings legitimately mention tag syntax
+    // as nested markers and render it as raw JSON, the exact failure `discard`
+    // exists to prevent. Only after the marker question settles may the opener
+    // test decide the remaining two classes.
+    if (endsInsideJsonString(inspected.text)) {
+      const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
+      if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
+    }
     return wasAttemptedPayload(body) ? { kind: 'not-parsable' } : { kind: 'not-a-payload' }
   }
 
@@ -1086,8 +1147,33 @@ function resolveTagAt(
 
   if (closeIdx === -1) {
     const inspected = inspectWithin(content, bodyStart)
-    if (isStreaming && !unclosedTagCannotResolve(tagName, inspected.text)) {
-      return { outcome: 'pending' }
+    if (isStreaming) {
+      if (!unclosedTagCannotResolve(tagName, inspected.text)) return { outcome: 'pending' }
+      // The body can no longer resolve, but it reads as a payload the model is
+      // still fumbling: it opens like an attempted payload and everything past
+      // its top-level value is JSON debris (a stray `}` or `]}`) — exactly the
+      // shapes the matched-pair path DISCARDS the moment a close arrives.
+      // Releasing such a body now paints raw JSON on screen only for the close
+      // to retract it, so keep suppressing while the stream runs; the settled
+      // parse still shows it if the close never comes. Two kinds of
+      // counter-evidence release immediately, because each means the model
+      // moved on and holding the remainder back would blank the rest of the
+      // message for the whole stream — the failure unclosedTagCannotResolve
+      // exists to prevent: a tag-shaped marker outside the payload's strings
+      // (a misspelled close, a new tag), or prose after the value closed (a
+      // mention flowing on, pinned by the trace 220cc02d and trace afbeefd0
+      // tests).
+      if (JSON_BODY_TAG_NAMES.has(tagName)) {
+        const pending = dropArrivingClose(inspected.text, closeTag)
+        const blanked = blankJsonStringLiterals(pending)
+        if (
+          wasAttemptedPayload(pending) &&
+          !TAG_SHAPED_MARKER.test(blanked) &&
+          JSON_DEBRIS_ONLY.test(blanked.slice(Math.max(0, jsonValueEndIn(blanked))))
+        ) {
+          return { outcome: 'pending' }
+        }
+      }
     }
     // Nothing can close it, so only the opener itself is literal. Resuming just
     // past it (rather than abandoning the message) keeps a genuinely valid tag
