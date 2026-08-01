@@ -75,10 +75,10 @@ export function ExpandedCellPopover({
     // stored value: a `duration` read as `5400` instead of `1:30:00`, a
     // `percent` as `25` instead of `25.0%`.
     //
-    // `json` is the deliberate exception: its `formatForDisplay` is the
-    // one-line form the grid cell needs, but the point of expanding a JSON cell
-    // is to read it indented.
-    if (target.column.type === 'json') return JSON.stringify(value, null, 2)
+    // The `json` editor is the deliberate exception: its `formatForDisplay` is
+    // the one-line form the grid cell needs, but the point of EXPANDING such a
+    // cell is to read it indented.
+    if (columnTypeOf(target.column).editor === 'json') return JSON.stringify(value, null, 2)
     return columnTypeOf(target.column).formatForDisplay(value, target.column)
   }, [target])
 
@@ -159,7 +159,7 @@ export function ExpandedCellPopover({
         <ExpandedCellEditor
           key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
           initialValue={
-            target.column.type === 'date'
+            columnTypeOf(target.column).editor === 'date'
               ? storageToDisplay(formatValueForInput(target.value, target.column), {
                   seconds: true,
                 })
@@ -226,10 +226,13 @@ function ExpandedCellEditor({
       onClose()
       return
     }
-    // Only date columns go through `displayToStorage` — it now parses many
-    // date shapes, so a number draft like "2024" must not reach it.
+    // Only date-editor columns go through `displayToStorage` — it parses many
+    // date shapes, so a number draft like "2024" must not reach it. Keyed on
+    // the editor the type declares, which is also what chose the format above.
     const raw =
-      column.type === 'date' ? (displayToStorage(draftValue, timeZone) ?? draftValue) : draftValue
+      columnTypeOf(column).editor === 'date'
+        ? (displayToStorage(draftValue, timeZone) ?? draftValue)
+        : draftValue
     let cleaned: unknown
     try {
       cleaned = cleanCellValue(raw, column, timeZone)

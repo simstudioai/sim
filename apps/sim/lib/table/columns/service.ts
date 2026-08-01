@@ -748,7 +748,7 @@ export async function updateColumnType(
     // Leaving `select` behind: stored cells hold option ids, which mean nothing
     // once the column is text/number/etc. Check compatibility against the option
     // NAME — that's what the cell will actually become (migrated below).
-    const convertingAwayFromSelect = column.type === 'select' && !isSelectType
+    const convertingAwayFromSelect = columnTypeOf(column).storesOpaqueIds && !isSelectType
     // The constraint the column ends up with, which may be arriving in this
     // same request — this write applies it, so the scan below has to judge
     // against the target value rather than the current one.

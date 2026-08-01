@@ -240,7 +240,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   // The one type wanting a mono multi-line field; `editor: 'text'` covers both
   // this and a plain input, so it stays explicit rather than inventing a field
   // only one type would ever set.
-  if (column.type === 'json') {
+  if (definition.editor === 'json') {
     return (
       <ChipModalField
         type='textarea'

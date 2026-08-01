@@ -26,18 +26,20 @@ export function cleanCellValue(
   column: ColumnDefinition,
   timeZone?: string
 ): unknown {
-  // These three read the browser's own context (the viewer's timezone, a JSON
-  // draft that must throw so the editor can show a parse error, a checkbox's
-  // truthiness) so they cannot come from the shared coercion.
-  if (column.type === 'json') {
+  // These three read the browser's own context (the viewer's timezone, a
+  // structured draft that must THROW so the editor can show a parse error, a
+  // checkbox's truthiness) so they cannot come from the shared coercion. Keyed
+  // on the editor each type declares, not on its id.
+  const editor = columnTypeOf(column).editor
+  if (editor === 'json') {
     if (typeof value === 'string') {
       if (value === '') return null
       return JSON.parse(value)
     }
     return value
   }
-  if (column.type === 'boolean') return Boolean(value)
-  if (column.type === 'date') {
+  if (editor === 'toggle') return Boolean(value)
+  if (editor === 'date') {
     if (value === '' || value === null || value === undefined) return null
     return displayToStorage(String(value), timeZone)
   }

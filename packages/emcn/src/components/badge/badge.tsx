@@ -64,18 +64,28 @@ const STATUS_VARIANTS = [
   'gray-secondary',
 ] as const
 
-/** Dot sizes corresponding to badge size variants */
-const DOT_SIZES: Record<string, string> = {
+type BadgeSize = NonNullable<VariantProps<typeof badgeVariants>['size']>
+
+/**
+ * Dot sizes corresponding to badge size variants.
+ *
+ * `Record<BadgeSize, …>`, not `Record<string, …>`: these maps are keyed off the
+ * same union CVA owns, and a loose index signature silently accepts a missing
+ * entry — a new size would render `dot` with no size class at all.
+ */
+const DOT_SIZES: Record<BadgeSize, string> = {
   sm: 'size-[5px]',
   md: 'size-1.5',
   lg: 'size-1.5',
+  swatch: 'size-[5px]',
 }
 
-/** Icon sizes corresponding to badge size variants */
-const ICON_SIZES: Record<string, string> = {
+/** Icon sizes corresponding to badge size variants. See {@link DOT_SIZES}. */
+const ICON_SIZES: Record<BadgeSize, string> = {
   sm: 'size-2.5',
   md: 'size-3',
   lg: 'size-3',
+  swatch: 'size-2.5',
 }
 
 export interface BadgeProps

@@ -18,6 +18,8 @@ import {
   columnTypeById,
   isColumnType,
   isValueCompatible,
+  ownersOfMetadataKey,
+  TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
@@ -81,6 +83,32 @@ describe('registry shape', () => {
     // no explanation.
     for (const definition of ALL_COLUMN_TYPES) {
       if (definition.typeaheadPattern) expect(definition.parseErrorMessage).toBeTruthy()
+    }
+  })
+})
+
+describe('metadata key ownership', () => {
+  it('has co-owners of a shared key agree on which writer handles it', () => {
+    // `metadataKeysIn` reads the answer off ANY one owner, so co-owners that
+    // disagreed would route the same key to different writers depending only
+    // on registration order. `precision` is shared by `number` and `percent`.
+    for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+      const owners = ownersOfMetadataKey(key)
+      if (owners.length < 2) continue
+      const handled = owners.map((o) =>
+        [...(o.genericMetadataUpdate ?? o.ownedMetadata)].sort().join(',')
+      )
+      expect(new Set(handled).size, `owners of "${key}" disagree`).toBe(1)
+    }
+  })
+
+  it('lists an owner for every declared key, and only real types', () => {
+    for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+      const owners = ownersOfMetadataKey(key)
+      expect(owners.length, `"${key}" has no owner`).toBeGreaterThan(0)
+      for (const owner of owners) {
+        expect(owner.ownedMetadata).toContain(key)
+      }
     }
   })
 })

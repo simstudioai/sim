@@ -42,7 +42,7 @@ export function SelectColorPicker({ color, onChange, optionName }: SelectColorPi
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className='flex size-7 shrink-0 items-center justify-center'
+        className='flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover-hover:bg-[var(--surface-5)]'
         aria-label={`Color for ${optionName || 'option'}: ${labelFor(current)}`}
       >
         <Badge variant={current} size='swatch' />

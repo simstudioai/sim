@@ -381,8 +381,6 @@ export function filterRulesToPredicate(
     // A select value is an opaque option id — never scalar-coerce it (an id
     // that happens to look numeric would silently become a number and match
     // nothing). Same rule as filterRulesToFilter.
-    // Opaque-id values must NOT be scalar-coerced: an option id of `"1"` would
-    // become the number 1 and then match nothing under JSONB containment.
     const ruleColumn = columns.find((c) => columnMatchesRef(c, rule.column))
     const isSelect = ruleColumn ? columnTypeOf(ruleColumn).storesOpaqueIds : false
     current.push(ruleToPredicate(rule, isSelect))

@@ -57,6 +57,16 @@ export type ColumnCellEditor =
   | 'select'
   /** Not editable inline — the grid toggles it in place instead. */
   | 'toggle'
+  /**
+   * A structured document: monospace multi-line input, pretty-printed when
+   * expanded, and a draft that is PARSED on commit so a syntax error surfaces
+   * as an editor message instead of being stored as text.
+   *
+   * Its own variant rather than three separate flags, because those three
+   * behaviours always travel together and were otherwise three separate
+   * `column.type === 'json'` branches in three modules.
+   */
+  | 'json'
 
 /**
  * Optional `ColumnDefinition` keys that belong to a specific column type rather

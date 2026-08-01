@@ -133,9 +133,10 @@ function ColumnConfigBody({
   )
   // The RAW string, not a number. A numeric state round-tripped through
   // `Number()` on every keystroke cannot be cleared (`'' → 0`) and clamps
-  // mid-typing (`1`, then `2` → `10`, never `12`). Parsing happens on commit,
-  // matching `usage-limit-field`. Empty means "no precision declared", which is
-  // what keeps a column rendering its values as stored.
+  // mid-typing (`1`, then `2` → `10`, never `12`). The parse is derived below
+  // and never written back, so the field keeps whatever was typed — same shape
+  // as `usage-limit-field`. Empty means "no precision declared", which is what
+  // keeps a column rendering its values as stored.
   const [precisionInput, setPrecisionInput] = useState<string>(() =>
     config.mode === 'edit' && existingColumn?.precision !== undefined
       ? String(existingColumn.precision)
@@ -158,8 +159,6 @@ function ColumnConfigBody({
   // type that loses it cannot leave a stale control behind.
   const wantsCurrency = typeOwnsMetadataKey(typeInput, 'currencyCode')
   const wantsPrecision = typeOwnsMetadataKey(typeInput, 'precision')
-  // `undefined` (blank field) is meaningful: it leaves the column rendering
-  // values exactly as stored rather than forcing a decimal count.
   const parsedPrecision =
     precisionInput.trim() === '' ? undefined : clampPrecision(Number(precisionInput))
   const wantsIncludeTime = typeOwnsMetadataKey(typeInput, 'includeTime')
@@ -351,7 +350,9 @@ function ColumnConfigBody({
           <>
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel htmlFor='column-sidebar-precision'>Decimal places</RequiredLabel>
+              <Label htmlFor='column-sidebar-precision' className='pl-0.5'>
+                Decimal places
+              </Label>
               <ChipInput
                 id='column-sidebar-precision'
                 type='number'

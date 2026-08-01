@@ -13,7 +13,7 @@ export const jsonColumnType: ColumnTypeDefinition = {
   sampleValue: 'value',
   ownedMetadata: ownedKeysOf('json'),
   workflowInputType: 'object',
-  editor: 'text',
+  editor: 'json',
   expandable: true,
 
   coerce(value) {
