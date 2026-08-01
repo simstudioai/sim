@@ -14,10 +14,14 @@ import {
   getErrorBorderPort,
   getErrorSourceHandleStyle,
   getNearestBranchCursorHandleId,
+  getNoteBlockHeight,
   getWorkflowBorderFrameDeltaSeconds,
   HANDLE_POSITIONS,
   isActionMenuSwellReady,
+  NoteBlockView,
   normalizeCursorSourceHandleId,
+  SubflowNodeView,
+  SubflowStartView,
   WorkflowBlockBorder,
   type WorkflowBorderPort,
 } from '@sim/workflow-renderer'
@@ -28,6 +32,7 @@ import {
   POSITIONED_SOURCE_HANDLE_SIDES,
 } from '@sim/workflow-types/workflow'
 import { createRoot, type Root } from 'react-dom/client'
+import { ReactFlowProvider } from 'reactflow'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -87,6 +92,7 @@ afterEach(() => {
   mountedHosts.forEach((host) => host.remove())
   mountedHosts.clear()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('WorkflowBlockBorder mount', () => {
@@ -102,6 +108,10 @@ describe('WorkflowBlockBorder mount', () => {
     expect(normalizeCursorSourceHandleId('source-cursor-right')).toBe('source-right')
     expect(normalizeCursorSourceHandleId('source-cursor-top')).toBe('source-right')
     expect(normalizeCursorSourceHandleId('source-cursor-bottom')).toBe('source-right')
+    expect(normalizeCursorSourceHandleId('source-cursor-left', 'loop')).toBe('loop-end-source')
+    expect(normalizeCursorSourceHandleId('source-cursor-right', 'parallel')).toBe(
+      'parallel-end-source'
+    )
     /* Anything that already reached the graph collapses the same way. */
     expect(normalizePositionedSourceHandleId('source-left')).toBe('source-right')
     expect(normalizePositionedSourceHandleId('source-right')).toBe('source-right')
@@ -189,6 +199,43 @@ describe('WorkflowBlockBorder mount', () => {
     expect(path?.getAttribute('d')?.length ?? 0).toBeGreaterThan(0)
   })
 
+  it('paints a tall selector card across floating-point segment seams', () => {
+    const selectorPorts: WorkflowBorderPort[] = [
+      {
+        id: 'target',
+        side: 'left',
+        position: 'center',
+        plateau: 38,
+        color: 'var(--text-secondary)',
+        magnetizable: false,
+      },
+    ]
+    const { host } = mount(
+      <div style={{ width: 250, height: 384 }}>
+        <WorkflowBlockBorder ports={selectorPorts} hasRing={false} ringStyles='' height={384} />
+      </div>
+    )
+    const path = host.querySelector('svg path')
+    expect(path?.getAttribute('d')?.length ?? 0).toBeGreaterThan(0)
+  })
+
+  it('paints camera-followed execution with the selected silhouette color', () => {
+    const { host } = mount(
+      <div style={{ width: 250, height: 136 }}>
+        <WorkflowBlockBorder
+          ports={ports}
+          hasRing={true}
+          ringStyles='ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse'
+          isSelected={true}
+          height={136}
+        />
+      </div>
+    )
+
+    expect(host.querySelector('path[fill="var(--text-secondary)"]')).toBeTruthy()
+    expect(host.querySelector('path[stroke="var(--border-success)"]')).toBeNull()
+  })
+
   it('mounts a header-only card without throwing', () => {
     const { host } = mount(
       <div style={{ width: 250, height: 48 }}>
@@ -201,6 +248,172 @@ describe('WorkflowBlockBorder mount', () => {
       </div>
     )
     expect(host.querySelector('svg')).toBeTruthy()
+  })
+
+  it('bounds note content in a faded scroll viewport without connection handles', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const { host } = mount(
+      <NoteBlockView
+        name='Implementation notes'
+        content={'Long note content\n'.repeat(40)}
+        isEnabled
+        hasRing={false}
+        ringStyles=''
+        onSelect={() => undefined}
+        actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+      />
+    )
+
+    const scrollRegion = host.querySelector('[data-note-scroll-region]')
+    expect(scrollRegion).toHaveClass('allow-scroll', 'h-44', 'overflow-y-auto')
+    expect(scrollRegion?.getAttribute('class')).toContain('mask-image:linear-gradient')
+    expect(getNoteBlockHeight(false)).toBe(216)
+    expect(host.querySelector('[data-workflow-action-bar-bridge]')).toBeTruthy()
+    expect(host.querySelector('svg rect[fill="var(--surface-3)"]')).toBeTruthy()
+    expect(host.querySelector('[data-handleid]')).toBeNull()
+  })
+
+  it('paints the subflow Start source as a unified connection swell', () => {
+    const { host } = mount(
+      <ReactFlowProvider>
+        <div className='relative size-[100px]'>
+          <SubflowStartView parentId='loop-1' kind='loop' isHighlighted />
+        </div>
+      </ReactFlowProvider>
+    )
+
+    const start = host.querySelector('[data-node-role="loop-start"]')
+    expect(start).toHaveAttribute('data-connection-swell')
+    expect(start).toHaveClass('top-3')
+    expect(start?.querySelector('svg')).toHaveAttribute('viewBox', '-36 -36 130 106')
+    expect(start?.querySelector('[data-handleid="loop-start-source"]')).toBeTruthy()
+    expect(start?.querySelector('path[stroke="var(--text-secondary)"]')).toBeTruthy()
+  })
+
+  it('uses the standard card header and lower full-size ports for subflows', () => {
+    const { host } = mount(
+      <ReactFlowProvider>
+        <SubflowNodeView
+          id='loop-1'
+          data={{ kind: 'loop', name: 'Loop 1', width: 500, height: 300, isPreview: true }}
+          isEnabled
+          isLocked={false}
+          isFocused={false}
+          nestingLevel={0}
+          canEditWorkflow={false}
+          onSelect={() => undefined}
+        />
+      </ReactFlowProvider>
+    )
+
+    const header = host.querySelector('[data-subflow-header]')
+    expect(header).toHaveClass('h-[40px]')
+    expect(header).not.toHaveClass('border-b')
+    expect(header).not.toHaveClass('bg-[var(--surface-2)]')
+    expect(host.querySelector('[data-subflow-type-tag="loop"]')).toHaveTextContent('Loop')
+    expect(host.querySelector('[data-handleid="target"]')).toHaveStyle({ top: '69px' })
+    expect(host.querySelector('[data-handleid="loop-end-source"]')).toHaveStyle({ top: '69px' })
+    expect(host.querySelector('svg')).toHaveAttribute('viewBox', '-36 -36 572 372')
+    expect(host.querySelector('svg rect[fill="var(--surface-3)"]')).toBeTruthy()
+  })
+
+  it('retracts a selected loop action swell after hover ends', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const { host } = mount(
+      <ReactFlowProvider>
+        <SubflowNodeView
+          id='loop-1'
+          data={{ kind: 'loop', name: 'Loop 1', width: 500, height: 300 }}
+          selected
+          isEnabled
+          isLocked={false}
+          isFocused
+          nestingLevel={0}
+          canEditWorkflow
+          onSelect={() => undefined}
+          actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+        />
+      </ReactFlowProvider>
+    )
+
+    const actionMenuRoot = host.querySelector('[data-node-selected]')
+    expect(actionMenuRoot?.hasAttribute('data-action-menu-open')).toBe(false)
+
+    act(() => actionMenuRoot?.dispatchEvent(new Event('pointerenter')))
+    expect(actionMenuRoot?.hasAttribute('data-action-menu-open')).toBe(true)
+
+    act(() => actionMenuRoot?.dispatchEvent(new Event('pointerleave')))
+    act(() => vi.advanceTimersByTime(101))
+    act(() => vi.advanceTimersByTime(41))
+    expect(actionMenuRoot?.hasAttribute('data-action-menu-open')).toBe(false)
+  })
+
+  it('gives a nested block exclusive hover ownership over the loop action swell', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const { host } = mount(
+      <ReactFlowProvider>
+        <div>
+          <div className='react-flow__node' data-loop-node='loop-1'>
+            <SubflowNodeView
+              id='loop-1'
+              data={{ kind: 'loop', name: 'Loop 1', width: 500, height: 300 }}
+              isEnabled
+              isLocked={false}
+              isFocused={false}
+              nestingLevel={0}
+              canEditWorkflow
+              onSelect={() => undefined}
+              actionBar={<div data-workflow-action-bar-swell=''>Loop actions</div>}
+            />
+          </div>
+          <div className='react-flow__node' data-nested-node='block-1' />
+        </div>
+      </ReactFlowProvider>
+    )
+
+    const loopNode = host.querySelector('[data-loop-node="loop-1"]')
+    const actionMenuRoot = host.querySelector('[data-node-id="loop-1"]')?.parentElement
+    const nestedNode = host.querySelector('[data-nested-node="block-1"]')
+    const loopHeader = host.querySelector('[data-subflow-header]')
+
+    act(() => loopNode?.dispatchEvent(new Event('pointerenter')))
+    expect(actionMenuRoot).toHaveAttribute('data-action-menu-open')
+
+    act(() =>
+      loopNode?.dispatchEvent(
+        new MouseEvent('pointerleave', { relatedTarget: nestedNode, bubbles: false })
+      )
+    )
+    expect(actionMenuRoot).not.toHaveAttribute('data-action-menu-open')
+
+    act(() => loopNode?.dispatchEvent(new Event('pointerenter')))
+    act(() => loopHeader?.dispatchEvent(new Event('pointerover', { bubbles: true })))
+    expect(actionMenuRoot).toHaveAttribute('data-action-menu-open')
   })
 
   it('keeps every path coordinate bounded when animation timestamps move backward', () => {

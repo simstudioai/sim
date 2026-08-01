@@ -51,6 +51,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { isLightTileColor } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -97,6 +98,7 @@ export function Editor() {
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
+  const isIntegration = blockConfig?.category === 'tools'
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
@@ -373,16 +375,13 @@ export function Editor() {
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
             {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
-              /*
-               * Same accent the card's type badge uses, so the panel header and
-               * the block on the canvas read as one object. Driving it off the
-               * block's legacy `bgColor` instead left the panel on the old
-               * per-integration brand colours after the cards moved to the
-               * restrained type accents.
-               */
               <ChipTag
-                variant={typeAccent.variant}
-                tone={typeAccent.tone}
+                variant={isIntegration ? 'brand' : typeAccent.variant}
+                tone={isIntegration ? undefined : typeAccent.tone}
+                brandColor={isIntegration ? blockConfig.bgColor : undefined}
+                brandForeground={
+                  isIntegration && isLightTileColor(blockConfig.bgColor) ? 'dark' : 'light'
+                }
                 className='size-[18px] justify-center px-0'
               >
                 <IconComponent

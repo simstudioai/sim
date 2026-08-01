@@ -30,6 +30,7 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureEvent } from '@/lib/posthog/client'
+import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -90,6 +91,7 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { getModelSunsetStatus } from '@/providers/models'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -786,6 +788,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -1019,6 +1022,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       ? displayAdvancedMode
       : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
     const effectiveTrigger = displayTriggerMode
+    const canvasPresentation = resolveCanvasBlockPresentation(config, name, rawValues)
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
@@ -1062,10 +1066,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         return false
       }
 
+      if (
+        canvasPresentation.usesDefaultTitle &&
+        block.id === canvasPresentation.operationSubBlockId
+      ) {
+        return false
+      }
+
       return hasDisplayableRowValue(block, rawValues[block.id])
     })
 
     const chipBlocks = visibleSubBlocks
+      .filter(
+        (block) =>
+          canvasPresentation.usesDefaultTitle || block.id !== canvasPresentation.operationSubBlockId
+      )
       .filter((block) => chipPriority(block) !== null)
       .sort((a, b) => (chipPriority(a) ?? 0) - (chipPriority(b) ?? 0))
       .slice(0, MAX_CHIPS)
@@ -1089,7 +1104,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       rows.push(currentRow)
     }
 
-    return { rows, stateToUse, chipBlocks }
+    return { rows, stateToUse, chipBlocks, canvasPresentation }
   }, [
     config.subBlocks,
     config.category,
@@ -1107,11 +1122,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     hiddenByReactiveCondition,
     blockSubBlockValues,
     activeWorkflowId,
+    name,
   ])
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
   const chipBlocks = subBlockRowsData.chipBlocks
+  const canvasPresentation = subBlockRowsData.canvasPresentation
   const topologySubBlocks = data.isPreview
     ? (data.blockState?.subBlocks ?? {})
     : (currentStoreBlock?.subBlocks ?? {})
@@ -1262,6 +1279,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const wouldCreateConnectionCycle = (source: string, target: string) =>
     wouldCreateCycle(useWorkflowStore.getState().edges, source, target)
 
+  const getCanvasRowTitle = (subBlock: SubBlockConfig) =>
+    subBlock.id === canvasPresentation.operationSubBlockId && !canvasPresentation.usesDefaultTitle
+      ? (canvasPresentation.operationRowTitle ?? subBlock.title ?? subBlock.id)
+      : (subBlock.title ?? subBlock.id)
+
   const webhookProviderName = webhookProvider ? getProviderName(webhookProvider) : undefined
 
   const isBranchBlock = type === 'condition' || type === 'router_v2'
@@ -1280,7 +1302,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           <Fragment key={`value-${index}`}>
             {' '}
             <SubBlockRow
-              title={subBlock.title ?? subBlock.id}
+              title={getCanvasRowTitle(subBlock)}
               value={getDisplayValue(rawValue)}
               subBlock={subBlock}
               rawValue={rawValue}
@@ -1306,7 +1328,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           <Fragment key={`statement-${subBlock.id}`}>
             {index > 0 && <span className='flex-shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
             <SubBlockRow
-              title={subBlock.title ?? subBlock.id}
+              title={getCanvasRowTitle(subBlock)}
               value={getDisplayValue(subBlockState[subBlock.id]?.value)}
               subBlock={subBlock}
               rawValue={subBlockState[subBlock.id]?.value}
@@ -1349,7 +1371,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             return [
               <SubBlockRow
                 key={`${subBlock.id}-${rowIndex}`}
-                title={subBlock.title ?? subBlock.id}
+                title={getCanvasRowTitle(subBlock)}
                 value={getDisplayValue(rawValue)}
                 subBlock={subBlock}
                 rawValue={rawValue}
@@ -1373,15 +1395,17 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     <WorkflowBlockView
       id={id}
       type={type}
-      name={name}
+      name={canvasPresentation.title}
       isPending={isPending}
       isEnabled={isEnabled}
       isLocked={isLocked}
       hasRing={hasRing}
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
+      isRunning={isWorkflowRunning}
       Icon={config.icon}
       iconBgColor={config.bgColor}
+      isIntegration={config.category === 'tools'}
       horizontalHandles={horizontalHandles}
       shouldShowDefaultHandles={shouldShowDefaultHandles}
       blockHeight={blockHeight}
@@ -1428,12 +1452,18 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       contentRef={contentRef}
       actionBar={
         !data.isPreview && !data.isEmbedded ? (
-          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} variant='swell' />
+          <ActionBar
+            blockId={id}
+            blockType={type}
+            disabled={!canEditWorkflow}
+            variant='swell'
+            isRunning={isWorkflowRunning}
+          />
         ) : undefined
       }
       rows={rows}
       chips={chips}
-      typeLabel={config.name}
+      typeLabel={canvasPresentation.typeLabel}
       sentence={sentence}
       hasErrorConnection={hasErrorConnection}
       errorOutputEnabled={errorOutputEnabled}

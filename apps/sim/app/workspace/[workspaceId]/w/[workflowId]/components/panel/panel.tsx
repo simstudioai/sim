@@ -5,6 +5,7 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
+  Chip,
   ChipConfirmModal,
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,6 @@ import {
   Duplicate,
   Layout,
   MoreHorizontal,
-  Play,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -27,11 +27,12 @@ import { Download, Lock, Unlock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Square } from 'lucide-react'
+import { History, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
+import { ThinkingLoader } from '@/components/ui'
 import { requestJson } from '@/lib/api/client/request'
 import {
   createWorkflowCopilotChatContract,
@@ -767,19 +768,36 @@ export const Panel = memo(function Panel() {
                 userPermissions={userPermissions}
                 disabled={workflowLocked}
               />
-              <Button
-                className='h-[30px] gap-2 px-2.5'
-                variant={isExecuting ? 'active' : 'graphite'}
+              <Chip
+                variant={isExecuting ? undefined : 'primary'}
+                active={isExecuting}
+                flush
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
+                aria-label={isExecuting ? 'Stop' : 'Run'}
+                leftAdornment={
+                  <span
+                    aria-hidden='true'
+                    className='inline-flex size-5 flex-shrink-0 items-center justify-center overflow-visible'
+                  >
+                    <ThinkingLoader
+                      variant={isExecuting ? undefined : 'play'}
+                      startVariant='play'
+                      startHoldMs={140}
+                      size={20}
+                      morphDurationMs={isExecuting ? 650 : 180}
+                      tone='inherit'
+                    />
+                  </span>
+                }
               >
-                {isExecuting ? (
-                  <Square className='h-[11.5px] w-[11.5px] fill-current' />
-                ) : (
-                  <Play className='h-[11.5px] w-[11.5px]' />
-                )}
-                {isExecuting ? 'Stop' : 'Run'}
-              </Button>
+                <span className='inline-grid'>
+                  <span aria-hidden='true' className='invisible col-start-1 row-start-1'>
+                    Stop
+                  </span>
+                  <span className='col-start-1 row-start-1'>{isExecuting ? 'Stop' : 'Run'}</span>
+                </span>
+              </Chip>
             </div>
           </div>
 

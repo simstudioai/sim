@@ -1,4 +1,4 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
 import {
   AUTO_LAYOUT_EXCLUDED_TYPES,
   CONTAINER_BLOCK_TYPES,
@@ -332,10 +332,7 @@ function getNoteDimensions(block: BlockState): { width: number; height: number }
     BLOCK_DIMENSIONS.FIXED_WIDTH
   )
 
-  const defaultHeight =
-    BLOCK_DIMENSIONS.HEADER_HEIGHT +
-    BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
-    BLOCK_DIMENSIONS.NOTE_BASE_CONTENT_HEIGHT
+  const defaultHeight = getNoteBlockHeight(false)
 
   const height = Math.max(
     resolveNumeric(block.data?.height, 0),

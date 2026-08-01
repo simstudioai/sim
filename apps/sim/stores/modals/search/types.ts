@@ -85,8 +85,8 @@ export type SearchSection = (typeof SEARCH_SECTIONS)[number]
  */
 export interface PendingConnect {
   source: { nodeId: string; handleId: string }
-  screenX: number
-  screenY: number
+  /** Canvas-space point where the connection was released. */
+  position: { x: number; y: number }
 }
 
 /**

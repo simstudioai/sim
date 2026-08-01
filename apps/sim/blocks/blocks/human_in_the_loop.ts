@@ -12,6 +12,10 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
   bgColor: '#10B981',
   docsLink: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
   icon: HumanInTheLoopIcon,
+  canvasPresentation: {
+    typeLabel: 'Human',
+    defaultTitle: 'Wait for Input',
+  },
   subBlocks: [
     // Operation dropdown hidden - block defaults to human approval mode
     // {
