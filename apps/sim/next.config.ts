@@ -218,7 +218,40 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    turbopackFileSystemCacheForDev: false,
+    /**
+     * Turbopack's dev filesystem cache stays ON (this is also the Next default
+     * since v16.1). It is what makes a dev-server restart cheap: without it every
+     * restart recompiles the route graph from scratch.
+     *
+     * Measured locally on `/workspace/[workspaceId]/w`, n=3 per cell, restarting
+     * the dev server between each run:
+     *
+     *   cache OFF   31.4s / 30.1s / 31.9s   RSS ~9.0-9.8 GB
+     *   cache ON     5.7s /  6.1s /  5.7s   RSS ~4.8-5.1 GB
+     *
+     * 5.4x faster restarts and ~1.9x less memory. Cold compile with an empty
+     * cache is unchanged (~32s either way) — the cache only pays back on restart.
+     *
+     * This is deliberately NOT the same decision as `turbopackFileSystemCacheForBuild`
+     * below. That one is measured-harmful for `next build`; this one is
+     * measured-beneficial for `next dev`. It was previously `false`, but that was
+     * incidental — it was introduced by a landing-page redesign (#5408) whose
+     * description never mentions Turbopack, caching, or dev performance, and it
+     * is not covered by the #6078 build A/B cited below.
+     *
+     * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
+     * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
+     * A *corrupted* cache can abort Turbopack outright ("Cache corruption
+     * detected: checksum mismatch") rather than falling back — it depends whether
+     * the damaged region is read. `bun run dev:clean` and restart is the fix.
+     *
+     * If you re-measure any of this: `next dev` compiles routes on demand, so
+     * startup time means nothing — time the first request to a route, restart the
+     * server between runs, and stop it with SIGINT. A `kill -9` mid-write makes
+     * Turbopack discard the partially-written cache and rebuild silently, which
+     * reads as "the cache does nothing" and is how this flag stayed wrong.
+     */
+    turbopackFileSystemCacheForDev: true,
     /**
      * Turbopack's persistent build cache (beta) stays off — it is a net loss at
      * this app's size. A controlled A/B on a byte-identical module graph (PR
