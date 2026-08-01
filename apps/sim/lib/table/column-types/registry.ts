@@ -125,9 +125,28 @@ export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefiniti
   return metadata
 }
 
+/**
+ * Human description of a column's type, including the configuration that
+ * changes what its cells mean. Falls back to the type's plain label.
+ */
+export function describeColumnType(column: ColumnDefinition): string {
+  const definition = columnTypeOf(column)
+  return definition.describe?.(column) ?? definition.label
+}
+
 /** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
   return columnTypeOf(column).filterOperatorsFor?.(column) ?? null
+}
+
+/** v2-grammar operators a column accepts, or `null` for "all operators". */
+export function predicateOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
+  return columnTypeOf(column).predicateOperatorsFor?.(column) ?? null
+}
+
+/** Whether a column's cells hold several values (a JSON array). */
+export function storesMultipleValues(column: ColumnDefinition): boolean {
+  return columnTypeOf(column).storesMultipleValues?.(column) ?? false
 }
 
 /**
@@ -136,16 +155,25 @@ export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string
  * is what lets the routes ask "may this column carry this key?" without naming
  * a single key themselves.
  */
-const METADATA_KEY_OWNER = new Map<TypeSpecificColumnKey, ColumnTypeDefinition>()
-for (const definition of Object.values(COLUMN_TYPE_REGISTRY)) {
+const METADATA_KEY_OWNERS_BY_KEY = new Map<TypeSpecificColumnKey, ColumnTypeDefinition[]>()
+for (const definition of ALL_COLUMN_TYPES) {
   for (const key of definition.ownedMetadata) {
-    METADATA_KEY_OWNER.set(key, definition)
+    const owners = METADATA_KEY_OWNERS_BY_KEY.get(key)
+    if (owners) owners.push(definition)
+    else METADATA_KEY_OWNERS_BY_KEY.set(key, [definition])
   }
 }
 
-/** The column type that owns a type-specific metadata key. */
-export function ownerOfMetadataKey(key: TypeSpecificColumnKey): ColumnTypeDefinition | undefined {
-  return METADATA_KEY_OWNER.get(key)
+/**
+ * Every column type that owns a type-specific metadata key.
+ *
+ * A list, not a single entry: `precision` belongs to both `number` and
+ * `percent`. Keeping only the last writer made the rejection message name one
+ * arbitrary owner ("it applies to Percent columns"), hiding that Number takes
+ * it too.
+ */
+export function ownersOfMetadataKey(key: TypeSpecificColumnKey): ColumnTypeDefinition[] {
+  return METADATA_KEY_OWNERS_BY_KEY.get(key) ?? []
 }
 
 /**
@@ -165,7 +193,9 @@ export function metadataKeysIn(updates: Partial<ColumnDefinition>): {
   const dedicated: TypeSpecificColumnKey[] = []
   for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
     if (updates[key] === undefined) continue
-    const owner = METADATA_KEY_OWNER.get(key)
+    // Any owner answers which writer handles the key — co-owners of a key
+    // agree on that, which `column-type-registry.test.ts` asserts.
+    const owner = METADATA_KEY_OWNERS_BY_KEY.get(key)?.[0]
     const handled = owner?.genericMetadataUpdate ?? owner?.ownedMetadata ?? []
     ;(handled.includes(key) ? generic : dedicated).push(key)
   }

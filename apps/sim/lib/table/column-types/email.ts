@@ -19,6 +19,7 @@ export const emailColumnType: ColumnTypeDefinition = {
   icon: TypeEmail,
   // Stored as plain text; comparison and sorting are lexical, like `string`.
   jsonbCast: null,
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 'person@example.com',

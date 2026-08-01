@@ -19,7 +19,10 @@ interface SelectOptionsEditorProps {
  * option and focus jumps into it so typing flows straight through.
  */
 export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorProps) {
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+  // Lazy-init: `useRef(new Map())` allocates a Map on every render and throws
+  // all but the first away.
+  const inputRefs = useRef<Map<string, HTMLInputElement> | null>(null)
+  inputRefs.current ??= new Map()
   const trailingRef = useRef<HTMLInputElement>(null)
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
 
@@ -27,7 +30,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   // registered by the time this effect runs.
   useEffect(() => {
     if (!pendingFocusId) return
-    const el = inputRefs.current.get(pendingFocusId)
+    const el = inputRefs.current?.get(pendingFocusId)
     if (el) {
       el.focus()
       const end = el.value.length
@@ -41,7 +44,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   }
 
   const remove = (id: string) => {
-    inputRefs.current.delete(id)
+    inputRefs.current?.delete(id)
     onChange(options.filter((o) => o.id !== id))
   }
 
@@ -70,8 +73,8 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
           />
           <ChipInput
             ref={(el) => {
-              if (el) inputRefs.current.set(option.id, el)
-              else inputRefs.current.delete(option.id)
+              if (el) inputRefs.current?.set(option.id, el)
+              else inputRefs.current?.delete(option.id)
             }}
             value={option.name}
             onChange={(e) => update(option.id, { name: e.target.value })}

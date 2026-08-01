@@ -12,7 +12,7 @@
 import {
   columnTypeById,
   metadataKeysIn,
-  ownerOfMetadataKey,
+  ownersOfMetadataKey,
   pickMetadata,
 } from '@/lib/table/column-types'
 import type { ColumnDefinition } from '@/lib/table/types'
@@ -42,11 +42,19 @@ export function validateMetadataUpdate(
 
   for (const key of [...generic, ...dedicated]) {
     if (definition.ownedMetadata.includes(key)) continue
-    const owner = ownerOfMetadataKey(key)
+    const owners = ownersOfMetadataKey(key)
     return `Cannot set ${key} on column "${currentColumn.name}" of type "${resultingType}"${
-      owner ? ` — it applies to ${owner.label} columns` : ''
+      owners.length > 0
+        ? ` — it applies to ${owners.map((o) => o.label).join(' and ')} columns`
+        : ''
     }`
   }
+
+  // Nothing to validate when the request carries no metadata. Running the
+  // type's `validateDefinition` unconditionally would newly reject a bare
+  // rename of an already-malformed column (a select with zero options), which
+  // used to succeed and is not what this request is changing.
+  if (generic.length === 0 && dedicated.length === 0) return null
 
   // Merge only the metadata keys — never the rest of the payload. Spreading
   // `updates` wholesale would fold in a pending `name`, so rejecting a bad

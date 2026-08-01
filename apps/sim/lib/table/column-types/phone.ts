@@ -33,6 +33,7 @@ export const phoneColumnType: ColumnTypeDefinition = {
   // Stored as text: a phone number is an identifier, not a quantity. Casting to
   // numeric would drop the leading `+` and any leading zero.
   jsonbCast: null,
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: '+15551234567',
@@ -48,7 +49,10 @@ export const phoneColumnType: ColumnTypeDefinition = {
     // `String(value)` is right for an integer; a float means it was never a
     // phone number, and exponent notation would normalize into nonsense.
     if (typeof value === 'number') {
-      if (!Number.isInteger(value)) return { ok: false }
+      // Negative is refused, not stripped: `String(-15551234567)` would have
+      // its `-` eaten as a separator and be stored as a valid positive number
+      // the caller never wrote.
+      if (!Number.isInteger(value) || value < 0) return { ok: false }
       const normalized = normalizePhone(String(value))
       return normalized === null ? { ok: false } : { ok: true, value: normalized }
     }

@@ -22,7 +22,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf, typeMetadataOf } from '@/lib/table/column-types'
+import { columnTypeOf, storesMultipleValues, typeMetadataOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
@@ -358,10 +358,11 @@ function cellValuesEqual(a: unknown, b: unknown, column?: DisplayColumn): boolea
   if (a === b) return true
   // An untouched multiselect cell is stored as null, but the editor commits `[]`
   // for an empty selection — without this, opening and dismissing one unchanged
-  // would write a row update and push an undo entry. Multiselect only: on a json
-  // cell `[]` and null are genuinely different values, and treating them as equal
-  // would silently drop the edit that clears a stored `[]` (or writes one).
-  if (column?.type === 'select' && column.multiple) {
+  // would write a row update and push an undo entry. Multi-VALUED columns only:
+  // on a json cell `[]` and null are genuinely different values, and treating
+  // them as equal would silently drop the edit that clears a stored `[]` (or
+  // writes one).
+  if (column && storesMultipleValues(column)) {
     if (isEmptySelection(a) && isEmptySelection(b)) return true
   }
   if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
@@ -1699,7 +1700,7 @@ export function TableGrid({
         // otherwise auto-fit sizes a select column to its opaque option ids and
         // a currency column to a bare number without its symbol or separators.
         let text: string
-        if (column.type === 'json' && typeof val !== 'string') {
+        if (columnTypeOf(column).id === 'json' && typeof val !== 'string') {
           try {
             text = JSON.stringify(val)
           } catch {
@@ -2333,9 +2334,9 @@ export function TableGrid({
         return
       }
 
-      // Select: open the inline option dropdown when editable; never the big
-      // text popover. Read-only cells do nothing (like booleans).
-      if (column?.type === 'select') {
+      // A dropdown-editor column opens its inline option list when editable;
+      // never the big text popover. Read-only cells do nothing (like booleans).
+      if (column && columnTypeOf(column).editor === 'select') {
         if (canEditRef.current) {
           setEditingCell({ rowId, columnName })
           setInitialCharacter(null)

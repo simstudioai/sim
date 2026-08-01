@@ -8,6 +8,7 @@ export const numberColumnType: ColumnTypeDefinition = {
   label: 'Number',
   icon: TypeNumber,
   jsonbCast: 'numeric',
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 123,
@@ -43,6 +44,12 @@ export const numberColumnType: ColumnTypeDefinition = {
       : [
           `Column "${column.name}" has invalid precision ${column.precision}. Use a whole number of decimal places between 0 and ${DEFAULT_PRECISION.max}`,
         ]
+  },
+
+  describe(column) {
+    return column.precision === undefined
+      ? 'Number'
+      : `Number (${clampPrecision(column.precision)} dp)`
   },
 
   formatForDisplay(value, column) {

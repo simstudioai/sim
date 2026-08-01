@@ -14,6 +14,7 @@ export const currencyColumnType: ColumnTypeDefinition = {
   label: 'Currency',
   icon: TypeCurrency,
   jsonbCast: 'numeric',
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 123,
@@ -59,6 +60,11 @@ export const currencyColumnType: ColumnTypeDefinition = {
 
   formatForInput(value) {
     return formatCurrencyForInput(value)
+  },
+
+  // The row modal edits the bare amount, so the code has to appear somewhere.
+  describe(column) {
+    return `Currency (${resolveCurrencyCode(column.currencyCode)})`
   },
 
   defaultMetadata(column) {

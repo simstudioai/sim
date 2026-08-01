@@ -19,6 +19,7 @@ import {
   columnTypeById,
   columnTypeOf,
   isValueCompatible,
+  pickMetadata,
   TYPE_SPECIFIC_COLUMN_KEYS,
   type TypeSpecificColumnKey,
 } from '@/lib/table/column-types'
@@ -1157,8 +1158,19 @@ export async function updateColumnMetadata(
     // exactly what a newly created column of this type would carry — an
     // omitted currency code resolves to the default rather than persisting as
     // undefined and re-resolving on every read.
+    //
+    // Restricted to the keys this request actually sent. `defaultMetadata`
+    // describes a NEW column, so letting it introduce an absent key here would
+    // stamp a default onto a column that predates that key — writing
+    // `includeTime: false` onto a legacy date column and truncating every
+    // stored time as a side effect of an unrelated metadata edit.
     const merged: ColumnDefinition = { ...column, ...incoming }
-    const updatedColumn: ColumnDefinition = { ...merged, ...definition.defaultMetadata?.(merged) }
+    const defaults = definition.defaultMetadata?.(merged) ?? {}
+    const sentKeys = new Set(Object.keys(incoming))
+    const updatedColumn: ColumnDefinition = {
+      ...merged,
+      ...pickMetadata(defaults, [...sentKeys] as TypeSpecificColumnKey[]),
+    }
 
     const columnValidation = validateColumnDefinition(updatedColumn)
     if (!columnValidation.valid) {

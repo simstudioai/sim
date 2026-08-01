@@ -10,7 +10,12 @@
  * validator rejects nulls the cell on the next write, silently.
  */
 import { describe, expect, it } from 'vitest'
-import { COLUMN_TYPE_REGISTRY, columnTypeById, isValueCompatible } from '@/lib/table/column-types'
+import {
+  COLUMN_TYPE_REGISTRY,
+  columnTypeById,
+  isValueCompatible,
+  ownersOfMetadataKey,
+} from '@/lib/table/column-types'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const column = (type: ColumnDefinition['type'], extra: Partial<ColumnDefinition> = {}) =>
@@ -165,6 +170,56 @@ describe('number precision', () => {
 
   it('renders as stored when no precision is declared, so existing columns are untouched', () => {
     expect(COLUMN_TYPE_REGISTRY.number.formatForDisplay(1.5, column('number'))).toBe('1.5')
+  })
+})
+
+describe('audit regressions', () => {
+  it('truncates a date-only column on the calendar-day PREFIX, not a fixed slice', () => {
+    // `0001-01-01T00:00:00Z` is .NET's DateTime.MinValue and common in exported
+    // CSVs. `normalizeDateCellValue` does not pad the year, so slicing 10 chars
+    // produced `1-01-01T00` — which coerce accepted and validateCell then
+    // rejected, failing the row write.
+    const dateOnly = column('date', { includeTime: false })
+    const result = COLUMN_TYPE_REGISTRY.date.coerce('0001-01-01T00:00:00Z', dateOnly)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(COLUMN_TYPE_REGISTRY.date.validateCell(result.value, dateOnly)).toBeNull()
+  })
+
+  it('accepts a bare host:port URL instead of reading the host as a scheme', () => {
+    const col = column('url')
+    const result = COLUMN_TYPE_REGISTRY.url.coerce('example.com:8080/path', col)
+    expect(result.ok && result.value).toBe('https://example.com:8080/path')
+  })
+
+  it('does not mutate a duration cell when the editor opens and closes untouched', () => {
+    const col = column('duration')
+    const stored = COLUMN_TYPE_REGISTRY.duration.coerce('90.7', col)
+    expect(stored.ok).toBe(true)
+    if (!stored.ok) return
+    const shown = COLUMN_TYPE_REGISTRY.duration.formatForInput(stored.value, col)
+    const reopened = COLUMN_TYPE_REGISTRY.duration.coerce(shown, col)
+    expect(reopened.ok && reopened.value).toBe(stored.value)
+  })
+
+  it('refuses a negative number for a phone rather than storing it positive', () => {
+    expect(COLUMN_TYPE_REGISTRY.phone.coerce(-15551234567, column('phone')).ok).toBe(false)
+  })
+
+  it('leaves a new percent column rendering values as stored', () => {
+    // Stamping a default precision rounded a 12.5 cell to `13%` in the grid AND
+    // in the CSV export, and rode back onto `number` through a
+    // number -> percent -> number conversion.
+    expect(COLUMN_TYPE_REGISTRY.percent.defaultMetadata).toBeUndefined()
+    expect(COLUMN_TYPE_REGISTRY.percent.formatForDisplay(12.5, column('percent'))).toBe('12.5%')
+  })
+
+  it('names every owner of a shared metadata key', () => {
+    expect(
+      ownersOfMetadataKey('precision')
+        .map((o) => o.id)
+        .sort()
+    ).toEqual(['number', 'percent'])
   })
 })
 

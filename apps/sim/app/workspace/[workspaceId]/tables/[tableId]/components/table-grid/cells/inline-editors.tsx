@@ -70,7 +70,7 @@ function InlineDateEditor({
   const popoverPointerAtRef = useRef(0)
   const timeZone = useTimezone()
 
-  const storedValue = formatValueForInput(value, column.type)
+  const storedValue = formatValueForInput(value, column)
   const initialDraft =
     initialCharacter !== undefined
       ? initialCharacter
@@ -175,10 +175,11 @@ function InlineDateEditor({
   }, [doSave])
 
   /**
-   * The calendar (with `showTime`) owns the day/time merge and emits either a
-   * bare `YYYY-MM-DD` (no time — the pick fully determines the value, commit
-   * immediately) or a local `YYYY-MM-DDTHH:mm[:ss]` wall time (update the
-   * draft and keep editing).
+   * The calendar owns the day/time merge and emits either a bare `YYYY-MM-DD`
+   * (no time — the pick fully determines the value, commit immediately) or a
+   * local `YYYY-MM-DDTHH:mm[:ss]` wall time (update the draft and keep
+   * editing). A date-only column has `showTime` off, so it only ever takes the
+   * first branch.
    */
   const handlePickerChange = useCallback(
     (picked: string) => {
@@ -234,7 +235,11 @@ function InlineDateEditor({
           <Calendar
             value={pickerValue}
             onChange={handlePickerChange}
-            showTime
+            // A date-only column must not offer a time the write path is just
+            // going to truncate. `includeTime` absent means a column predating
+            // the key, which still stores instants — so only an explicit false
+            // hides the control, matching `date.coerce`.
+            showTime={column.includeTime !== false}
             today={todayLocalCalendarDate(timeZone)}
           />
         </PopoverContent>
@@ -253,7 +258,7 @@ function InlineTextEditor({
 }: InlineEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState(() =>
-    initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column.type)
+    initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column)
   )
   const [invalid, setInvalid] = useState(false)
   const doneRef = useRef(false)

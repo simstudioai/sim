@@ -12,7 +12,15 @@
 
 /** Bounds on `precision`, and the value used when a column declares none. */
 export const DEFAULT_PRECISION = {
-  /** Whole numbers — matches the bare `String(value)` this replaced. */
+  /**
+   * Used only when a caller supplies a value this cannot make sense of. It is
+   * NOT stamped onto new columns: neither `number` nor `percent` declares a
+   * `defaultMetadata` for `precision`, because absent must keep meaning "render
+   * as stored". Stamping `0` would round every new column to whole numbers —
+   * a `12.5` cell rendering and CSV-exporting as `13` — and, since `precision`
+   * is co-owned, would ride back onto a `number` column through a
+   * number → percent → number round-trip and change its rendering too.
+   */
   value: 0,
   min: 0,
   /** Beyond this, IEEE-754 doubles have no digits left to show. */
@@ -21,9 +29,9 @@ export const DEFAULT_PRECISION = {
 
 /**
  * Rounds `precision` into the supported range, falling back to the default for
- * anything that is not a whole number. Used both to normalize what gets stored
- * (`defaultMetadata`) and to decide whether a supplied value was valid
- * (`validateDefinition`), so the two can never disagree.
+ * anything that is not a whole number. Used both to render (`formatWithPrecision`)
+ * and to decide whether a supplied value was valid (`validateDefinition`), so
+ * the two can never disagree.
  */
 export function clampPrecision(precision: number | undefined): number {
   if (typeof precision !== 'number' || !Number.isInteger(precision)) {

@@ -114,11 +114,28 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('::timestamp')
     })
 
-    it('falls back to ::numeric when column type is unknown', () => {
+    it('compares an unknown column type as TEXT, never with an invented cast', () => {
+      // An unknown type resolves to `string` (`columnTypeById`'s documented
+      // fallback), and `string` compares as text. The `?? 'numeric'` default
+      // this replaced was reached by every type whose `jsonbCast` is null —
+      // so a range filter on an `email` column emitted
+      // `(data->>'email')::numeric`, which Postgres errors on at the first
+      // non-numeric row and takes the whole rows query down with it.
       const out = render(buildFilterClause({ score: { $gte: 5 } }, TABLE, NO_COLUMNS))
-      expect(out).toContain(`(${TABLE}.data->>'score')::numeric >= `)
+      expect(out).toContain(`${TABLE}.data->>'score' >= `)
+      expect(out).not.toContain('::numeric')
       expect(out).not.toContain('::timestamp')
     })
+
+    it.each(['email', 'phone', 'url'] as const)(
+      'compares a %s column as text rather than casting it to numeric',
+      (type) => {
+        const cols: ColumnDefinition[] = [{ name: 'c', type }]
+        const out = render(buildFilterClause({ c: { $gte: 'a' } } as Filter, TABLE, cols))
+        expect(out).toContain(`${TABLE}.data->>'c' >= `)
+        expect(out).not.toContain('::numeric')
+      }
+    )
 
     it('handles $eq operator', () => {
       const out = render(buildFilterClause({ status: { $eq: 'active' } }, TABLE, NO_COLUMNS))
@@ -364,10 +381,14 @@ describe('SQL Builder', () => {
       ).toThrow(/column "birthDate" \(date\) requires a date string, got number/)
     })
 
-    it('throws when $lt on an unknown column (numeric fallback) receives a string', () => {
+    it('accepts a string on an unknown column, which compares as text', () => {
+      // Previously threw, because an unknown type fell through to a numeric
+      // cast that then demanded a numeric operand. Text comparison has no such
+      // requirement, and refusing a string on a column that renders as text
+      // was the wrong answer.
       expect(() =>
         buildFilterClause({ score: { $lt: 'high' } } as Filter, TABLE, NO_COLUMNS)
-      ).toThrow(/column "score" \(number\) requires a number, got string/)
+      ).not.toThrow()
     })
 
     it('accepts valid number on number column', () => {

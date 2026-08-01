@@ -97,6 +97,19 @@ export const METADATA_KEY_OWNERS: Record<TypeSpecificColumnKey, readonly ColumnT
   includeTime: ['date'],
 }
 
+/**
+ * Keys a column type cannot be created without.
+ *
+ * Icon-free, alongside {@link METADATA_KEY_OWNERS}, so the API contract can
+ * enforce it at the boundary — the contract is client-reachable and must not
+ * import the registry. A `select` with no options is not a usable column: every
+ * cell would fail option membership on write.
+ */
+export const REQUIRED_METADATA_KEYS: Partial<Record<ColumnType, readonly TypeSpecificColumnKey[]>> =
+  {
+    select: ['options'],
+  }
+
 /** The type-specific keys a column type owns, for its `ownedMetadata`. */
 export function ownedKeysOf(type: ColumnType): readonly TypeSpecificColumnKey[] {
   return TYPE_SPECIFIC_COLUMN_KEYS.filter((key) => METADATA_KEY_OWNERS[key].includes(type))
@@ -156,6 +169,31 @@ export interface ColumnTypeDefinition {
   filterOperatorsFor?(column: ColumnDefinition): ReadonlySet<string> | null
 
   /**
+   * The same restriction in the v2 bare-operator grammar, or `null` for "all
+   * operators".
+   *
+   * Declared separately rather than derived from {@link filterOperatorsFor}
+   * because the two grammars are not 1:1 — `$empty` splits into
+   * `isEmpty`/`isNotEmpty`, and `isNull`/`isNotNull` have no `$` equivalent.
+   * Both live on the type so the two wire formats cannot gate differently; when
+   * they did, the same filter was accepted or rejected depending only on which
+   * shape the caller sent, and the v2 leaf is also what the upsert conflict
+   * probe and unique checks compile through.
+   */
+  predicateOperatorsFor?(column: ColumnDefinition): ReadonlySet<string> | null
+
+  /**
+   * Whether a cell of this column holds SEVERAL values (a JSON array) rather
+   * than one scalar.
+   *
+   * Drives array-containment SQL, the `null`/`[]` empty-equivalence in the
+   * grid's dirty check, and the default filter operator. Takes the column
+   * because it can depend on configuration — a `select` is multi-valued only
+   * when `multiple` is set.
+   */
+  storesMultipleValues?(column: ColumnDefinition): boolean
+
+  /**
    * True when the stored value is an opaque identifier that must be resolved to
    * a display label for search, filtering, export, and clipboard. Only `select`
    * sets this; it is why those paths special-case it.
@@ -168,6 +206,19 @@ export interface ColumnTypeDefinition {
    * option id, capping each option at one row for the whole table.
    */
   readonly supportsUnique: boolean
+
+  /**
+   * Whether this type's values have an ordering, i.e. whether `>`/`<` and a
+   * sort mean anything on them. False only for `boolean` and `json`, whose
+   * range filters are rejected outright.
+   *
+   * Distinct from {@link jsonbCast}, which says *how* to compare an orderable
+   * value — text when null, otherwise the cast. Conflating the two is what let
+   * a text-shaped type fall through a `?? 'numeric'` default and emit
+   * `(data->>'email')::numeric`, which errors in Postgres on the first
+   * non-numeric row and 500s the entire rows query.
+   */
+  readonly orderable: boolean
 
   /**
    * A representative value, used to show an LLM what this column's cells look
@@ -284,6 +335,16 @@ export interface ColumnTypeDefinition {
 
   /** Stored value → the text an editor input starts with. */
   formatForInput(value: unknown, column: ColumnDefinition): string
+
+  /**
+   * Human description of a specific column, for the row modal's type hint.
+   *
+   * Defaults to {@link label}. Override when the type's own metadata changes
+   * what a cell means and the editor does not show it: the row modal edits a
+   * currency's bare amount, so without the code on screen nothing says which
+   * currency the number is in.
+   */
+  describe?(column: ColumnDefinition): string
 
   /**
    * Metadata stamped onto a newly created column of this type, so the schema

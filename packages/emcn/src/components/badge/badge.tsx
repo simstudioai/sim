@@ -32,6 +32,13 @@ const badgeVariants = cva(
         sm: 'px-[7px] py-[1px] text-xs',
         md: 'px-[9px] py-0.5 text-caption',
         lg: 'px-[9px] py-[2.25px] text-caption',
+        /**
+         * A bare colour chip: fixed square, no padding, no text. For pickers
+         * that show a variant's colour rather than a label. Lives here so the
+         * badge stays the single owner of its chrome — consumers were
+         * otherwise erasing `sm`'s padding with `p-0` to fake it.
+         */
+        swatch: 'size-[14px] shrink-0 justify-center p-0',
       },
     },
     defaultVariants: {

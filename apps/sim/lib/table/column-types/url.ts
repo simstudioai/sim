@@ -7,7 +7,8 @@ import { ownedKeysOf } from '@/lib/table/column-types/types'
  * Mirrors the grid's own bare-domain promotion so a value that already renders
  * as a link in a text column stays acceptable once the column is typed.
  */
-const BARE_DOMAIN = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(\/\S*)?$/
+const BARE_DOMAIN =
+  /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d{1,5})?([/?#]\S*)?$/
 
 /**
  * Normalizes to an absolute `http(s)` URL, or null when the value is not one.
@@ -19,7 +20,11 @@ const BARE_DOMAIN = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim()
   if (trimmed === '') return ''
-  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) {
+  // Requires `//`, not just a colon. A bare `example.com:8080` matches the
+  // colon-only form, and `new URL()` then reads `example.com:` as the SCHEME —
+  // which is not http(s), so a perfectly ordinary host:port URL was rejected
+  // and the cell nulled. With `//` required it falls through to BARE_DOMAIN.
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) {
     try {
       const url = new URL(trimmed)
       if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
@@ -41,6 +46,7 @@ export const urlColumnType: ColumnTypeDefinition = {
   label: 'URL',
   icon: TypeUrl,
   jsonbCast: null,
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 'https://sim.ai',

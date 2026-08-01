@@ -131,8 +131,15 @@ function ColumnConfigBody({
       ? resolveCurrencyCode(existingColumn?.currencyCode)
       : DEFAULT_CURRENCY_CODE
   )
-  const [precisionInput, setPrecisionInput] = useState<number>(() =>
-    clampPrecision(existingColumn?.precision)
+  // The RAW string, not a number. A numeric state round-tripped through
+  // `Number()` on every keystroke cannot be cleared (`'' → 0`) and clamps
+  // mid-typing (`1`, then `2` → `10`, never `12`). Parsing happens on commit,
+  // matching `usage-limit-field`. Empty means "no precision declared", which is
+  // what keeps a column rendering its values as stored.
+  const [precisionInput, setPrecisionInput] = useState<string>(() =>
+    config.mode === 'edit' && existingColumn?.precision !== undefined
+      ? String(existingColumn.precision)
+      : ''
   )
   const [includeTimeInput, setIncludeTimeInput] = useState<boolean>(() =>
     // Absent means a column created before the key existed, and those hold
@@ -151,6 +158,10 @@ function ColumnConfigBody({
   // type that loses it cannot leave a stale control behind.
   const wantsCurrency = typeOwnsMetadataKey(typeInput, 'currencyCode')
   const wantsPrecision = typeOwnsMetadataKey(typeInput, 'precision')
+  // `undefined` (blank field) is meaningful: it leaves the column rendering
+  // values exactly as stored rather than forcing a decimal count.
+  const parsedPrecision =
+    precisionInput.trim() === '' ? undefined : clampPrecision(Number(precisionInput))
   const wantsIncludeTime = typeOwnsMetadataKey(typeInput, 'includeTime')
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
@@ -186,7 +197,9 @@ function ColumnConfigBody({
           ...(wantsOptions ? { options: trimmedOptions } : {}),
           ...(wantsOptions && multipleInput ? { multiple: true } : {}),
           ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
-          ...(wantsPrecision ? { precision: precisionInput } : {}),
+          ...(wantsPrecision && parsedPrecision !== undefined
+            ? { precision: parsedPrecision }
+            : {}),
           ...(wantsIncludeTime ? { includeTime: includeTimeInput } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
@@ -208,8 +221,7 @@ function ColumnConfigBody({
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
       const currencyChanged =
         wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
-      const precisionChanged =
-        wantsPrecision && clampPrecision(existingColumn?.precision) !== precisionInput
+      const precisionChanged = wantsPrecision && existingColumn?.precision !== parsedPrecision
       const includeTimeChanged =
         wantsIncludeTime && (existingColumn?.includeTime !== false) !== includeTimeInput
 
@@ -232,8 +244,8 @@ function ColumnConfigBody({
         ...(wantsCurrency && (typeChanged || currencyChanged)
           ? { currencyCode: currencyInput }
           : {}),
-        ...(wantsPrecision && (typeChanged || precisionChanged)
-          ? { precision: precisionInput }
+        ...(wantsPrecision && (typeChanged || precisionChanged) && parsedPrecision !== undefined
+          ? { precision: parsedPrecision }
           : {}),
         ...(wantsIncludeTime && (typeChanged || includeTimeChanged)
           ? { includeTime: includeTimeInput }
@@ -339,14 +351,17 @@ function ColumnConfigBody({
           <>
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel>Decimal places</RequiredLabel>
+              <RequiredLabel htmlFor='column-sidebar-precision'>Decimal places</RequiredLabel>
               <ChipInput
+                id='column-sidebar-precision'
                 type='number'
                 inputMode='numeric'
                 min={DEFAULT_PRECISION.min}
                 max={DEFAULT_PRECISION.max}
-                value={String(precisionInput)}
-                onChange={(e) => setPrecisionInput(clampPrecision(Number(e.target.value)))}
+                value={precisionInput}
+                onChange={(e) => setPrecisionInput(e.target.value)}
+                placeholder='As stored'
+                inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
               />
             </div>
           </>

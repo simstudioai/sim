@@ -150,8 +150,12 @@ export function resolveCellRender({
     case 'text':
       return { kind: 'text', text: cell.text }
     default: {
+      // Compile-time exhaustiveness gate. At RUNTIME an unrecognised kind must
+      // degrade to a blank cell — returning the value itself would hand a
+      // `CellRenderKind` switch a shape it has no arm for.
       const _exhaustive: never = cell
-      return _exhaustive
+      void _exhaustive
+      return { kind: 'empty' }
     }
   }
 }

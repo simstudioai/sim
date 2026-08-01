@@ -218,6 +218,12 @@ async function migrateCellsToSelectIds(
  * zone, and `::timestamptz` would resolve it against the server's zone and
  * shift the day. Switching `includeTime` back on is deliberately NOT reversible
  * — the time of day is gone once truncated, which is why the UI warns first.
+ *
+ * The regex guard is what makes that irreversibility safe. `formatDateCellDisplay`
+ * and `storedDateToEditable` both document that unparseable legacy strings pass
+ * through and are stored as-is, so a column can hold `March 5, 2024`. Slicing
+ * ten characters off those would write `March 5, 2` over the original, set-based
+ * and unrecoverably. Rows without a `YYYY-MM-DD` prefix are left alone.
  */
 async function truncateDateCellsToCalendarDay(
   trx: DbTransaction,
@@ -230,7 +236,8 @@ async function truncateDateCellsToCalendarDay(
           to_jsonb(left(data->>${columnKey}::text, 10)))
         WHERE table_id = ${tableId}
           AND jsonb_typeof(data->${columnKey}::text) = 'string'
-          AND length(data->>${columnKey}::text) > 10`
+          AND length(data->>${columnKey}::text) > 10
+          AND data->>${columnKey}::text ~ '^\\d{4}-\\d{2}-\\d{2}'`
   )
 }
 

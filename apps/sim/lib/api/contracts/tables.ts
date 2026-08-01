@@ -24,7 +24,11 @@ import type {
   TableRowsCursor,
   TableViewConfig,
 } from '@/lib/table'
-import { METADATA_KEY_OWNERS, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
+import {
+  METADATA_KEY_OWNERS,
+  REQUIRED_METADATA_KEYS,
+  TYPE_SPECIFIC_COLUMN_KEYS,
+} from '@/lib/table/column-types/types'
 import {
   COLUMN_TYPES,
   FILTER_OPS,
@@ -102,13 +106,20 @@ function refineColumnOptions(
   } & ColumnTypeMetadata,
   ctx: z.RefinementCtx
 ): void {
-  // A select column must actually declare options — checked before the
-  // ownership sweep so the message is about what is missing, not what is extra.
-  if (data.type === 'select' && (!data.options || data.options.length === 0)) {
+  // Keys the type cannot be created without, checked before the ownership sweep
+  // so the message is about what is missing rather than what is extra. Read
+  // from the registry's declaration, so a future type that requires its own
+  // metadata is enforced here with no edit.
+  // Deliberately NOT via the registry: this module is client-reachable, and
+  // importing the registry would pull `@sim/emcn/icons` into every client
+  // bundle that parses a table contract. The key list is icon-free by design.
+  for (const key of (data.type && REQUIRED_METADATA_KEYS[data.type]) ?? []) {
+    const supplied = data[key]
+    if (supplied !== undefined && !(Array.isArray(supplied) && supplied.length === 0)) continue
     ctx.addIssue({
       code: 'custom',
-      path: ['options'],
-      message: 'A select column must define at least one option',
+      path: [key],
+      message: `A ${data.type} column must define at least one ${key === 'options' ? 'option' : key}`,
     })
   }
   // Skipped when `type` is absent: a metadata-only update on an existing column
@@ -122,7 +133,14 @@ function refineColumnOptions(
   // a convert-to-currency is the case this originally guarded, and the sweep
   // now covers each new key without an edit here.
   for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
-    if (data[key] === undefined || data[key] === false) continue
+    // Only an ABSENT key is skipped. `false` is a real value for `includeTime`
+    // — it is the one that makes a date column date-only — so skipping falsy
+    // values (inherited from the old `if (data.multiple)` check) let
+    // `{ type: 'string', includeTime: false }` through the wire schema to fail
+    // later as a thrown service error instead of a clean 400.
+    if (data[key] === undefined) continue
+    // An empty option list is the "select must declare options" case, already
+    // reported above; it is not an ownership violation.
     if (key === 'options' && (!data.options || data.options.length === 0)) continue
     const owners = METADATA_KEY_OWNERS[key]
     if (owners.includes(data.type)) continue

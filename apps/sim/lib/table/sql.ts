@@ -11,9 +11,12 @@ import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
 import {
   columnTypeById,
+  columnTypeOf,
   filterOperatorsFor,
   MULTI_SELECT_OPERATORS,
+  predicateOperatorsFor,
   SINGLE_SELECT_OPERATORS,
+  storesMultipleValues,
 } from '@/lib/table/column-types'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -39,33 +42,6 @@ type ColumnType = ColumnDefinition['type']
 type ColumnMap = ReadonlyMap<string, ColumnDefinition>
 
 /**
-/**
- * The same allowlists in the v2 bare-operator grammar, applied inside
- * `fieldPredicate` so both wire formats gate identically. Not derived from the
- * `$` sets above by string surgery because the mapping is not 1:1 — `$empty`
- * splits into `isEmpty`/`isNotEmpty`. `isNull`/`isNotNull` have no `$`
- * equivalent and are allowed on both: a strict null check is meaningful on any
- * column, select included.
- */
-const SINGLE_SELECT_OPS = new Set<FilterOp>([
-  'eq',
-  'ne',
-  'in',
-  'nin',
-  'isEmpty',
-  'isNotEmpty',
-  'isNull',
-  'isNotNull',
-])
-const MULTI_SELECT_OPS = new Set<FilterOp>([
-  'contains',
-  'ncontains',
-  'isEmpty',
-  'isNotEmpty',
-  'isNull',
-  'isNotNull',
-])
-
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given
  * column type, or `null` when text comparison is correct. Single source of
@@ -481,20 +457,21 @@ export function fieldPredicate(
   }
 
   const columnType = column?.type
-  const isSelect = columnType === 'select'
-  // A multi-select cell holds an ARRAY of option ids, so equality against a
-  // scalar can never be true; the question is membership. Gating and clause
-  // choice both live here rather than in `buildFieldCondition` so the v2
-  // predicate grammar gets the identical treatment.
-  const isMultiSelect = isSelect && column?.multiple === true
+  // A multi-valued cell holds an ARRAY, so equality against a scalar can never
+  // be true; the question is membership. Gating and clause choice both live
+  // here rather than in `buildFieldCondition` so the v2 predicate grammar gets
+  // the identical treatment.
+  const isMultiSelect = column ? storesMultipleValues(column) : false
 
-  if (isSelect) {
-    const allowed = isMultiSelect ? MULTI_SELECT_OPS : SINGLE_SELECT_OPS
-    if (!allowed.has(op)) {
-      throw new TableQueryValidationError(
-        `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
-      )
-    }
+  // The type's own v2 allowlist. Asking the registry (rather than testing for
+  // `select`) is what keeps this grammar in step with the `$` one — when only
+  // `buildFieldCondition` consulted the registry, a restricted type was gated
+  // on one wire shape and not the other.
+  const allowed = column ? predicateOperatorsFor(column) : null
+  if (allowed && !allowed.has(op)) {
+    throw new TableQueryValidationError(
+      `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : columnType} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
+    )
   }
 
   if (isMultiSelect) {
@@ -785,19 +762,25 @@ function buildComparisonClause(
   columnType: ColumnType | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
+  const definition = columnTypeById(columnType)
 
-  if (columnType === 'boolean' || columnType === 'json') {
+  if (!definition.orderable) {
     throw new TableQueryValidationError(
       `Range operator on column "${field}" (${columnType}) is not supported — ${columnType} values have no ordering.`
     )
   }
 
-  if (columnType === 'string') {
+  // `jsonbCast === null` MEANS text comparison is correct — for `string` and
+  // for every other text-shaped type. Reading the registry rather than testing
+  // for `'string'` is what stops a new type falling past this into the cast
+  // below: `(data->>'email')::numeric` errors in Postgres on the first
+  // non-numeric row, taking the whole rows query down with it.
+  const cast = definition.jsonbCast
+  if (cast === null) {
     const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
     return sql`${cell} ${sql.raw(operator)} ${String(value)}`
   }
 
-  const cast = jsonbCastForType(columnType) ?? 'numeric'
   validateComparisonValue(field, columnType, cast, value)
   const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
   return cast === 'timestamptz'
@@ -959,10 +942,10 @@ function buildSortFieldClause(
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`
 
-  // Select cells store opaque option ids; sort by the option **name** so ordering
-  // is alphabetical by the label the user sees, not by the internal id. A stored
-  // id with no matching option (deleted) falls back to the raw text.
-  if (column?.type === 'select') {
+  // Opaque-id cells sort by the resolved **name**, so ordering is alphabetical
+  // by the label the user sees rather than by the internal id. A stored id with
+  // no matching option (deleted) falls back to the raw text.
+  if (column && columnTypeOf(column).storesOpaqueIds) {
     const orderExpr = buildSelectNameOrderExpr(
       jsonbExtract,
       `${tableName}.data->'${escapedField}'`,

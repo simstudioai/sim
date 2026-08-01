@@ -69,17 +69,17 @@ export function ExpandedCellPopover({
     if (!target) return ''
     const { value } = target
     if (value == null) return ''
-    // Read-only viewers get the same date format the grid renders, not the raw
-    // stored string. (This branch never sees a `select` cell — the grid routes
-    // those to the inline dropdown.)
-    if (target.column.type === 'date' && typeof value === 'string') {
-      return storageToDisplay(value, { seconds: true })
-    }
-    if (target.column.type === 'currency') {
-      return columnTypeOf(target.column).formatForDisplay(value, target.column)
-    }
-    if (typeof value === 'string') return value
-    return JSON.stringify(value, null, 2)
+    // A read-only viewer sees exactly what the grid renders, for every type —
+    // one registry call rather than a branch per type. The date and currency
+    // branches this replaced meant a type added later fell through to the raw
+    // stored value: a `duration` read as `5400` instead of `1:30:00`, a
+    // `percent` as `25` instead of `25.0%`.
+    //
+    // `json` is the deliberate exception: its `formatForDisplay` is the
+    // one-line form the grid cell needs, but the point of expanding a JSON cell
+    // is to read it indented.
+    if (target.column.type === 'json') return JSON.stringify(value, null, 2)
+    return columnTypeOf(target.column).formatForDisplay(value, target.column)
   }, [target])
 
   useLayoutEffect(() => {
@@ -160,8 +160,10 @@ export function ExpandedCellPopover({
           key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
           initialValue={
             target.column.type === 'date'
-              ? storageToDisplay(formatValueForInput(target.value, 'date'), { seconds: true })
-              : formatValueForInput(target.value, target.column.type)
+              ? storageToDisplay(formatValueForInput(target.value, target.column), {
+                  seconds: true,
+                })
+              : formatValueForInput(target.value, target.column)
           }
           column={target.column}
           rowId={target.row.id}

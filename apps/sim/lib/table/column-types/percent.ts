@@ -25,6 +25,7 @@ export const percentColumnType: ColumnTypeDefinition = {
   label: 'Percent',
   icon: TypePercent,
   jsonbCast: 'numeric',
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 25,
@@ -70,7 +71,9 @@ export const percentColumnType: ColumnTypeDefinition = {
     return typeof value === 'number' ? String(value) : ''
   },
 
-  defaultMetadata(column) {
-    return { precision: clampPrecision(column.precision) }
+  describe(column) {
+    return column.precision === undefined
+      ? 'Percent'
+      : `Percent (${clampPrecision(column.precision)} dp)`
   },
 }

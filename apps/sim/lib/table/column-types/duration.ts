@@ -29,7 +29,9 @@ function parseDuration(value: unknown): number | null {
     const parts = trimmed.split(':')
     if (parts.length > 3) return null
     const nums = parts.map((p) => (p.trim() === '' ? Number.NaN : Number(p)))
-    if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null
+    // `n < 0` alone lets `-0` through (it is not less than zero), so `'1:-0'`
+    // would parse as 60 seconds. Compare the sign bit too.
+    if (nums.some((n) => !Number.isFinite(n) || n < 0 || Object.is(n, -0))) return null
     // Right-aligned, so `mm:ss` and `h:mm:ss` share one reduction: seconds are
     // always last. Only the leading field may exceed its base — `90:00` is 90
     // minutes, which is exactly how people write it.
@@ -70,6 +72,7 @@ export const durationColumnType: ColumnTypeDefinition = {
   // numerically and `>= 1h` is a plain numeric range — which is the whole
   // reason this is not just formatted text.
   jsonbCast: 'numeric',
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 5400,
@@ -84,7 +87,11 @@ export const durationColumnType: ColumnTypeDefinition = {
 
   coerce(value) {
     const parsed = parseDuration(value)
-    return parsed === null ? { ok: false } : { ok: true, value: parsed }
+    // Rounded to whole seconds, which is the resolution `formatDuration`
+    // renders. Storing 90.7 while displaying "1:31" meant opening and closing
+    // the editor with no edit rewrote the cell to 91 — a silent mutation on a
+    // pure read.
+    return parsed === null ? { ok: false } : { ok: true, value: Math.round(parsed) }
   },
 
   isCompatibleWith(value) {

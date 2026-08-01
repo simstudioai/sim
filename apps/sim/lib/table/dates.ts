@@ -148,12 +148,30 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+/**
+ * Zero-pads a year to four digits, so a canonical value is always parseable.
+ *
+ * `getFullYear()` returns `1` for year 1 AD, and an unpadded `1-01-01` is not
+ * a date any parser accepts — `Date.parse` returns NaN, which then fails
+ * `date`'s `validateCell` and rejects the row write. `0001-01-01T00:00:00Z` is
+ * .NET's `DateTime.MinValue` and appears routinely in exported CSVs, so this is
+ * reachable from ordinary user data rather than being a theoretical edge.
+ *
+ * Years outside 0–9999 keep an explicit sign, which is the ISO 8601 expanded
+ * form and what `toISOString` itself emits.
+ */
+function padYear(year: number): string {
+  if (year < 0) return `-${String(-year).padStart(6, '0')}`
+  if (year > 9999) return `+${String(year).padStart(6, '0')}`
+  return String(year).padStart(4, '0')
+}
+
 function toLocalCalendarDate(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return `${padYear(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 function toUtcCalendarDate(date: Date): string {
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
+  return `${padYear(date.getUTCFullYear())}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
 }
 
 /** `Z` for zero, else `±HH:MM`. */

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import type { ColumnDefinition } from '@/lib/table'
 import {
   cleanCellValue,
   dateValueToLocalParts,
@@ -160,11 +161,25 @@ describe('cleanCellValue', () => {
 })
 
 describe('formatValueForInput', () => {
+  const dateColumn: ColumnDefinition = { name: 'd', type: 'date' }
+
   it('gives editors the canonical value, surfacing legacy UTC midnights as calendar days', () => {
-    expect(formatValueForInput('2026-07-06T00:00:00.000Z', 'date')).toBe('2026-07-06')
-    expect(formatValueForInput('2026-07-06T16:04:55-07:00', 'date')).toBe(
+    expect(formatValueForInput('2026-07-06T00:00:00.000Z', dateColumn)).toBe('2026-07-06')
+    expect(formatValueForInput('2026-07-06T16:04:55-07:00', dateColumn)).toBe(
       '2026-07-06T16:04:55-07:00'
     )
-    expect(formatValueForInput('2026-07-06', 'date')).toBe('2026-07-06')
+    expect(formatValueForInput('2026-07-06', dateColumn)).toBe('2026-07-06')
+  })
+
+  it("reads the column's own metadata rather than a synthesized stand-in", () => {
+    // The regression this guards: passing only `column.type` built a
+    // `{ name: '', type }` with no `options`, so a select editor opened blank
+    // instead of on the cell's current selection.
+    const select: ColumnDefinition = {
+      name: 's',
+      type: 'select',
+      options: [{ id: 'opt_1', name: 'Bug' }],
+    }
+    expect(formatValueForInput('opt_1', select)).toBe('Bug')
   })
 })

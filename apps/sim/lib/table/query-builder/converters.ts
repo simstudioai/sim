@@ -5,6 +5,7 @@
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
   MULTI_SELECT_FILTER_OPERATORS,
@@ -56,7 +57,10 @@ export function filterRulesToFilter(
     // applied; the row just contributes no condition.
     if (!rule.column) continue
 
-    const isSelect = columns.find((c) => columnMatchesRef(c, rule.column))?.type === 'select'
+    // Opaque-id values must NOT be scalar-coerced: an option id of `"1"` would
+    // become the number 1 and then match nothing under JSONB containment.
+    const ruleColumn = columns.find((c) => columnMatchesRef(c, rule.column))
+    const isSelect = ruleColumn ? columnTypeOf(ruleColumn).storesOpaqueIds : false
     const ruleValue = toRuleValue(rule.operator, rule.value, isSelect)
     const existing = currentGroup[rule.column]
     currentGroup[rule.column] =
@@ -377,7 +381,10 @@ export function filterRulesToPredicate(
     // A select value is an opaque option id — never scalar-coerce it (an id
     // that happens to look numeric would silently become a number and match
     // nothing). Same rule as filterRulesToFilter.
-    const isSelect = columns.find((c) => columnMatchesRef(c, rule.column))?.type === 'select'
+    // Opaque-id values must NOT be scalar-coerced: an option id of `"1"` would
+    // become the number 1 and then match nothing under JSONB containment.
+    const ruleColumn = columns.find((c) => columnMatchesRef(c, rule.column))
+    const isSelect = ruleColumn ? columnTypeOf(ruleColumn).storesOpaqueIds : false
     current.push(ruleToPredicate(rule, isSelect))
   }
   if (current.length > 0) groups.push(current)
