@@ -1,6 +1,12 @@
 'use client'
 
-import type { ComponentType, HTMLAttributes, MouseEventHandler, ReactNode } from 'react'
+import type {
+  ComponentType,
+  CSSProperties,
+  HTMLAttributes,
+  MouseEventHandler,
+  ReactNode,
+} from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 
@@ -44,6 +50,9 @@ import { cn } from '../../lib/cn'
  *   type reads as a white, outlined slot rather than as one more colour in the
  *   set. Every other tone is fill-only, so it is also the only one whose edge
  *   depends on the ring rather than on the fill itself.
+ * - `brand` — a provider-owned integration colour supplied through
+ *   `brandColor`. Pair with `brandForeground` so both the icon and label use
+ *   the same contrast rule as integration tiles elsewhere in the product.
  * - `invite` — recipient pill used in invite/sharing flows. Borrows the chip
  *   family's icon gap (`gap-1.5`), `--text-body` label, and `--text-icon`
  *   leading/trailing icons; pairs with the `invalid` boolean to flip to an
@@ -60,6 +69,7 @@ const chipTagVariants = cva(
         gray: 'h-5 gap-[3px] px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-secondary)]',
         solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
         workflow: 'h-5 gap-[3px] px-1',
+        brand: 'h-5 gap-[3px] px-1',
         invite:
           'h-5 gap-1.5 px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-body)] dark:bg-[var(--surface-4)]',
       },
@@ -72,6 +82,10 @@ const chipTagVariants = cva(
         blue: '',
         green: '',
         yellow: '',
+      },
+      brandForeground: {
+        light: '',
+        dark: '',
       },
     },
     compoundVariants: [
@@ -95,11 +109,14 @@ const chipTagVariants = cva(
       { variant: 'workflow', tone: 'blue', className: 'bg-[#0062FF] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
+      { variant: 'brand', brandForeground: 'light', className: 'text-[#FFFFFF]' },
+      { variant: 'brand', brandForeground: 'dark', className: 'text-[#000000]' },
     ],
     defaultVariants: {
       variant: 'mono',
       invalid: false,
       tone: 'neutral',
+      brandForeground: 'light',
     },
   }
 )
@@ -114,6 +131,8 @@ export interface ChipTagProps
     VariantProps<typeof chipTagVariants> {
   /** Tag content — typically a short label, number, percentage, or recipient. */
   children: ReactNode
+  /** Dynamic provider fill used by the `brand` variant. */
+  brandColor?: CSSProperties['background']
   /** Icon component rendered before the label. Non-interactive. */
   leftIcon?: ChipTagIcon
   /**
@@ -150,8 +169,11 @@ export function ChipTag({
   variant,
   invalid,
   tone,
+  brandForeground,
+  brandColor,
   className,
   children,
+  style,
   leftIcon: LeftIcon,
   rightIcon: RightIcon,
   onRightIconClick,
@@ -164,12 +186,17 @@ export function ChipTag({
      all but disappear on a tone's deep fill. */
   const iconClass = cn(
     'size-[14px] flex-shrink-0',
-    !invalid && variant !== 'workflow' && 'text-[var(--text-icon)]'
+    !invalid && variant !== 'workflow' && variant !== 'brand' && 'text-[var(--text-icon)]'
   )
   const interactive = RightIcon != null && onRightIconClick != null
+  const resolvedStyle = variant === 'brand' ? { ...style, background: brandColor } : style
 
   return (
-    <span className={cn(chipTagVariants({ variant, invalid, tone }), className)} {...props}>
+    <span
+      className={cn(chipTagVariants({ variant, invalid, tone, brandForeground }), className)}
+      style={resolvedStyle}
+      {...props}
+    >
       {LeftIcon ? <LeftIcon className={iconClass} /> : null}
       {children}
       {RightIcon ? (

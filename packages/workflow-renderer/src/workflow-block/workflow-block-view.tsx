@@ -17,6 +17,7 @@ import {
   POSITIONED_SOURCE_HANDLE_SIDES,
   type PositionedSourceHandleSide,
 } from '@sim/workflow-types/workflow'
+import { CircleOff, Lock } from 'lucide-react'
 import {
   Handle,
   internalsSymbol,
@@ -27,6 +28,7 @@ import {
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { humanizeBlockName } from '../lib/humanize-block-name'
 import { OverflowSpan } from '../lib/overflow-span'
+import { isLightTileColor } from '../lib/tile-icon-color'
 import type { BlockRunStatus } from '../types'
 import {
   getCursorBranchSourceHandleId,
@@ -34,6 +36,7 @@ import {
   getCursorSourceHandlePosition,
 } from './source-handle'
 import { SubBlockRowView } from './sub-block-row-view'
+import { useActionMenuSwell } from './use-action-menu-swell'
 import {
   CONNECTION_KNOB_PEAK_PX,
   CURSOR_SWELL_LENGTH_PX,
@@ -63,16 +66,9 @@ const TAB_LENGTH_HEADER_ONLY_PX = 10
 const TAB_HEIGHT_RATIO = 0.5
 const CARD_CORNER_RADIUS_PX = 16
 const CORNER_SLACK_PX = 4
-const ACTION_MENU_FALLBACK_WIDTH_PX = 132
 const ACTION_MENU_RIGHT_INSET_PX = 24
 const ACTION_MENU_MAX_WIDTH_PX = BLOCK_DIMENSIONS.FIXED_WIDTH - ACTION_MENU_RIGHT_INSET_PX * 2
 const ACTION_MENU_AMPLITUDE = 7
-/** Hold the gray swell open briefly on close so icons can fade out first. */
-const ACTION_MENU_CLOSE_RETRACT_DELAY_MS = 40
-/** Ignore brief pointer exits (edges, handles) so hover doesn't flicker closed. */
-const ACTION_MENU_HOVER_LEAVE_DELAY_MS = 100
-/** Extra hit area above the card for the action swell. */
-const ACTION_MENU_HOVER_TOP_PAD_PX = 28
 /** Compile-time pin: the `-7px` handle outsets below must track the knob peak. */
 const HANDLE_OUTSET_PX: typeof CONNECTION_KNOB_PEAK_PX = 7
 
@@ -102,13 +98,16 @@ export function getNearestBranchCursorHandleId(
 
 const WORKFLOW_TYPE_ACCENTS = {
   agent: { variant: 'workflow', tone: 'inverse' },
-  api: { variant: 'workflow', tone: 'orange' },
+  api: { variant: 'workflow', tone: 'blue' },
   condition: { variant: 'workflow', tone: 'ash' },
   credential: { variant: 'workflow', tone: 'yellow' },
   file: { variant: 'workflow', tone: 'orange' },
   file_v5: { variant: 'workflow', tone: 'orange' },
   function: { variant: 'workflow', tone: 'ash' },
-  router_v2: { variant: 'workflow', tone: 'blue' },
+  loop: { variant: 'solid', tone: 'neutral' },
+  parallel: { variant: 'workflow', tone: 'yellow' },
+  router: { variant: 'workflow', tone: 'orange' },
+  router_v2: { variant: 'workflow', tone: 'orange' },
   table: { variant: 'workflow', tone: 'green' },
 } as const
 
@@ -116,6 +115,87 @@ const DEFAULT_WORKFLOW_TYPE_ACCENT = { variant: 'workflow', tone: 'neutral' } as
 
 export const getWorkflowTypeAccent = (type: string) =>
   WORKFLOW_TYPE_ACCENTS[type as keyof typeof WORKFLOW_TYPE_ACCENTS] ?? DEFAULT_WORKFLOW_TYPE_ACCENT
+
+export interface WorkflowTypeTagProps {
+  type: string
+  typeLabel?: string
+  blockName: string
+  Icon: ComponentType<{ className?: string }>
+  iconBgColor: string
+  isIntegration?: boolean
+  isEnabled?: boolean
+}
+
+/** Shared provider/type tag used by editable and read-only workflow canvases. */
+export function WorkflowTypeTag({
+  type,
+  typeLabel,
+  blockName,
+  Icon,
+  iconBgColor,
+  isIntegration = false,
+  isEnabled = true,
+}: WorkflowTypeTagProps) {
+  const typeAccent = getWorkflowTypeAccent(type)
+  const sharedClassName = cn(
+    'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+    !isEnabled && 'opacity-50'
+  )
+  const label = typeLabel && typeLabel !== blockName ? typeLabel : null
+
+  if (isIntegration) {
+    return (
+      <ChipTag
+        variant='brand'
+        brandColor={iconBgColor}
+        brandForeground={isLightTileColor(iconBgColor) ? 'dark' : 'light'}
+        className={sharedClassName}
+        data-workflow-type-accent={type}
+        data-workflow-brand-tag=''
+      >
+        <Icon className='size-[14px] flex-shrink-0' />
+        {label}
+      </ChipTag>
+    )
+  }
+
+  return (
+    <ChipTag
+      variant={typeAccent.variant}
+      tone={typeAccent.tone}
+      className={sharedClassName}
+      data-workflow-type-accent={type}
+    >
+      <Icon className='size-[14px] flex-shrink-0' />
+      {label}
+    </ChipTag>
+  )
+}
+
+interface BlockStateIndicatorProps {
+  label: string
+  Icon: ComponentType<{ className?: string }>
+}
+
+function BlockStateIndicator({ label, Icon }: BlockStateIndicatorProps) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <ChipTag
+          variant='workflow'
+          tone='neutral'
+          className='size-5 flex-shrink-0 justify-center p-0'
+          aria-label={label}
+        >
+          <Icon className='size-[12px] flex-shrink-0' />
+        </ChipTag>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>
+        <span className='text-sm'>{label}</span>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
 
 const clampTabLength = (length: number) =>
   Math.min(TAB_LENGTH_PX, Math.max(TAB_LENGTH_MIN_PX, Math.round(length)))
@@ -220,9 +300,13 @@ export interface WorkflowBlockViewProps {
   ringStyles: string
   /** Resolved run-path outcome, drives the muted-name styling. */
   runPathStatus?: BlockRunStatus
+  /** Whether the workflow is executing. Holds this block's activity swell open. */
+  isRunning?: boolean
   /** Block icon component and its background color. */
   Icon: ComponentType<{ className?: string }>
   iconBgColor: string
+  /** Whether the header tag should use the provider's integration colour. */
+  isIntegration?: boolean
 
   /** Handle orientation and topology, resolved by the container. */
   horizontalHandles: boolean
@@ -337,8 +421,10 @@ export function WorkflowBlockView({
   hasRing,
   ringStyles,
   runPathStatus,
+  isRunning = false,
   Icon,
   iconBgColor,
+  isIntegration = false,
   shouldShowDefaultHandles,
   blockHeight,
   hasContentBelowHeader,
@@ -471,104 +557,23 @@ export function WorkflowBlockView({
     }
     sourceBounds.push(nextBounds)
   }, [id, reactFlowStore])
-  const [actionMenuFocused, setActionMenuFocused] = useState(false)
-  const [actionMenuHovered, setActionMenuHovered] = useState(false)
-  const actionMenuRootRef = useRef<HTMLDivElement>(null)
-  const actionMenuHostRef = useRef<HTMLDivElement>(null)
-  const actionMenuHoverLeaveTimeoutRef = useRef<number | null>(null)
-  const actionMenuHoverMoveRef = useRef<((event: PointerEvent) => void) | null>(null)
-  const [actionMenuWidth, setActionMenuWidth] = useState(ACTION_MENU_FALLBACK_WIDTH_PX)
-  const [actionMenuSwellReady, setActionMenuSwellReady] = useState(false)
-  const isNodeSelected = hasRing && ringStyles.includes('--text-secondary')
-  const keepActionMenuOpen = actionMenuFocused || actionMenuHovered || isNodeSelected
-  const actionMenuContentVisible = keepActionMenuOpen && actionMenuSwellReady
-  const [actionMenuSwellOpen, setActionMenuSwellOpen] = useState(keepActionMenuOpen)
+  const isNodeSelected = isRunning || (hasRing && ringStyles.includes('--text-secondary'))
   const showActionMenu = Boolean(actionBar)
-  const typeAccent = getWorkflowTypeAccent(type)
-
-  useEffect(() => {
-    if (keepActionMenuOpen) {
-      setActionMenuSwellOpen(true)
-      return
-    }
-    const timeoutId = window.setTimeout(() => {
-      setActionMenuSwellOpen(false)
-    }, ACTION_MENU_CLOSE_RETRACT_DELAY_MS)
-    return () => window.clearTimeout(timeoutId)
-  }, [keepActionMenuOpen])
-
-  useEffect(() => {
-    if (!showActionMenu) return
-
-    const clearHoverLeave = () => {
-      if (actionMenuHoverLeaveTimeoutRef.current !== null) {
-        window.clearTimeout(actionMenuHoverLeaveTimeoutRef.current)
-        actionMenuHoverLeaveTimeoutRef.current = null
-      }
-      if (actionMenuHoverMoveRef.current) {
-        window.removeEventListener('pointermove', actionMenuHoverMoveRef.current)
-        actionMenuHoverMoveRef.current = null
-      }
-    }
-
-    const isPointerOverActionMenu = (event: PointerEvent) => {
-      const root = actionMenuRootRef.current
-      if (!root) return false
-      const rect = root.getBoundingClientRect()
-      return (
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top - ACTION_MENU_HOVER_TOP_PAD_PX &&
-        event.clientY <= rect.bottom
-      )
-    }
-
-    const openActionMenuHover = () => {
-      clearHoverLeave()
-      setActionMenuHovered(true)
-      setActionMenuSwellOpen(true)
-    }
-
-    const scheduleActionMenuHoverLeave = () => {
-      if (actionMenuHoverLeaveTimeoutRef.current !== null) {
-        window.clearTimeout(actionMenuHoverLeaveTimeoutRef.current)
-      }
-      if (!actionMenuHoverMoveRef.current) {
-        const onMove = (event: PointerEvent) => {
-          if (isPointerOverActionMenu(event)) {
-            openActionMenuHover()
-          }
-        }
-        actionMenuHoverMoveRef.current = onMove
-        window.addEventListener('pointermove', onMove, { passive: true })
-      }
-      actionMenuHoverLeaveTimeoutRef.current = window.setTimeout(() => {
-        actionMenuHoverLeaveTimeoutRef.current = null
-        if (actionMenuHoverMoveRef.current) {
-          window.removeEventListener('pointermove', actionMenuHoverMoveRef.current)
-          actionMenuHoverMoveRef.current = null
-        }
-        setActionMenuHovered(false)
-      }, ACTION_MENU_HOVER_LEAVE_DELAY_MS)
-    }
-
-    // Bind to the React Flow node wrapper so edges/handles that sit above the
-    // card don't permanently steal hover from the swell.
-    const root = actionMenuRootRef.current
-    const nodeEl = root?.closest('.react-flow__node') ?? root
-    if (!nodeEl) return
-
-    const onEnter = () => openActionMenuHover()
-    const onLeave = () => scheduleActionMenuHoverLeave()
-    nodeEl.addEventListener('pointerenter', onEnter)
-    nodeEl.addEventListener('pointerleave', onLeave)
-
-    return () => {
-      clearHoverLeave()
-      nodeEl.removeEventListener('pointerenter', onEnter)
-      nodeEl.removeEventListener('pointerleave', onLeave)
-    }
-  }, [showActionMenu])
+  const {
+    rootRef: actionMenuRootRef,
+    hostRef: actionMenuHostRef,
+    width: actionMenuWidth,
+    swellOpen: actionMenuSwellOpen,
+    contentVisible: actionMenuContentVisible,
+    setReady: setActionMenuSwellReady,
+    onFocusCapture: handleActionMenuFocus,
+    onBlurCapture: handleActionMenuBlur,
+  } = useActionMenuSwell({
+    enabled: showActionMenu,
+    forceOpen: Boolean(isNodeSelected || isRunning),
+    maxWidth: ACTION_MENU_MAX_WIDTH_PX,
+    suspendInteraction: isRunning,
+  })
   /* Blocks that can emit an error always carry the row; `response` terminates
      the flow and has no error branch. */
   const showErrorRow = shouldShowDefaultHandles && type !== 'response'
@@ -595,21 +600,6 @@ export function WorkflowBlockView({
     rendersErrorHandle,
     updateNodeInternals,
   ])
-  useLayoutEffect(() => {
-    const actionMenu = actionMenuHostRef.current?.querySelector<HTMLElement>(
-      '[data-workflow-action-bar-swell]'
-    )
-    if (!actionMenu) return
-    const updateWidth = () => {
-      const nextWidth = Math.min(ACTION_MENU_MAX_WIDTH_PX, actionMenu.offsetWidth)
-      if (nextWidth <= 0) return
-      setActionMenuWidth((current) => (current === nextWidth ? current : nextWidth))
-    }
-    updateWidth()
-    const observer = new ResizeObserver(updateWidth)
-    observer.observe(actionMenu)
-    return () => observer.disconnect()
-  }, [showActionMenu])
   const tabFill = (handleId: string) =>
     highlightedHandles?.has(handleId) ? 'var(--text-secondary)' : undefined
 
@@ -763,8 +753,8 @@ export function WorkflowBlockView({
       data-action-menu-ready={actionMenuContentVisible ? '' : undefined}
       /* Single source of truth for "the swell is painted in the selection
          color" — the action bar keys its icon treatment off this instead of
-         React Flow's raw `selected`, which diverges whenever another ring wins
-         (an executing block keeps the success ring and no selection swell). */
+         React Flow's raw `selected`. Camera-followed execution is deliberately
+         visual-only selection and must not open the editor. */
       data-node-selected={isNodeSelected ? '' : undefined}
     >
       {showActionMenu && (
@@ -776,12 +766,8 @@ export function WorkflowBlockView({
           />
           <div
             ref={actionMenuHostRef}
-            onFocusCapture={() => setActionMenuFocused(true)}
-            onBlurCapture={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                setActionMenuFocused(false)
-              }
-            }}
+            onFocusCapture={handleActionMenuFocus}
+            onBlurCapture={handleActionMenuBlur}
           >
             {actionBar}
           </div>
@@ -812,6 +798,7 @@ export function WorkflowBlockView({
           ports={borderPorts}
           hasRing={hasRing}
           ringStyles={ringStyles}
+          isSelected={isNodeSelected}
           height={blockHeight}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}
@@ -887,7 +874,12 @@ export function WorkflowBlockView({
               : undefined
           }
         >
-          <div className='relative z-10 flex min-w-0 flex-1 items-center'>
+          <div
+            className={cn(
+              'relative z-10 flex min-w-0 flex-1 items-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+              !isEnabled && 'opacity-50'
+            )}
+          >
             <OverflowSpan
               value={humanizeBlockName(name)}
               className={cn(
@@ -897,15 +889,17 @@ export function WorkflowBlockView({
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
-            <ChipTag
-              variant={typeAccent.variant}
-              tone={typeAccent.tone}
-              className='flex-shrink-0 justify-center'
-              data-workflow-type-accent={type}
-            >
-              <Icon className='size-[14px] flex-shrink-0' />
-              {typeLabel && typeLabel !== name ? typeLabel : null}
-            </ChipTag>
+            {!isEnabled && <BlockStateIndicator label='Disabled' Icon={CircleOff} />}
+            {isLocked && <BlockStateIndicator label='Locked' Icon={Lock} />}
+            <WorkflowTypeTag
+              type={type}
+              typeLabel={typeLabel}
+              blockName={name}
+              Icon={Icon}
+              iconBgColor={iconBgColor}
+              isIntegration={isIntegration}
+              isEnabled={isEnabled}
+            />
             {sunsetStatus && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -967,9 +961,6 @@ export function WorkflowBlockView({
                   </Tooltip.Content>
                 </Tooltip.Root>
               )}
-            {!isEnabled && !isLocked && <Badge variant='gray-secondary'>disabled</Badge>}
-            {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
-
             {type === 'schedule' && shouldShowScheduleBadge && scheduleIsDisabled && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -1045,7 +1036,12 @@ export function WorkflowBlockView({
         </div>
 
         {hasContentBelowHeader && (
-          <div className='relative z-[2] flex flex-col gap-2 p-2'>
+          <div
+            className={cn(
+              'relative z-10 flex flex-col gap-2 p-2 transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+              !isEnabled && 'opacity-50'
+            )}
+          >
             {type === 'condition' ? (
               conditionRows.map((cond) => (
                 <SubBlockRowView key={cond.id} title={cond.title} displayValue={cond.value} />
@@ -1081,7 +1077,7 @@ export function WorkflowBlockView({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
               >
-                <span className='text-[var(--text-muted)] text-xs'>On error</span>
+                <span className='text-[var(--text-muted)] text-caption'>On error</span>
                 <Switch
                   checked={errorOutputEnabled}
                   onCheckedChange={(next) => onToggleErrorOutput?.(next)}

@@ -1,13 +1,22 @@
-import { memo, type ReactNode } from 'react'
+import { memo, type ReactNode, useMemo } from 'react'
 import remarkBreaks from 'remark-breaks'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { cn, handleKeyboardActivation } from '@sim/emcn'
 import { getEmbedInfo } from '@sim/utils/media-embed'
+import { BLOCK_DIMENSIONS, getNoteBlockHeight } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
+import { useActionMenuSwell } from '../workflow-block/use-action-menu-swell'
+import {
+  WorkflowBlockBorder,
+  type WorkflowBorderPort,
+} from '../workflow-block/workflow-block-border'
 
 const EMBED_SCALE = 0.78
 const EMBED_INVERSE_SCALE = `${(1 / EMBED_SCALE) * 100}%`
+const ACTION_MENU_RIGHT_INSET_PX = 24
+const ACTION_MENU_MAX_WIDTH_PX = BLOCK_DIMENSIONS.FIXED_WIDTH - ACTION_MENU_RIGHT_INSET_PX * 2
+const ACTION_MENU_AMPLITUDE = 7
 
 /**
  * Compact markdown renderer for note blocks with tight spacing
@@ -202,31 +211,115 @@ export function NoteBlockView({
   actionBar,
 }: NoteBlockViewProps) {
   const isEmpty = content.trim().length === 0
+  const isSelected = hasRing && ringStyles.includes('--text-secondary')
+  const blockHeight = getNoteBlockHeight(isEmpty)
+  const showActionMenu = Boolean(actionBar)
+  const {
+    rootRef: actionMenuRootRef,
+    hostRef: actionMenuHostRef,
+    width: actionMenuWidth,
+    swellOpen: actionMenuSwellOpen,
+    contentVisible: actionMenuContentVisible,
+    setReady: setActionMenuSwellReady,
+    onFocusCapture: handleActionMenuFocus,
+    onBlurCapture: handleActionMenuBlur,
+  } = useActionMenuSwell({
+    enabled: showActionMenu,
+    forceOpen: isSelected,
+    maxWidth: ACTION_MENU_MAX_WIDTH_PX,
+  })
+  const borderPorts = useMemo<WorkflowBorderPort[]>(
+    () =>
+      showActionMenu
+        ? [
+            {
+              id: 'action-menu',
+              side: 'top',
+              position: { fromEnd: ACTION_MENU_RIGHT_INSET_PX + actionMenuWidth / 2 },
+              plateau: actionMenuWidth,
+              restAmplitude: actionMenuSwellOpen ? ACTION_MENU_AMPLITUDE : 0,
+              hoverAmplitude: ACTION_MENU_AMPLITUDE,
+              magnetizable: false,
+            },
+          ]
+        : [],
+    [actionMenuSwellOpen, actionMenuWidth, showActionMenu]
+  )
 
   return (
-    <div className='group relative'>
+    <div
+      ref={actionMenuRootRef}
+      className='group relative'
+      data-action-menu-ready={actionMenuContentVisible ? '' : undefined}
+      data-node-selected={isSelected ? '' : undefined}
+    >
+      {showActionMenu && (
+        <>
+          <div
+            aria-hidden='true'
+            data-workflow-action-bar-bridge=''
+            className='-top-[28px] pointer-events-auto absolute inset-x-0 z-10 h-[28px]'
+          />
+          <div
+            ref={actionMenuHostRef}
+            onFocusCapture={handleActionMenuFocus}
+            onBlurCapture={handleActionMenuBlur}
+          >
+            {actionBar}
+          </div>
+        </>
+      )}
       <div
         role='button'
         tabIndex={0}
-        className={cn(
-          'note-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-lg border border-[var(--border)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
-        )}
+        className='note-drag-handle relative z-20 w-[250px] cursor-grab select-none rounded-2xl [&:active]:cursor-grabbing'
         onClick={onSelect}
-        onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
+        onKeyDown={(event) => {
+          if (event.target === event.currentTarget) {
+            handleKeyboardActivation(event, onSelect)
+          }
+        }}
       >
-        {actionBar}
+        <WorkflowBlockBorder
+          ports={borderPorts}
+          cursorSwellEnabled={false}
+          hasRing={hasRing}
+          ringStyles={ringStyles}
+          isSelected={isSelected}
+          bodyFill='var(--surface-3)'
+          width={BLOCK_DIMENSIONS.FIXED_WIDTH}
+          height={blockHeight}
+          onActionMenuReadyChange={setActionMenuSwellReady}
+        />
 
-        <div className='flex items-center justify-between border-[var(--border)] border-b p-2'>
-          <div className='flex min-w-0 flex-1 items-center'>
+        <div className='relative z-10 flex h-10 items-center justify-between px-2'>
+          <div className='flex min-w-0 flex-1 items-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]'>
             <OverflowSpan
               value={name ?? ''}
-              className={cn('truncate text-md', !isEnabled && 'text-[var(--text-muted)]')}
+              className={cn(
+                'truncate text-md',
+                !isEnabled && 'text-[var(--text-muted)] opacity-50'
+              )}
             />
           </div>
         </div>
 
-        <div className='relative overflow-hidden p-2'>
-          <div className='relative max-w-full break-all'>
+        <div
+          data-note-scroll-region=''
+          role='region'
+          aria-label={`${name || 'Note'} content`}
+          tabIndex={isEmpty ? -1 : 0}
+          className={cn(
+            'nodrag nopan allow-scroll scrollbar-none relative z-10 max-w-full touch-pan-y overflow-x-hidden break-all p-2',
+            !isEmpty && [
+              'h-44 overflow-y-auto',
+              '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)]',
+              '[mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)]',
+            ],
+            !isEnabled && 'opacity-50'
+          )}
+        >
+          <div className='relative max-w-full py-2'>
             {isEmpty ? (
               <p className='text-[var(--text-placeholder)] text-sm'>Add note…</p>
             ) : (
@@ -234,9 +327,6 @@ export function NoteBlockView({
             )}
           </div>
         </div>
-        {hasRing && (
-          <div className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)} />
-        )}
       </div>
     </div>
   )

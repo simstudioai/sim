@@ -1,8 +1,7 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { ChipTag } from '@sim/emcn'
-import { getWorkflowTypeAccent, HANDLE_POSITIONS, humanizeBlockName } from '@sim/workflow-renderer'
+import { HANDLE_POSITIONS, humanizeBlockName, WorkflowTypeTag } from '@sim/workflow-renderer'
 import {
   getPositionedSourceHandleId,
   getPositionedTargetHandleId,
@@ -10,6 +9,7 @@ import {
   type PositionedSourceHandleSide,
 } from '@sim/workflow-types/workflow'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   getDisplayValue,
   hasDisplayableRowValue,
@@ -221,6 +221,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     }, {})
   }, [subBlockValues, lightweight])
 
+  const canvasPresentation = useMemo(
+    () => (blockConfig ? resolveCanvasBlockPresentation(blockConfig, name, rawValues) : undefined),
+    [blockConfig, name, rawValues]
+  )
+
   const visibleSubBlocks = useMemo(() => {
     if (!blockConfig?.subBlocks) return []
 
@@ -253,6 +258,12 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       if (subBlock.condition && !evaluateSubBlockCondition(subBlock.condition, rawValues)) {
         return false
       }
+      if (
+        canvasPresentation?.usesDefaultTitle &&
+        subBlock.id === canvasPresentation.operationSubBlockId
+      ) {
+        return false
+      }
       return hasDisplayableRowValue(subBlock, rawValues[subBlock.id])
     })
   }, [
@@ -264,6 +275,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isTrigger,
     canonicalIndex,
     rawValues,
+    canvasPresentation,
   ])
 
   /**
@@ -341,7 +353,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     return defaultRows
   }, [type, rawValues, lightweight])
 
-  if (!blockConfig) {
+  if (!blockConfig || !canvasPresentation) {
     return null
   }
 
@@ -360,7 +372,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
-  const typeAccent = getWorkflowTypeAccent(type)
 
   return (
     <div className='relative w-[250px] select-none rounded-2xl border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]'>
@@ -393,16 +404,21 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <div className='relative z-10 flex min-w-0 flex-1 items-center'>
           <span
             className={`truncate text-md ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
-            title={name}
+            title={canvasPresentation.title}
           >
-            {humanizeBlockName(name)}
+            {humanizeBlockName(canvasPresentation.title)}
           </span>
         </div>
         {!isNoteBlock && (
-          <ChipTag variant={typeAccent.variant} tone={typeAccent.tone} className='flex-shrink-0'>
-            <IconComponent className='size-[14px] flex-shrink-0' />
-            {blockConfig.name !== name ? blockConfig.name : null}
-          </ChipTag>
+          <WorkflowTypeTag
+            type={type}
+            typeLabel={canvasPresentation.typeLabel}
+            blockName={canvasPresentation.title}
+            Icon={IconComponent}
+            iconBgColor={blockConfig.bgColor}
+            isIntegration={blockConfig.category === 'tools'}
+            isEnabled={enabled}
+          />
         )}
       </div>
 
@@ -444,7 +460,12 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               return (
                 <SubBlockRow
                   key={subBlock.id}
-                  title={subBlock.title ?? subBlock.id}
+                  title={
+                    subBlock.id === canvasPresentation.operationSubBlockId &&
+                    !canvasPresentation.usesDefaultTitle
+                      ? (canvasPresentation.operationRowTitle ?? subBlock.title ?? subBlock.id)
+                      : (subBlock.title ?? subBlock.id)
+                  }
                   value={lightweight ? undefined : getDisplayValue(rawValue)}
                   subBlock={lightweight ? undefined : subBlock}
                   rawValue={rawValue}

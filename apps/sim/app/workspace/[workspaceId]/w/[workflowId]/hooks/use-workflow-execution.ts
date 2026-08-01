@@ -1864,6 +1864,18 @@ export function useWorkflowExecution() {
 
     const storedExecutionId = getCurrentExecutionId(activeWorkflowId)
 
+    executionStream.cancel(activeWorkflowId)
+    currentChatExecutionIdRef.current = null
+    runFromBlockOwnerRef.current = null
+    setCurrentExecutionId(activeWorkflowId, null)
+    setIsExecuting(activeWorkflowId, false)
+    setIsDebugging(activeWorkflowId, false)
+    setActiveBlocks(activeWorkflowId, new Set())
+    handleExecutionCancelledConsole({
+      workflowId: activeWorkflowId,
+      executionId: storedExecutionId ?? undefined,
+    })
+
     if (storedExecutionId) {
       void requestJson(cancelWorkflowExecutionContract, {
         params: { id: activeWorkflowId, executionId: storedExecutionId },
@@ -1878,10 +1890,7 @@ export function useWorkflowExecution() {
             return
           }
 
-          const currentId = getCurrentExecutionId(activeWorkflowId)
-          if (currentId !== storedExecutionId) return
-
-          logger.info('Workflow execution cancellation confirmed; awaiting terminal event', {
+          logger.info('Workflow execution cancellation confirmed', {
             workflowId: activeWorkflowId,
             executionId: storedExecutionId,
           })
@@ -1893,12 +1902,6 @@ export function useWorkflowExecution() {
             error,
           })
         })
-    } else {
-      executionStream.cancel(activeWorkflowId)
-      currentChatExecutionIdRef.current = null
-      setIsExecuting(activeWorkflowId, false)
-      setIsDebugging(activeWorkflowId, false)
-      setActiveBlocks(activeWorkflowId, new Set())
     }
 
     if (isDebugging) {
@@ -1911,8 +1914,10 @@ export function useWorkflowExecution() {
     setIsExecuting,
     setIsDebugging,
     setActiveBlocks,
+    setCurrentExecutionId,
     activeWorkflowId,
     getCurrentExecutionId,
+    handleExecutionCancelledConsole,
   ])
 
   /**

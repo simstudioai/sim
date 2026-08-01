@@ -1,0 +1,191 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { getWorkflowTypeAccent, WorkflowBlockView, WorkflowTypeTag } from '@sim/workflow-renderer'
+import { createRoot, type Root } from 'react-dom/client'
+import { ReactFlowProvider } from 'reactflow'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mountedRoots = new Set<Root>()
+const mountedHosts = new Set<HTMLDivElement>()
+
+function TestIcon({ className }: { className?: string }) {
+  return <svg aria-hidden='true' className={className} />
+}
+
+function createView(isRunning: boolean, isEnabled = true, isLocked = false) {
+  return (
+    <ReactFlowProvider>
+      <WorkflowBlockView
+        id='block-1'
+        type='function'
+        name='Validate Input'
+        isEnabled={isEnabled}
+        isLocked={isLocked}
+        hasRing={false}
+        ringStyles=''
+        isRunning={isRunning}
+        Icon={TestIcon}
+        iconBgColor='var(--surface-2)'
+        horizontalHandles={true}
+        shouldShowDefaultHandles={false}
+        blockHeight={96}
+        hasContentBelowHeader={false}
+        conditionRows={[]}
+        routerRows={[]}
+        wouldCreateConnectionCycle={() => false}
+        onSelect={() => {}}
+        actionBar={<div data-workflow-action-bar-swell='' />}
+        rows={null}
+      />
+    </ReactFlowProvider>
+  )
+}
+
+function flushAnimationFrames() {
+  act(() => {
+    vi.runAllTimers()
+  })
+}
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.stubGlobal(
+    'ResizeObserver',
+    class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    window.setTimeout(() => callback(performance.now()), 0)
+  )
+  vi.stubGlobal('cancelAnimationFrame', (frameId: number) => window.clearTimeout(frameId))
+  window.matchMedia = ((query: string) => ({
+    matches: true,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    onchange: null,
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+})
+
+afterEach(() => {
+  act(() => {
+    mountedRoots.forEach((root) => root.unmount())
+  })
+  mountedRoots.clear()
+  mountedHosts.forEach((host) => host.remove())
+  mountedHosts.clear()
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
+
+describe('WorkflowBlockView action menu', () => {
+  it('clears stale hover when execution stops and waits for a fresh pointer entry', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() => root.render(createView(false)))
+    const actionMenuRoot = host.querySelector<HTMLElement>('.group.relative')
+    expect(actionMenuRoot).toBeTruthy()
+
+    act(() => actionMenuRoot?.dispatchEvent(new Event('pointerenter')))
+    flushAnimationFrames()
+    expect(actionMenuRoot).toHaveAttribute('data-action-menu-ready')
+
+    act(() => root.render(createView(true)))
+    flushAnimationFrames()
+    expect(actionMenuRoot).toHaveAttribute('data-action-menu-ready')
+
+    act(() => root.render(createView(false)))
+    flushAnimationFrames()
+    expect(actionMenuRoot).not.toHaveAttribute('data-action-menu-ready')
+
+    act(() => actionMenuRoot?.dispatchEvent(new Event('pointerenter')))
+    flushAnimationFrames()
+    expect(actionMenuRoot).toHaveAttribute('data-action-menu-ready')
+  })
+
+  it('places active block-state indicators before the type tag', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() => root.render(createView(false, false, true)))
+
+    const disabledIndicator = host.querySelector('[aria-label="Disabled"]')
+    const lockedIndicator = host.querySelector('[aria-label="Locked"]')
+    const typeTag = host.querySelector('[data-workflow-type-accent="function"]')
+    expect(Array.from(typeTag?.parentElement?.children ?? [])).toEqual([
+      disabledIndicator,
+      lockedIndicator,
+      typeTag,
+    ])
+  })
+})
+
+describe('WorkflowTypeTag integration colors', () => {
+  it('keeps the selected Sim-native accents', () => {
+    expect(getWorkflowTypeAccent('agent')).toEqual({ variant: 'workflow', tone: 'inverse' })
+    expect(getWorkflowTypeAccent('api')).toEqual({ variant: 'workflow', tone: 'blue' })
+    expect(getWorkflowTypeAccent('loop')).toEqual({ variant: 'solid', tone: 'neutral' })
+    expect(getWorkflowTypeAccent('parallel')).toEqual({ variant: 'workflow', tone: 'yellow' })
+    expect(getWorkflowTypeAccent('router')).toEqual({ variant: 'workflow', tone: 'orange' })
+    expect(getWorkflowTypeAccent('router_v2')).toEqual({ variant: 'workflow', tone: 'orange' })
+  })
+
+  it('uses the provider background with a contrasting shared icon and label color', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() =>
+      root.render(
+        <WorkflowTypeTag
+          type='airweave'
+          typeLabel='Airweave'
+          blockName='Search Collections'
+          Icon={TestIcon}
+          iconBgColor='#6366F1'
+          isIntegration
+        />
+      )
+    )
+
+    const tag = host.querySelector<HTMLElement>('[data-workflow-brand-tag]')
+    expect(tag).toHaveStyle({ background: '#6366F1' })
+    expect(tag).toHaveClass('text-[#FFFFFF]')
+    expect(tag).toHaveTextContent('Airweave')
+
+    act(() =>
+      root.render(
+        <WorkflowTypeTag
+          type='gmail'
+          typeLabel='Gmail'
+          blockName='Send Email'
+          Icon={TestIcon}
+          iconBgColor='#FFFFFF'
+          isIntegration
+        />
+      )
+    )
+
+    const lightTag = host.querySelector<HTMLElement>('[data-workflow-brand-tag]')
+    expect(lightTag).toHaveStyle({ background: '#FFFFFF' })
+    expect(lightTag).toHaveClass('text-[#000000]')
+  })
+})

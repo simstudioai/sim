@@ -6,6 +6,7 @@ export {
   type SubflowNodeData,
   SubflowNodeView,
   type SubflowNodeViewProps,
+  SubflowStartView,
 } from './subflow/subflow-node-view'
 export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
 export {
@@ -33,4 +34,6 @@ export {
   getWorkflowTypeAccent,
   WorkflowBlockView,
   type WorkflowBlockViewProps,
+  WorkflowTypeTag,
+  type WorkflowTypeTagProps,
 } from './workflow-block/workflow-block-view'

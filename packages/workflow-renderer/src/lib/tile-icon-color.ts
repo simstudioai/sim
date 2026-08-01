@@ -36,8 +36,13 @@ function perceivedBrightness(color: string): number | null {
 /** Tiles brighter than this flip their icon foreground to near-black. */
 const LIGHT_TILE_THRESHOLD = 0.75
 
+/** Whether a provider tile needs dark foreground content for legibility. */
+export function isLightTileColor(bgColor: string | null | undefined): boolean {
+  const brightness = bgColor ? perceivedBrightness(bgColor) : null
+  return brightness !== null && brightness > LIGHT_TILE_THRESHOLD
+}
+
 /** `text-white` on dark/unknown tiles, `text-black` on clearly light tiles. */
 export function tileIconColorClass(bgColor: string | null | undefined): string {
-  const brightness = bgColor ? perceivedBrightness(bgColor) : null
-  return brightness !== null && brightness > LIGHT_TILE_THRESHOLD ? 'text-black' : 'text-white'
+  return isLightTileColor(bgColor) ? 'text-black' : 'text-white'
 }

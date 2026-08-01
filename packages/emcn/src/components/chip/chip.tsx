@@ -107,6 +107,8 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
   variant?: ChipVariant
   /** Icon component rendered before the label. */
   leftIcon?: ChipIcon
+  /** Custom content rendered before the label. Takes precedence over `leftIcon`. */
+  leftAdornment?: ReactNode
   /** Icon component rendered after the label. */
   rightIcon?: ChipIcon
   children?: ReactNode
@@ -120,6 +122,7 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
 function ChipContent({
   variant,
   leftIcon: LeftIcon,
+  leftAdornment,
   rightIcon: RightIcon,
   children,
 }: ChipBaseProps) {
@@ -128,7 +131,7 @@ function ChipContent({
   const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
   return (
     <>
-      {LeftIcon ? <LeftIcon className={iconClass} /> : null}
+      {leftAdornment ?? (LeftIcon ? <LeftIcon className={iconClass} /> : null)}
       {children != null && children !== false ? (
         <span className={labelClass}>{children}</span>
       ) : null}
@@ -145,7 +148,18 @@ interface ChipProps
  * @example <Chip leftIcon={Credit} onClick={openBilling}>{balance}</Chip>
  */
 const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
-  { className, variant, active, fullWidth, leftIcon, rightIcon, children, type, ...props },
+  {
+    className,
+    variant,
+    active,
+    fullWidth,
+    leftIcon,
+    leftAdornment,
+    rightIcon,
+    children,
+    type,
+    ...props
+  },
   ref
 ) {
   return (
@@ -155,7 +169,12 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       className={cn(chipVariants({ variant, active, fullWidth }), className)}
       {...props}
     >
-      <ChipContent variant={variant} leftIcon={leftIcon} rightIcon={rightIcon}>
+      <ChipContent
+        variant={variant}
+        leftIcon={leftIcon}
+        leftAdornment={leftAdornment}
+        rightIcon={rightIcon}
+      >
         {children}
       </ChipContent>
     </button>
@@ -171,7 +190,17 @@ interface ChipLinkProps
  * @example <ChipLink href='/integrations' active={isCurrent} leftIcon={ArrowLeft}>Integrations</ChipLink>
  */
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
-  { className, variant, active, fullWidth, leftIcon, rightIcon, children, ...props },
+  {
+    className,
+    variant,
+    active,
+    fullWidth,
+    leftIcon,
+    leftAdornment,
+    rightIcon,
+    children,
+    ...props
+  },
   ref
 ) {
   return (
@@ -180,7 +209,12 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
       className={cn(chipVariants({ variant, active, fullWidth }), className)}
       {...props}
     >
-      <ChipContent variant={variant} leftIcon={leftIcon} rightIcon={rightIcon}>
+      <ChipContent
+        variant={variant}
+        leftIcon={leftIcon}
+        leftAdornment={leftAdornment}
+        rightIcon={rightIcon}
+      >
         {children}
       </ChipContent>
     </Link>
