@@ -24,9 +24,25 @@ const NO_TRUSTED_PROXIES: TrustedProxyList = { cidrs: [] }
 export const UNKNOWN_CLIENT_IP = 'unknown'
 
 /**
- * Strips a port and IPv6 brackets from a forwarded-hop token, leaving a bare
- * address. Handles `[::1]:8080`, `[::1]`, and `1.2.3.4:5678`; a bare IPv6
- * literal (two or more colons, no brackets) is returned untouched.
+ * Prefix an IPv6 address is masked to before it becomes a rate-limit key.
+ *
+ * A single IPv6 client is routinely delegated a whole /64 — that is the standard
+ * residential and cloud allocation — so every request can legitimately carry a
+ * different source address with no spoofing whatsoever. Keying on the full /128
+ * would therefore leave per-IP throttles just as bypassable over IPv6 as the
+ * forwarded-header bug this module exists to close, except the proxy itself
+ * writes the varying value and nothing looks wrong.
+ *
+ * Masking to the routed prefix makes one subscriber one bucket. Matches Better
+ * Auth's `ipv6Subnet` default, so session and throttle keys agree.
+ */
+const IPV6_KEY_PREFIX_BITS = 64
+
+/**
+ * Reduces a forwarded-hop token to a bare address, dropping brackets, a port,
+ * and any IPv6 zone id — `[::1]:8080`, `[::1]`, `1.2.3.4:5678`, `fe80::1%eth0`.
+ * A bare IPv6 literal (two or more colons, no brackets) keeps its colons; the
+ * single-colon rule only strips a port from `host:port`.
  */
 function stripPortAndBrackets(value: string): string {
   let host = value
@@ -76,6 +92,22 @@ function normalizeCidr(cidr: ParsedCidr): ParsedCidr {
   const v6 = addr as ipaddr.IPv6
   if (!v6.isIPv4MappedAddress() || bits < 96) return cidr
   return [v6.toIPv4Address(), bits - 96]
+}
+
+/**
+ * Renders an address as a rate-limit key, masking IPv6 to
+ * {@link IPV6_KEY_PREFIX_BITS} so one delegated prefix is one bucket. IPv4 is
+ * returned exactly — a v4 address is a single host.
+ *
+ * Applied only at the point a key is produced, never before
+ * {@link isTrustedProxy}: a masked address would compare against trusted ranges
+ * as a different (and wrong) address.
+ */
+function toKey(addr: ParsedIp): string {
+  if (addr.kind() !== 'ipv6') return addr.toString()
+  const bytes = (addr as ipaddr.IPv6).toByteArray()
+  for (let i = IPV6_KEY_PREFIX_BITS / 8; i < bytes.length; i++) bytes[i] = 0
+  return ipaddr.fromByteArray(bytes).toString()
 }
 
 function isTrustedProxy(addr: ParsedIp, trustedProxies: TrustedProxyList): boolean {
@@ -143,6 +175,14 @@ export function parseTrustedProxies(raw: string | null | undefined): TrustedProx
  * `X-Real-IP` is the fallback when `X-Forwarded-For` carries no parseable
  * address, and {@link UNKNOWN_CLIENT_IP} when neither header does.
  *
+ * The result is a **bucket key, not an address**: IPv6 is masked to
+ * {@link IPV6_KEY_PREFIX_BITS} (see there for why a /128 key is bypassable).
+ * Use {@link getAssertedOriginIp} when an exact address is required.
+ *
+ * None of this helps if no proxy sets the header at all — a directly-exposed
+ * app sees only what the caller wrote, and no parsing rule can recover from
+ * that. Terminate at a proxy that appends the peer address.
+ *
  * @param request Any object exposing a header getter.
  * @param trustedProxies Prepared list from {@link parseTrustedProxies}.
  */
@@ -157,15 +197,14 @@ export function resolveClientIp(
     for (let i = hops.length - 1; i >= 0; i--) {
       const addr = parseHop(hops[i])
       if (!addr) continue
-      const canonical = addr.toString()
-      if (!isTrustedProxy(addr, trustedProxies)) return canonical
-      rightmostParsed ??= canonical
+      if (!isTrustedProxy(addr, trustedProxies)) return toKey(addr)
+      rightmostParsed ??= toKey(addr)
     }
     if (rightmostParsed) return rightmostParsed
   }
 
   const realIp = parseHop(request.headers.get('x-real-ip') ?? '')
-  return realIp ? realIp.toString() : UNKNOWN_CLIENT_IP
+  return realIp ? toKey(realIp) : UNKNOWN_CLIENT_IP
 }
 
 /**

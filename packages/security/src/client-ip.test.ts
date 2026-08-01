@@ -27,12 +27,51 @@ describe('resolveClientIp', () => {
     })
 
     it('strips IPv6 zone ids so they cannot mint unbounded distinct keys', () => {
+      // `ipaddr.isValid` accepts an arbitrary-length zone and `process()` keeps
+      // it verbatim, so an unstripped zone would be attacker-chosen text in the
+      // key. The /64 mask happens to drop zones from v6 keys too — the
+      // getAssertedOriginIp cases below pin the stripping on its own, since
+      // that path is deliberately unmasked.
       const zoned = ['fe80::1%eth0', 'fe80::1%evil', `fe80::1%${'x'.repeat(200)}`].map((value) =>
         resolveClientIp(req({ 'x-forwarded-for': value }))
       )
-      expect(new Set(zoned)).toEqual(new Set(['fe80::1']))
-      expect(resolveClientIp(req({ 'x-real-ip': 'fe80::1%evil' }))).toBe('fe80::1')
-      expect(resolveClientIp(req({ 'x-forwarded-for': '[fe80::1%eth0]:8080' }))).toBe('fe80::1')
+      expect(new Set(zoned)).toEqual(new Set(['fe80::']))
+      expect(resolveClientIp(req({ 'x-real-ip': 'fe80::1%evil' }))).toBe('fe80::')
+      expect(canonicalizeIp('fe80::1%evil')).toBe('fe80::1')
+    })
+
+    it('masks IPv6 to its routed /64 so one subscriber is one bucket', () => {
+      // A single IPv6 client is delegated a whole /64, so the proxy honestly
+      // writes a different address per request. Keying on the full /128 would
+      // leave per-IP throttles bypassable with no spoofing at all.
+      const withinOnePrefix = [
+        '2001:db8:1:2::1',
+        '2001:db8:1:2::dead:beef',
+        '2001:db8:1:2:ffff:ffff:ffff:ffff',
+      ].map((value) => resolveClientIp(req({ 'x-forwarded-for': value })))
+      expect(new Set(withinOnePrefix)).toEqual(new Set(['2001:db8:1:2::']))
+    })
+
+    it('keeps distinct IPv6 /64s in distinct buckets', () => {
+      const a = resolveClientIp(req({ 'x-forwarded-for': '2001:db8:1:2::1' }))
+      const b = resolveClientIp(req({ 'x-forwarded-for': '2001:db8:1:3::1' }))
+      expect(a).not.toBe(b)
+    })
+
+    it('does not mask IPv4, which is already a single host', () => {
+      expect(resolveClientIp(req({ 'x-forwarded-for': '198.51.100.4' }))).toBe('198.51.100.4')
+    })
+
+    it('masks the x-real-ip fallback too', () => {
+      expect(resolveClientIp(req({ 'x-real-ip': '2001:db8:1:2::99' }))).toBe('2001:db8:1:2::')
+    })
+
+    it('matches a trusted range against the full address, not the masked key', () => {
+      // Masking before the trust check would compare a different address.
+      const trusted = parseTrustedProxies('2001:db8:1:2::abcd/128')
+      expect(
+        resolveClientIp(req({ 'x-forwarded-for': '203.0.113.7, 2001:db8:1:2::abcd' }), trusted)
+      ).toBe('203.0.113.7')
     })
 
     it('collapses equivalent spellings of one address onto a single value', () => {
@@ -86,10 +125,12 @@ describe('resolveClientIp', () => {
     })
 
     it('does not treat an IPv6 hop as matching an IPv4 trusted range', () => {
+      // Two hops, so a wrongly-trusted rightmost entry would visibly shift the
+      // answer left rather than merely avoiding a kind-mismatch throw.
       const trusted = parseTrustedProxies('0.0.0.0/0')
-      expect(resolveClientIp(req({ 'x-forwarded-for': '2001:db8::1' }), trusted)).toBe(
-        '2001:db8::1'
-      )
+      expect(
+        resolveClientIp(req({ 'x-forwarded-for': '2001:db8:1::1, 2001:db8:2::2' }), trusted)
+      ).toBe('2001:db8:2::')
     })
 
     it('matches an IPv4-mapped IPv6 trusted range against the unwrapped hop', () => {
@@ -113,11 +154,13 @@ describe('resolveClientIp', () => {
     })
 
     it('strips brackets and ports from IPv6 hops', () => {
-      expect(resolveClientIp(req({ 'x-forwarded-for': '[2001:db8::1]:8080' }))).toBe('2001:db8::1')
+      // Masked to /64 like every IPv6 key; unmasked forms are covered by
+      // getAssertedOriginIp below.
+      expect(resolveClientIp(req({ 'x-forwarded-for': '[2001:db8::1]:8080' }))).toBe('2001:db8::')
     })
 
-    it('preserves a bare IPv6 literal', () => {
-      expect(resolveClientIp(req({ 'x-forwarded-for': '2001:db8::1' }))).toBe('2001:db8::1')
+    it('accepts a bare IPv6 literal', () => {
+      expect(resolveClientIp(req({ 'x-forwarded-for': '2001:db8::1' }))).toBe('2001:db8::')
     })
 
     it('skips unparseable hops while walking right to left', () => {
@@ -184,6 +227,19 @@ describe('getAssertedOriginIp', () => {
     expect(
       getAssertedOriginIp(req({ 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '10.0.0.1' }))
     ).toBe('203.0.113.7')
+  })
+
+  it('does not mask IPv6 — an allowlist needs the exact address', () => {
+    expect(getAssertedOriginIp(req({ 'x-forwarded-for': '2001:db8:1:2::99' }))).toBe(
+      '2001:db8:1:2::99'
+    )
+  })
+
+  it('strips brackets, ports, and zone ids like the resolver does', () => {
+    expect(getAssertedOriginIp(req({ 'x-forwarded-for': '[2001:db8::1%eth0]:8080' }))).toBe(
+      '2001:db8::1'
+    )
+    expect(getAssertedOriginIp(req({ 'x-forwarded-for': '203.0.113.7:4444' }))).toBe('203.0.113.7')
   })
 
   it('returns null when no header yields an address', () => {

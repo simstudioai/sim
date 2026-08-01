@@ -157,7 +157,7 @@
             },
             "AUTH_TRUSTED_PROXIES": {
               "type": "string",
-              "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. '10.0.0.0/16'). Better Auth walks x-forwarded-for right to left, skips these hops, and uses the first untrusted address as the client IP."
+              "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. the ingress pods, '10.42.0.0/24'). When set, Better Auth and Sim's per-IP rate limits both walk x-forwarded-for right to left, skip these hops, and use the first untrusted address as the client IP. Leave empty and the two differ: Better Auth trusts only a single-value header, while Sim's throttles key on the rightmost, proxy-written entry. Do not use a range broad enough to also cover client traffic — a caller inside a trusted range makes the whole chain trusted."
             },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",

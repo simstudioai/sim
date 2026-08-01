@@ -71,8 +71,12 @@ const RATE_LIMIT_WINDOW_MS = 60_000
 const rateLimitHits = new Map<string, { count: number; resetAt: number }>()
 
 /**
- * Reverse-proxy hops trusted for forwarded-IP resolution — the same
- * `AUTH_TRUSTED_PROXIES` the main app reads. Parsed once at module load.
+ * Reverse-proxy hops trusted for forwarded-IP resolution, named after the main
+ * app's setting so the two behave alike where both are deployed. The docs site
+ * ships separately and does not normally set it, so this is usually empty —
+ * which is safe (the rightmost, proxy-written hop wins) but coarse: if the docs
+ * edge presents more than one hop, visitors share one bucket. Set it here too if
+ * that shows up as spurious 429s.
  */
 const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
 

@@ -6,9 +6,14 @@ import {
 import { env } from '@/lib/core/config/env'
 
 /**
- * Reverse-proxy hops trusted for forwarded-IP resolution, shared with Better
- * Auth's `advanced.ipAddress.trustedProxies` so session IPs and Sim's own
- * rate-limit keys agree on who the caller is. Parsed once at module load.
+ * Reverse-proxy hops trusted for forwarded-IP resolution, read from the same
+ * `AUTH_TRUSTED_PROXIES` as Better Auth's `advanced.ipAddress.trustedProxies`
+ * (see `lib/auth/auth.ts`). Parsed once at module load.
+ *
+ * Configured, the two agree on who the caller is. Left unset they diverge by
+ * design: Better Auth trusts only a single-value header and records no IP for a
+ * longer chain, whereas a throttle cannot opt out of having a key, so this falls
+ * back to the rightmost — still proxy-written, never caller-authored.
  */
 const trustedProxies = parseTrustedProxies(env.AUTH_TRUSTED_PROXIES)
 

@@ -507,7 +507,7 @@ export const env = createEnv({
     REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
 
     // Network / proxy trust
-    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. Better Auth and getClientIp (per-IP rate-limit keys, audit rows) walk the forwarded-IP chain right to left, skip these trusted hops, and use the first untrusted address as the client IP. Unset trusts no hop and keys on the rightmost, proxy-written entry — never the caller-supplied leftmost one.
+    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. When set, Better Auth and getClientIp (per-IP rate-limit keys, audit rows) both walk the forwarded-IP chain right to left, skip these trusted hops, and use the first untrusted address as the client IP. Leave unset and the two differ: Better Auth trusts only single-value IP headers (recording no IP for a multi-hop chain), while getClientIp keys on the rightmost, proxy-written entry — never the caller-supplied leftmost one.
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
