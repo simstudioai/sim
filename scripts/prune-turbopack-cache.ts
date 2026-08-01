@@ -46,16 +46,13 @@ import path from 'node:path'
 const DEFAULT_MAX_GB = 20
 const BYTES_PER_GB = 1024 ** 3
 
-const CACHE_DIR = path.join(
-  import.meta.dirname,
-  '..',
-  'apps',
-  'sim',
-  '.next',
-  'dev',
-  'cache',
-  'turbopack'
-)
+/**
+ * Resolved from the working directory, not hardcoded to one app: every Next app
+ * in the monorepo has its own dev cache (`apps/docs` runs `next dev` too and, with
+ * no override, uses the Next default where the cache is on). Each app caps its
+ * own, so one app's dev start never prunes a cache another app is holding open.
+ */
+const CACHE_DIR = path.resolve(process.cwd(), '.next', 'dev', 'cache', 'turbopack')
 
 /** Sums the size of every regular file under `dir`, skipping symlinks. */
 async function directorySize(dir: string): Promise<number> {
