@@ -9,6 +9,7 @@ import {
   deriveZohoContentText,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  resolveZohoAttachmentUrl,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -89,6 +90,34 @@ describe('zoho desk tool utils', () => {
         'attachment'
       )
       expect(deriveAttachmentName('', '', '/tickets/1/attachments/2')).toBe('attachment')
+    })
+  })
+
+  describe('resolveZohoAttachmentUrl', () => {
+    const apiBase = 'https://desk.zoho.com/api/v1'
+
+    it('uses an absolute http(s) href as-is', () => {
+      expect(
+        resolveZohoAttachmentUrl('https://desk.zoho.eu/api/v1/tickets/1/x/content', apiBase).href
+      ).toBe('https://desk.zoho.eu/api/v1/tickets/1/x/content')
+    })
+
+    it('does not duplicate /api/v1 when the relative href already includes it', () => {
+      expect(
+        resolveZohoAttachmentUrl('/api/v1/tickets/1/attachments/2/content', apiBase).href
+      ).toBe('https://desk.zoho.com/api/v1/tickets/1/attachments/2/content')
+      expect(resolveZohoAttachmentUrl('api/v1/tickets/1/attachments/2/content', apiBase).href).toBe(
+        'https://desk.zoho.com/api/v1/tickets/1/attachments/2/content'
+      )
+    })
+
+    it('resolves a relative href without an api/v1 prefix against the api base', () => {
+      expect(resolveZohoAttachmentUrl('/tickets/1/x/content', apiBase).href).toBe(
+        'https://desk.zoho.com/api/v1/tickets/1/x/content'
+      )
+      expect(resolveZohoAttachmentUrl('tickets/1/x/content', apiBase).href).toBe(
+        'https://desk.zoho.com/api/v1/tickets/1/x/content'
+      )
     })
   })
 

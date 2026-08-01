@@ -10,6 +10,7 @@ import {
   buildZohoDeskHeaders,
   deriveAttachmentName,
   getZohoDeskApiBase,
+  resolveZohoAttachmentUrl,
 } from '@/tools/zoho_desk/utils'
 
 export const dynamic = 'force-dynamic'
@@ -64,11 +65,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   let downloadUrl: URL
   try {
-    downloadUrl = href.startsWith('http')
-      ? new URL(href)
-      : new URL(
-          `${getZohoDeskApiBase({ apiDomain: apiDomain ?? undefined })}/${href.replace(/^\/+/, '')}`
-        )
+    downloadUrl = resolveZohoAttachmentUrl(
+      href,
+      getZohoDeskApiBase({ apiDomain: apiDomain ?? undefined })
+    )
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid attachment href' }, { status: 400 })
   }

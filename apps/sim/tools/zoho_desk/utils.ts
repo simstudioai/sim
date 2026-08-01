@@ -62,6 +62,20 @@ export function getZohoDeskApiBase(params: Pick<ZohoDeskBaseParams, 'apiDomain'>
   return `${base}/api/v1`
 }
 
+/**
+ * Resolve an attachment `href` into an absolute download URL. Absolute hrefs are
+ * used as-is; a relative href is resolved against the Desk API base (`apiBase`,
+ * which ends in `/api/v1`). A leading slash and an already-present `api/v1/`
+ * prefix are stripped first so a Zoho href like `/api/v1/tickets/1/.../content`
+ * does not produce a duplicated `/api/v1/api/v1/...` path. Throws on an
+ * unparseable result (the caller maps that to a 400).
+ */
+export function resolveZohoAttachmentUrl(href: string, apiBase: string): URL {
+  if (/^https?:\/\//i.test(href)) return new URL(href)
+  const path = href.replace(/^\/+/, '').replace(/^api\/v1\//i, '')
+  return new URL(`${apiBase.replace(/\/+$/, '')}/${path}`)
+}
+
 /** Build the auth + org headers required on every Zoho Desk API call. */
 export function buildZohoDeskHeaders(
   params: Pick<ZohoDeskBaseParams, 'accessToken' | 'orgId'>
