@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest'
 import {
   COLUMN_TYPE_REGISTRY,
   columnTypeById,
-  isValueCompatible,
   metadataRewritesCells,
   metadataWithoutClears,
   ownedKeysOf,
@@ -27,116 +26,138 @@ import type { ColumnDefinition } from '@/lib/table/types'
 const column = (type: ColumnDefinition['type'], extra: Partial<ColumnDefinition> = {}) =>
   ({ name: 'c', type, ...extra }) as ColumnDefinition
 
-describe('email', () => {
+describe('email validation', () => {
   const col = column('email')
+  const coerce = (v: unknown) => COLUMN_TYPE_REGISTRY.email.coerce(v as never, col)
 
   it.each([
     ['  Ada@Example.COM  ', 'ada@example.com'],
     ['person@example.co.uk', 'person@example.co.uk'],
     ['a.b+tag@sub.example.com', 'a.b+tag@sub.example.com'],
-  ])('normalizes %s to %s', (input, expected) => {
-    const result = COLUMN_TYPE_REGISTRY.email.coerce(input, col)
+    ["o'brien@example.com", "o'brien@example.com"],
+    ['user_name-1@ex-ample.com', 'user_name-1@ex-ample.com'],
+  ])('accepts and normalizes %s', (input, expected) => {
+    const result = coerce(input)
     expect(result.ok && result.value).toBe(expected)
   })
 
-  it.each(['no-at-sign', 'two @spaces.com', '@example.com', 'a@b', 'a@.com'])(
-    'rejects %s',
-    (input) => {
-      expect(COLUMN_TYPE_REGISTRY.email.coerce(input, col).ok).toBe(false)
+  it.each([
+    ['no-at-sign', 'no @'],
+    ['@example.com', 'no local part'],
+    ['a@', 'no domain'],
+    ['a@b', 'dotless domain'],
+    ['a b@example.com', 'whitespace in the local part'],
+    ['a..b@example.com', 'consecutive dots in the local part'],
+    ['.a@example.com', 'leading dot in the local part'],
+    ['a.@example.com', 'trailing dot in the local part'],
+    ['a,b@example.com', 'comma — the cell holds a LIST, not one address'],
+    ['a;b@example.com', 'semicolon — likewise'],
+    ['"quoted name"@example.com', 'quoted local part, deliberately unsupported'],
+    ['a@-example.com', 'domain label starting with a hyphen'],
+    ['a@example-.com', 'domain label ending with a hyphen'],
+    ['a@example..com', 'empty domain label'],
+    ['a@example.123', 'numeric TLD'],
+    ['a@example.c', 'single-character TLD'],
+    ['a@b@c.com', 'two @ signs'],
+  ])('rejects %s (%s)', (input) => {
+    expect(coerce(input).ok).toBe(false)
+  })
+
+  it('enforces the RFC 5321 local-part cap of 64', () => {
+    expect(coerce(`${'a'.repeat(64)}@example.com`).ok).toBe(true)
+    expect(coerce(`${'a'.repeat(65)}@example.com`).ok).toBe(false)
+  })
+
+  it('enforces the RFC 5321 total cap of 254', () => {
+    // Built at the boundary with every OTHER limit satisfied — local part 64,
+    // each label under 63 — so the total is the only thing under test.
+    const local = 'a'.repeat(64)
+    const at254 = `${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(57)}.com`
+    expect(`${local}@${at254}`).toHaveLength(254)
+    expect(coerce(`${local}@${at254}`).ok).toBe(true)
+
+    const at255 = `${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(58)}.com`
+    expect(`${local}@${at255}`).toHaveLength(255)
+    expect(coerce(`${local}@${at255}`).ok).toBe(false)
+  })
+
+  it('enforces the 63-character DNS label cap', () => {
+    expect(coerce(`a@${'b'.repeat(63)}.com`).ok).toBe(true)
+    expect(coerce(`a@${'b'.repeat(64)}.com`).ok).toBe(false)
+  })
+
+  it('accepts nothing its own validateCell then rejects', () => {
+    for (const input of ['Ada@Example.com', 'a.b+t@x.co.uk', '']) {
+      const result = coerce(input)
+      expect(result.ok, input).toBe(true)
+      if (result.ok) expect(COLUMN_TYPE_REGISTRY.email.validateCell(result.value, col)).toBeNull()
     }
-  )
+  })
 
   it('case-folds so enrichment matching cannot miss on capitalization', () => {
-    const upper = COLUMN_TYPE_REGISTRY.email.coerce('ADA@EXAMPLE.COM', col)
-    const lower = COLUMN_TYPE_REGISTRY.email.coerce('ada@example.com', col)
+    const upper = coerce('ADA@EXAMPLE.COM')
+    const lower = coerce('ada@example.com')
     expect(upper.ok && upper.value).toBe(lower.ok && lower.value)
   })
 })
 
-describe('phone', () => {
+describe('phone validation', () => {
   const col = column('phone')
+  const coerce = (v: unknown) => COLUMN_TYPE_REGISTRY.phone.coerce(v as never, col)
 
   it.each([
     ['+1 (555) 123-4567', '+15551234567'],
     ['555-123-4567', '5551234567'],
     ['+44 20 7123 4567', '+442071234567'],
-  ])('normalizes %s to %s', (input, expected) => {
-    const result = COLUMN_TYPE_REGISTRY.phone.coerce(input, col)
+    ['+81-3-1234-5678', '+81312345678'],
+    ['  +1.555.123.4567  ', '+15551234567'],
+  ])('accepts and normalizes %s', (input, expected) => {
+    const result = coerce(input)
     expect(result.ok && result.value).toBe(expected)
   })
 
-  it('refuses an extension rather than silently truncating to the wrong number', () => {
-    expect(COLUMN_TYPE_REGISTRY.phone.coerce('555-123-4567 x89', col).ok).toBe(false)
+  it('keeps a national leading zero, which is a real trunk prefix', () => {
+    const result = coerce('020 7123 4567')
+    expect(result.ok && result.value).toBe('02071234567')
   })
 
-  it.each([['12345'], ['1234567890123456'], ['not a phone']])('rejects %s', (input) => {
-    expect(COLUMN_TYPE_REGISTRY.phone.coerce(input, col).ok).toBe(false)
+  it('refuses an E.164 number whose country code starts with 0', () => {
+    // No network can route it, so storing it as international would be a lie.
+    expect(coerce('+0123456789').ok).toBe(false)
   })
 
-  it('keeps a leading + that a numeric cast would have dropped', () => {
-    const result = COLUMN_TYPE_REGISTRY.phone.coerce('+15551234567', col)
-    expect(result.ok && String(result.value).startsWith('+')).toBe(true)
+  it.each([
+    ['555-123-4567 x89', 'an extension has no E.164 form'],
+    ['12345', 'too few digits'],
+    ['1234567890123456', 'too many digits'],
+    ['not a phone', 'letters'],
+    ['+', 'a lone plus'],
+    ['555-1234, 555-5678', 'two numbers in one cell'],
+    ['555/1234567', 'a slash'],
+  ])('rejects %s (%s)', (input) => {
+    expect(coerce(input).ok).toBe(false)
+  })
+
+  it('accepts a numeric CSV cell but refuses one that cannot be a number', () => {
+    expect(coerce(15551234567).ok).toBe(true)
+    // Negative would have its sign eaten as a separator and stored positive.
+    expect(coerce(-15551234567).ok).toBe(false)
+    expect(coerce(1.5).ok).toBe(false)
+    // Past MAX_SAFE_INTEGER the value has already lost digits to float64
+    // before it reaches us, so it is no longer what the file contained.
+    expect(coerce(Number.MAX_SAFE_INTEGER + 2).ok).toBe(false)
+  })
+
+  it('never casts to numeric, so the + and leading zeros survive', () => {
     expect(columnTypeById('phone').jsonbCast).toBeNull()
   })
-})
 
-describe('url', () => {
-  const col = column('url')
-
-  it.each([
-    ['sim.ai', 'https://sim.ai/'],
-    ['https://sim.ai/docs', 'https://sim.ai/docs'],
-    ['http://example.com', 'http://example.com/'],
-  ])('normalizes %s to %s', (input, expected) => {
-    const result = COLUMN_TYPE_REGISTRY.url.coerce(input, col)
-    expect(result.ok && result.value).toBe(expected)
-  })
-
-  it.each(['javascript:alert(1)', 'data:text/html,<script>', 'file:///etc/passwd'])(
-    'refuses the non-http scheme %s, which the grid would render as a live link',
-    (input) => {
-      expect(COLUMN_TYPE_REGISTRY.url.coerce(input, col).ok).toBe(false)
+  it('accepts nothing its own validateCell then rejects', () => {
+    for (const input of ['+1 (555) 123-4567', '020 7123 4567', '']) {
+      const result = coerce(input)
+      expect(result.ok, input).toBe(true)
+      if (result.ok) expect(COLUMN_TYPE_REGISTRY.phone.validateCell(result.value, col)).toBeNull()
     }
-  )
-
-  it('renders as linkable so the grid promotes it to a chip', () => {
-    expect(COLUMN_TYPE_REGISTRY.url.display?.('https://sim.ai', col)).toEqual({
-      kind: 'linkable',
-      text: 'https://sim.ai',
-    })
-  })
-})
-
-describe('duration', () => {
-  const col = column('duration')
-
-  it.each([
-    ['1:30', 90],
-    ['1:30:00', 5400],
-    ['90:00', 5400],
-    ['1h 30m', 5400],
-    ['45s', 45],
-    ['5400', 5400],
-    [5400, 5400],
-  ])('parses %s to %s seconds', (input, expected) => {
-    const result = COLUMN_TYPE_REGISTRY.duration.coerce(input as never, col)
-    expect(result.ok && result.value).toBe(expected)
-  })
-
-  it.each(['1:75', 'abc', '-5', '1:2:3:4'])('rejects %s', (input) => {
-    expect(COLUMN_TYPE_REGISTRY.duration.coerce(input, col).ok).toBe(false)
-  })
-
-  it('round-trips display through the editor unchanged', () => {
-    const shown = COLUMN_TYPE_REGISTRY.duration.formatForInput(5400, col)
-    const reparsed = COLUMN_TYPE_REGISTRY.duration.coerce(shown, col)
-    expect(reparsed.ok && reparsed.value).toBe(5400)
-  })
-
-  it('refuses to bulk-convert a number column, whose values are not known to be seconds', () => {
-    expect(isValueCompatible(90, col)).toBe(false)
-    // A single deliberate write still means seconds.
-    expect(COLUMN_TYPE_REGISTRY.duration.coerce(90, col).ok).toBe(true)
   })
 })
 
@@ -192,22 +213,6 @@ describe('audit regressions', () => {
     expect(COLUMN_TYPE_REGISTRY.date.validateCell(result.value, dateOnly)).toBeNull()
   })
 
-  it('accepts a bare host:port URL instead of reading the host as a scheme', () => {
-    const col = column('url')
-    const result = COLUMN_TYPE_REGISTRY.url.coerce('example.com:8080/path', col)
-    expect(result.ok && result.value).toBe('https://example.com:8080/path')
-  })
-
-  it('does not mutate a duration cell when the editor opens and closes untouched', () => {
-    const col = column('duration')
-    const stored = COLUMN_TYPE_REGISTRY.duration.coerce('90.7', col)
-    expect(stored.ok).toBe(true)
-    if (!stored.ok) return
-    const shown = COLUMN_TYPE_REGISTRY.duration.formatForInput(stored.value, col)
-    const reopened = COLUMN_TYPE_REGISTRY.duration.coerce(shown, col)
-    expect(reopened.ok && reopened.value).toBe(stored.value)
-  })
-
   it('refuses a negative number for a phone rather than storing it positive', () => {
     expect(COLUMN_TYPE_REGISTRY.phone.coerce(-15551234567, column('phone')).ok).toBe(false)
   })
@@ -235,8 +240,6 @@ describe('review-round regressions', () => {
     // stayed a string, hit the numeric cast, and the range filter was rejected.
     const cases: Array<[ColumnDefinition['type'], string, number]> = [
       ['percent', '50%', 50],
-      ['duration', '1h', 3600],
-      ['duration', '1:30', 90],
       ['currency', '$1,234.56', 1234.56],
     ]
     for (const [type, typed, expected] of cases) {

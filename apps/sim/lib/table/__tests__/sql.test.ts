@@ -127,7 +127,7 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('::timestamp')
     })
 
-    it.each(['email', 'phone', 'url'] as const)(
+    it.each(['email', 'phone'] as const)(
       'compares a %s column as text rather than casting it to numeric',
       (type) => {
         const cols: ColumnDefinition[] = [{ name: 'c', type }]

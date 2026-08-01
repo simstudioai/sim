@@ -29,15 +29,13 @@ Every column has a type, which decides how its values are stored and validated.
 | **Select** | One of a fixed set of options, or several | `Pro` |
 | **Email** | An email address | `person@example.com` |
 | **Phone** | A phone number | `+1 555 123 4567` |
-| **URL** | A link | `https://sim.ai` |
-| **Duration** | A length of time | `1:30:00` |
 | **JSON** | An object or array | `{ "tier": "pro" }` |
 
 Types are enforced as you enter values, so a Number column only takes numbers.
 
-Currency, Percent, and Duration columns all store a plain number, so filters, sorts, and exports see the amount itself rather than its formatting — `> 50%` and `>= 1h` are ordinary numeric comparisons. Changing a column's currency relabels it; it does not convert the amounts. Number and Percent columns take a decimal-place setting that changes how values are shown without rounding what is stored.
+Currency and Percent columns both store a plain number, so filters, sorts, and exports see the amount itself rather than its formatting — `> 50%` is an ordinary numeric comparison. Changing a column's currency relabels it; it does not convert the amounts. Number and Percent columns take a decimal-place setting that changes how values are shown without rounding what is stored.
 
-Email, Phone, and URL columns tidy values as you enter them — addresses are lower-cased, phone numbers stripped to digits, and links given a scheme — so the same value entered two ways matches. URL cells render as clickable links.
+Email and Phone columns tidy and check values as you enter them — addresses are lower-cased, phone numbers stripped to their digits — so the same value entered two ways matches. A value that isn't a valid address or number is rejected rather than stored.
 
 A Date column can carry a time of day or just a calendar date. Turning **Include time** off on a column that already has times will drop them.
 

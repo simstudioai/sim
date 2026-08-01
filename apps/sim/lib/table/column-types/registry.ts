@@ -22,7 +22,6 @@
 import { booleanColumnType } from '@/lib/table/column-types/boolean'
 import { currencyColumnType } from '@/lib/table/column-types/currency'
 import { dateColumnType } from '@/lib/table/column-types/date'
-import { durationColumnType } from '@/lib/table/column-types/duration'
 import { emailColumnType } from '@/lib/table/column-types/email'
 import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
@@ -40,7 +39,6 @@ import type {
   TypeSpecificColumnKey,
 } from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
-import { urlColumnType } from '@/lib/table/column-types/url'
 import type {
   ColumnDefinition,
   ColumnMetadataPatch,
@@ -66,8 +64,6 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   percent: percentColumnType,
   email: emailColumnType,
   phone: phoneColumnType,
-  url: urlColumnType,
-  duration: durationColumnType,
 }
 
 /** Every definition, in the same order as {@link COLUMN_TYPES}. */

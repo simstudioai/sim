@@ -272,8 +272,6 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   percent: COLUMN_TYPE_REGISTRY.percent,
   email: COLUMN_TYPE_REGISTRY.email,
   phone: COLUMN_TYPE_REGISTRY.phone,
-  url: COLUMN_TYPE_REGISTRY.url,
-  duration: COLUMN_TYPE_REGISTRY.duration,
 }
 
 /** The inbound migration for a target type, if it has one. */

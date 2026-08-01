@@ -40,8 +40,6 @@ export const COLUMN_TYPES = [
   'select',
   'email',
   'phone',
-  'url',
-  'duration',
   'json',
 ] as const
 
