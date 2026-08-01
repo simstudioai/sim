@@ -44,7 +44,8 @@ List tickets from a Zoho Desk organization with optional filters.
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
-|   ↳ `description` | string | Ticket description |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description; HTML stripped when Zoho marks it HTML, otherwise mirrors description |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
 |   ↳ `priority` | string | Ticket priority |
@@ -94,7 +95,8 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
-|   ↳ `description` | string | Ticket description |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description; HTML stripped when Zoho marks it HTML, otherwise mirrors description |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
 |   ↳ `priority` | string | Ticket priority |
@@ -151,7 +153,8 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
-|   ↳ `description` | string | Ticket description |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description; HTML stripped when Zoho marks it HTML, otherwise mirrors description |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
 |   ↳ `priority` | string | Ticket priority |
@@ -199,8 +202,9 @@ List comments on a Zoho Desk ticket.
 | --------- | ---- | ----------- |
 | `comments` | array | List of comments |
 |   ↳ `id` | string | Comment ID |
-|   ↳ `content` | string | Comment content |
+|   ↳ `content` | string | Comment content \(raw; may be HTML\) |
 |   ↳ `contentType` | string | Content type \(plainText/html\) |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
 |   ↳ `isPublic` | boolean | Whether the comment is public |
 |   ↳ `commenterId` | string | Commenter ID |
 |   ↳ `commentedTime` | string | Commented timestamp |
@@ -226,7 +230,6 @@ Add a comment to a Zoho Desk ticket.
 | `content` | string | Yes | Comment content |
 | `contentType` | string | No | Content type: plainText or html |
 | `isPublic` | boolean | No | Whether the comment is public |
-| `ignoreSourceId` | string | No | Source ID echoed back on the resulting webhook event so this write can be filtered out \(loop guard\) |
 
 #### Output
 
@@ -234,8 +237,9 @@ Add a comment to a Zoho Desk ticket.
 | --------- | ---- | ----------- |
 | `comment` | object | The created comment |
 |   ↳ `id` | string | Comment ID |
-|   ↳ `content` | string | Comment content |
+|   ↳ `content` | string | Comment content \(raw; may be HTML\) |
 |   ↳ `contentType` | string | Content type \(plainText/html\) |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
 |   ↳ `isPublic` | boolean | Whether the comment is public |
 |   ↳ `commenterId` | string | Commenter ID |
 |   ↳ `commentedTime` | string | Commented timestamp |
@@ -268,8 +272,9 @@ List conversation threads on a Zoho Desk ticket.
 |   ↳ `id` | string | Thread ID |
 |   ↳ `channel` | string | Thread channel |
 |   ↳ `direction` | string | Direction \(in/out\) |
-|   ↳ `content` | string | Thread content |
+|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
 |   ↳ `contentType` | string | Content type |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
 |   ↳ `summary` | string | Thread summary |
 |   ↳ `responderId` | string | Responder ID |
 |   ↳ `createdTime` | string | Created timestamp |
@@ -310,8 +315,9 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |   ↳ `id` | string | Thread ID |
 |   ↳ `channel` | string | Thread channel |
 |   ↳ `direction` | string | Direction \(in/out\) |
-|   ↳ `content` | string | Thread content |
+|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
 |   ↳ `contentType` | string | Content type |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
 |   ↳ `summary` | string | Thread summary |
 |   ↳ `responderId` | string | Responder ID |
 |   ↳ `createdTime` | string | Created timestamp |
@@ -420,7 +426,7 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | This trigger creates and manages a webhook subscription in your Zoho Desk account. |
-| `orgId` | string | Yes | The Zoho Desk organization \(portal\) to subscribe in. |
+| `orgId` | combobox | Yes | The Zoho Desk organization \(portal\) to subscribe in. |
 | `eventType` | string | Yes | Event |
 | `departmentIds` | string | No | Restrict events to these departments. Leave empty for all departments. |
 | `fields` | string | No | For Ticket Updated: only fire when one of these fields changes \(max 5\). Previous values are included in the payload. |
@@ -433,6 +439,6 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `eventType` | string | The Zoho Desk event type \(e.g. Ticket_Add\) |
 | `eventTime` | string | Event time in milliseconds since epoch |
 | `orgId` | string | Zoho Desk organization ID |
-| `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\) |
+| `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). For comment/thread events a derived plain-text `contentText` is added alongside the raw `content` + `contentType`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
 
