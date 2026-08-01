@@ -83,30 +83,32 @@ describe('zohoDeskHandler', () => {
   })
 
   describe('createSubscription', () => {
-    it('throws a clear error when the organization ID is missing', async () => {
-      await expect(
-        zohoDeskHandler.createSubscription?.({
-          webhook: { providerConfig: { eventType: 'Ticket_Add' } },
+    async function captureCreateError(providerConfig: Record<string, unknown>): Promise<unknown> {
+      try {
+        await zohoDeskHandler.createSubscription?.({
+          webhook: { providerConfig },
           workflow: {},
           userId: 'user-1',
           requestId: 'test',
-          // biome-ignore lint/suspicious/noExplicitAny: request is unused on this guard path
+          // biome-ignore lint/suspicious/noExplicitAny: request is unused on these guard paths
           request: {} as any,
         })
-      ).rejects.toThrow(/Organization ID/i)
+      } catch (error) {
+        return error
+      }
+      return undefined
+    }
+
+    it('fails terminally (400) when the organization ID is missing', async () => {
+      const error = await captureCreateError({ eventType: 'Ticket_Add' })
+      expect((error as Error)?.message).toMatch(/Organization ID/i)
+      expect(errorStatus(error)).toBe(400)
     })
 
-    it('throws a clear error when the event type is missing', async () => {
-      await expect(
-        zohoDeskHandler.createSubscription?.({
-          webhook: { providerConfig: { orgId: '700123' } },
-          workflow: {},
-          userId: 'user-1',
-          requestId: 'test',
-          // biome-ignore lint/suspicious/noExplicitAny: request is unused on this guard path
-          request: {} as any,
-        })
-      ).rejects.toThrow(/event type/i)
+    it('fails terminally (400) when the event type is missing', async () => {
+      const error = await captureCreateError({ orgId: '700123' })
+      expect((error as Error)?.message).toMatch(/event type/i)
+      expect(errorStatus(error)).toBe(400)
     })
   })
 

@@ -158,11 +158,20 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     const orgId = typeof config.orgId === 'string' ? config.orgId : undefined
     const eventType = typeof config.eventType === 'string' ? config.eventType : undefined
 
+    // Missing configuration is permanent - carry a 4xx so the deploy outbox fails
+    // terminally (NonRetryableDeploymentError) instead of retrying a create that
+    // can never succeed without the user fixing the trigger config.
     if (!orgId) {
-      throw new Error('Zoho Desk Organization ID is required to create the webhook subscription.')
+      throw statusError(
+        'Zoho Desk Organization ID is required to create the webhook subscription.',
+        400
+      )
     }
     if (!eventType) {
-      throw new Error('A Zoho Desk event type is required to create the webhook subscription.')
+      throw statusError(
+        'A Zoho Desk event type is required to create the webhook subscription.',
+        400
+      )
     }
 
     const owner = credentialId ? await getCredentialOwner(credentialId, requestId) : null
@@ -170,8 +179,9 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       ? await refreshAccessTokenIfNeeded(owner.accountId, owner.userId, requestId)
       : null
     if (!accessToken || !owner) {
-      throw new Error(
-        'Zoho Desk account connection required. Please connect your Zoho Desk account in the trigger configuration and try again.'
+      throw statusError(
+        'Zoho Desk account connection required. Please connect your Zoho Desk account in the trigger configuration and try again.',
+        400
       )
     }
 
@@ -230,7 +240,9 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     // Never persist a subscription without its id: the id is the JWT `aud` claim
     // verifyAuth checks, so an empty one would force verification to fail open.
     if (!externalId) {
-      throw new Error('Zoho Desk webhook creation succeeded but returned no webhook id')
+      // Zoho reported success but gave no id: a webhook may have been created and
+      // is unidentifiable, so retrying risks duplicates. Fail terminally (4xx).
+      throw statusError('Zoho Desk webhook creation succeeded but returned no webhook id', 422)
     }
 
     logger.info(`[${requestId}] Created Zoho Desk webhook`, { externalId })
