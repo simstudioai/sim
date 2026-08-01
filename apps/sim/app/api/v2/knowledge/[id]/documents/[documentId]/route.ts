@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -13,12 +12,18 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteDocument } from '@/lib/knowledge/documents/service'
+import { performDeleteKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
+import {
+  v2Data,
+  v2Error,
+  v2ErrorForOrchestration,
+  v2RateLimitError,
+  v2ValidationError,
+} from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2KnowledgeDocumentDetailAPI')
 
@@ -193,19 +198,21 @@ export const DELETE = withRouteHandler(
       const doc = docs[0]
       if (!doc) return v2Error('NOT_FOUND', 'Document not found')
 
-      await deleteDocument(documentId, requestId)
-
-      recordAudit({
-        workspaceId: parsed.data.query.workspaceId,
-        actorId: userId,
-        action: AuditAction.DOCUMENT_DELETED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: documentId,
-        resourceName: doc.filename,
-        description: `Deleted document "${doc.filename}" from knowledge base via API`,
-        metadata: { knowledgeBaseId },
+      const outcome = await performDeleteKnowledgeDocument({
+        knowledgeBase: {
+          id: knowledgeBaseId,
+          name: result.kb.name,
+          workspaceId: parsed.data.query.workspaceId,
+        },
+        document: { id: documentId, filename: doc.filename },
+        userId,
+        source: 'api',
+        requestId,
         request,
       })
+      if (!outcome.success) {
+        return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
+      }
 
       return v2Data({ id: documentId, deleted: true as const }, { rateLimit })
     } catch (error) {

@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,15 +6,24 @@ import {
   v2GetKnowledgeBaseContract,
   v2UpdateKnowledgeBaseContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { isZodError, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
+import {
+  performDeleteKnowledgeBase,
+  performUpdateKnowledgeBase,
+} from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { formatKnowledgeBase, resolveKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
+import {
+  v2Data,
+  v2Error,
+  v2ErrorForOrchestration,
+  v2RateLimitError,
+  v2ValidationError,
+} from '@/app/api/v2/lib/response'
 
 const logger = createLogger('V2KnowledgeDetailAPI')
 
@@ -110,42 +118,21 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
     const result = await resolveKnowledgeBaseScoped(id, workspaceId, userId, rateLimit, 'write')
     if (result instanceof NextResponse) return result
 
-    const updates: {
-      name?: string
-      description?: string
-      chunkingConfig?: { maxSize: number; minSize: number; overlap: number }
-    } = {}
-    if (name !== undefined) updates.name = name
-    if (description !== undefined) updates.description = description
-    if (chunkingConfig !== undefined) updates.chunkingConfig = chunkingConfig
-
-    const updatedKb = await updateKnowledgeBase(id, updates, requestId)
-
-    recordAudit({
+    const outcome = await performUpdateKnowledgeBase({
+      knowledgeBaseId: id,
       workspaceId,
-      actorId: userId,
-      action: AuditAction.KNOWLEDGE_BASE_UPDATED,
-      resourceType: AuditResourceType.KNOWLEDGE_BASE,
-      resourceId: id,
-      resourceName: updatedKb.name,
-      description: `Updated knowledge base "${updatedKb.name}" via API`,
-      metadata: { updatedFields: Object.keys(updates) },
+      userId,
+      source: 'api',
+      updates: { name, description, chunkingConfig },
+      requestId,
       request,
     })
-
-    return v2Data({ knowledgeBase: formatKnowledgeBase(updatedKb) }, { rateLimit })
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    if (error instanceof Error) {
-      if (error.message.includes('does not have permission')) {
-        return v2Error('FORBIDDEN', 'Access denied')
-      }
-      if (error.message.includes('already exists')) {
-        return v2Error('CONFLICT', 'Resource already exists')
-      }
+    if (!outcome.success) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
 
+    return v2Data({ knowledgeBase: formatKnowledgeBase(outcome.knowledgeBase) }, { rateLimit })
+  } catch (error) {
     logger.error(`[${requestId}] Error updating knowledge base`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
@@ -182,18 +169,16 @@ export const DELETE = withRouteHandler(
       )
       if (result instanceof NextResponse) return result
 
-      await deleteKnowledgeBase(id, requestId)
-
-      recordAudit({
-        workspaceId: parsed.data.query.workspaceId,
-        actorId: userId,
-        action: AuditAction.KNOWLEDGE_BASE_DELETED,
-        resourceType: AuditResourceType.KNOWLEDGE_BASE,
-        resourceId: id,
-        resourceName: result.kb.name,
-        description: `Deleted knowledge base "${result.kb.name}" via API`,
+      const outcome = await performDeleteKnowledgeBase({
+        knowledgeBase: { id, name: result.kb.name, workspaceId: parsed.data.query.workspaceId },
+        userId,
+        source: 'api',
+        requestId,
         request,
       })
+      if (!outcome.success) {
+        return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
+      }
 
       return v2Data({ id, deleted: true as const }, { rateLimit })
     } catch (error) {

@@ -7,7 +7,10 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
+import {
+  DEFAULT_CHUNKING_CONFIG,
+  KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+} from '@/lib/knowledge/constants'
 
 /**
  * Public API v1 schemas (`/api/v1/knowledge/**`)
@@ -25,9 +28,9 @@ import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants
 
 /** Simpler chunking config used by the public API (no `strategy`). */
 export const v1ChunkingConfigSchema = z.object({
-  maxSize: z.number().min(100).max(4000).default(1024),
-  minSize: z.number().min(1).max(2000).default(100),
-  overlap: z.number().min(0).max(500).default(200),
+  maxSize: z.number().min(100).max(4000).default(DEFAULT_CHUNKING_CONFIG.maxSize),
+  minSize: z.number().min(1).max(2000).default(DEFAULT_CHUNKING_CONFIG.minSize),
+  overlap: z.number().min(0).max(500).default(DEFAULT_CHUNKING_CONFIG.overlap),
 })
 
 /** GET `/api/v1/knowledge` — list knowledge bases scoped to a workspace. */
@@ -46,11 +49,7 @@ export const v1CreateKnowledgeBaseBodySchema = z.object({
       `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
     )
     .optional(),
-  chunkingConfig: v1ChunkingConfigSchema.optional().default({
-    maxSize: 1024,
-    minSize: 100,
-    overlap: 200,
-  }),
+  chunkingConfig: v1ChunkingConfigSchema.optional().default(DEFAULT_CHUNKING_CONFIG),
 })
 
 /** GET/DELETE `/api/v1/knowledge/[id]` — workspace scope param. */

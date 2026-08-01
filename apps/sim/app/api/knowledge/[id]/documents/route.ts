@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -19,19 +18,22 @@ import {
   requireBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
-  createDocumentRecords,
-  createSingleDocument,
   getDocuments,
   getProcessingConfig,
-  KnowledgeBaseFileOwnershipError,
-  processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
-import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  performUploadKnowledgeDocument,
+  performUploadKnowledgeDocuments,
+} from '@/lib/knowledge/orchestration'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentsAPI')
@@ -210,168 +212,77 @@ export const POST = withRouteHandler(
         )
       }
 
+      const knowledgeBase = {
+        id: knowledgeBaseId,
+        name: accessCheck.knowledgeBase?.name,
+        workspaceId: kbWorkspaceId ?? null,
+      }
+      const actor = {
+        userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        source: 'ui' as const,
+        requestId,
+        request: req,
+      }
+
       if (body.bulk === true) {
-        const createdDocuments = await createDocumentRecords(
-          body.documents,
-          knowledgeBaseId,
-          requestId,
-          userId
-        )
-
-        logger.info(
-          `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
-        )
-
-        try {
-          const { PlatformEvents } = await import('@/lib/core/telemetry')
-          PlatformEvents.knowledgeBaseDocumentsUploaded({
-            knowledgeBaseId,
-            documentsCount: createdDocuments.length,
-            uploadType: 'bulk',
-            recipe: body.processingOptions?.recipe,
-          })
-        } catch (_e) {
-          // Silently fail
+        const outcome = await performUploadKnowledgeDocuments({
+          ...actor,
+          knowledgeBase,
+          documents: body.documents,
+          processingOptions: body.processingOptions,
+          billingAttribution,
+        })
+        if (!outcome.success) {
+          return NextResponse.json(
+            { error: messageForOrchestrationError(outcome, 'Failed to create document') },
+            { status: statusForOrchestrationError(outcome.errorCode) }
+          )
         }
 
-        captureServerEvent(
-          userId,
-          'knowledge_base_document_uploaded',
-          {
-            knowledge_base_id: knowledgeBaseId,
-            workspace_id: kbWorkspaceId ?? '',
-            document_count: createdDocuments.length,
-            upload_type: 'bulk',
-          },
-          {
-            ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
-            setOnce: { first_document_uploaded_at: new Date().toISOString() },
-          }
-        )
-
-        processDocumentsWithQueue(
-          createdDocuments,
-          knowledgeBaseId,
-          body.processingOptions ?? {},
-          requestId,
-          billingAttribution
-        ).catch((error: unknown) => {
-          logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
-        })
-
-        recordAudit({
-          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-          actorId: userId,
-          actorName: auth.userName,
-          actorEmail: auth.userEmail,
-          action: AuditAction.DOCUMENT_UPLOADED,
-          resourceType: AuditResourceType.DOCUMENT,
-          resourceId: knowledgeBaseId,
-          resourceName: `${createdDocuments.length} document(s)`,
-          description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
-          metadata: {
-            knowledgeBaseName: accessCheck.knowledgeBase?.name,
-            fileCount: createdDocuments.length,
-          },
-          request: req,
-        })
-
+        const { batchSize, maxConcurrentDocuments } = getProcessingConfig()
         return NextResponse.json({
           success: true,
           data: {
-            total: createdDocuments.length,
-            documentsCreated: createdDocuments.map((doc) => ({
+            total: outcome.documents.length,
+            documentsCreated: outcome.documents.map((doc) => ({
               documentId: doc.documentId,
               filename: doc.filename,
               status: 'pending',
             })),
             processingMethod: 'background',
             processingConfig: {
-              maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
-              batchSize: getProcessingConfig().batchSize,
-              totalBatches: Math.ceil(createdDocuments.length / getProcessingConfig().batchSize),
+              maxConcurrentDocuments,
+              batchSize,
+              totalBatches: Math.ceil(outcome.documents.length / batchSize),
             },
           },
         })
       }
 
       const { bulk: _bulk, workflowId: _workflowId, ...singleDocumentData } = body
-      const newDocument = await createSingleDocument(
-        singleDocumentData,
-        knowledgeBaseId,
-        requestId,
-        userId
-      )
-
-      try {
-        const { PlatformEvents } = await import('@/lib/core/telemetry')
-        PlatformEvents.knowledgeBaseDocumentsUploaded({
-          knowledgeBaseId,
-          documentsCount: 1,
-          uploadType: 'single',
-          mimeType: singleDocumentData.mimeType,
-          fileSize: singleDocumentData.fileSize,
-        })
-      } catch (_e) {
-        // Silently fail
-      }
-
-      captureServerEvent(
-        userId,
-        'knowledge_base_document_uploaded',
-        {
-          knowledge_base_id: knowledgeBaseId,
-          workspace_id: kbWorkspaceId ?? '',
-          document_count: 1,
-          upload_type: 'single',
-        },
-        {
-          ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
-          setOnce: { first_document_uploaded_at: new Date().toISOString() },
-        }
-      )
-
-      recordAudit({
-        workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-        actorId: userId,
-        actorName: auth.userName,
-        actorEmail: auth.userEmail,
-        action: AuditAction.DOCUMENT_UPLOADED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: knowledgeBaseId,
-        resourceName: singleDocumentData.filename,
-        description: `Uploaded document "${singleDocumentData.filename}" to knowledge base "${knowledgeBaseId}"`,
-        metadata: {
-          knowledgeBaseName: accessCheck.knowledgeBase?.name,
-          fileName: singleDocumentData.filename,
-          fileType: singleDocumentData.mimeType,
-          fileSize: singleDocumentData.fileSize,
-        },
-        request: req,
+      // Indexing is deliberately not started here: this path only records the
+      // document, and its caller drives processing separately.
+      const outcome = await performUploadKnowledgeDocument({
+        ...actor,
+        knowledgeBase,
+        document: singleDocumentData,
+        billingAttribution,
       })
-
-      return NextResponse.json({
-        success: true,
-        data: newDocument,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error creating document`, error)
-
-      if (error instanceof KnowledgeBaseFileOwnershipError) {
+      if (!outcome.success) {
         return NextResponse.json(
-          { error: 'File URL does not reference a file owned by this knowledge base' },
-          { status: 403 }
+          { error: messageForOrchestrationError(outcome, 'Failed to create document') },
+          { status: statusForOrchestrationError(outcome.errorCode) }
         )
       }
 
-      const errorMessage = getErrorMessage(error, 'Failed to create document')
-      const isStorageLimitError =
-        errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
-      const isMissingKnowledgeBase = errorMessage === 'Knowledge base not found'
-
+      return NextResponse.json({ success: true, data: outcome.document })
+    } catch (error) {
+      logger.error(`[${requestId}] Error creating document`, error)
       return NextResponse.json(
-        { error: errorMessage },
-        { status: isMissingKnowledgeBase ? 404 : isStorageLimitError ? 413 : 500 }
+        { error: getErrorMessage(error, 'Failed to create document') },
+        { status: 500 }
       )
     }
   }

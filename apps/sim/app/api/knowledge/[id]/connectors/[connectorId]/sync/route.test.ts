@@ -62,7 +62,10 @@ describe('Connector Manual Sync API Route', () => {
       success: true,
       userId: 'user-1',
     })
-    mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+    mockCheckWriteAccess.mockResolvedValue({
+      hasAccess: true,
+      knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+    })
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
     const req = createMockRequest('POST')
@@ -76,7 +79,10 @@ describe('Connector Manual Sync API Route', () => {
       success: true,
       userId: 'user-1',
     })
-    mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+    mockCheckWriteAccess.mockResolvedValue({
+      hasAccess: true,
+      knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+    })
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'syncing' }])
 
     const req = createMockRequest('POST')

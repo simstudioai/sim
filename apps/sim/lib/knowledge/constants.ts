@@ -1,6 +1,20 @@
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
 
+/**
+ * Chunking a knowledge base gets when its creator names no configuration.
+ *
+ * Applied in `lib/knowledge/orchestration` so the UI, the v1 and v2 APIs, and
+ * the copilot agent all index identical input identically. Previously each
+ * caller carried its own literal and the agent's `minSize` was 1, so the same
+ * document chunked differently depending on who uploaded it.
+ */
+export const DEFAULT_CHUNKING_CONFIG = {
+  maxSize: 1024,
+  minSize: 100,
+  overlap: 200,
+} as const
+
 export const TAG_SLOT_CONFIG = {
   text: {
     slots: ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const,

@@ -2,34 +2,29 @@
  * @vitest-environment node
  */
 import { knowledgeConnector } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock, resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAssertBillingAttributionSnapshot,
   mockCheckKnowledgeBaseWriteAccess,
-  mockFetch,
-  mockGenerateInternalToken,
-  mockSerializeBillingAttributionHeader,
+  mockPerformCreateKnowledgeConnector,
+  mockPerformDeleteKnowledgeConnector,
+  mockPerformSyncKnowledgeConnector,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn(),
   mockCheckKnowledgeBaseWriteAccess: vi.fn(),
-  mockFetch: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockSerializeBillingAttributionHeader: vi.fn(),
+  mockPerformCreateKnowledgeConnector: vi.fn(),
+  mockPerformDeleteKnowledgeConnector: vi.fn(),
+  mockPerformSyncKnowledgeConnector: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
-}))
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: vi.fn(),
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
   checkAttributedUsageLimits: vi.fn(),
-  serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
 }))
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
   KnowledgeBase: { id: 'knowledge_base' },
@@ -37,28 +32,24 @@ vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
 vi.mock('@/lib/copilot/tools/server/base-tool', () => ({
   assertServerToolNotAborted: vi.fn(),
 }))
-beforeAll(() => {
-  urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://internal.test')
-})
-
-afterAll(resetUrlsMock)
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createSingleDocument: vi.fn(),
-  deleteDocument: vi.fn(),
-  processDocumentAsync: vi.fn(),
-  updateDocument: vi.fn(),
-}))
 vi.mock('@/lib/knowledge/embeddings', () => ({
-  EMBEDDING_DIMENSIONS: 1536,
   generateSearchEmbedding: vi.fn(),
-  getConfiguredEmbeddingModel: vi.fn(),
   recordSearchEmbeddingUsage: vi.fn(),
 }))
+vi.mock('@/lib/knowledge/orchestration', () => ({
+  performCreateKnowledgeBase: vi.fn(),
+  performCreateKnowledgeConnector: mockPerformCreateKnowledgeConnector,
+  performDeleteKnowledgeBase: vi.fn(),
+  performDeleteKnowledgeConnector: mockPerformDeleteKnowledgeConnector,
+  performDeleteKnowledgeDocument: vi.fn(),
+  performSyncKnowledgeConnector: mockPerformSyncKnowledgeConnector,
+  performUpdateKnowledgeBase: vi.fn(),
+  performUpdateKnowledgeConnector: vi.fn(),
+  performUpdateKnowledgeDocument: vi.fn(),
+  performUploadKnowledgeDocument: vi.fn(),
+}))
 vi.mock('@/lib/knowledge/service', () => ({
-  createKnowledgeBase: vi.fn(),
-  deleteKnowledgeBase: vi.fn(),
   getKnowledgeBaseById: vi.fn(),
-  updateKnowledgeBase: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/tags/service', () => ({
   createTagDefinition: vi.fn(),
@@ -73,6 +64,7 @@ vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: vi.fn(),
 }))
+vi.mock('@/app/api/auth/oauth/utils', () => ({ getCredential: vi.fn() }))
 vi.mock('@/app/api/knowledge/search/utils', () => ({
   executeKnowledgeSearch: vi.fn(),
 }))
@@ -97,6 +89,12 @@ const BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
+const CONTEXT = {
+  userId: 'external-admin',
+  workspaceId: 'workspace-paid',
+  billingAttribution: BILLING_ATTRIBUTION,
+}
+
 describe('knowledge base connector Copilot operations', () => {
   afterAll(() => {
     resetDbChainMock()
@@ -105,11 +103,8 @@ describe('knowledge base connector Copilot operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    vi.stubGlobal('fetch', mockFetch)
     queueTableRows(knowledgeConnector, [{ knowledgeBaseId: 'knowledge-base-1' }])
     mockAssertBillingAttributionSnapshot.mockReturnValue(BILLING_ATTRIBUTION)
-    mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
-    mockGenerateInternalToken.mockResolvedValue('internal-token')
     mockCheckKnowledgeBaseWriteAccess.mockResolvedValue({
       hasAccess: true,
       knowledgeBase: {
@@ -118,21 +113,21 @@ describe('knowledge base connector Copilot operations', () => {
         name: 'Paid KB',
       },
     })
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        success: true,
-        data: {
-          id: 'connector-1',
-          connectorType: 'notion',
-          status: 'active',
-        },
-      }),
+    mockPerformCreateKnowledgeConnector.mockResolvedValue({
+      success: true,
+      connector: { id: 'connector-1', connectorType: 'notion', status: 'active' },
+    })
+    mockPerformSyncKnowledgeConnector.mockResolvedValue({ success: true })
+    mockPerformDeleteKnowledgeConnector.mockResolvedValue({
+      success: true,
+      documentsDeleted: 0,
+      documentsKept: 3,
     })
   })
 
   it.each([
     {
+      operation: 'add_connector',
       params: {
         operation: 'add_connector',
         args: {
@@ -141,35 +136,40 @@ describe('knowledge base connector Copilot operations', () => {
           apiKey: 'api-key',
         },
       },
-      expectedPath: '/api/knowledge/knowledge-base-1/connectors',
+      perform: mockPerformCreateKnowledgeConnector,
     },
     {
-      params: {
-        operation: 'sync_connector',
-        args: { connectorId: 'connector-1' },
-      },
-      expectedPath: '/api/knowledge/knowledge-base-1/connectors/connector-1/sync',
+      operation: 'sync_connector',
+      params: { operation: 'sync_connector', args: { connectorId: 'connector-1' } },
+      perform: mockPerformSyncKnowledgeConnector,
     },
-  ])(
-    'forwards immutable billing attribution for $params.operation',
-    async ({ params, expectedPath }) => {
-      const result = await knowledgeBaseServerTool.execute(params, {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-      })
+  ])('forwards immutable billing attribution for $operation', async ({ params, perform }) => {
+    const result = await knowledgeBaseServerTool.execute(params, CONTEXT)
 
-      expect(result.success).toBe(true)
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://internal.test${expectedPath}`,
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer internal-token',
-            'x-sim-billing-attribution': 'serialized-attribution',
-          }),
-        })
-      )
-      expect(mockSerializeBillingAttributionHeader).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
-    }
-  )
+    expect(result.success).toBe(true)
+    // The operation runs in-process now. The payer travels as a value on the
+    // orchestration call rather than as a serialized header on an internal
+    // HTTP self-call back into this same process.
+    const call = perform.mock.calls[0][0]
+    expect(await call.resolveBillingAttribution()).toEqual(BILLING_ATTRIBUTION)
+    expect(call.source).toBe('agent')
+    expect(mockAssertBillingAttributionSnapshot).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+  })
+
+  it('reports that a deleted connector kept its documents, because it did', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'delete_connector', args: { connectorId: 'connector-1' } },
+      CONTEXT
+    )
+
+    // The old wording claimed the documents "have been removed". They never
+    // were: the tool reached the route over HTTP with no query string, so the
+    // route's keep-documents default always applied.
+    expect(result.success).toBe(true)
+    expect(result.message).toContain('3 document(s) were kept')
+    expect(result.message).not.toContain('removed')
+    expect(mockPerformDeleteKnowledgeConnector).toHaveBeenCalledWith(
+      expect.objectContaining({ connectorId: 'connector-1', source: 'agent' })
+    )
+  })
 })

@@ -75,6 +75,9 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
+  // Read at module scope by `lib/uploads/utils/file-utils`, which the route now
+  // reaches transitively through the knowledge orchestration module.
+  SUPPORTED_ARCHIVE_EXTENSIONS: [],
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({

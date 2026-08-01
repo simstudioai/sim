@@ -163,6 +163,7 @@ const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode
   not_found: 'NOT_FOUND',
   conflict: 'CONFLICT',
   locked: 'LOCKED',
+  payload_too_large: 'PAYLOAD_TOO_LARGE',
   internal: 'INTERNAL_ERROR',
 }
 

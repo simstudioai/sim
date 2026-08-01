@@ -570,7 +570,9 @@ describe('Knowledge Base Documents API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(500)
-      expect(data.error).toBe('Database error')
+      // An unclassified fault renders the route's own wording; the driver's
+      // message is logged, not returned.
+      expect(data.error).toBe('Failed to create document')
     })
   })
 })

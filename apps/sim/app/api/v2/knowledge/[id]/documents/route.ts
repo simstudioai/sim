@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -20,13 +19,9 @@ import {
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  createSingleDocument,
-  type DocumentData,
-  getDocuments,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+import { getDocuments } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { validateFileType } from '@/lib/uploads/utils/validation'
@@ -39,6 +34,7 @@ import {
   v2CursorList,
   v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
 } from '@/app/api/v2/lib/response'
@@ -248,47 +244,26 @@ export const POST = withRouteHandler(
         contentType
       )
 
-      const newDocument = await createSingleDocument(
-        {
+      const outcome = await performUploadKnowledgeDocument({
+        knowledgeBase: { id: knowledgeBaseId, name: result.kb.name, workspaceId },
+        document: {
           filename: file.name,
           fileUrl: uploadedFile.url,
           fileSize: file.size,
           mimeType: contentType,
         },
-        knowledgeBaseId,
+        startProcessing: 'queue',
+        billingAttribution,
+        uploadedBy: billingAttribution.actorUserId,
+        userId,
+        source: 'api',
         requestId,
-        billingAttribution.actorUserId
-      )
-
-      const documentData: DocumentData = {
-        documentId: newDocument.id,
-        filename: file.name,
-        fileUrl: uploadedFile.url,
-        fileSize: file.size,
-        mimeType: contentType,
-      }
-
-      processDocumentsWithQueue(
-        [documentData],
-        knowledgeBaseId,
-        {},
-        requestId,
-        billingAttribution
-      ).catch(() => {
-        // Processing errors are logged internally by the queue.
-      })
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.DOCUMENT_UPLOADED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: newDocument.id,
-        resourceName: file.name,
-        description: `Uploaded document "${file.name}" to knowledge base via API`,
-        metadata: { knowledgeBaseId, fileSize: file.size, mimeType: contentType },
         request,
       })
+      if (!outcome.success) {
+        return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
+      }
+      const newDocument = outcome.document
 
       const document: V2KnowledgeDocumentSummary = {
         id: newDocument.id,
@@ -308,18 +283,6 @@ export const POST = withRouteHandler(
     } catch (error) {
       if (isPayloadSizeLimitError(error)) {
         return v2Error('PAYLOAD_TOO_LARGE', error.message)
-      }
-
-      if (error instanceof Error) {
-        if (
-          error.message.includes('Storage limit exceeded') ||
-          error.message.includes('storage limit')
-        ) {
-          return v2Error('PAYLOAD_TOO_LARGE', 'Storage limit exceeded')
-        }
-        if (error.message.includes('already exists')) {
-          return v2Error('CONFLICT', 'Resource already exists')
-        }
       }
 
       logger.error(`[${requestId}] Error uploading document`, {
