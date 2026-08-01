@@ -512,7 +512,10 @@ export async function performCreateCredential(
         upstreamStatus: error.status,
         ...error.logDetail,
       })
-      return failure(error.code, 'validation', { providerErrorCode: error.code })
+      return failure(error.code, 'validation', {
+        providerErrorCode: error.code,
+        providerUnavailable: isProviderOutageCode(error.code),
+      })
     }
     if (error instanceof TokenServiceAccountValidationError) {
       logger.warn(`Token service-account credential rejected: ${error.code}`, {
@@ -523,7 +526,7 @@ export async function performCreateCredential(
       // A provider outage is an infra failure, not a bad request.
       return failure(error.code, 'validation', {
         providerErrorCode: error.code,
-        providerUnavailable: error.code === 'provider_unavailable',
+        providerUnavailable: isProviderOutageCode(error.code),
       })
     }
     if (error instanceof DuplicateCredentialError) {
@@ -555,6 +558,20 @@ export async function performCreateCredential(
     logger.error('Failed to create credential', { error })
     return failure('Internal server error', 'internal')
   }
+}
+
+/**
+ * Provider error codes that mean the upstream service could not be reached,
+ * rather than that the caller's secret was rejected. Each provider family names
+ * its own — Atlassian raises `atlassian_unavailable`, the token service accounts
+ * raise `provider_unavailable` — and both must map to 503, not 400. Kept as one
+ * set so a new provider family is added in a single place instead of being
+ * missed on whichever call path nobody re-checked.
+ */
+const PROVIDER_OUTAGE_CODES = new Set(['provider_unavailable', 'atlassian_unavailable'])
+
+export function isProviderOutageCode(code: string | undefined): boolean {
+  return code !== undefined && PROVIDER_OUTAGE_CODES.has(code)
 }
 
 /** HTTP status for a credential orchestration failure, shared by every route surface. */

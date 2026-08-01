@@ -36,10 +36,14 @@ vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
 }))
 
-vi.mock('@/lib/credentials/orchestration', () => ({
-  performUpdateCredential: mockPerformUpdateCredential,
-  performDeleteCredential: mockPerformDeleteCredential,
-}))
+vi.mock('@/lib/credentials/orchestration', async () => {
+  const actual = await import('@/lib/credentials/orchestration/credential-create')
+  return {
+    isProviderOutageCode: actual.isProviderOutageCode,
+    performUpdateCredential: mockPerformUpdateCredential,
+    performDeleteCredential: mockPerformDeleteCredential,
+  }
+})
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
@@ -293,6 +297,29 @@ describe('PATCH /api/v2/credentials/[id]', () => {
 
     expect(res.status).toBe(200)
     expect(mockPerformUpdateCredential).toHaveBeenCalled()
+  })
+
+  it('503s on an Atlassian outage too, not just a token-provider one', async () => {
+    mockPerformUpdateCredential.mockResolvedValue({
+      success: false,
+      error: 'atlassian_unavailable',
+      errorCode: 'validation',
+      providerErrorCode: 'atlassian_unavailable',
+    })
+    const res = await callPatch({ workspaceId: WORKSPACE_ID, apiToken: 'tok' })
+    expect(res.status).toBe(503)
+    expect((await res.json()).error.code).toBe('SERVICE_UNAVAILABLE')
+  })
+
+  it('keeps a rejected secret a 400, not a 503', async () => {
+    mockPerformUpdateCredential.mockResolvedValue({
+      success: false,
+      error: 'invalid_credentials',
+      errorCode: 'validation',
+      providerErrorCode: 'invalid_credentials',
+    })
+    const res = await callPatch({ workspaceId: WORKSPACE_ID, apiToken: 'tok' })
+    expect(res.status).toBe(400)
   })
 
   it('rotates a secret without echoing it back', async () => {

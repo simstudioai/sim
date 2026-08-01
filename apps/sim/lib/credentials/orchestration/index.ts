@@ -23,6 +23,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 const logger = createLogger('CredentialOrchestration')
 
 export {
+  isProviderOutageCode,
   type PerformCreateCredentialParams,
   type PerformCreateCredentialResult,
   performCreateCredential,

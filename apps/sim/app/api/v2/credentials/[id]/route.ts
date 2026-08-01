@@ -10,7 +10,11 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
-import { performDeleteCredential, performUpdateCredential } from '@/lib/credentials/orchestration'
+import {
+  isProviderOutageCode,
+  performDeleteCredential,
+  performUpdateCredential,
+} from '@/lib/credentials/orchestration'
 import { getWorkspaceCredential } from '@/lib/credentials/queries'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2CredentialRow, v2CredentialOrchestrationError } from '@/app/api/v2/credentials/utils'
@@ -140,7 +144,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       return v2CredentialOrchestrationError(
         result.errorCode,
         result.error ?? 'Failed to update credential',
-        { providerUnavailable: result.providerErrorCode === 'provider_unavailable' }
+        { providerUnavailable: isProviderOutageCode(result.providerErrorCode) }
       )
     }
 
