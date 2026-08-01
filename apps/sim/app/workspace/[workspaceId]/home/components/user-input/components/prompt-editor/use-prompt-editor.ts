@@ -940,14 +940,13 @@ export function usePromptEditor({
       : null
     if (preparedSelection) {
       e.preventDefault()
-      const prepared = preparedSelection
       const selStart = textarea.selectionStart ?? valueRef.current.length
       const selEnd = textarea.selectionEnd ?? selStart
       const needsSpaceBefore = selStart > 0 && !/\s/.test(valueRef.current.charAt(selStart - 1))
-      const insert = `${needsSpaceBefore ? ' ' : ''}@${prepared.label} `
+      const insert = `${needsSpaceBefore ? ' ' : ''}@${preparedSelection.label} `
       textarea.setRangeText(insert, selStart, selEnd, 'end')
       const caret = selStart + insert.length
-      contextManagementRef.current.addContext(prepared)
+      contextManagementRef.current.addContext(preparedSelection)
       valueRef.current = textarea.value
       setValueState(textarea.value)
       requestAnimationFrame(() => textarea.setSelectionRange(caret, caret))

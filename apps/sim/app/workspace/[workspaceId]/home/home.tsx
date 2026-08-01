@@ -358,7 +358,11 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     const contexts = handoff.contexts ?? []
     for (const context of contexts) handleContextAdd(context)
     addMothershipContexts(contexts)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot drain; handleContextAdd is a stable body function
+    // `handleContextAdd` is a body function, so it is a new value every render;
+    // listing it would re-run this drain on every render. Omitted deliberately to
+    // keep it one-shot — and harmless either way, since `consume` clears the entry
+    // atomically and any re-run would find nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, sendMessage])
 
   function resolveResourceFromContext(
