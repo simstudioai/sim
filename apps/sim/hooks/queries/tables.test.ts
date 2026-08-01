@@ -123,6 +123,9 @@ beforeEach(() => {
 
 describe('downloadTableExport', () => {
   it('lets the browser stream the response directly to disk', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
     let clickedAnchor: HTMLAnchorElement | undefined
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
       this: HTMLAnchorElement
@@ -134,10 +137,26 @@ describe('downloadTableExport', () => {
 
     const clickedUrl = new URL(clickedAnchor?.href ?? '')
     expect(clickSpy).toHaveBeenCalledOnce()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/table/memory-workspace-1/export'),
+      { method: 'HEAD' }
+    )
     expect(clickedUrl.pathname).toBe('/api/table/memory-workspace-1/export')
     expect(clickedUrl.searchParams.get('format')).toBe('csv')
     expect(clickedAnchor?.download).toBe('Memory_transcripts.csv')
     expect(document.body.contains(clickedAnchor ?? null)).toBe(false)
+  })
+
+  it('rejects a failed export preflight without downloading an error response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 401, statusText: 'Unauthorized' })
+    )
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    await expect(downloadTableExport('memory-workspace-1', 'Memory transcripts')).rejects.toThrow(
+      'Unable to export table (401 Unauthorized)'
+    )
+    expect(clickSpy).not.toHaveBeenCalled()
   })
 })
 

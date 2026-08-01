@@ -45,6 +45,7 @@ vi.mock('drizzle-orm', () => {
     count: operator('count'),
     desc: operator('desc'),
     eq: operator('eq'),
+    inArray: operator('inArray'),
     isNull: operator('isNull'),
     lt: operator('lt'),
     max: operator('max'),
@@ -120,6 +121,20 @@ describe('Memory virtual table', () => {
       'created_at',
       'updated_at',
     ])
+  })
+
+  it('serializes filterable timestamps with the same UTC ISO format returned by the API', async () => {
+    queueTableRows(schemaMock.memory, [])
+
+    await queryMemoryTableRows({ workspaceId: 'workspace-1', includeTotal: false })
+
+    const timestampCalls = vi
+      .mocked(drizzleSql)
+      .mock.calls.filter(([strings]) => Array.from(strings).join('').includes('to_char'))
+    expect(timestampCalls).toHaveLength(2)
+    for (const [strings] of timestampCalls) {
+      expect(Array.from(strings).join('')).toContain('YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    }
   })
 
   it.each([
@@ -264,6 +279,57 @@ describe('Memory virtual table', () => {
         expect.objectContaining({ type: 'isNull', left: 'deletedAt' }),
       ])
     )
+  })
+
+  it('cuts a page before complete transcripts exceed the query byte budget', async () => {
+    const first = {
+      id: 'memory-2',
+      key: 'conversation-2',
+      createdAt: CREATED_AT,
+      updatedAt: UPDATED_AT,
+      data: [{ role: 'user', content: 'first' }],
+      messageCount: 1,
+      rowBytes: 5 * 1024 * 1024 - 100,
+    }
+    const witness = {
+      id: 'memory-1',
+      key: 'conversation-1',
+      createdAt: CREATED_AT,
+      updatedAt: CREATED_AT,
+      data: [{ role: 'user', content: 'second' }],
+      messageCount: 1,
+      rowBytes: 200,
+    }
+    queueTableRows(schemaMock.memory, [first, witness])
+    queueTableRows(schemaMock.memory, [{ id: first.id, data: first.data }])
+
+    const result = await queryMemoryTableRows({
+      workspaceId: 'workspace-1',
+      limit: 1000,
+      includeTotal: false,
+    })
+
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0]?.id).toBe(first.id)
+    expect(result.hasMore).toBe(true)
+  })
+
+  it('rejects one transcript that cannot fit in a bounded query response', async () => {
+    queueTableRows(schemaMock.memory, [
+      {
+        id: 'memory-1',
+        key: 'conversation-1',
+        createdAt: CREATED_AT,
+        updatedAt: UPDATED_AT,
+        data: [{ role: 'user', content: 'oversized' }],
+        messageCount: 1,
+        rowBytes: 5 * 1024 * 1024 + 1,
+      },
+    ])
+
+    await expect(
+      queryMemoryTableRows({ workspaceId: 'workspace-1', limit: 1000, includeTotal: false })
+    ).rejects.toThrow('exceeds the 5MB query response limit')
   })
 
   it('finds matching cells in one storage query and preserves filtered sort ordinals', async () => {

@@ -132,6 +132,26 @@ describe('virtual table service', () => {
     })
   })
 
+  it('emits a continuation cursor when the provider byte-cuts a short page', async () => {
+    const firstRow = createRow('memory-1', '2026-01-02T00:00:00.000Z')
+    mockQueryMemoryRows.mockResolvedValue({
+      rows: [firstRow],
+      totalCount: 2,
+      keysetValid: true,
+      hasMore: true,
+    })
+
+    const result = await queryVirtualTableRows(MEMORY_TABLE, {
+      limit: 1000,
+      offset: 0,
+      includeTotal: true,
+    })
+
+    expect(decodeCursor(result.nextCursor as string)).toEqual({
+      after: { orderKey: firstRow.orderKey, id: firstRow.id },
+    })
+  })
+
   it('emits a sort-bound offset cursor when a provider cannot use a keyset', async () => {
     const firstRow = createRow('memory-1', '2026-01-02T00:00:00.000Z')
     const witnessRow = createRow('memory-2', '2026-01-01T00:00:00.000Z')
