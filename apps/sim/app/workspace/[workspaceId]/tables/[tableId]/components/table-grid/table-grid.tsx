@@ -3015,11 +3015,12 @@ export function TableGrid({
 
       if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
-        // Only an explicit multi-row selection can carry the chip: a filtered
+        // Only an explicit multi-row selection can take this path: a filtered
         // select-all ('all') pages in rows beyond those loaded, which the async
-        // path must fetch. For 'some' the fall-through re-reads the same loaded
-        // rows (see its `loadRows`), so it never copies more than this does —
-        // the selection is complete here even when some ids aren't loaded yet.
+        // fall-through must fetch. `complete` refers to the copied TEXT only —
+        // for 'some' the fall-through re-reads these same loaded rows (see its
+        // `loadRows`), so it can never serialize more than this does. The chip
+        // is not bound by that; see `rowIds` below.
         if (rowSel.kind === 'some') {
           const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
           const handled = writeLoadedRowsWithChip({
