@@ -5,7 +5,7 @@ import { zohoDeskListOrganizationsContract } from '@/lib/api/contracts/tools/zoh
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getZohoDeskApiBase } from '@/tools/zoho_desk/utils'
+import { getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,8 +45,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      logger.warn('Failed to list Zoho Desk organizations', { status: response.status })
-      return NextResponse.json({ organizations: [] })
+      // Surface the failure instead of returning an empty 200, which would make
+      // the org dropdown silently render empty on an auth/connectivity error.
+      const message = getZohoDeskErrorMessage(
+        data,
+        `Failed to list organizations (HTTP ${response.status})`
+      )
+      logger.warn('Failed to list Zoho Desk organizations', { status: response.status, message })
+      return NextResponse.json(
+        { error: message },
+        { status: response.status >= 400 && response.status < 500 ? response.status : 502 }
+      )
     }
 
     const organizations = (Array.isArray(data.data) ? (data.data as ZohoOrganization[]) : [])
@@ -59,7 +68,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ organizations })
   } catch (error) {
-    logger.error('Error listing Zoho Desk organizations', { error: getErrorMessage(error) })
-    return NextResponse.json({ organizations: [] })
+    const message = getErrorMessage(error, 'Failed to list organizations')
+    logger.error('Error listing Zoho Desk organizations', { error: message })
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 })

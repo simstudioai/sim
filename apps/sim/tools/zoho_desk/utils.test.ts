@@ -50,7 +50,9 @@ describe('zoho desk tool utils', () => {
     })
 
     it('falls back to errorCode then the fallback', () => {
-      expect(getZohoDeskErrorMessage({ errorCode: 'INVALID_DATA' }, 'fallback')).toBe('INVALID_DATA')
+      expect(getZohoDeskErrorMessage({ errorCode: 'INVALID_DATA' }, 'fallback')).toBe(
+        'INVALID_DATA'
+      )
       expect(getZohoDeskErrorMessage(null, 'fallback')).toBe('fallback')
     })
   })

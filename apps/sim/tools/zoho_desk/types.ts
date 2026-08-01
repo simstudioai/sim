@@ -37,6 +37,7 @@ export interface ZohoDeskUpdateTicketParams extends ZohoDeskBaseParams {
   subCategory?: string
   dueDate?: string
   customFields?: Record<string, unknown>
+  ignoreSourceId?: string
 }
 
 export interface ZohoDeskListCommentsParams extends ZohoDeskBaseParams {

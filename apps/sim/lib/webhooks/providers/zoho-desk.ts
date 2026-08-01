@@ -22,7 +22,9 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 const logger = createLogger('WebhookProvider:ZohoDesk')
 
 const DEFAULT_ZOHO_DESK_BASE = 'https://desk.zoho.com'
-const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:(\S+)/
+// Stop at a comma or whitespace: better-auth persists Zoho's scopes comma-joined
+// (no spaces), so a greedy `\S+` would swallow the whole scope list into the host.
+const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s,]+)/
 
 /**
  * Remote JWKS sets are cached per Desk data-center host. `createRemoteJWKSet`

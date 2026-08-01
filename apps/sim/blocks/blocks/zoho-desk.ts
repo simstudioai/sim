@@ -187,7 +187,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       type: 'short-input',
       mode: 'advanced',
       placeholder: 'Loop-guard source ID (from a Zoho Desk trigger)',
-      condition: { field: 'operation', value: 'add_comment' },
+      condition: { field: 'operation', value: ['add_comment', 'update_ticket'] },
     },
     // Update ticket
     {
@@ -343,11 +343,20 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     config: {
       tool: (params) => `zoho_desk_${params.operation}`,
       params: (params) => {
-        const { oauthCredential, ...rest } = params
+        // Pull raw pagination out of the spread so invalid values never reach the
+        // tool; only re-add them when Number() yields a finite value (a non-numeric
+        // typo would otherwise become NaN and produce an invalid Zoho query param).
+        const { oauthCredential, from: rawFrom, limit: rawLimit, ...rest } = params
         const result: Record<string, unknown> = { ...rest, oauthCredential }
 
-        if (rest.from !== undefined && rest.from !== '') result.from = Number(rest.from)
-        if (rest.limit !== undefined && rest.limit !== '') result.limit = Number(rest.limit)
+        if (rawFrom !== undefined && rawFrom !== '') {
+          const from = Number(rawFrom)
+          if (Number.isFinite(from)) result.from = from
+        }
+        if (rawLimit !== undefined && rawLimit !== '') {
+          const limit = Number(rawLimit)
+          if (Number.isFinite(limit)) result.limit = limit
+        }
         if (rest.isPublic !== undefined) {
           result.isPublic = rest.isPublic === true || rest.isPublic === 'true'
         }

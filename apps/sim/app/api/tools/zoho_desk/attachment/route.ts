@@ -13,9 +13,38 @@ const logger = createLogger('ZohoDeskAttachmentAPI')
 
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
 
-/** Only allow downloads from Zoho hosts to prevent SSRF via a crafted href. */
+/**
+ * Zoho-owned apex domains across data centers. The `href` on an attachment is
+ * user/LLM-influenced, so the download host must be anchored to one of these
+ * with a strict suffix match — a naive `contains "zoho."` check would accept an
+ * attacker domain like `zoho.attacker.com` or `desk.zoho.com.attacker.com` and
+ * leak the OAuth token + orgId to it.
+ */
+const ZOHO_ALLOWED_APEX_DOMAINS = [
+  'zoho.com',
+  'zoho.eu',
+  'zoho.in',
+  'zoho.com.au',
+  'zoho.jp',
+  'zoho.ca',
+  'zoho.sa',
+  'zoho.com.cn',
+  'zoho.uk',
+  'zohoapis.com',
+  'zohoapis.eu',
+  'zohoapis.in',
+  'zohoapis.com.au',
+  'zohoapis.jp',
+  'zohoapis.ca',
+  'zohoapis.sa',
+  'zohoapis.com.cn',
+  'zohoapis.uk',
+]
+
+/** True only when the hostname is exactly a Zoho apex or a subdomain of one. */
 function isZohoHost(hostname: string): boolean {
-  return /(^|\.)zoho\.[a-z.]+$/i.test(hostname) || /(^|\.)zohoapis\.[a-z.]+$/i.test(hostname)
+  const host = hostname.toLowerCase()
+  return ZOHO_ALLOWED_APEX_DOMAINS.some((apex) => host === apex || host.endsWith(`.${apex}`))
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {

@@ -2068,29 +2068,69 @@ export const auth = betterAuth({
             prompt: 'consent',
             scope: getCanonicalScopesForProvider('zoho-desk').join(','),
           },
-          getToken: async ({ code, redirectURI }) => {
+          getToken: async ({ code, redirectURI, codeVerifier }) => {
+            const tokenParams = new URLSearchParams({
+              client_id: env.ZOHO_CLIENT_ID as string,
+              client_secret: env.ZOHO_CLIENT_SECRET as string,
+              code,
+              grant_type: 'authorization_code',
+              redirect_uri: redirectURI,
+            })
+            // PKCE is enabled, so better-auth sent a code_challenge on the authorize
+            // request. The exchange MUST echo the matching code_verifier or Zoho
+            // rejects the request shape (invalid_request). Verified by isolating
+            // pkce:false (which connected) then restoring pkce:true + this verifier.
+            if (codeVerifier) tokenParams.set('code_verifier', codeVerifier)
+
             const response = await fetch('https://accounts.zoho.com/oauth/v2/token', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                client_id: env.ZOHO_CLIENT_ID as string,
-                client_secret: env.ZOHO_CLIENT_SECRET as string,
-                code,
-                grant_type: 'authorization_code',
-                redirect_uri: redirectURI,
-              }),
+              body: tokenParams,
             })
             const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
               maxBytes: 1024 * 1024,
               label: 'Zoho Desk OAuth token response',
             })
 
-            if (!response.ok || !data || typeof data !== 'object' || Array.isArray(data)) {
-              throw new Error(`Zoho Desk OAuth token exchange failed with HTTP ${response.status}`)
+            // Zoho signals OAuth failures in the JSON body, usually with HTTP 200,
+            // e.g. { error: 'invalid_code' } or { error: 'invalid_client',
+            // error_description: '...' }. The status-only guard therefore never
+            // fires, so surface the actual error/description instead of collapsing
+            // every failure into one opaque "no access token" string.
+            const errorObj =
+              data && typeof data === 'object' && !Array.isArray(data)
+                ? (data as { error?: unknown; error_description?: unknown })
+                : {}
+            const zohoError = typeof errorObj.error === 'string' ? errorObj.error : undefined
+            const zohoErrorDescription =
+              typeof errorObj.error_description === 'string'
+                ? errorObj.error_description
+                : undefined
+            if (
+              !response.ok ||
+              !data ||
+              typeof data !== 'object' ||
+              Array.isArray(data) ||
+              zohoError
+            ) {
+              logger.error('Zoho Desk OAuth token exchange failed', {
+                status: response.status,
+                zohoError: zohoError ?? null,
+                zohoErrorDescription: zohoErrorDescription ?? null,
+              })
+              throw new Error(
+                `Zoho Desk OAuth token exchange failed (HTTP ${response.status}${
+                  zohoError ? `, ${zohoError}` : ''
+                }${zohoErrorDescription ? `: ${zohoErrorDescription}` : ''})`
+              )
             }
 
             const tokens = getOAuth2Tokens(data)
             if (!tokens.accessToken) {
+              logger.error('Zoho Desk OAuth token response had no access token', {
+                status: response.status,
+                bodyKeys: Object.keys(data),
+              })
               throw new Error('Zoho Desk OAuth token response did not include an access token')
             }
 

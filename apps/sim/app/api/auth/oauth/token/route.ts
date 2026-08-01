@@ -26,7 +26,10 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
-const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s]+)/
+// Stop at a comma or whitespace: better-auth persists Zoho's scopes comma-joined
+// (no spaces), so a greedy `\S+` would swallow the whole scope list into the host.
+// The Desk base URL itself never contains a comma or space.
+const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s,]+)/
 
 /**
  * Get an access token for a specific credential
