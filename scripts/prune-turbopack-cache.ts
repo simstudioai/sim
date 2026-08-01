@@ -23,6 +23,10 @@
  *   bun run scripts/prune-turbopack-cache.ts --dry-run  # report only
  *
  * Override the cap with `SIM_TURBOPACK_CACHE_MAX_GB` (default 20).
+ *
+ * Note for anyone benchmarking the cache: stop the dev server with SIGINT, not
+ * `kill -9`. Turbopack discards a partially-written cache and rebuilds silently,
+ * so a hard kill makes a real cache win read as no win at all.
  */
 import { existsSync, statSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'

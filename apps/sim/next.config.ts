@@ -241,6 +241,14 @@ const nextConfig: NextConfig = {
      *
      * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
      * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
+     * A *corrupted* cache is a hard Turbopack panic, not a silent fallback —
+     * `bun run dev:cache:prune` and restart is the fix.
+     *
+     * If you re-measure any of this: `next dev` compiles routes on demand, so
+     * startup time means nothing — time the first request to a route, restart the
+     * server between runs, and stop it with SIGINT. A `kill -9` mid-write makes
+     * Turbopack discard the partially-written cache and rebuild silently, which
+     * reads as "the cache does nothing" and is how this flag stayed wrong.
      */
     turbopackFileSystemCacheForDev: true,
     /**
