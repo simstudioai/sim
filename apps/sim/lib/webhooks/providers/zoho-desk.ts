@@ -383,16 +383,17 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     }
     const record = event as Record<string, unknown>
     // Comment / thread event payloads carry a raw `content` + `contentType`
-    // ('html' | 'plainText') pair; augment the payload with a derived plain-text
-    // `contentText` (HTML stripped) alongside the untouched raw content. Payloads
-    // without a content pair (e.g. ticket / contact events) pass through unchanged.
+    // ('html' | 'plainText') pair; augment both `payload` and `prevState` with a
+    // derived plain-text `contentText` (HTML stripped) alongside the untouched raw
+    // content, so before/after comparisons see a consistent shape. Values without
+    // a content pair (ticket / contact events) pass through unchanged.
     return {
       input: {
         eventType: record.eventType ?? null,
         eventTime: record.eventTime ?? null,
         orgId: record.orgId ?? null,
         payload: record.payload != null ? withDerivedContentText(record.payload) : null,
-        prevState: record.prevState ?? null,
+        prevState: record.prevState != null ? withDerivedContentText(record.prevState) : null,
       },
     }
   },

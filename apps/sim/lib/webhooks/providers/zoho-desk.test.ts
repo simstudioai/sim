@@ -163,16 +163,22 @@ describe('zohoDeskHandler', () => {
               content: '<div style="direction: ltr;"><div>testing</div></div>',
               contentType: 'html',
             },
-            prevState: null,
+            prevState: { id: 'comment-1', content: '<div>before</div>', contentType: 'html' },
           },
         ],
         headers: {},
         requestId: 'test',
       })
-      const payload = (result?.input as { payload: Record<string, unknown> }).payload
-      expect(payload.content).toBe('<div style="direction: ltr;"><div>testing</div></div>')
-      expect(payload.contentType).toBe('html')
-      expect(payload.contentText).toBe('testing')
+      const input = result?.input as {
+        payload: Record<string, unknown>
+        prevState: Record<string, unknown>
+      }
+      expect(input.payload.content).toBe('<div style="direction: ltr;"><div>testing</div></div>')
+      expect(input.payload.contentType).toBe('html')
+      expect(input.payload.contentText).toBe('testing')
+      // prevState is enriched symmetrically so before/after comparisons match shapes.
+      expect(input.prevState.content).toBe('<div>before</div>')
+      expect(input.prevState.contentText).toBe('before')
     })
 
     it('mirrors plainText content into contentText', async () => {
