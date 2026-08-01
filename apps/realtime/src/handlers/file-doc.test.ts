@@ -338,7 +338,6 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // authoritative; a later flush projects the converged stream once the merge lands.
     mockFetchFileDocPersist.mockResolvedValue({
       status: 'conflict',
-      version: 999,
     })
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)

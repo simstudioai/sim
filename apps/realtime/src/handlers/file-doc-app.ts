@@ -77,13 +77,13 @@ export async function fetchFileDocMerge(
  * Result of a persist attempt (mirrors the app's `persistFileDoc` contract):
  * - `persisted` — written; `version` is the new durable version the relay records as synced.
  * - `missing` — the file is gone.
- * - `conflict` — the file changed out-of-band since `expectedVersion`; NOT written. `version` is the
- *   current durable version the relay adopts as its new If-Match to re-persist the current live stream.
+ * - `conflict` — the file changed out-of-band since `expectedVersion`; NOT written. The relay leaves the
+ *   durable content authoritative and reads nothing off this result beyond the status.
  */
 export type PersistResult =
   | { status: 'persisted'; version: number }
   | { status: 'missing' }
-  | { status: 'conflict'; version: number }
+  | { status: 'conflict' }
   | { status: 'deferred' }
 
 /**
