@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
+import { parseRoomName, ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { sleep } from '@sim/utils/helpers'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentWorkflowRole } from '@/middleware/permissions'
-import type { IRoomManager } from '@/rooms'
+import { type IRoomManager, workflowRoom as wf } from '@/rooms'
 
 const logger = createLogger('AccessRevalidation')
 
@@ -65,9 +66,14 @@ interface ScanTarget {
  * Collects this pod's authenticated sockets with the workflow room each has
  * joined, in stable socket order.
  *
- * The workflow room is derived from the socket's own `rooms` set (pod-local, no
- * Redis round-trips): a socket joins exactly one workflow room, so its rooms are
- * `{ ownSocketId, workflowId }`. Only local sockets are evaluated — sockets are
+ * Rooms are derived from the socket's own `rooms` set (pod-local, no Redis
+ * round-trips). A socket may occupy several rooms of different types at once
+ * (workflow canvas, workspace-files browser, table, file-doc), all on the same
+ * io — so each name is decoded with {@link parseRoomName} and only **workflow**
+ * rooms are swept here. Non-workflow room names are namespaced (`type:id`) and
+ * resolve to a non-workflow type; sweeping them as workflow ids would resolve a
+ * bogus permission, come back `null`, and spuriously evict the socket from its
+ * files/table room every pass. Only local sockets are evaluated — sockets are
  * sticky to a pod, so every socket is swept by exactly one pod using that pod's
  * warm role cache (mirroring the per-pod reasoning of the write-path cache).
  */
@@ -78,7 +84,9 @@ function collectScanTargets(io: IRoomManager['io']): ScanTarget[] {
     if (!authed.userId) continue
     for (const room of socket.rooms) {
       if (room === socket.id) continue
-      targets.push({ workflowId: room, socket: authed, userId: authed.userId })
+      const ref = parseRoomName(room)
+      if (ref?.type !== ROOM_TYPES.WORKFLOW) continue
+      targets.push({ workflowId: ref.id, socket: authed, userId: authed.userId })
     }
   }
   return targets
@@ -129,9 +137,20 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
   async function cleanupEvictedSocket(socketId: string, workflowId: string): Promise<void> {
     const key = `${socketId}:${workflowId}`
     try {
+      // A fully-disconnected socket already had its presence removed by the
+      // disconnect handler (removeSocketFromAllRooms), so there is nothing left to
+      // clean. Dropping here also keeps the boolean removeUserFromRoom below from
+      // reporting a false "not a member" for an already-gone entry and retrying it
+      // forever (the pre-generalization manager returned the target on a no-op).
+      if (!io.sockets.sockets.get(socketId)) {
+        pendingCleanups.delete(key)
+        return
+      }
+
       // Unlike removeUserFromRoom, this read does not swallow transport errors,
       // so a Redis outage lands in the catch below and defers the cleanup.
-      const currentWorkflowId = await roomManager.getWorkflowIdForSocket(socketId)
+      const currentRoom = await roomManager.getRoomForSocket(socketId, ROOM_TYPES.WORKFLOW)
+      const currentWorkflowId = currentRoom?.id ?? null
       if (currentWorkflowId !== null && currentWorkflowId !== workflowId) {
         // The socket has since moved to a different workflow it can still
         // access; that join's room switch already removed this room's presence
@@ -148,16 +167,26 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         return
       }
 
-      const removed = await roomManager.removeUserFromRoom(socketId, workflowId)
-      if (removed === null) {
-        // The sweep always passes the target room, and both managers report a
-        // performed removal by returning it — the Redis manager swallows
-        // transport errors into null, so null means the removal did not happen
-        // (even when the socket's mapping keys have already expired).
-        throw new Error('room-state removal not confirmed')
+      // A null mapping here is the normal case (the socket's mapping key may have
+      // expired) and does NOT mean "skip" — the eviction still removes the presence
+      // entry from the known target room via the explicit ref below.
+      const removed = await roomManager.removeUserFromRoom(wf(workflowId), socketId)
+      if (!removed) {
+        // `false` conflates two outcomes: the entry was already gone (a no-op), or a
+        // transport error the manager swallowed. Only retry when the socket is still mapped
+        // to THIS room — then a false result is a genuine, deferrable failure. When a healthy
+        // getRoomForSocket above returned no workflow mapping (`currentWorkflowId === null`),
+        // the presence entry is already gone, so the cleanup is complete: dropping it avoids
+        // re-enqueuing a still-connected socket forever. (A real Redis outage throws at
+        // getRoomForSocket and is deferred by the outer catch, never reaching here.)
+        if (currentWorkflowId === workflowId) {
+          throw new Error('room-state removal not confirmed')
+        }
+        pendingCleanups.delete(key)
+        return
       }
 
-      await roomManager.broadcastPresenceUpdate(workflowId)
+      await roomManager.broadcastPresenceUpdate(wf(workflowId))
       pendingCleanups.delete(key)
     } catch (error) {
       pendingCleanups.set(key, { socketId, workflowId })

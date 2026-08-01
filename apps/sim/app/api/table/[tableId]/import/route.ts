@@ -37,6 +37,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { getUserSettings } from '@/lib/users/queries'
 import {
@@ -323,6 +324,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           mappedColumns: validation.mappedHeaders.length,
           skippedHeaders: validation.skippedHeaders.length,
         })
+        signalTableSchemaChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -385,6 +387,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         createdColumns: additions.length,
         mappedColumns: validation.mappedHeaders.length,
       })
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

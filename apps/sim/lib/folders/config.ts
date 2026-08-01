@@ -306,6 +306,8 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
   for (const id of ids) {
     await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, undefined, {
       archivedAt: context.timestamp,
+      // deleteFolder fires one folder-level live-list notify for the whole subtree.
+      skipNotify: true,
     })
   }
 
@@ -323,7 +325,11 @@ async function restoreTableChildren(context: CascadeChildrenContext): Promise<nu
   const restoringFolderIds = new Set(context.folderIds)
 
   for (const id of ids) {
-    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, { restoringFolderIds })
+    // restoreFolder fires one folder-level live-list notify for the whole subtree.
+    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
+      restoringFolderIds,
+      skipNotify: true,
+    })
   }
 
   return ids.length

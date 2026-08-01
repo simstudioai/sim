@@ -11,13 +11,18 @@ import {
 } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { MarkdownCodeBlock } from './code-block'
+import { MarkdownCodeBlock } from './code-block-schema'
 import { Highlight } from './highlight'
-import { MarkdownImage } from './image'
+import { MarkdownImage } from './image-schema'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownMention } from './mention/mention-node'
 import { SIM_LINK_SCHEME } from './mention/sim-link'
-import { FootnoteDef, FootnoteRef, RawHtmlBlock, RawInlineHtml } from './raw-markdown-snippet'
+import {
+  FootnoteDef,
+  FootnoteRef,
+  RawHtmlBlock,
+  RawInlineHtml,
+} from './raw-markdown-snippet-schema'
 
 /**
  * The `@`-mention link scheme, registered on the Link mark — without it the schema strips the
@@ -117,7 +122,10 @@ export interface ContentNodeViews {
  * registry. The live editor passes the node-view nodes via {@link createMarkdownEditorExtensions}; the
  * schema and markdown output are identical either way.
  */
-export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}): Extensions {
+export function createMarkdownContentExtensions(
+  nodeViews: ContentNodeViews = {},
+  options: { disableHistory?: boolean } = {}
+): Extensions {
   const codeBlock = (nodeViews.codeBlock ?? MarkdownCodeBlock).configure({
     HTMLAttributes: { class: 'code-editor-theme' },
   })
@@ -128,6 +136,9 @@ export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}
       codeBlock: false,
       code: false,
       paragraph: false,
+      // Collaboration provides its own (Yjs-backed) undo/redo — disabling the
+      // built-in history avoids the two fighting over the shared document.
+      ...(options.disableHistory ? { undoRedo: false as const } : {}),
     }),
     BlockSafeParagraph,
     InlineCode,

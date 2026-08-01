@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 
 const {
   mockGetTableById,
@@ -13,6 +14,7 @@ const {
   mockMarkJobFailed,
   mockMarkJobCanceled,
   mockAppendTableEvent,
+  mockSignalTableRowsChanged,
   mockBuildFilterClause,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
@@ -24,6 +26,7 @@ const {
   mockMarkJobFailed: vi.fn(),
   mockMarkJobCanceled: vi.fn(),
   mockAppendTableEvent: vi.fn(),
+  mockSignalTableRowsChanged: vi.fn(),
   mockBuildFilterClause: vi.fn(),
 }))
 
@@ -41,7 +44,10 @@ vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowIdPage: mockSelectRowIdPage,
   deletePageByIds: mockDeletePageByIds,
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
+vi.mock('@/lib/table/events', () => ({
+  appendTableEvent: mockAppendTableEvent,
+  signalTableRowsChanged: mockSignalTableRowsChanged,
+}))
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
 vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { DELETE_PAGE_SIZE: 2 },
@@ -89,6 +95,8 @@ describe('runTableDelete', () => {
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'canceled' })
     )
+    // Nothing was deleted, so the grid must NOT be needlessly refetched.
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
   })
 
   it('stops mid-run when the delete lock is enabled between pages', async () => {
@@ -111,6 +119,21 @@ describe('runTableDelete', () => {
     )
     expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockMarkJobReady).not.toHaveBeenCalled()
+    // Even though the run was cancelled before completion, the first page WAS deleted — the `finally`
+    // must still refetch the grid so open editors don't keep showing those deleted rows.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
+  })
+
+  it('signals a grid refetch when a page throws a mid-page lock after committing rows', async () => {
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b'])
+    // `deletePageByIds` commits in internal batches, so a lock landing mid-page can persist earlier
+    // batches and THEN throw — it returns no count. The grid must still be refetched.
+    mockDeletePageByIds.mockRejectedValueOnce(new TableLockedError('delete'))
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
   })
 
   it('deletes every matching page then marks the job ready', async () => {
@@ -141,6 +164,9 @@ describe('runTableDelete', () => {
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'ready', progress: 3 })
     )
+    // The live grid must be told rows changed so deleted rows drop out of every open editor —
+    // the `job` progress event only drives the delete meter, not the rows query.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
   })
 
   it('stops once maxRows is reached and caps the final page fetch to the remaining budget', async () => {

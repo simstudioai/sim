@@ -77,8 +77,11 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
+import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import {
   filesFilterParsers,
   filesFilterUrlKeys,
@@ -86,6 +89,12 @@ import {
   filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  uniqueMarkdownName,
+} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -207,6 +216,11 @@ export function Files() {
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
+
+  // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
+  // browser. "Who's in this file" comes from the file-doc room (see FileDocRoomProvider),
+  // not from who's browsing the Files section.
+  useWorkspaceFilesRoom(workspaceId)
 
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
@@ -357,6 +371,34 @@ export function Files() {
   )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
+
+  /**
+   * While a file is still untitled, name it after the leading heading the user types in its editor. The
+   * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
+   * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   */
+  const handleDeriveTitleFromHeading = useCallback(
+    (headingText: string) => {
+      const currentFile = selectedFileRef.current
+      if (!currentFile || !isUntitledName(currentFile.name)) return
+      const derived = deriveMarkdownFileName(headingText)
+      if (!derived) return
+      const siblingNames = new Set(
+        filesRef.current
+          .filter(
+            (f) =>
+              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
+          )
+          .map((f) => f.name)
+      )
+      const name = uniqueMarkdownName(derived, siblingNames)
+      if (name === currentFile.name) return
+      renameFile
+        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
+        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
+    },
+    [workspaceId]
+  )
 
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
@@ -1248,12 +1290,7 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      let name = 'untitled.md'
-      let counter = 1
-      while (existingNames.has(name)) {
-        name = `untitled (${counter}).md`
-        counter++
-      }
+      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
@@ -1979,35 +2016,43 @@ export function Files() {
   if (selectedFile) {
     return (
       <>
-        <Resource>
-          <Resource.Header
-            icon={FilesIcon}
-            breadcrumbs={fileDetailBreadcrumbs}
-            actions={fileActions}
-          />
-          <FileViewer
-            key={selectedFile.id}
-            file={selectedFile}
-            workspaceId={workspaceId}
-            canEdit={canEdit}
-            previewMode={previewMode}
-            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
-            onDirtyChange={setIsDirty}
-            onSaveStatusChange={handleSaveStatusChange}
-            saveRef={saveRef}
-            discardRef={discardRef}
-          />
+        {/* The room provider scopes "who's in this file" presence to the open document: the
+            editor (inside FileViewer) publishes the server-authenticated roster and the
+            header's FileDocAvatars reads it — both must be descendants. */}
+        <FileDocRoomProvider>
+          <Resource>
+            <Resource.Header
+              icon={FilesIcon}
+              breadcrumbs={fileDetailBreadcrumbs}
+              actions={fileActions}
+              aside={<FileDocAvatars />}
+            />
+            <FileViewer
+              key={selectedFile.id}
+              file={selectedFile}
+              workspaceId={workspaceId}
+              canEdit={canEdit}
+              previewMode={previewMode}
+              autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
+              onDirtyChange={setIsDirty}
+              onSaveStatusChange={handleSaveStatusChange}
+              saveRef={saveRef}
+              discardRef={discardRef}
+              collaborative
+              onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
+            />
 
-          <ChipConfirmModal
-            open={showUnsavedChangesAlert}
-            onOpenChange={setShowUnsavedChangesAlert}
-            srTitle='Unsaved Changes'
-            title='Unsaved Changes'
-            text='You have unsaved changes. Are you sure you want to discard them?'
-            dismissLabel='Keep editing'
-            confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
-          />
-        </Resource>
+            <ChipConfirmModal
+              open={showUnsavedChangesAlert}
+              onOpenChange={setShowUnsavedChangesAlert}
+              srTitle='Unsaved Changes'
+              title='Unsaved Changes'
+              text='You have unsaved changes. Are you sure you want to discard them?'
+              dismissLabel='Keep editing'
+              confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
+            />
+          </Resource>
+        </FileDocRoomProvider>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}

@@ -29,6 +29,7 @@ import {
   sortNamesToIds,
 } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
@@ -89,6 +90,7 @@ async function handleBatchInsert(
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -282,6 +284,7 @@ export const POST = withRouteHandler(
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -367,6 +370,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       },
       requestId
     )
+    if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
     if (result.affectedCount === 0) {
       return NextResponse.json({
@@ -439,6 +443,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
+        if (result.deletedCount > 0) signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -467,6 +472,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
+      if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,

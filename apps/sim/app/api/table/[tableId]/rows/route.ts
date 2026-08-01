@@ -26,6 +26,7 @@ import {
   validateRowSize,
 } from '@/lib/table'
 import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicateShape,
@@ -122,6 +123,7 @@ async function handleBatchInsert(
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -207,6 +209,7 @@ export const POST = withRouteHandler(
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -433,6 +436,7 @@ export const PUT = withRouteHandler(
           { status: 200 }
         )
       }
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -499,6 +503,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
+        if (result.deletedCount > 0) signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -528,6 +533,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
+      if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -601,6 +607,7 @@ export const PATCH = withRouteHandler(
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
