@@ -71,6 +71,11 @@ function resolveSpecifier(specifier: string, importer: string): string | null {
   else if (specifier.startsWith('.')) base = resolve(dirname(importer), specifier)
   else return null
 
+  // An already-extensioned specifier (`@/tools/registry.ts`) resolves as-is.
+  // Probing only `base + ext` would miss it and silently drop the edge — and
+  // extensionful `@/` imports do exist in this repo.
+  if (existsSync(base) && statSync(base).isFile()) return base
+
   for (const ext of EXTENSIONS) {
     if (existsSync(base + ext)) return base + ext
   }
