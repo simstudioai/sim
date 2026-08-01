@@ -10,8 +10,12 @@ import {
 } from '@/lib/execution/payloads/large-value-ref'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { StorageContext } from '@/lib/uploads'
-import { bufferToBase64, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import {
+  bufferToBase64,
+  inferContextFromKey,
+  isGeneratedDocumentSourceType,
+} from '@/lib/uploads/utils/file-utils'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
@@ -267,6 +271,11 @@ export async function assertUserFileContentAccess(
   }
 }
 
+/**
+ * Reads the bytes a consumer should receive. For generated documents, updates the
+ * file's size to the rendered artifact size so downstream attachment routing does
+ * not make decisions from the smaller generation-source size.
+ */
 export async function readUserFileContent(
   file: unknown,
   options: ReadUserFileContentOptions
@@ -291,9 +300,14 @@ export async function readUserFileContent(
   const requestId = options.requestId ?? 'unknown'
 
   try {
-    buffer = await downloadFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+    buffer = (
+      await downloadServableFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+    ).buffer
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
+      if (isGeneratedDocumentSourceType(file.type) && error.observedBytes !== undefined) {
+        file.size = error.observedBytes
+      }
       throw new ExecutionResourceLimitError({
         resource: 'execution_payload_bytes',
         attemptedBytes: error.observedBytes ?? maxSourceBytes + 1,
@@ -305,6 +319,9 @@ export async function readUserFileContent(
 
   if (!buffer) {
     throw new Error(`File content for ${file.name} is unavailable.`)
+  }
+  if (isGeneratedDocumentSourceType(file.type)) {
+    file.size = buffer.length
   }
   if (buffer.length > maxSourceBytes) {
     throw new ExecutionResourceLimitError({
