@@ -77,7 +77,8 @@ export function StageWorkflow({ stage }: StageWorkflowProps) {
       <div
         className={cn(
           'absolute top-0 left-0',
-          animate && 'transition-transform duration-[1700ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+          animate &&
+            'transition-transform [transition-duration:1700ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
         )}
         style={{
           width: CANVAS.width,
@@ -102,7 +103,7 @@ export function StageWorkflow({ stage }: StageWorkflowProps) {
               stroke='var(--workflow-edge)'
               strokeWidth={2}
               strokeLinecap='round'
-              className='transition-[stroke-dashoffset] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
+              className='transition-[stroke-dashoffset] [stroke-dasharray:1] [transition-duration:700ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
               // Edges stay undrawn while focused; once the camera pulls out they
               // draw in order (the second trails the first) as each target is revealed.
               style={
