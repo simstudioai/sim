@@ -19,6 +19,7 @@ import {
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
   requiredQuickBooksString,
+  sanitizeQuickBooksCustomer,
   transformQuickBooksMutationResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -151,7 +152,11 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksCustomer>(response, 'Customer'),
+    transformQuickBooksMutationResponse<QuickBooksCustomer>(
+      response,
+      'Customer',
+      sanitizeQuickBooksCustomer
+    ),
   outputs: {
     record: {
       type: 'json',

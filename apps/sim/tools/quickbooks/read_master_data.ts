@@ -2,6 +2,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAddress,
+  QuickBooksCustomer,
   QuickBooksEmployee,
   QuickBooksMasterDataRecord,
   QuickBooksReadMasterDataParams,
@@ -14,6 +15,7 @@ import {
   buildQuickBooksQueryUrl,
   getQuickBooksMasterDataEntity,
   getQuickBooksToolHeaders,
+  sanitizeQuickBooksCustomer,
   sanitizeQuickBooksVendor,
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
@@ -114,6 +116,7 @@ function sanitizeMasterDataRecord(
   value: QuickBooksMasterDataRecord
 ): QuickBooksMasterDataRecord {
   if (recordType === 'employee') return sanitizeEmployee(value)
+  if (recordType === 'customer') return sanitizeQuickBooksCustomer(value as QuickBooksCustomer)
   if (recordType === 'vendor') return sanitizeQuickBooksVendor(value as QuickBooksVendor)
   return value
 }

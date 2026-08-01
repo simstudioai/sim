@@ -10,6 +10,7 @@ import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import type {
   QuickBooksActiveStatus,
   QuickBooksAddress,
+  QuickBooksCustomer,
   QuickBooksListResponse,
   QuickBooksMasterDataRecord,
   QuickBooksMasterDataRecordType,
@@ -205,6 +206,10 @@ export async function transformQuickBooksMutationResponse<T extends QuickBooksMa
 
 export function sanitizeQuickBooksVendor(vendor: QuickBooksVendor): QuickBooksVendor {
   return omit(vendor, ['TaxIdentifier']) as QuickBooksVendor
+}
+
+export function sanitizeQuickBooksCustomer(customer: QuickBooksCustomer): QuickBooksCustomer {
+  return omit(customer, ['TaxIdentifier']) as QuickBooksCustomer
 }
 
 export function quickBooksWritableItemType(itemType: QuickBooksWritableItemType): string {

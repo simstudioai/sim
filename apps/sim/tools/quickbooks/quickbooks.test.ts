@@ -397,6 +397,35 @@ describe('QuickBooks master-data reader', () => {
     expect(byIdResult.output.item).not.toHaveProperty('TaxIdentifier')
   })
 
+  it('removes customer tax identifiers from list and by-ID output', async () => {
+    const customer = {
+      Id: '4',
+      SyncToken: '1',
+      DisplayName: 'Sanitized Customer',
+      TaxIdentifier: 'sensitive-tax-id',
+    }
+    const customerParams: QuickBooksReadMasterDataParams = {
+      ...listParams,
+      recordType: 'customer',
+    }
+
+    const listResult = await quickbooksReadMasterDataTool.transformResponse!(
+      Response.json({ QueryResponse: { Customer: [customer] } }),
+      customerParams
+    )
+    expect(listResult.output.items?.[0]).toEqual({
+      Id: '4',
+      SyncToken: '1',
+      DisplayName: 'Sanitized Customer',
+    })
+
+    const byIdResult = await quickbooksReadMasterDataTool.transformResponse!(
+      Response.json({ Customer: customer }),
+      { ...customerParams, readMode: 'by_id', recordId: '4' }
+    )
+    expect(byIdResult.output.item).not.toHaveProperty('TaxIdentifier')
+  })
+
   it('rejects missing IDs, unknown types and unknown modes before a request', () => {
     const requestUrl = quickbooksReadMasterDataTool.request.url as (
       params: QuickBooksReadMasterDataParams
@@ -553,6 +582,27 @@ describe('QuickBooks customer and vendor mutations', () => {
         Id: '21',
         SyncToken: '0',
         DisplayName: 'Sanitized Vendor',
+      })
+    }
+  })
+
+  it('removes customer tax identifiers from mutation output', async () => {
+    const response = {
+      Customer: {
+        Id: '22',
+        SyncToken: '0',
+        DisplayName: 'Sanitized Customer',
+        TaxIdentifier: 'sensitive-tax-id',
+      },
+      time: 'test-time',
+    }
+
+    for (const tool of [quickbooksCreateCustomerTool, quickbooksUpdateCustomerTool]) {
+      const result = await tool.transformResponse!(Response.json(response))
+      expect(result.output.record).toEqual({
+        Id: '22',
+        SyncToken: '0',
+        DisplayName: 'Sanitized Customer',
       })
     }
   })
