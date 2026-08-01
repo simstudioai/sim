@@ -70,11 +70,16 @@ const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs']
  * still puts 4,300 tools' worth of executable config on a client path, so it
  * counts as reaching it — and the settings route's registry edge hid behind
  * exactly such an import.
+ *
+ * `REQUIRE_RE` matters for the same reason: this codebase uses lazy
+ * `require('@/…')` to break import cycles (`tools/params.ts` reaches `@/blocks`
+ * that way), and those edges are as real as static ones.
  */
 const IMPORT_RE = /(?:^|\n)\s*import\s+(?!type\b)(?:[\s\S]*?from\s*)?['"]([^'"]+)['"]/g
 const REEXPORT_RE =
   /(?:^|\n)\s*export\s+(?!type\b)(?:\*(?:\s+as\s+[\w$]+)?|\{[\s\S]*?\})\s*from\s*['"]([^'"]+)['"]/g
 const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /** Resolves `@/` and relative specifiers. Bare package specifiers are ignored. */
 function resolveSpecifier(specifier: string, importer: string): string | null {
@@ -119,7 +124,7 @@ function walk(entry: string): Walk {
     } catch {
       continue
     }
-    for (const pattern of [IMPORT_RE, REEXPORT_RE, DYNAMIC_IMPORT_RE]) {
+    for (const pattern of [IMPORT_RE, REEXPORT_RE, DYNAMIC_IMPORT_RE, REQUIRE_RE]) {
       pattern.lastIndex = 0
       let match = pattern.exec(source)
       while (match !== null) {
