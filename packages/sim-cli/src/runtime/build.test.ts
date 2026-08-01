@@ -28,6 +28,14 @@ vi.mock('../context.js', () => ({
 function program(): Command {
   const root = new Command('sim').exitOverride()
   for (const group of buildGeneratedCommands(new Set())) root.addCommand(group)
+  // Recursively, not just on the root: a parse error raised by a leaf (an
+  // unknown option, an excess argument) exits the process otherwise, which a
+  // test cannot assert on.
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
   return root
 }
 
@@ -268,5 +276,55 @@ describe('rows whose content sits in a wrapper', () => {
     expect(lines[0]).toContain('https://a')
     expect(lines[0]).toContain('A')
     expect(lines[1]).toContain('E')
+  })
+})
+
+describe('boolean flags', () => {
+  it('takes an explicit value when the field is required', async () => {
+    // As a presence-only flag this could only ever send `true`: `--is-active
+    // false` turned sharing ON and reported success, with the `false` dropped
+    // as a stray argument.
+    const [, options] = await run([
+      'files',
+      'share',
+      'set',
+      'f_1',
+      '--is-active',
+      'false',
+      '--auth-type',
+      'public',
+    ])
+    expect(options.body).toMatchObject({ isActive: false })
+
+    const [, on] = await run([
+      'files',
+      'share',
+      'set',
+      'f_1',
+      '--is-active',
+      'true',
+      '--auth-type',
+      'public',
+    ])
+    expect(on.body).toMatchObject({ isActive: true })
+  })
+
+  it('negates an optional boolean, which omitting it cannot do', async () => {
+    // Omitting `enabled` means "leave it alone"; there was no way to say false,
+    // so an MCP server could not be disabled or a folder unlocked.
+    const [, off] = await run(['mcp-servers', 'update', 'mcp_1', '--no-enabled'])
+    expect(off.body).toMatchObject({ enabled: false })
+
+    const [, on] = await run(['mcp-servers', 'update', 'mcp_1', '--enabled'])
+    expect(on.body).toMatchObject({ enabled: true })
+
+    const [, absent] = await run(['mcp-servers', 'update', 'mcp_1', '--name', 'x'])
+    expect(absent.body).not.toHaveProperty('enabled')
+  })
+
+  it('rejects an argument the command has no meaning for', async () => {
+    await expect(run(['mcp-servers', 'update', 'mcp_1', '--enabled', 'bogus'])).rejects.toThrow(
+      /too many arguments/
+    )
   })
 })

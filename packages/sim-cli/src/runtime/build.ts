@@ -205,7 +205,27 @@ function addFieldOption(
   }
 
   if (descriptor.kind === 'boolean') {
+    // A required boolean is a state to set, not a switch to flip on: it takes
+    // the value explicitly. As a presence-only flag it could only ever send
+    // `true`, so `--is-active false` set sharing ON — commander read the flag as
+    // true and dropped the `false` as a stray argument.
+    if (descriptor.required) {
+      command.addOption(
+        new Option(`${short}--${name} <true|false>`, flag.describe ?? `Set ${field}`).choices([
+          'true',
+          'false',
+        ])
+      )
+      return
+    }
+
+    // Optional booleans stay presence-flags — `--deployed-only` reads better
+    // than `--deployed-only true` — but every one of them also gets a negation,
+    // because for a state field (`enabled`, `locked`) omitting the flag means
+    // "leave it alone", which is not the same as setting it false. Without this
+    // there was no way to disable an MCP server or unlock a folder.
     command.option(`${short}--${name}`, flag.describe ?? `Set ${field}`)
+    command.option(`--no-${name}`, `Set ${field} to false`)
     return
   }
 
@@ -246,6 +266,10 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
   // NAME, so `sim tables upsert` would never match it and would silently fall
   // through to the group's help. Arguments have to be declared separately.
   const command = new Command(leafName)
+  // Commander ignores arguments beyond those declared. That silence is how
+  // `--is-active false` ran as though the `false` had never been typed; an
+  // argument the command has no meaning for is a mistake worth stopping on.
+  command.allowExcessArguments(false)
   for (const param of operationSpec.pathParams) {
     command.argument(`<${param}>`)
   }
