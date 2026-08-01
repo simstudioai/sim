@@ -2,6 +2,10 @@ import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { OAuth2Client } from 'google-auth-library'
 import { env } from '@/lib/core/config/env'
+import {
+  validateGoogleCloudLocation,
+  validateGoogleCloudProject,
+} from '@/lib/core/security/input-validation'
 import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -37,6 +41,22 @@ export const vertexProvider: ProviderConfig = {
       throw new Error(
         'Vertex AI project is required. Please provide it via VERTEX_PROJECT environment variable or vertexProject parameter.'
       )
+    }
+
+    // The @google/genai SDK interpolates location into the API hostname and project
+    // into the URL path. Both must be validated before they reach the client, or a
+    // crafted value relocates the request — and the attached bearer token — to an
+    // arbitrary host.
+    const locationValidation = validateGoogleCloudLocation(vertexLocation, 'vertexLocation')
+    if (!locationValidation.isValid) {
+      logger.warn('Blocked invalid Vertex AI location', { error: locationValidation.error })
+      throw new Error(`Invalid Vertex AI location: ${locationValidation.error}`)
+    }
+
+    const projectValidation = validateGoogleCloudProject(vertexProject, 'vertexProject')
+    if (!projectValidation.isValid) {
+      logger.warn('Blocked invalid Vertex AI project', { error: projectValidation.error })
+      throw new Error(`Invalid Vertex AI project: ${projectValidation.error}`)
     }
 
     if (!request.apiKey) {

@@ -1173,11 +1173,12 @@ export class AgentBlockHandler implements BlockHandler {
       let finalApiKey: string | undefined = providerRequest.apiKey
 
       if (providerId === 'vertex' && providerRequest.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          providerRequest.vertexCredential,
-          ctx.userId,
-          'vertex-agent'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: providerRequest.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          callerLabel: 'vertex-agent',
+        })
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)

@@ -898,6 +898,84 @@ export function validateAwsRegion(
 }
 
 /**
+ * Validates a Google Cloud location (region) identifier.
+ *
+ * Google SDKs interpolate this value directly into the API hostname
+ * (`https://{location}-aiplatform.googleapis.com/`), so an unvalidated value
+ * containing `/`, `:`, `@`, or whitespace can terminate the authority component
+ * and relocate the request — along with any attached credential — to an
+ * attacker-controlled host.
+ *
+ * Accepts `global` plus the documented `{geography}-{direction}{index}` region
+ * form (e.g. us-central1, europe-west4, northamerica-northeast1, me-central2).
+ *
+ * @param value - The location to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateGoogleCloudLocation(
+  value: string | null | undefined,
+  paramName = 'location'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const googleLocationPattern =
+    /^(global|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
+
+  if (!googleLocationPattern.test(value)) {
+    logger.warn('Invalid Google Cloud location format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Google Cloud location (e.g., us-central1, europe-west4, global)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a Google Cloud project identifier.
+ *
+ * Accepts either a project ID (6-30 chars, starts with a lowercase letter,
+ * lowercase letters/digits/hyphens, no trailing hyphen) or a numeric project
+ * number. This value is interpolated into the API URL path, so anything that
+ * could introduce path or authority separators is rejected.
+ *
+ * @param value - The project to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateGoogleCloudProject(
+  value: string | null | undefined,
+  paramName = 'project'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const projectIdPattern = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
+  const projectNumberPattern = /^\d{1,20}$/
+
+  if (!projectIdPattern.test(value) && !projectNumberPattern.test(value)) {
+    logger.warn('Invalid Google Cloud project format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Google Cloud project ID or project number`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
  * Validates an S3 bucket name according to AWS naming rules
  *
  * S3 bucket names must:
