@@ -204,6 +204,11 @@ export async function queryMemoryTableRows({
     getMaxPageBytes() ?? TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
     TABLE_LIMITS.MAX_QUERY_RESULT_BYTES
   )
+  const omittedTranscript: JsonValue = {
+    omitted: true,
+    reason: `Transcript exceeds the ${Math.floor(pageByteBudget / (1024 * 1024))}MB table query limit`,
+  }
+  const oversizedTranscriptIds = new Set<string>()
   const selectedCandidates: typeof candidates = []
   let selectedBytes = 0
   let hasMore = candidates.length === limit
@@ -213,21 +218,24 @@ export async function queryMemoryTableRows({
     if (!Number.isFinite(rowBytes) || rowBytes < 0) {
       throw new TableQueryValidationError('Memory table returned an invalid row size')
     }
+    let outputRowBytes = rowBytes
     if (rowBytes > pageByteBudget) {
-      throw new TableQueryValidationError(
-        `Memory transcript exceeds the ${Math.floor(pageByteBudget / (1024 * 1024))}MB table query limit`,
-        'TABLE_QUERY_RESULT_TOO_LARGE'
+      oversizedTranscriptIds.add(candidate.id)
+      outputRowBytes = Buffer.byteLength(
+        JSON.stringify(mapMemoryRecordToTableRow({ ...candidate, data: omittedTranscript }).data)
       )
     }
-    if (selectedCandidates.length > 0 && selectedBytes + rowBytes > pageByteBudget) {
+    if (selectedCandidates.length > 0 && selectedBytes + outputRowBytes > pageByteBudget) {
       hasMore = true
       break
     }
     selectedCandidates.push(candidate)
-    selectedBytes += rowBytes
+    selectedBytes += outputRowBytes
   }
 
-  const selectedIds = selectedCandidates.map((candidate) => candidate.id)
+  const selectedIds = selectedCandidates
+    .filter((candidate) => !oversizedTranscriptIds.has(candidate.id))
+    .map((candidate) => candidate.id)
   const transcripts =
     selectedIds.length > 0
       ? await db
@@ -244,7 +252,9 @@ export async function queryMemoryTableRows({
       : []
   const transcriptById = new Map(transcripts.map((record) => [record.id, record.data]))
   const rows = selectedCandidates.flatMap((candidate, index) => {
-    const transcript = transcriptById.get(candidate.id)
+    const transcript = oversizedTranscriptIds.has(candidate.id)
+      ? omittedTranscript
+      : transcriptById.get(candidate.id)
     if (transcript === undefined) return []
     return [
       mapMemoryRecordToTableRow(

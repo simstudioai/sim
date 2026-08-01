@@ -333,7 +333,7 @@ describe('Memory virtual table', () => {
     expect(result.hasMore).toBe(true)
   })
 
-  it('rejects a transcript that alone exceeds the query byte budget', async () => {
+  it('returns bounded metadata without loading a transcript that exceeds the query byte budget', async () => {
     const oversized = {
       id: 'memory-1',
       key: 'conversation-1',
@@ -344,14 +344,24 @@ describe('Memory virtual table', () => {
       rowBytes: 5 * 1024 * 1024 + 1,
     }
     queueTableRows(schemaMock.memory, [oversized])
-    await expect(
-      queryMemoryTableRows({
-        workspaceId: 'workspace-1',
-        limit: 1000,
-        includeTotal: false,
-      })
-    ).rejects.toThrow('Memory transcript exceeds the 5MB table query limit')
+    const result = await queryMemoryTableRows({
+      workspaceId: 'workspace-1',
+      limit: 1000,
+      includeTotal: false,
+    })
 
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        id: oversized.id,
+        data: expect.objectContaining({
+          transcript: {
+            omitted: true,
+            reason: 'Transcript exceeds the 5MB table query limit',
+          },
+        }),
+      }),
+    ])
+    expect(result.hasMore).toBe(false)
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
   })
 
