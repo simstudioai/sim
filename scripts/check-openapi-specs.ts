@@ -38,6 +38,7 @@ const SPEC_FILES = [
   'openapi-v2-tables.json',
   'openapi-v2-knowledge.json',
   'openapi-v2-files-audit.json',
+  'openapi-v2-resources.json',
 ]
 
 /** Extra non-v2 contracts that are documented in the core spec. */
