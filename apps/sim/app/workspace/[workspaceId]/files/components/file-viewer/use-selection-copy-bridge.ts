@@ -26,6 +26,15 @@ export function useSelectionCopyBridge(
     const dom = containerRef.current
     if (!dom || !enabled) return
     const onCopy = (e: ClipboardEvent) => {
+      // A copy from a field nested in the editor — Monaco's find box being the
+      // common one — bubbles here while the document still holds a highlight,
+      // so the selection would be attached to text the user never copied.
+      //
+      // Only INPUT is skipped, deliberately: Monaco's own editing surface is a
+      // hidden TEXTAREA, so excluding textareas (as the table grid does, where
+      // the cell editors really are form fields) would suppress the chip on the
+      // main copy path this hook exists for.
+      if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return
       const context = buildContext()
       if (context) attachSelectionContextToClipboard(e.clipboardData, context)
     }
