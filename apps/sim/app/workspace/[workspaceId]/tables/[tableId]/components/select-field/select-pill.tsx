@@ -34,10 +34,17 @@ interface SelectPillProps {
   className?: string
 }
 
-/** A single option pill, rendered through the shared neutral `Badge`. */
+/**
+ * A single option pill, rendered through the shared `Badge`.
+ *
+ * The option's color IS a `Badge` variant name, so this passes it straight
+ * through rather than mapping to classes — the badge stays the single owner of
+ * its chrome. An option with no color keeps the neutral gray every option used
+ * before colors existed.
+ */
 export function SelectPill({ option, size = 'sm', className }: SelectPillProps) {
   return (
-    <Badge variant='gray' size={size} className={cn('max-w-full', className)}>
+    <Badge variant={option.color ?? 'gray'} size={size} className={cn('max-w-full', className)}>
       <span className='truncate'>{option.name}</span>
     </Badge>
   )

@@ -55,14 +55,18 @@ export type TableUndoAction =
       columnPosition: number
       columnUnique: boolean
       columnRequired: boolean
-      // A `select` column is invalid without its option set, so the snapshot has
-      // to carry it or the restore is rejected — and the saved cell data, which
-      // holds option ids, would have nothing to attach to.
-      columnOptions?: ColumnDefinition['options']
-      columnMultiple?: boolean
-      // Likewise for a `currency` column: without its code the restore would
-      // silently re-denominate every cell to the default currency.
-      columnCurrencyCode?: string
+      /**
+       * The column's type-specific metadata, captured whole rather than as one
+       * field per key.
+       *
+       * Every key matters to a faithful restore: a `select` column is invalid
+       * without its options (and the saved cell data, which holds option ids,
+       * would have nothing to attach to), a `currency` column would be
+       * re-denominated to the default, a `date` column would come back with the
+       * wrong time semantics. Reading them generically via `typeMetadataOf` is
+       * what stops the next key from being silently dropped by an undo.
+       */
+      columnMetadata?: Partial<ColumnDefinition>
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null

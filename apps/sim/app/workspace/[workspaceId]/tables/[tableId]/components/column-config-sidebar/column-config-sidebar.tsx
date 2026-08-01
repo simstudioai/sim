@@ -6,11 +6,13 @@ import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { typeOwnsMetadataKey } from '@/lib/table/column-types'
 import {
   DEFAULT_CURRENCY_CODE,
   getCurrencyOptions,
   resolveCurrencyCode,
 } from '@/lib/table/currency'
+import { clampPrecision, DEFAULT_PRECISION } from '@/lib/table/precision'
 import {
   FieldError,
   RequiredLabel,
@@ -21,7 +23,7 @@ import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
 
 /** Whether a column type carries an option set. */
 function isSelectType(type: ColumnDefinition['type']): boolean {
-  return type === 'select'
+  return typeOwnsMetadataKey(type, 'options')
 }
 
 /**
@@ -129,6 +131,14 @@ function ColumnConfigBody({
       ? resolveCurrencyCode(existingColumn?.currencyCode)
       : DEFAULT_CURRENCY_CODE
   )
+  const [precisionInput, setPrecisionInput] = useState<number>(() =>
+    clampPrecision(existingColumn?.precision)
+  )
+  const [includeTimeInput, setIncludeTimeInput] = useState<boolean>(() =>
+    // Absent means a column created before the key existed, and those hold
+    // instants — so the toggle reflects what the column actually stores.
+    config.mode === 'edit' ? existingColumn?.includeTime !== false : false
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -136,7 +146,12 @@ function ColumnConfigBody({
   const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
   const wantsOptions = isSelectType(typeInput)
-  const wantsCurrency = typeInput === 'currency'
+  // Which metadata controls to show is a registry question, not a list of type
+  // names: a type that later gains `precision` gets the control for free, and a
+  // type that loses it cannot leave a stale control behind.
+  const wantsCurrency = typeOwnsMetadataKey(typeInput, 'currencyCode')
+  const wantsPrecision = typeOwnsMetadataKey(typeInput, 'precision')
+  const wantsIncludeTime = typeOwnsMetadataKey(typeInput, 'includeTime')
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
@@ -171,6 +186,8 @@ function ColumnConfigBody({
           ...(wantsOptions ? { options: trimmedOptions } : {}),
           ...(wantsOptions && multipleInput ? { multiple: true } : {}),
           ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
+          ...(wantsPrecision ? { precision: precisionInput } : {}),
+          ...(wantsIncludeTime ? { includeTime: includeTimeInput } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
@@ -191,6 +208,10 @@ function ColumnConfigBody({
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
       const currencyChanged =
         wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
+      const precisionChanged =
+        wantsPrecision && clampPrecision(existingColumn?.precision) !== precisionInput
+      const includeTimeChanged =
+        wantsIncludeTime && (existingColumn?.includeTime !== false) !== includeTimeInput
 
       const updates: {
         name?: string
@@ -199,6 +220,8 @@ function ColumnConfigBody({
         options?: SelectOption[]
         multiple?: boolean
         currencyCode?: string
+        precision?: number
+        includeTime?: boolean
       } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
@@ -208,6 +231,12 @@ function ColumnConfigBody({
         ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
         ...(wantsCurrency && (typeChanged || currencyChanged)
           ? { currencyCode: currencyInput }
+          : {}),
+        ...(wantsPrecision && (typeChanged || precisionChanged)
+          ? { precision: precisionInput }
+          : {}),
+        ...(wantsIncludeTime && (typeChanged || includeTimeChanged)
+          ? { includeTime: includeTimeInput }
           : {}),
       }
       if (Object.keys(updates).length === 0) {
@@ -301,6 +330,37 @@ function ColumnConfigBody({
                 searchable
                 searchPlaceholder='Search currencies'
                 maxHeight={260}
+              />
+            </div>
+          </>
+        )}
+
+        {wantsPrecision && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <RequiredLabel>Decimal places</RequiredLabel>
+              <ChipInput
+                type='number'
+                inputMode='numeric'
+                min={DEFAULT_PRECISION.min}
+                max={DEFAULT_PRECISION.max}
+                value={String(precisionInput)}
+                onChange={(e) => setPrecisionInput(clampPrecision(Number(e.target.value)))}
+              />
+            </div>
+          </>
+        )}
+
+        {wantsIncludeTime && (
+          <>
+            <FieldDivider />
+            <div className='flex items-center justify-between pl-0.5'>
+              <Label htmlFor='column-sidebar-include-time'>Include time</Label>
+              <Switch
+                id='column-sidebar-include-time'
+                checked={includeTimeInput}
+                onCheckedChange={(v) => setIncludeTimeInput(!!v)}
               />
             </div>
           </>

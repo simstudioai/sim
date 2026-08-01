@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, ChipInput } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
-import type { SelectOption } from '@/lib/table'
+import { SELECT_OPTION_COLORS, type SelectOption } from '@/lib/table'
+import { SelectColorPicker } from './select-color-picker'
 
 interface SelectOptionsEditorProps {
   options: SelectOption[]
@@ -44,10 +45,17 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
     onChange(options.filter((o) => o.id !== id))
   }
 
-  /** Typing into the trailing row promotes it to a real option and keeps focus. */
+  /**
+   * Typing into the trailing row promotes it to a real option and keeps focus.
+   *
+   * The color cycles through the palette by position rather than defaulting to
+   * gray, so a freshly authored option set is distinguishable at a glance
+   * without the user colouring each one by hand.
+   */
   const materialize = (name: string) => {
     const id = generateShortId()
-    onChange([...options, { id, name }])
+    const color = SELECT_OPTION_COLORS[options.length % SELECT_OPTION_COLORS.length]
+    onChange([...options, { id, name, color }])
     setPendingFocusId(id)
   }
 
@@ -55,6 +63,11 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
     <div className='flex flex-col gap-1'>
       {options.map((option) => (
         <div key={option.id} className='flex items-center gap-1.5'>
+          <SelectColorPicker
+            color={option.color}
+            onChange={(color) => update(option.id, { color })}
+            optionName={option.name}
+          />
           <ChipInput
             ref={(el) => {
               if (el) inputRefs.current.set(option.id, el)
@@ -86,6 +99,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
         </div>
       ))}
       <div className='flex items-center gap-1.5'>
+        <span className='size-7 shrink-0' aria-hidden />
         <ChipInput
           ref={trailingRef}
           value=''

@@ -35,6 +35,7 @@ import {
 } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 import type { ColumnTypeMetadata } from '@/lib/table/types'
+import { SELECT_OPTION_COLORS } from '@/lib/table/types'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
@@ -51,6 +52,8 @@ export const selectOptionSchema = z.object({
     .string()
     .min(1, 'Option name is required')
     .max(100, 'Option name must be 100 characters or less'),
+  /** Pill color; absent renders the neutral gray options used before colors. */
+  color: z.enum(SELECT_OPTION_COLORS).optional(),
 })
 
 export const selectOptionsSchema = z

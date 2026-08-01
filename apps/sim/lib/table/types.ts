@@ -28,12 +28,48 @@ export interface ColumnOption {
 }
 
 /**
+ * Colors a select option may be rendered in.
+ *
+ * Deliberately a closed set of `Badge` variant names, not free-form hex. Each
+ * name resolves to a `--badge-*-bg` / `--badge-*-text` pair that is already
+ * tuned for both light and dark, so an option stays legible in either theme —
+ * a stored hex would be chosen against one theme and fail in the other, and a
+ * value that no longer maps to a variant would fall back to `currentColor` and
+ * render as a black chip.
+ */
+export const SELECT_OPTION_COLORS = [
+  'gray',
+  'blue',
+  'green',
+  'amber',
+  'orange',
+  'red',
+  'purple',
+  'pink',
+  'teal',
+  'cyan',
+] as const
+
+export type SelectOptionColor = (typeof SELECT_OPTION_COLORS)[number]
+
+/** Whether `value` is one of the supported option colors. */
+export function isSelectOptionColor(value: unknown): value is SelectOptionColor {
+  return typeof value === 'string' && (SELECT_OPTION_COLORS as readonly string[]).includes(value)
+}
+
+/**
  * One choice in a `select`/`multiselect` column. `id` is stable — cell data
  * references it, so renaming an option never rewrites rows.
  */
 export interface SelectOption {
   id: string
   name: string
+  /**
+   * Pill color. Absent on options created before this key, which render in the
+   * neutral gray the whole feature used to use — so an existing column looks
+   * exactly as it did until someone picks a color.
+   */
+  color?: SelectOptionColor
 }
 
 export interface ColumnDefinition {
@@ -81,11 +117,14 @@ export interface ColumnDefinition {
   /**
    * Whether a `date` column carries a time of day.
    *
-   * `false` (the default) stores a bare calendar day, `YYYY-MM-DD`, and renders
-   * it without a timezone conversion — which is the only correct shape for a
-   * birthday or due date. `true` stores a full ISO instant and renders it in
-   * the viewer's zone. Changing this rewrites cells, so `date` declares a
-   * `migrateCellsForMetadata`.
+   * `false` stores a bare calendar day (`YYYY-MM-DD`) — the right shape for a
+   * birthday or due date, and the value stamped on newly created date columns.
+   * `true` stores a full wall-clock instant.
+   *
+   * **Absent is not the same as `false`.** A column predating this key holds
+   * instants, so treating it as date-only would truncate a stored time on the
+   * next write to any cell; only an explicit `false` truncates. Switching it
+   * off rewrites cells, so `date` declares a `migrateCellsForMetadata`.
    */
   includeTime?: boolean
 }

@@ -22,7 +22,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf } from '@/lib/table/column-types'
+import { columnTypeOf, typeMetadataOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
@@ -3641,11 +3641,9 @@ export function TableGrid({
             columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
             columnUnique: entry.def?.unique ?? false,
             columnRequired: entry.def?.required ?? false,
-            // Without these a deleted select column can't be re-created — it is
+            // Without this a deleted select column can't be re-created — it is
             // invalid with no options, and the saved cell data is option ids.
-            ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
-            ...(entry.def?.multiple ? { columnMultiple: true } : {}),
-            ...(entry.def?.currencyCode ? { columnCurrencyCode: entry.def.currencyCode } : {}),
+            ...(entry.def ? { columnMetadata: typeMetadataOf(entry.def) } : {}),
             cellData,
             previousOrder: orderSnapshot,
             previousWidth,

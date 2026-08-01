@@ -80,6 +80,7 @@ import type {
   Filter,
   RowData,
   SelectOption,
+  SelectOptionColor,
   SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
@@ -92,6 +93,7 @@ import type {
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
+import { isSelectOptionColor } from '@/lib/table/types'
 import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
@@ -356,12 +358,27 @@ export function normalizeSelectOptionsInput(
   }
   const resolveId = (name: string): string => idByName.get(name.toLowerCase()) ?? generateShortId()
 
+  // An option's existing color survives a re-send that omits it, so an edit
+  // that only renames options does not silently reset every pill to gray.
+  const colorByName = new Map<string, SelectOptionColor>()
+  for (const option of existing) {
+    if (option.color) colorByName.set(option.name.toLowerCase(), option.color)
+  }
+  const resolveColor = (name: string, supplied: unknown): SelectOptionColor | undefined => {
+    if (typeof supplied === 'string' && isSelectOptionColor(supplied)) return supplied
+    return colorByName.get(name.toLowerCase())
+  }
+
   return raw.map((entry) => {
-    if (typeof entry === 'string') return { id: resolveId(entry), name: entry }
-    const e = (entry ?? {}) as { id?: unknown; name?: unknown }
+    if (typeof entry === 'string') {
+      const color = resolveColor(entry, undefined)
+      return { id: resolveId(entry), name: entry, ...(color ? { color } : {}) }
+    }
+    const e = (entry ?? {}) as { id?: unknown; name?: unknown; color?: unknown }
     const name = typeof e.name === 'string' ? e.name : String(e.name ?? '')
     const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : resolveId(name)
-    return { id, name }
+    const color = resolveColor(name, e.color)
+    return { id, name, ...(color ? { color } : {}) }
   })
 }
 
