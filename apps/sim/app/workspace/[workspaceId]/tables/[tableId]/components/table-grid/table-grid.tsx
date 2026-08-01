@@ -381,9 +381,15 @@ function writeLoadedRowsWithChip(opts: {
   context: ChatContext | null
 }): boolean {
   const { rows, context } = opts
-  if (!context || !opts.complete || rows.length === 0 || rows.length > MAX_TABLE_SELECTION_ROWS) {
-    return false
-  }
+  // Bounded by the TEXT limit, not the chip's row cap: `context` already slices
+  // itself to MAX_TABLE_SELECTION_ROWS, so a larger selection still copies in
+  // full here and carries a chip for as many rows as a chip can reference —
+  // matching what Add to Chat does with the same selection. Gating on the chip
+  // cap instead would drop the chip entirely on the async fall-through, which
+  // cannot carry a custom MIME. Past MAX_COPY_ROWS the paged path must take
+  // over, since it owns truncation and the notice that goes with it.
+  if (!context || !opts.complete || rows.length === 0) return false
+  if (rows.length > TABLE_LIMITS.MAX_COPY_ROWS) return false
   opts.clipboardData?.setData(
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
