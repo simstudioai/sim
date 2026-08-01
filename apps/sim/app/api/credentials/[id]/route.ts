@@ -5,7 +5,11 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { type CredentialActorContext, getCredentialActorContext } from '@/lib/credentials/access'
-import { performDeleteCredential, performUpdateCredential } from '@/lib/credentials/orchestration'
+import {
+  isProviderOutageCode,
+  performDeleteCredential,
+  performUpdateCredential,
+} from '@/lib/credentials/orchestration'
 
 const logger = createLogger('CredentialByIdAPI')
 
@@ -101,7 +105,9 @@ export const PUT = withRouteHandler(
                 ? 409
                 : // A provider outage during reconnect is infra, not a bad
                   // request — mirror the create route and runtime token route.
-                  result.providerErrorCode === 'provider_unavailable'
+                  // Every provider family names its own outage code, so this
+                  // asks the shared predicate rather than matching one literal.
+                  isProviderOutageCode(result.providerErrorCode)
                   ? 502
                   : result.errorCode === 'validation'
                     ? 400

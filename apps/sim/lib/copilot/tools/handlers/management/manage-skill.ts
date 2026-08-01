@@ -1,11 +1,12 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { getSkillActorContext } from '@/lib/skills/access'
-import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
-import { deleteSkill, listSkillsForUser, upsertSkills } from '@/lib/workflows/skills/operations'
+import {
+  performCreateSkill,
+  performDeleteSkill,
+  performUpdateSkill,
+} from '@/lib/skills/orchestration'
+import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -77,35 +78,16 @@ export async function executeManageSkill(
         }
       }
 
-      const { skills: resultSkills } = await upsertSkills({
-        skills: [{ name: params.name, description: params.description, content: params.content }],
+      const result = await performCreateSkill({
         workspaceId,
         userId: context.userId,
+        name: params.name,
+        description: params.description,
+        content: params.content,
+        source: 'tool_input',
       })
-      const created = resultSkills.find((s) => s.name === params.name)
-
-      recordAudit({
-        workspaceId,
-        actorId: context.userId,
-        action: AuditAction.SKILL_CREATED,
-        resourceType: AuditResourceType.SKILL,
-        resourceId: created?.id,
-        resourceName: params.name,
-        description: `Created skill "${params.name}"`,
-        metadata: { source: 'tool_input' },
-      })
-      if (created?.id) {
-        captureServerEvent(
-          context.userId,
-          'skill_created',
-          {
-            skill_id: created.id,
-            skill_name: params.name,
-            workspace_id: workspaceId,
-            source: 'tool_input',
-          },
-          { groups: { workspace: workspaceId } }
-        )
+      if (!result.success || !result.skill) {
+        return { success: false, error: result.error ?? 'Failed to create skill' }
       }
 
       return {
@@ -113,9 +95,9 @@ export async function executeManageSkill(
         output: {
           success: true,
           operation,
-          skillId: created?.id,
-          name: params.name,
-          message: `Created skill "${params.name}"`,
+          skillId: result.skill.id,
+          name: result.skill.name,
+          message: `Created skill "${result.skill.name}"`,
         },
       }
     }
@@ -131,66 +113,28 @@ export async function executeManageSkill(
         }
       }
 
-      if (isBuiltinSkillId(params.skillId)) {
-        return { success: false, error: 'Built-in skills are read-only and cannot be modified' }
-      }
-
-      const actor = await getSkillActorContext(params.skillId, context.userId)
-      if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
-        return { success: false, error: `Skill not found: ${params.skillId}` }
-      }
-      if (!actor.canEdit) {
-        return {
-          success: false,
-          error: `Permission denied: editing skill "${actor.skill.name}" requires skill editor access. Ask a skill editor to add you.`,
-        }
-      }
-
       // Partial update: omitted fields keep their current values server-side.
-      await upsertSkills({
-        skills: [
-          {
-            id: params.skillId,
-            ...(params.name ? { name: params.name } : {}),
-            ...(params.description ? { description: params.description } : {}),
-            ...(params.content ? { content: params.content } : {}),
-          },
-        ],
+      const result = await performUpdateSkill({
         workspaceId,
         userId: context.userId,
+        skillId: params.skillId,
+        ...(params.name ? { name: params.name } : {}),
+        ...(params.description ? { description: params.description } : {}),
+        ...(params.content ? { content: params.content } : {}),
+        source: 'tool_input',
       })
-
-      const updatedName = params.name || actor.skill.name
-      recordAudit({
-        workspaceId,
-        actorId: context.userId,
-        action: AuditAction.SKILL_UPDATED,
-        resourceType: AuditResourceType.SKILL,
-        resourceId: params.skillId,
-        resourceName: updatedName,
-        description: `Updated skill "${updatedName}"`,
-        metadata: { source: 'tool_input' },
-      })
-      captureServerEvent(
-        context.userId,
-        'skill_updated',
-        {
-          skill_id: params.skillId,
-          skill_name: updatedName,
-          workspace_id: workspaceId,
-          source: 'tool_input',
-        },
-        { groups: { workspace: workspaceId } }
-      )
+      if (!result.success || !result.skill) {
+        return { success: false, error: result.error ?? 'Failed to update skill' }
+      }
 
       return {
         success: true,
         output: {
           success: true,
           operation,
-          skillId: params.skillId,
-          name: updatedName,
-          message: `Updated skill "${updatedName}"`,
+          skillId: result.skill.id,
+          name: result.skill.name,
+          message: `Updated skill "${result.skill.name}"`,
         },
       }
     }
@@ -200,39 +144,15 @@ export async function executeManageSkill(
         return { success: false, error: "'skillId' is required for 'delete'" }
       }
 
-      if (!isBuiltinSkillId(params.skillId)) {
-        const actor = await getSkillActorContext(params.skillId, context.userId)
-        if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
-          return { success: false, error: `Skill not found: ${params.skillId}` }
-        }
-        if (!actor.canEdit) {
-          return {
-            success: false,
-            error: `Permission denied: deleting skill "${actor.skill.name}" requires skill editor access. Ask a skill editor to add you.`,
-          }
-        }
-      }
-
-      const deleted = await deleteSkill({ skillId: params.skillId, workspaceId })
-      if (!deleted) {
-        return { success: false, error: `Skill not found: ${params.skillId}` }
-      }
-
-      recordAudit({
+      const result = await performDeleteSkill({
         workspaceId,
-        actorId: context.userId,
-        action: AuditAction.SKILL_DELETED,
-        resourceType: AuditResourceType.SKILL,
-        resourceId: params.skillId,
-        description: 'Deleted skill',
-        metadata: { source: 'tool_input' },
+        userId: context.userId,
+        skillId: params.skillId,
+        source: 'tool_input',
       })
-      captureServerEvent(
-        context.userId,
-        'skill_deleted',
-        { skill_id: params.skillId, workspace_id: workspaceId, source: 'tool_input' },
-        { groups: { workspace: workspaceId } }
-      )
+      if (!result.success) {
+        return { success: false, error: result.error ?? 'Failed to delete skill' }
+      }
 
       return {
         success: true,
