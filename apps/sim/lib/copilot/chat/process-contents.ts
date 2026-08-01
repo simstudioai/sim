@@ -930,12 +930,6 @@ async function resolveFileSelectionResource(
   }
 }
 
-/**
- * Resolves a table selection into an inline markdown table. Rows are re-fetched
- * by id from the DB (never trusting client-sent cell values); when `columnIds`
- * is present the projection is narrowed to that cell range, otherwise every
- * column is included.
- */
 /** Renders one cell for a markdown table row, escaping the delimiters. */
 function renderTableCell(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -943,6 +937,13 @@ function renderTableCell(value: unknown): string {
   return cell.replace(/\|/g, '\\|').replace(/\n/g, ' ')
 }
 
+/**
+ * Resolves a table selection into an inline markdown table. Rows are re-fetched
+ * by id from the DB (never trusting client-sent cell values); when `columnIds`
+ * is present the projection is narrowed to that cell range, otherwise every
+ * column is included. Output is bounded by
+ * {@link MAX_TABLE_SELECTION_CONTENT_LENGTH}, not just the row and column caps.
+ */
 async function resolveTableSelectionResource(
   tableId: string,
   workspaceId: string,

@@ -360,10 +360,13 @@ function buildTableSelectionContext(opts: {
 
 /**
  * Copies `rows` synchronously on the copy event so a chat-selection chip can
- * ride alongside the tab-separated text. Only viable when every selected row is
- * already loaded and the set is within the chip cap — otherwise the caller falls
- * back to the paged `writeSelectionToClipboard`, whose async Clipboard API write
- * replaces the whole clipboard and so cannot carry a custom MIME type.
+ * ride alongside the tab-separated text. The paged `writeSelectionToClipboard`
+ * cannot do this: its async Clipboard API write replaces the whole clipboard and
+ * so cannot carry a custom MIME type.
+ *
+ * Taking this path requires a chip to carry AND every selected row already
+ * loaded and within the chip cap; otherwise the canonical paged path handles the
+ * copy, including its row loading and truncation notice.
  *
  * @returns True when it handled the copy, false to fall through to the paged path.
  */
@@ -374,13 +377,15 @@ function writeLoadedRowsWithChip(opts: {
   buildCells: (row: TableRowType) => string[]
   context: ChatContext | null
 }): boolean {
-  const { rows } = opts
-  if (!opts.allLoaded || rows.length === 0 || rows.length > MAX_TABLE_SELECTION_ROWS) return false
+  const { rows, context } = opts
+  if (!context || !opts.allLoaded || rows.length === 0 || rows.length > MAX_TABLE_SELECTION_ROWS) {
+    return false
+  }
   opts.clipboardData?.setData(
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
   )
-  if (opts.context) attachSelectionContextToClipboard(opts.clipboardData, opts.context)
+  attachSelectionContextToClipboard(opts.clipboardData, context)
   toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
   return true
 }
@@ -3836,11 +3841,9 @@ export function TableGrid({
     if (!sel) return undefined
     const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
     if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return undefined
-    const ids: string[] = []
-    for (let c = sel.startCol; c <= sel.endCol; c++) {
-      const col = displayColumns[c]
-      if (col) ids.push(getColumnId(col))
-    }
+    // Collapsed here too (not only in buildTableSelectionContext) because this
+    // also decides whether the menu item reads "cell range" or "rows".
+    const ids = selectedColumnIds(displayColumns, sel)
     return ids.length > 0 && ids.length < displayColumns.length ? ids : undefined
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows, displayColumns])
 
