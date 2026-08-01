@@ -173,14 +173,15 @@ describe('resolveServableDocBytes', () => {
     expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
 
-  it('returns raw XLSX source when there is no workspaceId (xlsx has no isolated-vm path)', async () => {
-    const result = await resolveServableDocBytes({
-      rawBuffer: XLSX_SOURCE,
-      fileName: 'sheet.xlsx',
-      workspaceId: undefined,
-    })
+  it('throws instead of returning XLSX source when there is no workspaceId', async () => {
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: XLSX_SOURCE,
+        fileName: 'sheet.xlsx',
+        workspaceId: undefined,
+      })
+    ).rejects.toBeInstanceOf(DocCompileUserError)
 
-    expect(result.buffer).toBe(XLSX_SOURCE)
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
     expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
