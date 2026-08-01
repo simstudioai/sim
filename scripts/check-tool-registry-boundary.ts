@@ -50,11 +50,19 @@ const ENTRIES = [
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs']
 
 /**
- * Matches value imports and re-exports, skipping `import type` — a type-only
- * edge is erased at compile time and costs nothing at runtime.
+ * Matches value imports and re-exports, skipping `import type` and
+ * `export type` — a type-only edge is erased at compile time and costs nothing.
+ *
+ * `REEXPORT_RE` allows an alias after the star so `export * as ns from` is not
+ * missed, and `DYNAMIC_IMPORT_RE` covers `import('…')`. A dynamic import splits
+ * the registry into its own chunk rather than the route's initial one, but it
+ * still puts 4,300 tools' worth of executable config on a client path, so it
+ * counts as reaching it.
  */
 const IMPORT_RE = /(?:^|\n)\s*import\s+(?!type\b)(?:[\s\S]*?from\s*)?['"]([^'"]+)['"]/g
-const REEXPORT_RE = /(?:^|\n)\s*export\s+(?!type\b)(?:\*|\{[\s\S]*?\})\s*from\s*['"]([^'"]+)['"]/g
+const REEXPORT_RE =
+  /(?:^|\n)\s*export\s+(?!type\b)(?:\*(?:\s+as\s+[\w$]+)?|\{[\s\S]*?\})\s*from\s*['"]([^'"]+)['"]/g
+const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /** Resolves `@/` and relative specifiers. Bare package specifiers are ignored. */
 function resolveSpecifier(specifier: string, importer: string): string | null {
@@ -94,7 +102,7 @@ function walk(entry: string): Walk {
     } catch {
       continue
     }
-    for (const pattern of [IMPORT_RE, REEXPORT_RE]) {
+    for (const pattern of [IMPORT_RE, REEXPORT_RE, DYNAMIC_IMPORT_RE]) {
       pattern.lastIndex = 0
       let match = pattern.exec(source)
       while (match !== null) {
