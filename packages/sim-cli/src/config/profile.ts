@@ -47,7 +47,6 @@ export interface ProfileOverrides {
   endpoint?: string
   apiKey?: string
   workspaceId?: string
-  output?: string
 }
 
 /**
@@ -186,9 +185,13 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     'unset'
   )
 
+  /**
+   * No flag tier: output format is a profile setting, not a per-command one.
+   * `SIM_OUTPUT` stays as the one-off escape hatch (`SIM_OUTPUT=json sim … | jq`)
+   * and as the file-less path for CI, but there is deliberately no `--output`.
+   */
   const output = resolve<OutputFormat>(
     [
-      ['flag', parseOutput(overrides.output)],
       ['env', parseOutput(process.env.SIM_OUTPUT)],
       ['config', parseOutput(config.output)],
     ],

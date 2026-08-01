@@ -53,7 +53,7 @@ Each setting resolves independently, first match wins:
 
 | Rank | Source |
 | --- | --- |
-| 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
+| 1 | Command-line flag (`--endpoint`, `--workspace`) |
 | 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
 | 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
 | 4 | Built-in default (`https://sim.ai`, `table`) |
@@ -154,7 +154,9 @@ everything" default.
 
 ### Output formats
 
-`--output` / `-o`, or `SIM_OUTPUT`, or `output =` in the profile:
+Output format is a **profile setting**, not a per-command flag — there is no
+`--output`. Set it once with `sim configure --set-output <format>`, or override
+ambiently with `SIM_OUTPUT` for a one-off or for CI:
 
 | Format | For |
 | --- | --- |
@@ -169,10 +171,13 @@ duration stays `1500`, not `"1.5s"` — so switching format never changes the da
 parsing.
 
 ```bash
-sim logs list --level error -o json | jq -r '.[].executionId'
-sim logs list --level error -o yaml > logs.yaml
+sim configure --set-output json                      # for this profile, from now on
+sim configure --set-output text --profile scripts    # a profile dedicated to scripting
 
-sim files list -o text | while IFS=$'\t' read -r id name size type uploaded; do
+SIM_OUTPUT=json sim logs list --level error | jq -r '.[].executionId'
+SIM_OUTPUT=yaml sim logs list --level error > logs.yaml
+
+SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name size type uploaded; do
   echo "$id $name"
 done
 ```
@@ -180,9 +185,9 @@ done
 An absent value is an em-dash in `table` and an **empty field** in `text`, so
 emptiness tests downstream behave.
 
-A bad `--output` is an error; a bad `SIM_OUTPUT` or `output =` is ignored and
-falls back to `table` — ambient settings should not brick every command, but a
-flag you just typed should not be silently disregarded.
+A bad `SIM_OUTPUT` or `output =` is ignored and falls back to `table`. Both are
+ambient — set once, then read by every later command — so one bad value should
+not break the CLI outright.
 
 ## How this stays in sync with the API
 

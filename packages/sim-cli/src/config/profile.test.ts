@@ -97,10 +97,23 @@ describe('profile resolution', () => {
   })
 
   it('ignores an unrecognized output format instead of failing the whole resolve', () => {
-    // Ambient sources tolerate garbage so one bad value cannot brick every
-    // command; the `--output` flag is strict instead (commander `.choices`).
+    // Both output sources are ambient — set once, then every later command reads
+    // them — so a bad value falls back rather than breaking the CLI outright.
     process.env.SIM_OUTPUT = 'xml'
     expect(resolveProfile().output).toBe('table')
+
+    process.env.SIM_OUTPUT = undefined
+    writeConfigProfile('default', { output: 'xml' })
+    expect(resolveProfile().output).toBe('table')
+  })
+
+  it('takes the output format from the profile, and lets the env override it', () => {
+    // There is deliberately no `--output` flag: format is a profile setting.
+    writeConfigProfile('default', { output: 'yaml' })
+    expect(resolveProfile()).toMatchObject({ output: 'yaml', sources: { output: 'config' } })
+
+    process.env.SIM_OUTPUT = 'json'
+    expect(resolveProfile()).toMatchObject({ output: 'json', sources: { output: 'env' } })
   })
 
   it('accepts every documented output format from the environment', () => {

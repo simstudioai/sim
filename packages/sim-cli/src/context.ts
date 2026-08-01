@@ -7,7 +7,6 @@ export interface GlobalOptions {
   profile?: string
   endpoint?: string
   workspace?: string
-  output?: string
 }
 
 /**
@@ -25,7 +24,6 @@ export function profileFrom(command: Command, extra: ProfileOverrides = {}): Res
     profile: globals.profile,
     endpoint: globals.endpoint,
     workspaceId: globals.workspace,
-    output: globals.output,
     ...extra,
   })
 }
