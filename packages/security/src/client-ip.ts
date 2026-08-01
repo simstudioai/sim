@@ -170,12 +170,15 @@ export function resolveClientIp(
 
 /**
  * The **leftmost** `X-Forwarded-For` hop — the origin address *asserted* by the
- * caller — in canonical form, or `null` when none parses.
+ * caller — in canonical form, falling back to `X-Real-IP`, or `null` when
+ * neither header yields an address.
  *
  * Deliberately the opposite end of the chain from {@link resolveClientIp}, and
  * usable for exactly one thing: comparing against an operator-configured
  * allowlist of expected senders, where the question is "which address does this
- * delivery claim to come from" rather than "who do I throttle".
+ * delivery claim to come from" rather than "who do I throttle". The `X-Real-IP`
+ * fallback matters because a proxy may set it *instead of* a forwarded chain,
+ * and it is then the only record of the sender.
  *
  * **Never key a rate limit, quota, or lockout on this.** Under any proxy that
  * appends to `X-Forwarded-For` the value is caller-controlled and can be rotated
@@ -184,12 +187,12 @@ export function resolveClientIp(
  */
 export function getAssertedOriginIp(request: ClientIpHeaderSource): string | null {
   const forwarded = request.headers.get('x-forwarded-for')
-  if (!forwarded) return null
-  for (const hop of forwarded.split(',')) {
+  for (const hop of forwarded?.split(',') ?? []) {
     const addr = parseHop(hop)
     if (addr) return addr.toString()
   }
-  return null
+  const realIp = parseHop(request.headers.get('x-real-ip') ?? '')
+  return realIp ? realIp.toString() : null
 }
 
 /**

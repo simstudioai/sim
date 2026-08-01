@@ -173,7 +173,20 @@ describe('getAssertedOriginIp', () => {
     )
   })
 
-  it('returns null when there is no forwarded chain or no address in it', () => {
+  it('falls back to x-real-ip for proxies that set it instead of a chain', () => {
+    expect(getAssertedOriginIp(req({ 'x-real-ip': '203.0.113.7' }))).toBe('203.0.113.7')
+    expect(
+      getAssertedOriginIp(req({ 'x-forwarded-for': 'unknown', 'x-real-ip': '203.0.113.7' }))
+    ).toBe('203.0.113.7')
+  })
+
+  it('prefers the forwarded chain over x-real-ip when both parse', () => {
+    expect(
+      getAssertedOriginIp(req({ 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '10.0.0.1' }))
+    ).toBe('203.0.113.7')
+  })
+
+  it('returns null when no header yields an address', () => {
     expect(getAssertedOriginIp(req({}))).toBeNull()
     expect(getAssertedOriginIp(req({ 'x-forwarded-for': 'unknown' }))).toBeNull()
     expect(canonicalizeIp('not-an-ip')).toBeNull()
