@@ -14,7 +14,13 @@ import rawToolIds from '@/tools/generated/tool-ids'
  * including returning the input unchanged when nothing matches. See
  * `.agents/skills/tool-registry-boundary/SKILL.md`.
  */
-const toolIds: string[] = rawToolIds
+/**
+ * Frozen because {@link getToolIds} hands it out directly. Returning a copy
+ * would allocate on every call in the loops that consume it; freezing makes an
+ * in-place `sort()`/`push()` by a caller throw rather than silently corrupt
+ * every later lookup.
+ */
+const toolIds: readonly string[] = Object.freeze(rawToolIds)
 
 const toolIdSet = new Set(toolIds)
 
@@ -48,8 +54,8 @@ function getLatestByBaseName(): Map<string, string> {
   return latestByBaseName
 }
 
-/** Every registered tool id, including versioned variants. */
-export function getToolIds(): string[] {
+/** Every registered tool id, including versioned variants. Frozen — copy before sorting. */
+export function getToolIds(): readonly string[] {
   return toolIds
 }
 
