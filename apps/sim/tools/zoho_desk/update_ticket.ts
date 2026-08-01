@@ -101,8 +101,8 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
     url: (params) => `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}`,
     method: 'PATCH',
     headers: (params) => buildZohoDeskHeaders(params),
-    body: (params) =>
-      filterUndefined({
+    body: (params) => {
+      const body = filterUndefined({
         subject: params.subject,
         status: params.status,
         priority: params.priority,
@@ -112,7 +112,16 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         subCategory: params.subCategory,
         dueDate: params.dueDate,
         customFields: params.customFields,
-      }),
+      })
+      // Zoho rejects an empty PATCH; fail early with an actionable message
+      // instead of surfacing an opaque Zoho error for a no-op update.
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          'No fields to update. Provide at least one field to change (e.g. status, priority, or subject).'
+        )
+      }
+      return body
+    },
   },
 
   transformResponse: async (response) => {
