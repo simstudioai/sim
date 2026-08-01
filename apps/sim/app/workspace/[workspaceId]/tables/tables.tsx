@@ -10,6 +10,7 @@ import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
+import { canMutateTable, canRenameTable } from '@/lib/table/capabilities'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
@@ -1124,11 +1125,17 @@ export function Tables() {
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
-        onDelete={() => setIsDeleteDialogOpen(true)}
-        onRename={() => {
-          if (activeTable) listRename.startRename(activeTable.id, activeTable.name)
-        }}
-        onImportCsv={() => setIsImportDialogOpen(true)}
+        onDelete={
+          activeTable && canMutateTable(activeTable) ? () => setIsDeleteDialogOpen(true) : undefined
+        }
+        onRename={
+          activeTable && canRenameTable(activeTable)
+            ? () => listRename.startRename(activeTable.id, activeTable.name)
+            : undefined
+        }
+        onImportCsv={
+          activeTable && canMutateTable(activeTable) ? () => setIsImportDialogOpen(true) : undefined
+        }
         onExportCsv={async () => {
           if (!activeTable) return
           try {
@@ -1140,8 +1147,10 @@ export function Tables() {
         }}
         onTogglePin={handleTogglePin}
         pinned={activeTable ? pinnedTableIds.has(activeTable.id) : false}
-        onMove={canEdit ? handleMoveTable : undefined}
-        moveOptions={canEdit ? tableMoveOptions : undefined}
+        onMove={canEdit && activeTable && canMutateTable(activeTable) ? handleMoveTable : undefined}
+        moveOptions={
+          canEdit && activeTable && canMutateTable(activeTable) ? tableMoveOptions : undefined
+        }
         disableDelete={!canEdit}
         disableRename={!canEdit}
         disableImport={!canEdit}

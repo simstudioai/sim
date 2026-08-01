@@ -1,15 +1,124 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { permissionsMock, permissionsMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableRowLimitError } from '@/lib/table/billing'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  rootErrorMessage,
+  rowWriteErrorResponse,
+  tableFilterError,
+} from '@/app/api/table/utils'
+
+const { mockResolveTableById } = vi.hoisted(() => ({
+  mockResolveTableById: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/table/resolver.server', () => ({
+  resolveTableById: mockResolveTableById,
+}))
 
 /** Mimics drizzle's DrizzleQueryError: message is the failed SQL, real error on `cause`. */
 function wrapLikeDrizzle(cause: Error): Error {
   return new Error('Failed query: insert into "user_table_rows" ...', { cause })
 }
+
+describe('Memory mutation access', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolveTableById.mockResolvedValue({
+      id: 'system_memory_workspace-1',
+      isVirtual: true,
+      workspaceId: 'workspace-1',
+      locks: {
+        schemaLocked: true,
+        insertLocked: true,
+        updateLocked: true,
+        deleteLocked: true,
+      },
+    })
+  })
+
+  it('returns read-only for a workspace writer', async () => {
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+    await expect(checkAccess('system_memory_workspace-1', 'user-1', 'write')).resolves.toEqual({
+      ok: false,
+      status: 423,
+    })
+    expect(mockResolveTableById).toHaveBeenCalledWith('system_memory_workspace-1')
+  })
+
+  it('checks workspace permission before returning read-only', async () => {
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)
+
+    await expect(checkAccess('system_memory_workspace-1', 'user-1', 'write')).resolves.toEqual({
+      ok: false,
+      status: 403,
+    })
+    expect(mockResolveTableById).toHaveBeenCalledWith('system_memory_workspace-1')
+  })
+
+  it('returns forbidden before checking locks when workspace access is read-only', async () => {
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(checkAccess('system_memory_workspace-1', 'user-1', 'write')).resolves.toEqual({
+      ok: false,
+      status: 403,
+    })
+  })
+
+  it('returns a virtual table definition to a workspace reader', async () => {
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(checkAccess('system_memory_workspace-1', 'user-1', 'read')).resolves.toEqual({
+      ok: true,
+      table: expect.objectContaining({ id: 'system_memory_workspace-1' }),
+    })
+    expect(mockResolveTableById).toHaveBeenCalledWith('system_memory_workspace-1')
+  })
+
+  it('uses generic copy for a locked access result', async () => {
+    const response = accessError({ ok: false, status: 423 }, 'request-1', 'table-1')
+
+    expect(response.status).toBe(423)
+    expect(await response.json()).toEqual({
+      error: 'This table is locked and can’t be changed.',
+    })
+  })
+})
+
+describe('Persisted table mutation access', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolveTableById.mockResolvedValue({
+      id: 'table-1',
+      workspaceId: 'workspace-1',
+      locks: {
+        schemaLocked: true,
+        insertLocked: true,
+        updateLocked: true,
+        deleteLocked: true,
+      },
+    })
+  })
+
+  it.each(['write', 'admin'] as const)(
+    'admits a fully locked table at %s so its locks can still be cleared',
+    async (level) => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+      await expect(checkAccess('table-1', 'user-1', level)).resolves.toEqual({
+        ok: true,
+        table: expect.objectContaining({ id: 'table-1' }),
+      })
+    }
+  )
+})
 
 describe('rootErrorMessage', () => {
   it('returns the message of a plain error', () => {

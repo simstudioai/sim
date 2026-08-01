@@ -102,6 +102,10 @@ import {
   validateRowSize,
 } from '@/lib/table/validation'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
+import {
+  findVirtualTableRowMatches,
+  queryVirtualTableRows,
+} from '@/lib/virtual-tables/service.server'
 
 const logger = createLogger('TableRowsService')
 
@@ -865,6 +869,8 @@ export async function findRowMatches(
   options: { q: string; filter?: Filter; sort?: Sort },
   requestId: string
 ): Promise<{ matches: FindRowMatch[]; truncated: boolean }> {
+  if (table.isVirtual) return findVirtualTableRowMatches(table, options)
+
   const tableName = USER_TABLE_ROWS_SQL_NAME
   const columns = table.schema.columns
   // Row data is keyed by stable column id, so scan/return JSONB keys as ids.
@@ -1025,7 +1031,7 @@ async function countRowsTenantBounded(whereClause: SQL | undefined): Promise<num
   })
 }
 
-export async function queryRows(
+async function queryPersistedRows(
   table: TableDefinition,
   options: QueryOptions,
   requestId: string
@@ -1158,6 +1164,15 @@ export async function queryRows(
     offset,
     nextCursor,
   }
+}
+
+export async function queryRows(
+  table: TableDefinition,
+  options: QueryOptions,
+  requestId: string
+): Promise<QueryResult> {
+  if (table.isVirtual) return queryVirtualTableRows(table, options)
+  return queryPersistedRows(table, options, requestId)
 }
 
 interface BoundedFetchParams {

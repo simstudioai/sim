@@ -74,6 +74,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
       data: {
         table: {
           id: table.id,
+          isVirtual: table.isVirtual,
           name: table.name,
           description: table.description,
           schema: {

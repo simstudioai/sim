@@ -494,6 +494,7 @@ export function TableGrid({
     tableData,
     isLoadingTable,
     rows,
+    rowsError,
     rowTotal,
     isLoadingRows,
     fetchNextPage,
@@ -513,6 +514,13 @@ export function TableGrid({
     // (and one the server rejects outright).
     filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
+  const isVirtualTableRef = useRef(tableData?.isVirtual)
+  isVirtualTableRef.current = tableData?.isVirtual
+
+  useEffect(() => {
+    if (!rowsError) return
+    toast.error(getErrorMessage(rowsError, 'Failed to load table rows'), { duration: 5000 })
+  }, [rowsError])
 
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
@@ -2264,6 +2272,13 @@ export function TableGrid({
 
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
+      if (isVirtualTableRef.current) {
+        setSelectionFocus(null)
+        setIsColumnSelection(false)
+        setExpandedCell({ rowId, columnName, columnKey })
+        return
+      }
+
       const column = columnsRef.current.find((c) => c.key === columnKey)
       if (column && columnTypeOf(column).editor === 'toggle') return
 
@@ -2272,7 +2287,7 @@ export function TableGrid({
       // that silently refuses to save. Only for users who could otherwise edit:
       // without write access the lock isn't why they can't, and they still get
       // the read-only expanded viewer below.
-      if (canEditRef.current && updateLockedRef.current) {
+      if (canEditRef.current && updateLockedRef.current && column?.type !== 'json') {
         onBlockedActionRef.current('edit-cell')
         return
       }
@@ -4112,7 +4127,7 @@ export function TableGrid({
                                     ? undefined
                                     : handleViewWorkflow
                                 }
-                                readOnly={!userPermissions.canEdit}
+                                readOnly={!userPermissions.canEdit || tableData?.isVirtual === true}
                                 onDragStart={
                                   userPermissions.canEdit ? handleColumnDragStart : undefined
                                 }
@@ -4173,7 +4188,7 @@ export function TableGrid({
                             // open-config — all metadata, not schema. The schema lock is
                             // enforced per-action instead (insert/delete below), and a
                             // rename attempt surfaces the server's 423 as a toast.
-                            readOnly={!userPermissions.canEdit}
+                            readOnly={!userPermissions.canEdit || tableData?.isVirtual === true}
                             isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
                               isColumnSelection &&
@@ -4210,7 +4225,9 @@ export function TableGrid({
                             workflows={workflows}
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
-                            onOpenConfig={handleConfigureColumn}
+                            onOpenConfig={
+                              canMutateSchema ? handleConfigureColumn : handleBlockedAddColumn
+                            }
                             onViewWorkflow={handleViewWorkflow}
                             isPinned={colIsPinned}
                             onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
@@ -4219,7 +4236,7 @@ export function TableGrid({
                           />
                         )
                       })}
-                      {userPermissions.canEdit && (
+                      {userPermissions.canEdit && !tableData?.isVirtual && (
                         <NewColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}

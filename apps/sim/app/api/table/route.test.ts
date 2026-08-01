@@ -132,6 +132,24 @@ describe('GET /api/table folder placement', () => {
       authType: 'session',
     })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockListTables.mockResolvedValue([
+      { ...CREATED_TABLE, id: 'tbl_1', folderId: 'folder-1', workspaceId: 'ws', createdBy: 'u' },
+      { ...CREATED_TABLE, id: 'tbl_2', folderId: null, workspaceId: 'ws', createdBy: 'u' },
+      {
+        ...CREATED_TABLE,
+        id: 'system_memory_workspace-1',
+        name: 'Memory',
+        folderId: null,
+        workspaceId: 'workspace-1',
+        createdBy: 'user-1',
+        locks: {
+          schemaLocked: true,
+          insertLocked: true,
+          updateLocked: true,
+          deleteLocked: true,
+        },
+      },
+    ])
   })
 
   it('emits each table folderId so the list can group rows by folder', async () => {
@@ -150,5 +168,57 @@ describe('GET /api/table folder placement', () => {
       'folder-1',
       null,
     ])
+    expect(mockListTables).toHaveBeenCalledWith('workspace-1', { scope: 'active' })
+  })
+
+  it('includes the workspace Memory table in the active table list', async () => {
+    mockListTables.mockResolvedValue([
+      {
+        ...CREATED_TABLE,
+        id: 'system_memory_workspace-1',
+        name: 'Memory',
+        workspaceId: 'workspace-1',
+        createdBy: 'user-1',
+        locks: {
+          schemaLocked: true,
+          insertLocked: true,
+          updateLocked: true,
+          deleteLocked: true,
+        },
+      },
+    ])
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/table?workspaceId=workspace-1&scope=active')
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.data.tables).toContainEqual(
+      expect.objectContaining({
+        id: 'system_memory_workspace-1',
+        name: 'Memory',
+        workspaceId: 'workspace-1',
+        locks: {
+          schemaLocked: true,
+          insertLocked: true,
+          updateLocked: true,
+          deleteLocked: true,
+        },
+      })
+    )
+  })
+
+  it('does not include Memory in the archived table list', async () => {
+    mockListTables.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/table?workspaceId=workspace-1&scope=archived')
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.data.tables).toEqual([])
+    expect(mockListTables).toHaveBeenCalledWith('workspace-1', { scope: 'archived' })
   })
 })

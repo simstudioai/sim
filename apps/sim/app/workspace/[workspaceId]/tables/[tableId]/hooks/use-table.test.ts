@@ -44,6 +44,7 @@ vi.mock('@/hooks/queries/tables', () => ({
   })),
   useInfiniteTableRows: vi.fn(() => ({
     data: { pages: [] },
+    error: new Error('Transcript filtering and sorting are not supported for this table'),
     isLoading: false,
     refetch: vi.fn().mockResolvedValue(undefined),
     fetchNextPage: mockFetchNextPage,
@@ -102,6 +103,15 @@ beforeEach(() => {
 })
 
 describe('useTable – ensureAllRowsLoaded', () => {
+  it('exposes row-query failures instead of representing them as an empty result', () => {
+    const { rows, rowsError } = makeHook()
+
+    expect(rows).toEqual([])
+    expect(rowsError?.message).toBe(
+      'Transcript filtering and sorting are not supported for this table'
+    )
+  })
+
   it('returns an empty array when cache is empty', async () => {
     mockGetQueryData.mockReturnValue(undefined)
     const { ensureAllRowsLoaded } = makeHook()

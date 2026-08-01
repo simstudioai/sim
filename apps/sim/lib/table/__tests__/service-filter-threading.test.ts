@@ -15,10 +15,21 @@ import { decodeCursor } from '@/lib/table/rows/cursor'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 
+const { mockFindVirtualTableRowMatches, mockQueryVirtualTableRows } = vi.hoisted(() => ({
+  mockFindVirtualTableRowMatches: vi.fn(),
+  mockQueryVirtualTableRows: vi.fn(),
+}))
+
+vi.mock('@/lib/virtual-tables/service.server', () => ({
+  findVirtualTableRowMatches: mockFindVirtualTableRowMatches,
+  queryVirtualTableRows: mockQueryVirtualTableRows,
+}))
+
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
   buildPredicateClause: vi.fn(() => sql`true`),
+  escapeLikePattern: vi.fn((value: string) => value),
   TableQueryValidationError: class TableQueryValidationError extends Error {},
 }))
 
@@ -45,7 +56,12 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
-import { deleteRowsByFilter, queryRows, updateRowsByFilter } from '@/lib/table/rows/service'
+import {
+  deleteRowsByFilter,
+  findRowMatches,
+  queryRows,
+  updateRowsByFilter,
+} from '@/lib/table/rows/service'
 
 const COLUMNS: ColumnDefinition[] = [
   { name: 'name', type: 'string' },
@@ -124,6 +140,71 @@ describe('service filter threading', () => {
       expect.any(String),
       COLUMNS
     )
+  })
+})
+
+describe('queryRows storage dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('queries only virtual storage for a virtual table', async () => {
+    const virtualResult = {
+      rows: [],
+      rowCount: 0,
+      totalCount: 0,
+      limit: 100,
+      offset: 0,
+      nextCursor: null,
+    }
+    mockQueryVirtualTableRows.mockResolvedValueOnce(virtualResult)
+
+    await expect(
+      queryRows(
+        { ...TABLE, isVirtual: true },
+        { limit: 100, includeTotal: false, withExecutions: false },
+        'req-1'
+      )
+    ).resolves.toBe(virtualResult)
+
+    expect(mockQueryVirtualTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ id: TABLE.id, workspaceId: TABLE.workspaceId, isVirtual: true }),
+      expect.objectContaining({ limit: 100 })
+    )
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('queries only persisted storage for a persisted table', async () => {
+    await queryRows(TABLE, { limit: 100, includeTotal: false, withExecutions: false }, 'req-1')
+
+    expect(mockQueryVirtualTableRows).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalled()
+  })
+})
+
+describe('findRowMatches storage dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('searches only virtual storage for a virtual table', async () => {
+    const virtualResult = {
+      matches: [{ ordinal: 0, rowId: 'memory-1', column: 'transcript' }],
+      truncated: false,
+    }
+    mockFindVirtualTableRowMatches.mockResolvedValueOnce(virtualResult)
+
+    await expect(
+      findRowMatches({ ...TABLE, isVirtual: true }, { q: 'hello' }, 'req-1')
+    ).resolves.toBe(virtualResult)
+
+    expect(mockFindVirtualTableRowMatches).toHaveBeenCalledWith(
+      expect.objectContaining({ id: TABLE.id, isVirtual: true }),
+      { q: 'hello' }
+    )
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 })
 

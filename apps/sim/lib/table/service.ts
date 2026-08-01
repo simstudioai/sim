@@ -39,6 +39,7 @@ import {
 } from '@/lib/table/types'
 import { validateTableName, validateTableSchema } from '@/lib/table/validation'
 import { stripGroupDeps } from '@/lib/table/workflow-columns'
+import { listVirtualTables } from '@/lib/virtual-tables/service.server'
 
 const logger = createLogger('TableService')
 
@@ -208,7 +209,7 @@ export async function getTableById(
  * @param workspaceId - Workspace ID to list tables for
  * @returns Array of table definitions
  */
-export async function listTables(
+export async function listPersistedTables(
   workspaceId: string,
   options?: { scope?: TableScope }
 ): Promise<TableDefinition[]> {
@@ -269,6 +270,17 @@ export async function listTables(
       ...jobFields,
     }
   })
+}
+
+export async function listTables(
+  workspaceId: string,
+  options?: { scope?: TableScope }
+): Promise<TableDefinition[]> {
+  const [persisted, virtual] = await Promise.all([
+    listPersistedTables(workspaceId, options),
+    listVirtualTables(workspaceId, options),
+  ])
+  return [...persisted, ...virtual]
 }
 
 /**

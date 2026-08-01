@@ -43,14 +43,14 @@ vi.mock('@/lib/table', () => ({
   updateColumnType: mockUpdateColumnType,
 }))
 vi.mock('@/app/api/table/utils', () => ({
-  accessError: () => new Response('denied', { status: 403 }),
+  accessError: (result: { status: number }) => new Response('denied', { status: result.status }),
   checkAccess: mockCheckAccess,
   normalizeColumn: (c: unknown) => c,
   rootErrorMessage: (e: unknown) => getErrorMessage(e),
   tableLockErrorResponse: () => null,
 }))
 
-import { PATCH } from '@/app/api/table/[tableId]/columns/route'
+import { DELETE, PATCH, POST } from '@/app/api/table/[tableId]/columns/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -81,6 +81,48 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
       },
     })
     mockRenameColumn.mockResolvedValue({ schema: { columns: [] } })
+  })
+
+  it('rejects synthetic Memory column writes with a read-only explanation', async () => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 423 })
+    const tableId = `system_memory_${WORKSPACE_ID}`
+    const response = await PATCH(
+      new NextRequest(`http://localhost/api/table/${tableId}/columns`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          columnName: 'transcript',
+          updates: { name: 'Messages' },
+        }),
+        headers: { 'content-type': 'application/json' },
+      }),
+      { params: Promise.resolve({ tableId }) }
+    )
+
+    expect(response.status).toBe(423)
+    expect(mockCheckAccess).toHaveBeenCalledWith(tableId, 'user-1', 'write')
+    expect(mockRenameColumn).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['POST', POST, { workspaceId: WORKSPACE_ID, column: { name: 'Extra', type: 'string' } }],
+    ['DELETE', DELETE, { workspaceId: WORKSPACE_ID, columnName: 'transcript' }],
+  ])('rejects synthetic Memory %s writes through shared access', async (_method, handler, body) => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 423 })
+    const tableId = `system_memory_${WORKSPACE_ID}`
+    const response = await handler(
+      new NextRequest(`http://localhost/api/table/${tableId}/columns`, {
+        method: _method,
+        body: JSON.stringify(body),
+        headers: { 'content-type': 'application/json' },
+      }),
+      { params: Promise.resolve({ tableId }) }
+    )
+
+    expect(response.status).toBe(423)
+    expect(mockCheckAccess).toHaveBeenCalledWith(tableId, 'user-1', 'write')
+    expect(mockAddTableColumn).not.toHaveBeenCalled()
+    expect(mockDeleteColumn).not.toHaveBeenCalled()
   })
 
   it('rejects a currency code on a non-currency column without renaming first', async () => {

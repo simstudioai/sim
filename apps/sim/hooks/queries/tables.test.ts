@@ -1,7 +1,18 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { MockApiClientError } = vi.hoisted(() => ({
+  MockApiClientError: class extends Error {
+    readonly status: number
+
+    constructor({ status, message }: { status: number; message: string }) {
+      super(message)
+      this.status = status
+    }
+  },
+}))
 
 const { queryClient, cacheStore } = vi.hoisted(() => {
   const cache = new Map<string, unknown>()
@@ -45,7 +56,7 @@ vi.mock('@/lib/api/client/request', () => ({
 
 vi.mock('@/lib/api/client/errors', () => ({
   isValidationError: vi.fn(() => false),
-  isApiClientError: vi.fn(() => false),
+  isApiClientError: vi.fn((error) => error instanceof MockApiClientError),
   extractValidationIssues: vi.fn(() => []),
 }))
 
@@ -85,6 +96,7 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 import {
+  downloadTableExport,
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
   useDeleteColumn,
@@ -107,6 +119,26 @@ function getCache<T>(key: readonly unknown[]): T | undefined {
 beforeEach(() => {
   cacheStore.clear()
   vi.clearAllMocks()
+})
+
+describe('downloadTableExport', () => {
+  it('lets the browser stream the response directly to disk', async () => {
+    let clickedAnchor: HTMLAnchorElement | undefined
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      clickedAnchor = this
+    })
+
+    await downloadTableExport('memory-workspace-1', 'Memory transcripts')
+
+    const clickedUrl = new URL(clickedAnchor?.href ?? '')
+    expect(clickSpy).toHaveBeenCalledOnce()
+    expect(clickedUrl.pathname).toBe('/api/table/memory-workspace-1/export')
+    expect(clickedUrl.searchParams.get('format')).toBe('csv')
+    expect(clickedAnchor?.download).toBe('Memory_transcripts.csv')
+    expect(document.body.contains(clickedAnchor ?? null)).toBe(false)
+  })
 })
 
 describe('useDeleteColumn optimistic update', () => {
@@ -364,6 +396,8 @@ describe('tableRowsInfiniteOptions', () => {
       sort: sort as never,
     }) as {
       queryKey: readonly unknown[]
+      placeholderData?: unknown
+      retry?: (failureCount: number, error: Error) => boolean
       getNextPageParam: (
         lastPage: PageFixture,
         allPages: PageFixture[],
@@ -371,6 +405,32 @@ describe('tableRowsInfiniteOptions', () => {
       ) => number | { orderKey: string; id: string } | undefined
     }
   }
+
+  it('keeps the previous rows visible while a changed sort or filter is loading', () => {
+    expect(makeOpts()).toHaveProperty('placeholderData')
+  })
+
+  it('surfaces row-query validation errors without retrying them', () => {
+    const retry = makeOpts().retry
+    const validationError = new MockApiClientError({
+      status: 400,
+      message: 'Transcript filtering and sorting are not supported for this table',
+    })
+
+    expect(retry?.(0, validationError)).toBe(false)
+  })
+
+  it('retains one retry for transient row-query failures', () => {
+    const retry = makeOpts().retry
+    const serverError = new MockApiClientError({
+      status: 500,
+      message: 'Internal server error',
+    })
+
+    expect(retry?.(0, serverError)).toBe(true)
+    expect(retry?.(1, serverError)).toBe(false)
+    expect(retry?.(0, new Error('Network failure'))).toBe(true)
+  })
 
   function makePage(count: number, totalCount: number | null, startAt = 0, withOrderKey = false) {
     return {
