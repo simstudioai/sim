@@ -5,7 +5,7 @@ import { zohoDeskListOrganizationsContract } from '@/lib/api/contracts/tools/zoh
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
+import { assertZohoUrl, getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,21 +27,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
   const { accessToken, apiDomain } = parsed.data.body
 
+  // apiDomain is client-supplied, so anchor the outbound host to a Zoho apex
+  // before attaching the OAuth token - otherwise a caller could point the server
+  // at an arbitrary origin and leak the token.
+  let organizationsUrl: URL
+  try {
+    organizationsUrl = assertZohoUrl(
+      `${getZohoDeskApiBase({ apiDomain: apiDomain ?? undefined })}/organizations`
+    )
+  } catch {
+    return NextResponse.json({ error: 'apiDomain must be an https Zoho host' }, { status: 400 })
+  }
+
   try {
     // The organizations endpoint is the one Desk call that does not require an
     // orgId header, so it can bootstrap the organization selector before a
     // portal has been chosen.
-    const response = await fetch(
-      `${getZohoDeskApiBase({ apiDomain: apiDomain ?? undefined })}/organizations`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(15_000),
-      }
-    )
+    const response = await fetch(organizationsUrl.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15_000),
+    })
 
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {

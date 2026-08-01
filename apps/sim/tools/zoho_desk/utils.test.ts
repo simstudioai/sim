@@ -3,12 +3,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  assertZohoUrl,
   buildZohoDeskHeaders,
   convertZohoHtmlToText,
   deriveAttachmentName,
   deriveZohoContentText,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  isZohoHost,
   resolveZohoAttachmentUrl,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
@@ -90,6 +92,33 @@ describe('zoho desk tool utils', () => {
         'attachment'
       )
       expect(deriveAttachmentName('', '', '/tickets/1/attachments/2')).toBe('attachment')
+    })
+  })
+
+  describe('isZohoHost', () => {
+    it('accepts Zoho apex hosts and their subdomains across data centers', () => {
+      expect(isZohoHost('desk.zoho.com')).toBe(true)
+      expect(isZohoHost('desk.zoho.eu')).toBe(true)
+      expect(isZohoHost('zohoapis.com.au')).toBe(true)
+      expect(isZohoHost('DESK.ZOHO.IN')).toBe(true)
+    })
+
+    it('rejects lookalike and attacker hosts', () => {
+      expect(isZohoHost('zoho.attacker.com')).toBe(false)
+      expect(isZohoHost('desk.zoho.com.attacker.com')).toBe(false)
+      expect(isZohoHost('notzoho.com')).toBe(false)
+      expect(isZohoHost('evil.com')).toBe(false)
+    })
+  })
+
+  describe('assertZohoUrl', () => {
+    it('returns the URL for an https Zoho host', () => {
+      expect(assertZohoUrl('https://desk.zoho.eu/api/v1/organizations').host).toBe('desk.zoho.eu')
+    })
+
+    it('throws for a non-Zoho host or non-https scheme', () => {
+      expect(() => assertZohoUrl('https://attacker.com/api/v1/organizations')).toThrow()
+      expect(() => assertZohoUrl('http://desk.zoho.com/api/v1/organizations')).toThrow()
     })
   })
 
