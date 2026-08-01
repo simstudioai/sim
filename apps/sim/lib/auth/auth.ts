@@ -170,9 +170,14 @@ function deriveZohoDeskBaseFromApiDomain(apiDomain?: string): string {
   const fallback = 'https://desk.zoho.com'
   if (!apiDomain) return fallback
   try {
-    const host = new URL(apiDomain).host
-    const match = host.match(/zohoapis\.(.+)$/i)
-    if (match?.[1]) return `https://desk.zoho.${match[1].toLowerCase()}`
+    const host = new URL(apiDomain).host.toLowerCase()
+    // Already a data-center Desk host (e.g. desk.zoho.eu) - preserve it so we
+    // never misroute a valid regional domain back to the US (.com) data center.
+    if (/(^|\.)desk\.zoho\.[a-z.]+$/.test(host)) return `https://${host}`
+    // Otherwise map the data-center TLD from the API host (www.zohoapis.<tld> or
+    // any zoho.<tld>) onto the Desk REST host in the same data center.
+    const match = host.match(/zoho(?:apis)?\.([a-z.]+)$/)
+    if (match?.[1]) return `https://desk.zoho.${match[1]}`
     return fallback
   } catch {
     return fallback

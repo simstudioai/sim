@@ -339,11 +339,18 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     }
   },
 
-  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+  async formatInput({ body, requestId }: FormatInputContext): Promise<FormatInputResult> {
     // Zoho Desk delivers an array of events: [{ payload, prevState, eventTime, eventType, orgId }].
     // Anything that is not the expected array shape is passed through unchanged.
     if (!Array.isArray(body)) {
       return { input: body }
+    }
+    // Zoho fires one event per notification (single-element array). Log rather
+    // than silently drop if that ever changes, so batched deliveries are visible.
+    if (body.length > 1) {
+      logger.warn(
+        `[${requestId}] Zoho Desk delivered ${body.length} events in one payload; processing the first only`
+      )
     }
     const event = body[0]
     if (!event || typeof event !== 'object') {
