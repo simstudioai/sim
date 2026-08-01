@@ -609,8 +609,8 @@ const LONGEST_TAG_MARKER = Math.max(...SPECIAL_TAG_NAMES.map((name) => `</${name
  */
 function blankJsonStringLiterals(body: string): string {
   // With no quote there is no string literal, so the loop below would copy the
-  // body to itself character by character. Both callers reach here on bodies
-  // that are usually plain prose, and this runs per opener per streamed chunk.
+  // body to itself character by character. Callers reach here on bodies that
+  // are usually plain prose, and this runs per opener per streamed chunk.
   if (!body.includes('"')) return body
 
   let out = ''
@@ -984,20 +984,26 @@ type BodyClass =
  * JSON payload — the line between `not-parsable` (droppable) and
  * `not-a-payload` (must render).
  *
- * The test is the opener pair, whitespace-tolerant: every payload these tags
- * carry is an object of quoted keys or an array of objects/strings, so an
- * attempt opens `{"`, `[{`, or `["`. Prose falls outside it by construction —
+ * Two pieces of evidence, both required, both structural: the opener pair and
+ * a key-value colon. Every payload these tags carry is built from objects of
+ * quoted keys, so an attempt opens `{"`, `[{`, or `["` AND carries a `:`
+ * outside its string literals. Prose fails one or the other by construction —
  * `{the Q4 report}` opens `{t`, `{type: "file"}` opens `{t`, `{'type':'file'}`
- * opens `{'`, a bare scalar opens with its own first character — so the
- * wrapped-prose cases stay rendered while a payload one typo away from valid
- * (`{"type":"multi_select",options": …`) is recognized as the broken emission
- * it is. Named for the question it answers, not the check it performs: the
- * class names assert meaning, and this predicate is what earns the assertion.
+ * opens `{'`, a bare scalar opens with its own first character, and a
+ * brace-wrapped quoted phrase (`{"the Q4 report"}`) has no colon outside its
+ * quotes — so every wrapped-prose shape stays rendered while a payload one
+ * typo away from valid (`{"type":"multi_select",options": …`) is recognized as
+ * the broken emission it is. Deleting text is the harm here, so the predicate
+ * fails toward rendering. Named for the question it answers, not the checks it performs:
+ * the class names assert meaning, and this predicate is what earns the
+ * assertion. Blanks on the rare path only, like {@link isParseableJson} — the
+ * common cases never reach it.
  */
 function wasAttemptedPayload(body: string): boolean {
   const opener = /^\s*([{[])\s*(["{])/.exec(body)
   if (!opener) return false
-  return opener[1] === '{' ? opener[2] === '"' : true
+  if (opener[1] === '{' && opener[2] !== '"') return false
+  return blankJsonStringLiterals(body).includes(':')
 }
 
 /**

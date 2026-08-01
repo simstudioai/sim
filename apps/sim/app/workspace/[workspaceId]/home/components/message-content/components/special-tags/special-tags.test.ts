@@ -330,8 +330,8 @@ describe('parseSpecialTags with <question>', () => {
     // fails JSON.parse, so the old was-it-ever-JSON test called them prose and
     // rendered the whole payload verbatim — the markdown layer then swallowed
     // the tag markers and the reader saw a wall of raw JSON. They open `{"` or
-    // `[{`, which marks them as attempted payloads: droppable, like any other
-    // broken emission.
+    // `[{` and carry key-value colons, which marks them as attempted payloads:
+    // droppable, like any other broken emission.
     const cases = [
       'Prose before. <question>{"type": "single_select", "prompt": "How should I proceed?", "options": [{"id": "a", "label": "Confirm the id"}}]}</question>',
       'Prose before. <question>{"type":"multi_select","prompt":"What should I build now?",options": [{"id":"lib","label":"Pattern library"}]}</question>',
@@ -377,15 +377,17 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(parseSpecialTags(raw, false).segments)).toBe(raw)
   })
 
-  it('treats brace-wrapped quoted prose as an attempted payload, by design', () => {
-    // The deliberate edge of the opener heuristic, pinned so it stays a
-    // decision: `{"..."}` reads as a payload the model started and botched (a
-    // key with no value), not prose — prose the reader was meant to see arrives
-    // unwrapped or in bare quotes, and both of those stay rendered (see the
-    // cases above). The array twin parses as JSON, so it was already dropped as
-    // `wrong-shape` before the opener heuristic existed.
+  it('renders brace-wrapped quoted prose — an opener alone is not an attempt', () => {
+    // The attempted-payload call takes BOTH kinds of evidence: the `{"` opener
+    // and a key-value colon outside string literals. `{"the Q4 report"}` has
+    // the opener but no colon — prose in costume, so it renders; a colon
+    // inside the quotes changes nothing. The array twin parses as JSON, so it
+    // was dropped as `wrong-shape` before this heuristic existed and still is —
+    // that verdict comes from a real parse, not from the opener.
     const braceWrapped = 'see <options>{"the Q4 report"}</options> end'
-    expect(renderedText(parseSpecialTags(braceWrapped, false).segments)).toBe('see  end')
+    expect(renderedText(parseSpecialTags(braceWrapped, false).segments)).toBe(braceWrapped)
+    const quotedColon = 'see <options>{"ratio: 4:5"}</options> end'
+    expect(renderedText(parseSpecialTags(quotedColon, false).segments)).toBe(quotedColon)
     const arrayWrapped = 'see <options>["some list item"]</options> end'
     expect(renderedText(parseSpecialTags(arrayWrapped, false).segments)).toBe('see  end')
   })
