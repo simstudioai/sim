@@ -349,11 +349,36 @@ export interface ServableFile {
   contentType: string
   /**
    * Set when the bytes could not be rendered and are being served as-is under a
-   * generic content type. The bytes are NOT the document the filename claims, so a
-   * consumer that hands them to something expecting that format (a provider
-   * attachment, a document parser) must refuse rather than relabel them.
+   * generic content type. The bytes are NOT the document the filename claims.
+   * {@link downloadServableFileFromStorage} refuses these rather than returning
+   * them — see {@link UnrenderableDocumentError}.
    */
   unrendered?: boolean
+}
+
+/**
+ * Thrown when a file's stored bytes are not the format its name claims and could
+ * not be rendered into it.
+ *
+ * Every caller of {@link downloadServableFileFromStorage} hands the bytes to
+ * something that expects the real document — an email attachment, a cloud upload,
+ * a zip entry, a provider attachment — and none of them can tell a rendered
+ * artifact from raw generation source once it is just a Buffer. Returning the
+ * bytes with an honest content type would still be wrong, because the filename
+ * travels separately and downstream re-infers the type from it. Failing here is
+ * the only place that reliably prevents source text going out under a `.pdf`.
+ *
+ * The file-serve route deliberately does NOT go through this helper: it resolves
+ * bytes directly and keeps the graceful passthrough, because a human downloading
+ * the file and seeing what it actually is has a use for it.
+ */
+export class UnrenderableDocumentError extends Error {
+  constructor(fileName: string) {
+    super(
+      `File ${fileName} could not be rendered; its stored bytes are not the format its name claims.`
+    )
+    this.name = 'UnrenderableDocumentError'
+  }
 }
 
 /**
@@ -419,6 +444,10 @@ export async function downloadServableFileFromStorage(
     ownerKey: options.ownerKey,
     signal: options.signal,
   })
+
+  if (resolved.unrendered) {
+    throw new UnrenderableDocumentError(userFile.name)
+  }
 
   // Re-check: the raw download enforced maxBytes on the source, but a generated doc
   // resolves to a larger artifact.

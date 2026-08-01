@@ -163,6 +163,30 @@ describe('downloadServableFileFromStorage generated-doc gating', () => {
     )
   })
 
+  it('refuses unrendered bytes rather than handing them to a caller that expects the document', async () => {
+    // ~45 call sites (email attachments, cloud uploads, zip entries, provider
+    // attachments) receive only a Buffer and re-infer the type from the filename, so
+    // an opt-in flag would be silently ignored by all of them. Failing here is what
+    // keeps generation source from going out under a .pdf.
+    mockResolveServableDocBytes.mockResolvedValue({
+      buffer: Buffer.from('<html>not a pdf</html>'),
+      contentType: 'application/octet-stream',
+      unrendered: true,
+    })
+    const userFile: UserFile = {
+      id: 'f7',
+      name: 'report.pdf',
+      url: '',
+      size: 5,
+      type: 'text/x-python-pdf',
+      key: 'workspace/ws-1/1700000000000-abc1234-report.pdf',
+    }
+
+    await expect(
+      downloadServableFileFromStorage(userFile, 'req-1', createLogger('test'))
+    ).rejects.toThrow(/could not be rendered/)
+  })
+
   it('does not mistake the generic octet-stream fallback for a real declared type', async () => {
     // convertToUserFile emits application/octet-stream for a type-less input, so this
     // value carries no information about whether the bytes are generation source.

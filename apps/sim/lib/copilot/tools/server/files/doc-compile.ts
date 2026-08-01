@@ -512,6 +512,19 @@ const unrenderableSources = new Set<string>()
  */
 const inFlightRenders = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>()
 
+/** Rejects when `signal` aborts, so a caller can abandon a shared render without cancelling it. */
+function rejectOnAbort(signal: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new Error('Aborted'))
+      return
+    }
+    signal.addEventListener('abort', () => reject(signal.reason ?? new Error('Aborted')), {
+      once: true,
+    })
+  })
+}
+
 function coalesceRender(
   key: string,
   run: () => Promise<{ buffer: Buffer; contentType: string }>
@@ -667,15 +680,22 @@ export async function resolveServableDocBytes(args: {
   }
 
   try {
-    return await coalesceRender(renderKey, async () => {
+    // The shared run deliberately carries no caller's signal: it is one piece of
+    // work several readers are waiting on, so letting whoever happened to start it
+    // cancel it would reject every other waiter with an AbortError they did not
+    // ask for. Each caller instead races its own signal, so an aborting reader
+    // gives up promptly while the render continues for the rest and still lands in
+    // the cache.
+    const shared = coalesceRender(renderKey, async () => {
       const compiled = await runSandboxTask(
         format.taskId,
         { code: source, workspaceId: workspaceId || '' },
-        { ownerKey, signal }
+        { ownerKey }
       )
       compiledCacheSet(renderKey, compiled)
       return { buffer: compiled, contentType: format.contentType }
     })
+    return await (signal ? Promise.race([shared, rejectOnAbort(signal)]) : shared)
   } catch (error) {
     // Unlike the E2B engine, the isolated-vm task does not distinguish a script
     // error from an infra one, so the only signal available here is cancellation —

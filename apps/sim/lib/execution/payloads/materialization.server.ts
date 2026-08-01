@@ -315,19 +315,6 @@ export async function readUserFileContent(
   if (!servable) {
     throw new Error(`File content for ${file.name} is unavailable.`)
   }
-  if (servable.unrendered) {
-    // The resolver could not produce the document these bytes claim to be and is
-    // serving them under a generic type. Every consumer here feeds the result to
-    // something that expects the real document — a provider attachment, a document
-    // parser, a function-block read — and this function returns only a string, so
-    // the honest content type cannot travel with it. Relabelling the source as a
-    // PDF downstream is the corruption this module exists to prevent, so refuse.
-    // (The file-serve route keeps the graceful passthrough: a human downloading
-    // the bytes and seeing what they actually are is useful.)
-    throw new Error(
-      `File ${file.name} could not be rendered; its stored bytes are not the format its name claims.`
-    )
-  }
   const { buffer } = servable
   if (buffer.length > maxSourceBytes) {
     throw new ExecutionResourceLimitError({

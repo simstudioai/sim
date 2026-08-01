@@ -443,12 +443,21 @@ async function resolveBase64(
     // already-finished result opt out, so a late compile cannot retroactively
     // fail completed work.
     if (options.throwOnDocNotReady) {
+      // This caller cannot use a file without content, so any reason the bytes are
+      // missing must reach it verbatim. Degrading to null here is what produced the
+      // misleading "may exceed size limit or no longer accessible" message for a
+      // document that was actually still compiling, or one whose stored bytes are
+      // not the format its name claims.
+      //
       // Imported lazily: `servable-file-response` pulls in the doc-compile module
       // graph (remote sandbox, sandbox task runner, execution limits), and a static
       // import here would load all of it for every hydration consumer — mirroring
       // the deliberate dynamic import in file-utils.server.ts.
-      const { isDocNotReadyError } = await import('@/lib/uploads/utils/servable-file-response')
-      if (isDocNotReadyError(error)) {
+      const [{ isDocNotReadyError }, { UnrenderableDocumentError }] = await Promise.all([
+        import('@/lib/uploads/utils/servable-file-response'),
+        import('@/lib/uploads/utils/file-utils.server'),
+      ])
+      if (isDocNotReadyError(error) || error instanceof UnrenderableDocumentError) {
         throw error
       }
     }
