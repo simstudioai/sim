@@ -115,9 +115,9 @@ import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
-import { QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS } from '@/lib/quickbooks/client'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
+import { QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS } from '@/tools/quickbooks/client'
 
 const logger = createLogger('Auth')
 

@@ -1,9 +1,9 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   buildQuickBooksCompanyUrl,
   normalizeQuickBooksRealmId,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
-} from '@/lib/quickbooks/client'
-import { ErrorExtractorId } from '@/tools/error-extractors'
+} from '@/tools/quickbooks/client'
 import type {
   QuickBooksAuthParams,
   QuickBooksCompanyInfo,

@@ -379,4 +379,4 @@ export const ErrorExtractorId = {
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const
 
-import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'

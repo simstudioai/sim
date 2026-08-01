@@ -3,7 +3,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
 export const QUICKBOOKS_MINOR_VERSION = '75'
 export const QUICKBOOKS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024

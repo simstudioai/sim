@@ -1,11 +1,11 @@
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import {
   buildQuickBooksCompanyUrl,
   buildQuickBooksHeaders,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
-} from '@/lib/quickbooks/client'
-import { sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'
-import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
+} from '@/tools/quickbooks/client'
+import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import type { QuickBooksListResponse, QuickBooksPaginationParams } from '@/tools/quickbooks/types'
 
 export type QuickBooksQueryEntity = 'Bill' | 'PurchaseOrder' | 'Vendor'

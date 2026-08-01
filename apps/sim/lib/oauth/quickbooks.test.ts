@@ -11,7 +11,7 @@ import {
   QUICKBOOKS_TOKEN_URL,
   withQuickBooksCallbackRealm,
 } from '@/lib/oauth/quickbooks'
-import { QUICKBOOKS_MAX_USER_INFO_BYTES } from '@/lib/quickbooks/client'
+import { QUICKBOOKS_MAX_USER_INFO_BYTES } from '@/tools/quickbooks/client'
 
 const TEST_UUID = '01234567-89ab-4def-8abc-0123456789ab'
 const originalFetch = global.fetch

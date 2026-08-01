@@ -1,12 +1,12 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   fetchValidatedQuickBooksCompanyInfo,
   getQuickBooksEnvironment,
   getQuickBooksUserInfoUrl,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
-} from '@/lib/quickbooks/client'
-import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
+} from '@/tools/quickbooks/client'
 import { quickbooksGetCompanyInfoTool } from '@/tools/quickbooks/get_company_info'
 import { quickbooksListBillsTool } from '@/tools/quickbooks/list_bills'
 import { quickbooksListPurchaseOrdersTool } from '@/tools/quickbooks/list_purchase_orders'

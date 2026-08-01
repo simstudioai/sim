@@ -1,5 +1,5 @@
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/lib/quickbooks/client'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksListResponse,
   QuickBooksPaginationParams,

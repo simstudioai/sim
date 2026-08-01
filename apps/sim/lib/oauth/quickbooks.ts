@@ -10,7 +10,7 @@ import {
   normalizeQuickBooksRealmId as normalizeRealmId,
   QUICKBOOKS_MAX_USER_INFO_BYTES,
   QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS,
-} from '@/lib/quickbooks/client'
+} from '@/tools/quickbooks/client'
 
 const QUICKBOOKS_ACCOUNT_PREFIX = 'quickbooks:'
 const UUID_SUFFIX_PATTERN =

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeQuickBooksFaultData } from '@/lib/quickbooks/fault'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
+import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
 describe('QuickBooks fault extraction', () => {
   it('parses Fault.Error entries with HTTP and tracking guidance', () => {
