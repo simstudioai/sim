@@ -34,6 +34,7 @@ const generatedPdf: UserFile = {
 describe('readUserFileContent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    generatedPdf.size = PDF_SOURCE.length
     mockVerifyFileAccess.mockResolvedValue(true)
     mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: PDF_BYTES,
@@ -50,5 +51,6 @@ describe('readUserFileContent', () => {
     expect(mockDownloadServableFileFromStorage).toHaveBeenCalledOnce()
     expect(content).toBe(PDF_BYTES.toString('base64'))
     expect(content).not.toBe(PDF_SOURCE.toString('base64'))
+    expect(generatedPdf.size).toBe(PDF_BYTES.length)
   })
 })

@@ -158,6 +158,21 @@ describe('resolveServableDocBytes', () => {
     expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
 
+  it('throws instead of returning XLSX source when E2B is disabled', async () => {
+    mockLoadCompiledDoc.mockResolvedValue(null)
+    setEnvFlags({ isDocSandboxEnabled: false })
+
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: XLSX_SOURCE,
+        fileName: 'sheet.xlsx',
+        workspaceId: WORKSPACE_ID,
+      })
+    ).rejects.toBeInstanceOf(DocCompileUserError)
+
+    expect(mockRunSandboxTask).not.toHaveBeenCalled()
+  })
+
   it('returns raw XLSX source when there is no workspaceId (xlsx has no isolated-vm path)', async () => {
     const result = await resolveServableDocBytes({
       rawBuffer: XLSX_SOURCE,

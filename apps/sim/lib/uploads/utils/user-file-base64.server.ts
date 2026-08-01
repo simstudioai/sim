@@ -27,6 +27,7 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -391,7 +392,11 @@ async function resolveBase64(
   const allowUnknownSize = options.allowUnknownSize ?? false
   const hasStableStorageKey = Boolean(file.key)
 
-  if (Number.isFinite(file.size) && file.size > maxBytes) {
+  if (
+    !isGeneratedDocumentSourceType(file.type) &&
+    Number.isFinite(file.size) &&
+    file.size > maxBytes
+  ) {
     logger.warn(
       `[${options.requestId}] Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`
     )
@@ -420,9 +425,11 @@ async function resolveBase64(
       userId: options.userId,
       encoding: 'base64',
       maxBytes,
-      maxSourceBytes: maxBytes,
     })
   } catch (error) {
+    if (error instanceof Error && error.name === 'DocCompileUserError') {
+      throw error
+    }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
     return null
   }

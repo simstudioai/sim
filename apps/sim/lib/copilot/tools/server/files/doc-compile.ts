@@ -541,8 +541,12 @@ export async function resolveServableDocBytes(args: {
     }
   }
 
-  // Reaches here only for xlsx, which has no isolated-vm fallback.
-  if (!format) return { buffer: rawBuffer, contentType: getContentType(fileName) }
+  // Reaches here only for xlsx, which has no isolated-vm fallback. With workspace
+  // context, returning these bytes would expose generation source as a spreadsheet.
+  if (!format) {
+    if (workspaceId) throw new DocCompileUserError('Document is still being generated')
+    return { buffer: rawBuffer, contentType: getContentType(fileName) }
+  }
 
   const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)

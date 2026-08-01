@@ -310,6 +310,16 @@ describe('provider large-file capability', () => {
     expect(shouldUseLargeFilePath(large, 'bedrock')).toBe(false)
   })
 
+  it('does not expose generated source through a remote-url large-file path', () => {
+    const generated = {
+      ...pdfFile,
+      size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1,
+      type: 'text/x-python-pdf',
+    }
+    expect(shouldUseLargeFilePath(generated, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(generated, 'anthropic')).toBe(false)
+  })
+
   it('references uploaded OpenAI files by file_id instead of inlining base64', () => {
     const content = buildOpenAIMessageContent(
       'Analyze',
