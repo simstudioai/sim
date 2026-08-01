@@ -227,6 +227,17 @@ describe('POST /api/v2/custom-tools', () => {
     expect(mockUpsertCustomTools).not.toHaveBeenCalled()
   })
 
+  it('409s when a concurrent create loses the title race inside the lib', async () => {
+    mockUpsertCustomTools.mockRejectedValue(
+      new Error('A tool with the title "v2_smoke_tool" already exists in this workspace')
+    )
+
+    const res = await callCreate(VALID_BODY)
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe('CONFLICT')
+  })
+
   it('creates the tool and returns 201 with the single tool', async () => {
     const res = await callCreate(VALID_BODY)
     const body = await res.json()

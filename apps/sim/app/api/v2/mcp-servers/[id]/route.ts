@@ -91,6 +91,24 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
+    /**
+     * A server's id is the hash of its workspace + URL, and this surface promises
+     * that identity. The lib will happily move `url` while the id keeps hashing
+     * the old one, which both breaks that promise and defeats the duplicate
+     * check on create (id-keyed, so it would not see the moved URL) — leaving two
+     * rows on one URL. Re-pointing a server at a different URL is a new server.
+     */
+    if (body.url !== undefined) {
+      const current = await getWorkspaceMcpServer({ workspaceId, serverId: id })
+      if (!current) return v2Error('NOT_FOUND', 'MCP server not found')
+      if (current.url !== body.url) {
+        return v2Error(
+          'BAD_REQUEST',
+          'url cannot be changed: an MCP server’s id is derived from its URL. Delete this server and create one at the new URL.'
+        )
+      }
+    }
+
     const result = await performUpdateMcpServer({
       workspaceId,
       userId,

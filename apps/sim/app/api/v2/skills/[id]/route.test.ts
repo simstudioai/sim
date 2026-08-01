@@ -227,6 +227,16 @@ describe('PATCH /api/v2/skills/[id]', () => {
     expect((await res.json()).error.message).toContain('Built-in')
   })
 
+  it('gates on workspace read, leaving edit rights to the per-skill editor check', async () => {
+    await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      'workspace-1',
+      'read'
+    )
+  })
+
   it('updates the skill and returns the single skill', async () => {
     const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
     const body = await res.json()
@@ -293,6 +303,16 @@ describe('DELETE /api/v2/skills/[id]', () => {
     })
     const res = await callDelete()
     expect(res.status).toBe(400)
+  })
+
+  it('gates on workspace read, leaving delete rights to the per-skill editor check', async () => {
+    await callDelete()
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      'workspace-1',
+      'read'
+    )
   })
 
   it('deletes the skill and acknowledges the id', async () => {

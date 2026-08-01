@@ -17,7 +17,7 @@ import {
   upsertCustomTools,
 } from '@/lib/workflows/custom-tools/operations'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
+import { toV2CustomTool, v2CustomToolWriteError } from '@/app/api/v2/custom-tools/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -144,6 +144,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
 
     return v2Data({ customTool: toV2CustomTool(updated) }, { rateLimit })
   } catch (error) {
+    const writeError = v2CustomToolWriteError(error)
+    if (writeError) return writeError
+
     logger.error(`[${requestId}] Error updating custom tool`, {
       error: getErrorMessage(error, 'Unknown error'),
     })

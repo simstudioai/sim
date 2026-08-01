@@ -88,7 +88,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     const { id } = parsed.data.params
     const { workspaceId, name, description, content } = parsed.data.body
 
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    /**
+     * Editing an existing skill is gated per skill, not per workspace: an
+     * explicit editor grant (or workspace admin) is the authority, and
+     * `performUpdateSkill` enforces it. Requiring workspace `write` here would
+     * reject a legitimate skill editor who only holds `read` — stricter than the
+     * UI and than what this endpoint documents. Creating still needs `write`.
+     */
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
     const result = await performUpdateSkill({
@@ -136,7 +143,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     const { id } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    // Gated per skill by `performDeleteSkill`, same as PATCH above.
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
     const result = await performDeleteSkill({

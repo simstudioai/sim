@@ -275,7 +275,7 @@
       "patch": {
         "operationId": "updateMcpServer",
         "summary": "Update MCP Server",
-        "description": "Update an MCP server's configuration. Only the fields you send are changed. Requires `write` permission on the workspace.\n\nChanging `url`, the auth type, or the OAuth client credentials invalidates any existing OAuth grant for the server and resets its connection state.",
+        "description": "Update an MCP server's configuration. Only the fields you send are changed. Requires `write` permission on the workspace.\n\n`url` is immutable: a server's id is derived from its URL, so re-pointing it would leave the id hashing an address the server no longer uses and allow two servers on one URL. Sending a different `url` returns `400` — delete the server and create one at the new address. Sending the URL it already has is accepted, so a full-object PATCH still works.\n\nChanging the auth type or the OAuth client credentials invalidates any existing OAuth grant for the server and resets its connection state.",
         "tags": ["MCP Servers"],
         "x-codeSamples": [
           {
@@ -2173,7 +2173,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Absolute http or https endpoint URL. May not contain `{{ENV_VAR}}` references."
+            "description": "Immutable. Must equal the server's current URL — a different value returns `400`, because the server's id is derived from its URL."
           },
           "authType": { "type": "string", "enum": ["none", "headers", "oauth"] },
           "headers": {

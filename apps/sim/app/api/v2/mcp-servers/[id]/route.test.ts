@@ -240,6 +240,32 @@ describe('PATCH /api/v2/mcp-servers/[id]', () => {
     expect((await res.json()).error.code).toBe('NOT_FOUND')
   })
 
+  it('400s when the url is changed, since the id is derived from it', async () => {
+    mockGetWorkspaceMcpServer.mockResolvedValue(buildRow())
+
+    const res = await callPatch({
+      workspaceId: 'workspace-1',
+      url: 'https://different.example.com/sse',
+    })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toContain('url cannot be changed')
+    expect(mockPerformUpdateMcpServer).not.toHaveBeenCalled()
+  })
+
+  it('allows a url that matches the stored one, so a full-object PATCH still works', async () => {
+    mockGetWorkspaceMcpServer.mockResolvedValue(buildRow())
+
+    const res = await callPatch({
+      workspaceId: 'workspace-1',
+      url: 'https://mcp.example.com/sse',
+      enabled: false,
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockPerformUpdateMcpServer).toHaveBeenCalled()
+  })
+
   it('updates the server and returns the public shape', async () => {
     const res = await callPatch({ workspaceId: 'workspace-1', name: 'Renamed', enabled: false })
     const body = await res.json()

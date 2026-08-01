@@ -8,6 +8,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getCredentialActorContext } from '@/lib/credentials/access'
 import { performCreateCredential } from '@/lib/credentials/orchestration'
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -119,10 +120,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     /**
-     * The creator is always an admin of the credential they just made, whether
-     * the row was inserted now or matched an existing source.
+     * A fresh insert makes the creator an admin, but an idempotent match against
+     * an existing source does not — the orchestration admits a caller who is
+     * only a *member* of that credential. Resolve the real role rather than
+     * assuming the create case, or the response would advertise administrative
+     * actions the caller cannot perform.
      */
-    const credential = toV2CredentialRow(result.credential, 'admin')
+    const actor = result.created
+      ? { isAdmin: true }
+      : await getCredentialActorContext(result.credential.id, userId)
+    const credential = toV2CredentialRow(result.credential, actor.isAdmin ? 'admin' : 'member')
 
     /**
      * Always 201, including when an existing credential already occupied this

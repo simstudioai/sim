@@ -13,12 +13,14 @@ const {
   mockCheckWorkspaceAccess,
   mockListVisibleWorkspaceCredentials,
   mockPerformCreateCredential,
+  mockGetCredentialActorContext,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockListVisibleWorkspaceCredentials: vi.fn(),
   mockPerformCreateCredential: vi.fn(),
+  mockGetCredentialActorContext: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -36,6 +38,10 @@ vi.mock('@/lib/credentials/queries', () => ({
 
 vi.mock('@/lib/credentials/orchestration', () => ({
   performCreateCredential: mockPerformCreateCredential,
+}))
+
+vi.mock('@/lib/credentials/access', () => ({
+  getCredentialActorContext: mockGetCredentialActorContext,
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
@@ -210,6 +216,7 @@ describe('POST /api/v2/credentials', () => {
       credential: buildRow(),
       created: true,
     })
+    mockGetCredentialActorContext.mockResolvedValue({ member: null, isAdmin: false })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -277,6 +284,28 @@ describe('POST /api/v2/credentials', () => {
     const res = await callCreate(VALID_BODY)
     expect(res.status).toBe(503)
     expect((await res.json()).error.code).toBe('SERVICE_UNAVAILABLE')
+  })
+
+  it('reports the real role when an idempotent create matches a credential the caller only belongs to', async () => {
+    mockPerformCreateCredential.mockResolvedValue({
+      success: true,
+      credential: buildRow(),
+      created: false,
+    })
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'member' }, isAdmin: false })
+
+    const res = await callCreate(VALID_BODY)
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(body.data.credential.role).toBe('member')
+  })
+
+  it('reports admin for a fresh insert without a second access lookup', async () => {
+    const res = await callCreate(VALID_BODY)
+
+    expect((await res.json()).data.credential.role).toBe('admin')
+    expect(mockGetCredentialActorContext).not.toHaveBeenCalled()
   })
 
   it('creates the credential and never echoes the submitted secret', async () => {
