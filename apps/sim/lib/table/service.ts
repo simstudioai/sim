@@ -18,6 +18,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
+import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
@@ -439,6 +440,9 @@ export async function createTable(
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
 
+  // Live tables list: tell everyone viewing this workspace's tables to refetch.
+  await notifyWorkspaceTablesChanged(data.workspaceId)
+
   return {
     id: newTable.id,
     name: newTable.name,
@@ -604,13 +608,21 @@ export async function renameTable(
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
       .where(eq(userTableDefinitions.id, tableId))
-      .returning({ id: userTableDefinitions.id })
+      // `workspaceId` is selected for the live-list notify below, not for an audit —
+      // the audit moved up to `performRenameTable`.
+      .returning({ id: userTableDefinitions.id, workspaceId: userTableDefinitions.workspaceId })
 
     if (result.length === 0) {
       throw new OrchestrationError('not_found', `Table ${tableId} not found`)
     }
 
+    const { workspaceId } = result[0]
+
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+
+    // Live tables list: a rename changes the list result, so everyone viewing refetches.
+    if (workspaceId) await notifyWorkspaceTablesChanged(workspaceId)
+
     return { id: tableId, name: newName }
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -670,6 +682,9 @@ export async function moveTableToFolder(
   const { name } = result[0]
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+  // Live tables list: a move changes each table's folder placement in the list result.
+  await notifyWorkspaceTablesChanged(workspaceId)
+
   return { name }
 }
 
@@ -716,13 +731,13 @@ export async function updateTableLocks(
  * @param tableId - Table ID to update
  * @param metadata - Partial metadata object (merged with existing)
  * @param existingMetadata - Existing metadata from a prior fetch (avoids redundant DB read)
- * @returns Updated metadata
+ * @returns The merged metadata plus whether the reorder also mutated the schema
  */
 export async function updateTableMetadata(
   tableId: string,
   metadata: TableMetadata,
   existingMetadata?: TableMetadata | null
-): Promise<TableMetadata> {
+): Promise<{ metadata: TableMetadata; schemaChanged: boolean }> {
   const merged: TableMetadata = { ...(existingMetadata ?? {}), ...metadata }
 
   // When `columnOrder` is in the patch, scrub any workflow-group dependency
@@ -771,7 +786,7 @@ export async function updateTableMetadata(
     .set(nextSchema ? { metadata: merged, schema: nextSchema } : { metadata: merged })
     .where(eq(userTableDefinitions.id, tableId))
 
-  return merged
+  return { metadata: merged, schemaChanged: nextSchema !== null }
 }
 
 /**
@@ -787,7 +802,7 @@ export async function updateTableMetadata(
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  options?: { archivedAt?: Date }
+  options?: { archivedAt?: Date; skipNotify?: boolean }
 ): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
@@ -831,6 +846,12 @@ export async function deleteTable(
     // Otherwise the table is missing or already archived — a silent no-op, as before.
   }
   logger.info(`[${requestId}] Archived table ${tableId}`)
+  // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
+  // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
+  // so we don't spam one relay call per archived table.
+  if (deleted?.workspaceId && !options?.skipNotify)
+    await notifyWorkspaceTablesChanged(deleted.workspaceId)
+
   // Null when the table was missing or already archived — a silent no-op. The
   // caller audits only a genuine archive, so a repeat delete logs nothing.
   return { archived: deleted ? { name: deleted.name, workspaceId: deleted.workspaceId } : null }
@@ -848,7 +869,7 @@ export async function deleteTable(
 export async function restoreTable(
   tableId: string,
   requestId: string,
-  options?: { restoringFolderIds?: ReadonlySet<string> }
+  options?: { restoringFolderIds?: ReadonlySet<string>; skipNotify?: boolean }
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
@@ -933,4 +954,9 @@ export async function restoreTable(
   }
 
   logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
+
+  // Live tables list: a restore re-adds the table to the active list. Skipped under a folder cascade —
+  // restoreFolder fires one folder-level notify for the whole subtree (see deleteTable).
+  if (table.workspaceId && !options?.skipNotify)
+    await notifyWorkspaceTablesChanged(table.workspaceId)
 }

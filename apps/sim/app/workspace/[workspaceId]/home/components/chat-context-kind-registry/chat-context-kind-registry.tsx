@@ -13,7 +13,7 @@ import {
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getBlockRegistry } from '@/blocks/registry'
 
 interface RenderIconArgs {

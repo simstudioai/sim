@@ -1,5 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import ScheduledTasksLoading from '@/app/workspace/[workspaceId]/scheduled-tasks/loading'
 import { ScheduledTasks } from './scheduled-tasks'
 
@@ -14,6 +16,10 @@ export const metadata: Metadata = {
  * so a suspend never shows a blank frame.
  */
 export default function ScheduledTasksPage() {
+  // The calendar only surfaces mothership prompt jobs, so with Chat off there is
+  // nothing this page could ever show.
+  if (!isChatEnabled) notFound()
+
   return (
     <Suspense fallback={<ScheduledTasksLoading />}>
       <ScheduledTasks />

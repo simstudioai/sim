@@ -5,7 +5,7 @@ import { instagramPublishImageContract } from '@/lib/api/contracts/tools/instagr
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveInstagramMedia } from '@/lib/integrations/instagram/resolve-media'
+import { resolveInstagramMedia } from '@/app/api/tools/instagram/resolve-media'
 import {
   createMediaContainer,
   publishMediaContainer,

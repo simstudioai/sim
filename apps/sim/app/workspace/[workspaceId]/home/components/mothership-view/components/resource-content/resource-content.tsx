@@ -250,6 +250,7 @@ export const ResourceContent = memo(function ResourceContent({
           }
           isAgentEditing={isAgentEditing}
           streamIsIncremental={streamIsIncremental}
+          streamOperation={previewSession?.operation}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -663,6 +664,7 @@ interface EmbeddedFileProps {
   streamingContent?: string
   isAgentEditing?: boolean
   streamIsIncremental?: boolean
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -675,6 +677,7 @@ function EmbeddedFile({
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -718,8 +721,10 @@ function EmbeddedFile({
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}
         streamIsIncremental={streamIsIncremental}
+        streamOperation={streamOperation}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
+        collaborative
       />
     </div>
   )

@@ -164,6 +164,12 @@ export async function writeWorkspaceFileByPath(args: {
   target: WorkspaceFileWriteTarget
   buffer: Buffer
   inferredMimeType: string
+  /**
+   * Forwarded to {@link updateWorkspaceFileContent} on an overwrite. Defaults to `true` (stream a
+   * markdown overwrite into any open collaborative editor). Pass `false` for a write whose content is
+   * only a placeholder — e.g. `create_file`'s empty shell, whose real content lands via a later write.
+   */
+  syncLiveDoc?: boolean
 }): Promise<WorkspaceFileWriteResult> {
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
@@ -177,7 +183,8 @@ export async function writeWorkspaceFileByPath(args: {
       existing.id,
       args.userId,
       args.buffer,
-      contentType || existing.type
+      contentType || existing.type,
+      { syncLiveDoc: args.syncLiveDoc }
     )
 
     return {

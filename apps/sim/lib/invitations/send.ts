@@ -677,7 +677,7 @@ export interface SendWorkspaceAddedEmailInput {
 export async function sendWorkspaceAddedEmail(
   input: SendWorkspaceAddedEmailInput
 ): Promise<SendInvitationEmailResult> {
-  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}/home`
+  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}`
   const emailHtml = await renderWorkspaceAddedEmail(
     input.inviterName,
     input.workspaceName,

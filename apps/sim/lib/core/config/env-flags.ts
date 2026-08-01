@@ -60,6 +60,23 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
+ * Are the Chat module's surfaces shown. On by default, so a deployment that
+ * already has `COPILOT_API_KEY` keeps Chat without setting anything; the setup
+ * wizard writes the opt-out when you skip the key.
+ *
+ * This governs presentation only. Whether Chat can actually reach the mothership
+ * is a separate question answered by `COPILOT_API_KEY`, which gates the paths
+ * that need it (the Sim Chat block, prompt-job claims, inbox execution). Keeping
+ * them separate is what lets this be a single variable: the secret key could
+ * never be read in the browser, but `NEXT_PUBLIC_CHAT_DISABLED` can — no twin to
+ * keep in sync.
+ *
+ * Read at module scope or inline during render only. Resolving it through
+ * `useState`/`useEffect` would render chat surfaces before removing them.
+ */
+export const isChatEnabled = !isTruthy(getEnv('NEXT_PUBLIC_CHAT_DISABLED'))
+
+/**
  * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
  * runs, sandboxed code, deployments, integration calls — behind an explicit
  * Allow / Skip prompt, blocking the mothership turn until the user answers.

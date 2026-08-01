@@ -57,15 +57,31 @@ export async function promptCopilotKey(existing?: string): Promise<string | null
     initialValue: true,
   })
   if (!wants) {
-    p.log.info(theme.muted('Skipping — Chat stays disabled until COPILOT_API_KEY is set.'))
+    p.log.info(theme.muted('Skipping — the Chat module stays hidden until you re-run setup.'))
     return null
   }
   const key = await browserKeyFlow(process.env.SIM_CLI_AUTH_ORIGIN ?? DEFAULT_CLI_AUTH_ORIGIN)
   if (!key) {
-    p.log.warn('No key received — re-run bun run setup to retry, or set COPILOT_API_KEY yourself.')
+    // Both halves, because the caller writes the opt-out for a null key: a
+    // hand-set credential alone restores capability while Chat stays hidden.
+    p.log.warn(
+      'No key received — re-run bun run setup to retry, or set COPILOT_API_KEY and NEXT_PUBLIC_CHAT_DISABLED=false yourself.'
+    )
     return null
   }
   return key
+}
+
+/**
+ * Hides the Chat module when the user skipped the chat key, so a fresh install
+ * gets no Chat surfaces rather than ones that reject every message. Written in
+ * both directions on every run, so obtaining a key later un-hides it.
+ *
+ * Only the wizard writes this. Chat is on by default everywhere else, which is
+ * what keeps existing deployments unaffected.
+ */
+export function chatFlagValues(copilotKey: string | null): Record<string, string> {
+  return { NEXT_PUBLIC_CHAT_DISABLED: copilotKey ? 'false' : 'true' }
 }
 
 /**

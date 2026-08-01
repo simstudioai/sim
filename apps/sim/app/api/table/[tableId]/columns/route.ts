@@ -12,6 +12,7 @@ import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { addTableColumn, deleteColumn } from '@/lib/table'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
 import {
   accessError,
@@ -53,6 +54,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     }
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -126,6 +128,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableSchemaChanged(tableId)
+
     return NextResponse.json({
       success: true,
       data: {
@@ -172,6 +177,7 @@ export const DELETE = withRouteHandler(
         { tableId, columnName: validated.columnName },
         requestId
       )
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

@@ -17,6 +17,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
+import { env } from '@/lib/core/config/env'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { runDetached } from '@/lib/core/utils/background'
@@ -1245,7 +1246,18 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
   let iterations = 0
   let remainingWorkflowBudget = SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
   let schedulesExhausted = false
-  let jobsExhausted = false
+  /**
+   * Prompt jobs run through the mothership, so without a key every claim ends in
+   * a 401. Skipping the claim entirely leaves the rows `active` and resumable;
+   * claiming them would burn each one through `MAX_CONSECUTIVE_FAILURES` and
+   * permanently disable a schedule the user can no longer see, let alone stop.
+   * Keyed on the credential rather than `CHAT_ENABLED` so jobs keep running for
+   * a deployment that only hid the UI.
+   */
+  let jobsExhausted = !env.COPILOT_API_KEY
+  if (jobsExhausted) {
+    logger.info(`[${requestId}] COPILOT_API_KEY not set, skipping prompt job claims`)
+  }
 
   while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
     if (schedulesExhausted && jobsExhausted) break

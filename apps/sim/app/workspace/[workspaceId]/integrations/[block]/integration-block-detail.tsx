@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
   blockTypeToIconMap,
   type Integration,
@@ -157,11 +158,11 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 Add to Sim
               </Chip>
             )
-          ) : (
+          ) : isChatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
               Add to Sim
             </Chip>
-          )}
+          ) : null}
         </div>
       </div>
       {oauthService && (
@@ -243,7 +244,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             />
           )}
 
-          {matchingTemplates.length > 0 && (
+          {/* Every template hands its prompt to Chat, so the section has no
+              destination without it. */}
+          {isChatEnabled && matchingTemplates.length > 0 && (
             <TemplatesSection
               integration={integration}
               templates={matchingTemplates}

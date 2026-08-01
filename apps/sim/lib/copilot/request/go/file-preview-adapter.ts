@@ -23,6 +23,7 @@ import { peekFileIntent } from '@/lib/copilot/tools/server/files/file-intent-sto
 import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
+  type WorkspaceFilePreviewBase,
 } from '@/lib/copilot/tools/server/files/file-preview'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -386,21 +387,21 @@ export async function processFilePreviewStreamEvent(input: {
       setIntent(intent)
 
       if (isContentOp && previewTargetKind) {
-        let previewBaseContent: string | undefined
+        let previewBase: WorkspaceFilePreviewBase | undefined
         if (
           execContext.workspaceId &&
           fileId &&
           (operation === 'append' || operation === 'patch')
         ) {
-          previewBaseContent = await loadWorkspaceFileTextForPreview(
-            execContext.workspaceId,
-            fileId
-          )
+          previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, fileId)
         }
 
         let session = buildPreviewSessionFromIntent(streamId, intent)
-        if (previewBaseContent !== undefined) {
-          session = { ...session, baseContent: previewBaseContent }
+        if (previewBase !== undefined) {
+          session = {
+            ...session,
+            baseContent: previewBase.text,
+          }
         }
         filePreviewState.set(toolCallId, {
           session,
@@ -458,20 +459,20 @@ export async function processFilePreviewStreamEvent(input: {
       }
       setIntent(intent)
 
-      let previewBaseContent: string | undefined
+      let previewBase: WorkspaceFilePreviewBase | undefined
       if (
         execContext.workspaceId &&
         (intent.operation === 'append' || intent.operation === 'patch')
       ) {
-        previewBaseContent = await loadWorkspaceFileTextForPreview(
-          execContext.workspaceId,
-          result.fileId
-        )
+        previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, result.fileId)
       }
 
       let session = buildPreviewSessionFromIntent(streamId, intent)
-      if (previewBaseContent !== undefined) {
-        session = { ...session, baseContent: previewBaseContent }
+      if (previewBase !== undefined) {
+        session = {
+          ...session,
+          baseContent: previewBase.text,
+        }
       }
       filePreviewState.set(intent.toolCallId, {
         session,
@@ -636,6 +637,13 @@ export async function processFilePreviewStreamEvent(input: {
           }
 
           await persistFilePreviewSession(nextSession)
+
+          // The growing content is NOT merged into the live collaborative Y.Doc from here. When a
+          // collaborative editor for this file is open, that client applies the stream to the shared
+          // doc as minimal CRDT diffs (see `applyStreamedMarkdownToLiveDoc` in the editor), which
+          // renders smoothly locally AND broadcasts to every peer — so a server-side streaming merge
+          // would double-write the shared doc. The final `edit_content` durable write still reconciles
+          // the file and seeds any late joiner.
 
           if (
             nextSession.operation === 'patch' &&

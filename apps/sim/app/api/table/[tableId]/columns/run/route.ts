@@ -6,6 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
@@ -63,6 +64,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       requestId,
       triggeredByUserId: auth.userId,
     })
+
+    // Starting a run clears the target group's cells to pending (`bulkClearWorkflowGroupCells`) — a DB
+    // row change. The `dispatch: dispatching` events drive the run overlay, but the cleared cell values
+    // come from the rows query, so refetch the grid. Unconditional: the bulk clear can run even on a path
+    // that then returns a null `dispatchId` (dispatch cancelled post-clear), and a stale-but-harmless
+    // refetch beats a missed one.
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({ success: true, data: { dispatchId } })
   } catch (error) {

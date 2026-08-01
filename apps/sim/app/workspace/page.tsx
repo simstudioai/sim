@@ -132,7 +132,7 @@ export default function WorkspacePage() {
     const destinationFor = (id: string) =>
       redirectTarget === 'upgrade'
         ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
-        : `/workspace/${id}/home`
+        : `/workspace/${id}`
 
     const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
@@ -253,7 +253,7 @@ async function handleWorkflowRedirect(
   } catch (error) {
     logger.error('Error fetching workflow for redirect:', error)
   }
-  router.replace(`/workspace/${fallbackWorkspaceId}/home`)
+  router.replace(`/workspace/${fallbackWorkspaceId}`)
 }
 
 async function handleNoWorkspaces(
