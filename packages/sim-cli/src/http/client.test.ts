@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CLI_CONTRACT } from '../contract/commands.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 import { resolvePath, SimApiError } from './client.js'
 
@@ -86,6 +87,36 @@ describe('generated operation table', () => {
       const key = `${spec.method} ${spec.path}`
       expect(seen.get(key), `${key} claimed by both ${seen.get(key)} and ${name}`).toBeUndefined()
       seen.set(key, name)
+    }
+  })
+})
+
+describe('destructive operations are gated', () => {
+  /**
+   * `DELETE /workflows/[id]/deploy` is an undeploy — reversible by redeploying,
+   * and the contract renames it accordingly. Everything else that deletes is
+   * gated behind `--yes`.
+   */
+  const NOT_DESTRUCTIVE = new Set<V2OperationName>(['undeployWorkflow'])
+
+  it('every DELETE carries a confirmation message', () => {
+    // Without this, a new v2 domain arrives through generation with working
+    // delete commands and no gate — which is exactly what happened when the
+    // MCP/skills/folders/credentials endpoints landed.
+    const ungated = (Object.keys(V2_OPERATIONS) as V2OperationName[]).filter(
+      (name) =>
+        V2_OPERATIONS[name].method === 'DELETE' &&
+        !NOT_DESTRUCTIVE.has(name) &&
+        !CLI_CONTRACT[name]?.confirm
+    )
+    expect(ungated).toEqual([])
+  })
+
+  it('states what is destroyed, not just that something is', () => {
+    for (const [name, spec] of Object.entries(CLI_CONTRACT)) {
+      if (!spec?.confirm) continue
+      expect(spec.confirm, name).toMatch(/^This /)
+      expect(spec.confirm.length, name).toBeGreaterThan(20)
     }
   })
 })

@@ -75,6 +75,110 @@ export type CancelWorkflowExecutionResponse = {
   }
 }
 
+/** `POST /api/v2/credentials` */
+export type CreateCredentialBody = {
+  workspaceId: string
+  type: 'env_workspace' | 'env_personal' | 'service_account'
+  displayName?: string
+  description?: string
+  providerId?: string
+  envKey?: string
+  serviceAccountJson?: string
+  signingSecret?: string
+  botToken?: string
+  apiToken?: string
+  domain?: string
+  clientId?: string
+  clientSecret?: string
+  orgId?: string
+}
+
+export type CreateCredentialResponse = {
+  data: {
+    credential: {
+      id: string
+      type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+      displayName: string
+      description: string | null
+      providerId: string | null
+      accountId: string | null
+      envKey: string | null
+      hasServiceAccountKey: boolean
+      role: 'admin' | 'member'
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `POST /api/v2/custom-tools` */
+export type CreateCustomToolBody = {
+  workspaceId: string
+  title: string
+  schema: {
+    type: 'function'
+    function: {
+      name: string
+      description?: string
+      parameters: {
+        type: string
+        properties: Record<string, unknown>
+        required?: Array<string>
+      }
+    }
+  }
+  code: string
+}
+
+export type CreateCustomToolResponse = {
+  data: {
+    customTool: {
+      id: string
+      title: string
+      schema: {
+        type: 'function'
+        function: {
+          name: string
+          description?: string
+          parameters: {
+            type: string
+            properties: Record<string, unknown>
+            required?: Array<string>
+          }
+        }
+      }
+      code: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `POST /api/v2/folders` */
+export type CreateFolderBody = {
+  workspaceId: string
+  resourceType: 'workflow' | 'knowledge_base' | 'table'
+  name: string
+  parentId?: string | null
+  sortOrder?: number
+}
+
+export type CreateFolderResponse = {
+  data: {
+    folder: {
+      id: string
+      resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
+      name: string
+      parentId: string | null
+      locked: boolean
+      sortOrder: number
+      createdAt: string
+      updatedAt: string
+      deletedAt: string | null
+    }
+  }
+}
+
 /** `POST /api/v2/knowledge` */
 export type CreateKnowledgeBaseBody = {
   workspaceId: string
@@ -112,6 +216,71 @@ export type CreateKnowledgeBaseResponse = {
       connectorTypes?: Array<string>
       createdAt: string
       updatedAt: string
+    }
+  }
+}
+
+/** `POST /api/v2/mcp-servers` */
+export type CreateMcpServerBody = {
+  workspaceId: string
+  name: string
+  description?: string
+  transport?: 'streamable-http'
+  url: string
+  authType?: 'none' | 'headers' | 'oauth'
+  headers?: Record<string, string>
+  timeout?: number
+  retries?: number
+  enabled?: boolean
+  oauthClientId?: string | null
+  oauthClientSecret?: string | null
+}
+
+export type CreateMcpServerResponse = {
+  data: {
+    mcpServer: {
+      id: string
+      name: string
+      description?: string
+      transport: 'streamable-http'
+      authType?: 'none' | 'headers' | 'oauth'
+      url?: string
+      timeout?: number
+      retries?: number
+      enabled: boolean
+      connectionStatus?: 'connected' | 'disconnected' | 'error'
+      lastError?: string | null
+      toolCount?: number
+      lastToolsRefresh?: string
+      lastConnected?: string
+      createdAt: string
+      updatedAt: string
+      oauthClientId?: string
+      hasHeaders: boolean
+      headerNames: Array<string>
+      hasOauthClientSecret: boolean
+    }
+  }
+}
+
+/** `POST /api/v2/skills` */
+export type CreateSkillBody = {
+  workspaceId: string
+  name: string
+  description: string
+  content: string
+}
+
+export type CreateSkillResponse = {
+  data: {
+    skill: {
+      id: string
+      name: string
+      description: string
+      readOnly: boolean
+      createdAt: string
+      updatedAt: string
+      content: string
     }
   }
 }
@@ -210,6 +379,38 @@ export type CreateTableRowsResponse =
       }
     }
 
+/** `DELETE /api/v2/credentials/[id]` */
+export type DeleteCredentialParams = {
+  id: string
+}
+
+export type DeleteCredentialQuery = {
+  workspaceId: string
+}
+
+export type DeleteCredentialResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
+}
+
+/** `DELETE /api/v2/custom-tools/[id]` */
+export type DeleteCustomToolParams = {
+  id: string
+}
+
+export type DeleteCustomToolQuery = {
+  workspaceId: string
+}
+
+export type DeleteCustomToolResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
+}
+
 /** `DELETE /api/v2/files/[fileId]` */
 export type DeleteFileParams = {
   fileId: string
@@ -223,6 +424,30 @@ export type DeleteFileResponse = {
   data: {
     id: string
     deleted: true
+  }
+}
+
+/** `DELETE /api/v2/folders/[id]` */
+export type DeleteFolderParams = {
+  id: string
+}
+
+export type DeleteFolderQuery = {
+  workspaceId: string
+  resourceType: 'workflow' | 'knowledge_base' | 'table'
+}
+
+export type DeleteFolderResponse = {
+  data: {
+    id: string
+    deleted: true
+    deletedItems?: {
+      folders: number
+      workflows?: number
+      files?: number
+      knowledgeBases?: number
+      tables?: number
+    }
   }
 }
 
@@ -253,6 +478,38 @@ export type DeleteKnowledgeDocumentQuery = {
 }
 
 export type DeleteKnowledgeDocumentResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
+}
+
+/** `DELETE /api/v2/mcp-servers/[id]` */
+export type DeleteMcpServerParams = {
+  id: string
+}
+
+export type DeleteMcpServerQuery = {
+  workspaceId: string
+}
+
+export type DeleteMcpServerResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
+}
+
+/** `DELETE /api/v2/skills/[id]` */
+export type DeleteSkillParams = {
+  id: string
+}
+
+export type DeleteSkillQuery = {
+  workspaceId: string
+}
+
+export type DeleteSkillResponse = {
   data: {
     id: string
     deleted: true
@@ -581,6 +838,66 @@ export type GetAuditLogResponse = {
   }
 }
 
+/** `GET /api/v2/credentials/[id]` */
+export type GetCredentialParams = {
+  id: string
+}
+
+export type GetCredentialQuery = {
+  workspaceId: string
+}
+
+export type GetCredentialResponse = {
+  data: {
+    credential: {
+      id: string
+      type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+      displayName: string
+      description: string | null
+      providerId: string | null
+      accountId: string | null
+      envKey: string | null
+      hasServiceAccountKey: boolean
+      role: 'admin' | 'member'
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `GET /api/v2/custom-tools/[id]` */
+export type GetCustomToolParams = {
+  id: string
+}
+
+export type GetCustomToolQuery = {
+  workspaceId: string
+}
+
+export type GetCustomToolResponse = {
+  data: {
+    customTool: {
+      id: string
+      title: string
+      schema: {
+        type: 'function'
+        function: {
+          name: string
+          description?: string
+          parameters: {
+            type: string
+            properties: Record<string, unknown>
+            required?: Array<string>
+          }
+        }
+      }
+      code: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `GET /api/v2/logs/executions/[executionId]` */
 export type GetExecutionParams = {
   executionId: string
@@ -599,6 +916,32 @@ export type GetExecutionResponse = {
       cost: {
         total: number
       } | null
+    }
+  }
+}
+
+/** `GET /api/v2/folders/[id]` */
+export type GetFolderParams = {
+  id: string
+}
+
+export type GetFolderQuery = {
+  workspaceId: string
+  resourceType: 'workflow' | 'knowledge_base' | 'table'
+}
+
+export type GetFolderResponse = {
+  data: {
+    folder: {
+      id: string
+      resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
+      name: string
+      parentId: string | null
+      locked: boolean
+      sortOrder: number
+      createdAt: string
+      updatedAt: string
+      deletedAt: string | null
     }
   }
 }
@@ -707,6 +1050,65 @@ export type GetLogResponse = {
       total: number
     } | null
     createdAt: string
+  }
+}
+
+/** `GET /api/v2/mcp-servers/[id]` */
+export type GetMcpServerParams = {
+  id: string
+}
+
+export type GetMcpServerQuery = {
+  workspaceId: string
+}
+
+export type GetMcpServerResponse = {
+  data: {
+    mcpServer: {
+      id: string
+      name: string
+      description?: string
+      transport: 'streamable-http'
+      authType?: 'none' | 'headers' | 'oauth'
+      url?: string
+      timeout?: number
+      retries?: number
+      enabled: boolean
+      connectionStatus?: 'connected' | 'disconnected' | 'error'
+      lastError?: string | null
+      toolCount?: number
+      lastToolsRefresh?: string
+      lastConnected?: string
+      createdAt: string
+      updatedAt: string
+      oauthClientId?: string
+      hasHeaders: boolean
+      headerNames: Array<string>
+      hasOauthClientSecret: boolean
+    }
+  }
+}
+
+/** `GET /api/v2/skills/[id]` */
+export type GetSkillParams = {
+  id: string
+}
+
+export type GetSkillQuery = {
+  workspaceId: string
+}
+
+export type GetSkillResponse = {
+  data: {
+    skill: {
+      id: string
+      name: string
+      description: string
+      readOnly: boolean
+      createdAt: string
+      updatedAt: string
+      content: string
+    }
   }
 }
 
@@ -921,6 +1323,58 @@ export type ListAuditLogsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/credentials` */
+export type ListCredentialsQuery = {
+  workspaceId: string
+  type?: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+  providerId?: string
+}
+
+export type ListCredentialsResponse = {
+  data: Array<{
+    id: string
+    type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    displayName: string
+    description: string | null
+    providerId: string | null
+    accountId: string | null
+    envKey: string | null
+    hasServiceAccountKey: boolean
+    role: 'admin' | 'member'
+    createdAt: string
+    updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/custom-tools` */
+export type ListCustomToolsQuery = {
+  workspaceId: string
+}
+
+export type ListCustomToolsResponse = {
+  data: Array<{
+    id: string
+    title: string
+    schema: {
+      type: 'function'
+      function: {
+        name: string
+        description?: string
+        parameters: {
+          type: string
+          properties: Record<string, unknown>
+          required?: Array<string>
+        }
+      }
+    }
+    code: string
+    createdAt: string
+    updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/files` */
 export type ListFilesQuery = {
   workspaceId: string
@@ -937,6 +1391,28 @@ export type ListFilesResponse = {
     key: string
     uploadedBy: string
     uploadedAt: string
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/folders` */
+export type ListFoldersQuery = {
+  workspaceId: string
+  resourceType: 'workflow' | 'knowledge_base' | 'table'
+  scope?: 'active' | 'archived'
+}
+
+export type ListFoldersResponse = {
+  data: Array<{
+    id: string
+    resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
+    name: string
+    parentId: string | null
+    locked: boolean
+    sortOrder: number
+    createdAt: string
+    updatedAt: string
+    deletedAt: string | null
   }>
   nextCursor: string | null
 }
@@ -1059,6 +1535,54 @@ export type ListLogsResponse = {
     }
     finalOutput?: unknown
     traceSpans?: unknown
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/mcp-servers` */
+export type ListMcpServersQuery = {
+  workspaceId: string
+}
+
+export type ListMcpServersResponse = {
+  data: Array<{
+    id: string
+    name: string
+    description?: string
+    transport: 'streamable-http'
+    authType?: 'none' | 'headers' | 'oauth'
+    url?: string
+    timeout?: number
+    retries?: number
+    enabled: boolean
+    connectionStatus?: 'connected' | 'disconnected' | 'error'
+    lastError?: string | null
+    toolCount?: number
+    lastToolsRefresh?: string
+    lastConnected?: string
+    createdAt: string
+    updatedAt: string
+    oauthClientId?: string
+    hasHeaders: boolean
+    headerNames: Array<string>
+    hasOauthClientSecret: boolean
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/skills` */
+export type ListSkillsQuery = {
+  workspaceId: string
+}
+
+export type ListSkillsResponse = {
+  data: Array<{
+    id: string
+    name: string
+    description: string
+    readOnly: boolean
+    createdAt: string
+    updatedAt: string
   }>
   nextCursor: string | null
 }
@@ -1321,6 +1845,120 @@ export type UndeployWorkflowResponse = {
   }
 }
 
+/** `PATCH /api/v2/credentials/[id]` */
+export type UpdateCredentialParams = {
+  id: string
+}
+
+export type UpdateCredentialBody = {
+  workspaceId: string
+  displayName?: string
+  description?: string | null
+  serviceAccountJson?: string
+  signingSecret?: string
+  botToken?: string
+  apiToken?: string
+  domain?: string
+  clientId?: string
+  clientSecret?: string
+  orgId?: string
+}
+
+export type UpdateCredentialResponse = {
+  data: {
+    credential: {
+      id: string
+      type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+      displayName: string
+      description: string | null
+      providerId: string | null
+      accountId: string | null
+      envKey: string | null
+      hasServiceAccountKey: boolean
+      role: 'admin' | 'member'
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `PATCH /api/v2/custom-tools/[id]` */
+export type UpdateCustomToolParams = {
+  id: string
+}
+
+export type UpdateCustomToolBody = {
+  workspaceId: string
+  title?: string
+  schema?: {
+    type: 'function'
+    function: {
+      name: string
+      description?: string
+      parameters: {
+        type: string
+        properties: Record<string, unknown>
+        required?: Array<string>
+      }
+    }
+  }
+  code?: string
+}
+
+export type UpdateCustomToolResponse = {
+  data: {
+    customTool: {
+      id: string
+      title: string
+      schema: {
+        type: 'function'
+        function: {
+          name: string
+          description?: string
+          parameters: {
+            type: string
+            properties: Record<string, unknown>
+            required?: Array<string>
+          }
+        }
+      }
+      code: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `PATCH /api/v2/folders/[id]` */
+export type UpdateFolderParams = {
+  id: string
+}
+
+export type UpdateFolderBody = {
+  workspaceId: string
+  resourceType: 'workflow' | 'knowledge_base' | 'table'
+  name?: string
+  locked?: boolean
+  parentId?: string | null
+  sortOrder?: number
+}
+
+export type UpdateFolderResponse = {
+  data: {
+    folder: {
+      id: string
+      resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
+      name: string
+      parentId: string | null
+      locked: boolean
+      sortOrder: number
+      createdAt: string
+      updatedAt: string
+      deletedAt: string | null
+    }
+  }
+}
+
 /** `PUT /api/v2/knowledge/[id]` */
 export type UpdateKnowledgeBaseParams = {
   id: string
@@ -1366,6 +2004,53 @@ export type UpdateKnowledgeBaseResponse = {
   }
 }
 
+/** `PATCH /api/v2/mcp-servers/[id]` */
+export type UpdateMcpServerParams = {
+  id: string
+}
+
+export type UpdateMcpServerBody = {
+  workspaceId: string
+  name?: string
+  description?: string
+  transport?: 'streamable-http'
+  url?: string
+  authType?: 'none' | 'headers' | 'oauth'
+  headers?: Record<string, string>
+  timeout?: number
+  retries?: number
+  enabled?: boolean
+  oauthClientId?: string | null
+  oauthClientSecret?: string | null
+}
+
+export type UpdateMcpServerResponse = {
+  data: {
+    mcpServer: {
+      id: string
+      name: string
+      description?: string
+      transport: 'streamable-http'
+      authType?: 'none' | 'headers' | 'oauth'
+      url?: string
+      timeout?: number
+      retries?: number
+      enabled: boolean
+      connectionStatus?: 'connected' | 'disconnected' | 'error'
+      lastError?: string | null
+      toolCount?: number
+      lastToolsRefresh?: string
+      lastConnected?: string
+      createdAt: string
+      updatedAt: string
+      oauthClientId?: string
+      hasHeaders: boolean
+      headerNames: Array<string>
+      hasOauthClientSecret: boolean
+    }
+  }
+}
+
 /** `PUT /api/v2/tables/[tableId]/rows` */
 export type UpdateRowsByFilterParams = {
   tableId: string
@@ -1382,6 +2067,32 @@ export type UpdateRowsByFilterResponse = {
   data: {
     updatedCount: number
     updatedRowIds: Array<string>
+  }
+}
+
+/** `PATCH /api/v2/skills/[id]` */
+export type UpdateSkillParams = {
+  id: string
+}
+
+export type UpdateSkillBody = {
+  workspaceId: string
+  name?: string
+  description?: string
+  content?: string
+}
+
+export type UpdateSkillResponse = {
+  data: {
+    skill: {
+      id: string
+      name: string
+      description: string
+      readOnly: boolean
+      createdAt: string
+      updatedAt: string
+      content: string
+    }
   }
 }
 
@@ -1546,6 +2257,64 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Cancel an execution',
   },
+  createCredential: {
+    method: 'POST',
+    path: '/api/v2/credentials',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Credential',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      type: {
+        kind: 'enum',
+        required: true,
+        values: ['env_workspace', 'env_personal', 'service_account'] as const,
+      },
+      displayName: { kind: 'string' },
+      description: { kind: 'string' },
+      providerId: { kind: 'string' },
+      envKey: { kind: 'string' },
+      serviceAccountJson: { kind: 'string' },
+      signingSecret: { kind: 'string' },
+      botToken: { kind: 'string' },
+      apiToken: { kind: 'string' },
+      domain: { kind: 'string' },
+      clientId: { kind: 'string' },
+      clientSecret: { kind: 'string' },
+      orgId: { kind: 'string' },
+    },
+  },
+  createCustomTool: {
+    method: 'POST',
+    path: '/api/v2/custom-tools',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Custom Tool',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      title: { kind: 'string', required: true },
+      schema: { kind: 'object', required: true },
+      code: { kind: 'string', required: true },
+    },
+  },
+  createFolder: {
+    method: 'POST',
+    path: '/api/v2/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      resourceType: {
+        kind: 'enum',
+        required: true,
+        values: ['workflow', 'knowledge_base', 'table'] as const,
+      },
+      name: { kind: 'string', required: true },
+      parentId: { kind: 'string' },
+      sortOrder: { kind: 'integer' },
+    },
+  },
   createKnowledgeBase: {
     method: 'POST',
     path: '/api/v2/knowledge',
@@ -1557,6 +2326,40 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true },
       description: { kind: 'string' },
       chunkingConfig: { kind: 'object', default: { maxSize: 1024, minSize: 100, overlap: 200 } },
+    },
+  },
+  createMcpServer: {
+    method: 'POST',
+    path: '/api/v2/mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create MCP Server',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      description: { kind: 'string' },
+      transport: { kind: 'enum', values: ['streamable-http'] as const },
+      url: { kind: 'string', required: true },
+      authType: { kind: 'enum', values: ['none', 'headers', 'oauth'] as const },
+      headers: { kind: 'object' },
+      timeout: { kind: 'integer' },
+      retries: { kind: 'integer' },
+      enabled: { kind: 'boolean' },
+      oauthClientId: { kind: 'string' },
+      oauthClientSecret: { kind: 'string' },
+    },
+  },
+  createSkill: {
+    method: 'POST',
+    path: '/api/v2/skills',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Skill',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      description: { kind: 'string', required: true },
+      content: { kind: 'string', required: true },
     },
   },
   createTable: {
@@ -1580,6 +2383,26 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Rows',
   },
+  deleteCredential: {
+    method: 'DELETE',
+    path: '/api/v2/credentials/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Delete Credential',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteCustomTool: {
+    method: 'DELETE',
+    path: '/api/v2/custom-tools/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Delete Custom Tool',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   deleteFile: {
     method: 'DELETE',
     path: '/api/v2/files/[fileId]',
@@ -1588,6 +2411,21 @@ export const V2_OPERATIONS = {
     summary: 'Delete File',
     query: {
       workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteFolder: {
+    method: 'DELETE',
+    path: '/api/v2/folders/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Delete Folder',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      resourceType: {
+        kind: 'enum',
+        required: true,
+        values: ['workflow', 'knowledge_base', 'table'] as const,
+      },
     },
   },
   deleteKnowledgeBase: {
@@ -1606,6 +2444,26 @@ export const V2_OPERATIONS = {
     pathParams: ['id', 'documentId'] as const,
     responseMode: 'json',
     summary: 'Delete Document',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteMcpServer: {
+    method: 'DELETE',
+    path: '/api/v2/mcp-servers/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Delete MCP Server',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteSkill: {
+    method: 'DELETE',
+    path: '/api/v2/skills/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Delete Skill',
     query: {
       workspaceId: { kind: 'string', required: true },
     },
@@ -1702,12 +2560,47 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Audit Log',
   },
+  getCredential: {
+    method: 'GET',
+    path: '/api/v2/credentials/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Get Credential',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  getCustomTool: {
+    method: 'GET',
+    path: '/api/v2/custom-tools/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Get Custom Tool',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   getExecution: {
     method: 'GET',
     path: '/api/v2/logs/executions/[executionId]',
     pathParams: ['executionId'] as const,
     responseMode: 'json',
     summary: 'Get Execution',
+  },
+  getFolder: {
+    method: 'GET',
+    path: '/api/v2/folders/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Get Folder',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      resourceType: {
+        kind: 'enum',
+        required: true,
+        values: ['workflow', 'knowledge_base', 'table'] as const,
+      },
+    },
   },
   getKnowledgeBase: {
     method: 'GET',
@@ -1735,6 +2628,26 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Get Log',
+  },
+  getMcpServer: {
+    method: 'GET',
+    path: '/api/v2/mcp-servers/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Get MCP Server',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  getSkill: {
+    method: 'GET',
+    path: '/api/v2/skills/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Get Skill',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   getTable: {
     method: 'GET',
@@ -1817,6 +2730,31 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
+  listCredentials: {
+    method: 'GET',
+    path: '/api/v2/credentials',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Credentials',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      type: {
+        kind: 'enum',
+        values: ['oauth', 'env_workspace', 'env_personal', 'service_account'] as const,
+      },
+      providerId: { kind: 'string' },
+    },
+  },
+  listCustomTools: {
+    method: 'GET',
+    path: '/api/v2/custom-tools',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Custom Tools',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   listFiles: {
     method: 'GET',
     path: '/api/v2/files',
@@ -1827,6 +2765,22 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       limit: { kind: 'number', default: 100 },
       cursor: { kind: 'string' },
+    },
+  },
+  listFolders: {
+    method: 'GET',
+    path: '/api/v2/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Folders',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      resourceType: {
+        kind: 'enum',
+        required: true,
+        values: ['workflow', 'knowledge_base', 'table'] as const,
+      },
+      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
     },
   },
   listKnowledgeBases: {
@@ -1897,6 +2851,26 @@ export const V2_OPERATIONS = {
       limit: { kind: 'number', default: 100 },
       cursor: { kind: 'string' },
       order: { kind: 'enum', values: ['desc', 'asc'] as const, default: 'desc' },
+    },
+  },
+  listMcpServers: {
+    method: 'GET',
+    path: '/api/v2/mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List MCP Servers',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  listSkills: {
+    method: 'GET',
+    path: '/api/v2/skills',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Skills',
+    query: {
+      workspaceId: { kind: 'string', required: true },
     },
   },
   listTableRows: {
@@ -2011,6 +2985,58 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Undeploy Workflow',
   },
+  updateCredential: {
+    method: 'PATCH',
+    path: '/api/v2/credentials/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Update Credential',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      displayName: { kind: 'string' },
+      description: { kind: 'string' },
+      serviceAccountJson: { kind: 'string' },
+      signingSecret: { kind: 'string' },
+      botToken: { kind: 'string' },
+      apiToken: { kind: 'string' },
+      domain: { kind: 'string' },
+      clientId: { kind: 'string' },
+      clientSecret: { kind: 'string' },
+      orgId: { kind: 'string' },
+    },
+  },
+  updateCustomTool: {
+    method: 'PATCH',
+    path: '/api/v2/custom-tools/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Update Custom Tool',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      title: { kind: 'string' },
+      schema: { kind: 'object' },
+      code: { kind: 'string' },
+    },
+  },
+  updateFolder: {
+    method: 'PATCH',
+    path: '/api/v2/folders/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Update Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      resourceType: {
+        kind: 'enum',
+        required: true,
+        values: ['workflow', 'knowledge_base', 'table'] as const,
+      },
+      name: { kind: 'string' },
+      locked: { kind: 'boolean' },
+      parentId: { kind: 'string' },
+      sortOrder: { kind: 'integer' },
+    },
+  },
   updateKnowledgeBase: {
     method: 'PUT',
     path: '/api/v2/knowledge/[id]',
@@ -2024,6 +3050,27 @@ export const V2_OPERATIONS = {
       chunkingConfig: { kind: 'object' },
     },
   },
+  updateMcpServer: {
+    method: 'PATCH',
+    path: '/api/v2/mcp-servers/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Update MCP Server',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string' },
+      description: { kind: 'string' },
+      transport: { kind: 'enum', values: ['streamable-http'] as const },
+      url: { kind: 'string' },
+      authType: { kind: 'enum', values: ['none', 'headers', 'oauth'] as const },
+      headers: { kind: 'object' },
+      timeout: { kind: 'integer' },
+      retries: { kind: 'integer' },
+      enabled: { kind: 'boolean' },
+      oauthClientId: { kind: 'string' },
+      oauthClientSecret: { kind: 'string' },
+    },
+  },
   updateRowsByFilter: {
     method: 'PUT',
     path: '/api/v2/tables/[tableId]/rows',
@@ -2035,6 +3082,19 @@ export const V2_OPERATIONS = {
       filter: { kind: 'unknown', required: true },
       data: { kind: 'unknown', required: true },
       limit: { kind: 'integer' },
+    },
+  },
+  updateSkill: {
+    method: 'PATCH',
+    path: '/api/v2/skills/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Update Skill',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string' },
+      description: { kind: 'string' },
+      content: { kind: 'string' },
     },
   },
   updateTableColumn: {

@@ -42,6 +42,20 @@ export const CLI_CONTRACT: CliContract = {
   deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
   deleteKnowledgeDocument: { confirm: 'This deletes the document and its embeddings.' },
   deleteFile: { confirm: 'This archives the file.' },
+  deleteSkill: { confirm: 'This deletes the skill.' },
+  deleteCustomTool: { confirm: 'This deletes the custom tool.' },
+  deleteMcpServer: {
+    confirm: 'This removes the MCP server and the tools it provides.',
+  },
+  deleteCredential: {
+    confirm: 'This deletes the credential; anything authenticating with it stops working.',
+  },
+  deleteFolder: {
+    // The route archives the folder *and cascades to its contents*, so this is
+    // the broadest delete on the surface — the message says so rather than
+    // reading like a single-item removal.
+    confirm: 'This archives the folder and everything inside it.',
+  },
 
   // ─── Fields whose type misdescribes their meaning ─────────────────────────
   // `z.string()` that the route splits on commas. No generator can infer this.

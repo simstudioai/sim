@@ -27,7 +27,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
 
@@ -36,15 +36,30 @@ const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 const OUTPUT = path.join(ROOT, 'packages/sim-cli/src/generated/v2-api.ts')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
 
-/** OpenAPI documents to read operation summaries from. */
-const SPEC_FILES = [
-  'openapi-core.json',
-  'openapi-v2-workflows.json',
-  'openapi-v2-logs.json',
-  'openapi-v2-tables.json',
-  'openapi-v2-knowledge.json',
-  'openapi-v2-files-audit.json',
-] as const
+/**
+ * OpenAPI documents to read operation summaries from, discovered rather than
+ * listed — same reason as {@link contractModules}.
+ *
+ * A new spec file (`openapi-v2-resources.json` arrived with the MCP/skills/
+ * folders/credentials endpoints) would otherwise go unread, and the only symptom
+ * would be `--help` quietly falling back to `METHOD /path` for a whole domain.
+ *
+ * `openapi.json` is the retired single-document spec, superseded by the split
+ * files; it is excluded by name because it still exists on disk and would
+ * contribute stale duplicates.
+ */
+function specFiles(): string[] {
+  return readdirSync(DOCS_DIR, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.startsWith('openapi') &&
+        entry.name.endsWith('.json') &&
+        entry.name !== 'openapi.json'
+    )
+    .map((entry) => entry.name)
+    .sort()
+}
 
 /**
  * `METHOD /api/v2/{id}/…` → the spec's one-line summary.
@@ -58,7 +73,7 @@ const SPEC_FILES = [
 function loadSummaries(): Map<string, string> {
   const summaries = new Map<string, string>()
 
-  for (const file of SPEC_FILES) {
+  for (const file of specFiles()) {
     let spec: Record<string, any>
     try {
       spec = JSON.parse(readFileSync(path.join(DOCS_DIR, file), 'utf8'))
@@ -81,16 +96,30 @@ function loadSummaries(): Map<string, string> {
   return summaries
 }
 
-/** Contract modules to read, in emit order. */
-const DOMAINS = [
-  'workflows',
-  'logs',
-  'tables',
-  'files',
-  'knowledge',
-  'audit-logs',
-  'billing',
-] as const
+/**
+ * Every contract module under `contracts/v2`, discovered rather than listed.
+ *
+ * A hardcoded list is the wrong shape for this: adding a v2 domain would leave
+ * its operations silently absent from the CLI, with no error and nothing in
+ * `--check` to notice, because the generated file would still match a generator
+ * that never looked. Discovery makes a new domain appear on the next
+ * regeneration, which is the property the whole pipeline is built on.
+ *
+ * `shared.ts` holds the response-envelope helpers, not contracts; it is skipped
+ * because it exports no route contract, not because it is named here.
+ */
+function contractModules(): string[] {
+  return readdirSync(CONTRACTS_DIR, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.endsWith('.ts') &&
+        !entry.name.endsWith('.test.ts') &&
+        entry.name !== 'index.ts'
+    )
+    .map((entry) => entry.name.replace(/\.ts$/, ''))
+    .sort()
+}
 
 interface RouteContract {
   method: string
@@ -132,7 +161,7 @@ function pascal(name: string): string {
 async function collectOperations(): Promise<Operation[]> {
   const operations: Operation[] = []
 
-  for (const domain of DOMAINS) {
+  for (const domain of contractModules()) {
     const mod: Record<string, unknown> = await import(path.join(CONTRACTS_DIR, `${domain}.ts`))
     for (const [exportName, value] of Object.entries(mod)) {
       if (!exportName.endsWith('Contract') || !isRouteContract(value)) continue
@@ -440,7 +469,7 @@ async function main() {
 
   writeFileSync(OUTPUT, generated)
   console.log(
-    `Wrote ${path.relative(ROOT, OUTPUT)} — ${operations.length} operations from ${DOMAINS.length} contract modules.`
+    `Wrote ${path.relative(ROOT, OUTPUT)} — ${operations.length} operations from ${contractModules().length} contract modules.`
   )
 }
 
