@@ -14,7 +14,6 @@
     "(generated)/audit-logs",
     "(generated)/tables",
     "(generated)/files",
-    "(generated)/file-folders",
     "(generated)/knowledge-bases",
     "(generated)/mcp-servers",
     "(generated)/skills",

@@ -11,12 +11,14 @@ import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/sha
  * param — including on upload — so the route can authorize before reading the
  * multipart body.
  *
- * File folders are NOT served by the generic `/api/v2/folders` surface: every
- * file-folder mutation runs behind the `workspace_file_folders:${workspaceId}`
- * advisory lock that makes its cycle and name checks atomic, and a file-folder
- * name becomes a path segment so `/`, `\`, `.` and `..` are forbidden. Neither
- * holds for the generic folder engine, so file folders get their own routes
- * under `/api/v2/files/folders/**`.
+ * Folders are referenced but not managed here. A file carries `folderId` /
+ * `folderPath`, and `move` retargets it, but there are deliberately no
+ * folder-CRUD routes on this surface: file folders already live in the shared
+ * `folder` table (`resourceType: 'file'`), and the remaining file-specific
+ * folder machinery is being folded into the generic folder engine. Publishing
+ * `/api/v2/files/folders/**` would pin a transitional split into a public
+ * contract; folder management belongs on `/api/v2/folders` once that surface
+ * serves `resourceType: 'file'`.
  *
  * Presigned upload is deliberately absent. Presign only performs an advisory
  * quota pre-check; the storage debit happens in the separate register step, so
@@ -45,26 +47,6 @@ export const v2FileSchema = z.object({
 
 export type V2File = z.output<typeof v2FileSchema>
 
-/**
- * A file folder as exposed by the v2 surface. `workspaceId` (already known to
- * the caller, who supplied it) and `userId` (the creator) are internal scoping
- * columns and are not exposed, matching the v2 folders projection.
- */
-export const v2FileFolderSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  parentId: z.string().nullable(),
-  /** Slash-joined names from the workspace root down to and including this folder. */
-  path: z.string(),
-  sortOrder: z.number(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  /** Set when the folder is archived (in Recently Deleted) rather than live. */
-  deletedAt: z.string().nullable(),
-})
-
-export type V2FileFolder = z.output<typeof v2FileFolderSchema>
-
 /** Acknowledgement returned by a successful archive (soft delete). */
 export const v2DeleteFileResultSchema = z.object({
   id: z.string(),
@@ -86,12 +68,6 @@ export const v2FileParamsSchema = z.object({
 })
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
-
-export const v2FileFolderParamsSchema = z.object({
-  folderId: z.string().min(1, 'Folder ID is required'),
-})
-
-export type V2FileFolderParams = z.output<typeof v2FileFolderParamsSchema>
 
 /** `active` lists live items; `archived` lists Recently Deleted. */
 export const v2FileScopeSchema = z.enum(['active', 'archived'])
@@ -230,60 +206,6 @@ export const v2BulkArchiveFileItemsResultSchema = z.object({
 })
 
 export type V2BulkArchiveFileItemsResult = z.output<typeof v2BulkArchiveFileItemsResultSchema>
-
-export const v2ListFileFoldersQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  scope: v2FileScopeSchema.default('active'),
-})
-
-export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>
-
-export const v2CreateFileFolderBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-    name: v2FileItemNameSchema,
-    /** Explicit `null` creates the folder at the workspace root. */
-    parentId: z.string().min(1, 'parentId cannot be empty').nullable().optional(),
-  })
-  .strict()
-
-export type V2CreateFileFolderBody = z.input<typeof v2CreateFileFolderBodySchema>
-
-/** Update body. Omitted fields keep their stored values. */
-export const v2UpdateFileFolderBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-    name: v2FileItemNameSchema.optional(),
-    parentId: z.string().min(1, 'parentId cannot be empty').nullable().optional(),
-    sortOrder: z.number().int('sortOrder must be an integer').min(0).optional(),
-  })
-  .strict()
-  .superRefine((body, ctx) => {
-    if (body.name === undefined && body.parentId === undefined && body.sortOrder === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['name'],
-        message: 'At least one of name, parentId, or sortOrder is required',
-      })
-    }
-  })
-
-export type V2UpdateFileFolderBody = z.input<typeof v2UpdateFileFolderBodySchema>
-
-export const v2DeleteFileFolderResultSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
-  deletedItems: v2FileItemCountsSchema,
-})
-
-export type V2DeleteFileFolderResult = z.output<typeof v2DeleteFileFolderResultSchema>
-
-export const v2RestoreFileFolderResultSchema = z.object({
-  folder: v2FileFolderSchema,
-  restoredItems: v2FileItemCountsSchema,
-})
-
-export type V2RestoreFileFolderResult = z.output<typeof v2RestoreFileFolderResultSchema>
 
 /**
  * Public share state. Reuses the internal {@link shareRecordSchema}, which is
@@ -427,59 +349,6 @@ export const v2BulkArchiveFileItemsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2BulkArchiveFileItemsResultSchema),
-  },
-})
-
-export const v2ListFileFoldersContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/files/folders',
-  query: v2ListFileFoldersQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2CursorListResponse(v2FileFolderSchema),
-  },
-})
-
-export const v2CreateFileFolderContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/files/folders',
-  body: v2CreateFileFolderBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2FileFolderSchema),
-  },
-})
-
-export const v2UpdateFileFolderContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/v2/files/folders/[folderId]',
-  params: v2FileFolderParamsSchema,
-  body: v2UpdateFileFolderBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2FileFolderSchema),
-  },
-})
-
-export const v2DeleteFileFolderContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/v2/files/folders/[folderId]',
-  params: v2FileFolderParamsSchema,
-  query: v2FileWorkspaceQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2DeleteFileFolderResultSchema),
-  },
-})
-
-export const v2RestoreFileFolderContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/files/folders/[folderId]/restore',
-  params: v2FileFolderParamsSchema,
-  body: v2WorkspaceScopedBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2RestoreFileFolderResultSchema),
   },
 })
 

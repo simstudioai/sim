@@ -40,8 +40,6 @@ export type ApiEndpoint =
   | 'table-columns'
   | 'files'
   | 'file-detail'
-  | 'file-folders'
-  | 'file-folder-detail'
   | 'file-share'
   | 'file-content'
   | 'file-move'
