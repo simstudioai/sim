@@ -9,24 +9,26 @@ import {
 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { UserFile } from '@/executor/types'
 
-const { mockDownloadFile, mockRedis, mockVerifyFileAccess } = vi.hoisted(() => {
-  const mockRedis = {
-    get: vi.fn(),
-    set: vi.fn(),
-    hget: vi.fn(),
-    hset: vi.fn(),
-    hgetall: vi.fn(),
-    expire: vi.fn(),
-    scan: vi.fn(),
-    del: vi.fn(),
-    eval: vi.fn(),
-  }
-  return {
-    mockDownloadFile: vi.fn(),
-    mockRedis,
-    mockVerifyFileAccess: vi.fn(),
-  }
-})
+const { mockDownloadFile, mockDownloadServableFileFromStorage, mockRedis, mockVerifyFileAccess } =
+  vi.hoisted(() => {
+    const mockRedis = {
+      get: vi.fn(),
+      set: vi.fn(),
+      hget: vi.fn(),
+      hset: vi.fn(),
+      hgetall: vi.fn(),
+      expire: vi.fn(),
+      scan: vi.fn(),
+      del: vi.fn(),
+      eval: vi.fn(),
+    }
+    return {
+      mockDownloadFile: vi.fn(),
+      mockDownloadServableFileFromStorage: vi.fn(),
+      mockRedis,
+      mockVerifyFileAccess: vi.fn(),
+    }
+  })
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
@@ -44,6 +46,7 @@ vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
 
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadFileFromStorage: mockDownloadFile,
+  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -64,6 +67,10 @@ describe('hydrateUserFilesWithBase64', () => {
     mockRedis.del.mockResolvedValue(1)
     mockRedis.eval.mockResolvedValue([1, 'ok', 0, 0])
     mockVerifyFileAccess.mockResolvedValue(true)
+    mockDownloadServableFileFromStorage.mockImplementation(async (file: unknown) => ({
+      buffer: await mockDownloadFile(file),
+      contentType: 'application/octet-stream',
+    }))
   })
 
   it('strips existing base64 when it exceeds maxBytes', async () => {
