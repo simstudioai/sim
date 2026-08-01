@@ -9,6 +9,7 @@ const SPEC_FILES = [
   'openapi-v2-tables.json',
   'openapi-v2-knowledge.json',
   'openapi-v2-files-audit.json',
+  'openapi-v2-resources.json',
 ] as const
 
 export const openapi = createOpenAPI({

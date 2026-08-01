@@ -1,0 +1,114 @@
+import { db } from '@sim/db'
+import { credential, credentialMember } from '@sim/db/schema'
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm'
+import type { WorkspaceCredentialType } from '@/lib/api/contracts/credentials'
+import { isSharedCredentialType, SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
+import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+
+/**
+ * Workspace-scoped credential reads shared by the session surface and the public
+ * API, so the visibility rules cannot drift between them.
+ */
+
+export type CredentialRow = typeof credential.$inferSelect
+
+export interface VisibleWorkspaceCredential {
+  id: string
+  workspaceId: string
+  type: CredentialRow['type']
+  displayName: string
+  description: string | null
+  providerId: string | null
+  accountId: string | null
+  envKey: string | null
+  envOwnerUserId: string | null
+  createdBy: string
+  createdAt: Date
+  updatedAt: Date
+  hasServiceAccountKey: boolean
+  role: 'admin' | 'member'
+}
+
+/**
+ * The credentials a user may see in a workspace.
+ *
+ * Visibility is an explicit `credential_member` row, plus — for workspace
+ * admins — every shared-type credential, plus the caller's own personal env
+ * credentials. Encrypted secret material is never selected.
+ */
+export async function listVisibleWorkspaceCredentials(params: {
+  workspaceId: string
+  userId: string
+  workspaceAccess: Pick<WorkspaceAccess, 'canAdmin'>
+  type?: WorkspaceCredentialType
+  providerId?: string
+}): Promise<VisibleWorkspaceCredential[]> {
+  const { workspaceId, userId, workspaceAccess, type, providerId } = params
+
+  const whereClauses = [eq(credential.workspaceId, workspaceId)]
+  if (type) whereClauses.push(eq(credential.type, type))
+  if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+
+  const isWorkspaceAdmin = workspaceAccess.canAdmin
+  const accessClause = isWorkspaceAdmin
+    ? or(
+        isNotNull(credentialMember.id),
+        inArray(credential.type, SHARED_CREDENTIAL_TYPES),
+        eq(credential.envOwnerUserId, userId)
+      )
+    : or(isNotNull(credentialMember.id), eq(credential.envOwnerUserId, userId))
+
+  const rows = await db
+    .select({
+      id: credential.id,
+      workspaceId: credential.workspaceId,
+      type: credential.type,
+      displayName: credential.displayName,
+      description: credential.description,
+      providerId: credential.providerId,
+      accountId: credential.accountId,
+      envKey: credential.envKey,
+      envOwnerUserId: credential.envOwnerUserId,
+      createdBy: credential.createdBy,
+      createdAt: credential.createdAt,
+      updatedAt: credential.updatedAt,
+      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+      memberRole: credentialMember.role,
+    })
+    .from(credential)
+    .leftJoin(
+      credentialMember,
+      and(
+        eq(credentialMember.credentialId, credential.id),
+        eq(credentialMember.userId, userId),
+        eq(credentialMember.status, 'active')
+      )
+    )
+    .where(and(...whereClauses, accessClause))
+
+  return rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => ({
+    ...rest,
+    hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
+    role:
+      isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+  }))
+}
+
+/**
+ * A single credential scoped to a workspace, or null when it does not exist
+ * there. Scoping by workspace is what keeps a credential id from another tenant
+ * from resolving at all.
+ */
+export async function getWorkspaceCredential(params: {
+  workspaceId: string
+  credentialId: string
+}): Promise<CredentialRow | null> {
+  const [row] = await db
+    .select()
+    .from(credential)
+    .where(
+      and(eq(credential.id, params.credentialId), eq(credential.workspaceId, params.workspaceId))
+    )
+    .limit(1)
+  return row ?? null
+}

@@ -22,6 +22,13 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
 
+export {
+  type PerformCreateCredentialParams,
+  type PerformCreateCredentialResult,
+  performCreateCredential,
+  statusForCredentialOrchestrationError,
+} from './credential-create'
+
 export type CredentialOrchestrationErrorCode =
   | 'not_found'
   | 'forbidden'

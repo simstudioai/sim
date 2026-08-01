@@ -36,13 +36,13 @@ export const skillEditorSchema = z.object({
 
 export type SkillEditor = z.output<typeof skillEditorSchema>
 
-const skillNameSchema = z
+export const skillNameSchema = z
   .string()
   .min(1, 'Skill name is required')
   .max(64)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Name must be kebab-case (e.g. my-skill)')
-const skillDescriptionSchema = z.string().min(1, 'Description is required').max(1024)
-const skillContentSchema = z
+export const skillDescriptionSchema = z.string().min(1, 'Description is required').max(1024)
+export const skillContentSchema = z
   .string()
   .min(1, 'Content is required')
   .max(50_000, 'Content is too large')

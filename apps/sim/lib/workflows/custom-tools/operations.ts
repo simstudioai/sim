@@ -128,6 +128,57 @@ export async function listCustomTools(params: { userId: string; workspaceId?: st
         .orderBy(desc(customTools.createdAt))
 }
 
+/**
+ * Workspace-scoped reads and deletes.
+ *
+ * The functions above tolerate legacy personal tools (`workspace_id IS NULL`,
+ * owned by one user) alongside workspace ones. The public API is workspace-
+ * scoped in every direction, so it uses these instead — a caller holding a
+ * workspace key must never reach another user's personal tool.
+ */
+export async function listWorkspaceCustomTools(params: { workspaceId: string }) {
+  return db
+    .select()
+    .from(customTools)
+    .where(eq(customTools.workspaceId, params.workspaceId))
+    .orderBy(desc(customTools.createdAt))
+}
+
+export async function getWorkspaceCustomTool(params: { workspaceId: string; toolId: string }) {
+  const [row] = await db
+    .select()
+    .from(customTools)
+    .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, params.workspaceId)))
+    .limit(1)
+  return row ?? null
+}
+
+/** Titles are unique per workspace (`custom_tools_workspace_title_unique`). */
+export async function getWorkspaceCustomToolByTitle(params: {
+  workspaceId: string
+  title: string
+}) {
+  const [row] = await db
+    .select()
+    .from(customTools)
+    .where(
+      and(eq(customTools.workspaceId, params.workspaceId), eq(customTools.title, params.title))
+    )
+    .limit(1)
+  return row ?? null
+}
+
+export async function deleteWorkspaceCustomTool(params: {
+  workspaceId: string
+  toolId: string
+}): Promise<boolean> {
+  const deleted = await db
+    .delete(customTools)
+    .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, params.workspaceId)))
+    .returning({ id: customTools.id })
+  return deleted.length > 0
+}
+
 export async function getCustomToolById(params: {
   toolId: string
   userId: string

@@ -45,6 +45,16 @@ export type ApiEndpoint =
   | 'knowledge-search'
   | 'copilot-chat'
   | 'billing-usage'
+  | 'mcp-servers'
+  | 'mcp-server-detail'
+  | 'skills'
+  | 'skill-detail'
+  | 'custom-tools'
+  | 'custom-tool-detail'
+  | 'folders'
+  | 'folder-detail'
+  | 'credentials'
+  | 'credential-detail'
 
 export interface RateLimitResult {
   allowed: boolean
