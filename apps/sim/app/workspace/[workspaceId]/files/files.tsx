@@ -468,23 +468,28 @@ export function Files() {
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
-    return [...searched].sort((a, b) => {
+    // Decorate-sort: compute each key + pinned flag once (O(N)) rather than parsing dates per comparison.
+    const decorated = searched.map((folder) => ({
+      folder,
+      pinned: pinnedFolderIds.has(folder.id),
+      key:
+        col === 'updated'
+          ? new Date(folder.updatedAt).getTime()
+          : col === 'created'
+            ? new Date(folder.createdAt).getTime()
+            : folder.name,
+    }))
+    decorated.sort((a, b) => {
       // Pinned folders float to the top of every sort/direction — pinning is a
       // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFolderIds.has(a.id)
-      const bPinned = pinnedFolderIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      if (col === 'updated') {
-        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-      } else if (col === 'created') {
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      } else {
-        cmp = a.name.localeCompare(b.name)
-      }
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const cmp =
+        typeof a.key === 'number' && typeof b.key === 'number'
+          ? a.key - b.key
+          : String(a.key).localeCompare(String(b.key))
       return dir === 'asc' ? cmp : -cmp
     })
+    return decorated.map((d) => d.folder)
   }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const filteredFiles = useMemo(() => {
@@ -522,38 +527,36 @@ export function Files() {
 
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
-    return [...result].sort((a, b) => {
+    // Decorate-sort: compute each row's sort key + pinned flag ONCE (O(N)), then compare precomputed
+    // keys — the comparator ran per-comparison work (Date parsing, `formatFileType`, member lookups) at
+    // O(N log N). Stable sort + pinned-primary ordering are preserved.
+    const decorated = result.map((f) => ({
+      f,
+      pinned: pinnedFileIds.has(f.id),
+      key:
+        col === 'size'
+          ? f.size
+          : col === 'type'
+            ? formatFileType(f.type, f.name)
+            : col === 'created'
+              ? new Date(f.uploadedAt).getTime()
+              : col === 'updated'
+                ? new Date(f.updatedAt).getTime()
+                : col === 'owner'
+                  ? (membersById.get(f.uploadedBy)?.name ?? '')
+                  : f.name,
+    }))
+    decorated.sort((a, b) => {
       // Pinned files float to the top of every sort/direction — pinning is a
       // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFileIds.has(a.id)
-      const bPinned = pinnedFileIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      switch (col) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'size':
-          cmp = a.size - b.size
-          break
-        case 'type':
-          cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
-          break
-        case 'created':
-          cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
-          break
-        case 'updated':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'owner':
-          cmp = (membersById.get(a.uploadedBy)?.name ?? '').localeCompare(
-            membersById.get(b.uploadedBy)?.name ?? ''
-          )
-          break
-      }
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const cmp =
+        typeof a.key === 'number' && typeof b.key === 'number'
+          ? a.key - b.key
+          : String(a.key).localeCompare(String(b.key))
       return dir === 'asc' ? cmp : -cmp
     })
+    return decorated.map((d) => d.f)
   }, [
     files,
     currentFolderId,
@@ -1818,10 +1821,18 @@ export function Files() {
   )
 
   const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
+    // Index children by parent ONCE (the same pattern used for folder sizes + descendant maps above),
+    // so building the tree is O(N) instead of a full `folders.filter` scan at every node (O(N²)).
+    const childrenByParent = new Map<string | null, typeof folders>()
+    for (const f of folders) {
+      const key = f.parentId ?? null
+      const arr = childrenByParent.get(key)
+      if (arr) arr.push(f)
+      else childrenByParent.set(key, [f])
+    }
     const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
-      folders
+      (childrenByParent.get(parentId) ?? [])
         .filter((f) => {
-          if ((f.parentId ?? null) !== parentId) return false
           if (selectedFolderIds.includes(f.id)) return false
           return selectedFolderIds.every(
             (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)

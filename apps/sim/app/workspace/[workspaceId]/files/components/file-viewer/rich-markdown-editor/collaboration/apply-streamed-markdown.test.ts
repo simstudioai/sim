@@ -7,7 +7,12 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { createMarkdownEditorExtensions } from '../editor-extensions'
-import { applyAgentStreamFrame, beginAgentStream, endAgentStream } from './apply-streamed-markdown'
+import {
+  AGENT_STREAM_ORIGIN,
+  applyAgentStreamFrame,
+  beginAgentStream,
+  endAgentStream,
+} from './apply-streamed-markdown'
 
 beforeAll(() => {
   // jsdom does not implement elementFromPoint; the Placeholder extension's viewport tracking calls it
@@ -185,5 +190,36 @@ describe('agent-stream applier', () => {
     const live = doc.getXmlFragment('default').toString()
     expect(live).toContain('EDITED')
     expect(live).toContain('Gamma paragraph')
+  })
+
+  it('reuses cached binding metadata across frames, still emitting minimal per-frame deltas', () => {
+    // The binding `meta` is built ONCE (first frame) and reused — `updateYFragment` maintains it in place,
+    // so we skip an O(doc) `initProseMirrorDoc` rebuild per frame. This guards that caching preserves the
+    // minimal-delta + no-duplication behavior across frames (a stale/rebuilt mapping would re-emit existing
+    // paragraphs → duplication).
+    const { editor, doc } = track(makeCollabEditor())
+    const session = beginAgentStream(editor)!
+
+    applyAgentStreamFrame(editor, session, 'One.')
+    expect(session.meta).not.toBeNull() // built and cached on the first frame
+
+    const deltas: Uint8Array[] = []
+    const onUpdate = (u: Uint8Array, origin: unknown) => {
+      if (origin === AGENT_STREAM_ORIGIN) deltas.push(u)
+    }
+    doc.on('update', onUpdate)
+    applyAgentStreamFrame(editor, session, 'One.\n\nTwo.')
+    applyAgentStreamFrame(editor, session, 'One.\n\nTwo.\n\nThree.')
+    doc.off('update', onUpdate)
+
+    // Two later frames → two incremental deltas; the cached mapping kept diffs minimal and correct.
+    expect(deltas.length).toBe(2)
+    const text = editor.getText()
+    expect(text).toContain('One')
+    expect(text).toContain('Two')
+    expect(text).toContain('Three')
+    expect(text.match(/One/g)?.length).toBe(1)
+    expect(text.match(/Two/g)?.length).toBe(1)
+    endAgentStream(session)
   })
 })

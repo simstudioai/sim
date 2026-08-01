@@ -211,7 +211,10 @@ export function createFileResponse(file: FileResponse): NextResponse {
   const headers: Record<string, string> = {
     'Content-Type': contentType,
     'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-    'Cache-Control': file.cacheControl || 'public, max-age=31536000',
+    // Default to PRIVATE: this response is served only after access verification, so it must never be
+    // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
+    // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).
+    'Cache-Control': file.cacheControl || 'private, no-cache',
     'X-Content-Type-Options': 'nosniff',
   }
 

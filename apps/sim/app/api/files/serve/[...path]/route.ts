@@ -60,6 +60,9 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
 
 const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
 const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+/** For the genuinely-public, pre-auth asset routes (avatars, OG images, workspace logos) — these are
+ *  intentionally shared-cacheable. Passed EXPLICITLY so the default response cache stays `private`. */
+const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
 
 /**
  * Cache-Control for a served file. A versioned request (`?v=<updatedAt>`) addresses
@@ -314,6 +317,7 @@ async function handleCloudProxyPublic(
       buffer: fileBuffer,
       contentType,
       filename,
+      cacheControl: PUBLIC_ASSET_CACHE_CONTROL,
     })
   } catch (error) {
     logger.error('Error serving public cloud file:', error)
@@ -338,6 +342,7 @@ async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
       buffer: fileBuffer,
       contentType,
       filename,
+      cacheControl: PUBLIC_ASSET_CACHE_CONTROL,
     })
   } catch (error) {
     logger.error('Error reading public local file:', error)
