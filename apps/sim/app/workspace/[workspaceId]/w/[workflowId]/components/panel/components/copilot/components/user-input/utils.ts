@@ -254,7 +254,18 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
     // already-referenced file would be swallowed as a duplicate.
     case 'file_selection': {
       const ctx = context as FileSelectionContext
-      return c.fileId === ctx.fileId && c.text === ctx.text
+      // Location too, not just the text: the same line can occur twice in a file
+      // (a repeated import, a closing brace), and comparing text alone would
+      // treat the second highlight as a duplicate and drop its chip. Where the
+      // source has no line numbers — the rich-markdown editor — both are
+      // undefined and identical text is genuinely indistinguishable, so it
+      // correctly still dedupes.
+      return (
+        c.fileId === ctx.fileId &&
+        c.text === ctx.text &&
+        c.startLine === ctx.startLine &&
+        c.endLine === ctx.endLine
+      )
     }
     case 'table_selection': {
       const ctx = context as TableSelectionContext

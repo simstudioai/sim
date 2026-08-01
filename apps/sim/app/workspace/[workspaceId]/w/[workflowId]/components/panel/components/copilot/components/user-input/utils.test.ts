@@ -67,6 +67,22 @@ describe('prepareContextForInsert', () => {
     expect(prepareContextForInsert(other, [fileSelection()])).not.toBeNull()
   })
 
+  it('distinguishes identical text highlighted at two places in one file', () => {
+    // A repeated line — an import, a closing brace — selected twice. Comparing
+    // text alone would call the second a duplicate and silently drop its chip.
+    const first = fileSelection({ label: 'notes.md:12', startLine: 12, endLine: 12 })
+    const second = fileSelection({ label: 'notes.md:50', startLine: 50, endLine: 50 })
+
+    expect(prepareContextForInsert(second, [first])).not.toBeNull()
+    expect(prepareContextForInsert(first, [first])).toBeNull()
+  })
+
+  it('still dedupes identical text when the source has no line numbers', () => {
+    // The rich-markdown editor omits the range, so two identical passages are
+    // indistinguishable in the data model and deduping is the honest outcome.
+    expect(prepareContextForInsert(fileSelection(), [fileSelection()])).toBeNull()
+  })
+
   it('treats the same rows picked in a different order as one selection', () => {
     // Row ids iterate in click order, so re-picking the same rows differently
     // must no-op rather than add a second chip over rows already referenced.
