@@ -55,6 +55,8 @@ Examples:
   $ sim logs list --level error --limit 20
   $ sim configure --set-output json           Output format is a profile setting
   $ sim knowledge search "refund policy" --kb kb_123
+  $ sim workflows export wf_123 > wf.json        JSON flags read files with @
+  $ sim workflows import --workflow @wf.json
   $ sim whoami --profile dev
 `
 )

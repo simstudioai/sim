@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, readSync } from 'node:fs'
 import { CLI_CONTRACT } from '../contract/commands.js'
 import type { FlagSpec } from '../contract/types.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
@@ -38,6 +39,89 @@ export function takesJson(field: FieldSpec, flag: FlagSpec): boolean {
 }
 
 /**
+ * Drains stdin synchronously.
+ *
+ * `readFileSync(0)` looks like the obvious way to do this and fails on the one
+ * case that matters: a pipe is opened non-blocking, so a single read of an
+ * upstream process that has not written yet returns EAGAIN rather than waiting,
+ * and `export … | import --workflow @-` died with a raw stack trace. Reading in
+ * a loop and treating EAGAIN as "not ready yet" is what makes a pipe work.
+ *
+ * `Atomics.wait` is the only synchronous sleep available; without it the retry
+ * spins a core for as long as the writer takes.
+ */
+function readStdin(): string {
+  const idle = new Int32Array(new SharedArrayBuffer(4))
+  const buffer = Buffer.alloc(64 * 1024)
+  const chunks: Buffer[] = []
+
+  for (;;) {
+    let read: number
+    try {
+      read = readSync(0, buffer, 0, buffer.length, null)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'EAGAIN') {
+        Atomics.wait(idle, 0, 0, 5)
+        continue
+      }
+      // Some platforms report end-of-input on a pipe as EOF rather than 0.
+      if (code === 'EOF') break
+      throw error
+    }
+    if (read === 0) break
+    chunks.push(Buffer.from(buffer.subarray(0, read)))
+  }
+
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+/**
+ * Resolves a JSON flag's argument, which may name a file instead of carrying
+ * the document inline.
+ *
+ * `@path` reads the file and `@-` reads stdin, the curl convention. A workflow
+ * export is hundreds of lines, and the shell makes passing that literally
+ * unpleasant — unquoted `$(cat f.json)` word-splits into broken JSON, and the
+ * quoted form is easy to get wrong. `@` cannot collide with a real value
+ * because JSON only ever starts with `{ [ " -`, a digit, or t/f/n.
+ */
+function readJsonArgument(raw: string, flagName: string): { text: string; from: string } {
+  if (!raw.startsWith('@')) return { text: raw, from: '' }
+
+  const path = raw.slice(1)
+  if (path === '-') {
+    if (process.stdin.isTTY) {
+      throw new SimApiError(`--${flagName} @- reads stdin, but nothing is piped in`, 0)
+    }
+    try {
+      return { text: readStdin(), from: ' (read from stdin)' }
+    } catch (error) {
+      throw new SimApiError(`--${flagName} cannot read stdin: ${(error as Error).message}`, 0)
+    }
+  }
+
+  try {
+    return { text: readFileSync(path, 'utf8'), from: ` (read from ${path})` }
+  } catch (error) {
+    throw new SimApiError(`--${flagName} cannot read ${path}: ${(error as Error).message}`, 0)
+  }
+}
+
+/**
+ * Points at `@` when a value that failed to parse looks like a filename.
+ *
+ * `--workflow export.json` is the natural first guess, and "must be valid JSON"
+ * alone gives no clue that passing a file is even supported.
+ */
+function pathHint(raw: string): string {
+  if (raw.startsWith('@') || /^\s*[[{"\-\d]|^\s*(true|false|null)/.test(raw)) return ''
+  return existsSync(raw)
+    ? `. ${raw} is a file — pass it as @${raw}`
+    : '. To read a file, pass @path (or @- for stdin)'
+}
+
+/**
  * Turns the string argv provides into the value the contract expects.
  *
  * Every failure names the flag rather than the field, because the flag is what
@@ -66,10 +150,14 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
 
   if (takesJson(field, flag)) {
     if (typeof raw !== 'string') return raw
+    const source = readJsonArgument(raw, flagName)
     try {
-      return JSON.parse(raw)
+      return JSON.parse(source.text)
     } catch (error) {
-      throw new SimApiError(`--${flagName} must be valid JSON: ${(error as Error).message}`, 0)
+      throw new SimApiError(
+        `--${flagName} must be valid JSON${source.from}: ${(error as Error).message}${pathHint(raw)}`,
+        0
+      )
     }
   }
 

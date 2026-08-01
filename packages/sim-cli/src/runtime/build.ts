@@ -190,10 +190,14 @@ function addFieldOption(
   }
 
   const takesList = flag.list === true
-  const placeholder = takesList ? `<value...>` : takesJson(descriptor, flag) ? `<json>` : `<value>`
+  const wantsJson = takesJson(descriptor, flag)
+  const placeholder = takesList ? `<value...>` : wantsJson ? `<json|@file>` : `<value>`
   const describe =
-    flag.describe ??
-    (descriptor.values ? `One of: ${descriptor.values.join(', ')}` : `Set ${field}`)
+    (flag.describe ??
+      (descriptor.values ? `One of: ${descriptor.values.join(', ')}` : `Set ${field}`)) +
+    // Otherwise the only way to discover `@file` is to read the source. A JSON
+    // document big enough to want a file is exactly when help gets consulted.
+    (wantsJson ? ' (JSON, or @path / @- to read a file or stdin)' : '')
 
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
   if (descriptor.values && !takesList) option.choices([...descriptor.values])

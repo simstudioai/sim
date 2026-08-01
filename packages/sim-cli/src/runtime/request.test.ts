@@ -1,7 +1,10 @@
+import { rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SimApiError } from '../http/client.js'
 import { deriveCommandPath } from './derive.js'
-import { buildRequest } from './request.js'
+import { buildRequest, coerce, type FieldSpec } from './request.js'
 
 const WORKSPACE = 'ws_local'
 
@@ -138,5 +141,50 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
       WORKSPACE
     )
     expect(built.body?.knowledgeBaseIds).toEqual(['kb_1', 'kb_2'])
+  })
+})
+
+describe('JSON flags that name a file', () => {
+  const field: FieldSpec = { kind: 'object' }
+
+  it('reads @path', () => {
+    const path = join(tmpdir(), 'sim-cli-arg.json')
+    writeFileSync(path, '{"version":"1.0","state":{"blocks":{}}}')
+    expect(coerce(`@${path}`, field, {}, 'workflow')).toEqual({
+      version: '1.0',
+      state: { blocks: {} },
+    })
+    rmSync(path)
+  })
+
+  it('still accepts inline JSON', () => {
+    expect(coerce('{"a":1}', field, {}, 'workflow')).toEqual({ a: 1 })
+  })
+
+  it('names the file it could not read', () => {
+    expect(() => coerce('@/nope/missing.json', field, {}, 'workflow')).toThrow(
+      /cannot read \/nope\/missing\.json/
+    )
+  })
+
+  it('says which file the bad JSON came from', () => {
+    const path = join(tmpdir(), 'sim-cli-bad.json')
+    writeFileSync(path, 'not json')
+    expect(() => coerce(`@${path}`, field, {}, 'workflow')).toThrow(/read from .*sim-cli-bad\.json/)
+    rmSync(path)
+  })
+
+  it('points at @ when a bare filename was passed instead', () => {
+    // `--workflow export.json` is the natural first guess; "must be valid JSON"
+    // alone never reveals that passing a file is supported at all.
+    const path = join(tmpdir(), 'sim-cli-bare.json')
+    writeFileSync(path, '{}')
+    expect(() => coerce(path, field, {}, 'workflow')).toThrow(new RegExp(`pass it as @${path}`))
+    rmSync(path)
+    expect(() => coerce('export.json', field, {}, 'workflow')).toThrow(/pass @path/)
+  })
+
+  it('does not suggest a path for malformed inline JSON', () => {
+    expect(() => coerce('{"a":', field, {}, 'workflow')).not.toThrow(/@path/)
   })
 })
