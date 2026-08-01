@@ -929,14 +929,18 @@ export function usePromptEditor({
     // custom clipboard type — paste it as a reference chip instead of plain text.
     // Registers via `addContext` (not the notified path) so paste never opens a
     // side panel, matching the portable-chip-link paste below.
+    //
+    // `preventDefault` waits until there is a chip to insert: when the selection
+    // is already attached there is nothing to add, and claiming the event anyway
+    // would swallow the keystroke entirely — no chip and no text. Falling through
+    // pastes the selection's plain text, which is what the user asked for.
     const selectionContext = readSelectionContextFromClipboard(e.clipboardData)
-    if (selectionContext) {
+    const preparedSelection = selectionContext
+      ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
+      : null
+    if (preparedSelection) {
       e.preventDefault()
-      const prepared = prepareContextForInsert(
-        selectionContext,
-        contextManagementRef.current.selectedContexts
-      )
-      if (!prepared) return
+      const prepared = preparedSelection
       const selStart = textarea.selectionStart ?? valueRef.current.length
       const selEnd = textarea.selectionEnd ?? selStart
       const needsSpaceBefore = selStart > 0 && !/\s/.test(valueRef.current.charAt(selStart - 1))
