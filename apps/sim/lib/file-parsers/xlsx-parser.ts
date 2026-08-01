@@ -2,6 +2,11 @@ import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
+/**
+ * Pinned to the SheetJS CDN tarball rather than npm, where `xlsx` is abandoned at 0.18.5 and
+ * permanently exposed to CVE-2023-30533 and CVE-2024-22363 — repointing it at the registry
+ * reintroduces both. A URL dependency is invisible to Dependabot, so upgrades are manual.
+ */
 import * as XLSX from 'xlsx'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'

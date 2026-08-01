@@ -5,7 +5,7 @@ import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
-import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { GlobPatternError, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
 import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
@@ -165,6 +165,12 @@ export async function executeVfsGrep(
       })
       return { success: false, error: err.message }
     }
+    // An over-cap `path` scope reaches the same matcher glob uses; expected user
+    // input, not an internal failure.
+    if (err instanceof GlobPatternError) {
+      logger.warn('vfs_grep path scope rejected', { pattern, path: rawPath, error: err.message })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_grep failed', {
       pattern,
       path: rawPath,
@@ -203,6 +209,11 @@ export async function executeVfsGlob(
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
     return { success: true, output: { files } }
   } catch (err) {
+    // An over-cap pattern is expected user input, not an internal failure.
+    if (err instanceof GlobPatternError) {
+      logger.warn('vfs_glob pattern rejected', { pattern, error: err.message })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_glob failed', {
       pattern,
       error: toError(err).message,

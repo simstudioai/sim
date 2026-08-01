@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { glob, grep } from '@/lib/copilot/vfs/operations'
+import { GlobPatternError, glob, grep } from '@/lib/copilot/vfs/operations'
 
 function vfsFromEntries(entries: [string, string][]): Map<string, string> {
   return new Map(entries)
@@ -55,6 +55,122 @@ describe('glob', () => {
     const hits = glob(files, 'weird{brace}/*')
     expect(hits).toContain('weird{brace}/x')
     expect(hits).not.toContain('weirdA/x')
+  })
+})
+
+/**
+ * Matching runs on RE2, not on picomatch's own backtracking `RegExp`. These pin the glob
+ * semantics that translation has to preserve, so a future change to it cannot quietly
+ * widen or narrow what a pattern selects.
+ */
+describe('glob semantics', () => {
+  it('does not let a single star cross a slash', () => {
+    const files = vfsFromEntries([
+      ['b.ts', ''],
+      ['a/b.ts', ''],
+    ])
+    expect(glob(files, '*.ts')).toEqual(['b.ts'])
+  })
+
+  it('lets a double star cross slashes', () => {
+    const files = vfsFromEntries([
+      ['b.ts', ''],
+      ['a/b.ts', ''],
+      ['a/c/d.ts', ''],
+    ])
+    expect(glob(files, '**/*.ts').sort()).toEqual(['a/b.ts', 'a/c/d.ts', 'b.ts'])
+  })
+
+  it('matches exactly one character for a question mark, and not a slash', () => {
+    const files = vfsFromEntries([
+      ['abc', ''],
+      ['ac', ''],
+      ['a/c', ''],
+    ])
+    expect(glob(files, 'a?c')).toEqual(['abc'])
+  })
+
+  it('never matches a dotfile with a wildcard when dot is false', () => {
+    const files = vfsFromEntries([
+      ['.hidden', ''],
+      ['visible', ''],
+      ['a/.hidden', ''],
+    ])
+    expect(glob(files, '*')).toEqual(['a', 'visible'])
+    expect(glob(files, '**')).toEqual(['a', 'visible'])
+    expect(glob(files, 'a/*')).toEqual([])
+  })
+
+  it('still matches a dotfile when the pattern spells the dot out', () => {
+    const files = vfsFromEntries([
+      ['.hidden', ''],
+      ['visible', ''],
+    ])
+    expect(glob(files, '.*')).toEqual(['.hidden'])
+    expect(glob(files, '.hidden')).toEqual(['.hidden'])
+  })
+
+  it('treats extglob syntax literally when noext is set', () => {
+    const files = vfsFromEntries([
+      ['+(a)', ''],
+      ['a', ''],
+      ['aaa', ''],
+    ])
+    expect(glob(files, '+(a)')).toEqual(['+(a)'])
+  })
+
+  it('treats a character class as a class, and brackets in a path as literals', () => {
+    const files = vfsFromEntries([
+      ['ax', ''],
+      ['bx', ''],
+      ['cx', ''],
+      ['weird[bracket]/x', ''],
+    ])
+    expect(glob(files, '[ab]x').sort()).toEqual(['ax', 'bx'])
+    expect(glob(files, 'weird[bracket]/x')).toEqual(['weird[bracket]/x'])
+  })
+})
+
+describe('glob regex safety', () => {
+  it('runs a catastrophically backtracking pattern in linear time', () => {
+    // `*a` twelve times then `b` is 25 characters and takes ~41s against this 48-character
+    // path on picomatch's backtracking `RegExp`. Both sides are caller-supplied.
+    const files = vfsFromEntries([['a'.repeat(48), '']])
+    const pattern = `${'*a'.repeat(12)}b`
+
+    const start = Date.now()
+    const hits = glob(files, pattern)
+
+    expect(hits).toEqual([])
+    expect(Date.now() - start).toBeLessThan(1000)
+  })
+
+  it('still matches when the same shape has a real answer', () => {
+    const files = vfsFromEntries([[`${'a'.repeat(48)}b`, '']])
+    expect(glob(files, `${'*a'.repeat(12)}b`)).toEqual([`${'a'.repeat(48)}b`])
+  })
+
+  it('rejects an over-long pattern with a clear error', () => {
+    const files = vfsFromEntries([['a', '']])
+    expect(() => glob(files, 'a'.repeat(1001))).toThrow(GlobPatternError)
+    expect(() => glob(files, 'a'.repeat(1001))).toThrow(/too long/)
+  })
+
+  it('rejects an absurd wildcard count with a clear error', () => {
+    const files = vfsFromEntries([['a', '']])
+    expect(() => glob(files, '*'.repeat(33))).toThrow(GlobPatternError)
+    expect(() => glob(files, '*'.repeat(33))).toThrow(/too many wildcards/)
+  })
+
+  it('applies the same engine to a wildcard grep scope', () => {
+    const files = vfsFromEntries([['a'.repeat(48), 'needle']])
+    const pattern = `${'*a'.repeat(12)}b`
+
+    const start = Date.now()
+    const hits = grep(files, 'needle', pattern, { outputMode: 'files_with_matches' })
+
+    expect(hits).toEqual([])
+    expect(Date.now() - start).toBeLessThan(1000)
   })
 })
 

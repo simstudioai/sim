@@ -3,7 +3,25 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
+import { YamlComplexityError } from '@/lib/file-parsers/yaml-parser'
 import { JsonYamlChunker } from './json-yaml-chunker'
+
+/**
+ * Build a chained alias-expansion ("billion laughs") YAML bomb: each level is
+ * an array that references the previous level `width` times, so the expanded
+ * node count grows as `width ^ levels` while the source stays tiny.
+ */
+function buildAliasBomb(levels: number, width: number): string {
+  const lines: string[] = [`l0: &l0 [${Array(width).fill('"x"').join(',')}]`]
+  for (let i = 1; i <= levels; i++) {
+    const refs = Array(width)
+      .fill(`*l${i - 1}`)
+      .join(',')
+    lines.push(`l${i}: &l${i} [${refs}]`)
+  }
+  lines.push(`root: [${Array(width).fill(`*l${levels}`).join(',')}]`)
+  return lines.join('\n')
+}
 
 vi.mock('@/lib/tokenization', () => ({
   getAccurateTokenCount: (text: string) => Math.ceil(text.length / 4),
@@ -370,6 +388,44 @@ server:
 
       expect(chunks.length).toBeGreaterThan(0)
       expect(chunks[0].text.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('YAML alias-expansion guard', () => {
+    it.concurrent('should reject an alias-expansion bomb instead of chunking it', async () => {
+      const bomb = buildAliasBomb(9, 10)
+      expect(Buffer.byteLength(bomb)).toBeLessThan(2048)
+
+      const chunker = new JsonYamlChunker({ chunkSize: 100 })
+      await expect(chunker.chunk(bomb)).rejects.toBeInstanceOf(YamlComplexityError)
+    })
+
+    it.concurrent('should not classify an alias-expansion bomb as structured data', () => {
+      expect(JsonYamlChunker.isStructuredData(buildAliasBomb(9, 10))).toBe(false)
+    })
+
+    it.concurrent('should still chunk an ordinary YAML document', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 100, minCharactersPerChunk: 1 })
+      const chunks = await chunker.chunk('name: sim\nnested:\n  key: value\nlist:\n  - a\n  - b\n')
+
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks.map((c) => c.text).join('\n')).toContain('sim')
+    })
+
+    it.concurrent('should still chunk YAML that uses benign aliases', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 100, minCharactersPerChunk: 1 })
+      const chunks = await chunker.chunk('base: &base\n  region: us\nprod: *base\nstaging: *base\n')
+
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks.map((c) => c.text).join('\n')).toContain('us')
+    })
+
+    it.concurrent('should still chunk ordinary JSON without touching the YAML path', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 100, minCharactersPerChunk: 1 })
+      const chunks = await chunker.chunk(JSON.stringify({ name: 'sim', values: [1, 2, 3] }))
+
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks.map((c) => c.text).join('\n')).toContain('sim')
     })
   })
 })

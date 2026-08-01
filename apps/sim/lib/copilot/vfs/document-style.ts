@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('DocumentStyle')
 
@@ -395,6 +396,8 @@ export async function extractDocumentStyle(
   }
 
   try {
+    assertOoxmlArchiveWithinLimits(buffer)
+
     const JSZip = (await import('jszip')).default
     const zip = await JSZip.loadAsync(buffer)
 

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import * as yaml from 'js-yaml'
 import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 import { estimateTokens } from '@/lib/chunkers/utils'
+import { assertYamlWithinLimits, isYamlComplexityError } from '@/lib/file-parsers/yaml-parser'
 
 const logger = createLogger('JsonYamlChunker')
 
@@ -11,6 +12,21 @@ type JsonObject = { [key: string]: JsonValue }
 type JsonArray = JsonValue[]
 
 const MAX_DEPTH = 5
+
+/**
+ * Parse YAML and validate the expanded document against the shared complexity
+ * limits before it is handed to the chunker. `js-yaml` has no `maxAliasCount`,
+ * so an unguarded `yaml.load` on untrusted knowledge-base input is an uncapped
+ * alias-expansion ("billion laughs") bomb: the parsed value is a compact DAG,
+ * but the `JSON.stringify` calls throughout chunking expand it into a full tree.
+ *
+ * @throws {import('@/lib/file-parsers/yaml-parser').YamlComplexityError} when the expanded document exceeds the limits
+ */
+function loadGuardedYaml(content: string): JsonValue {
+  const parsed = yaml.load(content) as JsonValue
+  assertYamlWithinLimits(parsed)
+  return parsed
+}
 
 export class JsonYamlChunker {
   private chunkSize: number
@@ -27,7 +43,7 @@ export class JsonYamlChunker {
       return typeof parsed === 'object' && parsed !== null
     } catch {
       try {
-        const parsed = yaml.load(content)
+        const parsed = loadGuardedYaml(content)
         return typeof parsed === 'object' && parsed !== null
       } catch {
         return false
@@ -35,13 +51,21 @@ export class JsonYamlChunker {
     }
   }
 
+  /**
+   * Chunk a JSON or YAML document, rethrowing on an alias-expansion bomb rather
+   * than falling back to text chunking. In the knowledge-base path this rethrow
+   * is unreachable: `isStructuredData` already returns false for a bomb, so
+   * `document-processor` routes the document to `TextChunker`, which chunks the
+   * bounded raw string and never materializes the expansion. The rethrow covers
+   * direct callers that skip that check.
+   */
   async chunk(content: string): Promise<Chunk[]> {
     try {
       let data: JsonValue
       try {
         data = JSON.parse(content) as JsonValue
       } catch {
-        data = yaml.load(content) as JsonValue
+        data = loadGuardedYaml(content)
       }
       const chunks = this.chunkStructuredData(data, [], 0)
 
@@ -50,6 +74,10 @@ export class JsonYamlChunker {
 
       return chunks
     } catch (error) {
+      if (isYamlComplexityError(error)) {
+        logger.warn('Rejected YAML document exceeding complexity limits', { error: error.message })
+        throw error
+      }
       logger.info('JSON parsing failed, falling back to text chunking')
       return this.chunkAsText(content)
     }
