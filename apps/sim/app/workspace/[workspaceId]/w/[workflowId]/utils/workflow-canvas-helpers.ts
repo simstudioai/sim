@@ -4,6 +4,8 @@ import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
+export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
+
 /**
  * Collects all descendant block IDs for container blocks (loop/parallel) in the given set.
  * Used to treat a nested subflow as one unit when computing boundary edges (e.g. remove-from-subflow).
@@ -124,8 +126,8 @@ export function shouldHighlightContainerDropTarget(
  * Used when drag operations end or are cancelled.
  */
 export function clearDragHighlights(): void {
-  document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach((el) => {
-    el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over')
+  document.querySelectorAll(`.${SUBFLOW_DROP_TARGET_CLASS}`).forEach((el) => {
+    el.classList.remove(SUBFLOW_DROP_TARGET_CLASS)
   })
   document.body.style.cursor = ''
 }

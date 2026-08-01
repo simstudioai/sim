@@ -323,6 +323,13 @@ describe('WorkflowBlockBorder mount', () => {
     expect(host.querySelector('[data-handleid="loop-end-source"]')).toHaveStyle({ top: '69px' })
     expect(host.querySelector('svg')).toHaveAttribute('viewBox', '-36 -36 572 372')
     expect(host.querySelector('svg rect[fill="var(--surface-3)"]')).toBeTruthy()
+    const dropTargetOutline = host.querySelector('[data-subflow-drop-target-outline]')
+    expect(dropTargetOutline).toHaveClass(
+      'rounded-2xl',
+      'ring-[1.5px]',
+      'ring-[var(--text-secondary)]',
+      '[.subflow-node-drop-target_&]:opacity-100'
+    )
   })
 
   it('retracts a selected loop action swell after hover ends', () => {
