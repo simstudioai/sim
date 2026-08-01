@@ -34,7 +34,7 @@ export type ChatContext =
        * rewrite to keep chip tokens unique.
        */
       tableName: string
-      /** Ids of the selected rows. Always present (materialized from the grid selection). */
+      /** Materialized from the grid selection, including rows not yet paged in. */
       rowIds: string[]
       /**
        * Ids of the selected columns. Present only for a spreadsheet-style cell

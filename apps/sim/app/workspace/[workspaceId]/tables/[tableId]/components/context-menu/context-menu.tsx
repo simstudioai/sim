@@ -58,8 +58,12 @@ interface ContextMenuProps {
   disableDelete?: boolean
   /** Adds the selected rows / cell range to Chat as a reference. Omit to hide. */
   onAddToChat?: () => void
-  /** Label describing the current selection scope, e.g. "3 rows" or "cell range". */
-  addToChatLabel?: string
+  /**
+   * True when the selection is a spreadsheet-style cell range rather than whole
+   * rows, switching the label from row-scoped to cell-scoped. Mirrors
+   * {@link ContextMenuProps.workflowCellScoped}.
+   */
+  addToChatCellScoped?: boolean
 }
 
 export function ContextMenu({
@@ -85,7 +89,7 @@ export function ContextMenu({
   disableDuplicate = false,
   disableDelete = false,
   onAddToChat,
-  addToChatLabel = 'Add to Chat',
+  addToChatCellScoped = false,
 }: ContextMenuProps) {
   const count = selectedRowCount.toLocaleString()
   const deleteLabel = selectedRowCount > 1 ? `Delete ${count} rows` : 'Delete row'
@@ -107,6 +111,11 @@ export function ContextMenu({
     runningInSelectionCount === 1
       ? 'Stop running workflow'
       : `Stop ${runningInSelectionCount} running workflows`
+  const addToChatLabel = addToChatCellScoped
+    ? 'Add cell range to Chat'
+    : selectedRowCount > 1
+      ? `Add ${count} rows to Chat`
+      : 'Add row to Chat'
 
   return (
     <DropdownMenu

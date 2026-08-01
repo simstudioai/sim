@@ -3864,10 +3864,8 @@ export function TableGrid({
     // `contextMenuRowIds` reflects; drain up to the cap so the chip references as
     // many rows as it can carry (bounded by MAX_TABLE_SELECTION_ROWS) instead of a
     // silent loaded-only subset — mirroring how the copy path loads before writing.
-    // A gutter selection can extend past the loaded page, and `contextMenuRowIds`
-    // is the loaded intersection. The chip references ids the server re-fetches,
-    // so send the whole selection rather than whichever rows happen to be paged in.
     const gutterSelection = rowSelectionRef.current
+    // Prefer the whole gutter selection over the loaded intersection.
     let sourceRowIds =
       gutterSelection.kind === 'some' &&
       contextMenu.row &&
@@ -4631,7 +4629,7 @@ export function TableGrid({
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
         onAddToChat={contextMenuRowIds.length > 0 ? handleAddSelectionToChat : undefined}
-        addToChatLabel={contextMenuColumnIds ? 'Add cell range to Chat' : 'Add rows to Chat'}
+        addToChatCellScoped={Boolean(contextMenuColumnIds)}
       />
 
       <ExpandedCellPopover

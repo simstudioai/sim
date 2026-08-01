@@ -402,10 +402,10 @@ export const TextEditor = memo(function TextEditor({
     }
   }, [file.id, file.name])
 
-  const handleAddSelectionToChat = useCallback(() => {
+  const handleAddSelectionToChat = () => {
     const context = buildSelectionContext()
     if (context) addToChat(context)
-  }, [addToChat, buildSelectionContext])
+  }
 
   const {
     content,

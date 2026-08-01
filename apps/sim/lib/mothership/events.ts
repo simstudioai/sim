@@ -75,8 +75,8 @@ export interface MothershipAddContextDetail {
  * the same stale list and drop colliding chips.
  *
  * @returns `true` when a mounted input consumed it, `false` when none was
- * listening — callers fall back to persisting a chip-only
- * {@link MothershipHandoff} for the next chat mount.
+ * listening — callers fall back to persisting a chip-only handoff (see
+ * `MothershipHandoffStorage`) for the next chat mount.
  */
 export function addMothershipContexts(contexts: ChatContext[]): boolean {
   if (contexts.length === 0) return false

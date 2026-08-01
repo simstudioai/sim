@@ -1154,10 +1154,10 @@ export function LoadedRichMarkdownEditor({
     }
   }, [editor, file.id, file.name])
 
-  const handleAddSelectionToChat = useCallback(() => {
+  const handleAddSelectionToChat = () => {
     const context = buildSelectionContext()
     if (context) addToChat(context)
-  }, [addToChat, buildSelectionContext])
+  }
 
   useSelectionCopyBridge(containerRef, buildSelectionContext)
 
