@@ -122,12 +122,9 @@ export function Interface({ workspaceId, interfaceId, host }: InterfaceProps) {
 
   const handleOpenShare = useCallback(() => setShareOpen(true), [setShareOpen])
 
-  const handleShareOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) setShareOpen(false)
-    },
-    [setShareOpen]
-  )
+  function handleShareOpenChange(open: boolean): void {
+    if (!open) setShareOpen(false)
+  }
 
   const breadcrumbs = useMemo(
     (): BreadcrumbItem[] => [

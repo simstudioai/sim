@@ -106,7 +106,7 @@ export function InterfaceCell({
         onDragOver={onDragOver}
         onDrop={handleDrop}
         className={cn(
-          'relative flex min-h-0 items-center justify-center rounded-[8px] border border-[var(--border)] border-dashed transition-colors [grid-column:var(--cell-col)] [grid-row:var(--cell-row)]',
+          'relative flex min-h-0 items-center justify-center rounded-lg border border-[var(--border)] border-dashed transition-colors [grid-column:var(--cell-col)] [grid-row:var(--cell-row)]',
           canEdit &&
             !isChoosing &&
             'hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]',
@@ -153,7 +153,7 @@ export function InterfaceCell({
               type='button'
               onClick={() => setIsChoosing(true)}
               aria-label={`Add a module to ${cellName}`}
-              className='flex size-full items-center justify-center rounded-[8px]'
+              className='flex size-full items-center justify-center rounded-lg'
             >
               <Plus className='size-[14px] text-[var(--text-icon)]' />
             </button>
@@ -185,7 +185,7 @@ export function InterfaceCell({
       onDragOver={onDragOver}
       onDrop={handleDrop}
       className={cn(
-        'group relative flex min-h-0 flex-col overflow-hidden rounded-[8px] border bg-[var(--bg)] [grid-column:var(--cell-col)] [grid-row:var(--cell-row)]',
+        'group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-[var(--bg)] [grid-column:var(--cell-col)] [grid-row:var(--cell-row)]',
         selected ? SELECTION_BORDER_CLASS : 'border-[var(--border)]',
         isDragTarget && `${SELECTION_BORDER_CLASS} border-dashed`,
         isDragging && 'opacity-50'

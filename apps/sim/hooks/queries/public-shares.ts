@@ -117,6 +117,13 @@ export function useUpsertResourceShare() {
           }),
     onSuccess: (data, { resourceType, workspaceId, resourceId }) => {
       queryClient.setQueryData(shareKeys.detail(resourceType, workspaceId, resourceId), data.share)
+    },
+    /**
+     * The file row's share badge is reconciled on both outcomes: a partial
+     * failure — share written, response lost — would otherwise leave the badge
+     * stale until something else happened to invalidate the list.
+     */
+    onSettled: (_data, _error, { resourceType, workspaceId }) => {
       if (resourceType === 'file') {
         queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
       }

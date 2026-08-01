@@ -2,9 +2,9 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { Interfaces } from '@/app/workspace/[workspaceId]/interfaces/interfaces'
 import InterfacesLoading from '@/app/workspace/[workspaceId]/interfaces/loading'
 import { prefetchInterfaces } from '@/app/workspace/[workspaceId]/interfaces/prefetch'
-import { Interfaces } from './interfaces'
 
 export const metadata: Metadata = {
   title: 'Interfaces',

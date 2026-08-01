@@ -22,6 +22,7 @@ import * as React from 'react'
 import { useCopyToClipboard } from '../../hooks/use-copy-to-clipboard'
 import { Check, Duplicate, Eye, EyeOff, RefreshCw } from '../../icons'
 import { Button } from '../button/button'
+import { chipAdornmentButtonClass, chipAdornmentIconClass } from '../chip/chip-chrome'
 import { ChipInput, type ChipInputProps } from '../chip-input/chip-input'
 import { Tooltip } from '../tooltip/tooltip'
 
@@ -38,11 +39,17 @@ export interface ChipPasswordInputProps
   onGenerate?: () => string
 }
 
-const ADORNMENT_BUTTON_CLASS = 'size-[18px] rounded-sm p-0'
-const ADORNMENT_ICON_CLASS = 'size-[13px]'
+const ADORNMENT_BUTTON_CLASS = chipAdornmentButtonClass
+const ADORNMENT_ICON_CLASS = chipAdornmentIconClass
 
 interface AdornmentButtonProps {
   label: string
+  /**
+   * Accessible name, when the visible tooltip is too terse to stand alone.
+   * The tooltip reads beside the field it belongs to; a screen reader announces
+   * the button with no such context, so "Generate" alone loses the noun.
+   */
+  ariaLabel?: string
   activeLabel?: string
   active?: boolean
   disabled?: boolean
@@ -52,6 +59,7 @@ interface AdornmentButtonProps {
 
 function AdornmentButton({
   label,
+  ariaLabel,
   activeLabel,
   active = false,
   disabled = false,
@@ -67,7 +75,7 @@ function AdornmentButton({
           className={ADORNMENT_BUTTON_CLASS}
           onClick={onClick}
           disabled={disabled}
-          aria-label={label}
+          aria-label={ariaLabel ?? label}
         >
           {children}
         </Button>
@@ -96,6 +104,7 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
             {onGenerate ? (
               <AdornmentButton
                 label='Generate'
+                ariaLabel='Generate password'
                 disabled={disabled}
                 onClick={() => onChange(onGenerate())}
               >
@@ -104,6 +113,7 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
             ) : null}
             <AdornmentButton
               label='Copy'
+              ariaLabel='Copy password'
               activeLabel='Copied!'
               active={copied}
               disabled={disabled || !value}
@@ -117,6 +127,7 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
             </AdornmentButton>
             <AdornmentButton
               label={revealed ? 'Hide' : 'Show'}
+              ariaLabel={revealed ? 'Hide password' : 'Show password'}
               disabled={disabled}
               onClick={() => setRevealed((previous) => !previous)}
             >

@@ -19,6 +19,8 @@ export {
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
+  chipAdornmentButtonClass,
+  chipAdornmentIconClass,
   chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,

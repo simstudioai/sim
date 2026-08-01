@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo } from 'react'
 import { cn } from '@sim/emcn'
 import { ChatContent } from '@/components/chat/chat-content'
 import { ChatCopyButton } from '@/components/chat/chat-copy-button'
@@ -70,10 +70,7 @@ export interface ChatTurnProps {
  */
 export const ChatTurn = memo(function ChatTurn({ message }: ChatTurnProps) {
   const markdown = toMarkdown(message.content)
-  const attachments = useMemo(
-    () => toAttachmentStrip(message.attachments ?? []),
-    [message.attachments]
-  )
+  const attachments = toAttachmentStrip(message.attachments ?? [])
 
   if (message.type === 'user') {
     return (

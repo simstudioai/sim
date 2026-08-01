@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useMemo } from 'react'
+import type { ComponentType } from 'react'
 import {
   Button,
   Chip,
@@ -109,7 +109,7 @@ export function FormFieldRow({
   const errors = deriveFormFieldErrors(field, duplicateName)
   const headerLabel = field.label.trim() || field.name.trim() || 'Untitled field'
 
-  const defaultValueChoices = useMemo(() => toDefaultValueChoices(options), [options])
+  const defaultValueChoices = toDefaultValueChoices(options)
 
   /**
    * Switching type invalidates a default seeded for the previous control — a
@@ -306,10 +306,12 @@ export function FormFieldRow({
                 </div>
               ))}
               <Chip
-                leftIcon={Plus}
-                onClick={handleOptionAdd}
+                active
                 fullWidth
                 flush
+                centered
+                leftIcon={Plus}
+                onClick={handleOptionAdd}
                 disabled={disabled || options.length >= INTERFACE_LAYOUT_LIMITS.MAX_OPTIONS}
               >
                 Add option

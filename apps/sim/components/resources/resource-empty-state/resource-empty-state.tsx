@@ -25,7 +25,7 @@ export function ResourceEmptyState({ icon: Icon, title, description }: ResourceE
     return (
       <div className='flex h-full flex-col items-center justify-center gap-2 p-4 text-center'>
         <Icon className='size-[20px] text-[var(--text-icon)]' />
-        <p className='text-[var(--text-placeholder)] text-small'>{description}</p>
+        <p className='text-[var(--text-muted)] text-small'>{description}</p>
       </div>
     )
   }

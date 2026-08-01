@@ -8,7 +8,6 @@ import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { generateUniqueName } from '@/lib/core/utils/unique-name'
-import type { InterfaceDefinition } from '@/lib/interfaces'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   FilterConfig,
@@ -110,8 +109,16 @@ export function Interfaces() {
   })
 
   /** The right-clicked row — drives the row context menu and the delete dialog. */
-  const [activeInterface, setActiveInterface] = useState<InterfaceDefinition | null>(null)
+  const [activeInterfaceId, setActiveInterfaceId] = useState<string | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+
+  /**
+   * Derived from the list, never mirrored into state, so a rename landing between
+   * the right-click and the confirm dialog is reflected rather than shown stale.
+   */
+  const activeInterface = activeInterfaceId
+    ? (interfaces.find((definition) => definition.id === activeInterfaceId) ?? null)
+    : null
 
   const [{ search: urlSearchTerm, owner: ownerFilter, shareInterfaceId }, setInterfaceFilters] =
     useQueryStates(interfacesParsers, interfacesUrlKeys)
@@ -259,16 +266,16 @@ export function Interfaces() {
   }, [interfaces, router, workspaceId, createInterfaceAsync])
 
   const deleteInterfaceAsync = deleteInterface.mutateAsync
-  const handleDelete = useCallback(async () => {
-    if (!activeInterface) return
+  async function handleDelete(): Promise<void> {
+    if (!activeInterfaceId) return
     try {
-      await deleteInterfaceAsync(activeInterface.id)
+      await deleteInterfaceAsync(activeInterfaceId)
       setIsDeleteDialogOpen(false)
-      setActiveInterface(null)
+      setActiveInterfaceId(null)
     } catch (err) {
       logger.error('Failed to delete interface', { error: err })
     }
-  }, [activeInterface, deleteInterfaceAsync])
+  }
 
   const handleContentContextMenu = useBackgroundContextMenu(handleListContextMenu)
 
@@ -284,31 +291,33 @@ export function Interfaces() {
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
       closeListContextMenu()
-      setActiveInterface(interfaces.find((definition) => definition.id === rowId) ?? null)
+      setActiveInterfaceId(rowId)
       handleRowCtxMenu(e)
     },
-    [interfaces, closeListContextMenu, handleRowCtxMenu]
+    [closeListContextMenu, handleRowCtxMenu]
   )
 
-  const handleRenameActive = useCallback(() => {
+  function handleRenameActive(): void {
     if (activeInterface) {
       interfaceRename.startRename(activeInterface.id, activeInterface.name)
     }
-  }, [activeInterface, interfaceRename.startRename])
+  }
 
-  const handleShareActive = useCallback(() => {
+  function handleShareActive(): void {
     if (activeInterface) {
       setInterfaceFilters({ shareInterfaceId: activeInterface.id }, { history: 'replace' })
     }
-  }, [activeInterface, setInterfaceFilters])
+  }
 
-  const handleCopyActiveId = useCallback(() => {
+  function handleCopyActiveId(): void {
     if (activeInterface) {
       navigator.clipboard.writeText(activeInterface.id)
     }
-  }, [activeInterface])
+  }
 
-  const handleRequestDelete = useCallback(() => setIsDeleteDialogOpen(true), [])
+  function handleRequestDelete(): void {
+    setIsDeleteDialogOpen(true)
+  }
 
   const headerActions: ResourceAction[] = useMemo(
     () => [
@@ -438,7 +447,7 @@ export function Interfaces() {
         open={isDeleteDialogOpen}
         onOpenChange={(open) => {
           setIsDeleteDialogOpen(open)
-          if (!open) setActiveInterface(null)
+          if (!open) setActiveInterfaceId(null)
         }}
         srTitle='Delete Interface'
         title='Delete Interface'

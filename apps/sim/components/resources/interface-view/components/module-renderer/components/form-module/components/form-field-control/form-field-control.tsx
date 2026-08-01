@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo } from 'react'
+import { useId } from 'react'
 import {
   Chip,
   ChipInput,
@@ -9,6 +9,7 @@ import {
   ChipTextarea,
   chipContentGap,
   chipContentIconClass,
+  chipFieldTextClass,
   cn,
   Label,
   Switch,
@@ -39,7 +40,8 @@ const LABEL_INSET = 'pl-0.5'
  * same x, so toggling edit → preview does not nudge the text sideways.
  */
 const INVISIBLE_TITLE_INPUT_CLASS = cn(
-  'h-[30px] w-full min-w-0 flex-1 bg-transparent pr-2 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]',
+  'h-[30px] w-full min-w-0 flex-1 bg-transparent pr-2',
+  chipFieldTextClass,
   LABEL_INSET
 )
 
@@ -112,7 +114,7 @@ export function FormFieldControl({
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
 
-  const selectOptions = useMemo(() => toSelectOptions(field.options), [field.options])
+  const selectOptions = toSelectOptions(field.options)
 
   const aria = {
     'aria-required': field.required || undefined,

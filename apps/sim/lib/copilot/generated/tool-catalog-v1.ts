@@ -5405,6 +5405,36 @@ export const SearchKnowledgeBaseOperationValues = [
   SearchKnowledgeBaseOperation.listTags,
 ] as const
 
+export const TerminalOperation = {
+  run: 'run',
+  read: 'read',
+  input: 'input',
+  kill: 'kill',
+  cwd: 'cwd',
+  list: 'list',
+  new: 'new',
+  switch: 'switch',
+  close: 'close',
+  panes: 'panes',
+  handoff: 'handoff',
+} as const
+
+export type TerminalOperation = (typeof TerminalOperation)[keyof typeof TerminalOperation]
+
+export const TerminalOperationValues = [
+  TerminalOperation.run,
+  TerminalOperation.read,
+  TerminalOperation.input,
+  TerminalOperation.kill,
+  TerminalOperation.cwd,
+  TerminalOperation.list,
+  TerminalOperation.new,
+  TerminalOperation.switch,
+  TerminalOperation.close,
+  TerminalOperation.panes,
+  TerminalOperation.handoff,
+] as const
+
 export const UserInterfaceOperation = {
   create: 'create',
   get: 'get',
@@ -5434,36 +5464,6 @@ export const UserInterfaceOperationValues = [
   UserInterfaceOperation.updateModule,
   UserInterfaceOperation.moveModule,
   UserInterfaceOperation.removeModule,
-] as const
-
-export const TerminalOperation = {
-  run: 'run',
-  read: 'read',
-  input: 'input',
-  kill: 'kill',
-  cwd: 'cwd',
-  list: 'list',
-  new: 'new',
-  switch: 'switch',
-  close: 'close',
-  panes: 'panes',
-  handoff: 'handoff',
-} as const
-
-export type TerminalOperation = (typeof TerminalOperation)[keyof typeof TerminalOperation]
-
-export const TerminalOperationValues = [
-  TerminalOperation.run,
-  TerminalOperation.read,
-  TerminalOperation.input,
-  TerminalOperation.kill,
-  TerminalOperation.cwd,
-  TerminalOperation.list,
-  TerminalOperation.new,
-  TerminalOperation.switch,
-  TerminalOperation.close,
-  TerminalOperation.panes,
-  TerminalOperation.handoff,
 ] as const
 
 export const UserTableOperation = {

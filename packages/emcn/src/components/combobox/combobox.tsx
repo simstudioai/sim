@@ -771,7 +771,7 @@ const Combobox = memo(
                       </span>
                     </div>
                   ) : error ? (
-                    <div className='px-1.5 py-3.5 text-center text-caption text-red-500'>
+                    <div className='px-1.5 py-3.5 text-center text-caption text-[var(--text-error)]'>
                       {error}
                     </div>
                   ) : filteredOptions.length === 0 ? (

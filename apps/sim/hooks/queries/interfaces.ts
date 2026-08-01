@@ -292,8 +292,15 @@ export function useUpdateInterface(workspaceId: string) {
       }
       toastMutationError(error)
     },
-    onSettled: (_data, _error, { interfaceId }) => {
-      queryClient.invalidateQueries({ queryKey: interfaceKeys.detail(interfaceId) })
+    onSettled: (_data, error, { interfaceId }) => {
+      /**
+       * On success `onSuccess` already adopted the server's record, so a refetch
+       * here would be a second GET for data the client is holding — on the
+       * editor's debounced config path that doubles the requests per edit. A
+       * failure leaves the rolled-back cache out of date, and that is the case
+       * this invalidation exists to repair.
+       */
+      if (error) queryClient.invalidateQueries({ queryKey: interfaceKeys.detail(interfaceId) })
       queryClient.invalidateQueries({ queryKey: interfaceKeys.lists() })
     },
   })

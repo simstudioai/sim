@@ -413,7 +413,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({ file }: { file: 
 
   return (
     <div className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'>
-      <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
+      <pre className='whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-small'>
         {content}
       </pre>
     </div>
@@ -479,8 +479,8 @@ const MediaPreview = memo(function MediaPreview({
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
-          <Music className='size-[32px] text-[var(--text-muted)]' strokeWidth={1.5} />
-          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+          <Music className='size-[32px] text-[var(--text-icon)]' strokeWidth={1.5} />
+          <p className='font-medium text-[var(--text-primary)] text-sm'>{file.name}</p>
         </div>
         {/* biome-ignore lint/a11y/useMediaCaption: audio from workspace files */}
         <audio
@@ -535,7 +535,7 @@ const UnsupportedPreview = memo(function UnsupportedPreview({ file }: { file: Fi
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
+      <p className='font-medium text-[var(--text-primary)] text-sm'>
         Preview not available{ext ? ` for .${ext} files` : ' for this file'}
       </p>
       {href ? (
@@ -543,7 +543,7 @@ const UnsupportedPreview = memo(function UnsupportedPreview({ file }: { file: Fi
           Download
         </ChipLink>
       ) : (
-        <p className='text-[13px] text-[var(--text-muted)]'>This file has no content yet</p>
+        <p className='text-[var(--text-muted)] text-small'>This file has no content yet</p>
       )}
     </div>
   )
