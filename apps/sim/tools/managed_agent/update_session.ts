@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { updateSession } from '@/lib/managed-agents/session-client'
-import { normalizeSessionParameters } from '@/tools/managed_agent/normalizers'
+import { isTruthyAck, normalizeSessionParameters } from '@/tools/managed_agent/normalizers'
 import {
   ACCESS_TOKEN_PARAM,
   CREDENTIAL_PARAM,
@@ -23,7 +23,9 @@ import type { ToolConfig } from '@/tools/types'
  * that ordering gap.
  *
  * Metadata is a FULL REPLACEMENT of the stored map, matching the API. To add
- * one key, read the session first and send the merged map.
+ * one key, read the session first and send the merged map. Removing metadata
+ * entirely takes an explicit `clearMetadata`, because an empty map is
+ * indistinguishable from a field the author never filled in.
  */
 export const managedAgentUpdateSessionTool: ToolConfig<
   ManagedAgentUpdateSessionParams,
@@ -48,7 +50,15 @@ export const managedAgentUpdateSessionTool: ToolConfig<
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement metadata map (replaces all stored metadata, not merged).',
+      description:
+        'Replacement metadata map (replaces all stored metadata, not merged). Leaving it empty leaves the stored metadata unchanged — use clearMetadata to remove it.',
+    },
+    clearMetadata: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Removes all of the session's stored metadata. Overrides any map supplied above.",
     },
   },
 
@@ -65,12 +75,18 @@ export const managedAgentUpdateSessionTool: ToolConfig<
     // both slip past the guard below and silently clear an existing title.
     const trimmedTitle = params.title?.trim()
     const title = trimmedTitle ? trimmedTitle : undefined
-    const metadata = normalizeSessionParameters(params.sessionParameters)
+
+    // Clearing metadata needs its own explicit signal. An empty metadata table
+    // cannot mean "clear": a table the author never touched is also empty, so
+    // inferring intent from emptiness would wipe a session's metadata on every
+    // title-only update. `{}` is only sent when the author asks for it.
+    const clearMetadata = isTruthyAck(params.clearMetadata)
+    const metadata = clearMetadata ? {} : normalizeSessionParameters(params.sessionParameters)
     if (title === undefined && metadata === undefined) {
       return {
         success: false,
         output: { sessionId: target.sessionId, updated: false },
-        error: 'Provide a title or metadata to update.',
+        error: 'Provide a title or metadata to update, or check "Clear metadata".',
       }
     }
 

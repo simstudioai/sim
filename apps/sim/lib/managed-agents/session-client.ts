@@ -617,15 +617,19 @@ export async function listSessionEventsPage(
     (a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at)
   )
   const total = ordered.length
-  const maxItems = input.maxItems
-  if (maxItems === undefined || Number.isNaN(maxItems) || total <= maxItems) {
+  if (input.maxItems === undefined || Number.isNaN(input.maxItems)) {
     return { events: ordered, total }
   }
+  // Floor first: `slice` truncates its index toward zero, so a cap between 0
+  // and 1 would become `slice(-0)` — i.e. `slice(0)` — and hand back the ENTIRE
+  // history for what the caller asked to be the tightest possible bound. Doing
+  // it here means no caller can hit that, whatever it passes.
+  const maxItems = Math.floor(input.maxItems)
+  if (maxItems <= 0) return { events: [], total }
+  if (total <= maxItems) return { events: ordered, total }
   // Slice AFTER ordering so the cap is "the newest N", independent of the order
-  // the API returned pages in. A zero or negative cap short-circuits because
-  // `slice(-0)` is `slice(0)` — it would hand back the ENTIRE history for what
-  // the caller asked to be the tightest possible bound.
-  return { events: maxItems <= 0 ? [] : ordered.slice(-maxItems), total }
+  // the API returned pages in.
+  return { events: ordered.slice(-maxItems), total }
 }
 
 /** Epoch millis for a `processed_at`, or +Infinity when absent/queued/unparseable (sorts last). */

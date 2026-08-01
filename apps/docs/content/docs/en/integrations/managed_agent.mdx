@@ -161,7 +161,8 @@ Update a Managed Agent session's title or metadata.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `title` | string | No | New session title. |
-| `sessionParameters` | object | No | Replacement metadata map \(replaces all stored metadata, not merged\). |
+| `sessionParameters` | object | No | Replacement metadata map \(replaces all stored metadata, not merged\). Leaving it empty leaves the stored metadata unchanged — use clearMetadata to remove it. |
+| `clearMetadata` | boolean | No | Removes all of the session's stored metadata. Overrides any map supplied above. |
 
 #### Output
 

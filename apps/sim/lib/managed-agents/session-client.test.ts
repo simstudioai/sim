@@ -651,6 +651,32 @@ describe('listSessionEvents — bounded reads', () => {
     expect(negative.events).toHaveLength(0)
   })
 
+  it.each([0.5, 0.99, 0, -0.5, -5])(
+    'never returns the whole history for the sub-integer cap %p',
+    async (maxItems) => {
+      // `slice` truncates its index toward zero, so any cap under 1 becomes
+      // `slice(-0)` — the entire array — unless it is floored first.
+      global.fetch = pagedFetch(1)
+      const res = await listSessionEventsPage({
+        apiKey: 'sk-ant-fake',
+        sessionId: 'sesn_1',
+        maxItems,
+      })
+      expect(res.events).toHaveLength(0)
+      expect(res.total).toBe(100)
+    }
+  )
+
+  it('floors a fractional cap above 1 rather than widening it', async () => {
+    global.fetch = pagedFetch(1)
+    const res = await listSessionEventsPage({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: 10.9,
+    })
+    expect(res.events).toHaveLength(10)
+  })
+
   it('returns the whole history when uncapped', async () => {
     global.fetch = pagedFetch(3)
     const events = await listSessionEvents({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })

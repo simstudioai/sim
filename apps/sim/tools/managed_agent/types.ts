@@ -120,6 +120,8 @@ export interface ManagedAgentListEventsResponse extends ToolResponse {
 export interface ManagedAgentUpdateSessionParams extends ManagedAgentSessionOpParams {
   title?: string
   sessionParameters?: unknown
+  /** Explicitly removes all stored metadata; an empty map cannot express this. */
+  clearMetadata?: boolean | string
 }
 
 export interface ManagedAgentUpdateSessionResponse extends ToolResponse {
