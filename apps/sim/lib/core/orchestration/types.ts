@@ -1,9 +1,16 @@
 export type OrchestrationErrorCode =
   | 'validation'
+  /**
+   * The credentials this operation depends on are no longer usable — a stored
+   * third-party token that will not refresh, not an unauthenticated caller.
+   * Distinct from `forbidden`, which is the caller lacking permission.
+   */
+  | 'unauthorized'
   | 'not_found'
   | 'forbidden'
   | 'conflict'
   | 'locked'
+  | 'payload_too_large'
   | 'internal'
 
 /**
@@ -13,11 +20,30 @@ export type OrchestrationErrorCode =
  */
 export function statusForOrchestrationError(code: OrchestrationErrorCode | undefined): number {
   if (code === 'validation') return 400
+  if (code === 'unauthorized') return 401
   if (code === 'forbidden') return 403
   if (code === 'not_found') return 404
   if (code === 'conflict') return 409
   if (code === 'locked') return 423
+  if (code === 'payload_too_large') return 413
   return 500
+}
+
+/**
+ * The message a JSON route should render for an orchestration failure.
+ *
+ * A classified failure is caller-fixable, so its message is written for the
+ * caller and is safe to return. An unclassified one carries whatever text the
+ * fault happened to have — a driver's failed SQL, say — so the caller gets the
+ * route's own generic wording instead. `v2ErrorForOrchestration` applies the
+ * same rule for the v2 envelope.
+ */
+export function messageForOrchestrationError(
+  result: { error?: string; errorCode?: OrchestrationErrorCode },
+  fallback: string
+): string {
+  if (!result.errorCode || result.errorCode === 'internal') return fallback
+  return result.error ?? fallback
 }
 
 /**

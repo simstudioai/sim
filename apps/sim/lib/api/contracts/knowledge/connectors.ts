@@ -22,7 +22,8 @@ export const updateConnectorBodySchema = z.object({
 })
 
 export const deleteConnectorQuerySchema = z.object({
-  deleteDocuments: z.boolean().optional(),
+  /** Also hard-delete the documents the connector produced; kept by default. */
+  deleteDocuments: booleanQueryFlagSchema.optional().default(false),
 })
 
 export const connectorDocumentsQuerySchema = z.object({

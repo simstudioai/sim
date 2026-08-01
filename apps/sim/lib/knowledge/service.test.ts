@@ -71,7 +71,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     await expect(
       updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'attacker' })
     ).rejects.toMatchObject({
-      code: 'KNOWLEDGE_BASE_FORBIDDEN',
+      code: 'forbidden',
       message: 'Only the knowledge base owner can remove it from a workspace',
     })
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
@@ -95,7 +95,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
         actorUserId: 'attacker',
       })
     ).rejects.toMatchObject({
-      code: 'KNOWLEDGE_BASE_FORBIDDEN',
+      code: 'forbidden',
       message: 'User does not have permission on the target workspace',
     })
     expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(

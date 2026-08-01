@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -6,11 +5,11 @@ import {
   v2CreateKnowledgeBaseContract,
   v2ListKnowledgeBasesContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { isZodError, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
-import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
+import { performCreateKnowledgeBase } from '@/lib/knowledge/orchestration'
+import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -18,6 +17,7 @@ import {
   v2CursorList,
   v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
@@ -97,50 +97,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    const kb = await createKnowledgeBase(
-      {
-        name,
-        description,
-        workspaceId,
-        userId,
-        embeddingModel: getConfiguredEmbeddingModel(),
-        embeddingDimension: EMBEDDING_DIMENSIONS,
-        chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
-      },
-      requestId
-    )
-
-    recordAudit({
+    const outcome = await performCreateKnowledgeBase({
+      userId,
+      source: 'api',
       workspaceId,
-      actorId: userId,
-      action: AuditAction.KNOWLEDGE_BASE_CREATED,
-      resourceType: AuditResourceType.KNOWLEDGE_BASE,
-      resourceId: kb.id,
-      resourceName: kb.name,
-      description: `Created knowledge base "${kb.name}" via API`,
-      metadata: { chunkingConfig },
+      name,
+      description,
+      chunkingConfig,
+      requestId,
       request,
     })
-
-    return v2Data({ knowledgeBase: formatKnowledgeBase(kb) }, { rateLimit, status: 201 })
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    if (error instanceof Error) {
-      if (error.message.includes('does not have permission')) {
-        return v2Error('FORBIDDEN', 'Access denied')
-      }
-      if (
-        error.message.includes('Storage limit exceeded') ||
-        error.message.includes('storage limit')
-      ) {
-        return v2Error('PAYLOAD_TOO_LARGE', 'Storage limit exceeded')
-      }
-      if (error.message.includes('already exists')) {
-        return v2Error('CONFLICT', 'Resource already exists')
-      }
+    if (!outcome.success) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
 
+    return v2Data(
+      { knowledgeBase: formatKnowledgeBase(outcome.knowledgeBase) },
+      { rateLimit, status: 201 }
+    )
+  } catch (error) {
     logger.error(`[${requestId}] Error creating knowledge base`, {
       error: getErrorMessage(error, 'Unknown error'),
     })

@@ -1,18 +1,16 @@
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
-import { generateInternalToken } from '@/lib/auth/internal'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
-  BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
-  serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -20,25 +18,24 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
-  createSingleDocument,
-  deleteDocument,
-  processDocumentAsync,
-  updateDocument,
-} from '@/lib/knowledge/documents/service'
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+} from '@/lib/core/orchestration/types'
+import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import {
-  EMBEDDING_DIMENSIONS,
-  generateSearchEmbedding,
-  getConfiguredEmbeddingModel,
-  recordSearchEmbeddingUsage,
-} from '@/lib/knowledge/embeddings'
-import {
-  createKnowledgeBase,
-  deleteKnowledgeBase,
-  getKnowledgeBaseById,
-  updateKnowledgeBase,
-} from '@/lib/knowledge/service'
+  performCreateKnowledgeBase,
+  performCreateKnowledgeConnector,
+  performDeleteKnowledgeBase,
+  performDeleteKnowledgeConnector,
+  performDeleteKnowledgeDocument,
+  performSyncKnowledgeConnector,
+  performUpdateKnowledgeBase,
+  performUpdateKnowledgeConnector,
+  performUpdateKnowledgeDocument,
+  performUploadKnowledgeDocument,
+} from '@/lib/knowledge/orchestration'
+import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import {
   createTagDefinition,
   deleteTagDefinition,
@@ -50,6 +47,7 @@ import {
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getCredential } from '@/app/api/auth/oauth/utils'
 import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
@@ -71,6 +69,20 @@ function requireKnowledgeBillingAttribution(
     throw new Error('Knowledge billing attribution does not match its actor and workspace')
   }
   return attribution
+}
+
+/**
+ * The message the agent — and therefore the user — is shown for a failed
+ * operation. Mirrors `messageForOrchestrationError` on the HTTP surfaces: a
+ * classified failure is caller-fixable and safe to relay, an unclassified one
+ * carries whatever text the fault happened to have (a driver's failed SQL, say)
+ * and is replaced by the operation's own wording.
+ */
+function agentFacingError(
+  outcome: { error?: string; errorCode?: OrchestrationErrorCode },
+  fallback: string
+): string {
+  return messageForOrchestrationError(outcome, fallback)
 }
 
 type KnowledgeBaseArgs = {
@@ -109,6 +121,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
         context,
         'Request aborted before knowledge mutation could be applied.'
       )
+    /**
+     * The acting agent, as every knowledge orchestration function expects it.
+     * `source: 'agent'` is what makes an agent-driven mutation distinguishable in
+     * the audit log — before these operations went through orchestration they
+     * were not recorded there at all.
+     */
+    const actor = (requestId: string) => ({
+      userId: context.userId as string,
+      source: 'agent' as const,
+      requestId,
+    })
 
     try {
       switch (operation) {
@@ -129,29 +152,21 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const newKnowledgeBase = await createKnowledgeBase(
-            {
-              name: args.name,
-              description: args.description,
-              workspaceId,
-              userId: context.userId,
-              embeddingModel: getConfiguredEmbeddingModel(),
-              embeddingDimension: EMBEDDING_DIMENSIONS,
-              chunkingConfig: args.chunkingConfig || {
-                maxSize: 1024,
-                minSize: 1,
-                overlap: 200,
-              },
-            },
-            requestId
-          )
-
-          logger.info('Knowledge base created via copilot', {
-            knowledgeBaseId: newKnowledgeBase.id,
-            name: newKnowledgeBase.name,
-            userId: context.userId,
+          const outcome = await performCreateKnowledgeBase({
+            ...actor(requestId),
+            workspaceId,
+            name: args.name,
+            description: args.description,
+            chunkingConfig: args.chunkingConfig,
           })
+          if (!outcome.success) {
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to create knowledge base'),
+            }
+          }
 
+          const newKnowledgeBase = outcome.knowledgeBase
           return {
             success: true,
             message: `Knowledge base "${newKnowledgeBase.name}" created successfully`,
@@ -367,44 +382,28 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
             const requestId = generateId().slice(0, 8)
             assertNotAborted()
-            const doc = await createSingleDocument(
-              {
+            const outcome = await performUploadKnowledgeDocument({
+              ...actor(requestId),
+              knowledgeBase: {
+                id: args.knowledgeBaseId,
+                name: targetKb.name,
+                workspaceId: kbWorkspaceId,
+              },
+              document: {
                 filename: fileRecord.name,
                 fileUrl: presignedUrl,
                 fileSize: fileRecord.size,
                 mimeType: fileRecord.type,
               },
-              args.knowledgeBaseId,
-              requestId,
-              context.userId
-            )
-
-            processDocumentAsync(
-              args.knowledgeBaseId,
-              doc.id,
-              {
-                filename: fileRecord.name,
-                fileUrl: presignedUrl,
-                fileSize: fileRecord.size,
-                mimeType: fileRecord.type,
-              },
-              {},
-              billingAttribution
-            ).catch((err) => {
-              logger.error('Background document processing failed', {
-                documentId: doc.id,
-                error: toError(err).message,
-              })
+              startProcessing: 'async',
+              billingAttribution,
             })
+            if (!outcome.success) {
+              failedFiles.push(fileRef)
+              continue
+            }
 
-            added.push({ documentId: doc.id, filename: fileRecord.name })
-
-            logger.info('Workspace file added to knowledge base via copilot', {
-              knowledgeBaseId: args.knowledgeBaseId,
-              documentId: doc.id,
-              fileName: fileRecord.name,
-              userId: context.userId,
-            })
+            added.push({ documentId: outcome.document.id, filename: fileRecord.name })
           }
 
           const addedNames = added.map((a) => a.filename).join(', ')
@@ -461,13 +460,20 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updatedKb = await updateKnowledgeBase(args.knowledgeBaseId, updates, requestId)
-
-          logger.info('Knowledge base updated via copilot', {
+          const outcome = await performUpdateKnowledgeBase({
+            ...actor(requestId),
             knowledgeBaseId: args.knowledgeBaseId,
-            userId: context.userId,
+            workspaceId: writeAccess.knowledgeBase.workspaceId ?? null,
+            updates,
           })
+          if (!outcome.success) {
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to update knowledge base'),
+            }
+          }
 
+          const updatedKb = outcome.knowledgeBase
           return {
             success: true,
             message: `Knowledge base "${updatedKb.name}" updated successfully`,
@@ -494,6 +500,10 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const deleted: Array<{ id: string; name: string }> = []
           const notFound: string[] = []
+          // A knowledge base that exists but could not be archived is neither
+          // deleted nor missing. Folding it into `notFound` told the user it was
+          // never there instead of why the delete failed.
+          const failed: Array<{ id: string; name: string; reason: string }> = []
 
           for (const kbId of kbIds) {
             const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
@@ -510,23 +520,42 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
             const requestId = generateId().slice(0, 8)
             assertNotAborted()
-            await deleteKnowledgeBase(kbId, requestId)
-            deleted.push({ id: kbId, name: kbToDelete.name })
-
-            logger.info('Knowledge base deleted via copilot', {
-              knowledgeBaseId: kbId,
-              name: kbToDelete.name,
-              userId: context.userId,
+            const outcome = await performDeleteKnowledgeBase({
+              ...actor(requestId),
+              knowledgeBase: {
+                id: kbId,
+                name: kbToDelete.name,
+                workspaceId: kbToDelete.workspaceId,
+              },
             })
+            if (!outcome.success) {
+              if (outcome.errorCode === 'not_found') {
+                notFound.push(kbId)
+              } else {
+                failed.push({
+                  id: kbId,
+                  name: kbToDelete.name,
+                  reason: agentFacingError(outcome, 'Failed to delete knowledge base'),
+                })
+              }
+              continue
+            }
+            deleted.push({ id: kbId, name: kbToDelete.name })
           }
+
+          const deleteSummary = [
+            deleted.length > 0 ? `Deleted: ${deleted.map((d) => d.name).join(', ')}` : null,
+            failed.length > 0
+              ? `Failed: ${failed.map((f) => `${f.name} (${f.reason})`).join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('. ')
 
           return {
             success: deleted.length > 0,
-            message:
-              deleted.length > 0
-                ? `Deleted: ${deleted.map((d) => d.name).join(', ')}`
-                : 'No knowledge bases found',
-            data: { deleted, notFound },
+            message: deleteSummary || 'No knowledge bases found',
+            data: { deleted, notFound, failed },
           }
         }
 
@@ -557,8 +586,16 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               continue
             }
             const requestId = generateId().slice(0, 8)
-            const result = await deleteDocument(docId, requestId)
-            if (result.success) {
+            const outcome = await performDeleteKnowledgeDocument({
+              ...actor(requestId),
+              knowledgeBase: {
+                id: args.knowledgeBaseId,
+                name: docAccess.knowledgeBase.name,
+                workspaceId: docAccess.knowledgeBase.workspaceId ?? null,
+              },
+              document: docAccess.document,
+            })
+            if (outcome.success) {
               deleted.push(docId)
             } else {
               failed.push(docId)
@@ -605,7 +642,23 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          await updateDocument(args.documentId, updateData, requestId)
+          const outcome = await performUpdateKnowledgeDocument({
+            ...actor(requestId),
+            knowledgeBase: {
+              id: args.knowledgeBaseId,
+              name: docAccess.knowledgeBase.name,
+              workspaceId: docAccess.knowledgeBase.workspaceId ?? null,
+            },
+            document: docAccess.document,
+            updates: updateData,
+          })
+          if (!outcome.success) {
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to update document'),
+            }
+          }
+
           return {
             success: true,
             message: `Document updated successfully`,
@@ -896,51 +949,41 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             connectorWorkspaceId
           )
 
-          const createBody: Record<string, unknown> = {
-            connectorType: args.connectorType,
-            sourceConfig: args.sourceConfig ?? {},
-            syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
-          }
-
-          if (args.credentialId) {
-            createBody.credentialId = args.credentialId
-          }
-          if (args.apiKey) {
-            createBody.apiKey = args.apiKey
-          }
-
+          const sourceConfig: Record<string, unknown> = { ...(args.sourceConfig ?? {}) }
           if (args.disabledTagIds?.length) {
-            ;(createBody.sourceConfig as Record<string, unknown>).disabledTagIds =
-              args.disabledTagIds
+            sourceConfig.disabledTagIds = args.disabledTagIds
           }
 
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const createRes = await connectorApiCall(
-            context.userId,
-            `/api/knowledge/${args.knowledgeBaseId}/connectors`,
-            'POST',
-            createBody,
-            billingAttribution
-          )
-
-          if (!createRes.success) {
-            return { success: false, message: createRes.error ?? 'Failed to create connector' }
+          const outcome = await performCreateKnowledgeConnector({
+            ...actor(requestId),
+            knowledgeBase: {
+              id: args.knowledgeBaseId,
+              name: writeAccess.knowledgeBase.name,
+              workspaceId: connectorWorkspaceId,
+            },
+            connectorType: args.connectorType,
+            credentialId: args.credentialId,
+            apiKey: args.apiKey,
+            sourceConfig,
+            syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
+            resolveBillingAttribution: async () => billingAttribution,
+            resolveAccessToken: async (credentialId) =>
+              (await getCredential(requestId, credentialId, context.userId as string))
+                ?.accessToken ?? null,
+          })
+          if (!outcome.success) {
+            return { success: false, message: agentFacingError(outcome, 'Failed to add connector') }
           }
 
-          const connector = createRes.data
-          logger.info('Connector created via copilot', {
-            connectorId: connector.id,
-            connectorType: args.connectorType,
-            knowledgeBaseId: args.knowledgeBaseId,
-            userId: context.userId,
-          })
-
+          const connector = outcome.connector
           return {
             success: true,
             message: `Connector "${args.connectorType}" added to knowledge base. Initial sync started.`,
             data: {
               id: connector.id,
-              connectorType: connector.connectorType ?? connector.connector_type,
+              connectorType: connector.connectorType,
               status: connector.status,
               knowledgeBaseId: args.knowledgeBaseId,
             },
@@ -962,41 +1005,38 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
-          const updateBody: Record<string, unknown> = {}
-          if (args.sourceConfig !== undefined) updateBody.sourceConfig = args.sourceConfig
-          if (args.syncIntervalMinutes !== undefined)
-            updateBody.syncIntervalMinutes = args.syncIntervalMinutes
-          if (args.connectorStatus !== undefined) updateBody.status = args.connectorStatus
+          const updates = {
+            sourceConfig: args.sourceConfig,
+            syncIntervalMinutes: args.syncIntervalMinutes,
+            status: args.connectorStatus,
+          }
 
-          if (Object.keys(updateBody).length === 0) {
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          // No `validateSourceConfig`: the agent has no requesting identity to
+          // resolve the connector's OAuth token with, so a replacement config is
+          // stored unvalidated and the next sync reports any problem with it.
+          const outcome = await performUpdateKnowledgeConnector({
+            ...actor(requestId),
+            knowledgeBase: {
+              id: kbId,
+              name: writeAccess.knowledgeBase.name,
+              workspaceId: writeAccess.knowledgeBase.workspaceId ?? null,
+            },
+            connectorId: args.connectorId,
+            updates,
+          })
+          if (!outcome.success) {
             return {
               success: false,
-              message:
-                'At least one of sourceConfig, syncIntervalMinutes, or connectorStatus is required',
+              message: agentFacingError(outcome, 'Failed to update connector'),
             }
           }
-
-          assertNotAborted()
-          const updateRes = await connectorApiCall(
-            context.userId,
-            `/api/knowledge/${kbId}/connectors/${args.connectorId}`,
-            'PATCH',
-            updateBody
-          )
-
-          if (!updateRes.success) {
-            return { success: false, message: updateRes.error ?? 'Failed to update connector' }
-          }
-
-          logger.info('Connector updated via copilot', {
-            connectorId: args.connectorId,
-            userId: context.userId,
-          })
 
           return {
             success: true,
             message: 'Connector updated successfully',
-            data: { id: args.connectorId, ...updateBody },
+            data: { id: args.connectorId, ...filterUndefined(updates) },
           }
         }
 
@@ -1015,26 +1055,39 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const deleteRes = await connectorApiCall(
-            context.userId,
-            `/api/knowledge/${deleteKbId}/connectors/${args.connectorId}`,
-            'DELETE'
-          )
-
-          if (!deleteRes.success) {
-            return { success: false, message: deleteRes.error ?? 'Failed to delete connector' }
+          const outcome = await performDeleteKnowledgeConnector({
+            ...actor(requestId),
+            knowledgeBase: {
+              id: deleteKbId,
+              name: writeAccess.knowledgeBase.name,
+              workspaceId: writeAccess.knowledgeBase.workspaceId ?? null,
+            },
+            connectorId: args.connectorId,
+          })
+          if (!outcome.success) {
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to delete connector'),
+            }
           }
 
-          logger.info('Connector deleted via copilot', {
-            connectorId: args.connectorId,
-            userId: context.userId,
-          })
-
+          // Report what the delete actually did. The documents are kept — this
+          // used to claim they had been removed, which was never true on this
+          // path: it reached the route over HTTP with no query string, so the
+          // route's keep-documents default always applied.
           return {
             success: true,
-            message: 'Connector deleted successfully. Associated documents have been removed.',
-            data: { id: args.connectorId },
+            message:
+              outcome.documentsKept > 0
+                ? `Connector deleted successfully. Its ${outcome.documentsKept} document(s) were kept in the knowledge base.`
+                : 'Connector deleted successfully.',
+            data: {
+              id: args.connectorId,
+              documentsKept: outcome.documentsKept,
+              documentsDeleted: outcome.documentsDeleted,
+            },
           }
         }
 
@@ -1064,23 +1117,24 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             connectorWorkspaceId
           )
 
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const syncRes = await connectorApiCall(
-            context.userId,
-            `/api/knowledge/${syncKbId}/connectors/${args.connectorId}/sync`,
-            'POST',
-            undefined,
-            billingAttribution
-          )
-
-          if (!syncRes.success) {
-            return { success: false, message: syncRes.error ?? 'Failed to sync connector' }
-          }
-
-          logger.info('Connector sync triggered via copilot', {
+          const outcome = await performSyncKnowledgeConnector({
+            ...actor(requestId),
+            knowledgeBase: {
+              id: syncKbId,
+              name: writeAccess.knowledgeBase.name,
+              workspaceId: connectorWorkspaceId,
+            },
             connectorId: args.connectorId,
-            userId: context.userId,
+            resolveBillingAttribution: async () => billingAttribution,
           })
+          if (!outcome.success) {
+            return {
+              success: false,
+              message: agentFacingError(outcome, 'Failed to sync connector'),
+            }
+          }
 
           return {
             success: true,
@@ -1109,42 +1163,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
       }
     }
   },
-}
-
-async function connectorApiCall(
-  userId: string,
-  path: string,
-  method: string,
-  body?: Record<string, unknown>,
-  billingAttribution?: BillingAttributionSnapshot
-): Promise<{ success: boolean; data?: any; error?: string }> {
-  const token = await generateInternalToken(userId)
-  const baseUrl = getInternalApiBaseUrl()
-
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(billingAttribution
-        ? {
-            [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),
-          }
-        : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  })
-
-  const json = await res.json().catch(() => ({}))
-
-  if (!res.ok) {
-    return {
-      success: false,
-      error: json.error || `API returned ${res.status}`,
-    }
-  }
-
-  return { success: true, data: json.data }
 }
 
 async function resolveKnowledgeBaseId(connectorId: string): Promise<string | null> {

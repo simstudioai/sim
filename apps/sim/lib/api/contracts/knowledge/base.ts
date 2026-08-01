@@ -7,7 +7,10 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { StrategyOptions } from '@/lib/chunkers/types'
-import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
+import {
+  DEFAULT_CHUNKING_CONFIG,
+  KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+} from '@/lib/knowledge/constants'
 
 export const knowledgeScopeSchema = z.enum(['active', 'archived', 'all'])
 export type KnowledgeScope = z.output<typeof knowledgeScopeSchema>
@@ -67,11 +70,7 @@ export const createKnowledgeBaseBodySchema = z.object({
   folderId: z.string().min(1, 'Folder ID cannot be empty').nullable().optional(),
   embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
   embeddingDimension: z.literal(1536).default(1536),
-  chunkingConfig: chunkingConfigSchema.default({
-    maxSize: 1024,
-    minSize: 100,
-    overlap: 200,
-  }),
+  chunkingConfig: chunkingConfigSchema.default(DEFAULT_CHUNKING_CONFIG),
 })
 
 export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema

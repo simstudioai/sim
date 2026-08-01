@@ -1,20 +1,19 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { PlatformEvents } from '@/lib/core/telemetry'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  deleteKnowledgeBase,
-  getKnowledgeBaseById,
-  KnowledgeBaseConflictError,
-  KnowledgeBaseFolderError,
-  KnowledgeBasePermissionError,
-  updateKnowledgeBase,
-} from '@/lib/knowledge/service'
+  performDeleteKnowledgeBase,
+  performUpdateKnowledgeBase,
+} from '@/lib/knowledge/orchestration'
+import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseByIdAPI')
@@ -69,93 +68,56 @@ export const PUT = withRouteHandler(
     const requestId = generateRequestId()
     const { id } = await context.params
 
-    try {
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized knowledge base update attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
-
-      const accessCheck = await checkKnowledgeBaseWriteAccess(id, userId)
-
-      if (!accessCheck.hasAccess) {
-        if ('notFound' in accessCheck && accessCheck.notFound) {
-          logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
-          return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${userId} attempted to update unauthorized knowledge base ${id}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const parsed = await parseRequest(updateKnowledgeBaseContract, req, context)
-      if (!parsed.success) return parsed.response
-
-      const validatedData = parsed.data.body
-
-      const updatedKnowledgeBase = await updateKnowledgeBase(
-        id,
-        {
-          name: validatedData.name,
-          description: validatedData.description,
-          workspaceId: validatedData.workspaceId,
-          folderId: validatedData.folderId,
-          chunkingConfig: validatedData.chunkingConfig,
-        },
-        requestId,
-        { actorUserId: userId }
-      )
-
-      logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${userId}`)
-
-      recordAudit({
-        workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
-        actorId: userId,
-        actorName: auth.userName,
-        actorEmail: auth.userEmail,
-        action: AuditAction.KNOWLEDGE_BASE_UPDATED,
-        resourceType: AuditResourceType.KNOWLEDGE_BASE,
-        resourceId: id,
-        resourceName: validatedData.name ?? updatedKnowledgeBase.name,
-        description: `Updated knowledge base "${validatedData.name ?? updatedKnowledgeBase.name}"`,
-        metadata: {
-          updatedFields: Object.keys(validatedData).filter(
-            (k) => validatedData[k as keyof typeof validatedData] !== undefined
-          ),
-          ...(validatedData.name && { newName: validatedData.name }),
-          ...(validatedData.description !== undefined && {
-            description: validatedData.description,
-          }),
-          ...(validatedData.chunkingConfig && {
-            chunkMaxSize: validatedData.chunkingConfig.maxSize,
-            chunkMinSize: validatedData.chunkingConfig.minSize,
-            chunkOverlap: validatedData.chunkingConfig.overlap,
-          }),
-        },
-        request: req,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: updatedKnowledgeBase,
-      })
-    } catch (error) {
-      if (error instanceof KnowledgeBaseConflictError) {
-        return NextResponse.json({ error: error.message }, { status: 409 })
-      }
-      if (error instanceof KnowledgeBaseFolderError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      if (error instanceof KnowledgeBasePermissionError) {
-        logger.warn(`[${requestId}] Forbidden knowledge base update on ${id}: ${error.message}`)
-        return NextResponse.json({ error: error.message }, { status: 403 })
-      }
-
-      logger.error(`[${requestId}] Error updating knowledge base`, error)
-      return NextResponse.json({ error: 'Failed to update knowledge base' }, { status: 500 })
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized knowledge base update attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
+
+    const accessCheck = await checkKnowledgeBaseWriteAccess(id, userId)
+
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${userId} attempted to update unauthorized knowledge base ${id}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const parsed = await parseRequest(updateKnowledgeBaseContract, req, context)
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
+
+    const outcome = await performUpdateKnowledgeBase({
+      knowledgeBaseId: id,
+      workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
+      userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      source: 'ui',
+      updates: {
+        name: body.name,
+        description: body.description,
+        workspaceId: body.workspaceId,
+        folderId: body.folderId,
+        chunkingConfig: body.chunkingConfig,
+      },
+      requestId,
+      request: req,
+    })
+    if (!outcome.success) {
+      return NextResponse.json(
+        { error: messageForOrchestrationError(outcome, 'Failed to update knowledge base') },
+        { status: statusForOrchestrationError(outcome.errorCode) }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: outcome.knowledgeBase })
   }
 )
 
@@ -164,62 +126,49 @@ export const DELETE = withRouteHandler(
     const requestId = generateRequestId()
     const { id } = await params
 
-    try {
-      const auth = await checkSessionOrInternalAuth(_request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized knowledge base delete attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
-
-      const accessCheck = await checkKnowledgeBaseWriteAccess(id, userId)
-
-      if (!accessCheck.hasAccess) {
-        if ('notFound' in accessCheck && accessCheck.notFound) {
-          logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
-          return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${userId} attempted to delete unauthorized knowledge base ${id}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      await deleteKnowledgeBase(id, requestId)
-
-      try {
-        PlatformEvents.knowledgeBaseDeleted({
-          knowledgeBaseId: id,
-        })
-      } catch {
-        // Telemetry should not fail the operation
-      }
-
-      logger.info(`[${requestId}] Knowledge base deleted: ${id} for user ${userId}`)
-
-      recordAudit({
-        workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
-        actorId: userId,
-        actorName: auth.userName,
-        actorEmail: auth.userEmail,
-        action: AuditAction.KNOWLEDGE_BASE_DELETED,
-        resourceType: AuditResourceType.KNOWLEDGE_BASE,
-        resourceId: id,
-        resourceName: accessCheck.knowledgeBase.name,
-        description: `Deleted knowledge base "${accessCheck.knowledgeBase.name || id}"`,
-        metadata: {
-          knowledgeBaseName: accessCheck.knowledgeBase.name,
-        },
-        request: _request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: { message: 'Knowledge base deleted successfully' },
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error deleting knowledge base`, error)
-      return NextResponse.json({ error: 'Failed to delete knowledge base' }, { status: 500 })
+    const auth = await checkSessionOrInternalAuth(_request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized knowledge base delete attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
+
+    const accessCheck = await checkKnowledgeBaseWriteAccess(id, userId)
+
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${userId} attempted to delete unauthorized knowledge base ${id}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const outcome = await performDeleteKnowledgeBase({
+      knowledgeBase: {
+        id,
+        name: accessCheck.knowledgeBase.name,
+        workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
+      },
+      userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      source: 'ui',
+      requestId,
+      request: _request,
+    })
+    if (!outcome.success) {
+      return NextResponse.json(
+        { error: messageForOrchestrationError(outcome, 'Failed to delete knowledge base') },
+        { status: statusForOrchestrationError(outcome.errorCode) }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { message: 'Knowledge base deleted successfully' },
+    })
   }
 )

@@ -709,9 +709,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "413": {
             "description": "The uploaded file exceeds the 100 MB limit, or the workspace storage limit has been reached.",
             "content": {

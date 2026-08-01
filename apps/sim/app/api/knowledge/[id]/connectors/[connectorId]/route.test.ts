@@ -151,7 +151,10 @@ describe('Knowledge Connector By ID API Route', () => {
         success: true,
         userId: 'user-1',
       })
-      mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+      })
       dbChainMockFns.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('PATCH', { sourceConfig: { project: 'NEW' } })
@@ -174,7 +177,8 @@ describe('Knowledge Connector By ID API Route', () => {
       mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
 
       const updatedConnector = { id: 'conn-456', status: 'paused', syncIntervalMinutes: 5 }
-      dbChainMockFns.limit.mockResolvedValueOnce([updatedConnector])
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', connectorType: 'jira' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([updatedConnector])
 
       const req = createMockRequest('PATCH', { status: 'paused', syncIntervalMinutes: 5 })
       const response = await PATCH(req, { params: mockParams })
@@ -196,6 +200,7 @@ describe('Knowledge Connector By ID API Route', () => {
         knowledgeBase: { workspaceId: 'ws-free', name: 'Free KB' },
       })
       mockHasWorkspaceLiveSyncAccess.mockResolvedValue(false)
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-456', connectorType: 'jira' }])
 
       const req = createMockRequest('PATCH', { syncIntervalMinutes: 5 })
       const response = await PATCH(req, { params: mockParams })
