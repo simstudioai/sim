@@ -61,22 +61,28 @@ export function sendMothershipMessage(message: string, contexts?: ChatContext[])
 export const MOTHERSHIP_ADD_CONTEXT_EVENT = 'mothership-add-context'
 
 export interface MothershipAddContextDetail {
-  /** The context to attach as a chip in the input. */
-  context: ChatContext
+  /** The contexts to attach as chips, in insertion order. */
+  contexts: ChatContext[]
 }
 
 /**
- * Dispatches a passive "add this context chip" request to a mounted Mothership
+ * Dispatches a passive "add these context chips" request to a mounted Mothership
  * chat input — the highlight-to-chat action in the file and table viewers.
+ *
+ * Carries the whole batch in one event rather than one event per context: the
+ * input resolves label collisions against its current chips, and that list only
+ * refreshes on re-render, so consecutive synchronous dispatches would each see
+ * the same stale list and drop colliding chips.
  *
  * @returns `true` when a mounted input consumed it, `false` when none was
  * listening — callers fall back to persisting a chip-only
  * {@link MothershipHandoff} for the next chat mount.
  */
-export function addMothershipContext(context: ChatContext): boolean {
+export function addMothershipContexts(contexts: ChatContext[]): boolean {
+  if (contexts.length === 0) return false
   const consumed = dispatchClaimable<MothershipAddContextDetail>(MOTHERSHIP_ADD_CONTEXT_EVENT, {
-    context,
+    contexts,
   })
-  logger.info('Dispatched mothership add-context event', { kind: context.kind, consumed })
+  logger.info('Dispatched mothership add-context event', { count: contexts.length, consumed })
   return consumed
 }

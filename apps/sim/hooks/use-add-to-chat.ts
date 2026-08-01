@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import { addMothershipContext } from '@/lib/mothership/events'
+import { addMothershipContexts } from '@/lib/mothership/events'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -23,7 +23,7 @@ export function useAddToChat(): (context: ChatContext) => void {
 
   return useCallback(
     (context: ChatContext) => {
-      if (addMothershipContext(context)) return
+      if (addMothershipContexts([context])) return
       if (!workspaceId) return
       if (MothershipHandoffStorage.store({ contexts: [context] }, workspaceId)) {
         router.push(`/workspace/${workspaceId}/home`)

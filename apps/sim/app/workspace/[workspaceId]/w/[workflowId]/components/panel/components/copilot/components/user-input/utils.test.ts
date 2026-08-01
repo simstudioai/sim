@@ -78,4 +78,22 @@ describe('prepareContextForInsert', () => {
 
     expect(prepareContextForInsert(context, [])).toEqual(context)
   })
+
+  it('ordinalizes within a batch when the caller threads each result forward', () => {
+    // How insertContextChips applies a multi-context handoff: `selectedContexts`
+    // is React state read through a ref and does not reflect an add until the
+    // next render, so the batch must accumulate locally or the second colliding
+    // chip is silently dropped.
+    const batch = [tableSelection(), tableSelection({ rowIds: ['r7', 'r8', 'r9'] })]
+    let attached: ChatContext[] = []
+    const prepared: ChatContext[] = []
+    for (const context of batch) {
+      const next = prepareContextForInsert(context, attached)
+      if (!next) continue
+      prepared.push(next)
+      attached = [...attached, next]
+    }
+
+    expect(prepared.map((c) => c.label)).toEqual(['Sales (3 rows)', 'Sales (3 rows) (2)'])
+  })
 })

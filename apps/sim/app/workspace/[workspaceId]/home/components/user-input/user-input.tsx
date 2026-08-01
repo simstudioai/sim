@@ -185,9 +185,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<MothershipAddContextDetail>).detail
-      if (!detail?.context) return
+      if (!detail?.contexts?.length) return
       e.preventDefault()
-      editorRef.current.insertContextChip(detail.context)
+      editorRef.current.insertContextChips(detail.contexts)
       textareaRef.current?.focus()
     }
     window.addEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handler)

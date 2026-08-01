@@ -364,21 +364,24 @@ function buildTableSelectionContext(opts: {
  * cannot do this: its async Clipboard API write replaces the whole clipboard and
  * so cannot carry a custom MIME type.
  *
- * Taking this path requires a chip to carry AND every selected row already
- * loaded and within the chip cap; otherwise the canonical paged path handles the
+ * Taking this path requires a chip to carry, `rows` being the complete copy, and
+ * a set within the chip cap; otherwise the canonical paged path handles the
  * copy, including its row loading and truncation notice.
  *
+ * @param complete - Whether `rows` is everything this copy should contain. False
+ * when the paged path would load rows this caller cannot see yet, so deferring
+ * to it copies strictly more.
  * @returns True when it handled the copy, false to fall through to the paged path.
  */
 function writeLoadedRowsWithChip(opts: {
   clipboardData: DataTransfer | null
   rows: TableRowType[]
-  allLoaded: boolean
+  complete: boolean
   buildCells: (row: TableRowType) => string[]
   context: ChatContext | null
 }): boolean {
   const { rows, context } = opts
-  if (!context || !opts.allLoaded || rows.length === 0 || rows.length > MAX_TABLE_SELECTION_ROWS) {
+  if (!context || !opts.complete || rows.length === 0 || rows.length > MAX_TABLE_SELECTION_ROWS) {
     return false
   }
   opts.clipboardData?.setData(
@@ -3012,14 +3015,17 @@ export function TableGrid({
 
       if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
-        // A filtered select-all ('all') covers rows beyond the loaded page, so
-        // only an explicit multi-row selection can take the chip-carrying path.
+        // Only an explicit multi-row selection can carry the chip: a filtered
+        // select-all ('all') pages in rows beyond those loaded, which the async
+        // path must fetch. For 'some' the fall-through re-reads the same loaded
+        // rows (see its `loadRows`), so it never copies more than this does —
+        // the selection is complete here even when some ids aren't loaded yet.
         if (rowSel.kind === 'some') {
           const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
           const handled = writeLoadedRowsWithChip({
             clipboardData: e.clipboardData,
             rows: selectedRows,
-            allLoaded: selectedRows.length === rowSel.ids.size,
+            complete: true,
             buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
             context: buildTableSelectionContext({
               tableId,
@@ -3059,12 +3065,12 @@ export function TableGrid({
         }
         const colByKey = new Map(cols.map((c) => [c.key, c]))
 
-        // A column-header selection spans every row, so the chip-carrying path
-        // only applies once the whole table is loaded.
+        // A column-header selection spans every row, and its fall-through pages
+        // in the rest — so the chip path applies only once all of them are here.
         const handled = writeLoadedRowsWithChip({
           clipboardData: e.clipboardData,
           rows: currentRows,
-          allLoaded: currentRows.length >= selectAllTotalRef.current,
+          complete: currentRows.length >= selectAllTotalRef.current,
           buildCells: (row) =>
             colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           context: buildTableSelectionContext({

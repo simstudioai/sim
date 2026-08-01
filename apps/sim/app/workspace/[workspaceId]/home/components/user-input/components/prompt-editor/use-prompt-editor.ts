@@ -468,27 +468,36 @@ export function usePromptEditor({
   )
 
   /**
-   * Inserts a context as an `@label` chip at the caret and registers it. Unlike
+   * Inserts contexts as `@label` chips at the caret and registers them. Unlike
    * the menu-driven inserts, this is triggered programmatically (the
    * highlight-to-chat action in the file/table viewers) rather than by a typed
    * `@`/`/` trigger, so it always inserts at the current cursor position.
+   *
+   * Takes the whole batch so label collisions resolve against the chips added
+   * earlier in the same call: `selectedContexts` is React state read through a
+   * ref, so it does not reflect an add until the next render.
    */
-  const insertContextChip = useCallback(
-    (context: ChatContext) => {
-      const prepared = prepareContextForInsert(
-        context,
-        contextManagementRef.current.selectedContexts
-      )
-      if (!prepared) {
+  const insertContextChips = useCallback(
+    (contexts: ChatContext[]) => {
+      let attached = contextManagementRef.current.selectedContexts
+      const prepared: ChatContext[] = []
+      for (const context of contexts) {
+        const next = prepareContextForInsert(context, attached)
+        if (!next) continue
+        prepared.push(next)
+        attached = [...attached, next]
+      }
+      if (prepared.length === 0) {
         textareaRef.current?.focus()
         return
       }
+
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
         const insertAt = textarea.selectionStart ?? currentValue.length
         const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-        const insertText = `${needsSpaceBefore ? ' ' : ''}@${prepared.label} `
+        const insertText = `${needsSpaceBefore ? ' ' : ''}${prepared.map((c) => `@${c.label} `).join('')}`
         const newValue = `${currentValue.slice(0, insertAt)}${insertText}${currentValue.slice(insertAt)}`
 
         pendingCursorRef.current = insertAt + insertText.length
@@ -496,7 +505,7 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified(prepared)
+      for (const context of prepared) addContextNotified(context)
     },
     [textareaRef, addContextNotified]
   )
@@ -1101,8 +1110,8 @@ export function usePromptEditor({
     clear,
     focusAtEnd,
     insertResources,
-    /** Inserts a context as an `@label` chip at the caret (highlight-to-chat). */
-    insertContextChip,
+    /** Inserts contexts as `@label` chips at the caret (highlight-to-chat). */
+    insertContextChips,
     insertSlashTrigger,
     openResourceMenu,
     /** The editor's textarea element — focus management, caret restore. */
