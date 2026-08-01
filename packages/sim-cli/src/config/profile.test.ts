@@ -6,6 +6,7 @@ import { configPath, credentialsPath } from './paths.js'
 import {
   deleteProfile,
   listProfiles,
+  OUTPUT_FORMATS,
   resolveProfile,
   writeConfigProfile,
   writeCredentialsProfile,
@@ -96,8 +97,17 @@ describe('profile resolution', () => {
   })
 
   it('ignores an unrecognized output format instead of failing the whole resolve', () => {
-    process.env.SIM_OUTPUT = 'yaml'
+    // Ambient sources tolerate garbage so one bad value cannot brick every
+    // command; the `--output` flag is strict instead (commander `.choices`).
+    process.env.SIM_OUTPUT = 'xml'
     expect(resolveProfile().output).toBe('table')
+  })
+
+  it('accepts every documented output format from the environment', () => {
+    for (const format of OUTPUT_FORMATS) {
+      process.env.SIM_OUTPUT = format
+      expect(resolveProfile().output).toBe(format)
+    }
   })
 
   it('writes credentials 0600 even when the file already existed world-readable', () => {

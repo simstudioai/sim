@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import chalk from 'chalk'
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth.js'
 import { configureCommand } from './commands/configure.js'
 import { filesCommand } from './commands/files.js'
@@ -21,7 +21,16 @@ program
   .option('-p, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
   .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
   .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')
-  .option('-o, --output <format>', `Output format: ${OUTPUT_FORMATS.join(' | ')} (env: SIM_OUTPUT)`)
+  // `.choices` so a typo'd format is an error, not a silent fall back to
+  // `table`. Deliberately stricter than SIM_OUTPUT and the config file, which
+  // tolerate an unknown value: those are ambient and set once, and a bad one
+  // should not make every command fail — but a flag is an instruction just
+  // typed, so honouring something else is a lie.
+  .addOption(
+    new Option('-o, --output <format>', 'Output format (env: SIM_OUTPUT)').choices([
+      ...OUTPUT_FORMATS,
+    ])
+  )
 
 program.addCommand(loginCommand())
 program.addCommand(logoutCommand())

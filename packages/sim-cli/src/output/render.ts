@@ -1,4 +1,5 @@
 import chalk from 'chalk'
+import { dump } from 'js-yaml'
 import type { OutputFormat } from '../config/index.js'
 
 export interface Column<T> {
@@ -6,8 +7,11 @@ export interface Column<T> {
   value: (row: T) => string
 }
 
+/** The glyph standing in for "no value", before colour is applied. */
+const EMPTY_GLYPH = '—'
+
 /** Cell text for values that have no useful rendering, kept visually quiet. */
-const EMPTY = chalk.dim('—')
+const EMPTY = chalk.dim(EMPTY_GLYPH)
 
 export function text(value: unknown): string {
   if (value === null || value === undefined || value === '') return EMPTY
@@ -67,6 +71,18 @@ export function visibleWidth(value: string): number {
   return value.replace(ANSI_PATTERN, '').length
 }
 
+/**
+ * Plain text for a rendered cell.
+ *
+ * The empty placeholder collapses to an actual empty field: `cut -f3` returning
+ * a literal `—` for a null would be worse than useless, since every downstream
+ * emptiness test would read it as a value.
+ */
+function stripAnsi(value: string): string {
+  const plain = value.replace(ANSI_PATTERN, '')
+  return plain === EMPTY_GLYPH ? '' : plain
+}
+
 function pad(value: string, width: number): string {
   return value + ' '.repeat(Math.max(0, width - visibleWidth(value)))
 }
@@ -95,24 +111,60 @@ function renderTable<T>(rows: T[], columns: Column<T>[]): string {
 }
 
 /**
+ * Renders the machine-readable formats from the RAW value.
+ *
+ * Deliberately not the table's formatted cells: `--output json` piped into `jq`
+ * must yield the API's own field names and types, so a `1500` stays a number
+ * rather than becoming the `"1.5s"` the table would show. `yaml` follows the
+ * same rule, so switching format never changes the data.
+ *
+ * Returns null when the format wants the human rendering instead.
+ */
+function renderMachine(format: OutputFormat, raw: unknown): string | null {
+  if (format === 'json') return JSON.stringify(raw, null, 2)
+  // `lineWidth: 0` disables YAML's line folding — a wrapped value is technically
+  // valid but is miserable to eyeball and breaks naive line-oriented greps.
+  if (format === 'yaml') return dump(raw, { lineWidth: 0, noRefs: true }).trimEnd()
+  return null
+}
+
+/**
  * Prints a list in the profile's output format.
  *
- * The JSON branch prints the raw rows, not the table's formatted cells — piping
- * to `jq` should yield the API's own field names and types, so `--output json`
- * is a passthrough rather than a second rendering.
+ * `text` emits the table's cells tab-separated with no header and no colour —
+ * the shape `cut -f2` and `while read` expect. It uses the formatted cells
+ * rather than the raw values on purpose: it is a human-ish format for shell
+ * plumbing, and a raw ISO timestamp or byte count is worse in that context.
  */
 export function printList<T>(format: OutputFormat, rows: T[], columns: Column<T>[]): void {
-  if (format === 'json') {
-    console.log(JSON.stringify(rows, null, 2))
+  const machine = renderMachine(format, rows)
+  if (machine !== null) {
+    console.log(machine)
     return
   }
+
+  if (format === 'text') {
+    for (const row of rows) {
+      console.log(columns.map((column) => stripAnsi(column.value(row))).join('\t'))
+    }
+    return
+  }
+
   console.log(renderTable(rows, columns))
 }
 
-/** Prints a single record: JSON as-is, table format as aligned key/value lines. */
+/** Prints a single record: machine formats from the raw value, otherwise aligned lines. */
 export function printRecord(format: OutputFormat, fields: Array<[string, string]>, raw: unknown) {
-  if (format === 'json') {
-    console.log(JSON.stringify(raw, null, 2))
+  const machine = renderMachine(format, raw)
+  if (machine !== null) {
+    console.log(machine)
+    return
+  }
+
+  if (format === 'text') {
+    for (const [label, value] of fields) {
+      console.log(`${label}\t${stripAnsi(value)}`)
+    }
     return
   }
 

@@ -13,7 +13,15 @@ import { configPath, credentialsPath } from './paths.js'
 
 export const DEFAULT_PROFILE = 'default'
 export const DEFAULT_ENDPOINT = 'https://sim.ai'
-export const OUTPUT_FORMATS = ['table', 'json'] as const
+
+/**
+ * Output formats, in the order `--help` lists them.
+ *
+ * `table` is for reading, `json`/`yaml` for piping into a parser, and `text` is
+ * the one for shell loops: tab-separated, no header, no colour, so `cut`/`awk`/
+ * `while read` work without a JSON tool on the box.
+ */
+export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
 /** Everything a command needs to make a call, after the resolution chain runs. */

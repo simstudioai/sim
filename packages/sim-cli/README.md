@@ -58,6 +58,8 @@ Each setting resolves independently, first match wins:
 | 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
 | 4 | Built-in default (`https://sim.ai`, `table`) |
 
+Formats are listed under [Output formats](#output-formats).
+
 `sim whoami` prints the winning source per setting, which is usually the fastest
 way to explain a surprising result.
 
@@ -150,12 +152,37 @@ page so a sparse row doesn't hide a column.
 Deletions require an explicit selector *and* `--yes`; there is no "delete
 everything" default.
 
-Every command takes `--output json` for scripting; the JSON is the API's own
-response shape, so it pipes cleanly into `jq`.
+### Output formats
+
+`--output` / `-o`, or `SIM_OUTPUT`, or `output =` in the profile:
+
+| Format | For |
+| --- | --- |
+| `table` | reading (default) |
+| `json` | piping into `jq` |
+| `yaml` | piping into anything that reads YAML |
+| `text` | shell loops — tab-separated, no header, no colour |
+
+`json` and `yaml` emit the API's **raw** values, not the table's formatting — a
+duration stays `1500`, not `"1.5s"` — so switching format never changes the data.
+`text` uses the rendered cells, since it is meant for shell plumbing rather than
+parsing.
 
 ```bash
-sim logs list --level error --output json | jq -r '.[].executionId'
+sim logs list --level error -o json | jq -r '.[].executionId'
+sim logs list --level error -o yaml > logs.yaml
+
+sim files list -o text | while IFS=$'\t' read -r id name size type uploaded; do
+  echo "$id $name"
+done
 ```
+
+An absent value is an em-dash in `table` and an **empty field** in `text`, so
+emptiness tests downstream behave.
+
+A bad `--output` is an error; a bad `SIM_OUTPUT` or `output =` is ignored and
+falls back to `table` — ambient settings should not brick every command, but a
+flag you just typed should not be silently disregarded.
 
 ## How this stays in sync with the API
 
@@ -166,9 +193,9 @@ It holds every response/request type plus the operation table (method, path,
 path params) the client dispatches through.
 
 ```bash
-bun run generate:cli-api      # regenerate after changing a contract
-bun run check:cli-api         # CI: fails if the generated file is stale
-bun run check:openapi-drift   # CI: fails if the docs and contracts disagree
+bun run generate:cli-api   # regenerate after changing a contract
+bun run check:cli-api      # CI: fails if the generated file is stale
+bun run check:openapi      # CI: fails if the docs and contracts disagree
 ```
 
 The generated file contains only type declarations and one const — no imports —
@@ -176,11 +203,11 @@ so the `packages/*` must not import `apps/*` boundary is preserved; the script
 does the crossing at build time.
 
 The OpenAPI documents under `apps/docs` are deliberately **not** generated. They
-carry ~1000 hand-written descriptions and ~400 examples that Zod schemas don't
-encode, so regenerating them would trade real documentation for mechanical
-accuracy. `check:openapi-drift` reconciles their *structure* against the
-contracts instead — every v2 path and method must exist on both sides — so the
-prose survives while drift still fails the build.
+carry hand-written descriptions, examples, and error responses that Zod schemas
+don't encode, so regenerating them would trade real documentation for mechanical
+accuracy. `check:openapi` reconciles them against the same contracts instead —
+field by field, and it parses every documented example with the real Zod schema —
+so the prose survives while drift still fails the build.
 
 ## Notes
 
