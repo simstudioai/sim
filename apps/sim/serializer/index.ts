@@ -569,7 +569,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     const { basicValue, advancedValue } = getCanonicalValues(group, params)
     const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
     const pairMode =
-      hasExplicitOverride || !legacyAdvancedMode
+      !isCanonicalPair(group) || hasExplicitOverride || !legacyAdvancedMode
         ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
         : 'advanced'
     const chosen = pairMode === 'advanced' ? advancedValue : basicValue

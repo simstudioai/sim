@@ -213,4 +213,38 @@ describe('extractBlockParams', () => {
     expect(params.credential).toBeUndefined()
     expect(params.manualCredential).toBeUndefined()
   })
+
+  it('preserves a singleton canonical credential when additional fields are open', () => {
+    svcConfig.value = config([
+      {
+        id: 'credential',
+        title: 'QuickBooks Account',
+        type: 'oauth-input',
+        canonicalParamId: 'oauthCredential',
+        required: true,
+      },
+      {
+        id: 'privateNote',
+        title: 'Private Note',
+        type: 'long-input',
+        mode: 'advanced',
+      },
+    ])
+
+    const state = block({
+      type: 'svc',
+      advancedMode: true,
+      subBlocks: {
+        credential: { value: 'credential-id' },
+        privateNote: { value: 'Updated through Sim' },
+      },
+    })
+    const params = extractBlockParams(state)
+    const issues = collectBlockFieldIssues(state, svcConfig.value, params)
+
+    expect(params.oauthCredential).toBe('credential-id')
+    expect(params.credential).toBeUndefined()
+    expect(params.privateNote).toBe('Updated through Sim')
+    expect(issues.missingRequiredFields).toEqual([])
+  })
 })
