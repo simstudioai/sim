@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 
 describe('statusForOrchestrationError', () => {
   it.each([

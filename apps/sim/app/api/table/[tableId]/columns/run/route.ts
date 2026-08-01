@@ -8,7 +8,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
-import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  orchestrationErrorResponse,
+  tableFilterError,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableRunColumnAPI')
 
@@ -66,9 +71,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (error instanceof TableQueryValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
-    if (error instanceof Error && error.message === 'Invalid workspace ID') {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
     logger.error(`run-column failed:`, error)
     return NextResponse.json({ error: 'Failed to run columns' }, { status: 500 })
   }

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { v2UpsertTableRowContract } from '@/lib/api/contracts/v2/tables'
 import { isZodError, parseRequest } from '@/lib/api/server'
@@ -12,6 +12,7 @@ import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  v2CaughtOrchestrationError,
   v2Data,
   v2Error,
   v2RateLimitError,
@@ -82,18 +83,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
-    const errorMessage = toError(error).message
-    if (
-      errorMessage.includes('unique column') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('conflictTarget') ||
-      errorMessage.includes('row limit') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('Upsert requires') ||
-      errorMessage.includes('Row size exceeds')
-    ) {
-      return v2Error('BAD_REQUEST', errorMessage)
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error upserting row`, {
       error: getErrorMessage(error, 'Unknown error'),

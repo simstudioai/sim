@@ -1,8 +1,8 @@
 import type { folder as folderTable } from '@sim/db/schema'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/folders/lifecycle'
 import type { FolderMutationErrorCode } from '@/lib/folders/status'
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 /**
  * Workflow-bound entry points into the generic folder engine in `lib/folders/lifecycle.ts`.

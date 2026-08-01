@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
@@ -38,15 +39,30 @@ describe('rowWriteErrorResponse', () => {
     )
   })
 
-  it('passes known validation messages through as 400', async () => {
-    const response = rowWriteErrorResponse(new Error('Value for column "email" must be unique'))
+  it('passes a classified validation failure through as 400', async () => {
+    const response = rowWriteErrorResponse(
+      new OrchestrationError('validation', 'Value for column "email" must be unique')
+    )
     expect(response?.status).toBe(400)
     const body = await response?.json()
     expect(body.error).toBe('Value for column "email" must be unique')
   })
 
-  it('matches per-row batch validation messages', () => {
-    expect(rowWriteErrorResponse(new Error('Row 3: name is required'))?.status).toBe(400)
+  it('answers the code the failure carries, not one derived from its wording', () => {
+    expect(
+      rowWriteErrorResponse(new OrchestrationError('not_found', 'Row not found'))?.status
+    ).toBe(404)
+    // The phrase that used to force a 400 no longer decides anything.
+    expect(
+      rowWriteErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))?.status
+    ).toBe(409)
+  })
+
+  it('unwraps a classified failure drizzle wrapped in a query error', () => {
+    expect(
+      rowWriteErrorResponse(wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad')))
+        ?.status
+    ).toBe(400)
   })
 
   it('returns null for unknown errors so callers keep their generic 500', () => {

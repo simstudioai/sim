@@ -1,4 +1,4 @@
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 
 /**
  * Folder mutations can fail for one reason the shared orchestration vocabulary has no word

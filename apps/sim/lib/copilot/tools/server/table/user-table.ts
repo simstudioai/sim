@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId, generateShortId } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -10,7 +10,6 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
-import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   COLUMN_TYPES,
@@ -27,29 +26,24 @@ import {
   validateMapping,
 } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
-import {
-  buildIdByName,
-  columnMatchesRef,
-  rowDataNameToId,
-  sortSpecNamesToIds,
-} from '@/lib/table/column-keys'
+import { buildIdByName, rowDataNameToId, sortSpecNamesToIds } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
-import { columnTypeById } from '@/lib/table/column-types'
 import {
   addTableColumn,
   deleteColumn,
   deleteColumns,
   renameColumn,
-  updateColumnConstraints,
-  updateColumnCurrency,
-  updateColumnOptions,
-  updateColumnType,
 } from '@/lib/table/columns/service'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
+import {
+  performDeleteTable,
+  performRenameTable,
+  performUpdateTableColumn,
+} from '@/lib/table/orchestration'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
@@ -66,13 +60,13 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
+import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import { predicateToStorage } from '@/lib/table/select-values'
-import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
+import { createTable, deleteTable, getTableById } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
   RowData,
-  SelectOption,
   SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
@@ -334,30 +328,6 @@ function limitError(limit: unknown): string | null {
  * cell data survives the update. Non-array input returns `undefined`, letting
  * downstream validation reject a malformed / missing option set.
  */
-export function normalizeSelectOptionsInput(
-  raw: unknown,
-  existing: SelectOption[] = []
-): SelectOption[] | undefined {
-  if (!Array.isArray(raw)) return undefined
-  // Cells reference the option id, so an edit that re-sends the same option by
-  // name must reuse its id — minting a fresh one would orphan every cell
-  // holding it, silently clearing the column.
-  const idByName = new Map<string, string>()
-  for (const option of existing) {
-    const key = option.name.toLowerCase()
-    if (!idByName.has(key)) idByName.set(key, option.id)
-  }
-  const resolveId = (name: string): string => idByName.get(name.toLowerCase()) ?? generateShortId()
-
-  return raw.map((entry) => {
-    if (typeof entry === 'string') return { id: resolveId(entry), name: entry }
-    const e = (entry ?? {}) as { id?: unknown; name?: unknown }
-    const name = typeof e.name === 'string' ? e.name : String(e.name ?? '')
-    const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : resolveId(name)
-    return { id, name }
-  })
-}
-
 /** Rewrites every `select` column's options in an agent-authored create schema. */
 function normalizeSchemaSelectColumns(schema: TableSchema): TableSchema {
   if (!schema || !Array.isArray(schema.columns)) return schema
@@ -523,13 +493,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
             const requestId = generateId().slice(0, 8)
             assertNotAborted()
-            await deleteTable(tableId, requestId, context.userId)
-            captureServerEvent(
-              context.userId,
-              'table_deleted',
-              { table_id: tableId, workspace_id: workspaceId },
-              { groups: { workspace: workspaceId } }
-            )
+            const deleteOutcome = await performDeleteTable({
+              table,
+              userId: context.userId,
+              requestId,
+            })
+            if (!deleteOutcome.success) {
+              return { success: false, message: deleteOutcome.error ?? 'Failed to delete table' }
+            }
             deleted.push(tableId)
           }
 
@@ -1683,117 +1654,38 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Invalid currency code "${currencyCode}". Use an ISO 4217 code, e.g. USD`,
             }
           }
-          const tableForUpdate = await getTableById(args.tableId)
-          if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const requestId = generateId().slice(0, 8)
-          // The agent authors options by name; mint ids here, reusing the id of
-          // any option whose name already exists so its cells survive the edit.
-          const currentColumn = tableForUpdate.schema.columns.find((c) =>
-            columnMatchesRef(c, colName)
-          )
-          const existingOptions = currentColumn?.options ?? []
-          const options = normalizeSelectOptionsInput(rawOptions, existingOptions)
-          // An agent restating the current type alongside new options must not
-          // go through `updateColumnType` — it early-returns on an unchanged
-          // type and would drop them. Mirrors the HTTP columns route.
-          const typeChanging = newType !== undefined && newType !== currentColumn?.type
-          let result: TableDefinition | undefined
           if (newType !== undefined && !(COLUMN_TYPES as readonly string[]).includes(newType)) {
             return {
               success: false,
               message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
             }
           }
-          // Each write below is its own locked transaction, so pairing any of
-          // them with a constraint write that is going to fail commits and then
-          // errors. Gate on the type the column ENDS UP with — an options-only
-          // update on an existing select column carries the same hazard as a
-          // conversion. Same guard the HTTP column routes apply.
-          const resultingType = newType ?? currentColumn?.type
-          if (uniqFlag === true && !columnTypeById(resultingType).supportsUnique) {
-            return {
-              success: false,
-              message: `Cannot set column "${colName}" as unique: ${resultingType} columns cannot be unique.`,
-            }
+          const tableForUpdate = await getTableById(args.tableId)
+          if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
           }
-          if (typeChanging) {
-            assertNotAborted()
-            result = await updateColumnType(
-              {
-                tableId: args.tableId,
-                columnName: colName,
-                newType: newType as (typeof COLUMN_TYPES)[number],
-                options,
-                multiple,
-                ...(currencyCode !== undefined ? { currencyCode } : {}),
-                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
-              },
-              requestId
-            )
-          } else if (currencyCode !== undefined) {
-            // Re-denominating an existing currency column: schema-only, no cell
-            // rewrite. Mirrors the HTTP columns routes.
-            if (currentColumn?.type !== 'currency') {
-              return {
-                success: false,
-                message: `Column "${colName}" is not a currency column. Pass newType: "currency" with currencyCode to convert it.`,
-              }
-            }
-            assertNotAborted()
-            result = await updateColumnCurrency(
-              {
-                tableId: args.tableId,
-                columnName: colName,
-                currencyCode,
-                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
-              },
-              requestId
-            )
-          } else if (options !== undefined || multiple !== undefined) {
-            // Editing an existing select column's option set / mode without a
-            // type change. `multiple` alone is a valid update — the catalog
-            // documents it as independent — so fall back to the column's current
-            // options rather than demanding the caller resend the whole list.
-            const nextOptions = options ?? existingOptions
-            if (nextOptions.length === 0) {
-              return {
-                success: false,
-                message: `Column "${colName}" is not a select column. Pass newType: "select" with options to convert it.`,
-              }
-            }
-            assertNotAborted()
-            result = await updateColumnOptions(
-              {
-                tableId: args.tableId,
-                columnName: colName,
-                options: nextOptions,
-                multiple,
-                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
-              },
-              requestId
-            )
-          }
-          // Skipped when a typed write ran: that write already applied and
-          // validated the constraint, in one transaction with the change it
-          // accompanies. Mirrors the HTTP columns routes.
-          if (uniqFlag !== undefined && result === undefined) {
-            assertNotAborted()
-            result = await updateColumnConstraints(
-              { tableId: args.tableId, columnName: colName, unique: uniqFlag },
-              requestId
-            )
+          assertNotAborted()
+          const outcome = await performUpdateTableColumn({
+            table: tableForUpdate,
+            columnName: colName,
+            userId: context.userId,
+            updates: {
+              ...(newType !== undefined ? { type: newType as (typeof COLUMN_TYPES)[number] } : {}),
+              ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              ...(rawOptions !== undefined ? { options: rawOptions } : {}),
+              ...(multiple !== undefined ? { multiple } : {}),
+              ...(currencyCode !== undefined ? { currencyCode } : {}),
+            },
+          })
+          if (!outcome.success || !outcome.table) {
+            return { success: false, message: outcome.error ?? 'Failed to update column' }
           }
           return {
             success: true,
             message: `Updated column "${colName}"`,
-            // A payload that only restates the current type is a no-op; still
-            // report the live schema rather than an undefined one.
-            data: { schema: (result ?? tableForUpdate).schema },
+            data: { schema: outcome.table.schema },
           }
         }
-
         case 'rename': {
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
@@ -1813,12 +1705,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const renamed = await renameTable(args.tableId, newName, requestId, context.userId)
+          const renameOutcome = await performRenameTable({
+            table,
+            newName,
+            userId: context.userId,
+            requestId,
+          })
+          if (!renameOutcome.success) {
+            return { success: false, message: renameOutcome.error ?? 'Failed to rename table' }
+          }
 
           return {
             success: true,
-            message: `Renamed table to "${renamed.name}"`,
-            data: { table: { id: renamed.id, name: renamed.name } },
+            message: `Renamed table to "${newName}"`,
+            data: { table: { id: args.tableId, name: newName } },
           }
         }
 

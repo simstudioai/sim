@@ -1,5 +1,6 @@
 import type { NextResponse } from 'next/server'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicateShape,
@@ -93,6 +94,16 @@ export function v2TableAccessError(result: { ok: false; status: 404 | 403 }): Ne
   return result.status === 404
     ? v2Error('NOT_FOUND', 'Table not found')
     : v2Error('FORBIDDEN', 'Access denied')
+}
+
+/**
+ * Maps a delete/write rejected by a table lock to the v2 `LOCKED` envelope,
+ * mirroring v1's {@link tableLockErrorResponse}. Returns `null` for anything
+ * else so the caller falls through to its own classification.
+ */
+export function v2TableLockError(error: unknown): NextResponse | null {
+  if (error instanceof TableLockedError) return v2Error('LOCKED', error.message)
+  return null
 }
 
 /**
