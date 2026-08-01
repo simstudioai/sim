@@ -3031,7 +3031,10 @@ export function TableGrid({
               tableId,
               tableName: tableNameRef.current,
               totalColumnCount: cols.length,
-              rowIds: selectedRows.map((row) => row.id),
+              // Every selected id, not just the loaded page: the chip carries
+              // ids and the server re-fetches them, so an unloaded row still
+              // reaches the agent. Only the pasted text is limited to `rows`.
+              rowIds: [...rowSel.ids],
             }),
           })
           if (handled) return
@@ -3860,7 +3863,16 @@ export function TableGrid({
     // `contextMenuRowIds` reflects; drain up to the cap so the chip references as
     // many rows as it can carry (bounded by MAX_TABLE_SELECTION_ROWS) instead of a
     // silent loaded-only subset — mirroring how the copy path loads before writing.
-    let sourceRowIds = contextMenuRowIds
+    // A gutter selection can extend past the loaded page, and `contextMenuRowIds`
+    // is the loaded intersection. The chip references ids the server re-fetches,
+    // so send the whole selection rather than whichever rows happen to be paged in.
+    const gutterSelection = rowSelectionRef.current
+    let sourceRowIds =
+      gutterSelection.kind === 'some' &&
+      contextMenu.row &&
+      rowSelectionIncludes(gutterSelection, contextMenu.row.id)
+        ? [...gutterSelection.ids]
+        : contextMenuRowIds
     if (contextMenuIsSelectAll || isColumnSelectionRef.current) {
       try {
         const { rows: loaded } = await ensureRowsLoadedUpToRef.current(MAX_TABLE_SELECTION_ROWS)
@@ -3889,6 +3901,7 @@ export function TableGrid({
     contextMenuRowIds,
     contextMenuColumnIds,
     contextMenuIsSelectAll,
+    contextMenu.row,
     tableId,
     tableData?.name,
     displayColumns.length,
