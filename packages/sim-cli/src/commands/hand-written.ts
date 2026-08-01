@@ -1,5 +1,6 @@
 import { once } from 'node:events'
-import { createWriteStream, type WriteStream } from 'node:fs'
+import { createWriteStream, openAsBlob, type WriteStream } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import chalk from 'chalk'
 import type { Command } from 'commander'
@@ -116,7 +117,107 @@ function group(program: Command, name: string): Command {
   return created
 }
 
+/**
+ * The server stores whatever content type the part carries, falling back to
+ * `application/octet-stream`, and that type is what later decides whether the
+ * workspace renders a file or offers it as a download. Node does not ship a
+ * mime table, so the common cases are listed and everything else falls back.
+ */
+const CONTENT_TYPES: Record<string, string> = {
+  css: 'text/css',
+  csv: 'text/csv',
+  gif: 'image/gif',
+  html: 'text/html',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  js: 'text/javascript',
+  json: 'application/json',
+  md: 'text/markdown',
+  pdf: 'application/pdf',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  txt: 'text/plain',
+  webp: 'image/webp',
+  yaml: 'application/yaml',
+  yml: 'application/yaml',
+  zip: 'application/zip',
+}
+
+function contentTypeFor(name: string): string {
+  const dot = name.lastIndexOf('.')
+  const extension = dot === -1 ? '' : name.slice(dot + 1).toLowerCase()
+  return CONTENT_TYPES[extension] ?? 'application/octet-stream'
+}
+
+/** The route's own ceiling. Checked here so a 100 MB body is never sent to be refused. */
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
 export function attachHandWritten(program: Command): void {
+  // ── files upload ── multipart, which the generated flag surface cannot express ──
+  group(program, 'files')
+    .command('upload <path>')
+    .description('Upload a file to the workspace')
+    .option('--folder-id <id>', 'Target folder (defaults to the workspace root)')
+    .option('--name <name>', 'Store it under a different name')
+    .action(
+      async (path: string, options: { folderId?: string; name?: string }, command: Command) => {
+        const { client, profile } = clientFrom(command)
+        const workspaceId = client.requireWorkspace()
+
+        if (!profile.apiKey) {
+          throw new SimApiError(`Not logged in on profile "${profile.name}". Run: sim login`, 0)
+        }
+
+        let size: number
+        try {
+          const stats = await stat(path)
+          if (stats.isDirectory()) throw new SimApiError(`${path} is a directory`, 0)
+          size = stats.size
+        } catch (error) {
+          if (error instanceof SimApiError) throw error
+          throw new SimApiError(`Cannot read ${path}: ${(error as Error).message}`, 0)
+        }
+
+        // Fail here rather than after streaming 100 MB the server will reject.
+        if (size > MAX_UPLOAD_BYTES) {
+          throw new SimApiError(
+            `${path} is ${(size / 1024 / 1024).toFixed(1)}MB; the limit is 100MB`,
+            0
+          )
+        }
+
+        const name = options.name ?? basename(path)
+        const url = new URL(`${profile.endpoint}/api/v2/files`)
+        url.searchParams.set('workspaceId', workspaceId)
+        if (options.folderId) url.searchParams.set('folderId', options.folderId)
+
+        // `openAsBlob` keeps the file on disk and reads it as the request is
+        // written; building a Buffer first would hold the whole upload in memory.
+        const body = new FormData()
+        body.append('file', await openAsBlob(path, { type: contentTypeFor(name) }), name)
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'x-api-key': profile.apiKey },
+          body,
+        })
+
+        const payload = (await response.json().catch(() => null)) as {
+          data?: { id?: string }
+          error?: { message?: string }
+        } | null
+
+        if (!response.ok) {
+          throw new SimApiError(
+            payload?.error?.message ?? `Upload failed with status ${response.status}`,
+            response.status
+          )
+        }
+
+        console.log(chalk.green(`✓ Uploaded ${name} (${payload?.data?.id ?? 'unknown id'})`))
+      }
+    )
+
   // ── files download ── the response is binary, not the JSON envelope ────────
   group(program, 'files')
     .command('download <fileId>')
