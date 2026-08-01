@@ -35,7 +35,9 @@ If your numbers are wildly off these, suspect your method before suspecting a re
 
 Never reason about one from the other, and never change either from a blog post or a default. Both are pinned explicitly so a version bump can't silently flip them.
 
-The dev cache is unbounded on disk — an abandoned one in this repo reached **78 GB across 1,848 SST files**. `scripts/prune-turbopack-cache.ts` runs on `predev` and drops it past a cap (default 20 GB, `SIM_TURBOPACK_CACHE_MAX_GB` to override). Force it with `bun run dev:cache:prune`.
+The dev cache is unbounded on disk — an abandoned one in this repo reached **78 GB across 1,848 SST files**. `scripts/prune-turbopack-cache.ts` is chained into every `dev` script (`bun run dev:cache:cap && next dev`) and drops the cache past a cap — default 20 GB, `SIM_TURBOPACK_CACHE_MAX_GB` to override. Force it with `bun run dev:cache:prune`.
+
+Chained explicitly rather than via a `predev` lifecycle hook: Turbo does fire `pre*` hooks (verified), but an explicit `&&` is visible in the command, survives any invocation path, and needs no per-variant `predev:*` duplicate.
 
 ## How to benchmark a dev-performance change
 

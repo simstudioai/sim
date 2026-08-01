@@ -240,7 +240,7 @@ const nextConfig: NextConfig = {
      * is not covered by the #6078 build A/B cited below.
      *
      * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
-     * `scripts/prune-turbopack-cache.ts` runs on `predev` to cap it.
+     * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
      */
     turbopackFileSystemCacheForDev: true,
     /**
