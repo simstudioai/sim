@@ -33,6 +33,21 @@ describe('generated tool metadata', () => {
   })
 
   /**
+   * `JSON.parse` yields an object with the normal prototype, so a bare bracket
+   * lookup returns inherited members — `getToolMetadata('constructor')` handed
+   * back a function typed as tool metadata.
+   */
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'])(
+    'treats inherited key %s as an unknown tool',
+    (key) => {
+      expect(getToolMetadata(key)).toBeUndefined()
+      expect(getToolParams(key)).toBeUndefined()
+      expect(getToolOutputsMetadata(key)).toBeUndefined()
+      expect(hasToolMetadata(key)).toBe(false)
+    }
+  )
+
+  /**
    * The registry contains a null param entry (`stt_deepgram_v2`), which crashes
    * any consumer that iterates params unguarded. The generator strips those, so
    * consumers may iterate freely.

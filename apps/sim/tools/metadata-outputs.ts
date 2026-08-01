@@ -22,7 +22,11 @@ type ToolOutputs = NonNullable<ToolConfig['outputs']>
  */
 const outputs: Record<string, ToolOutputs> = rawOutputs as Record<string, ToolOutputs>
 
-/** Declared outputs for a built-in tool, or `undefined` if it declares none. */
+/**
+ * Declared outputs for a built-in tool, or `undefined` if it declares none.
+ *
+ * `Object.hasOwn` rather than a bare lookup — see `getToolMetadata` for why.
+ */
 export function getToolOutputsMetadata(toolId: string): ToolOutputs | undefined {
-  return outputs[toolId]
+  return Object.hasOwn(outputs, toolId) ? outputs[toolId] : undefined
 }

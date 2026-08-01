@@ -52,21 +52,35 @@ const METADATA_FIELDS = ['name', 'description', 'version', 'params', 'oauth'] as
 
 type ToolRecord = Record<string, ToolConfig>
 
-/** Recursively locates any function value, which must never reach the artifacts. */
-function findFunctionPaths(value: unknown, path: string, found: string[], depth = 0): void {
-  if (found.length >= 10 || depth > 10 || value == null) return
+/**
+ * Recursively locates any function value, which must never reach the artifacts.
+ *
+ * Unbounded in depth on purpose: param and output schemas nest arbitrarily, and
+ * a depth cap would let a deeply-nested closure through — `JSON.stringify` drops
+ * it silently, so the artifact would ship an incomplete schema while generation
+ * reported success. `seen` guards the cycles that removing the cap exposes.
+ */
+function findFunctionPaths(
+  value: unknown,
+  path: string,
+  found: string[],
+  seen = new WeakSet<object>()
+): void {
+  if (found.length >= 10 || value == null) return
   if (typeof value === 'function') {
     found.push(path)
     return
   }
+  if (typeof value !== 'object') return
+  if (seen.has(value as object)) return
+  seen.add(value as object)
+
   if (Array.isArray(value)) {
-    value.forEach((item, i) => findFunctionPaths(item, `${path}[${i}]`, found, depth + 1))
+    value.forEach((item, i) => findFunctionPaths(item, `${path}[${i}]`, found, seen))
     return
   }
-  if (typeof value === 'object') {
-    for (const [key, item] of Object.entries(value as object)) {
-      findFunctionPaths(item, `${path}.${key}`, found, depth + 1)
-    }
+  for (const [key, item] of Object.entries(value as object)) {
+    findFunctionPaths(item, `${path}.${key}`, found, seen)
   }
 }
 

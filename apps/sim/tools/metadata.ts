@@ -43,12 +43,19 @@ export function hasToolMetadata(toolId: string): boolean {
   return Object.hasOwn(metadata, toolId)
 }
 
-/** Serializable metadata for a built-in tool, or `undefined` if unknown. */
+/**
+ * Serializable metadata for a built-in tool, or `undefined` if unknown.
+ *
+ * `Object.hasOwn` rather than a bare lookup: `JSON.parse` yields an object with
+ * the normal prototype, so a tool id colliding with `constructor`, `toString` or
+ * `__proto__` would otherwise return an inherited function typed as tool
+ * metadata.
+ */
 export function getToolMetadata(toolId: string): ToolMetadata | undefined {
-  return metadata[toolId]
+  return Object.hasOwn(metadata, toolId) ? metadata[toolId] : undefined
 }
 
 /** Declared parameters for a built-in tool, or `undefined` if unknown. */
 export function getToolParams(toolId: string): ToolConfig['params'] | undefined {
-  return metadata[toolId]?.params
+  return getToolMetadata(toolId)?.params
 }
