@@ -304,7 +304,7 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'active')
 
   for (const id of ids) {
-    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, undefined, {
+    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, {
       archivedAt: context.timestamp,
     })
   }

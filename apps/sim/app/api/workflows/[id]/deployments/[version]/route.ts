@@ -4,10 +4,10 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updateDeploymentVersionMetadataContract } from '@/lib/api/contracts/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import {
   getWorkflowDeploymentVersion,
   updateDeploymentVersionMetadata,

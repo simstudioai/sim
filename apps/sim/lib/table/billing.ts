@@ -9,6 +9,7 @@ import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribu
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getBillingDisabledTableLimits,
   getTablePlanLimits,
@@ -183,12 +184,15 @@ function cacheLimits(workspaceId: string, limits: TablePlanLimits): void {
 
 /**
  * Thrown by {@link assertRowCapacity} when a write would exceed the workspace's
- * current plan row limit. The message includes the lowercase `row limit` token so
- * `rowWriteErrorResponse` maps it to a 400 toast carrying the real reason.
+ * current plan row limit. Typed as a `validation` failure so the routes answer
+ * 400 with the real reason — the message used to have to carry a lowercase
+ * `row limit` token for a substring match to find it, which made the wording
+ * load-bearing.
  */
-export class TableRowLimitError extends Error {
+export class TableRowLimitError extends OrchestrationError {
   constructor(readonly limit: number) {
     super(
+      'validation',
       `This table has reached its row limit (${limit.toLocaleString('en-US')} rows) on your current plan.`
     )
     this.name = 'TableRowLimitError'

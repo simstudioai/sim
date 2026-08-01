@@ -18,6 +18,7 @@ import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import type {
   Filter,
@@ -731,8 +732,9 @@ export async function runWorkflowColumn(opts: {
   // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
   const { getTableById } = await import('@/lib/table/service')
   const table = await getTableById(tableId)
-  if (!table) throw new Error('Table not found')
-  if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')
+  if (!table) throw new OrchestrationError('not_found', 'Table not found')
+  if (table.workspaceId !== workspaceId)
+    throw new OrchestrationError('validation', 'Invalid workspace ID')
 
   const allGroups = table.schema.workflowGroups ?? []
   const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups

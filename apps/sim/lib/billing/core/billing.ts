@@ -36,6 +36,8 @@ interface GetOrganizationSubscriptionOptions {
   onError?: 'return-null' | 'throw'
   /** Primary/replica client or a caller-owned enforcement transaction. */
   executor?: DbClient | DbOrTx
+  /** Row-lock the selected entitlement inside a caller-owned transaction. */
+  forUpdate?: boolean
 }
 
 /**
@@ -47,17 +49,17 @@ interface GetOrganizationSubscriptionOptions {
  * (from `core/subscription.ts`), which excludes `past_due`.
  * Returns `null` when there is no entitled sub.
  *
- * `options.executor` exists for replica routing on display/summary read
- * paths only. Enforcement and webhook callers must read the primary —
- * omit the executor (or pass `db`).
+ * Enforcement and webhook callers must read the primary. They may pass a
+ * caller-owned primary transaction when the subscription must be revalidated
+ * and row-locked with another mutation.
  */
 export async function getOrganizationSubscription(
   organizationId: string,
   options: GetOrganizationSubscriptionOptions = {}
 ) {
-  const { onError = 'return-null', executor = db } = options
+  const { onError = 'return-null', executor = db, forUpdate = false } = options
   try {
-    const orgSubs = await executor
+    const query = executor
       .select()
       .from(subscription)
       .where(
@@ -68,6 +70,7 @@ export async function getOrganizationSubscription(
       )
       .orderBy(desc(subscription.periodStart), desc(subscription.id))
       .limit(1)
+    const orgSubs = forUpdate ? await query.for('update') : await query
 
     return orgSubs.length > 0 ? orgSubs[0] : null
   } catch (error) {

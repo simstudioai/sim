@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updatePublicApiContract } from '@/lib/api/contracts/deployments'
 import { parseRequest } from '@/lib/api/server'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -15,7 +16,6 @@ import {
   performFullDeploy,
   performFullUndeploy,
 } from '@/lib/workflows/orchestration'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
   checkNeedsRedeployment,

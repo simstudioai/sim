@@ -24,9 +24,10 @@ export * from './predicates'
 export async function resolveEffectiveWorkspacePermission(
   userId: string,
   workspaceId: string,
-  workspaceOrganizationId: string | null
+  workspaceOrganizationId: string | null,
+  executor: Pick<typeof db, 'select'> = db
 ): Promise<PermissionType | null> {
-  const [permissionRow] = await db
+  const [permissionRow] = await executor
     .select({ permissionType: permissions.permissionType })
     .from(permissions)
     .where(
@@ -41,7 +42,7 @@ export async function resolveEffectiveWorkspacePermission(
   const explicit = (permissionRow?.permissionType as PermissionType | undefined) ?? null
 
   if (workspaceOrganizationId && explicit !== 'admin') {
-    const [memberRow] = await db
+    const [memberRow] = await executor
       .select({ role: member.role })
       .from(member)
       .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceOrganizationId)))

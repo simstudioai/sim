@@ -1,6 +1,5 @@
 import type { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { csvExtensionSchema, csvImportFormSchema } from '@/lib/api/contracts/tables'
@@ -34,7 +33,7 @@ import {
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   normalizeColumn,
-  rowWriteErrorResponse,
+  orchestrationErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSV')
@@ -250,22 +249,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.error(`[${requestId}] CSV import failed:`, error)
 
-    // Row-write failures (e.g. the plan row-limit check) map to a 400 with the real reason.
-    const rowWriteError = rowWriteErrorResponse(error)
-    if (rowWriteError) return rowWriteError
+    // Every caller-fixable failure on this path — the plan row-limit check, the
+    // schema and CSV-shape validation, a name collision — arrives classified.
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
-    const message = toError(error).message
-    const isClientError =
-      message.includes('maximum table limit') ||
-      message.includes('CSV file has no') ||
-      message.includes('Invalid table name') ||
-      message.includes('Invalid schema') ||
-      message.includes('already exists')
-
-    return NextResponse.json(
-      { error: isClientError ? message : 'Failed to import CSV' },
-      { status: isClientError ? 400 : 500 }
-    )
+    return NextResponse.json({ error: 'Failed to import CSV' }, { status: 500 })
   } finally {
     fileStream?.destroy()
   }

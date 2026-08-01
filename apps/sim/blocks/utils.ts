@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { SimAutoIcon } from '@/components/icons'
 import {
   isAzureConfigured,
   isCohereConfigured,
@@ -14,7 +15,9 @@ import {
   getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
+  isAutoModel,
   orderModelIdsByReleaseDate,
+  SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
@@ -75,12 +78,21 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels
+  const options = allModels
     .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
     .map((model) => {
       const icon = getProviderIcon(model)
       return { label: model, id: model, ...(icon && { icon }) }
     })
+
+  // Hosted-only automatic model. Deliberately LAST in the list (limited
+  // visibility for the initial release): available to anyone who scrolls or
+  // searches for it, but never the first thing the dropdown offers.
+  if (isHosted) {
+    options.push({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
+  }
+
+  return options
 }
 
 /**
@@ -182,6 +194,11 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
 function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
+
+  // On hosted Sim the auto pseudo-model resolves server-side to a hosted pool
+  // model. On self-hosted it exists only via imported workflows and always
+  // falls back to the default Anthropic model, so the key field must show.
+  if (isAutoModel(normalizedModel)) return !isHosted
 
   if (isHosted) {
     const hostedModels = getHostedModels()

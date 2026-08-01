@@ -1,9 +1,23 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { credential, permissions, workspace } from '@sim/db/schema'
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getWorkspaceEnvKeyAdminAccess } from '@/lib/credentials/environment'
+import type { DbOrTx } from '@/lib/db/types'
+
+const { mockAcquireUserBillingIdentityLock } = vi.hoisted(() => ({
+  mockAcquireUserBillingIdentityLock: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
+  acquireUserBillingIdentityLock: mockAcquireUserBillingIdentityLock,
+}))
+
+import {
+  getWorkspaceEnvKeyAdminAccess,
+  syncPersonalEnvCredentialsForUser,
+} from '@/lib/credentials/environment'
 
 describe('getWorkspaceEnvKeyAdminAccess', () => {
   beforeEach(() => {
@@ -57,5 +71,88 @@ describe('getWorkspaceEnvKeyAdminAccess', () => {
     })
 
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('syncPersonalEnvCredentialsForUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockAcquireUserBillingIdentityLock.mockResolvedValue(undefined)
+  })
+
+  it('uses one transaction and acquires the transfer fence before discovering workspaces', async () => {
+    const base = dbChainMock.db
+    const tx = {
+      select: vi.fn(base.select),
+      insert: vi.fn(base.insert),
+      delete: vi.fn(base.delete),
+    } as unknown as DbOrTx
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => callback(tx))
+    queueTableRows(permissions, [{ workspaceId: 'ws-1' }])
+    queueTableRows(workspace, [])
+    queueTableRows(credential, [{ id: 'credential-1' }])
+
+    await syncPersonalEnvCredentialsForUser({
+      userId: 'user-1',
+      envKeys: ['API_KEY'],
+    })
+
+    expect(mockAcquireUserBillingIdentityLock).toHaveBeenCalledWith(tx, 'user-1')
+    expect(mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]).toBeLessThan(
+      (tx.select as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    )
+    expect(tx.select).toHaveBeenCalledTimes(3)
+    expect(tx.insert).toHaveBeenCalledTimes(2)
+    expect(tx.delete).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not recreate source credentials when transfer won the user lock', async () => {
+    const base = dbChainMock.db
+    const tx = {
+      select: vi.fn(base.select),
+      insert: vi.fn(base.insert),
+      delete: vi.fn(base.delete),
+    } as unknown as DbOrTx
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => callback(tx))
+    queueTableRows(permissions, [])
+    queueTableRows(workspace, [])
+
+    await syncPersonalEnvCredentialsForUser({
+      userId: 'user-1',
+      envKeys: ['API_KEY'],
+    })
+
+    expect(mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]).toBeLessThan(
+      (tx.select as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    )
+    expect(tx.insert).not.toHaveBeenCalled()
+    expect(tx.delete).not.toHaveBeenCalled()
+  })
+
+  it('syncs every workspace with one credential insert, lookup, membership insert, and cleanup', async () => {
+    const base = dbChainMock.db
+    const tx = {
+      select: vi.fn(base.select),
+      insert: vi.fn(base.insert),
+      delete: vi.fn(base.delete),
+    } as unknown as DbOrTx
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => callback(tx))
+    queueTableRows(permissions, [{ workspaceId: 'ws-2' }, { workspaceId: 'ws-1' }])
+    queueTableRows(workspace, [])
+    queueTableRows(credential, [{ id: 'credential-1' }, { id: 'credential-2' }])
+
+    await syncPersonalEnvCredentialsForUser({
+      userId: 'user-1',
+      envKeys: ['API_KEY'],
+    })
+
+    expect(tx.select).toHaveBeenCalledTimes(3)
+    expect(tx.insert).toHaveBeenCalledTimes(2)
+    expect(tx.delete).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenNthCalledWith(1, [
+      expect.objectContaining({ workspaceId: 'ws-1', envKey: 'API_KEY' }),
+      expect.objectContaining({ workspaceId: 'ws-2', envKey: 'API_KEY' }),
+    ])
   })
 })

@@ -14,6 +14,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
@@ -28,8 +29,6 @@ import type { DbTransaction } from '@/lib/table/planner'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
-  TABLE_LOCK_FLAGS,
-  TABLE_LOCK_KINDS,
   type TableDefinition,
   type TableLocks,
   type TableMetadata,
@@ -41,10 +40,15 @@ import { stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableService')
 
-export class TableConflictError extends Error {
-  readonly code = 'TABLE_EXISTS' as const
+/**
+ * A table name already taken in the workspace. Kept as its own class because
+ * several routes branch on it specifically, and typed as a `conflict` so the
+ * generic classifiers reach the same 409 without reading the message.
+ */
+export class TableConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A table named "${name}" already exists in this workspace`)
+    super('conflict', `A table named "${name}" already exists in this workspace`)
+    this.name = 'TableConflictError'
   }
 }
 
@@ -103,7 +107,7 @@ export async function withLockedTable<T>(
     )
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table) {
-      throw new Error('Table not found')
+      throw new OrchestrationError('not_found', 'Table not found')
     }
     return mutate(table, trx)
   })
@@ -285,13 +289,19 @@ export async function createTable(
   // Validate table name
   const nameValidation = validateTableName(data.name)
   if (!nameValidation.valid) {
-    throw new Error(`Invalid table name: ${nameValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Invalid table name: ${nameValidation.errors.join(', ')}`
+    )
   }
 
   // Validate schema
   const schemaValidation = validateTableSchema(data.schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Invalid schema: ${schemaValidation.errors.join(', ')}`
+    )
   }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`
@@ -355,7 +365,12 @@ export async function createTable(
         )
 
       if (Number(existingCount) >= maxTables) {
-        throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
+        // A quota ceiling, not bad input — both create routes have always
+        // answered 403 for it.
+        throw new OrchestrationError(
+          'forbidden',
+          `Workspace has reached maximum table limit (${maxTables})`
+        )
       }
 
       const duplicateName = await trx
@@ -474,23 +489,26 @@ export async function addTableColumnsWithTx(
 
   for (const column of columns) {
     if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
       )
     }
     if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
       )
     }
     if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
       )
     }
     const lower = column.name.toLowerCase()
     if (usedNames.has(lower)) {
-      throw new Error(`Column "${column.name}" already exists`)
+      throw new OrchestrationError('validation', `Column "${column.name}" already exists`)
     }
     usedNames.add(lower)
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
@@ -506,7 +524,8 @@ export async function addTableColumnsWithTx(
   }
 
   if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-    throw new Error(
+    throw new OrchestrationError(
+      'validation',
       `Adding ${additions.length} column(s) would exceed maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
     )
   }
@@ -572,12 +591,11 @@ export function auditTableColumnsAdded(
 export async function renameTable(
   tableId: string,
   newName: string,
-  requestId: string,
-  actingUserId?: string
+  requestId: string
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
-    throw new Error(nameValidation.errors.join(', '))
+    throw new OrchestrationError('validation', nameValidation.errors.join(', '))
   }
 
   const now = new Date()
@@ -586,29 +604,10 @@ export async function renameTable(
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
       .where(eq(userTableDefinitions.id, tableId))
-      .returning({
-        id: userTableDefinitions.id,
-        createdBy: userTableDefinitions.createdBy,
-        workspaceId: userTableDefinitions.workspaceId,
-      })
+      .returning({ id: userTableDefinitions.id })
 
     if (result.length === 0) {
-      throw new Error(`Table ${tableId} not found`)
-    }
-
-    const { createdBy, workspaceId } = result[0]
-    const renameActorId = actingUserId ?? createdBy
-    if (renameActorId) {
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: renameActorId,
-        action: AuditAction.TABLE_UPDATED,
-        resourceType: AuditResourceType.TABLE,
-        resourceId: tableId,
-        resourceName: newName,
-        description: `Renamed table to "${newName}"`,
-        metadata: { op: 'rename' },
-      })
+      throw new OrchestrationError('not_found', `Table ${tableId} not found`)
     }
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
@@ -636,9 +635,8 @@ export async function moveTableToFolder(
   tableId: string,
   workspaceId: string,
   folderId: string | null,
-  requestId: string,
-  actingUserId?: string
-): Promise<void> {
+  requestId: string
+): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
     updatedAt: new Date(),
@@ -666,27 +664,13 @@ export async function moveTableToFolder(
     })
 
   if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    throw new OrchestrationError('not_found', `Table ${tableId} not found`)
   }
 
-  const { name, createdBy } = result[0]
-  const actorId = actingUserId ?? createdBy
-  if (actorId) {
-    recordAudit({
-      workspaceId,
-      actorId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: name,
-      description: folderId
-        ? `Moved table "${name}" into a folder`
-        : `Moved table "${name}" to the workspace root`,
-      metadata: { op: 'move', folderId },
-    })
-  }
+  const { name } = result[0]
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+  return { name }
 }
 
 /**
@@ -703,11 +687,8 @@ export async function moveTableToFolder(
 export async function updateTableLocks(
   tableId: string,
   partial: Partial<TableLocks>,
-  actingUserId: string,
-  requestId: string,
-  /** Forwarded to the audit record for IP / user-agent capture. */
-  request?: { headers: { get(name: string): string | null } }
-): Promise<TableDefinition> {
+  requestId: string
+): Promise<{ table: TableDefinition; previousLocks: TableLocks }> {
   let previousLocks: TableLocks = UNLOCKED_TABLE_LOCKS
   const updated = await withLockedTable(tableId, async (table, trx) => {
     previousLocks = table.locks
@@ -720,36 +701,12 @@ export async function updateTableLocks(
     return { ...table, locks: nextLocks, updatedAt: now }
   })
 
-  // Name the transitions in the description so the audit list is readable
-  // without expanding metadata — "who locked my production table" is the
-  // question this feature exists to answer.
-  const flipped = TABLE_LOCK_KINDS.filter(
-    (kind) => previousLocks[TABLE_LOCK_FLAGS[kind]] !== updated.locks[TABLE_LOCK_FLAGS[kind]]
-  )
-  const description = flipped.length
-    ? `Table locks changed: ${flipped
-        .map((kind) => `${kind} ${updated.locks[TABLE_LOCK_FLAGS[kind]] ? 'locked' : 'unlocked'}`)
-        .join(', ')}`
-    : 'Updated table locks (no change)'
-
-  recordAudit({
-    workspaceId: updated.workspaceId,
-    actorId: actingUserId,
-    action: AuditAction.TABLE_UPDATED,
-    resourceType: AuditResourceType.TABLE,
-    resourceId: tableId,
-    resourceName: updated.name,
-    description,
-    metadata: { op: 'update_locks', before: previousLocks, after: updated.locks },
-    ...(request ? { request } : {}),
-  })
-
   await appendTableEvent({ kind: 'definition', tableId, reason: 'locks' }).catch((error) => {
     logger.warn(`[${requestId}] Failed to emit lock-change event for table ${tableId}`, { error })
   })
 
   logger.info(`[${requestId}] Updated locks for table ${tableId}`)
-  return updated
+  return { table: updated, previousLocks }
 }
 
 /**
@@ -830,9 +787,8 @@ export async function updateTableMetadata(
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  actingUserId?: string,
   options?: { archivedAt?: Date }
-): Promise<void> {
+): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
   // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
@@ -874,21 +830,10 @@ export async function deleteTable(
     }
     // Otherwise the table is missing or already archived — a silent no-op, as before.
   }
-  // Audit only genuine user deletes — rollback callers omit `actingUserId`. The
-  // caller emits the `table_deleted` PostHog event, so it is not duplicated here.
-  if (deleted && actingUserId) {
-    recordAudit({
-      workspaceId: deleted.workspaceId ?? null,
-      actorId: actingUserId,
-      action: AuditAction.TABLE_DELETED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: deleted.name,
-      description: `Archived table "${deleted.name}"`,
-    })
-  }
-
   logger.info(`[${requestId}] Archived table ${tableId}`)
+  // Null when the table was missing or already archived — a silent no-op. The
+  // caller audits only a genuine archive, so a repeat delete logs nothing.
+  return { archived: deleted ? { name: deleted.name, workspaceId: deleted.workspaceId } : null }
 }
 
 /**
@@ -907,18 +852,18 @@ export async function restoreTable(
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
-    throw new Error('Table not found')
+    throw new OrchestrationError('not_found', 'Table not found')
   }
 
   if (!table.archivedAt) {
-    throw new Error('Table is not archived')
+    throw new OrchestrationError('validation', 'Table is not archived')
   }
 
   if (table.workspaceId) {
     const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
     const ws = await getWorkspaceWithOwner(table.workspaceId)
     if (!ws || ws.archivedAt) {
-      throw new Error('Cannot restore table into an archived workspace')
+      throw new OrchestrationError('validation', 'Cannot restore table into an archived workspace')
     }
   }
 

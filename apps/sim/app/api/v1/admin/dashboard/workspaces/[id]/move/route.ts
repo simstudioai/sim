@@ -27,6 +27,7 @@ export const POST = withRouteHandler(
       const data = await moveWorkspaceToOrganization({
         workspaceId: parsed.data.params.id,
         destinationOrganizationId: parsed.data.body.destinationOrganizationId,
+        expectedOwnerId: parsed.data.body.expectedOwnerId,
         adminEmail: request.headers.get('x-admin-email') ?? 'admin-api@sim.ai',
       })
       return NextResponse.json({ data })

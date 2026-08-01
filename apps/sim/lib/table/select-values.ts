@@ -10,6 +10,7 @@
  */
 
 import { buildIdByName, getColumnId, predicateNamesToIds } from '@/lib/table/column-keys'
+import { resolveSelectOptionId } from '@/lib/table/select-options'
 import type {
   ColumnDefinition,
   ConditionOperators,
@@ -21,7 +22,6 @@ import type {
   TablePredicate,
   TableSchema,
 } from '@/lib/table/types'
-import { resolveSelectOptionId } from '@/lib/table/validation'
 
 /**
  * Resolves a `select` cell's stored option id(s) to their display name(s). A

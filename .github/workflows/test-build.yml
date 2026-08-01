@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 22
+          node-version: 24
 
       # Cache keys are scoped by event name, and fork PRs get their own
       # namespace on top: untrusted fork runs must never share a cache with
@@ -260,7 +260,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Mount Bun cache
         uses: ./.github/actions/cache-mount

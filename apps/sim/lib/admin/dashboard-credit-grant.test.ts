@@ -57,6 +57,9 @@ vi.mock('@/lib/billing/organizations/seats', () => ({
 vi.mock('@/lib/billing/core/usage', () => ({
   syncUsageLimitsFromSubscription: mocks.syncUsageLimits,
 }))
+vi.mock('@/lib/workspaces/organization-workspaces', () => ({
+  ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
+}))
 vi.mock('@/lib/workspaces/admin-move', () => ({
   moveWorkspaceToOrganization: mocks.moveWorkspace,
 }))
@@ -211,6 +214,9 @@ describe('addDashboardOrganizationMember', () => {
     resetDbChainMock()
     mocks.billingSubscriptions = []
     mocks.idempotencyCalls = []
+    mocks.ensureMembership.mockReset()
+    mocks.transferMembership.mockReset()
+    mocks.moveWorkspace.mockReset()
   })
 
   it('rejects an existing member inside the transaction before touching their cap', async () => {
@@ -239,7 +245,50 @@ describe('addDashboardOrganizationMember', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('uses the canonical transfer service and reports each selected personal workspace move', async () => {
+  it('moves every selected workspace through the invitation-aware service after adding a member', async () => {
+    queueTableRows(workspace, [{ id: 'workspace-1' }, { id: 'workspace-2' }])
+    queueTableRows(subscription, [{ plan: 'enterprise' }])
+    mocks.ensureMembership.mockResolvedValue({
+      success: true,
+      memberId: 'member-new',
+      alreadyMember: false,
+      billingActions: { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false },
+    })
+    mocks.moveWorkspace.mockResolvedValue({})
+
+    const result = await addDashboardOrganizationMember(
+      'org-1',
+      {
+        userId: 'user-1',
+        role: 'member',
+        personalWorkspaceIds: ['workspace-1', 'workspace-2'],
+      },
+      { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
+    )
+
+    expect(mocks.moveWorkspace).toHaveBeenNthCalledWith(1, {
+      workspaceId: 'workspace-1',
+      destinationOrganizationId: 'org-1',
+      adminEmail: 'admin@sim.ai',
+      expectedOwnerId: 'user-1',
+    })
+    expect(mocks.moveWorkspace).toHaveBeenNthCalledWith(2, {
+      workspaceId: 'workspace-2',
+      destinationOrganizationId: 'org-1',
+      adminEmail: 'admin@sim.ai',
+      expectedOwnerId: 'user-1',
+    })
+    expect(result).toEqual({
+      memberId: 'member-new',
+      transferredFromOrganizationId: null,
+      workspaceMoves: [
+        { workspaceId: 'workspace-1', success: true },
+        { workspaceId: 'workspace-2', success: true },
+      ],
+    })
+  })
+
+  it('uses the canonical transfer service and reports each selected workspace move', async () => {
     queueTableRows(workspace, [{ id: 'workspace-1' }, { id: 'workspace-2' }])
     queueTableRows(member, [{ id: 'member-old', organizationId: 'org-old' }])
     mocks.transferMembership.mockResolvedValue({
@@ -288,5 +337,39 @@ describe('addDashboardOrganizationMember', () => {
     })
     expect(mocks.reconcileSeats).toHaveBeenCalledTimes(2)
     expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the expected owner guard for an administrator-selected subset', async () => {
+    // The attachability query is scoped to the selected ids, so it returns only
+    // `workspace-1` even though the user owns more.
+    queueTableRows(workspace, [{ id: 'workspace-1' }])
+    queueTableRows(member, [{ id: 'member-old', organizationId: 'org-old' }])
+    mocks.transferMembership.mockResolvedValue({
+      success: true,
+      memberId: 'member-new',
+      workspaceAccessRevoked: 0,
+      credentialMembershipsRevoked: 0,
+      pendingInvitationsCancelled: 0,
+      usageCaptured: 0,
+    })
+    mocks.moveWorkspace.mockResolvedValue({})
+
+    const result = await addDashboardOrganizationMember(
+      'org-new',
+      {
+        userId: 'user-1',
+        role: 'member',
+        personalWorkspaceIds: ['workspace-1'],
+      },
+      { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
+    )
+
+    expect(mocks.moveWorkspace).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      destinationOrganizationId: 'org-new',
+      adminEmail: 'admin@sim.ai',
+      expectedOwnerId: 'user-1',
+    })
+    expect(result.workspaceMoves).toEqual([{ workspaceId: 'workspace-1', success: true }])
   })
 })

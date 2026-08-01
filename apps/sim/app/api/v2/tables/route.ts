@@ -11,6 +11,7 @@ import { normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  v2CaughtOrchestrationError,
   v2CursorList,
   v2Data,
   v2Error,
@@ -128,18 +129,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
-    if (error instanceof Error) {
-      if (error.message.includes('maximum table limit')) {
-        return v2Error('FORBIDDEN', error.message)
-      }
-      if (
-        error.message.includes('Invalid table name') ||
-        error.message.includes('Invalid schema') ||
-        error.message.includes('already exists')
-      ) {
-        return v2Error('BAD_REQUEST', error.message)
-      }
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error creating table`, {
       error: getErrorMessage(error, 'Unknown error'),

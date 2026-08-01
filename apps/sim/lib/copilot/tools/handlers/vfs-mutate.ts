@@ -22,7 +22,8 @@ import {
   getKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
-import { deleteTable, listTables, renameTable } from '@/lib/table/service'
+import { performDeleteTable, performRenameTable } from '@/lib/table/orchestration'
+import { listTables } from '@/lib/table/service'
 import {
   ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath,
@@ -759,11 +760,19 @@ async function renameFlatResource(
       return { success: false, error: `Table not found at ${sources[0]}` }
     }
     assertMutationNotAborted(context)
-    const renamed = await renameTable(match.id, newName, generateRequestId())
+    const renameOutcome = await performRenameTable({
+      table: match,
+      newName,
+      userId: context.userId,
+      requestId: generateRequestId(),
+    })
+    if (!renameOutcome.success) {
+      return { success: false, error: renameOutcome.error ?? 'Failed to rename table' }
+    }
     return buildResult(verb, [
       {
         from: sources[0],
-        to: `tables/${normalizeVfsSegment(renamed.name)}`,
+        to: `tables/${normalizeVfsSegment(newName)}`,
         kind,
         id: match.id,
       },
@@ -1018,7 +1027,14 @@ async function removeTablePath(
   )
   if (!match) return { from: path, kind: 'table', error: `Table not found at ${path}` }
 
-  await deleteTable(match.id, generateRequestId(), context.userId)
+  const outcome = await performDeleteTable({
+    table: match,
+    userId: context.userId,
+    requestId: generateRequestId(),
+  })
+  if (!outcome.success) {
+    return { from: path, kind: 'table', error: outcome.error ?? 'Failed to archive table' }
+  }
   logger.info('Archived table via rm', { tableId: match.id, workspaceId })
   return { from: path, kind: 'table', id: match.id }
 }

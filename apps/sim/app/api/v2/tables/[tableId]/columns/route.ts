@@ -10,19 +10,16 @@ import {
 import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  addTableColumn,
-  deleteColumn,
-  renameColumn,
-  updateColumnConstraints,
-  updateColumnType,
-} from '@/lib/table'
+import { addTableColumn, deleteColumn } from '@/lib/table'
+import { performUpdateTableColumn } from '@/lib/table/orchestration'
 import { checkAccess, normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  v2CaughtOrchestrationError,
   v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
@@ -88,14 +85,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
-    if (error instanceof Error) {
-      if (error.message.includes('already exists') || error.message.includes('maximum column')) {
-        return v2Error('BAD_REQUEST', error.message)
-      }
-      if (error.message === 'Table not found') {
-        return v2Error('NOT_FOUND', error.message)
-      }
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error adding column to table`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -136,73 +127,21 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    const { updates } = validated
-    let updatedTable = null
-
-    if (updates.name) {
-      updatedTable = await renameColumn(
-        { tableId, oldName: validated.columnName, newName: updates.name },
-        requestId
-      )
-    }
-
-    if (updates.type) {
-      updatedTable = await updateColumnType(
-        { tableId, columnName: updates.name ?? validated.columnName, newType: updates.type },
-        requestId
-      )
-    }
-
-    if (updates.required !== undefined || updates.unique !== undefined) {
-      updatedTable = await updateColumnConstraints(
-        {
-          tableId,
-          columnName: updates.name ?? validated.columnName,
-          ...(updates.required !== undefined ? { required: updates.required } : {}),
-          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
-        },
-        requestId
-      )
-    }
-
-    if (!updatedTable) {
-      return v2Error('BAD_REQUEST', 'No updates specified')
-    }
-
-    recordAudit({
-      workspaceId: validated.workspaceId,
-      actorId: userId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: table.name,
-      description: `Updated column "${validated.columnName}" in table "${table.name}"`,
-      metadata: { columnName: validated.columnName, updates },
+    const outcome = await performUpdateTableColumn({
+      table,
+      columnName: validated.columnName,
+      userId,
+      updates: validated.updates,
+      requestId,
       request,
     })
-
-    return v2Data({ columns: updatedTable.schema.columns.map(normalizeColumn) }, { rateLimit })
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    if (error instanceof Error) {
-      const msg = error.message
-      if (msg.includes('not found') || msg.includes('Table not found')) {
-        return v2Error('NOT_FOUND', msg)
-      }
-      if (
-        msg.includes('already exists') ||
-        msg.includes('Cannot delete the last column') ||
-        msg.includes('Cannot set column') ||
-        msg.includes('Invalid column') ||
-        msg.includes('exceeds maximum') ||
-        msg.includes('incompatible') ||
-        msg.includes('duplicate')
-      ) {
-        return v2Error('BAD_REQUEST', msg)
-      }
+    if (!outcome.success || !outcome.table) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to update column')
     }
 
+    return v2Data({ columns: outcome.table.schema.columns.map(normalizeColumn) }, { rateLimit })
+  } catch (error) {
+    if (isZodError(error)) return v2ValidationError(error)
     logger.error(`[${requestId}] Error updating column in table`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
@@ -264,14 +203,8 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) return v2ValidationError(error)
 
-      if (error instanceof Error) {
-        if (error.message.includes('not found') || error.message === 'Table not found') {
-          return v2Error('NOT_FOUND', error.message)
-        }
-        if (error.message.includes('Cannot delete') || error.message.includes('last column')) {
-          return v2Error('BAD_REQUEST', error.message)
-        }
-      }
+      const classified = v2CaughtOrchestrationError(error)
+      if (classified) return classified
 
       logger.error(`[${requestId}] Error deleting column from table`, {
         error: getErrorMessage(error, 'Unknown error'),

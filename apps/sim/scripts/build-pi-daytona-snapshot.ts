@@ -28,9 +28,10 @@ import { Daytona, Image } from '@daytona/sdk'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   PI_APT,
+  PI_BUN_VERSION_ASSERT,
+  PI_GLOBAL_NPM_PACKAGES,
   PI_NODE_MAJOR,
   PI_NODE_VERSION_ASSERT,
-  PI_NPM,
   PI_SANDBOX_CPU_COUNT,
   PI_SANDBOX_MEMORY_GB,
 } from '@/scripts/pi-sandbox-packages'
@@ -63,7 +64,8 @@ export const piImage = Image.base(BASE_IMAGE).runCommands(
   // ships an older Node fails here rather than at the first agent run.
   `apt-get update && curl -fsSL https://deb.nodesource.com/setup_${PI_NODE_MAJOR}.x | bash - && ${APT_PREFIX} nodejs && rm -rf /var/lib/apt/lists/* && ${PI_NODE_VERSION_ASSERT}`,
   `apt-get update && ${APT_PREFIX} ${PI_APT.join(' ')} && rm -rf /var/lib/apt/lists/*`,
-  `npm install -g ${PI_NPM.join(' ')}`,
+  `npm install -g ${PI_GLOBAL_NPM_PACKAGES.join(' ')}`,
+  PI_BUN_VERSION_ASSERT,
   // The clone target. E2B's base ships a world-writable /code; Pi writes to
   // /workspace (cloud-review-tools.ts:14), so create it explicitly.
   'mkdir -p /workspace'

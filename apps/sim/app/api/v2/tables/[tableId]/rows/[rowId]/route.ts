@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import {
@@ -15,17 +15,20 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { buildIdByName, rowDataNameToId, updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
+import { performDeleteTableRow } from '@/lib/table/orchestration'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  v2CaughtOrchestrationError,
   v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
+import { toApiRow, v2TableAccessError, v2TableLockError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableRowAPI')
 
@@ -163,18 +166,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 
-    const errorMessage = toError(error).message
-    if (errorMessage === 'Row not found') return v2Error('NOT_FOUND', errorMessage)
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column')
-    ) {
-      return v2Error('BAD_REQUEST', errorMessage)
-    }
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error updating row`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -214,22 +207,18 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    const [deletedRow] = await db
-      .delete(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, workspaceId)
-        )
-      )
-      .returning({ id: userTableRows.id })
-
-    if (!deletedRow) return v2Error('NOT_FOUND', 'Row not found')
+    const outcome = await performDeleteTableRow({ table: result.table, rowId, requestId })
+    if (!outcome.success) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to delete row')
+    }
 
     // v2 mirrors the bulk delete shape: always returns `deletedRowIds`.
-    return v2Data({ deletedCount: 1, deletedRowIds: [deletedRow.id] }, { rateLimit })
+    return v2Data({ deletedCount: 1, deletedRowIds: [rowId] }, { rateLimit })
   } catch (error) {
+    const lockError = v2TableLockError(error)
+    if (lockError) return lockError
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
     logger.error(`[${requestId}] Error deleting row`, {
       error: getErrorMessage(error, 'Unknown error'),
     })

@@ -17,6 +17,7 @@ import {
   getDisplayValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
+  resolveSandboxLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -30,6 +31,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
   isTriggerModeSubBlock,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
@@ -60,6 +62,7 @@ import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
+import { useSandboxes } from '@/hooks/queries/sandboxes'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -446,6 +449,19 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workspaceSkills]
   )
 
+  /**
+   * Hydrates the Function block's sandbox id to its name. Deliberately scoped to
+   * the sandbox row: this row is memoized per subblock, and the shared list query
+   * polls while a build is in flight, so subscribing unconditionally would
+   * re-render every row on the canvas on each poll tick.
+   */
+  const isSandboxField = subBlock?.id === 'sandboxId' && subBlock?.type === 'combobox'
+  const { data: sandboxData } = useSandboxes(isSandboxField ? workspaceId || undefined : undefined)
+  const sandboxDisplayValue = useMemo(
+    () => resolveSandboxLabel(subBlock, rawValue, sandboxData?.sandboxes ?? []),
+    [subBlock, rawValue, sandboxData]
+  )
+
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
   const isMonospaceField = Boolean(filterDisplayValue)
@@ -458,6 +474,7 @@ const SubBlockRow = memo(function SubBlockRow({
     filterDisplayValue ||
     toolsDisplayValue ||
     skillsDisplayValue ||
+    sandboxDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
     mcpServerDisplayName ||
@@ -628,6 +645,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       if (block.hideFromPreview) return false
       if (hiddenByReactiveCondition.has(block.id)) return false
       if (!isSubBlockFeatureEnabled(block)) return false
+
+      // Configures the block as an agent tool; it has no meaning on the canvas.
+      if (isToolInputOnlySubBlock(block)) return false
       if (isSubBlockHidden(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'

@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,6 +31,9 @@ vi.mock('@/lib/table/rows/service', () => ({
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
+  const { asOrchestrationError, statusForOrchestrationError } = await import(
+    '@/lib/core/orchestration/types'
+  )
   return {
     normalizeColumn: (column: unknown) => column,
     csvProxyBodyCapResponse: () => null,
@@ -40,16 +42,20 @@ vi.mock('@/app/api/table/utils', async () => {
         { error: error.message },
         { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
       ),
-    rowWriteErrorResponse: (error: unknown) => {
-      const message = getErrorMessage(error)
-      return message.includes('row limit')
-        ? NextResponse.json({ error: message }, { status: 400 })
+    orchestrationErrorResponse: (error: unknown) => {
+      const classified = asOrchestrationError(error)
+      return classified
+        ? NextResponse.json(
+            { error: classified.message },
+            { status: statusForOrchestrationError(classified.code) }
+          )
         : null
     },
   }
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/table/import-csv/route'
 
 type Part =
@@ -184,7 +190,10 @@ describe('POST /api/table/import-csv', () => {
 
   it('returns 400 with the reason when an insert exceeds the plan row limit', async () => {
     mockBatchInsertRows.mockRejectedValueOnce(
-      new Error('This table has reached its row limit (1,000 rows) on your current plan.')
+      new OrchestrationError(
+        'validation',
+        'This table has reached its row limit (1,000 rows) on your current plan.'
+      )
     )
     const response = await POST(makeRequest(uploadParts(csvWithRows(250))))
     const data = await response.json()

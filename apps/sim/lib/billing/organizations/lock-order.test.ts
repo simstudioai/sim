@@ -34,7 +34,7 @@ vi.mock('@/lib/billing/storage/payer-transfer', () => ({
 }))
 
 import {
-  reapplyPaidOrgJoinBillingForExistingMember,
+  reapplyPaidOrgJoinBillingForExistingMemberTx,
   restoreUserProSubscription,
   transferOrganizationOwnership,
   withInvitationSafeOrganizationAccessMutation,
@@ -113,9 +113,8 @@ describe('paid-org join billing lock ordering', () => {
 
   it('locks the personal subscription before mutating userStats', async () => {
     const { tx, ops } = createRecordingTx()
-    dbChainMockFns.transaction.mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx))
 
-    await reapplyPaidOrgJoinBillingForExistingMember('user-1', 'org-1')
+    await reapplyPaidOrgJoinBillingForExistingMemberTx(tx as DbOrTx, 'user-1', 'org-1')
 
     const firstUserStatsUpdate = ops.findIndex((o) => o.op === 'update' && o.table === userStats)
     const subscriptionLock = ops.findIndex((o) => o.op === 'lock' && o.table === subscriptionTable)
@@ -127,9 +126,8 @@ describe('paid-org join billing lock ordering', () => {
 
   it('still locks an already-paused personal Pro so a concurrent restore cannot pass it', async () => {
     const { tx, ops } = createRecordingTx({ ...GENERIC_ROW, cancelAtPeriodEnd: true })
-    dbChainMockFns.transaction.mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx))
 
-    await reapplyPaidOrgJoinBillingForExistingMember('user-1', 'org-1')
+    await reapplyPaidOrgJoinBillingForExistingMemberTx(tx as DbOrTx, 'user-1', 'org-1')
 
     expect(ops.some((op) => op.op === 'lock' && op.table === subscriptionTable)).toBe(true)
   })

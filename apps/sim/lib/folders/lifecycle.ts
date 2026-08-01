@@ -6,6 +6,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   archiveFolderCascade,
@@ -19,7 +20,6 @@ import { folderResourceConfig } from '@/lib/folders/config'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { wouldCreateFolderCycle } from '@/lib/folders/queries'
 import type { FolderMutationErrorCode } from '@/lib/folders/status'
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 const logger = createLogger('FolderLifecycle')
 
