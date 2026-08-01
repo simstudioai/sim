@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { zohoDeskGetAttachmentContract } from '@/lib/api/contracts/tools/zoho-desk'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   buildZohoDeskHeaders,
@@ -80,10 +81,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const response = await fetch(downloadUrl.toString(), {
+    // Even though the initial host is allowlisted, the download URL is
+    // user/LLM-influenced and Zoho may redirect. secureFetchWithValidation pins
+    // the resolved IP, blocks private/reserved targets on every hop, and
+    // (stripAuthOnRedirect) drops the OAuth token if a redirect leaves the
+    // original origin, so the credential never reaches an untrusted host.
+    // maxResponseBytes enforces the size cap while streaming.
+    const response = await secureFetchWithValidation(downloadUrl.toString(), {
       method: 'GET',
       headers: buildZohoDeskHeaders({ accessToken, orgId }),
-      signal: AbortSignal.timeout(30_000),
+      timeout: 30_000,
+      maxResponseBytes: MAX_ATTACHMENT_BYTES,
+      stripAuthOnRedirect: true,
     })
 
     if (!response.ok) {
@@ -95,12 +104,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const arrayBuffer = await response.arrayBuffer()
-    if (arrayBuffer.byteLength > MAX_ATTACHMENT_BYTES) {
-      return NextResponse.json(
-        { success: false, error: 'Attachment exceeds the 50MB download limit' },
-        { status: 413 }
-      )
-    }
 
     // ToolFileData (consumed by FileToolProcessor) keys the file name as `name`.
     const name = deriveAttachmentName(
