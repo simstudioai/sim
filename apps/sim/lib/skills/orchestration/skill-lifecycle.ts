@@ -9,9 +9,9 @@ import {
   skillDescriptionSchema,
   skillNameSchema,
 } from '@/lib/api/contracts/skills'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getSkillActorContext } from '@/lib/skills/access'
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import { getBuiltinSkillByName, isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { deleteSkill, getSkillById, upsertSkills } from '@/lib/workflows/skills/operations'
 
