@@ -128,7 +128,7 @@ export function LandingPreviewResource({
               />
             ))}
           </colgroup>
-          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+          <thead className='border-[var(--border)] border-b'>
             <tr>
               {columns.map((col) => (
                 <th

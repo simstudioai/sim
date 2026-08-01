@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy='lazyOnload'
           />
         )}
-        {/* 
+        {/*
           Workspace layout dimensions: set CSS vars before hydration to avoid layout jump.
           
           IMPORTANT: These hardcoded values must stay in sync with stores/constants.ts

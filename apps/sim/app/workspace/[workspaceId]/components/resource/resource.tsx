@@ -339,7 +339,7 @@ const ResourceTable = memo(function ResourceTable({
         <div role='table' className='grid w-full text-small'>
           <div
             role='rowgroup'
-            className='sticky top-0 z-10 grid bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'
+            className='sticky top-0 z-10 grid border-[var(--border)] border-b bg-[var(--bg)]'
           >
             <div role='row' className='grid' style={{ gridTemplateColumns }}>
               {hasCheckbox && (

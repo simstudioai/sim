@@ -1268,7 +1268,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                   disabled={disabled}
                   onClick={() => onSelect?.(title)}
                   className={cn(
-                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors',
+                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors',
                     disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
                     i > 0 && 'border-t'
                   )}

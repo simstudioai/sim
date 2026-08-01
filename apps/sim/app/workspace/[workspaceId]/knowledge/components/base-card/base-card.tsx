@@ -48,7 +48,7 @@ export function BaseCardSkeleton() {
           <div className='h-[15px] w-[120px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
 
-        <div className='h-0 w-full border-[var(--divider)] border-t' />
+        <div className='h-0 w-full border-[var(--border)] border-t' />
 
         <div className='flex h-[36px] flex-col gap-1.5'>
           <div className='h-[15px] w-full animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
@@ -219,7 +219,7 @@ export function BaseCard({
               )}
             </div>
 
-            <div className='h-0 w-full border-[var(--divider)] border-t' />
+            <div className='h-0 w-full border-[var(--border)] border-t' />
 
             <div className='flex items-start justify-between gap-2'>
               <p className='line-clamp-2 h-[36px] flex-1 text-[var(--text-tertiary)] text-caption leading-[18px]'>

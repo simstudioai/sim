@@ -49,7 +49,7 @@ const PROSE_CLASSES = cn(
   'prose-ul:my-4 prose-ol:my-4',
   'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
   'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
-  'prose-hr:border-[var(--divider)] prose-hr:my-6',
+  'prose-hr:border-[var(--border)] prose-hr:my-6',
   'prose-table:my-0'
 )
 
@@ -209,7 +209,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <th
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-left font-[600] text-[var(--text-primary)] text-sm leading-6'
+        className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-left font-[600] text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </th>
@@ -219,7 +219,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <td
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
+        className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </td>
@@ -241,8 +241,8 @@ const MARKDOWN_COMPONENTS = {
     const html = highlight(codeString.trimEnd(), language)
 
     return (
-      <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
-        <div className='flex items-center justify-between border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+      <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--border)]'>
+        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
@@ -356,7 +356,7 @@ const MARKDOWN_COMPONENTS = {
   },
   blockquote({ children }: { children?: React.ReactNode }) {
     return (
-      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
+      <blockquote className='my-4 break-words border-[var(--border)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
         {children}
       </blockquote>
     )
@@ -380,7 +380,7 @@ const MARKDOWN_COMPONENTS = {
         src={src}
         alt={alt ?? ''}
         loading='lazy'
-        className='my-4 h-auto max-w-full rounded-lg border border-[var(--divider)]'
+        className='my-4 h-auto max-w-full rounded-lg border border-[var(--border)]'
       />
     )
   },

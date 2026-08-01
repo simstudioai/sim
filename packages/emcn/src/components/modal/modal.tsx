@@ -245,7 +245,8 @@ const ModalContent = React.forwardRef<
             ref={ref}
             className={cn(
               'pointer-events-auto flex max-h-[84vh] flex-col text-small',
-              !bare && 'overflow-hidden rounded-xl bg-[var(--bg)] ring-1 ring-foreground/10',
+              !bare &&
+                'overflow-hidden rounded-xl bg-[var(--bg)] ring-[length:var(--border-width)] ring-foreground/10',
               ANIMATION_CLASSES,
               'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
               MODAL_SIZES[size],

@@ -142,7 +142,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </PopoverContent>
         </Popover>
 
-        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -176,7 +176,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </Tooltip.Content>
         </Tooltip.Root>
 
-        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
