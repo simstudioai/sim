@@ -8,9 +8,9 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "next dev --port 3000",
-    "dev:minimal": "SIM_DEV_MINIMAL_REGISTRY=1 next dev --port 3000",
-    "dev:capped": "NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3000",
+    "dev": "bun run dev:cache:cap && next dev --port 3000",
+    "dev:capped": "bun run dev:cache:cap && NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3000",
+    "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",
     "dev:clean": "rm -rf .next/dev/cache",
     "dev:webpack": "next dev --webpack",
     "load:workflow": "bun run load:workflow:baseline",

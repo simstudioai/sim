@@ -6,9 +6,10 @@ import {
   getContentType,
   getExtensionFromMimeType,
   getFileExtension,
-  getMimeTypeFromExtension,
+  isGeneratedDocumentSourceType,
   MIME_TYPE_MAPPING,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
+  resolveFileType,
 } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import {
@@ -88,12 +89,18 @@ export function getProviderFileStrategy(providerId: ProviderId | string): Provid
   return getProviderFileAttachment(providerId).strategy
 }
 
-/** True when a file exceeds the inline threshold and the provider has a large-file path. */
+/**
+ * True when an oversized file has a safe provider path. Remote URLs point at the
+ * primary storage object, so source-backed documents can only use artifact-aware
+ * Files API uploads.
+ */
 export function shouldUseLargeFilePath(
-  file: Pick<UserFile, 'size'>,
+  file: Pick<UserFile, 'size' | 'type'>,
   providerId: ProviderId | string
 ): boolean {
-  if (getProviderFileAttachment(providerId).strategy === 'inline') return false
+  const strategy = getProviderFileAttachment(providerId).strategy
+  if (strategy === 'inline') return false
+  if (strategy === 'remote-url' && isGeneratedDocumentSourceType(file.type)) return false
   return Number.isFinite(file.size) && file.size > INLINE_ATTACHMENT_THRESHOLD_BYTES
 }
 
@@ -197,12 +204,10 @@ export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): 
 
 export function inferAttachmentMimeType(file: UserFile): string {
   const explicitType = file.type?.trim().toLowerCase()
-  if (explicitType && explicitType !== 'application/octet-stream') {
-    return explicitType
-  }
-
-  const inferred = getMimeTypeFromExtension(getFileExtension(file.name))
-  return inferred.toLowerCase()
+  return resolveFileType({
+    name: file.name,
+    type: isGeneratedDocumentSourceType(explicitType) ? '' : (explicitType ?? ''),
+  }).toLowerCase()
 }
 
 function isTextDocumentMimeType(mimeType: string): boolean {
