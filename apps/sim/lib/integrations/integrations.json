@@ -14564,8 +14564,8 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Manage QuickBooks Online company, master data, sales, and receivables",
-      "longDescription": "Connect one QuickBooks Online company to manage master data and bounded sales and receivables workflows, while preserving existing purchase-order and bill reads.",
+      "description": "Manage QuickBooks Online company, sales, purchasing, and payables",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, and payables workflows.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
@@ -14663,15 +14663,51 @@
           "description": "Sparse-update a refund receipt using its current sync token"
         },
         {
-          "name": "List Purchase Orders",
-          "description": "List purchase orders in the connected QuickBooks Online company"
+          "name": "Read Purchasing Transactions",
+          "description": "List or read one purchase order, bill, bill payment, vendor credit, or purchase"
         },
         {
-          "name": "List Bills",
-          "description": "List bills in the connected QuickBooks Online company"
+          "name": "Create Purchase Order",
+          "description": "Create a purchase order with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase Order",
+          "description": "Sparse-update purchase-order header fields using the current sync token"
+        },
+        {
+          "name": "Create Bill",
+          "description": "Create a vendor bill without paying it"
+        },
+        {
+          "name": "Update Bill",
+          "description": "Sparse-update bill header fields using its vendor and current sync token"
+        },
+        {
+          "name": "Create Bill Payment",
+          "description": "Record a check or credit-card payment allocated to one or more bills"
+        },
+        {
+          "name": "Update Bill Payment",
+          "description": "Sparse-update BillPayment date or note without changing allocations or payment accounts"
+        },
+        {
+          "name": "Create Vendor Credit",
+          "description": "Create a vendor credit without applying it to a bill"
+        },
+        {
+          "name": "Update Vendor Credit",
+          "description": "Sparse-update vendor-credit header fields using its vendor and current sync token"
+        },
+        {
+          "name": "Create Purchase or Expense",
+          "description": "Record a cash, check, or credit-card purchase with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase or Expense",
+          "description": "Sparse-update purchase header fields without changing lines or payment accounts"
         }
       ],
-      "operationCount": 25,
+      "operationCount": 34,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
