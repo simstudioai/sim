@@ -171,6 +171,8 @@ describe('MCP tool execution private secret provenance', () => {
     const response = await POST(request, {})
     const body = (await response.json()) as Record<string, unknown>
 
+    expect(response.status).toBe(500)
+    expect(response.ok).toBe(false)
     expect(body).toEqual({
       success: false,
       error: 'Internal MCP response could not be verified',

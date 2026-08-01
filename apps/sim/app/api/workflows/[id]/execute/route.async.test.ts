@@ -374,6 +374,49 @@ describe('workflow execute async route', () => {
     )
   })
 
+  it('recovers legacy starter input by execution ID without returning it to the client', async () => {
+    const sourceInput = { token: 'legacy-retry-input', nested: { value: 42 } }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'source-execution',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: {
+          executionState: {
+            blockStates: {
+              start: {
+                output: sourceInput,
+                executed: false,
+                executionTime: 0,
+              },
+            },
+          },
+        },
+      },
+    ])
+    const request = createMockRequest(
+      'POST',
+      { inputFromExecutionId: 'source-execution' },
+      {
+        'Content-Type': 'application/json',
+        'X-Execution-Mode': 'async',
+        Cookie: 'session=value',
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+    const responseBody = await response.json()
+
+    expect(response.status).toBe(202)
+    expect(responseBody).not.toHaveProperty('input')
+    expect(JSON.stringify(responseBody)).not.toContain('legacy-retry-input')
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({ input: sourceInput }),
+      expect.any(Object)
+    )
+  })
+
   it('rejects client input alongside a stored execution input reference', async () => {
     const response = await POST(
       createMockRequest(

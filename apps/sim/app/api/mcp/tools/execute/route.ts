@@ -72,6 +72,7 @@ async function attachPrivateProvenance(
   provenance: ResolvedSecretTraceProvenanceAccumulator
 ): Promise<NextResponse> {
   let payload: Record<string, unknown>
+  let status = response.status
   try {
     const body = await readResponseToBufferWithLimit(response, {
       maxBytes: MAX_PRIVATE_MCP_RESPONSE_BYTES,
@@ -85,6 +86,7 @@ async function attachPrivateProvenance(
     payload = parsed as Record<string, unknown>
   } catch {
     payload = { success: false, error: 'Internal MCP response could not be verified' }
+    status = 500
     provenance.markIncomplete({ discardEntries: true })
   }
 
@@ -93,7 +95,7 @@ async function attachPrivateProvenance(
   headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
   return NextResponse.json(
     { ...payload, [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance.exportProvenance() },
-    { status: response.status, headers }
+    { status, headers }
   )
 }
 
