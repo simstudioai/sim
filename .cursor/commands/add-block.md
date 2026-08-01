@@ -917,7 +917,7 @@ Derive templates from the service's real use cases. Each prompt should name a co
 
 Adding a block on its own needs **no** regeneration — a block references existing tool IDs through `tools.access` and does not change any tool's shape.
 
-But if the same change also adds or edits a tool, run `bun run tool-metadata:generate` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI now reads those from the generated metadata rather than the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
+But if the same change also adds, edits **or removes** a tool, run `bun run tool-metadata:generate` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI now reads those from the generated metadata rather than the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
 
 ## Checklist Before Finishing
 
@@ -933,7 +933,7 @@ But if the same change also adds or edits a tool, run `bun run tool-metadata:gen
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
-- [ ] If any tool was added or changed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
+- [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

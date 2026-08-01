@@ -416,7 +416,7 @@ bun run tool-metadata:generate
 ```
 
 Client code reads `params`/`outputs` from these artifacts rather than importing
-the registry, so a new tool is invisible to the UI until they are regenerated,
+the registry, so a tool you add, change or remove is invisible to the UI until they are regenerated,
 and CI fails on stale ones. See `.agents/skills/tool-registry-boundary/SKILL.md`.
 
 ### Block Registry (`apps/sim/blocks/registry-maps.ts`)

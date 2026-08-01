@@ -297,7 +297,7 @@ bun run tool-metadata:generate
 ```
 
 Client code reads a tool's `params`/`outputs` from generated metadata rather than
-importing the registry, so a new or changed tool is invisible to the UI until
+importing the registry, so a tool you add, change or remove is invisible to the UI until
 these are regenerated — and CI fails on stale artifacts. Commit the result. See
 `.agents/skills/tool-registry-boundary/SKILL.md`.
 
