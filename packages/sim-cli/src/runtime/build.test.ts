@@ -108,3 +108,39 @@ describe('commands parsed through commander', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 })
+
+describe('pagination slot', () => {
+  it('pages a body-cursor operation and renders its rows', async () => {
+    // `queryRows` is a POST whose cursor is in the body, not the query. Reading
+    // only the query made it take the single-request path and print nothing.
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'r1' }], nextCursor: 'c1' })
+      .mockResolvedValueOnce({ data: [{ id: 'r2' }], nextCursor: null })
+    const lines: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      lines.push(line)
+    })
+
+    await program().parseAsync(['node', 'sim', 'tables', 'rows', 'query', 'tbl_1'])
+
+    expect(mockRequest).toHaveBeenCalledTimes(2)
+    // Second call resumes from the cursor — in the body, where the contract puts it.
+    expect(mockRequest.mock.calls[1][1].body).toMatchObject({ cursor: 'c1' })
+    expect(mockRequest.mock.calls[1][1].query).not.toHaveProperty('cursor')
+    // And the rows actually render rather than printing an empty record.
+    expect(JSON.parse(lines[0])).toEqual([{ id: 'r1' }, { id: 'r2' }])
+  })
+
+  it('keeps a query-cursor operation on the query slot', async () => {
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1' })
+      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await program().parseAsync(['node', 'sim', 'logs', 'list'])
+
+    expect(mockRequest.mock.calls[1][1].query).toMatchObject({ cursor: 'c1' })
+  })
+})

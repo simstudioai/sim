@@ -63,7 +63,10 @@ export function text(value: unknown): string {
 export function timestamp(value: string | null | undefined): string {
   if (!value) return EMPTY
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
+  // Sanitized on the way out: an unparseable value is echoed verbatim, and it is
+  // still server-supplied, so this branch was a way to smuggle control sequences
+  // past every other formatter.
+  if (Number.isNaN(date.getTime())) return sanitize(String(value))
   return date.toISOString().replace('T', ' ').slice(0, 19)
 }
 

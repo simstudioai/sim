@@ -96,10 +96,24 @@ function summaryFor(operation: V2OperationName): string | undefined {
   return (V2_OPERATIONS[operation] as { summary?: string }).summary
 }
 
-/** Whether the operation answers with the `{ data, nextCursor }` list envelope. */
-function isCursorList(operation: V2OperationName): boolean {
-  const spec = V2_OPERATIONS[operation] as { query?: Record<string, FieldSpec> }
-  return Boolean(spec.query && 'cursor' in spec.query)
+/**
+ * Which request slot carries the pagination cursor, or null for a non-list
+ * operation.
+ *
+ * Both slots have to be checked: most lists take `cursor` as a query param, but
+ * `queryRows` is a POST whose whole filter — cursor included — is in the body.
+ * Looking only at the query made it fall through to the single-request path,
+ * which then rendered its array of rows through `printRecord` and printed
+ * nothing at all, and never auto-paged.
+ */
+function cursorSlot(operation: V2OperationName): 'query' | 'body' | null {
+  const spec = V2_OPERATIONS[operation] as {
+    query?: Record<string, FieldSpec>
+    body?: Record<string, FieldSpec>
+  }
+  if (spec.query && 'cursor' in spec.query) return 'query'
+  if (spec.body && 'cursor' in spec.body) return 'body'
+  return null
 }
 
 /** Adds the flags a field needs, or nothing when the contract omits it. */
@@ -199,7 +213,8 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
     const { client, profile } = clientFrom(host)
     const request = buildRequest(operation, positional, flags, profile.workspaceId)
 
-    if (isCursorList(operation)) {
+    const paging = cursorSlot(operation)
+    if (paging) {
       const rawLimit = Number.parseInt(String(flags.limit ?? DEFAULT_LIMIT), 10)
       if (Number.isNaN(rawLimit) || rawLimit < 0) {
         throw new SimApiError('--limit must be a non-negative number', 0)
@@ -210,10 +225,14 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
       const rows: unknown[] = []
       let cursor: string | null = null
       do {
+        // The cursor goes back in whichever slot the contract declared it.
         const page: V2Page<unknown> = await client.request(request.path, {
           method: operationSpec.method as 'GET' | 'POST',
-          query: { ...request.query, cursor },
-          body: request.body,
+          query: paging === 'query' ? { ...request.query, cursor } : request.query,
+          body:
+            paging === 'body'
+              ? { ...(request.body ?? {}), ...(cursor ? { cursor } : {}) }
+              : request.body,
         })
         rows.push(...page.data)
         cursor = page.nextCursor
@@ -231,8 +250,10 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
     })
     const data = result?.data ?? result
 
-    if (spec.columns && Array.isArray(data)) {
-      printList(profile.output, data, columnsFrom(spec.columns))
+    if (Array.isArray(data)) {
+      // Reached when a non-paginated operation answers with a collection.
+      // `printRecord` would silently print nothing for an array.
+      printList(profile.output, data, spec.columns ? columnsFrom(spec.columns) : inferColumns(data))
       return
     }
 

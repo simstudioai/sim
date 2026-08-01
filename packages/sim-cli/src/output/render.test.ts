@@ -9,6 +9,7 @@ import {
   printRecord,
   sanitize,
   text,
+  timestamp,
   visibleWidth,
 } from './render.js'
 
@@ -236,5 +237,15 @@ describe('sanitize', () => {
 
   it('is applied to values passing through text()', () => {
     expect(text(`${ESC}]0;x\u0007safe`)).toBe('safe')
+  })
+
+  it('is applied to an unparseable timestamp, which is echoed verbatim', () => {
+    // The invalid-date branch returns the server's own string, so it was a way
+    // past every other formatter.
+    expect(timestamp(`${ESC}]0;pwned\u0007not-a-date`)).toBe('not-a-date')
+  })
+
+  it('still formats a valid timestamp normally', () => {
+    expect(timestamp('2026-07-31T09:14:22.500Z')).toBe('2026-07-31 09:14:22')
   })
 })
