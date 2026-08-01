@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -10,10 +9,14 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { checkSkillsUpdateAccess, getSkillActorContext } from '@/lib/skills/access'
+import {
+  performCreateSkill,
+  performDeleteSkill,
+  performUpdateSkill,
+  statusForSkillOrchestrationError,
+} from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
-import { deleteSkill, listSkillsForUser, upsertSkills } from '@/lib/workflows/skills/operations'
+import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SkillsAPI')
@@ -92,84 +95,75 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    if (skills.some((s) => s.id && isBuiltinSkillId(s.id))) {
-      return NextResponse.json({ error: 'Built-in skills are read-only' }, { status: 400 })
+    /**
+     * Each item is applied through the skill orchestration, which owns the
+     * built-in guard, the field limits, the per-skill editor check, and the
+     * audit. Creating still requires workspace write; editing an existing skill
+     * is gated per skill inside `performUpdateSkill`.
+     *
+     * The batch is applied item by item rather than in one transaction: this
+     * endpoint's callers submit a single skill, and one shared authority for the
+     * rules is worth more than atomicity across a batch nobody sends.
+     */
+    const actor = {
+      actorName: authResult.userName,
+      actorEmail: authResult.userEmail,
+      source,
+      request: req,
     }
 
-    // Updating an existing skill requires editor access (explicit editor row
-    // or derived workspace admin); creating a new one requires workspace write.
-    const requestedIds = skills.flatMap((s) => (s.id ? [s.id] : []))
-    const { existingIds, denied } = await checkSkillsUpdateAccess({
-      workspaceId,
-      userId,
-      skillIds: requestedIds,
-      workspaceAccess,
-    })
+    for (const item of skills) {
+      if (item.id) {
+        const result = await performUpdateSkill({
+          workspaceId,
+          userId,
+          skillId: item.id,
+          name: item.name,
+          description: item.description,
+          content: item.content,
+          ...actor,
+        })
+        if (!result.success) {
+          logger.warn(`[${requestId}] Skill update rejected`, {
+            skillId: item.id,
+            errorCode: result.errorCode,
+          })
+          return NextResponse.json(
+            { error: result.error ?? 'Failed to update skill' },
+            { status: statusForSkillOrchestrationError(result.errorCode) }
+          )
+        }
+        continue
+      }
 
-    if (denied.length > 0) {
-      logger.warn(`[${requestId}] User ${userId} is not an editor of skills being updated`, {
-        deniedSkillIds: denied.map((s) => s.id),
-      })
-      return NextResponse.json(
-        {
-          error: `Skill editor access required to update: ${denied.map((s) => s.name).join(', ')}`,
-        },
-        { status: 403 }
-      )
-    }
+      if (!workspaceAccess.canWrite) {
+        logger.warn(
+          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
+        )
+        return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
+      }
 
-    const hasCreates = skills.some((s) => !s.id || !existingIds.has(s.id))
-    if (hasCreates && !workspaceAccess.canWrite) {
-      logger.warn(
-        `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
-      )
-      return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
-    }
-
-    try {
-      const { touched } = await upsertSkills({
-        skills,
+      const result = await performCreateSkill({
         workspaceId,
         userId,
-        requestId,
-        returnSkills: false,
+        name: item.name!,
+        description: item.description!,
+        content: item.content!,
+        ...actor,
       })
-
-      for (const { id, name, operation } of touched) {
-        const isUpdate = operation === 'updated'
-        recordAudit({
-          workspaceId,
-          actorId: userId,
-          actorName: authResult.userName ?? undefined,
-          actorEmail: authResult.userEmail ?? undefined,
-          action: isUpdate ? AuditAction.SKILL_UPDATED : AuditAction.SKILL_CREATED,
-          resourceType: AuditResourceType.SKILL,
-          resourceId: id,
-          resourceName: name,
-          description: `${isUpdate ? 'Updated' : 'Created'} skill "${name}"`,
-          metadata: { source },
-        })
-        captureServerEvent(
-          userId,
-          isUpdate ? 'skill_updated' : 'skill_created',
-          { skill_id: id, skill_name: name, workspace_id: workspaceId, source },
-          { groups: { workspace: workspaceId } }
+      if (!result.success) {
+        logger.warn(`[${requestId}] Skill create rejected`, { errorCode: result.errorCode })
+        return NextResponse.json(
+          { error: result.error ?? 'Failed to create skill' },
+          { status: statusForSkillOrchestrationError(result.errorCode) }
         )
       }
-
-      const resultSkills = await listSkillsForUser({ workspaceId, userId, workspaceAccess })
-      const data = resultSkills.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
-
-      return NextResponse.json({ success: true, data })
-    } catch (upsertError) {
-      if (upsertError instanceof Error && upsertError.message.includes('is unavailable')) {
-        return NextResponse.json({ error: upsertError.message }, { status: 409 })
-      }
-      if (upsertError instanceof Error && upsertError.message.startsWith('Skill not found')) {
-        return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
-      }
-      throw upsertError
     }
+
+    const resultSkills = await listSkillsForUser({ workspaceId, userId, workspaceAccess })
+    const data = resultSkills.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
+
+    return NextResponse.json({ success: true, data })
   } catch (error) {
     logger.error(`[${requestId}] Error updating skills`, error)
     return NextResponse.json({ error: 'Failed to update skills' }, { status: 500 })
@@ -200,42 +194,25 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
     const { id: skillId, workspaceId, source } = query.data
 
-    if (!isBuiltinSkillId(skillId)) {
-      const actor = await getSkillActorContext(skillId, userId)
-      if (!actor.skill || actor.skill.workspaceId !== workspaceId || !actor.hasWorkspaceAccess) {
-        logger.warn(`[${requestId}] Skill not found: ${skillId}`)
-        return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
-      }
-      if (!actor.canEdit) {
-        logger.warn(`[${requestId}] User ${userId} is not an editor of skill ${skillId}`)
-        return NextResponse.json({ error: 'Skill editor access required' }, { status: 403 })
-      }
-    }
-
-    const deleted = await deleteSkill({ skillId, workspaceId })
-    if (!deleted) {
-      logger.warn(`[${requestId}] Skill not found: ${skillId}`)
-      return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
-    }
-
-    recordAudit({
+    const result = await performDeleteSkill({
       workspaceId,
-      actorId: authResult.userId,
-      actorName: authResult.userName ?? undefined,
-      actorEmail: authResult.userEmail ?? undefined,
-      action: AuditAction.SKILL_DELETED,
-      resourceType: AuditResourceType.SKILL,
-      resourceId: skillId,
-      description: `Deleted skill`,
-      metadata: { source },
-    })
-
-    captureServerEvent(
       userId,
-      'skill_deleted',
-      { skill_id: skillId, workspace_id: workspaceId, source },
-      { groups: { workspace: workspaceId } }
-    )
+      skillId,
+      actorName: authResult.userName,
+      actorEmail: authResult.userEmail,
+      source,
+      request,
+    })
+    if (!result.success) {
+      logger.warn(`[${requestId}] Skill delete rejected`, {
+        skillId,
+        errorCode: result.errorCode,
+      })
+      return NextResponse.json(
+        { error: result.error ?? 'Failed to delete skill' },
+        { status: statusForSkillOrchestrationError(result.errorCode) }
+      )
+    }
 
     logger.info(`[${requestId}] Deleted skill: ${skillId}`)
     return NextResponse.json({ success: true })
