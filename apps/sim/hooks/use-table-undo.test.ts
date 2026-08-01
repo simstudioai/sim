@@ -248,8 +248,7 @@ describe('useTableUndo – restoring a deleted select column', () => {
     columnPosition: 0,
     columnUnique: false,
     columnRequired: false,
-    columnOptions: [{ id: 'opt_open', name: 'Open' }],
-    columnMultiple: true,
+    columnMetadata: { options: [{ id: 'opt_open', name: 'Open' }], multiple: true },
     cellData: [],
     previousOrder: null,
     previousWidth: null,
@@ -270,5 +269,23 @@ describe('useTableUndo – restoring a deleted select column', () => {
     expect(payload.options).toEqual([{ id: 'opt_open', name: 'Open' }])
     expect(payload.multiple).toBe(true)
     expect(payload.id).toBe('col_status')
+  })
+
+  it('restores EVERY type-specific key, not a hand-listed subset', () => {
+    // The snapshot used to carry one flattened field per key, so each new
+    // metadata key was silently dropped by undo until someone remembered to
+    // add it. It now captures `typeMetadataOf(column)` whole.
+    const currencyAction: TableUndoAction = {
+      ...selectAction,
+      columnName: 'amount',
+      columnId: 'col_amount',
+      columnType: 'currency' as const,
+      columnMetadata: { currencyCode: 'EUR' },
+    }
+    mockPopUndo.mockReturnValueOnce(makeEntry(currencyAction))
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+
+    expect(mockMutate.mock.calls[0][0].currencyCode).toBe('EUR')
   })
 })
