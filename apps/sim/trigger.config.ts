@@ -48,7 +48,7 @@ const grafanaTelemetry = grafanaFullyConfigured
 
 export default defineConfig({
   project: env.TRIGGER_PROJECT_ID!,
-  runtime: 'node-22',
+  runtime: 'node-24',
   logLevel: 'log',
   maxDuration: 5400,
   retries: {

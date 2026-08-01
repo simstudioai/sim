@@ -355,28 +355,15 @@
   border-radius: 4px;
 }
 
+/* Borders, padding, typography, and header fill come from document-table.css — the chrome shared
+   with the CSV/XLSX previews. Only the editor-specific bits live here: `table-layout: fixed` is
+   required by prosemirror-tables' column-resizing plugin, the block margin is prose rhythm, and
+   `overflow: visible` lets a collaborator's caret name label escape the table box instead of being
+   clipped (fixed layout means columns can't exceed the table width, so nothing else needs clipping). */
 .rich-markdown-prose table {
-  width: 100%;
-  border-collapse: collapse;
   table-layout: fixed;
   margin: 1rem 0;
-  overflow: hidden;
-}
-
-.rich-markdown-prose th,
-.rich-markdown-prose td {
-  position: relative;
-  border: 1px solid var(--divider);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  vertical-align: top;
-  font-size: 14px;
-  line-height: 1.5rem;
-}
-
-.rich-markdown-prose th {
-  background: var(--surface-4);
-  font-weight: 600;
+  overflow: visible;
 }
 
 .rich-markdown-prose th > p,
@@ -453,4 +440,123 @@
 
 .rich-markdown-field-prose p.is-editor-empty:first-child::before {
   color: var(--text-muted);
+}
+
+/*
+ * Collaborative carets (TipTap CollaborationCaret). The caret bar and the name
+ * label's background are colored inline from each collaborator's identity color
+ * (the same `getUserColor` mechanism the canvas cursors use); the selection is a
+ * translucent tint of that color (set via selectionRender). The name label shows
+ * while the peer is active (JS toggles `--active` on each awareness change) or on
+ * hover, then fades after inactivity — matching Google Docs. `z-index` lifts the
+ * caret (and its label) above table cell backgrounds so a caret inside a table
+ * cell is not hidden behind adjacent cells.
+ */
+.rich-markdown-prose .collaboration-carets__caret {
+  /* Zero inline footprint: a positioned anchor with NO width/border/margin, so inserting or moving this
+   * inline widget never reflows the surrounding text. The visible bar, dormant cap (::before), name label,
+   * and hover slop (::after) are all positioned relative to this anchor and are out of the inline flow. */
+  position: relative;
+  word-break: normal;
+  z-index: 20;
+}
+
+/* The visible caret bar — absolutely positioned so it draws over the text without occupying inline
+ * width. `left: -1px` centers the 2px bar on the cursor position; top/bottom span the line box height. */
+.rich-markdown-prose .collaboration-carets__bar {
+  position: absolute;
+  top: -0.1em;
+  bottom: -0.1em;
+  left: -1px;
+  width: 2px;
+  background-color: var(--caret-color);
+  pointer-events: none;
+}
+
+/* Dormant affordance: a small cap at the top of the caret in the collaborator's color,
+ * shaped like a collapsed presence name tag (same `rounded-xs` + notch corner as the
+ * tables/canvas tags) so the whole presence system reads as one language. It signals
+ * "someone's here — hover for who", and fades out when the full name tag takes over
+ * (peer active or on hover). */
+.rich-markdown-prose .collaboration-carets__caret::before {
+  content: "";
+  position: absolute;
+  /* Seat the cap's square bottom-left corner on the pole's top-left, flush like a flag on its pole.
+   * `left: -1px` matches the bar's `left: -1px` so the cap's left edge lines up with the bar's left edge;
+   * `top` overlaps the bar's top a hair so the notch reads as continuous, no gap. */
+  top: -2px;
+  left: -1px;
+  width: 8px;
+  height: 5px;
+  border-radius: 2px 2px 2px 0;
+  background-color: var(--caret-color);
+  transition: opacity 0.2s ease;
+}
+
+.rich-markdown-prose .collaboration-carets__caret--active::before,
+.rich-markdown-prose .collaboration-carets__caret:hover::before {
+  opacity: 0;
+}
+
+/* Transparent hover hit-slop. The visible caret bar is only ~2px wide and the dormant cap is
+ * 8×5px, so "hover for who" (revealing the name label on a dormant caret) would be near
+ * impossible to trigger. This invisible strip widens the hover target across the caret's full
+ * height and over the cap — nothing visible changes, only the pointer area. `pointer-events:
+ * auto` is required so it catches the hover; kept narrow so it barely intrudes on selecting
+ * text next to a remote caret. */
+.rich-markdown-prose .collaboration-carets__caret::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+  pointer-events: auto;
+}
+
+/* Matches the canvas cursor name tag (cursors.tsx): identity-color background with
+ * `--surface-1` text at `text-xs`/`font-medium`, so both presence surfaces read as
+ * one system. `--surface-1` is the base surface token (readable on every assigned
+ * identity color in both themes), not a hardcoded value. Hidden by default; the
+ * show/fade is driven by the `--active` class (see caret-presence.ts) and hover. */
+.rich-markdown-prose .collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  max-width: 10rem;
+  overflow: hidden;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px 2px 2px 0;
+  /* 11px = the `text-xs` the canvas/tables presence tags use, for pixel parity. */
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background-color: var(--caret-color);
+  color: var(--surface-1);
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.rich-markdown-prose .collaboration-carets__caret--active .collaboration-carets__label,
+.rich-markdown-prose .collaboration-carets__caret:hover .collaboration-carets__label {
+  opacity: 1;
+}
+
+/* Near the editor's right edge the label is flipped to the caret's left so it never
+ * runs off (JS toggles `--flip` after measuring); mirror the tag's notch corner. */
+.rich-markdown-prose .collaboration-carets__caret--flip .collaboration-carets__label {
+  left: auto;
+  right: -1px;
+  border-radius: 2px 2px 0 2px;
+}
+
+/* Remote text selection: a rounded translucent tint of the collaborator's identity
+ * color (the alpha fill is set inline by selectionRender). */
+.rich-markdown-prose .collaboration-carets__selection {
+  border-radius: 2px;
+  pointer-events: none;
 }

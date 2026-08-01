@@ -164,7 +164,47 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     contextInformationAvailable: false,
-    models: [],
+    /**
+     * Static Fireworks serverless entries: the sim-auto routing pool. These are
+     * hosted-billable (platform FIREWORKS_API_KEY) and priced at the Fireworks
+     * serverless rate, which differs from the vendors' native rates. Text-only:
+     * the Fireworks serving endpoints reject image inputs. User-configured
+     * `fireworks/<anything-else>` ids remain dynamic/BYO-key as before.
+     */
+    models: [
+      {
+        id: 'fireworks/glm-5.2',
+        pricing: {
+          input: 1.4,
+          cachedInput: 0.14,
+          output: 4.4,
+          updatedAt: '2026-07-29',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-06-13',
+        recommended: true,
+      },
+      {
+        id: 'fireworks/kimi-k3',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-07-29',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 1048576,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-16',
+        recommended: true,
+      },
+    ],
   },
   together: {
     id: 'together',
@@ -4037,6 +4077,19 @@ export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): str
     .slice(0, limit)
 }
 
+/**
+ * Pseudo-model id for the agent block's automatic model. Not a real catalog
+ * entry: at execution time the resolver (lib/model-router) classifies the task
+ * via mothership and swaps in a concrete model from the hosted Fireworks pool
+ * before any provider/pricing lookup runs. Hosted Sim only.
+ */
+export const SIM_AUTO_MODEL_ID = 'sim-auto'
+
+/** True when the configured model is the sim-auto pseudo-model. */
+export function isAutoModel(model: string): boolean {
+  return model.trim().toLowerCase() === SIM_AUTO_MODEL_ID
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
     .filter(
@@ -4166,6 +4219,11 @@ export function getHostedModels(): string[] {
     ...getProviderModels('zai'),
     ...getProviderModels('xai'),
     ...getProviderModels('kimi'),
+    // The STATIC Fireworks catalog only (the sim-auto pool, platform key) —
+    // deliberately not the live provider list, which `updateFireworksModels`
+    // merges a workspace's own dynamic ids into. Those must never enter the
+    // hosted set: it gates both billing and the platform-key handout.
+    ...STATIC_FIREWORKS_MODELS.map((model) => model.id),
   ]
 }
 
@@ -4231,16 +4289,31 @@ export function updateLiteLLMModels(models: string[]): void {
   }))
 }
 
+/**
+ * The static Fireworks catalog (the hosted sim-auto pool), captured at module
+ * load before any dynamic sync runs. Hosted billing, pricing, and the agent
+ * block's API-key condition all key on these ids, so a workspace's own
+ * Fireworks models are merged on top of them rather than replacing them —
+ * unlike the other dynamic providers, whose static list is empty.
+ */
+const STATIC_FIREWORKS_MODELS = PROVIDER_DEFINITIONS.fireworks.models
+
 export function updateFireworksModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.fireworks.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  const staticIds = new Set(STATIC_FIREWORKS_MODELS.map((model) => model.id.toLowerCase()))
+  PROVIDER_DEFINITIONS.fireworks.models = [
+    ...STATIC_FIREWORKS_MODELS,
+    ...models
+      .filter((modelId) => !staticIds.has(modelId.toLowerCase()))
+      .map((modelId) => ({
+        id: modelId,
+        pricing: {
+          input: 0,
+          output: 0,
+          updatedAt: new Date().toISOString().split('T')[0],
+        },
+        capabilities: {},
+      })),
+  ]
 }
 
 export function updateTogetherModels(models: string[]): void {

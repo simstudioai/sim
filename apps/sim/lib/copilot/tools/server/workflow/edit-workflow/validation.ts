@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
+import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
@@ -16,7 +17,7 @@ import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
-import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
@@ -557,6 +558,12 @@ export function validateValueForSubBlockType(
       if (usesProviderCatalog) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
+        // sim-auto is a valid model value on hosted Sim only (mirrors the
+        // options array the agent reads: it is absent from self-hosted
+        // snapshots, so writes of it there are rejected as unknown).
+        if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
+          return { valid: true, value: trimmed.toLowerCase() }
+        }
         if (trimmed !== '' && !isKnownModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =

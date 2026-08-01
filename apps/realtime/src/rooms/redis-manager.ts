@@ -1,140 +1,154 @@
 import { createLogger } from '@sim/logger'
+import {
+  presenceEventName,
+  type RoomRef,
+  type RoomType,
+  roomName,
+} from '@sim/realtime-protocol/rooms'
 import { createClient, type RedisClientType } from 'redis'
 import type { Server } from 'socket.io'
+import { filterVisiblePresence } from '@/rooms/presence-visibility'
 import type { IRoomManager, UserPresence, UserSession } from '@/rooms/types'
 
 const logger = createLogger('RedisRoomManager')
 
+/**
+ * Redis key scheme (all room-scoped keys are prefixed by room type):
+ *   {type}:{id}:users        HASH  socketId -> UserPresence JSON  (room membership)
+ *   {type}:{id}:meta         HASH  room metadata (lastModified)
+ *   socket:{sid}:rooms       HASH  roomType -> roomId  (the socket's rooms, one per type)
+ *   socket:{sid}:session     HASH  userId/userName/avatarUrl  (shared across the socket's rooms)
+ *
+ * Workflow rooms keep their historical `workflow:{id}:users`/`:meta` keys (the
+ * type prefix IS `workflow`), so no presence-state migration is needed for them.
+ */
 const KEYS = {
-  workflowUsers: (wfId: string) => `workflow:${wfId}:users`,
-  workflowMeta: (wfId: string) => `workflow:${wfId}:meta`,
-  socketWorkflow: (socketId: string) => `socket:${socketId}:workflow`,
+  roomUsers: (room: RoomRef) => `${room.type}:${room.id}:users`,
+  roomMeta: (room: RoomRef) => `${room.type}:${room.id}:meta`,
+  socketRooms: (socketId: string) => `socket:${socketId}:rooms`,
   socketSession: (socketId: string) => `socket:${socketId}:session`,
-  socketPresenceWorkflow: (socketId: string) => `socket:${socketId}:presence-workflow`,
 } as const
 
-const SOCKET_KEY_TTL = 3600
-const SOCKET_PRESENCE_WORKFLOW_KEY_TTL = 24 * 60 * 60
+/** TTL for the socket's room-set. Long enough that an idle-but-connected socket is not evicted. */
+const SOCKET_ROOMS_TTL = 24 * 60 * 60
+/**
+ * The shared session key MUST share the room-set TTL. `getRoomForSocket` reads the room-set and the
+ * workflow handlers gate edits/presence on `room && session`, so a session that expired while the
+ * room-set is still alive would wedge an active-but-idle collaborator into "session expired" until a
+ * full reload — the activity update only `EXPIRE`s the session, which cannot resurrect an
+ * already-gone key (only `addUserToRoom` re-`HSET`s it). Both are refreshed together on every
+ * activity, so they expire together.
+ */
+const SESSION_TTL = SOCKET_ROOMS_TTL
 
 /**
- * Lua script for atomic user removal from room.
- * The hint, when provided, is the target room to remove membership from; the
- * socket's current mapping is only the fallback. Socket-level keys are cleared
- * only when the socket is not mapped to a different room, so removing a stale
- * room cannot destroy the mapping of a room the socket has since moved to.
- * Returns the target workflowId, or null when no target could be resolved.
- * Handles room cleanup atomically to prevent race conditions.
+ * Atomic single-room removal. Removes a socket from one room's presence, drops
+ * the room from the socket's room-set, and — critically — deletes the SHARED
+ * session key only when the socket has left its LAST room (otherwise a leave from
+ * one room would break the socket's other rooms). Cleans up empty room state.
+ *
+ * KEYS: [socketRooms, socketSession, roomUsers, roomMeta]
+ * ARGV: [roomType, socketId, roomId]
+ * Returns 1 if the socket was a member of the room, else 0.
  */
-const REMOVE_USER_SCRIPT = `
-local socketWorkflowKey = KEYS[1]
+const REMOVE_ROOM_SCRIPT = `
+local socketRoomsKey = KEYS[1]
 local socketSessionKey = KEYS[2]
-local socketPresenceWorkflowKey = KEYS[3]
-local workflowUsersPrefix = ARGV[1]
-local workflowMetaPrefix = ARGV[2]
-local socketId = ARGV[3]
-local workflowIdHint = ARGV[4]
+local roomUsersKey = KEYS[3]
+local roomMetaKey = KEYS[4]
+local roomType = ARGV[1]
+local socketId = ARGV[2]
+local roomId = ARGV[3]
 
-local currentWorkflowId = redis.call('GET', socketWorkflowKey)
-if not currentWorkflowId then
-  currentWorkflowId = redis.call('GET', socketPresenceWorkflowKey)
+local removed = redis.call('HDEL', roomUsersKey, socketId)
+
+-- Only drop the socket's mapping for this type if it points at THIS room, so
+-- removing a room the socket isn't in can't wipe a different room's mapping or
+-- spuriously trigger the last-room session cleanup (mirrors the memory manager).
+if redis.call('HGET', socketRoomsKey, roomType) == roomId then
+  redis.call('HDEL', socketRoomsKey, roomType)
+  if redis.call('HLEN', socketRoomsKey) == 0 then
+    redis.call('DEL', socketRoomsKey, socketSessionKey)
+  end
 end
 
-local workflowId = currentWorkflowId
-if workflowIdHint ~= '' then
-  workflowId = workflowIdHint
+if redis.call('HLEN', roomUsersKey) == 0 then
+  redis.call('DEL', roomUsersKey, roomMetaKey)
 end
 
-if not workflowId then
-  return nil
-end
-
-local workflowUsersKey = workflowUsersPrefix .. workflowId .. ':users'
-local workflowMetaKey = workflowMetaPrefix .. workflowId .. ':meta'
-
-redis.call('HDEL', workflowUsersKey, socketId)
-
-if (not currentWorkflowId) or currentWorkflowId == workflowId then
-  redis.call('DEL', socketWorkflowKey, socketSessionKey, socketPresenceWorkflowKey)
-end
-
-local remaining = redis.call('HLEN', workflowUsersKey)
-if remaining == 0 then
-  redis.call('DEL', workflowUsersKey, workflowMetaKey)
-end
-
-return workflowId
+return removed
 `
 
 /**
- * Lua script for atomic user activity update.
- * Performs read-modify-write atomically to prevent lost updates.
- * Also refreshes TTL on socket keys to prevent expiry during long sessions.
+ * Atomic presence-activity update (read-modify-write) that also refreshes the
+ * socket key TTLs to keep a long-lived session alive.
+ *
+ * KEYS: [roomUsers, socketRooms, socketSession]
+ * ARGV: [socketId, cursorJson, selectionJson, lastActivity, roomsTtl, sessionTtl, cellJson]
+ * Returns 1 if the socket had presence in the room, else 0.
  */
 const UPDATE_ACTIVITY_SCRIPT = `
-local workflowUsersKey = KEYS[1]
-local socketWorkflowKey = KEYS[2]
+local roomUsersKey = KEYS[1]
+local socketRoomsKey = KEYS[2]
 local socketSessionKey = KEYS[3]
-local socketPresenceWorkflowKey = KEYS[4]
 local socketId = ARGV[1]
 local cursorJson = ARGV[2]
 local selectionJson = ARGV[3]
 local lastActivity = ARGV[4]
-local ttl = tonumber(ARGV[5])
-local presenceWorkflowTtl = tonumber(ARGV[6])
+local roomsTtl = tonumber(ARGV[5])
+local sessionTtl = tonumber(ARGV[6])
+local cellJson = ARGV[7]
 
-local existingJson = redis.call('HGET', workflowUsersKey, socketId)
+local existingJson = redis.call('HGET', roomUsersKey, socketId)
 if not existingJson then
   return 0
 end
 
 local existing = cjson.decode(existingJson)
-
 if cursorJson ~= '' then
   existing.cursor = cjson.decode(cursorJson)
 end
 if selectionJson ~= '' then
   existing.selection = cjson.decode(selectionJson)
 end
+if cellJson ~= '' then
+  existing.cell = cjson.decode(cellJson)
+end
 existing.lastActivity = tonumber(lastActivity)
 
-redis.call('HSET', workflowUsersKey, socketId, cjson.encode(existing))
-redis.call('EXPIRE', socketWorkflowKey, ttl)
-redis.call('EXPIRE', socketSessionKey, ttl)
-redis.call('EXPIRE', socketPresenceWorkflowKey, presenceWorkflowTtl)
+redis.call('HSET', roomUsersKey, socketId, cjson.encode(existing))
+redis.call('EXPIRE', socketRoomsKey, roomsTtl)
+redis.call('EXPIRE', socketSessionKey, sessionTtl)
 return 1
 `
 
 /**
- * Redis-backed room manager for multi-pod deployments.
- * Uses Lua scripts for atomic operations to prevent race conditions.
+ * Redis-backed room manager for multi-pod deployments. Domain-neutral: keyed by
+ * {@link RoomRef}, supports a socket in multiple rooms (one per {@link RoomType}).
+ * Uses Lua scripts for atomic multi-key operations.
  */
 export class RedisRoomManager implements IRoomManager {
   private redis: RedisClientType
   private _io: Server
   private isConnected = false
-  private removeUserScriptSha: string | null = null
+  private removeRoomScriptSha: string | null = null
   private updateActivityScriptSha: string | null = null
 
   constructor(io: Server, redisUrl: string) {
     this._io = io
-    this.redis = createClient({
-      url: redisUrl,
-    })
+    this.redis = createClient({ url: redisUrl })
 
     this.redis.on('error', (err) => {
       logger.error('Redis client error:', err)
     })
-
     this.redis.on('reconnecting', () => {
       logger.warn('Redis client reconnecting...')
       this.isConnected = false
     })
-
     this.redis.on('ready', () => {
       logger.info('Redis client ready')
       this.isConnected = true
     })
-
     this.redis.on('end', () => {
       logger.warn('Redis client connection closed')
       this.isConnected = false
@@ -146,7 +160,14 @@ export class RedisRoomManager implements IRoomManager {
   }
 
   isReady(): boolean {
-    return this.isConnected
+    // Gate on the loaded script SHAs, not just the connection: the `ready` event flips
+    // `isConnected` true as soon as the socket connects — before `initialize()` loads the Lua
+    // scripts — so a bare `isConnected` check would report ready while `removeUserFromRoom` /
+    // `updateUserActivity` would silently no-op on a null SHA. Reporting not-ready here makes the
+    // POST endpoints return a retryable 503 during that startup window instead.
+    return (
+      this.isConnected && this.removeRoomScriptSha !== null && this.updateActivityScriptSha !== null
+    )
   }
 
   async initialize(): Promise<void> {
@@ -154,14 +175,18 @@ export class RedisRoomManager implements IRoomManager {
 
     try {
       await this.redis.connect()
-      this.isConnected = true
 
-      // Pre-load Lua scripts for better performance
-      this.removeUserScriptSha = await this.redis.scriptLoad(REMOVE_USER_SCRIPT)
+      this.removeRoomScriptSha = await this.redis.scriptLoad(REMOVE_ROOM_SCRIPT)
       this.updateActivityScriptSha = await this.redis.scriptLoad(UPDATE_ACTIVITY_SCRIPT)
+
+      // Mark ready only after the scripts load — isReady() gates removeUserFromRoom/updateUserActivity,
+      // which silently no-op without a script SHA. Setting the flag before scriptLoad would make
+      // isReady() lie if scriptLoad threw.
+      this.isConnected = true
 
       logger.info('RedisRoomManager connected to Redis and scripts loaded')
     } catch (error) {
+      this.isConnected = false
       logger.error('Failed to connect to Redis:', error)
       throw error
     }
@@ -169,7 +194,6 @@ export class RedisRoomManager implements IRoomManager {
 
   async shutdown(): Promise<void> {
     if (!this.isConnected) return
-
     try {
       await this.redis.quit()
       this.isConnected = false
@@ -179,93 +203,102 @@ export class RedisRoomManager implements IRoomManager {
     }
   }
 
-  async addUserToRoom(workflowId: string, socketId: string, presence: UserPresence): Promise<void> {
+  async addUserToRoom(room: RoomRef, socketId: string, presence: UserPresence): Promise<void> {
     try {
       const pipeline = this.redis.multi()
 
-      pipeline.hSet(KEYS.workflowUsers(workflowId), socketId, JSON.stringify(presence))
-      pipeline.hSet(KEYS.workflowMeta(workflowId), 'lastModified', Date.now().toString())
-      pipeline.set(KEYS.socketWorkflow(socketId), workflowId)
-      pipeline.expire(KEYS.socketWorkflow(socketId), SOCKET_KEY_TTL)
-      pipeline.set(KEYS.socketPresenceWorkflow(socketId), workflowId)
-      pipeline.expire(KEYS.socketPresenceWorkflow(socketId), SOCKET_PRESENCE_WORKFLOW_KEY_TTL)
+      pipeline.hSet(KEYS.roomUsers(room), socketId, JSON.stringify(presence))
+      pipeline.hSet(KEYS.roomMeta(room), 'lastModified', Date.now().toString())
+      pipeline.hSet(KEYS.socketRooms(socketId), room.type, room.id)
+      pipeline.expire(KEYS.socketRooms(socketId), SOCKET_ROOMS_TTL)
       pipeline.hSet(KEYS.socketSession(socketId), {
         userId: presence.userId,
         userName: presence.userName,
         avatarUrl: presence.avatarUrl || '',
       })
-      pipeline.expire(KEYS.socketSession(socketId), SOCKET_KEY_TTL)
+      pipeline.expire(KEYS.socketSession(socketId), SESSION_TTL)
 
       const results = await pipeline.exec()
 
-      // Check if any command failed
       const failed = results.some((result) => result instanceof Error)
       if (failed) {
-        logger.error(`Pipeline partially failed when adding user to room`, { workflowId, socketId })
+        logger.error('Pipeline partially failed when adding user to room', {
+          room,
+          socketId,
+        })
         throw new Error('Failed to store user session data in Redis')
       }
 
-      logger.debug(`Added user ${presence.userId} to workflow ${workflowId} (socket: ${socketId})`)
+      logger.debug(`Added user ${presence.userId} to room ${room.type}:${room.id} (${socketId})`)
     } catch (error) {
-      logger.error(`Failed to add user to room: ${socketId} -> ${workflowId}`, error)
+      logger.error(`Failed to add user to room: ${socketId} -> ${room.type}:${room.id}`, error)
       throw error
     }
   }
 
-  async removeUserFromRoom(
-    socketId: string,
-    workflowIdHint?: string,
-    retried = false
-  ): Promise<string | null> {
-    if (!this.removeUserScriptSha) {
+  async removeUserFromRoom(room: RoomRef, socketId: string, retried = false): Promise<boolean> {
+    if (!this.removeRoomScriptSha) {
       logger.error('removeUserFromRoom called before initialize()')
-      return null
+      return false
     }
 
     try {
-      const workflowId = await this.redis.evalSha(this.removeUserScriptSha, {
+      const removed = await this.redis.evalSha(this.removeRoomScriptSha, {
         keys: [
-          KEYS.socketWorkflow(socketId),
+          KEYS.socketRooms(socketId),
           KEYS.socketSession(socketId),
-          KEYS.socketPresenceWorkflow(socketId),
+          KEYS.roomUsers(room),
+          KEYS.roomMeta(room),
         ],
-        arguments: ['workflow:', 'workflow:', socketId, workflowIdHint ?? ''],
+        arguments: [room.type, socketId, room.id],
       })
-
-      if (typeof workflowId === 'string' && workflowId.length > 0) {
-        logger.debug(`Removed socket ${socketId} from workflow ${workflowId}`)
-        return workflowId
-      }
-
-      return null
+      return typeof removed === 'number' ? removed > 0 : Number(removed) > 0
     } catch (error) {
       if ((error as Error).message?.includes('NOSCRIPT') && !retried) {
         logger.warn('Lua script not found, reloading...')
-        this.removeUserScriptSha = await this.redis.scriptLoad(REMOVE_USER_SCRIPT)
-        return this.removeUserFromRoom(socketId, workflowIdHint, true)
+        this.removeRoomScriptSha = await this.redis.scriptLoad(REMOVE_ROOM_SCRIPT)
+        return this.removeUserFromRoom(room, socketId, true)
       }
-      logger.error(`Failed to remove user from room: ${socketId}`, error)
-      return null
+      logger.error(`Failed to remove socket ${socketId} from room ${room.type}:${room.id}`, error)
+      return false
     }
   }
 
-  async getWorkflowIdForSocket(socketId: string): Promise<string | null> {
-    const workflowId = await this.redis.get(KEYS.socketWorkflow(socketId))
-    if (workflowId) {
-      return workflowId
+  async removeSocketFromAllRooms(socketId: string): Promise<RoomRef[]> {
+    const rooms = await this.getRoomsForSocket(socketId)
+    if (rooms.length === 0) {
+      // Nothing tracked (already cleaned up or TTL-expired); ensure session is gone.
+      await this.redis.del(KEYS.socketSession(socketId)).catch(() => {})
+      return []
     }
 
-    return this.redis.get(KEYS.socketPresenceWorkflow(socketId))
+    const removed: RoomRef[] = []
+    for (const room of rooms) {
+      const wasMember = await this.removeUserFromRoom(room, socketId)
+      if (wasMember) removed.push(room)
+    }
+    return removed
+  }
+
+  async getRoomsForSocket(socketId: string): Promise<RoomRef[]> {
+    try {
+      const entries = await this.redis.hGetAll(KEYS.socketRooms(socketId))
+      return Object.entries(entries).map(([type, id]) => ({ type: type as RoomType, id }))
+    } catch (error) {
+      logger.error(`Failed to get rooms for socket ${socketId}:`, error)
+      return []
+    }
+  }
+
+  async getRoomForSocket(socketId: string, type: RoomType): Promise<RoomRef | null> {
+    const id = await this.redis.hGet(KEYS.socketRooms(socketId), type)
+    return id ? { type, id } : null
   }
 
   async getUserSession(socketId: string): Promise<UserSession | null> {
     try {
       const session = await this.redis.hGetAll(KEYS.socketSession(socketId))
-
-      if (!session.userId) {
-        return null
-      }
-
+      if (!session.userId) return null
       return {
         userId: session.userId,
         userName: session.userName,
@@ -277,34 +310,54 @@ export class RedisRoomManager implements IRoomManager {
     }
   }
 
-  async getWorkflowUsers(workflowId: string): Promise<UserPresence[]> {
+  /**
+   * Reads and parses the room roster. Throws on a transport error (so a caller can
+   * distinguish "genuinely empty" from "read failed"); a single corrupted entry is
+   * skipped, not fatal.
+   */
+  private async readRoomUsers(room: RoomRef): Promise<UserPresence[]> {
+    const users = await this.redis.hGetAll(KEYS.roomUsers(room))
+    return Object.entries(users)
+      .map(([socketId, json]) => {
+        try {
+          return JSON.parse(json) as UserPresence
+        } catch {
+          logger.warn(`Corrupted user data for socket ${socketId}, skipping`)
+          return null
+        }
+      })
+      .filter((u): u is UserPresence => u !== null)
+  }
+
+  async getRoomUsers(room: RoomRef): Promise<UserPresence[]> {
     try {
-      const users = await this.redis.hGetAll(KEYS.workflowUsers(workflowId))
-      return Object.entries(users)
-        .map(([socketId, json]) => {
-          try {
-            return JSON.parse(json) as UserPresence
-          } catch {
-            logger.warn(`Corrupted user data for socket ${socketId}, skipping`)
-            return null
-          }
-        })
-        .filter((u): u is UserPresence => u !== null)
+      return await this.readRoomUsers(room)
     } catch (error) {
-      logger.error(`Failed to get workflow users for ${workflowId}:`, error)
+      logger.error(`Failed to get room users for ${room.type}:${room.id}:`, error)
       return []
     }
   }
 
-  async hasWorkflowRoom(workflowId: string): Promise<boolean> {
-    const exists = await this.redis.exists(KEYS.workflowUsers(workflowId))
+  async hasRoom(room: RoomRef): Promise<boolean> {
+    const exists = await this.redis.exists(KEYS.roomUsers(room))
     return exists > 0
   }
 
+  async deleteRoom(room: RoomRef): Promise<void> {
+    // Log AND rethrow (like addUserToRoom): a failed wipe must not be reported as a
+    // clean deletion by the caller — the request surfaces it (and can be retried).
+    try {
+      await this.redis.del([KEYS.roomUsers(room), KEYS.roomMeta(room)])
+    } catch (error) {
+      logger.error(`Failed to delete room ${room.type}:${room.id}:`, error)
+      throw error
+    }
+  }
+
   async updateUserActivity(
-    workflowId: string,
+    room: RoomRef,
     socketId: string,
-    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'lastActivity'>>,
+    updates: Partial<Pick<UserPresence, 'cursor' | 'selection' | 'cell' | 'lastActivity'>>,
     retried = false
   ): Promise<void> {
     if (!this.updateActivityScriptSha) {
@@ -314,155 +367,64 @@ export class RedisRoomManager implements IRoomManager {
 
     try {
       await this.redis.evalSha(this.updateActivityScriptSha, {
-        keys: [
-          KEYS.workflowUsers(workflowId),
-          KEYS.socketWorkflow(socketId),
-          KEYS.socketSession(socketId),
-          KEYS.socketPresenceWorkflow(socketId),
-        ],
+        keys: [KEYS.roomUsers(room), KEYS.socketRooms(socketId), KEYS.socketSession(socketId)],
         arguments: [
           socketId,
           updates.cursor !== undefined ? JSON.stringify(updates.cursor) : '',
           updates.selection !== undefined ? JSON.stringify(updates.selection) : '',
           (updates.lastActivity ?? Date.now()).toString(),
-          SOCKET_KEY_TTL.toString(),
-          SOCKET_PRESENCE_WORKFLOW_KEY_TTL.toString(),
+          SOCKET_ROOMS_TTL.toString(),
+          SESSION_TTL.toString(),
+          // Trailing arg (ARGV[7]) so existing indices stay stable. `null` (cleared
+          // selection) serializes to 'null'; `undefined` (no cell change) to '' (skip).
+          updates.cell !== undefined ? JSON.stringify(updates.cell) : '',
         ],
       })
     } catch (error) {
       if ((error as Error).message?.includes('NOSCRIPT') && !retried) {
         logger.warn('Lua script not found, reloading...')
         this.updateActivityScriptSha = await this.redis.scriptLoad(UPDATE_ACTIVITY_SCRIPT)
-        return this.updateUserActivity(workflowId, socketId, updates, true)
+        return this.updateUserActivity(room, socketId, updates, true)
       }
       logger.error(`Failed to update user activity: ${socketId}`, error)
     }
   }
 
-  async updateRoomLastModified(workflowId: string): Promise<void> {
-    await this.redis.hSet(KEYS.workflowMeta(workflowId), 'lastModified', Date.now().toString())
+  async updateRoomLastModified(room: RoomRef): Promise<void> {
+    await this.redis.hSet(KEYS.roomMeta(room), 'lastModified', Date.now().toString())
   }
 
-  async broadcastPresenceUpdate(workflowId: string): Promise<void> {
-    const users = await this.getWorkflowUsers(workflowId)
-    // io.to() with Redis adapter broadcasts to all pods
-    this._io.to(workflowId).emit('presence-update', users)
+  async broadcastPresenceUpdate(room: RoomRef, excludeSocketId?: string): Promise<void> {
+    let users: UserPresence[]
+    try {
+      // Read via the throwing variant, NOT getRoomUsers: a transport error there returns `[]`, which
+      // would broadcast an empty roster and clear every remaining collaborator's presence until the
+      // next healthy update. Skip instead — the next successful join/activity broadcast (or the
+      // stale sweep) reconciles peers.
+      users = await this.readRoomUsers(room)
+    } catch (error) {
+      logger.error(
+        `Skipping presence broadcast for ${room.type}:${room.id} (roster read failed):`,
+        error
+      )
+      return
+    }
+    const visible = await filterVisiblePresence(this._io, room, users, excludeSocketId)
+    // io.to() with the Redis adapter broadcasts to all pods.
+    this._io.to(roomName(room)).emit(presenceEventName(room.type), visible)
   }
 
-  emitToWorkflow<T = unknown>(workflowId: string, event: string, payload: T): void {
-    this._io.to(workflowId).emit(event, payload)
+  emitToRoom<T = unknown>(room: RoomRef, event: string, payload: T): void {
+    this._io.to(roomName(room)).emit(event, payload)
   }
 
-  async getUniqueUserCount(workflowId: string): Promise<number> {
-    const users = await this.getWorkflowUsers(workflowId)
-    const uniqueUserIds = new Set(users.map((u) => u.userId))
-    return uniqueUserIds.size
+  async getUniqueUserCount(room: RoomRef): Promise<number> {
+    const users = await this.getRoomUsers(room)
+    return new Set(users.map((u) => u.userId)).size
   }
 
   async getTotalActiveConnections(): Promise<number> {
-    // This is more complex with Redis - we'd need to scan all workflow:*:users keys
-    // For now, just count sockets in this server instance
-    // The true count would require aggregating across all pods
+    // Local instance only; the true cross-pod count would require aggregation.
     return this._io.sockets.sockets.size
-  }
-
-  async handleWorkflowDeletion(workflowId: string): Promise<void> {
-    logger.info(`Handling workflow deletion notification for ${workflowId}`)
-
-    try {
-      const users = await this.getWorkflowUsers(workflowId)
-      if (users.length === 0) {
-        logger.debug(`No active users found for deleted workflow ${workflowId}`)
-        return
-      }
-
-      // Notify all clients across all pods via Redis adapter
-      this._io.to(workflowId).emit('workflow-deleted', {
-        workflowId,
-        message: 'This workflow has been deleted',
-        timestamp: Date.now(),
-      })
-
-      // Use Socket.IO's cross-pod socketsLeave() to remove all sockets from the room
-      // This works across all pods when using the Redis adapter
-      await this._io.in(workflowId).socketsLeave(workflowId)
-      logger.debug(`All sockets left workflow room ${workflowId} via socketsLeave()`)
-
-      // Remove all users from Redis state
-      for (const user of users) {
-        await this.removeUserFromRoom(user.socketId, workflowId)
-      }
-
-      // Clean up room data
-      await this.redis.del([KEYS.workflowUsers(workflowId), KEYS.workflowMeta(workflowId)])
-
-      logger.info(
-        `Cleaned up workflow room ${workflowId} after deletion (${users.length} users disconnected)`
-      )
-    } catch (error) {
-      logger.error(`Failed to handle workflow deletion for ${workflowId}:`, error)
-    }
-  }
-
-  async handleWorkflowRevert(workflowId: string, timestamp: number): Promise<void> {
-    logger.info(`Handling workflow revert notification for ${workflowId}`)
-
-    const hasRoom = await this.hasWorkflowRoom(workflowId)
-    if (!hasRoom) {
-      logger.debug(`No active room found for reverted workflow ${workflowId}`)
-      return
-    }
-
-    this._io.to(workflowId).emit('workflow-reverted', {
-      workflowId,
-      message: 'Workflow has been reverted to deployed state',
-      timestamp,
-    })
-
-    await this.updateRoomLastModified(workflowId)
-
-    const userCount = await this.getUniqueUserCount(workflowId)
-    logger.info(`Notified ${userCount} users about workflow revert: ${workflowId}`)
-  }
-
-  async handleWorkflowUpdate(workflowId: string): Promise<void> {
-    logger.info(`Handling workflow update notification for ${workflowId}`)
-
-    const hasRoom = await this.hasWorkflowRoom(workflowId)
-    if (!hasRoom) {
-      logger.debug(`No active room found for updated workflow ${workflowId}`)
-      return
-    }
-
-    const timestamp = Date.now()
-
-    this._io.to(workflowId).emit('workflow-updated', {
-      workflowId,
-      message: 'Workflow has been updated externally',
-      timestamp,
-    })
-
-    await this.updateRoomLastModified(workflowId)
-
-    const userCount = await this.getUniqueUserCount(workflowId)
-    logger.info(`Notified ${userCount} users about workflow update: ${workflowId}`)
-  }
-
-  async handleWorkflowDeployed(workflowId: string): Promise<void> {
-    logger.info(`Handling workflow deployed notification for ${workflowId}`)
-
-    const hasRoom = await this.hasWorkflowRoom(workflowId)
-    if (!hasRoom) {
-      logger.debug(`No active room found for deployed workflow ${workflowId}`)
-      return
-    }
-
-    this._io.to(workflowId).emit('workflow-deployed', {
-      workflowId,
-      timestamp: Date.now(),
-    })
-
-    const userCount = await this.getUniqueUserCount(workflowId)
-    logger.info(`Notified ${userCount} users about workflow deployment change: ${workflowId}`)
   }
 }

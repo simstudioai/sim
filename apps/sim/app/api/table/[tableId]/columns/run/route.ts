@@ -5,6 +5,9 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import { toLegacyFilter } from '@/lib/table/query-builder/converters'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
@@ -25,13 +28,23 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(runColumnContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, groupIds, runMode, rowIds, filter, excludeRowIds, limit } =
-      parsed.data.body
+    const {
+      workspaceId,
+      groupIds,
+      runMode,
+      rowIds,
+      filter: wireFilter,
+      excludeRowIds,
+      limit,
+    } = parsed.data.body
+    // Dual-grammar wire: downgrade a predicate to the legacy Filter the
+    // dispatcher and scheduled runs still compile.
+    const filter = toLegacyFilter(wireFilter)
     const access = await checkAccess(tableId, auth.userId, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
 
     // Validate the filter up front (the dispatcher reuses it) so a bad field fails fast.
-    const filterError = tableFilterError(filter, access.table.schema.columns)
+    const filterError = tableFilterError(wireFilter, access.table.schema.columns)
     if (filterError) return filterError
 
     const { dispatchId } = await runWorkflowColumn({
@@ -47,8 +60,20 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       triggeredByUserId: auth.userId,
     })
 
+    // Starting a run clears the target group's cells to pending (`bulkClearWorkflowGroupCells`) — a DB
+    // row change. The `dispatch: dispatching` events drive the run overlay, but the cleared cell values
+    // come from the rows query, so refetch the grid. Unconditional: the bulk clear can run even on a path
+    // that then returns a null `dispatchId` (dispatch cancelled post-clear), and a stale-but-harmless
+    // refetch beats a missed one.
+    signalTableRowsChanged(tableId)
+
     return NextResponse.json({ success: true, data: { dispatchId } })
   } catch (error) {
+    // A predicate that Zod accepts but the downgrade rejects (hybrid node,
+    // eq-with-array, valueless op) is caller error, not a server fault.
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     if (error instanceof Error && error.message === 'Invalid workspace ID') {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }

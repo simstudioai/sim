@@ -490,7 +490,9 @@ export default function SignupPage({
   emailSignupEnabled,
 }: SignupFormProps) {
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
+    <Suspense
+      fallback={<div className='flex min-h-[320px] items-center justify-center'>Loading…</div>}
+    >
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

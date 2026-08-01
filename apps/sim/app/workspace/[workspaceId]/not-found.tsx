@@ -10,7 +10,7 @@ import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
 export default function WorkspaceNotFound() {
   const router = useRouter()
   const { workspaceId } = useParams<{ workspaceId?: string }>()
-  const homeHref = workspaceId ? `/workspace/${workspaceId}/home` : '/'
+  const homeHref = workspaceId ? `/workspace/${workspaceId}` : '/'
 
   return (
     <ErrorShell

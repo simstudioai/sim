@@ -6,6 +6,7 @@ import { generateSecret, ROOT } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import { waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
+import { chatFlagValues, mothershipOverride, promptCopilotKey } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
 
 const APP_URL = 'http://localhost:3000'
@@ -276,15 +277,28 @@ async function helmInstall(
   }
 }
 
-function existingReleaseSecrets(context: string): Record<string, string> | null {
+interface ReleaseValues {
+  app?: { env?: Record<string, string> }
+  postgresql?: { auth?: { password?: string } }
+}
+
+function existingReleaseValues(context: string): ReleaseValues | null {
   const scope = ['--kube-context', context, '-n', NAMESPACE]
   const status = spawnSync('helm', ['status', RELEASE, ...scope], { stdio: 'ignore' })
   if (status.status !== 0) return null
-  const values = JSON.parse(
+  return JSON.parse(
     run('helm', ['get', 'values', RELEASE, ...scope, '-o', 'json'], 'helm get values failed')
-  ) as { app?: { env?: Record<string, string> }; postgresql?: { auth?: { password?: string } } }
-  const env = values.app?.env ?? {}
-  const password = values.postgresql?.auth?.password
+  ) as ReleaseValues
+}
+
+/**
+ * The previous release's secrets, or `null` when any are missing — a partial set
+ * cannot be reused, since regenerating only some of them invalidates sessions
+ * and stored credentials encrypted under the originals.
+ */
+function reusableSecrets(values: ReleaseValues | null): Record<string, string> | null {
+  const env = values?.app?.env ?? {}
+  const password = values?.postgresql?.auth?.password
   if (
     !env.BETTER_AUTH_SECRET ||
     !env.ENCRYPTION_KEY ||
@@ -323,7 +337,8 @@ export async function runK8sMode(detection: Detection): Promise<void> {
   // credentials to an unintended cluster.
   const context = await ensureLocalContext(detection)
 
-  const reused = existingReleaseSecrets(context)
+  const releaseValues = existingReleaseValues(context)
+  const reused = reusableSecrets(releaseValues)
   const secrets = reused ?? {
     BETTER_AUTH_SECRET: generateSecret(),
     ENCRYPTION_KEY: generateSecret(),
@@ -332,6 +347,21 @@ export async function runK8sMode(detection: Detection): Promise<void> {
     POSTGRES_PASSWORD: generateSecret().slice(0, 24),
   }
   if (reused) p.log.step('Reusing secrets from the existing release')
+
+  // Before the key is minted: a half-set override mints against one environment
+  // and validates against the other, and warning afterwards is too late — the
+  // bad key is already deployed.
+  const overrides = mothershipOverride()
+  const copilotKey = await promptCopilotKey(releaseValues?.app?.env?.COPILOT_API_KEY)
+
+  // `helm upgrade` without `--reuse-values` keeps only what this document
+  // carries, so a key the user chose to keep has to be re-supplied here.
+  const appEnv: Record<string, string> = {
+    ...secrets,
+    ...overrides,
+    ...(copilotKey ? { COPILOT_API_KEY: copilotKey } : {}),
+    ...chatFlagValues(copilotKey),
+  }
 
   const spin = p.spinner()
   spin.start('helm upgrade --install (first run pulls images — this can take several minutes)…')
@@ -355,7 +385,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
         '--timeout',
         '15m',
       ],
-      secretValues(secrets),
+      secretValues(appEnv),
       context,
       spin
     )

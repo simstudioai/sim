@@ -3405,7 +3405,7 @@
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "JSON-encoded sort object. Example: {\"created_at\": \"desc\"}.",
+            "description": "JSON-encoded sort object. Example: {\"createdAt\": \"desc\"}. Built-in columns are camelCase: id, createdAt, updatedAt.",
             "schema": {
               "type": "string"
             }
@@ -6040,7 +6040,7 @@
       "post": {
         "operationId": "searchKnowledgeBase",
         "summary": "Search Knowledge Base",
-        "description": "Perform vector similarity search across one or more knowledge bases. Supports semantic search via query text, tag-based filtering, or a combination of both.",
+        "description": "Search across one or more knowledge bases. Supports semantic search via query text, tag-based filtering, or a combination of both. Set `searchMode` to `hybrid` to additionally run a full-text keyword leg and fuse it with the semantic results.",
         "tags": ["Knowledge Bases"],
         "x-codeSamples": [
           {
@@ -6095,6 +6095,12 @@
                     "items": {
                       "$ref": "#/components/schemas/TagFilter"
                     }
+                  },
+                  "searchMode": {
+                    "type": "string",
+                    "enum": ["vector", "hybrid"],
+                    "default": "vector",
+                    "description": "Retrieval strategy. `vector` ranks purely on embedding similarity. `hybrid` also runs a full-text keyword search and fuses the two rankings by reciprocal rank, which retrieves exact tokens — error codes, ticket keys, identifiers, rare product names — that embeddings alone rank poorly. Ignored when only tagFilters are provided."
                   }
                 }
               },
@@ -6102,7 +6108,8 @@
                 "workspaceId": "wsp_abc123",
                 "knowledgeBaseIds": ["d2c8f4a6-1b3e-4c5d-9e7f-8a0b2c4d6e1f"],
                 "query": "How do I reset my password?",
-                "topK": 5
+                "topK": 5,
+                "searchMode": "hybrid"
               }
             }
           }

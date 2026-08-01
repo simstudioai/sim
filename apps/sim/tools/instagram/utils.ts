@@ -5,7 +5,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram/constants'
+import { INSTAGRAM_GRAPH_BASE } from '@/tools/instagram/constants'
 import type { InstagramPublishResponse } from '@/tools/instagram/types'
 
 export const INSTAGRAM_RESPONSE_MAX_BYTES = 2 * 1024 * 1024

@@ -1,5 +1,6 @@
 import '@sim/testing/mocks/executor'
 
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
@@ -114,6 +115,8 @@ describe('MothershipBlockHandler', () => {
     mockIsRedisCancellationEnabled.mockReset()
     mockIsRedisCancellationEnabled.mockReturnValue(false)
     mockReadUserFileContent.mockReset()
+    // The handler refuses to run without the mothership credential.
+    setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
 
     block = {
       id: 'mothership-block-1',
@@ -146,6 +149,7 @@ describe('MothershipBlockHandler', () => {
     vi.useRealTimers()
     vi.clearAllMocks()
     vi.unstubAllGlobals()
+    resetEnvMock()
   })
 
   function createNdjsonResponse(events: unknown[]): Response {
@@ -220,6 +224,15 @@ describe('MothershipBlockHandler', () => {
       workflowId: 'workflow-1',
       executionId: 'execution-1',
     })
+  })
+
+  it('rejects execution before the internal request when COPILOT_API_KEY is unset', async () => {
+    setEnv({ COPILOT_API_KEY: undefined })
+
+    await expect(
+      handler.execute(context, block, { prompt: 'Hello from workflow' })
+    ).rejects.toThrow('COPILOT_API_KEY is not configured')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects execution before the internal request when billing attribution is missing', async () => {

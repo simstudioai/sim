@@ -34,7 +34,16 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+/**
+ * Local-development escape hatch for exercising hosted-only paths (the sim-auto
+ * pool, platform keys, hosted-only UI) without pointing `NEXT_PUBLIC_APP_URL` at
+ * a sim.ai hostname, which would break local callback URLs. Ignored in
+ * production builds, so a self-hosted deployment can never claim to be Sim's
+ * hosted environment.
+ */
+const forceHosted = !isProd && isTruthy(getEnv('NEXT_PUBLIC_FORCE_HOSTED'))
+
+export const isHosted = forceHosted || appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
@@ -49,6 +58,23 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
  * confirms the compatibility window has closed. Off by default.
  */
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
+
+/**
+ * Are the Chat module's surfaces shown. On by default, so a deployment that
+ * already has `COPILOT_API_KEY` keeps Chat without setting anything; the setup
+ * wizard writes the opt-out when you skip the key.
+ *
+ * This governs presentation only. Whether Chat can actually reach the mothership
+ * is a separate question answered by `COPILOT_API_KEY`, which gates the paths
+ * that need it (the Sim Chat block, prompt-job claims, inbox execution). Keeping
+ * them separate is what lets this be a single variable: the secret key could
+ * never be read in the browser, but `NEXT_PUBLIC_CHAT_DISABLED` can — no twin to
+ * keep in sync.
+ *
+ * Read at module scope or inline during render only. Resolving it through
+ * `useState`/`useEffect` would render chat surfaces before removing them.
+ */
+export const isChatEnabled = !isTruthy(getEnv('NEXT_PUBLIC_CHAT_DISABLED'))
 
 /**
  * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
@@ -285,6 +311,20 @@ export const isInboxEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Are custom sandboxes (workspace dependency sets for Function blocks) enabled.
+ *
+ * Same shape as {@link isInboxEnabled}: on Sim Cloud the Max/Enterprise plan
+ * decides, and this is only an explicit override; self-hosted resolves through
+ * the master switch. Builds run on the deployment's own E2B/Daytona
+ * credentials, so an operator who sets this owns the cost.
+ */
+export const isSandboxesEnabled = enterpriseFeatureEnabled(
+  'sandboxes',
+  env.SANDBOXES_ENABLED,
+  'NEXT_PUBLIC_SANDBOXES_ENABLED'
+)
+
+/**
  * Is whitelabeling enabled
  */
 export const isWhitelabelingEnabled = enterpriseFeatureEnabled(
@@ -359,6 +399,13 @@ const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
  * key is set (the shell snapshot is verified at create time, failing closed).
  * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
  * unchanged.
+ *
+ * The browser twin is `NEXT_PUBLIC_SANDBOX_ENABLED`, read by the Function
+ * block's `showWhenEnvSet` gates. It exists because `NEXT_PUBLIC_E2B_ENABLED`
+ * has no Daytona counterpart: on a Daytona-only deployment Python executed fine
+ * but the language dropdown was hidden. Those gates still accept the old var as
+ * a fallback, so an existing deployment keeps working until it sets the new one;
+ * `bun run setup --doctor` flags the mismatch.
  */
 export const isRemoteSandboxEnabled =
   sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)

@@ -8,6 +8,7 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
@@ -310,10 +311,12 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: {
-        label: 'Fix in Chat',
-        onClick: () => sendMothershipMessage(copilotMessage),
-      },
+      action: isChatEnabled
+        ? {
+            label: 'Fix in Chat',
+            onClick: () => sendMothershipMessage(copilotMessage),
+          }
+        : undefined,
     })
   } catch (notificationError) {
     logger.error('Failed to create block error notification', {

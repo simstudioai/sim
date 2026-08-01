@@ -22,7 +22,10 @@ about what must **never** live in that process.
    secrets, or any LLM / email / search provider API keys. If you catch yourself
    `require`'ing `@/lib/auth`, `@sim/db`, `@/lib/uploads/core/storage-service`,
    or anything that imports `env` directly inside the worker, stop and use a
-   host-side broker instead.
+   host-side broker instead. This includes the OS environment: the worker is
+   spawned with the explicit allowlisted env from `buildWorkerEnv()` in
+   `isolated-vm.ts` — never spawn it without an `env` option (Node would copy
+   the app's full `process.env`, secrets included, into the worker).
 
 2. **Host-side brokers own all credentialed work**. The worker can only access
    resources through `ivm.Reference` / `ivm.Callback` bridges back to the host
@@ -69,6 +72,10 @@ payload or `ivm.Reference` wrapper in the worker:
 - [ ] Did you update the broker limits (`IVM_MAX_BROKER_ARGS_JSON_CHARS`,
       `IVM_MAX_BROKER_RESULT_JSON_CHARS`, `IVM_MAX_BROKERS_PER_EXECUTION`) if
       the new broker can emit large payloads or fire frequently?
+- [ ] Does the worker read a new env var? Add it to the `buildWorkerEnv()`
+      allowlist in `isolated-vm.ts` **and** to the allowlist regression test in
+      `isolated-vm.test.ts` — the worker does not inherit the app environment,
+      so an un-allowlisted var is simply absent in the child.
 
 ## What the worker *may* hold
 

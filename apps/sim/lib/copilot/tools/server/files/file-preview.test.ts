@@ -31,6 +31,29 @@ describe('buildFilePreviewText', () => {
     ).toBe('line one\nline two')
   })
 
+  it('fails closed (returns undefined) for an append when the base content has not loaded', () => {
+    // A base-less append preview is just the streamed fragment; a collaborative editor applying it as the
+    // full body would reconcile the seeded doc down to that fragment (a wipe). It must fail closed until
+    // the base loads, exactly like patch/update.
+    expect(
+      buildFilePreviewText({
+        operation: 'append',
+        existingContent: undefined,
+        streamedContent: 'orphan fragment',
+      })
+    ).toBeUndefined()
+  })
+
+  it('still previews an append into an EMPTY file (existingContent is "", not undefined)', () => {
+    expect(
+      buildFilePreviewText({
+        operation: 'append',
+        existingContent: '',
+        streamedContent: 'first line',
+      })
+    ).toBe('first line')
+  })
+
   it('applies anchored replace_between previews', () => {
     expect(
       buildFilePreviewText({

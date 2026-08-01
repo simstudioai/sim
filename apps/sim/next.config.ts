@@ -36,6 +36,38 @@ const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
     }
   : {}
 
+/**
+ * Marketing routes (`app/(landing)/**`, plus the root) exempted from COEP.
+ *
+ * COEP is a *document* header and is inherited across client-side `<Link>`
+ * navigations, so `/demo`'s own exemption only applies on a direct load. Any
+ * landing page left isolated soft-navigates into `/demo` still credentialless,
+ * where the Cal.com booker iframe loads uncredentialed and hangs forever.
+ * Every route under `app/(landing)` must be listed here.
+ */
+const LANDING_ROUTES = [
+  'blog',
+  'careers',
+  'changelog',
+  'comparisons',
+  'contact',
+  'demo',
+  'enterprise',
+  'files',
+  'integrations',
+  'knowledge',
+  'library',
+  'logs',
+  'models',
+  'pricing',
+  'privacy',
+  'scheduled-tasks',
+  'solutions',
+  'tables',
+  'terms',
+  'workflows',
+] as const
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
@@ -142,9 +174,43 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
+    // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
+    'jsdom',
+    // The collab-doc converter runs TipTap + Yjs headlessly server-side. Two reasons these must be
+    // external (native Node require), not bundled: (1) the server bundler gives bundled TipTap a
+    // `window` that does NOT read `globalThis`, so `elementFromString` throws "no window object" even
+    // after the converter installs a jsdom window; (2) bundling would load a SECOND copy of `yjs`, so
+    // `@tiptap/y-tiptap`'s `item instanceof Y.XmlElement` checks — against the external `yjs` — would
+    // fail on nodes the app created with the bundled `yjs` ("Unexpected case"). One external copy fixes
+    // both. Server-only — the client editor bundles its own copies for the browser.
+    'yjs',
+    'y-protocols',
+    'lib0',
+    '@tiptap/core',
+    '@tiptap/pm',
+    '@tiptap/markdown',
+    '@tiptap/y-tiptap',
+    '@tiptap/starter-kit',
+    '@tiptap/extension-code',
+    '@tiptap/extension-code-block',
+    '@tiptap/extension-image',
+    '@tiptap/extension-list',
+    '@tiptap/extension-paragraph',
+    '@tiptap/extension-table',
+    '@tiptap/extension-highlight',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
+    // The seed, merge, and persist endpoints all lazily `require('jsdom')` (via the collab-doc
+    // converter), which is invisible to the standalone file tracer, so force jsdom (and its transitive
+    // deps, followed from its static requires) into the trace — otherwise a Docker/standalone build
+    // omits it and the endpoint 500s with MODULE_NOT_FOUND. (The Yjs external stack — yjs/lib0/
+    // y-protocols — is copied whole in docker/app.Dockerfile: its glob would resolve against apps/sim
+    // but those deps hoist to the monorepo root, so a trace include can't reach them.)
+    '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
@@ -255,17 +321,27 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker
+        // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
         // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
         source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
         headers: [
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'credentialless',
-          },
-          {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
+          },
+        ],
+      },
+      {
+        // COEP stays on by default - a new route is cross-origin isolated unless
+        // it is named here. The exemptions are the app surfaces that embed
+        // credentialed third parties (Drive Picker, Vercel resources) and the
+        // marketing surface, which must opt out wholesale: see LANDING_ROUTES.
+        // The trailing `|$` exempts the root path.
+        source: `/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|${LANDING_ROUTES.join('|')}|$).*)`,
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'credentialless',
           },
         ],
       },

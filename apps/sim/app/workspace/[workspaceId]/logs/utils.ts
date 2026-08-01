@@ -85,6 +85,7 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   copilot: 'pink',
   mothership: 'pink',
   workflow: 'blue-secondary',
+  custom_block: 'blue-secondary',
 }
 
 interface StatusBadgeProps {
@@ -185,31 +186,6 @@ export function parseDuration(log: LogWithDuration): number | null {
 export function formatLatency(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
   return formatDuration(ms, { precision: 2 }) ?? '—'
-}
-
-export function formatDateShort(dateStr: string): string {
-  const hasTime = dateStr.includes('T')
-  const [datePart, timePart] = dateStr.split('T')
-  const [, month, day] = datePart.split('-').map(Number)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  const dateLabel = `${months[month - 1]} ${day}`
-  if (hasTime && timePart) {
-    return `${dateLabel} ${timePart.slice(0, 5)}`
-  }
-  return dateLabel
 }
 
 export const formatDate = (dateString: string) => {

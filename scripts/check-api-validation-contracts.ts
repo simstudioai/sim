@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 994,
-  zodRoutes: 994,
+  totalRoutes: 1003,
+  zodRoutes: 1003,
   nonZodRoutes: 0,
 } as const
 
@@ -24,8 +24,8 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
-  doubleCasts: 8,
-  rawJsonReads: 6,
+  doubleCasts: 9,
+  rawJsonReads: 5,
   untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const
@@ -68,6 +68,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-tasks/route.ts',
   'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
+  'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
   'apps/sim/app/api/cron/reconcile-inbox-entitlement/route.ts',

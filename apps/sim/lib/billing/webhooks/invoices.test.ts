@@ -57,7 +57,7 @@ vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/billing/stripe-payment-method', () => stripePaymentMethodMock)
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'trialing', 'past_due'],
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
 }))
 
 vi.mock('@/lib/billing/utils/decimal', () => ({

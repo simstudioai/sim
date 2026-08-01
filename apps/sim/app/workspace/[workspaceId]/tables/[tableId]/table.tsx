@@ -12,10 +12,10 @@ import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/table
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
-  Filter,
-  Sort,
   SortDirection,
+  SortSpec,
   TableMetadata,
+  TablePredicate,
   TableRow as TableRowType,
   TableViewConfig,
   WorkflowGroup,
@@ -28,6 +28,7 @@ import {
   Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
+import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
@@ -71,8 +72,8 @@ import {
   WorkflowSidebar,
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
-import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
-import { useTable, useTableEventStream } from './hooks'
+import { columnTypeIcon } from './components/table-grid/headers'
+import { useTable, useTableEventStream, useTableRoom } from './hooks'
 import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
   ALL_VIEW_PARAM,
@@ -230,6 +231,12 @@ export function Table({
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
 
+  // Live table presence (cell-selection carets + avatars). Runs in both modes so the
+  // mothership chat panel shows collaborators' live selections too. The avatar stack lives
+  // only in the `!embedded` Resource.Header, so the embedded panel gets carets without avatars
+  // for free — matching the panel's own-chrome layout.
+  const { otherUsers: presenceUsers, remoteSelections, emitCellSelection } = useTableRoom(tableId)
+
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [showLockSettings, setShowLockSettings] = useState(false)
@@ -255,7 +262,7 @@ export function Table({
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
     singleWorkflowCell: null,
   })
-  const [filter, setFilter] = useState<Filter | null>(null)
+  const [filter, setFilter] = useState<TablePredicate | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
   /** Hidden **column ids**. Lives here (not in the grid) because the filter
    *  panel's Columns section edits it and the active view persists it. */
@@ -271,9 +278,9 @@ export function Table({
   const hiddenColumnsRef = useRef(hiddenColumns)
   hiddenColumnsRef.current = hiddenColumns
 
-  /** Resolved single-column sort, or `null` when no column is active. */
-  const sortQuery = useMemo<Sort | null>(
-    () => (sortColumn ? { [sortColumn]: sortDirection } : null),
+  /** Resolved single-column sort as an ordered spec, or `null` when none is active. */
+  const sortQuery = useMemo<SortSpec | null>(
+    () => (sortColumn ? [{ field: sortColumn, direction: sortDirection }] : null),
     [sortColumn, sortDirection]
   )
 
@@ -426,10 +433,10 @@ export function Table({
       if (!keep?.filter) setFilter(config?.filter ?? null)
       if (!keep?.hiddenColumns) setHiddenColumns(config?.hiddenColumns ?? [])
       if (keep?.sort) return
-      const sortEntry = config?.sort ? Object.entries(config.sort)[0] : undefined
+      const sortEntry = config?.sort?.[0]
       setTableParams({
-        sort: sortEntry ? sortEntry[0] : null,
-        dir: sortEntry ? (sortEntry[1] as SortDirection) : null,
+        sort: sortEntry ? sortEntry.field : null,
+        dir: sortEntry ? (sortEntry.direction as SortDirection) : null,
       })
     },
     [setTableParams]
@@ -651,7 +658,7 @@ export function Table({
   const currentViewConfig = useMemo<TableViewConfig>(
     () => ({
       ...(activeView?.config ?? tableData?.metadata),
-      filter: effectiveFilter,
+      filter: effectiveFilter ?? null,
       sort: sortQuery,
       hiddenColumns: effectiveHiddenColumns,
     }),
@@ -837,7 +844,7 @@ export function Table({
     (args: {
       groupIds: string[]
       rowIds?: string[]
-      filter?: Filter
+      filter?: TablePredicate
       excludeRowIds?: string[]
       runMode: RunMode
       limit?: RunLimit
@@ -876,7 +883,7 @@ export function Table({
       runMode: RunMode,
       rowIds?: string[],
       limit?: RunLimit,
-      filter?: Filter,
+      filter?: TablePredicate,
       excludeRowIds?: string[]
     ) => {
       runScope({
@@ -893,7 +900,12 @@ export function Table({
   )
 
   const onRunRows = useCallback(
-    (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter, excludeRowIds?: string[]) => {
+    (
+      rowIds: string[] | undefined,
+      runMode: RunMode,
+      filter?: TablePredicate,
+      excludeRowIds?: string[]
+    ) => {
       runScope({
         groupIds: tableWorkflowGroups.map((g) => g.id),
         rowIds,
@@ -961,7 +973,7 @@ export function Table({
 
   /** Select-all Stop — filter-scoped when a filter is active; deselected rows keep running. */
   const onStopAllRows = useCallback(
-    (filter?: Filter, excludeRowIds?: string[]) => {
+    (filter?: TablePredicate, excludeRowIds?: string[]) => {
       // `sort` scopes the optimistic flip to the active view's cache (filtered stops
       // only cancel matching rows server-side).
       cancelRunsMutate({ scope: 'all', filter, sort: queryOptions.sort, excludeRowIds })
@@ -1042,7 +1054,7 @@ export function Table({
         id: getColumnId(col),
         label: col.name,
         type: col.type,
-        icon: COLUMN_TYPE_ICONS[col.type],
+        icon: columnTypeIcon(col.type),
       })),
     [columns]
   )
@@ -1061,7 +1073,7 @@ export function Table({
     [columnOptions, sortColumn, sortDirection, setTableParams]
   )
 
-  const handleFilterApply = (next: Filter | null) => {
+  const handleFilterApply = (next: TablePredicate | null) => {
     setFilter(next)
   }
 
@@ -1324,6 +1336,9 @@ export function Table({
           breadcrumbs={breadcrumbs}
           aside={
             <div className='flex items-center gap-1.5'>
+              {presenceUsers.length > 0 && (
+                <PresenceAvatars users={presenceUsers} className='mr-1' />
+              )}
               <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
@@ -1402,6 +1417,8 @@ export function Table({
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
+        remoteSelections={remoteSelections}
+        emitCellSelection={emitCellSelection}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenEnrichments={onOpenEnrichments}

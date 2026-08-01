@@ -14,7 +14,7 @@ import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { fileNameFromSelectionLabel } from '@/lib/copilot/chat/selection-context'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getBlockRegistry } from '@/blocks/registry'
 
 interface RenderIconArgs {

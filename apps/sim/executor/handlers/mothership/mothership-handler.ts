@@ -5,6 +5,7 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import {
@@ -337,6 +338,12 @@ export class MothershipBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
+    // Without the key the mothership rejects every request, so fail with
+    // something the workflow author can act on instead of a bare 401.
+    if (!env.COPILOT_API_KEY) {
+      throw new Error('COPILOT_API_KEY is not configured, so the Sim Chat block cannot run')
+    }
+
     const prompt = inputs.prompt
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')

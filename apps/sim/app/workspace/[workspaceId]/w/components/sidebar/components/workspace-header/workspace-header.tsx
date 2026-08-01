@@ -22,16 +22,12 @@ import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal, Search } from 'lucide-react'
-import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import {
-  CreateWorkspaceModal,
-  type CreateWorkspaceTarget,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
 import { invitationKeys } from '@/hooks/queries/invitations'
@@ -169,6 +165,19 @@ function WorkspaceHeaderImpl({
 
   const [workspaceSearch, setWorkspaceSearch] = useState('')
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  /**
+   * Which input the user is currently driving the list with. The highlight is only
+   * painted in keyboard mode, because it renders in `--surface-active` — the same
+   * token hover uses — so a highlight left behind by the pointer is indistinguishable
+   * from a stuck hover, and sits alongside the equally-`--surface-active` current
+   * workspace as a second phantom-hovered row.
+   *
+   * `highlightedId` itself still tracks the pointer, so Enter always targets the row
+   * the user last touched; only whether it is *drawn* depends on the mode. Mirrors
+   * `isKeyboardNav` in emcn's popover ("prevent dual highlights") and the single
+   * modality-driven focus marker Headless UI's Combobox exposes.
+   */
+  const [isKeyboardNav, setIsKeyboardNav] = useState(false)
 
   const showSearch = workspaces.length > WORKSPACE_SEARCH_THRESHOLD
   const searchQuery = workspaceSearch.trim().toLowerCase()
@@ -228,6 +237,7 @@ function WorkspaceHeaderImpl({
     if (isWorkspaceMenuOpen) return
     setWorkspaceSearch('')
     setHighlightedId(null)
+    setIsKeyboardNav(false)
   }, [isWorkspaceMenuOpen])
 
   const [isMounted, setIsMounted] = useState(false)
@@ -235,7 +245,6 @@ function WorkspaceHeaderImpl({
     setIsMounted(true)
   }, [])
 
-  const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
   const queryClient = useQueryClient()
 
@@ -254,17 +263,6 @@ function WorkspaceHeaderImpl({
   const { userPermissions } = useWorkspacePermissionsContext()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
-  const createWorkspaceTarget: CreateWorkspaceTarget =
-    workspaceCreationPolicy?.workspaceMode === 'organization' &&
-    workspaceCreationPolicy.organizationId
-      ? {
-          type: 'organization',
-          organizationName:
-            viewerActiveOrganization?.id === workspaceCreationPolicy.organizationId
-              ? viewerActiveOrganization.name
-              : 'your organization',
-        }
-      : { type: 'personal' }
 
   /**
    * Save and exit edit mode when popover closes
@@ -526,21 +524,33 @@ function WorkspaceHeaderImpl({
                     icon={Search}
                     placeholder='Search workspaces...'
                     value={workspaceSearch}
-                    onChange={(e) => setWorkspaceSearch(e.target.value)}
+                    onChange={(e) => {
+                      // Typing is keyboard intent, so the cursor appears on the top
+                      // result and Enter has a visible target.
+                      setIsKeyboardNav(true)
+                      setWorkspaceSearch(e.target.value)
+                    }}
                     onKeyDown={(e) => {
                       e.stopPropagation()
                       if (e.nativeEvent.isComposing) return
                       if (filteredWorkspaces.length === 0) return
                       if (e.key === 'ArrowDown') {
                         e.preventDefault()
+                        setIsKeyboardNav(true)
                         const next = (activeIndex + 1) % filteredWorkspaces.length
                         setHighlightedId(filteredWorkspaces[next].id)
                       } else if (e.key === 'ArrowUp') {
                         e.preventDefault()
+                        setIsKeyboardNav(true)
                         const next =
                           (activeIndex - 1 + filteredWorkspaces.length) % filteredWorkspaces.length
                         setHighlightedId(filteredWorkspaces[next].id)
                       } else if (e.key === 'Enter') {
+                        // Only armed once a cursor is actually on screen. The search
+                        // field is focused on open, so acting on the seeded row here
+                        // would switch workspace with nothing marked — emcn's popover
+                        // likewise holds its selection at -1 until keyboard nav starts.
+                        if (!isKeyboardNav) return
                         e.preventDefault()
                         const target = filteredWorkspaces[activeIndex]
                         if (target) onWorkspaceSwitch(target)
@@ -562,7 +572,7 @@ function WorkspaceHeaderImpl({
                     const initial = getWorkspaceInitial(workspace.name)
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
-                    const isKeyboardHighlighted = showSearch && idx === activeIndex
+                    const isKeyboardHighlighted = showSearch && isKeyboardNav && idx === activeIndex
 
                     /**
                      * Hover-highlight is wired to `onMouseMove`, not `onMouseEnter`: a
@@ -575,7 +585,14 @@ function WorkspaceHeaderImpl({
                       <div
                         key={workspace.id}
                         data-workspace-row-idx={showSearch ? idx : undefined}
-                        onMouseMove={showSearch ? () => setHighlightedId(workspace.id) : undefined}
+                        onMouseMove={
+                          showSearch
+                            ? () => {
+                                setIsKeyboardNav(false)
+                                setHighlightedId(workspace.id)
+                              }
+                            : undefined
+                        }
                       >
                         {editingWorkspaceId === workspace.id ? (
                           <div
@@ -661,7 +678,7 @@ function WorkspaceHeaderImpl({
                             )}
                             onClick={(e) => {
                               if (e.metaKey || e.ctrlKey) {
-                                window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                window.open(`/workspace/${workspace.id}`, '_blank')
                                 return
                               }
                               onWorkspaceSwitch(workspace)
@@ -669,7 +686,7 @@ function WorkspaceHeaderImpl({
                             onAuxClick={(e) => {
                               if (e.button === 1) {
                                 e.preventDefault()
-                                window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                window.open(`/workspace/${workspace.id}`, '_blank')
                               }
                             }}
                             onContextMenu={(e) => handleContextMenu(e, workspace)}
@@ -869,7 +886,6 @@ function WorkspaceHeaderImpl({
           setIsCreateModalOpen(false)
         }}
         isCreating={isCreatingWorkspace}
-        target={createWorkspaceTarget}
       />
 
       <InviteModal

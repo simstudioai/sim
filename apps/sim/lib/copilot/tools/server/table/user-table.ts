@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -30,24 +30,30 @@ import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
   columnMatchesRef,
-  filterNamesToIds,
   rowDataNameToId,
-  sortNamesToIds,
+  sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   addTableColumn,
   deleteColumn,
   deleteColumns,
   renameColumn,
   updateColumnConstraints,
+  updateColumnCurrency,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
+import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -61,15 +67,17 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
-import { resolveFilterSelectValues } from '@/lib/table/select-values'
+import { predicateToStorage } from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
   RowData,
   SelectOption,
+  SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
+  TablePredicate,
   TableSchema,
   TableUpdateJobPayload,
   WorkflowGroup,
@@ -565,6 +573,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -608,6 +617,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -675,33 +685,68 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
+          // Typed predicate/sort objects, validated against the schema (column
+          // NAMES) then translated to storage ids.
+          let predicate: TablePredicate | undefined
+          if (args.filter) {
+            validatePredicate(args.filter, table.schema.columns)
+            predicate = predicateToStorage(args.filter, table.schema)
+          }
+          let orderSpec = args.order as SortSpec | undefined
+          if (orderSpec?.length) {
+            validateSortSpec(orderSpec, table.schema.columns)
+            orderSpec = sortSpecNamesToIds(orderSpec, idByName)
+          }
+          const sort = orderSpec?.length
+            ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
+            : undefined
+
+          // Opaque cursor pagination (keyset seek on the default order; the token
+          // hides an internal offset only for custom-sorted views, which a keyset
+          // physically can't page). A keyset cursor is bound to the default order,
+          // so it can't be combined with a fresh sort.
+          const cursor = args.cursor ? decodeCursor(args.cursor) : undefined
+          if (cursor) {
+            try {
+              // Keyset cursors bind to the default order; offset cursors to the
+              // exact sort they were minted under.
+              assertCursorSortBinding(cursor, sort)
+            } catch (bindError) {
+              return { success: false, message: getErrorMessage(bindError, 'Invalid cursor') }
+            }
+          }
+
+          // No limit returns the ENTIRE matching result, failing fast once the
+          // 5MB byte budget is exceeded (caught below → structured tool error
+          // the model can react to by adding a filter or a limit). An explicit
+          // limit pages; byte-cut pages set nextCursor and the message says to
+          // continue with the opaque cursor.
           const toNamedRow = namedRowMapper(table.schema.columns)
-          // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
-          // tool result can't drain a whole table. `totalCount` in the response signals truncation,
-          // and the model pages with `offset`.
           const result = await queryRows(
             table,
             {
-              filter: args.filter
-                ? resolveFilterSelectValues(
-                    filterNamesToIds(args.filter, idByName),
-                    table.schema.columns
-                  )
-                : undefined,
-              sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
-              limit:
-                args.limit !== undefined
-                  ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
-                  : undefined,
-              offset: args.offset,
+              predicate,
+              sort,
+              limit: args.limit,
+              after: cursor?.after,
+              offset: cursor?.offset,
+              // Only the first page (no inbound cursor) pays for the COUNT(*).
+              includeTotal: !args.cursor,
               withExecutions: false,
             },
             requestId
           )
 
+          // nextCursor covers both cut kinds (explicit limit or the 5MB byte
+          // budget) — either way the truthful signal is "more rows exist". The
+          // token is opaque; the agent echoes it back as `cursor` to continue.
+          const countSuffix = result.totalCount != null ? ` of ${result.totalCount}` : ''
+          const message = result.nextCursor
+            ? `Returned ${result.rows.length}${countSuffix} rows (more available — pass cursor=${result.nextCursor} to continue)`
+            : `Returned ${result.rows.length}${countSuffix} rows`
           return {
             success: true,
-            message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
+            message,
             data: {
               ...result,
               rows: result.rows.map((r) => ({
@@ -751,6 +796,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          signalTableRowsChanged(args.tableId)
           // Auto-dispatch for user edits is handled inside `updateRow`
           // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
           // downstream groups). Firing a second mode: 'incomplete' dispatch
@@ -790,6 +836,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table ${args.tableId} not found` }
           }
           await deleteRow(deleteRowTable, args.rowId, requestId)
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -822,10 +869,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = resolveFilterSelectValues(
-            filterNamesToIds(args.filter, idByName),
-            table.schema.columns
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
+          // operands arrive as option NAMES and must resolve to stored ids.
+          validatePredicate(args.filter, table.schema.columns)
+          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -893,6 +941,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -923,10 +972,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = resolveFilterSelectValues(
-            filterNamesToIds(args.filter, idByName),
-            table.schema.columns
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
+          // operands arrive as option NAMES and must resolve to stored ids.
+          validatePredicate(args.filter, table.schema.columns)
+          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background
@@ -998,6 +1048,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           } finally {
             await releaseJobClaim(table.id, inlineDeleteId).catch(() => {})
           }
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           recordAudit({
             workspaceId,
@@ -1081,6 +1132,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -1120,6 +1172,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
           )
+          if (result.deletedCount > 0) signalTableRowsChanged(args.tableId)
 
           recordAudit({
             workspaceId,
@@ -1428,6 +1481,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 table,
                 requestId
               )
+              signalTableRowsChanged(table.id)
 
               logger.info('Rows replaced from file', {
                 tableId: table.id,
@@ -1456,6 +1510,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
 
             const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
+            if (inserted > 0) signalTableRowsChanged(table.id)
 
             logger.info('Rows imported from file', {
               tableId: table.id,
@@ -1499,6 +1554,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 position?: number
                 options?: unknown
                 multiple?: boolean
+                currencyCode?: string
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1513,12 +1569,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          if (col.currencyCode !== undefined && !isSupportedCurrencyCode(col.currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${col.currencyCode}". Use an ISO 4217 code, e.g. USD`,
+            }
+          }
           // Agent authors select options by name; generate their stable ids here.
           const columnToAdd =
             col.type === 'select'
               ? { ...col, options: normalizeSelectOptionsInput(col.options) }
               : { ...col, options: undefined }
           const updated = await addTableColumn(args.tableId, columnToAdd, requestId)
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -1548,6 +1611,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, oldName: colName, newName: newColName },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Renamed column "${colName}" to "${newColName}"`,
@@ -1579,6 +1643,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               { tableId: args.tableId, columnName: names[0] },
               requestId
             )
+            signalTableSchemaChanged(args.tableId)
             return {
               success: true,
               message: `Deleted column "${names[0]}"`,
@@ -1590,6 +1655,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, columnNames: names },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted ${names.length} columns: ${names.join(', ')}`,
@@ -1612,15 +1678,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
           const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
+          const currencyCode = (args as Record<string, unknown>).currencyCode as string | undefined
           if (
             newType === undefined &&
             uniqFlag === undefined &&
             rawOptions === undefined &&
-            multiple === undefined
+            multiple === undefined &&
+            currencyCode === undefined
           ) {
             return {
               success: false,
-              message: 'At least one of newType, unique, options, or multiple must be provided',
+              message:
+                'At least one of newType, unique, options, multiple, or currencyCode must be provided',
+            }
+          }
+          if (currencyCode !== undefined && !isSupportedCurrencyCode(currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${currencyCode}". Use an ISO 4217 code, e.g. USD`,
             }
           }
           const tableForUpdate = await getTableById(args.tableId)
@@ -1652,10 +1727,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // update on an existing select column carries the same hazard as a
           // conversion. Same guard the HTTP column routes apply.
           const resultingType = newType ?? currentColumn?.type
-          if (uniqFlag === true && resultingType === 'select') {
+          if (uniqFlag === true && !columnTypeById(resultingType).supportsUnique) {
             return {
               success: false,
-              message: `Cannot set column "${colName}" as unique: select columns cannot be unique.`,
+              message: `Cannot set column "${colName}" as unique: ${resultingType} columns cannot be unique.`,
             }
           }
           if (typeChanging) {
@@ -1667,6 +1742,27 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 newType: newType as (typeof COLUMN_TYPES)[number],
                 options,
                 multiple,
+                ...(currencyCode !== undefined ? { currencyCode } : {}),
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
+              requestId
+            )
+          } else if (currencyCode !== undefined) {
+            // Re-denominating an existing currency column: schema-only, no cell
+            // rewrite. Mirrors the HTTP columns routes.
+            if (currentColumn?.type !== 'currency') {
+              return {
+                success: false,
+                message: `Column "${colName}" is not a currency column. Pass newType: "currency" with currencyCode to convert it.`,
+              }
+            }
+            assertNotAborted()
+            result = await updateColumnCurrency(
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                currencyCode,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
             )
@@ -1684,17 +1780,27 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
             assertNotAborted()
             result = await updateColumnOptions(
-              { tableId: args.tableId, columnName: colName, options: nextOptions, multiple },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                options: nextOptions,
+                multiple,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
               requestId
             )
           }
-          if (uniqFlag !== undefined) {
+          // Skipped when a typed write ran: that write already applied and
+          // validated the constraint, in one transaction with the change it
+          // accompanies. Mirrors the HTTP columns routes.
+          if (uniqFlag !== undefined && result === undefined) {
             assertNotAborted()
             result = await updateColumnConstraints(
               { tableId: args.tableId, columnName: colName, unique: uniqFlag },
               requestId
             )
           }
+          if (result) signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated column "${colName}"`,
@@ -1724,6 +1830,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const renamed = await renameTable(args.tableId, newName, requestId, context.userId)
+          signalTableSchemaChanged(args.tableId)
 
           return {
             success: true,
@@ -1847,6 +1954,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added workflow group "${name ?? groupId}" with ${outputs.length} output column(s)`,
@@ -1919,6 +2027,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated workflow group ${groupId}`,
@@ -1940,6 +2049,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await deleteWorkflowGroup({ tableId: args.tableId, groupId }, requestId)
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted workflow group ${groupId}`,
@@ -1977,6 +2087,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added output to workflow group ${groupId}`,
@@ -2005,6 +2116,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, groupId, columnName },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Removed output "${columnName}" from workflow group ${groupId}`,
@@ -2218,6 +2330,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added enrichment "${name}" with ${outputs.length} output column(s)${

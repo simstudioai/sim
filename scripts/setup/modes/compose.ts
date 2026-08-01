@@ -7,6 +7,7 @@ import { ensurePortsFree } from '../ports.ts'
 import { httpHealth, waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
 import {
+  chatFlagValues,
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
@@ -112,6 +113,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(root.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
+  Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
   if (!quick) {
     const storage = await promptStorage(root.vars, true)

@@ -5,10 +5,11 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Sort } from '@/lib/table'
+import type { Filter, Sort, SortSpec, TablePredicate } from '@/lib/table'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { toLegacyFilter, toLegacySort } from '@/lib/table/query-builder/converters'
 import { findRowMatches } from '@/lib/table/rows/service'
-import { TableQueryValidationError } from '@/lib/table/sql'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsFindAPI')
 
@@ -58,9 +59,23 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
+      // Same gate as the bulk/async routes: the predicate branch rejects unknown
+      // storage keys (a typo'd field must 400, not return zero matches), the
+      // legacy branch keeps its compile check.
+      const filterError = tableFilterError(
+        validated.filter as Filter | TablePredicate | undefined,
+        table.schema.columns
+      )
+      if (filterError) return filterError
+
       const { matches, truncated } = await findRowMatches(
         table,
-        { q: validated.q, filter: validated.filter, sort: validated.sort },
+        {
+          q: validated.q,
+          // Dual-grammar wire: findRowMatches compiles the legacy pair.
+          filter: toLegacyFilter(validated.filter as Filter | TablePredicate | undefined),
+          sort: toLegacySort(validated.sort as Sort | SortSpec | undefined),
+        },
         requestId
       )
 

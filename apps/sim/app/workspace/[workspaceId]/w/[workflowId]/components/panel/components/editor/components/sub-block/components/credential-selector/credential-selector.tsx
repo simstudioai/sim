@@ -24,7 +24,7 @@ import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
@@ -511,16 +511,14 @@ export function CredentialSelector({
         />
       )}
 
-      {showSetupModal && serviceAccountService?.serviceAccountProviderId && (
+      {showSetupModal && serviceAccountTarget && (
         <ConnectServiceAccountModal
           open={showSetupModal}
           onOpenChange={setShowSetupModal}
           workspaceId={workspaceId}
-          serviceAccountProviderId={
-            serviceAccountService.serviceAccountProviderId as ServiceAccountProviderId
-          }
-          serviceName={serviceAccountService.name}
-          serviceIcon={serviceAccountService.icon}
+          serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          serviceName={serviceAccountTarget.serviceName}
+          serviceIcon={serviceAccountTarget.serviceIcon}
           onCreated={(newCredentialId) => {
             setStoreValue(newCredentialId)
             refetchCredentials()

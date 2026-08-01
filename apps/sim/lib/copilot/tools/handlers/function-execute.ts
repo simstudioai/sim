@@ -3,6 +3,7 @@ import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getColumnId } from '@/lib/table/column-keys'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
@@ -427,7 +428,13 @@ export async function resolveInputFiles(
         continue
       }
 
-      const rows = await queryRows(table, {}, 'copilot-fn-exec')
+      // Keep the prior bounded mount — draining the whole table here was backed
+      // out for OOM, so don't ride the new unbounded queryRows default.
+      const rows = await queryRows(
+        table,
+        { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
+        'copilot-fn-exec'
+      )
 
       const columns = table.schema.columns
       const csvLines = [toCsvRow(columns.map((column) => neutralizeCsvFormula(column.name)))]

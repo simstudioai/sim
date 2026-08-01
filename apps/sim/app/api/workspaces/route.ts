@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -10,7 +10,6 @@ import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -21,22 +20,13 @@ import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import {
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
+  lockWorkspaceCreationContext,
   resolveInviteFlags,
   WORKSPACE_MODE,
+  WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
-
-/**
- * Thrown when the creator became an organization member between the
- * creation-policy read and the insert — the workspace must not land personal.
- */
-class PersonalWorkspaceCreationRacedError extends Error {
-  constructor() {
-    super('User joined an organization while creating a personal workspace')
-    this.name = 'PersonalWorkspaceCreationRacedError'
-  }
-}
 
 // Get all workspaces for the current user
 export const GET = withRouteHandler(async (request: Request) => {
@@ -83,10 +73,13 @@ export const GET = withRouteHandler(async (request: Request) => {
        * default-workspace insert. Their workspaces (the join sweep's output)
        * exist now — re-list and return that instead of failing the load.
        */
-      if (error instanceof PersonalWorkspaceCreationRacedError) {
-        logger.info('Default workspace creation raced an organization join; re-listing', {
-          userId: session.user.id,
-        })
+      if (error instanceof WorkspaceCreationContextChangedError) {
+        logger.info(
+          'Default workspace creation raced an organization membership change; re-listing',
+          {
+            userId: session.user.id,
+          }
+        )
         const refreshedPayload = await listWorkspacesForViewer({
           userId: session.user.id,
           activeOrganizationId,
@@ -190,11 +183,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
-    if (error instanceof PersonalWorkspaceCreationRacedError) {
+    if (error instanceof WorkspaceCreationContextChangedError) {
       return NextResponse.json(
         {
           error:
-            'You joined an organization while this workspace was being created. Organization members create organization workspaces — try again.',
+            'Your organization membership changed while this workspace was being created. Please try again.',
         },
         { status: 409 }
       )
@@ -252,35 +245,27 @@ async function createWorkspace({
   const workflowId = generateId()
   const now = new Date()
   const color = explicitColor || getRandomWorkspaceColor()
+  let committedBilledAccountUserId = billedAccountUserId
 
   try {
     await db.transaction(async (tx) => {
       /**
-       * Personal creation serializes with organization joins on the user's
-       * billing-identity lock: joins hold it while sweeping the joiner's
-       * owned workspaces, so re-checking membership under it here means a
-       * workspace can never be created personal after (or while) its owner
-       * joins an organization — the creation-policy read above this
-       * transaction can be stale by the time the insert runs.
+       * Creation takes the same organization → user → membership fence as
+       * source access removal and transfer. If creation commits first, their
+       * post-lock workspace-set re-read sees this row and cleans it up. If the
+       * membership mutation commits first, this re-read rejects the stale
+       * creation policy before inserting anything.
        */
-      if (!organizationId) {
-        await acquireUserBillingIdentityLock(tx, userId)
-        const [currentMembership] = await tx
-          .select({ organizationId: member.organizationId })
-          .from(member)
-          .where(eq(member.userId, userId))
-          .limit(1)
-        /**
-         * Only a CHANGE since the policy read means the decision is stale. An
-         * unchanged membership is legitimately personal — the policy returns
-         * a personal decision for members whose organization has no usable
-         * Team/Enterprise plan (a dormant org), and those users must still be
-         * able to create workspaces.
-         */
-        if ((currentMembership?.organizationId ?? null) !== observedOrganizationId) {
-          throw new PersonalWorkspaceCreationRacedError()
-        }
-      }
+      const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
+        userId,
+        organizationId,
+        observedOrganizationId,
+      })
+      const currentBilledAccountUserId =
+        workspaceMode === WORKSPACE_MODE.ORGANIZATION
+          ? lockedCreationContext.billedAccountUserId
+          : billedAccountUserId
+      committedBilledAccountUserId = currentBilledAccountUserId
 
       await tx.insert(workspace).values({
         id: workspaceId,
@@ -289,7 +274,7 @@ async function createWorkspace({
         ownerId: userId,
         organizationId,
         workspaceMode,
-        billedAccountUserId,
+        billedAccountUserId: currentBilledAccountUserId,
         allowPersonalApiKeys: true,
         createdAt: now,
         updatedAt: now,
@@ -309,14 +294,14 @@ async function createWorkspace({
 
       if (
         workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
-        billedAccountUserId &&
-        billedAccountUserId !== userId
+        currentBilledAccountUserId &&
+        currentBilledAccountUserId !== userId
       ) {
         permissionRows.push({
           id: generateId(),
           entityType: 'workspace' as const,
           entityId: workspaceId,
-          userId: billedAccountUserId,
+          userId: currentBilledAccountUserId,
           permissionType: 'admin' as const,
           createdAt: now,
           updatedAt: now,
@@ -369,7 +354,7 @@ async function createWorkspace({
   const invitePolicy = await getWorkspaceInvitePolicy({
     organizationId,
     workspaceMode,
-    billedAccountUserId,
+    billedAccountUserId: committedBilledAccountUserId,
     ownerId: userId,
   })
 
@@ -380,13 +365,13 @@ async function createWorkspace({
     ownerId: userId,
     organizationId,
     workspaceMode,
-    billedAccountUserId,
+    billedAccountUserId: committedBilledAccountUserId,
     allowPersonalApiKeys: true,
     createdAt: now,
     updatedAt: now,
     role: 'owner',
     permissions: 'admin',
-    ...resolveInviteFlags(invitePolicy, billedAccountUserId === userId),
+    ...resolveInviteFlags(invitePolicy, committedBilledAccountUserId === userId),
   }
 }
 

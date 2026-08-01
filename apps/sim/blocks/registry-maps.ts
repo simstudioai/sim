@@ -294,6 +294,7 @@ import { STSBlock, STSBlockMeta } from '@/blocks/blocks/sts'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock, SupabaseBlockMeta } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TailscaleBlock, TailscaleBlockMeta } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyBlockMeta } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
@@ -613,6 +614,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   stt_v2: SttV2Block,
   supabase: SupabaseBlock,
   table: TableBlock,
+  table_v2: TableV2Block,
   tailscale: TailscaleBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
