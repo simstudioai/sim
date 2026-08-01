@@ -330,6 +330,9 @@ interface StoredHandoff extends MothershipHandoff {
 export class MothershipHandoffStorage {
   private static readonly KEY = STORAGE_KEYS.MOTHERSHIP_HANDOFF
 
+  /** How long a stored handoff stays eligible to fire, in milliseconds. */
+  static readonly MAX_AGE_MS = 60 * 1000
+
   /**
    * Store a handoff for the next home-surface mount, scoped to the workspace it
    * targets so a different workspace never claims it. Chip-only handoffs
@@ -355,10 +358,20 @@ export class MothershipHandoffStorage {
     })
   }
 
-  /** Contexts of an un-consumed chip-only handoff for `workspaceId`, else empty. */
+  /**
+   * Contexts of an un-consumed chip-only handoff for `workspaceId`, else empty.
+   *
+   * Applies the same freshness bar as {@link consume}: accumulating carries the
+   * old contexts onto a write that stamps a new `timestamp`, so without this an
+   * abandoned handoff that had already aged out would ride along on the next
+   * "Add to chat" and reappear as if it were current.
+   */
   private static pendingContexts(workspaceId: string): ChatContext[] {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
     if (!data || data.message || data.workspaceId !== workspaceId) return []
+    if (!data.timestamp || Date.now() - data.timestamp > MothershipHandoffStorage.MAX_AGE_MS) {
+      return []
+    }
     return Array.isArray(data.contexts) ? data.contexts : []
   }
 
@@ -368,9 +381,12 @@ export class MothershipHandoffStorage {
    * only resolves in its own workspace, so misfiring it elsewhere would drop the
    * context. The owner (and any legacy/corrupt entry) is tombstoned via `clear`
    * before the validity/expiry checks so it fires at most once and never lingers.
-   * @param maxAge - Maximum age in milliseconds (default: 60 seconds)
+   * @param maxAge - Maximum age in milliseconds (default: {@link MAX_AGE_MS})
    */
-  static consume(workspaceId: string, maxAge: number = 60 * 1000): MothershipHandoff | null {
+  static consume(
+    workspaceId: string,
+    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS
+  ): MothershipHandoff | null {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
 
     if (!data) {

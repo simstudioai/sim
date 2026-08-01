@@ -80,6 +80,31 @@ describe('MothershipHandoffStorage', () => {
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ contexts: [first, second] })
   })
 
+  it('does not revive chips from a handoff that already aged out', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      const abandoned = chipContext()
+      MothershipHandoffStorage.store({ contexts: [abandoned] }, WS)
+
+      // The user walks away; the handoff expires in place. A later "Add to chat"
+      // stamps a fresh timestamp, which must not carry the dead chip forward.
+      vi.advanceTimersByTime(61 * 1000)
+      const fresh: ChatContext = {
+        kind: 'table_selection',
+        tableId: 't1',
+        tableName: 'T',
+        label: 'T (1 row)',
+        rowIds: ['r'],
+      }
+      MothershipHandoffStorage.store({ contexts: [fresh] }, WS)
+
+      expect(MothershipHandoffStorage.consume(WS)).toEqual({ contexts: [fresh] })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not accumulate chips onto a message handoff, or across workspaces', () => {
     const chip = chipContext()
     MothershipHandoffStorage.store({ contexts: [chip] }, WS)
