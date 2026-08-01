@@ -98,6 +98,9 @@ export const CLI_CONTRACT: CliContract = {
   queryRows: {
     command: 'tables rows query',
     flags: { predicate: { name: 'filter', json: true }, sort: { json: true } },
+    // A row's cells live under `data`; without this the table showed an id and
+    // two timestamps per row and none of the content anyone ran the query for.
+    expand: 'data',
   },
 
   // ─── Output columns for list commands ─────────────────────────────────────

@@ -89,10 +89,12 @@ function columnsFrom(specs: ColumnSpec[]): Column<unknown>[] {
  * Row shapes are only known at runtime here — a table's `data` is user-defined —
  * so the keys are unioned across the page rather than read off the first row,
  * which would let a sparse row hide every column it happens to omit. Nested
- * values are skipped: they render as JSON blobs and make the table unreadable.
+ * values are skipped: they render as JSON blobs and make the table unreadable —
+ * unless the contract names one with `expand`, which is how a row's cells reach
+ * the table.
  */
-function inferColumns(rows: unknown[]): Column<unknown>[] {
-  const keys: string[] = []
+function inferColumns(rows: unknown[], expand?: string): Column<unknown>[] {
+  const paths: Array<{ path: string; header: string }> = []
   const seen = new Set<string>()
 
   for (const row of rows) {
@@ -101,16 +103,34 @@ function inferColumns(rows: unknown[]): Column<unknown>[] {
       if (seen.has(key)) continue
       if (value !== null && typeof value === 'object') continue
       seen.add(key)
-      keys.push(key)
+      paths.push({ path: key, header: key })
     }
   }
 
-  return keys.map((key) => ({
+  // The wrapper named by `expand` holds the only content the caller cares about;
+  // the loop above skipped it for being an object, which is how `tables rows
+  // query` came back showing nothing but ids and timestamps.
+  if (expand) {
+    const nested = new Set<string>()
+    for (const row of rows) {
+      const container = at(row, expand)
+      if (!container || typeof container !== 'object' || Array.isArray(container)) continue
+      for (const key of Object.keys(container)) {
+        if (nested.has(key)) continue
+        nested.add(key)
+        // A user-defined key that shadows a top-level one is shown by its full
+        // path, so two different values never appear under one header.
+        paths.push({ path: `${expand}.${key}`, header: seen.has(key) ? `${expand}.${key}` : key })
+      }
+    }
+  }
+
+  return paths.map(({ path, header }) => ({
     // The key itself is remote data when the rows are user-defined, and the
     // header is printed just like a cell — sanitizing values but not headers
     // left the same control sequences executable one row higher.
-    header: sanitize(key),
-    value: (row: unknown) => renderCell(at(row, key), 'auto'),
+    header: sanitize(header),
+    value: (row: unknown) => renderCell(at(row, path), 'auto'),
   }))
 }
 
@@ -297,7 +317,11 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
       } while (cursor && rows.length < limit)
 
       const page = Number.isFinite(limit) ? rows.slice(0, limit) : rows
-      printList(profile.output, page, spec.columns ? columnsFrom(spec.columns) : inferColumns(page))
+      printList(
+        profile.output,
+        page,
+        spec.columns ? columnsFrom(spec.columns) : inferColumns(page, spec.expand)
+      )
       return
     }
 
@@ -318,7 +342,11 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
     if (Array.isArray(data)) {
       // Reached when a non-paginated operation answers with a collection.
       // `printRecord` would silently print nothing for an array.
-      printList(profile.output, data, spec.columns ? columnsFrom(spec.columns) : inferColumns(data))
+      printList(
+        profile.output,
+        data,
+        spec.columns ? columnsFrom(spec.columns) : inferColumns(data, spec.expand)
+      )
       return
     }
 

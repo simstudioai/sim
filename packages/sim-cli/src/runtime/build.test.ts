@@ -243,3 +243,30 @@ describe('pagination slot', () => {
     expect(mockRequest.mock.calls[1][1].query).toMatchObject({ cursor: 'c1' })
   })
 })
+
+describe('rows whose content sits in a wrapper', () => {
+  it('discovers columns from the expanded field', async () => {
+    // `tables rows query` returned a table of ids and timestamps: a row's cells
+    // live under `data`, and column inference skipped it for being an object.
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({
+      data: [
+        { id: 'r1', data: { url: 'https://a', title: 'A' }, createdAt: 'now' },
+        { id: 'r2', data: { url: 'https://b', extra: 'E' }, createdAt: 'now' },
+      ],
+      nextCursor: null,
+    })
+    const lines: string[] = []
+    output.format = 'text'
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      lines.push(line)
+    })
+    await program().parseAsync(['node', 'sim', 'tables', 'rows', 'query', 'tbl_1'])
+    output.format = 'json'
+
+    // Unioned across the page: `extra` appears only on the second row.
+    expect(lines[0]).toContain('https://a')
+    expect(lines[0]).toContain('A')
+    expect(lines[1]).toContain('E')
+  })
+})

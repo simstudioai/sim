@@ -259,3 +259,61 @@ describe('sanitize', () => {
     expect(timestamp('2026-07-31T09:14:22.500Z')).toBe('2026-07-31 09:14:22')
   })
 })
+
+describe('cells stay on their own line', () => {
+  const rows = [{ note: 'first\nsecond', tabbed: 'a\tb' }]
+  const columns: Column<(typeof rows)[number]>[] = [
+    { header: 'note', value: (row) => row.note },
+    { header: 'tabbed', value: (row) => row.tabbed },
+  ]
+
+  function captured(format: 'table' | 'text' | 'json'): string[] {
+    const lines: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      lines.push(line)
+    })
+    printList(format, rows, columns)
+    spy.mockRestore()
+    return lines
+  }
+
+  it('collapses a newline inside a table cell', () => {
+    // One newline pushed the rest of the row onto the next line and every
+    // column after it lost its alignment.
+    const table = captured('table').join('\n')
+    expect(table.split('\n')).toHaveLength(2)
+    expect(table).toContain('first second')
+  })
+
+  it('collapses a tab in text mode, so cut -f still sees real fields', () => {
+    const [line] = captured('text')
+    expect(line.split('\t')).toHaveLength(2)
+    expect(line).toBe('first second\ta b')
+  })
+
+  it('leaves json untouched', () => {
+    expect(JSON.parse(captured('json').join('\n'))).toEqual([
+      { note: 'first\nsecond', tabbed: 'a\tb' },
+    ])
+  })
+
+  it('clamps a very wide cell in table mode only', () => {
+    const wide = [{ blob: 'x'.repeat(500) }]
+    const cols: Column<(typeof wide)[number]>[] = [{ header: 'blob', value: (row) => row.blob }]
+    const lines: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      lines.push(line)
+    })
+    printList('table', wide, cols)
+    printList('text', wide, cols)
+    spy.mockRestore()
+
+    // The table arrives as one string: header line, then the clamped body line.
+    const [header, body] = lines[0].split('\n')
+    expect(header.trim()).toBe('BLOB')
+    expect(body).toMatch(/…$/)
+    expect(body.length).toBeLessThan(100)
+    // `text` feeds pipelines; truncating there would corrupt the data.
+    expect(lines[1]).toHaveLength(500)
+  })
+})

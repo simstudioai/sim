@@ -85,6 +85,16 @@ export interface CommandSpec {
    */
   confirm?: string
   /**
+   * Discover table columns from inside this nested field as well as from the
+   * row's own scalars.
+   *
+   * For rows whose real content sits in a wrapper the server chose — a table
+   * row's user-defined cells live under `data` — the inferred columns would
+   * otherwise be `id` and two timestamps, because a nested object cannot be a
+   * column. Only meaningful when `columns` is absent.
+   */
+  expand?: string
+  /**
    * The response IS a document, not a record to look at.
    *
    * `workflows export` exists to be redirected into a file and fed back to

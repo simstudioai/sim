@@ -131,6 +131,41 @@ function pad(value: string, width: number): string {
   return value + ' '.repeat(Math.max(0, width - visibleWidth(value)))
 }
 
+/**
+ * Flattens a cell onto one line.
+ *
+ * `sanitize` keeps `\t` and `\n` on purpose — they are legitimate content, and
+ * json/yaml must round-trip them. Every *display* format is line-oriented
+ * though: one newline inside a table cell pushes the rest of the row into the
+ * next line and every column after it loses its alignment, and in `text` mode a
+ * stray tab invents a field that `cut -f` then reads as real. A table row of a
+ * workflow's Slack output did exactly this.
+ *
+ * Applied to finished cells only, so it cannot reach the machine formats.
+ */
+function oneLine(value: string): string {
+  return value.replace(/\s*[\r\n\t]+\s*/g, ' ')
+}
+
+/**
+ * Widest a single table column may render.
+ *
+ * A table row can hold a whole LLM response; at full width one such cell sets
+ * the column width for every row and pushes everything after it off-screen.
+ * `text`, `json` and `yaml` are untouched — this is a legibility cap on the
+ * human view, and the other three formats exist for the whole value.
+ */
+const MAX_CELL_WIDTH = 60
+
+function clampCell(value: string): string {
+  // ANSI-bearing cells come from the short formatters (`yes`/`no`, the empty
+  // glyph); slicing one mid-escape would corrupt it, and none are ever wide.
+  if (visibleWidth(value) <= MAX_CELL_WIDTH || value !== value.replace(ANSI_PATTERN, '')) {
+    return value
+  }
+  return `${value.slice(0, MAX_CELL_WIDTH - 1)}…`
+}
+
 function renderTable<T>(rows: T[], columns: Column<T>[]): string {
   if (rows.length === 0) return chalk.dim('No results.')
 
@@ -138,7 +173,7 @@ function renderTable<T>(rows: T[], columns: Column<T>[]): string {
   // remote content and gets the same treatment as a cell. Doing it here rather
   // than only at each call site means a future column source cannot reopen this.
   const headers = columns.map((column) => sanitize(column.header))
-  const cells = rows.map((row) => columns.map((column) => column.value(row)))
+  const cells = rows.map((row) => columns.map((column) => clampCell(oneLine(column.value(row)))))
   const widths = columns.map((_column, index) =>
     Math.max(visibleWidth(headers[index]), ...cells.map((line) => visibleWidth(line[index])))
   )
@@ -193,7 +228,7 @@ export function printList<T>(format: OutputFormat, rows: T[], columns: Column<T>
 
   if (format === 'text') {
     for (const row of rows) {
-      console.log(columns.map((column) => stripAnsi(column.value(row))).join('\t'))
+      console.log(columns.map((column) => oneLine(stripAnsi(column.value(row)))).join('\t'))
     }
     return
   }
@@ -226,13 +261,13 @@ export function printRecord(format: OutputFormat, fields: Array<[string, string]
 
   if (format === 'text') {
     for (const [label, value] of fields) {
-      console.log(`${label}\t${stripAnsi(value)}`)
+      console.log(`${label}\t${oneLine(stripAnsi(value))}`)
     }
     return
   }
 
   const width = Math.max(...fields.map(([label]) => label.length))
   for (const [label, value] of fields) {
-    console.log(`${chalk.dim(pad(`${label}:`, width + 1))}  ${value}`)
+    console.log(`${chalk.dim(pad(`${label}:`, width + 1))}  ${oneLine(value)}`)
   }
 }
