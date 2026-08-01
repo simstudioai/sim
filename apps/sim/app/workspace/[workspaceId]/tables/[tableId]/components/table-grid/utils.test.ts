@@ -12,6 +12,7 @@ import {
   buildTableSelectionContext,
   canWriteRowsWithChip,
   chipRowCount,
+  drainTargetForChip,
   selectedColumnIds,
 } from './utils'
 
@@ -130,4 +131,19 @@ describe('chipRowCount', () => {
       expect(chipRowCount(requested)).toBe(context.rowIds.length)
     }
   )
+})
+
+describe('drainTargetForChip', () => {
+  it('still yields a full cap when every exclusion lands in the loaded prefix', () => {
+    // The worst case for a gutter select-all: exclusions are filtered out AFTER
+    // loading, so loading only the cap would leave the chip short of the count
+    // the menu already advertised.
+    const excluded = 30
+
+    expect(drainTargetForChip(excluded) - excluded).toBe(MAX_TABLE_SELECTION_ROWS)
+  })
+
+  it('loads exactly the cap when nothing is excluded', () => {
+    expect(drainTargetForChip(0)).toBe(MAX_TABLE_SELECTION_ROWS)
+  })
 })

@@ -12,7 +12,6 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
-import { MAX_TABLE_SELECTION_ROWS } from '@/lib/copilot/chat/selection-context'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -73,6 +72,7 @@ import {
   classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
+  drainTargetForChip,
   type ExecStatusMix,
   expandToDisplayColumns,
   isCellInSelection,
@@ -3840,7 +3840,11 @@ export function TableGrid({
     let sourceRowIds = addToChatRowIds
     if (contextMenuIsSelectAll || isColumnSelectionRef.current) {
       try {
-        const { rows: loaded } = await ensureRowsLoadedUpToRef.current(MAX_TABLE_SELECTION_ROWS)
+        const excludedCount =
+          rowSelectionRef.current.kind === 'all' ? (rowSelectionRef.current.excluded?.size ?? 0) : 0
+        const { rows: loaded } = await ensureRowsLoadedUpToRef.current(
+          drainTargetForChip(excludedCount)
+        )
         // A column selection spans all rows; a gutter select-all filters by the
         // (exclusion-aware) row selection.
         const drained = (

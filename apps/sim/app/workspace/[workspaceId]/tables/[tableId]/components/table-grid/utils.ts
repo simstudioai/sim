@@ -405,6 +405,18 @@ export function buildTableSelectionContext(opts: {
 }
 
 /**
+ * How many rows to load before building a select-all chip. A gutter select-all
+ * can carry exclusions anywhere in the table, and they are filtered out AFTER
+ * loading — so loading only {@link MAX_TABLE_SELECTION_ROWS} yields fewer than
+ * the cap whenever an excluded row sits in that prefix, leaving the chip short
+ * of the count the menu advertised. Loading the cap plus the exclusion count
+ * covers the worst case, where every exclusion falls inside the prefix.
+ */
+export function drainTargetForChip(excludedCount: number): number {
+  return MAX_TABLE_SELECTION_ROWS + excludedCount
+}
+
+/**
  * Rows a chip will actually reference for a selection of `requested` rows —
  * {@link buildTableSelectionContext} caps its `rowIds`, so any count shown to
  * the user must pass through here or the UI promises more than it sends.
