@@ -511,45 +511,6 @@ const unrenderableSources = new Map<string, number>()
  */
 const UNRENDERABLE_TTL_MS = 5 * 60 * 1000
 
-/**
- * Renders in flight, keyed identically to {@link compiledDocCache}. An artifact
- * miss is the same for every concurrent reader — a freshly forked workspace whose
- * document several viewers open at once, or one request whose blocks read the same
- * file — and rendering is the expensive step, so they share one run instead of each
- * paying for it. The entry is dropped as soon as the render settles, so a later read
- * re-renders normally rather than replaying a stale result.
- */
-const inFlightRenders = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>()
-
-/** Rejects when `signal` aborts, so a caller can abandon a shared render without cancelling it. */
-function rejectOnAbort(signal: AbortSignal): Promise<never> {
-  return new Promise((_resolve, reject) => {
-    if (signal.aborted) {
-      reject(signal.reason ?? new Error('Aborted'))
-      return
-    }
-    signal.addEventListener('abort', () => reject(signal.reason ?? new Error('Aborted')), {
-      once: true,
-    })
-  })
-}
-
-function coalesceRender(
-  key: string,
-  run: () => Promise<{ buffer: Buffer; contentType: string }>
-): Promise<{ buffer: Buffer; contentType: string }> {
-  const existing = inFlightRenders.get(key)
-  if (existing) return existing
-  const started = run().finally(() => inFlightRenders.delete(key))
-  // Every caller races this against its own signal, so all of them can walk away
-  // before it settles. Attach a terminal handler so a later rejection with no
-  // waiters left is not reported as an unhandled rejection — callers still observe
-  // it through their own reference.
-  started.catch(() => {})
-  inFlightRenders.set(key, started)
-  return started
-}
-
 function markUnrenderable(key: string): void {
   if (unrenderableSources.size >= MAX_COMPILED_DOC_CACHE) {
     unrenderableSources.delete(unrenderableSources.keys().next().value as string)
@@ -680,11 +641,7 @@ export async function resolveServableDocBytes(args: {
     // (content-addressed), so racing a still-running write-time compile is wasteful
     // but correct.
     try {
-      // Same shape as the isolated-vm branch below: the shared run carries no
-      // caller's signal, and each caller races its own so an aborting reader gives
-      // up promptly without cancelling the render for everyone else.
-      const shared = coalesceRender(renderKey, () => compileDoc({ source, fileName, workspaceId }))
-      return await (signal ? Promise.race([shared, rejectOnAbort(signal)]) : shared)
+      return await compileDoc({ source, fileName, workspaceId })
     } catch (error) {
       // Only a script error is deterministic — the same bytes will never render, so
       // remembering that is safe. Infra failures (sandbox create/timeout, S3, an
@@ -706,22 +663,13 @@ export async function resolveServableDocBytes(args: {
   }
 
   try {
-    // The shared run deliberately carries no caller's signal: it is one piece of
-    // work several readers are waiting on, so letting whoever happened to start it
-    // cancel it would reject every other waiter with an AbortError they did not
-    // ask for. Each caller instead races its own signal, so an aborting reader
-    // gives up promptly while the render continues for the rest and still lands in
-    // the cache.
-    const shared = coalesceRender(renderKey, async () => {
-      const compiled = await runSandboxTask(
-        format.taskId,
-        { code: source, workspaceId: workspaceId || '' },
-        { ownerKey }
-      )
-      compiledCacheSet(renderKey, compiled)
-      return { buffer: compiled, contentType: format.contentType }
-    })
-    return await (signal ? Promise.race([shared, rejectOnAbort(signal)]) : shared)
+    const compiled = await runSandboxTask(
+      format.taskId,
+      { code: source, workspaceId: workspaceId || '' },
+      { ownerKey, signal }
+    )
+    compiledCacheSet(renderKey, compiled)
+    return { buffer: compiled, contentType: format.contentType }
   } catch (error) {
     // Unlike the E2B engine, the isolated-vm task does not distinguish a script
     // error from an infra one, so the only signal available here is cancellation —

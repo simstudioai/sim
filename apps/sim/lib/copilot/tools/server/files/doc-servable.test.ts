@@ -137,35 +137,6 @@ describe('resolveServableDocBytes', () => {
     expect(result.contentType).toBe('application/octet-stream')
   })
 
-  it('coalesces concurrent reads of the same missing artifact into one render', async () => {
-    // A freshly forked workspace can have several viewers open the same document at
-    // once; each would otherwise pay for its own compile of identical bytes.
-    const source = uniqueSource('from reportlab.pdfgen import canvas')
-    mockLoadCompiledDoc.mockResolvedValue(null)
-    setEnvFlags({ isDocSandboxEnabled: true })
-    mockExecuteInSandbox.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(
-            () => resolve({ exportedFileContent: Buffer.from('%PDF-once').toString('base64') }),
-            5
-          )
-        )
-    )
-
-    const args = { rawBuffer: source, fileName: 'report.pdf', workspaceId: WORKSPACE_ID }
-    const [a, b, c] = await Promise.all([
-      resolveServableDocBytes(args),
-      resolveServableDocBytes(args),
-      resolveServableDocBytes(args),
-    ])
-
-    expect(mockExecuteInSandbox).toHaveBeenCalledTimes(1)
-    expect(a.buffer.toString()).toBe('%PDF-once')
-    expect(b.buffer.toString()).toBe('%PDF-once')
-    expect(c.buffer.toString()).toBe('%PDF-once')
-  })
-
   it('does not re-run the sandbox for bytes that already failed to render', async () => {
     const notReallyAPdf = uniqueSource('<html>still not a pdf</html>')
     mockLoadCompiledDoc.mockResolvedValue(null)
