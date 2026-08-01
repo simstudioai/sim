@@ -71,8 +71,8 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
 ]
 
 const STRING_FIELD_PATTERNS = [
-  /(^|[{,\s])(["']?)([A-Za-z0-9_-]+)\2(\s*:\s*)("(?:\\.|[^"\\])*")/gm,
-  /(^|[{,\s])(["']?)([A-Za-z0-9_-]+)\2(\s*:\s*)('(?:\\.|[^'\\])*')/gm,
+  /(^|[{,\s])(["']?)([A-Za-z0-9_-]+)\2(\s*[:=]\s*)("(?:\\.|[^"\\])*")/gm,
+  /(^|[{,\s])(["']?)([A-Za-z0-9_-]+)\2(\s*[:=]\s*)('(?:\\.|[^'\\])*')/gm,
 ]
 
 export function isSensitiveKey(key: string): boolean {

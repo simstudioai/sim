@@ -555,6 +555,16 @@ describe('QuickBooks customer and vendor mutations', () => {
       City: 'San Francisco',
       PostalCode: '94105',
     })
+    expect(
+      parseQuickBooksAddress(
+        { Line1: '123 Main St', City: 'San Francisco', PostalCode: '94105' },
+        'billingAddress'
+      )
+    ).toEqual({
+      Line1: '123 Main St',
+      City: 'San Francisco',
+      PostalCode: '94105',
+    })
     expect(() => parseQuickBooksAddress('[]', 'billingAddress')).toThrow('JSON object')
     expect(() => parseQuickBooksAddress('{"unknown":"value"}', 'billingAddress')).toThrow(
       'unsupported field'

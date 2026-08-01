@@ -259,11 +259,17 @@ export function validateQuickBooksOptionalNumber(
 
 const QUICKBOOKS_ADDRESS_FIELDS = {
   line1: 'Line1',
+  Line1: 'Line1',
   line2: 'Line2',
+  Line2: 'Line2',
   city: 'City',
+  City: 'City',
   countrySubDivisionCode: 'CountrySubDivisionCode',
+  CountrySubDivisionCode: 'CountrySubDivisionCode',
   postalCode: 'PostalCode',
+  PostalCode: 'PostalCode',
   country: 'Country',
+  Country: 'Country',
 } as const
 
 export function parseQuickBooksAddress(
