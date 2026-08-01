@@ -119,7 +119,8 @@ Prefer set-based SQL. When the transform genuinely needs JS (`currency`'s separa
 - **Import cycles.** `column-types/select.ts` imports `select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
 - **The client-safe boundary.** `registry.ts` and everything it imports must stay free of `@sim/db`, `drizzle-orm`, and `next/server` — the tables grid imports it directly. A React icon is fine (it's a component *reference*, never called server-side). Only `registry.server.ts` may touch drizzle.
 - **Don't re-export the registry from `@/lib/table`.** 44 server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
-- **`import.ts`'s `coerceValue` is a SECOND write path and is not opt-in.** Importing into a column of your type always hits it, and its `default` arm silently `String(value)`s — so a missing `case` stores text in a column whose `jsonbCast` is numeric, and then every filter and sort on that column errors in Postgres. Add a `case`, even though the switch compiles without one. (It is deliberately separate from the registry's `coerce`: an import wants an unparseable value to survive as its raw string so the row error can name it.)
+- **`import.ts`'s `coerceValue` is a SECOND write path and is not opt-in.** Importing into a column of your type always hits it. Its `default` arm now falls back to the registry's own `coerce` and, on failure, keeps the raw string only when `jsonbCast` is `null` — a numeric/timestamptz column nulls instead, because text left in one makes every filter and sort on that column error in Postgres. So a new type needs **no `case`**; add one only when the import should be *more* forgiving than `coerce` (as `date` and `currency` are). Do not restore a bare `String(value)` fallback.
+- **Rendering is a registry hook, not a branch.** `cell-render.tsx` reads `definition.display(value, column)` and switches on the returned `ColumnCellDisplay` kind. If your type draws as plain text you implement nothing. Note `display` also owns the *null* decision: a type that renders when its cell is empty (`boolean`'s unchecked box, `select`'s muted "None") must say so there.
 - **CSV inference** is an ordered heuristic in `import.ts`, deliberately not registry-driven. A new type is not inferred from a CSV unless you extend `inferColumnType` — usually you should not, since inference cannot supply configuration (an option set, a currency code).
 
 ## If your type owns metadata, read this
@@ -132,13 +133,21 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 | `column-types/types.ts` `TYPE_SPECIFIC_COLUMN_KEYS` | it is never stripped on conversion, and poisons the target type |
 | `lib/api/contracts/tables.ts` — the schema slot in all three column schemas, plus `refineColumnOptions` | zod strips it at the boundary; silently never saved |
 | `columns/service.ts` `addTableColumn` param type | callers cannot pass it |
-| A metadata-only update path (`updateColumnCurrency` is the model) + a branch in both column routes + the copilot tool | changing it on an existing column is a silent 200 no-op |
 | `column-config-sidebar.tsx` | no UI to set it |
-| `table-grid.tsx` delete-column undo + `use-table-undo.ts` restore | undo silently resets it to the default |
 
-`normalizeColumn`, `buildConvertedColumn`, and the undo snapshot read `TYPE_SPECIFIC_COLUMN_KEYS` generically, so those three are already zero-edit.
+`normalizeColumn`, `buildConvertedColumn`, the undo snapshot, both column routes, the copilot tool, and the metadata-only update path all read the key list generically, so they are zero-edit.
 
-**Known gap:** the metadata-only update path is ~6 near-identical copies (service + 2 routes + copilot). A `metadataUpdate` descriptor on `ColumnTypeServerDefinition` would collapse them; until that exists, copy `currency`'s.
+**Declare ownership in ONE place: `METADATA_KEY_OWNERS` in `column-types/types.ts`.** Each type's `ownedMetadata` derives from it via `ownedKeysOf(id)` — do not hand-write an `ownedMetadata` array. The map lives in `types.ts` rather than on the definitions because that module imports no icons, which is what lets `lib/api/contracts/tables.ts` (client-reachable, and so barred from the icon-carrying registry) enforce the same ownership rule the server does. A key may have several owners: `precision` is shared by `number` and `percent`, which is what lets a column convert between them without the key being stripped in transit.
+
+**There is no longer a per-key update path to copy.** `updateColumnMetadata` in `columns/service.ts` handles every key: ownership from `ownedMetadata`, normalization from `defaultMetadata`, validation from `validateDefinition`. Both routes and the copilot tool route on `metadataKeysIn(updates)` and share the `validateMetadataUpdate` pre-flight in `columns/metadata.ts`. Adding a key needs no edit in any of them.
+
+- If changing your key must **rewrite cells**, declare `migrateCellsForMetadata` on the server entry (`date`'s `includeTime` is the model). It runs inside the same transaction with a scaled statement timeout. Omit it for presentational metadata — a `currency` code or a `precision` must never touch a row.
+- If your key needs a **dedicated writer** because changing it rewrites cells *and* needs bespoke guards, set `genericMetadataUpdate: []` and keep that writer. Only `select`'s `options`/`multiple` do this.
+- **Adding a key to an existing type is a backward-compatibility question.** Absent is not the same as your default: existing columns have no value for it, and treating them as if they chose your default can silently rewrite their data on the next cell write. `date.includeTime` truncates only on an explicit `false`, and stamps `false` on new columns via `defaultMetadata` — so new columns get the good default and old ones are untouched. Assert both directions in a test.
+
+## Deriving UI from the registry
+
+Do not gate a control on a type name (`typeInput === 'number' || typeInput === 'percent'`). Ask `typeOwnsMetadataKey(type, 'precision')`. This is the leak the Step-2 grep below is most likely to catch in your own diff.
 
 ## Checklist Before Finishing
 
@@ -147,7 +156,8 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 - [ ] Registered in **both** `registry.ts` and `registry.server.ts`
 - [ ] Icon added, centered on the family's optical center, exported alphabetically
 - [ ] `migrateCellsTo` / `migrateCellsFrom` added if the stored bytes change
-- [ ] New metadata keys added to `TYPE_SPECIFIC_COLUMN_KEYS` + `FOREIGN_METADATA_VERB`
+- [ ] New metadata keys added to `TYPE_SPECIFIC_COLUMN_KEYS` + `METADATA_KEY_OWNERS` + `FOREIGN_METADATA_VERB`, with `ownedMetadata: ownedKeysOf('{id}')`
+- [ ] A metadata key added to an EXISTING type leaves columns that predate it behaving exactly as before
 - [ ] Unit tests for `coerce` / `isCompatibleWith` round-trips, verified to fail without the code
 - [ ] Docs row added to `apps/docs/content/docs/en/tables/index.mdx`
 
