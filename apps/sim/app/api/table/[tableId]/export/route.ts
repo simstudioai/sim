@@ -11,6 +11,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvCell } from '@/lib/table/export-format'
+import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -23,6 +24,20 @@ type ExportFormat = 'csv' | 'json'
 interface RouteParams {
   params: Promise<{ tableId: string }>
 }
+
+/** HEAD /api/table/[tableId]/export - Validates download access before browser navigation. */
+export const HEAD = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+  const requestId = generateRequestId()
+  const { tableId } = tableIdParamsSchema.parse(await params)
+  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  const access = await checkAccess(tableId, auth.userId, 'read')
+  if (!access.ok) return accessError(access, requestId, tableId)
+  return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+})
 
 /** GET /api/table/[tableId]/export - Streams the full table contents as CSV or JSON. */
 export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
@@ -92,11 +107,12 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
         }
 
         let offset = 0
+        let after: { orderKey: string | null; id: string } | undefined
         let firstJsonRow = true
         while (true) {
           const result = await queryRows(
             table,
-            { limit: EXPORT_BATCH_SIZE, offset, includeTotal: false },
+            { limit: EXPORT_BATCH_SIZE, offset, after, includeTotal: false },
             requestId
           )
 
@@ -114,7 +130,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
           // A page can be cut by the byte budget before reaching EXPORT_BATCH_SIZE,
           // so a short page does NOT mean the export is done — only a null cursor does.
           if (!result.nextCursor) break
-          offset += result.rows.length
+          const decoded = decodeCursor(result.nextCursor)
+          after = decoded.after
+          offset = decoded.offset ?? 0
         }
 
         if (format === 'json') controller.enqueue(encoder.encode(']'))

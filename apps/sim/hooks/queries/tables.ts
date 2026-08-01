@@ -507,6 +507,9 @@ export function tableRowsInfiniteOptions({
     getNextPageParam: (_lastPage, allPages): TableRowsPageParam | undefined =>
       getNextTableRowsPageParam(allPages, Boolean(sort)),
     staleTime: TABLE_ROWS_STALE_TIME,
+    placeholderData: keepPreviousData,
+    retry: (failureCount, error) =>
+      failureCount < 1 && (!isApiClientError(error) || error.status >= 500),
   })
 }
 
@@ -2092,8 +2095,8 @@ export async function downloadExportResult(
 }
 
 /**
- * Downloads the full contents of a table to the user's device by streaming
- * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
+ * Downloads the full contents of a table without buffering the streamed response in JavaScript.
+ * Defaults to CSV; pass `'json'` for JSON.
  */
 export async function downloadTableExport(
   tableId: string,
@@ -2101,22 +2104,19 @@ export async function downloadTableExport(
   format: 'csv' | 'json' = 'csv'
 ): Promise<void> {
   const url = `/api/table/${tableId}/export?format=${format}&t=${Date.now()}`
-  // boundary-raw-fetch: streaming download to a Blob, requestJson cannot consume non-JSON streams
-  const response = await fetch(url, { cache: 'no-store' })
+  // boundary-raw-fetch: HEAD preflights a streaming download before browser navigation owns it
+  const response = await fetch(url, { method: 'HEAD' })
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || `Failed to export table: ${response.statusText}`)
+    const status = [response.status, response.statusText].filter(Boolean).join(' ')
+    throw new Error(`Unable to export table (${status})`)
   }
-  const blob = await response.blob()
-  const objectUrl = URL.createObjectURL(blob)
   const safeName = fileName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'table'
   const a = document.createElement('a')
-  a.href = objectUrl
+  a.href = url
   a.download = `${safeName}.${format}`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  URL.revokeObjectURL(objectUrl)
 }
 
 export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {

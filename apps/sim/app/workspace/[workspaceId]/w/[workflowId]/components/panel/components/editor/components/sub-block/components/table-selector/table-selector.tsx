@@ -49,11 +49,13 @@ export function TableSelector({
   const tableId = typeof value === 'string' ? value : null
 
   const options = useMemo<ComboboxOption[]>(() => {
-    return tables.map((table) => ({
-      label: table.name.toLowerCase(),
-      value: table.id,
-    }))
-  }, [tables])
+    return tables
+      .filter((table) => subBlock.mode !== 'trigger' || !table.isVirtual)
+      .map((table) => ({
+        label: table.name.toLowerCase(),
+        value: table.id,
+      }))
+  }, [tables, subBlock.mode])
 
   const handleChange = useCallback(
     (selectedValue: string) => {

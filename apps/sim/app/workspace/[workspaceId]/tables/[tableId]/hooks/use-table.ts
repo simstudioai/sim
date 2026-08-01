@@ -43,6 +43,8 @@ export interface UseTableReturn {
   isLoadingTable: boolean
   /** Flattened across every fetched infinite-query page. */
   rows: TableRow[]
+  /** Initial or background row-query failure; null when the current query is healthy. */
+  rowsError: Error | null
   /** Filter-scoped total row count (server COUNT(*) for the active filter); null until loaded. */
   rowTotal: number | null
   /**
@@ -104,6 +106,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
 
   const {
     data: rowsData,
+    error: rowsError,
     isLoading: isLoadingRows,
     refetch,
     fetchNextPage,
@@ -260,6 +263,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     tableData,
     isLoadingTable,
     rows,
+    rowsError,
     rowTotal,
     filter,
     isLoadingRows,

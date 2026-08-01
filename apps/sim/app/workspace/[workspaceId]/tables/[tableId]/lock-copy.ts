@@ -88,8 +88,16 @@ export type BlockedTableAction = 'add-row' | 'add-column' | 'delete-column' | 'e
  */
 export function describeBlockedAction(
   action: BlockedTableAction,
-  locks: TableLocks
+  locks: TableLocks,
+  isVirtual?: boolean
 ): { title: string; text: string } {
+  if (isVirtual) {
+    return {
+      title: 'This table is read-only',
+      text: 'Its rows and columns can be viewed, but they can’t be changed.',
+    }
+  }
+
   switch (action) {
     case 'add-row':
       if (locks.insertLocked) {

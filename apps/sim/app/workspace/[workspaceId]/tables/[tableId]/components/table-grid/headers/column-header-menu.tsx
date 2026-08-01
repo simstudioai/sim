@@ -344,17 +344,19 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       )}
-      <div
-        className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
-        draggable={false}
-        onDragStart={(e) => e.stopPropagation()}
-        onPointerDown={handleResizePointerDown}
-        onDoubleClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onAutoResize(column.key)
-        }}
-      />
+      {!readOnly && (
+        <div
+          className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
+          draggable={false}
+          onDragStart={(e) => e.stopPropagation()}
+          onPointerDown={handleResizePointerDown}
+          onDoubleClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onAutoResize(column.key)
+          }}
+        />
+      )}
     </th>
   )
 })

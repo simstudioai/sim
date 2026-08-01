@@ -20,8 +20,8 @@ import type {
   TableViewConfig,
   WorkflowGroup,
 } from '@/lib/table'
+import { canMutateTable, canRenameTable, shouldUseAsyncTableExport } from '@/lib/table/capabilities'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type BreadcrumbItem,
   type ColumnOption,
@@ -1008,7 +1008,7 @@ export function Table({
 
   const handleStartTableRename = useCallback(() => {
     const data = tableDataRef.current
-    if (data) tableHeaderRename.startRename(tableId, data.name)
+    if (data && canRenameTable(data)) tableHeaderRename.startRename(tableId, data.name)
   }, [tableHeaderRename.startRename, tableId])
 
   const handleAddColumnOfType = (type: ColumnDefinition['type']) => {
@@ -1023,15 +1023,13 @@ export function Table({
     })
   }
 
-  const handleExportCsv = useCallback(async () => {
+  const handleExportCsv = async () => {
     if (!tableData) return
     try {
-      // Big tables export as a background job (the file downloads when the job completes via the
-      // SSE stream); small ones keep the instant synchronous stream. While a delete job runs,
-      // rowCount is a doomed-estimate-adjusted number — not ground truth — so always take the
-      // async path (safe at any size; exports bypass the one-job-per-table gate).
-      const deleteRunning = tableData.jobType === 'delete' && tableData.jobStatus === 'running'
-      if (deleteRunning || tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
+      // Persisted big tables export as a background job; virtual tables stay synchronous because
+      // background export jobs only query persisted rows. While a delete job runs, rowCount is not
+      // ground truth, so persisted tables always take the async path.
+      if (shouldUseAsyncTableExport(tableData)) {
         await exportTableAsync.mutateAsync({ format: 'csv' })
         toast.success('Export started — the download will begin when it finishes')
       } else {
@@ -1045,7 +1043,7 @@ export function Table({
       logger.error('Failed to export table:', err)
       toast.error('Failed to export table')
     }
-  }, [tableData, workspaceId])
+  }
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
@@ -1095,14 +1093,19 @@ export function Table({
                 }
               : undefined,
             dropdownItems: [
-              {
-                label: 'Rename',
-                icon: Pencil,
-                onClick: handleStartTableRename,
-              },
+              ...(canRenameTable(tableData)
+                ? [
+                    {
+                      label: 'Rename',
+                      icon: Pencil,
+                      onClick: handleStartTableRename,
+                    },
+                  ]
+                : []),
               // Reachable with the flag off when something is locked, so an
               // admin can always clear locks (the route allows clearing).
-              ...(userPermissions.canAdmin &&
+              ...(!tableData.isVirtual &&
+              userPermissions.canAdmin &&
               (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
                 ? [
                     {
@@ -1112,12 +1115,16 @@ export function Table({
                     },
                   ]
                 : []),
-              {
-                label: 'Delete',
-                icon: Trash,
-                onClick: onRequestDeleteTable,
-                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
-              },
+              ...(canMutateTable(tableData)
+                ? [
+                    {
+                      label: 'Delete',
+                      icon: Trash,
+                      onClick: onRequestDeleteTable,
+                      disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
+                    },
+                  ]
+                : []),
             ],
           }
         : { label: '…', terminal: true },
@@ -1143,6 +1150,7 @@ export function Table({
   // a plain notice with no action.
   const canOpenLockSettings =
     userPermissions.canAdmin === true &&
+    tableData?.isVirtual !== true &&
     (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
 
   /**
@@ -1154,7 +1162,7 @@ export function Table({
     (action: BlockedTableAction) => {
       if (!tableData) return
       if (blockedToastIdRef.current) toast.dismiss(blockedToastIdRef.current)
-      const { title, text } = describeBlockedAction(action, tableData.locks)
+      const { title, text } = describeBlockedAction(action, tableData.locks, tableData.isVirtual)
       // 'status' is the on-open announcement — nothing was refused, so it reads
       // as information rather than a warning.
       const notify = action === 'status' ? toast.info : toast.warning
@@ -1211,40 +1219,42 @@ export function Table({
     blockedToastIdRef.current = null
   }, [canOpenLockSettings])
 
-  const headerActions = useMemo(() => {
-    if (!tableData) return undefined
-    return [
-      {
-        label: 'Import CSV',
-        icon: Upload,
-        onClick: onRequestImportCsv,
-        // An import always inserts, so the insert lock disables it outright
-        // rather than letting the dialog run to a server-side 423.
-        disabled: userPermissions.canEdit !== true || tableData.locks.insertLocked,
-      },
-      {
-        label: 'Export CSV',
-        icon: Download,
-        onClick: () => void handleExportCsv(),
-        disabled: tableData.rowCount === 0,
-      },
-    ]
-  }, [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv])
+  const headerActions = tableData
+    ? [
+        ...(!tableData.isVirtual
+          ? [
+              {
+                label: 'Import CSV',
+                icon: Upload,
+                onClick: onRequestImportCsv,
+                disabled: userPermissions.canEdit !== true || tableData.locks.insertLocked,
+              },
+            ]
+          : []),
+        {
+          label: 'Export CSV',
+          icon: Download,
+          onClick: () => void handleExportCsv(),
+          disabled: tableData.rowCount === 0,
+        },
+      ]
+    : undefined
 
   // Adding a column is a schema change. The trigger stays visible when the
   // table is schema-locked and explains itself instead of disappearing.
   const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
-  const createTrigger = userPermissions.canEdit ? (
-    <NewColumnDropdown
-      trigger='header'
-      disabled={false}
-      blocked={!canMutateSchema}
-      onBlocked={() => showBlockedToast('add-column')}
-      onPickType={handleAddColumnOfType}
-      onPickWorkflow={handleAddWorkflowColumn}
-      onPickEnrichment={onOpenEnrichments}
-    />
-  ) : null
+  const createTrigger =
+    userPermissions.canEdit && !tableData?.isVirtual ? (
+      <NewColumnDropdown
+        trigger='header'
+        disabled={false}
+        blocked={!canMutateSchema}
+        onBlocked={() => showBlockedToast('add-column')}
+        onPickType={handleAddColumnOfType}
+        onPickWorkflow={handleAddWorkflowColumn}
+        onPickEnrichment={onOpenEnrichments}
+      />
+    ) : null
 
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const sidebarReservedPx =
@@ -1339,7 +1349,9 @@ export function Table({
               {presenceUsers.length > 0 && (
                 <PresenceAvatars users={presenceUsers} className='mr-1' />
               )}
-              <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
+              {!tableData?.isVirtual && (
+                <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
+              )}
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
                   running={selection.totalRunning}
@@ -1557,7 +1569,7 @@ export function Table({
         isOpen={Boolean(enrichmentDetailsTarget)}
         onClose={onCloseSlideout}
       />
-      {tableData && (
+      {tableData && !tableData.isVirtual && (
         <ImportCsvDialog
           open={isImportCsvOpen}
           onOpenChange={setIsImportCsvOpen}
@@ -1680,7 +1692,7 @@ export function Table({
           }}
         />
       )}
-      {tableData && userPermissions.canAdmin && (
+      {tableData && !tableData.isVirtual && userPermissions.canAdmin && (
         <LockSettingsModal
           isOpen={showLockSettings}
           onClose={() => setShowLockSettings(false)}

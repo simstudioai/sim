@@ -5,6 +5,7 @@ import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const { mockCheckAccess, mockQueryRows } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('@/lib/table/rows/service', () => ({
   queryRows: mockQueryRows,
 }))
 
-import { GET } from '@/app/api/table/[tableId]/export/route'
+import { GET, HEAD } from '@/app/api/table/[tableId]/export/route'
 
 /** Table with an id-native column whose stable id (`col_email`) differs from its display name. */
 function buildTable(): TableDefinition {
@@ -54,6 +55,13 @@ function callGet(format: string) {
     method: 'GET',
   })
   return GET(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+}
+
+function callHead(format: string) {
+  const req = new NextRequest(`http://localhost:3000/api/table/tbl_1/export?format=${format}`, {
+    method: 'HEAD',
+  })
+  return HEAD(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
 }
 
 describe('table export route — id→name translation', () => {
@@ -91,5 +99,60 @@ describe('table export route — id→name translation', () => {
     const parsed = JSON.parse(await res.text())
     expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
     expect(JSON.stringify(parsed)).not.toContain('col_email')
+  })
+
+  it('preflights authorization without starting the export query', async () => {
+    const res = await callHead('csv')
+
+    expect(res.status).toBe(204)
+    expect(mockCheckAccess).toHaveBeenCalledWith('tbl_1', 'user-1', 'read')
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('continues a virtual export with the keyset cursor returned by the previous page', async () => {
+    const firstRow = {
+      id: 'r1',
+      data: { col_email: 'first@b.c', legacy: 'x' },
+      executions: {},
+      position: 0,
+      orderKey: '2026-01-02T00:00:00.000Z',
+    }
+    const nextCursor = encodeCursor({
+      lastRow: firstRow,
+      keysetValid: true,
+      nextOffset: 1,
+    })
+    mockQueryRows
+      .mockResolvedValueOnce({
+        rows: [firstRow],
+        rowCount: 1,
+        totalCount: null,
+        limit: 1000,
+        offset: 0,
+        nextCursor,
+      })
+      .mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+        totalCount: null,
+        limit: 1000,
+        offset: 0,
+        nextCursor: null,
+      })
+
+    const res = await callGet('csv')
+    await res.text()
+
+    expect(mockQueryRows).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      {
+        limit: 1000,
+        offset: 0,
+        after: { orderKey: firstRow.orderKey, id: firstRow.id },
+        includeTotal: false,
+      },
+      expect.any(String)
+    )
   })
 })

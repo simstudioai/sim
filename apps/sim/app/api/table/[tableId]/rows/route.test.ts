@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { hybridAuthMockFns, permissionsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
+import { TableQueryValidationError } from '@/lib/table/errors'
 
 const {
   mockCheckAccess,
@@ -53,11 +54,13 @@ vi.mock('@/lib/table/rows/service', () => ({
   queryRows: mockQueryRows,
 }))
 
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
 vi.mock('@/lib/table/sql', () => ({
   TableQueryValidationError: class TableQueryValidationError extends Error {},
 }))
 
-import { DELETE, GET, POST, PUT } from '@/app/api/table/[tableId]/rows/route'
+import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/table/[tableId]/rows/route'
 
 function buildTable(): TableDefinition {
   return {
@@ -75,9 +78,39 @@ function buildTable(): TableDefinition {
     maxRows: 100,
     workspaceId: 'workspace-1',
     createdBy: 'user-1',
+    locks: {
+      schemaLocked: false,
+      insertLocked: false,
+      updateLocked: false,
+      deleteLocked: false,
+    },
     archivedAt: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+  }
+}
+
+function buildMemoryTable(): TableDefinition {
+  return {
+    ...buildTable(),
+    id: 'system_memory_workspace-1',
+    name: 'Memory',
+    isVirtual: true,
+    schema: {
+      columns: [
+        { id: 'conversation_id', name: 'Conversation ID', type: 'string' },
+        { id: 'transcript', name: 'Transcript', type: 'json' },
+        { id: 'message_count', name: 'Message Count', type: 'number' },
+        { id: 'created_at', name: 'Created', type: 'date' },
+        { id: 'updated_at', name: 'Updated', type: 'date' },
+      ],
+    },
+    locks: {
+      schemaLocked: true,
+      insertLocked: true,
+      updateLocked: true,
+      deleteLocked: true,
+    },
   }
 }
 
@@ -89,21 +122,21 @@ function authAs(authType: 'session' | 'internal_jwt') {
   })
 }
 
-function callPost(body: Record<string, unknown>) {
-  const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
+function callPost(body: Record<string, unknown>, tableId = 'tbl_1') {
+  const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/rows`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  return POST(req, { params: Promise.resolve({ tableId }) })
 }
 
-function callGet(query: Record<string, string>) {
+function callGet(query: Record<string, string>, tableId = 'tbl_1') {
   const params = new URLSearchParams(query)
-  const req = new NextRequest(`http://localhost:3000/api/table/tbl_1/rows?${params}`, {
+  const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/rows?${params}`, {
     method: 'GET',
   })
-  return GET(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  return GET(req, { params: Promise.resolve({ tableId }) })
 }
 
 describe('POST /api/table/[tableId]/rows', () => {
@@ -161,6 +194,20 @@ describe('POST /api/table/[tableId]/rows', () => {
     const body = await res.json()
     expect(body.data.row.data).toEqual({ col_aaa: 'Ada', col_bbb: 36 })
   })
+
+  it('rejects synthetic Memory row writes with a read-only explanation', async () => {
+    authAs('session')
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 423 })
+
+    const res = await callPost(
+      { workspaceId: 'workspace-1', data: { transcript: [] } },
+      'system_memory_workspace-1'
+    )
+
+    expect(res.status).toBe(423)
+    expect(mockCheckAccess).toHaveBeenCalledWith('system_memory_workspace-1', 'user-1', 'write')
+    expect(mockInsertRow).not.toHaveBeenCalled()
+  })
 })
 
 describe('GET /api/table/[tableId]/rows', () => {
@@ -183,6 +230,122 @@ describe('GET /api/table/[tableId]/rows', () => {
       limit: 100,
       offset: 0,
     })
+  })
+
+  it('returns complete transcript rows to a workspace reader', async () => {
+    authAs('session')
+    const transcript = [
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hi' },
+    ]
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        ...buildTable(),
+        id: 'system_memory_workspace-1',
+        name: 'Memory',
+        locks: {
+          schemaLocked: true,
+          insertLocked: true,
+          updateLocked: true,
+          deleteLocked: true,
+        },
+      },
+    })
+    mockQueryRows.mockResolvedValue({
+      rows: [
+        {
+          id: 'mem_1',
+          data: {
+            conversation_id: 'conversation-1',
+            transcript,
+            message_count: 2,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-02T00:00:00.000Z',
+          },
+          executions: {},
+          position: 0,
+          orderKey: '2026-01-02T00:00:00.000Z',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+        },
+      ],
+      rowCount: 1,
+      totalCount: 1,
+      limit: 100,
+      offset: 0,
+      nextCursor: null,
+    })
+
+    const res = await callGet(
+      { workspaceId: 'workspace-1', limit: '100', includeTotal: 'true' },
+      'system_memory_workspace-1'
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.data.rows[0].data.transcript).toEqual(transcript)
+    expect(mockCheckAccess).toHaveBeenCalledWith('system_memory_workspace-1', 'user-1', 'read')
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'system_memory_workspace-1' }),
+      expect.objectContaining({ limit: 100, offset: 0, after: undefined, includeTotal: true }),
+      expect.any(String)
+    )
+  })
+
+  it('does not return Memory rows to someone outside the workspace', async () => {
+    authAs('session')
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
+
+    const res = await callGet(
+      { workspaceId: 'workspace-1', limit: '100' },
+      'system_memory_workspace-1'
+    )
+
+    expect(res.status).toBe(403)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'filter',
+      { filter: JSON.stringify({ conversation_id: { $eq: 'conversation-1' } }) },
+      { filter: { conversation_id: { $eq: 'conversation-1' } } },
+    ],
+    ['sort', { sort: JSON.stringify({ updated_at: 'desc' }) }, { sort: { updated_at: 'desc' } }],
+  ])('passes supported Memory metadata %s to the row service', async (_name, query, expected) => {
+    authAs('session')
+    mockCheckAccess.mockResolvedValue({ ok: true, table: buildMemoryTable() })
+
+    const res = await callGet({ workspaceId: 'workspace-1', ...query }, 'system_memory_workspace-1')
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'system_memory_workspace-1', isVirtual: true }),
+      expect.objectContaining(expected),
+      expect.any(String)
+    )
+  })
+
+  it.each([
+    ['filter', { filter: JSON.stringify({ transcript: { $contains: 'hello' } }) }],
+    ['sort', { sort: JSON.stringify({ transcript: 'asc' }) }],
+  ])('returns the Memory transcript %s validation error', async (_name, query) => {
+    authAs('session')
+    mockCheckAccess.mockResolvedValue({ ok: true, table: buildMemoryTable() })
+    mockQueryRows.mockRejectedValue(
+      new TableQueryValidationError(
+        'Transcript filtering and sorting are not supported for this table'
+      )
+    )
+
+    const res = await callGet({ workspaceId: 'workspace-1', ...query }, 'system_memory_workspace-1')
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({
+      error: 'Transcript filtering and sorting are not supported for this table',
+    })
+    expect(mockQueryRows).toHaveBeenCalled()
   })
 
   it('translates name-keyed filter/sort and returns name-keyed rows for internal-JWT callers', async () => {
@@ -291,23 +454,63 @@ describe('PUT/DELETE /api/table/[tableId]/rows — predicate filters', () => {
     mockDeleteRowsByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row_1'] })
   })
 
-  function callPut(body: Record<string, unknown>) {
-    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
+  function callPut(body: Record<string, unknown>, tableId = 'tbl_1') {
+    const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/rows`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    return PUT(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+    return PUT(req, { params: Promise.resolve({ tableId }) })
   }
 
-  function callDelete(body: Record<string, unknown>) {
-    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
+  function callDelete(body: Record<string, unknown>, tableId = 'tbl_1') {
+    const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/rows`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    return DELETE(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+    return DELETE(req, { params: Promise.resolve({ tableId }) })
   }
+
+  function callPatch(body: Record<string, unknown>, tableId = 'tbl_1') {
+    const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/rows`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return PATCH(req, { params: Promise.resolve({ tableId }) })
+  }
+
+  it.each([
+    [
+      'PUT',
+      callPut,
+      {
+        workspaceId: 'workspace-1',
+        filter: { conversation_id: { $eq: 'conversation-1' } },
+        data: { transcript: [] },
+      },
+    ],
+    ['DELETE', callDelete, { workspaceId: 'workspace-1', rowIds: ['memory-1'] }],
+    [
+      'PATCH',
+      callPatch,
+      {
+        workspaceId: 'workspace-1',
+        updates: [{ rowId: 'memory-1', data: { transcript: [] } }],
+      },
+    ],
+  ])('rejects synthetic Memory %s writes through shared access', async (_method, call, body) => {
+    authAs('session')
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 423 })
+
+    const res = await call(body, 'system_memory_workspace-1')
+
+    expect(res.status).toBe(423)
+    expect(mockCheckAccess).toHaveBeenCalledWith('system_memory_workspace-1', 'user-1', 'write')
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+  })
 
   /**
    * Keying follows the caller (PR #6067 review): the grid authors ID-keyed

@@ -14,6 +14,7 @@ const {
   mockUpdateTableLocks,
   mockFindActiveFolder,
   mockGetLimits,
+  mockGetUserEntityPermissions,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockDeleteTable: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockUpdateTableLocks: vi.fn(),
   mockFindActiveFolder: vi.fn(),
   mockGetLimits: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
 }))
 
 vi.mock('@/lib/table', () => ({
@@ -39,16 +41,16 @@ vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: vi.fn() })
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: vi.fn(),
-  getUserEntityPermissions: vi.fn(),
+  getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 vi.mock('@/app/api/table/utils', () => ({
-  accessError: () => new Response('denied', { status: 403 }),
+  accessError: (result: { status: number }) => new Response('denied', { status: result.status }),
   checkAccess: mockCheckAccess,
   normalizeColumn: (column: unknown) => column,
   tableLockErrorResponse: () => null,
 }))
 
-import { PATCH } from '@/app/api/table/[tableId]/route'
+import { DELETE, GET, PATCH } from '@/app/api/table/[tableId]/route'
 
 const TABLE = {
   id: 'tbl_1',
@@ -73,6 +75,74 @@ function patchRequest(body: unknown): NextRequest {
 }
 
 const routeContext = { params: Promise.resolve({ tableId: 'tbl_1' }) }
+
+describe('GET /api/table/[tableId] Memory table', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'session',
+    })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: {
+        ...TABLE,
+        id: 'system_memory_workspace-1',
+        name: 'Memory',
+        isVirtual: true,
+        rowCount: 1,
+        maxRows: Number.MAX_SAFE_INTEGER,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+        locks: {
+          schemaLocked: true,
+          insertLocked: true,
+          updateLocked: true,
+          deleteLocked: true,
+        },
+      },
+    })
+    mockGetLimits.mockResolvedValue({ maxRowsPerTable: 10_000 })
+  })
+
+  it('returns the synthetic table to a workspace reader', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/table/system_memory_workspace-1?workspaceId=workspace-1'
+      ),
+      { params: Promise.resolve({ tableId: 'system_memory_workspace-1' }) }
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.data.table).toMatchObject({
+      id: 'system_memory_workspace-1',
+      name: 'Memory',
+      isVirtual: true,
+      rowCount: 1,
+      maxRows: 10_000,
+    })
+    expect(mockCheckAccess).toHaveBeenCalledWith('system_memory_workspace-1', 'user-1', 'read')
+    expect(mockGetLimits).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('does not expose the table to someone outside the workspace', async () => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
+
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/table/system_memory_workspace-1?workspaceId=workspace-1'
+      ),
+      { params: Promise.resolve({ tableId: 'system_memory_workspace-1' }) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockGetLimits).not.toHaveBeenCalled()
+  })
+})
 
 describe('PATCH /api/table/[tableId] folder moves', () => {
   beforeEach(() => {
@@ -148,5 +218,49 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     expect(response.status).toBe(400)
     expect(mockMoveTableToFolder).not.toHaveBeenCalled()
     expect(mockRenameTable).not.toHaveBeenCalled()
+  })
+
+  it('rejects synthetic Memory table writes with a read-only explanation', async () => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 423 })
+
+    const response = await PATCH(
+      new NextRequest('http://localhost:3000/api/table/system_memory_workspace-1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workspaceId: 'workspace-1', name: 'Renamed' }),
+      }),
+      { params: Promise.resolve({ tableId: 'system_memory_workspace-1' }) }
+    )
+
+    expect(response.status).toBe(423)
+    expect(mockCheckAccess).toHaveBeenCalledWith('system_memory_workspace-1', 'user-1', 'write')
+    expect(mockRenameTable).not.toHaveBeenCalled()
+    expect(mockUpdateTableLocks).not.toHaveBeenCalled()
+  })
+})
+
+describe('DELETE /api/table/[tableId] Memory table', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'session',
+    })
+  })
+
+  it('rejects deletion through shared access', async () => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 423 })
+    const tableId = 'system_memory_workspace-1'
+    const response = await DELETE(
+      new NextRequest(`http://localhost:3000/api/table/${tableId}?workspaceId=workspace-1`, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ tableId }) }
+    )
+
+    expect(response.status).toBe(423)
+    expect(mockCheckAccess).toHaveBeenCalledWith(tableId, 'user-1', 'write')
+    expect(mockDeleteTable).not.toHaveBeenCalled()
   })
 })

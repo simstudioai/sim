@@ -416,6 +416,7 @@ export const UNLOCKED_TABLE_LOCKS: TableLocks = {
 
 export interface TableDefinition {
   id: string
+  isVirtual?: boolean
   name: string
   description?: string | null
   schema: TableSchema

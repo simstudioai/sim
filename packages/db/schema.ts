@@ -2126,6 +2126,9 @@ export const memory = pgTable(
       workspaceDeletedAtPartialIdx: index('memory_workspace_deleted_partial_idx')
         .on(table.workspaceId, table.deletedAt)
         .where(sql`${table.deletedAt} IS NOT NULL`),
+      workspaceUpdatedIdActiveIdx: index('memory_workspace_updated_id_active_idx')
+        .on(table.workspaceId, table.updatedAt.desc(), table.id.desc())
+        .where(sql`${table.deletedAt} IS NULL`),
     }
   }
 )

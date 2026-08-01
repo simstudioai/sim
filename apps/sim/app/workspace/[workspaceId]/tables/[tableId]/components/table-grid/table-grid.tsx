@@ -494,6 +494,7 @@ export function TableGrid({
     tableData,
     isLoadingTable,
     rows,
+    rowsError,
     rowTotal,
     isLoadingRows,
     fetchNextPage,
@@ -513,6 +514,13 @@ export function TableGrid({
     // (and one the server rejects outright).
     filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
+  const isVirtualTableRef = useRef(tableData?.isVirtual)
+  isVirtualTableRef.current = tableData?.isVirtual
+
+  useEffect(() => {
+    if (!rowsError) return
+    toast.error(getErrorMessage(rowsError, 'Failed to load table rows'), { duration: 5000 })
+  }, [rowsError])
 
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
@@ -2264,6 +2272,13 @@ export function TableGrid({
 
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
+      if (isVirtualTableRef.current) {
+        setSelectionFocus(null)
+        setIsColumnSelection(false)
+        setExpandedCell({ rowId, columnName, columnKey })
+        return
+      }
+
       const column = columnsRef.current.find((c) => c.key === columnKey)
       if (column && columnTypeOf(column).editor === 'toggle') return
 
@@ -2523,6 +2538,16 @@ export function TableGrid({
       }
 
       if (e.key === 'Enter' || e.key === 'F2') {
+        if (isVirtualTableRef.current) {
+          e.preventDefault()
+          const col = cols[anchor.colIndex]
+          const row = currentRows[anchor.rowIndex]
+          if (!col || !row) return
+          setSelectionFocus(null)
+          setIsColumnSelection(false)
+          setExpandedCell({ rowId: row.id, columnName: col.key, columnKey: col.key })
+          return
+        }
         if (!canEditRef.current) return
         e.preventDefault()
         // The primary keyboard edit path — same lock notice as double-click and
@@ -2548,6 +2573,16 @@ export function TableGrid({
       }
 
       if (e.key === ' ' && !e.shiftKey) {
+        if (isVirtualTableRef.current) {
+          e.preventDefault()
+          const col = cols[anchor.colIndex]
+          const row = currentRows[anchor.rowIndex]
+          if (!col || !row) return
+          setSelectionFocus(null)
+          setIsColumnSelection(false)
+          setExpandedCell({ rowId: row.id, columnName: col.key, columnKey: col.key })
+          return
+        }
         if (!canEditRef.current) return
         e.preventDefault()
         // Space opens the same row editor as double-click, so it follows the
@@ -4112,7 +4147,7 @@ export function TableGrid({
                                     ? undefined
                                     : handleViewWorkflow
                                 }
-                                readOnly={!userPermissions.canEdit}
+                                readOnly={!userPermissions.canEdit || tableData?.isVirtual === true}
                                 onDragStart={
                                   userPermissions.canEdit ? handleColumnDragStart : undefined
                                 }
@@ -4173,7 +4208,7 @@ export function TableGrid({
                             // open-config — all metadata, not schema. The schema lock is
                             // enforced per-action instead (insert/delete below), and a
                             // rename attempt surfaces the server's 423 as a toast.
-                            readOnly={!userPermissions.canEdit}
+                            readOnly={!userPermissions.canEdit || tableData?.isVirtual === true}
                             isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
                               isColumnSelection &&
@@ -4219,7 +4254,7 @@ export function TableGrid({
                           />
                         )
                       })}
-                      {userPermissions.canEdit && (
+                      {userPermissions.canEdit && !tableData?.isVirtual && (
                         <NewColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
