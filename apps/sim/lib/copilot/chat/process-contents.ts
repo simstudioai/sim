@@ -931,14 +931,8 @@ async function resolveFileSelectionResource(
 }
 
 /**
- * Longest form the size clause can take for `total` rows — every row omitted.
- * Used to reserve prefix space before the real counts are known.
+ * Renders one cell for a markdown table row, escaping the delimiters.
  */
-function worstCaseSizeClause(total: number): string {
-  return `${total} of ${total}, ${total} omitted for length`
-}
-
-/** Renders one cell for a markdown table row, escaping the delimiters. */
 function renderTableCell(value: unknown): string {
   if (value === null || value === undefined) return ''
   const cell = typeof value === 'string' ? value : JSON.stringify(value)
@@ -983,15 +977,27 @@ async function resolveTableSelectionResource(
   const describe = (size: string) =>
     `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n`
 
+  /**
+   * The size clause, e.g. `5 rows` or `189 rows of 500, 311 omitted for length`.
+   * Used for both the up-front reserve and the final prose, so the two can never
+   * describe the row count differently.
+   */
+  const sizeClause = (shownCount: number, omittedCount: number) => {
+    const shown = `${shownCount} ${shownCount === 1 ? 'row' : 'rows'}`
+    return omittedCount > 0
+      ? `${shown} of ${rows.length}, ${omittedCount} omitted for length`
+      : shown
+  }
+
   // Spend the character budget row by row. Everything that is not a row — the
   // prose, the table head, and every newline — is reserved up front, or the cap
   // is silently overrun whenever the last row leaves less slack than the prefix
-  // needs. The reserve uses the longest form the size clause can take (every row
-  // omitted), since its real value isn't known until packing finishes; a few
-  // characters of unused slack beats overshooting the documented bound.
+  // needs. The real clause isn't known until packing finishes, so reserve its
+  // longest form: every row shown AND every row omitted maximizes both counts
+  // and forces the plural. A few characters of unused slack beats overshooting.
   const lines: string[] = []
   let remaining =
-    MAX_TABLE_SELECTION_CONTENT_LENGTH - describe(worstCaseSizeClause(rows.length)).length
+    MAX_TABLE_SELECTION_CONTENT_LENGTH - describe(sizeClause(rows.length, rows.length)).length
   for (const row of rows) {
     const line = `| ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
     // The first row always goes in, so a single oversized row still yields a
@@ -1001,10 +1007,7 @@ async function resolveTableSelectionResource(
     remaining -= line.length + 1
   }
 
-  const omitted = rows.length - lines.length
-  const shown = `${lines.length} ${lines.length === 1 ? 'row' : 'rows'}`
-  const size = omitted > 0 ? `${shown} of ${rows.length}, ${omitted} omitted for length` : shown
-  const content = `${describe(size)}${lines.join('\n')}`
+  const content = `${describe(sizeClause(lines.length, rows.length - lines.length))}${lines.join('\n')}`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',

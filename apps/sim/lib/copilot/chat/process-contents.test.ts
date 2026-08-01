@@ -531,6 +531,47 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(ctx.content).toContain('omitted for length')
   })
 
+  it('holds the cap across cell widths, including ones that pack flush to it', async () => {
+    // A single width can leave slack that hides an under-reserved prefix by a
+    // few characters. Sweeping widths lands at least one run with almost no
+    // remainder, which is where an off-by-N in the reserve actually shows up.
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+
+    const overflows: Array<{ width: number; length: number }> = []
+    for (let width = 60; width <= 75; width++) {
+      const rows = Array.from({ length: MAX_TABLE_SELECTION_ROWS }, (_, i) => ({
+        id: `r${i}`,
+        data: { c_notes: 'x'.repeat(width) },
+      }))
+      getRowsByIds.mockResolvedValue(rows)
+
+      const result = await processContextsServer(
+        [
+          {
+            kind: 'table_selection',
+            tableId: 'tbl-1',
+            tableName: 'Sales',
+            label: 'Sales (500 rows)',
+            rowIds: rows.map((r) => r.id),
+          } as ChatContext,
+        ],
+        'user-1',
+        'summarize',
+        'ws-1'
+      )
+
+      const { length } = result[0].content
+      if (length > MAX_TABLE_SELECTION_CONTENT_LENGTH) overflows.push({ width, length })
+    }
+
+    // Collected rather than asserted per-iteration so a failure names the widths.
+    expect(overflows).toEqual([])
+  })
+
   it('spends a character budget across rows and reports what it omitted', async () => {
     // Row/column caps alone don't bound prompt cost: wide cells blow past the
     // budget long before MAX_TABLE_SELECTION_ROWS.
