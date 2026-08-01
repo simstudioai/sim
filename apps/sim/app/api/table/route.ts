@@ -212,6 +212,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const schemaData = t.schema as TableSchema
       return {
         id: t.id,
+        isVirtual: t.isVirtual,
         name: t.name,
         description: t.description,
         schema: {

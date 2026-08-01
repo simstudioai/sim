@@ -2287,7 +2287,7 @@ export function TableGrid({
       // that silently refuses to save. Only for users who could otherwise edit:
       // without write access the lock isn't why they can't, and they still get
       // the read-only expanded viewer below.
-      if (canEditRef.current && updateLockedRef.current && column?.type !== 'json') {
+      if (canEditRef.current && updateLockedRef.current) {
         onBlockedActionRef.current('edit-cell')
         return
       }
@@ -4225,9 +4225,7 @@ export function TableGrid({
                             workflows={workflows}
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
-                            onOpenConfig={
-                              canMutateSchema ? handleConfigureColumn : handleBlockedAddColumn
-                            }
+                            onOpenConfig={handleConfigureColumn}
                             onViewWorkflow={handleViewWorkflow}
                             isPinned={colIsPinned}
                             onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}

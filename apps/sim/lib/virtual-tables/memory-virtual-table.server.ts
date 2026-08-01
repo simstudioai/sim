@@ -210,12 +210,12 @@ export async function queryMemoryTableRows({
     if (!Number.isFinite(rowBytes) || rowBytes < 0) {
       throw new TableQueryValidationError('Memory table returned an invalid row size')
     }
-    if (selectedCandidates.length === 0 && rowBytes > pageByteBudget) {
-      throw new TableQueryValidationError(
-        `Memory transcript exceeds the ${Math.floor(pageByteBudget / (1024 * 1024))}MB query response limit`,
-        'TABLE_QUERY_RESULT_TOO_LARGE'
-      )
-    }
+    // Matches `fetchRowsBounded` on the persisted path: a bounded page always
+    // yields at least one row, even one that alone exceeds the budget. Memory
+    // transcripts have no write-time size cap (unlike persisted rows, which are
+    // held to MAX_ROW_SIZE_BYTES), so refusing an over-budget first row would
+    // make one long conversation render the whole table unreadable with no way
+    // to page past it.
     if (selectedCandidates.length > 0 && selectedBytes + rowBytes > pageByteBudget) {
       hasMore = true
       break

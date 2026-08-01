@@ -176,6 +176,7 @@ describe('GET /api/table folder placement', () => {
       {
         ...CREATED_TABLE,
         id: 'system_memory_workspace-1',
+        isVirtual: true,
         name: 'Memory',
         workspaceId: 'workspace-1',
         createdBy: 'user-1',
@@ -197,6 +198,10 @@ describe('GET /api/table folder placement', () => {
     expect(json.data.tables).toContainEqual(
       expect.objectContaining({
         id: 'system_memory_workspace-1',
+        // The list surfaces (tables page context menu, trigger-mode table
+        // selector) gate on this flag, so dropping it silently re-enables
+        // delete/rename/import/move on a read-only table.
+        isVirtual: true,
         name: 'Memory',
         workspaceId: 'workspace-1',
         locks: {
