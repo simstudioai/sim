@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { mergeToolParameters } from '@/tools/merge-params'
 import {
   createExecutionToolSchema,
   createLLMToolSchema,
@@ -8,7 +9,6 @@ import {
   getSubBlocksForToolInput,
   getToolParametersConfig,
   isPasswordParameter,
-  mergeToolParameters,
   type ToolParameterConfig,
   type ToolSchema,
   type ValidationResult,
