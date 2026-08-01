@@ -618,7 +618,6 @@ describe('QuickBooks item mutations', () => {
       ...authParams,
       itemId: '44',
       syncToken: '2',
-      itemType: 'service',
       activeStatus: 'unchanged',
       unitPrice: 15.75,
       expenseAccountId: '80',
@@ -630,13 +629,7 @@ describe('QuickBooks item mutations', () => {
       UnitPrice: 15.75,
       ExpenseAccountRef: { value: '80' },
     })
-    expect(quickbooksUpdateItemTool.params.itemType).toMatchObject({ required: true })
-    expect(() =>
-      quickbooksUpdateItemTool.request.body!({
-        ...params,
-        itemType: 'inventory' as QuickBooksUpdateItemParams['itemType'],
-      })
-    ).toThrow('Unsupported writable')
+    expect(quickbooksUpdateItemTool.params).not.toHaveProperty('itemType')
   })
 
   it('returns the native mutation record and convenient identifiers', async () => {
@@ -837,7 +830,7 @@ describe('QuickBooks tool and block boundaries', () => {
     })
     expect(subBlocks.itemType.condition).toEqual({
       field: 'operation',
-      value: ['quickbooks_create_item', 'quickbooks_update_item'],
+      value: 'quickbooks_create_item',
     })
   })
 })

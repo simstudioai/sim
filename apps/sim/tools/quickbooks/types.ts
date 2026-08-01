@@ -289,7 +289,7 @@ export interface QuickBooksCreateItemParams extends QuickBooksAuthParams {
 }
 
 export interface QuickBooksUpdateItemParams
-  extends Omit<QuickBooksCreateItemParams, 'name' | 'incomeAccountId'> {
+  extends Omit<QuickBooksCreateItemParams, 'name' | 'itemType' | 'incomeAccountId'> {
   itemId: string
   syncToken: string
   name?: string
@@ -431,7 +431,7 @@ export const QUICKBOOKS_LIST_OUTPUTS: Record<string, OutputProperty> = {
   },
 }
 
-const QUICKBOOKS_ENTITY_BASE_PROPERTIES: Record<string, OutputProperty> = {
+export const QUICKBOOKS_ENTITY_BASE_PROPERTIES: Record<string, OutputProperty> = {
   Id: { type: 'string', description: 'QuickBooks entity ID' },
   SyncToken: { type: 'string', description: 'Entity sync token', optional: true },
   Active: { type: 'boolean', description: 'Whether the entity is active', optional: true },

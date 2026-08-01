@@ -14600,7 +14600,7 @@
         },
         {
           "name": "Items: Update",
-          "description": "Sparse-update a Service or Non-inventory item in QuickBooks Online"
+          "description": "Sparse-update supported fields on an item without changing its type"
         },
         {
           "name": "Purchasing: List Purchase Orders",

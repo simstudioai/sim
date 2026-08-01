@@ -8,10 +8,7 @@ import type {
   QuickBooksReadMasterDataResponse,
   QuickBooksVendor,
 } from '@/tools/quickbooks/types'
-import {
-  QUICKBOOKS_LIST_OUTPUTS,
-  QUICKBOOKS_MASTER_DATA_PROPERTIES,
-} from '@/tools/quickbooks/types'
+import { QUICKBOOKS_MASTER_DATA_PROPERTIES } from '@/tools/quickbooks/types'
 import {
   buildQuickBooksEntityUrl,
   buildQuickBooksQueryUrl,
@@ -265,11 +262,31 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         properties: QUICKBOOKS_MASTER_DATA_PROPERTIES,
       },
     },
-    ...Object.fromEntries(
-      Object.entries(QUICKBOOKS_LIST_OUTPUTS).map(([key, value]) => [
-        key,
-        { ...value, optional: true },
-      ])
-    ),
+    startPosition: {
+      type: 'number',
+      description: 'One-based position of the first record in this page',
+      optional: true,
+    },
+    maxResults: {
+      type: 'number',
+      description: 'Actual number of records returned in this page',
+      optional: true,
+    },
+    nextStartPosition: {
+      type: 'number',
+      description: 'Position to use when explicitly requesting the next page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Conservative indication that another page may exist',
+      optional: true,
+    },
+    time: {
+      type: 'string',
+      description: 'QuickBooks response timestamp',
+      optional: true,
+      nullable: true,
+    },
   },
 }

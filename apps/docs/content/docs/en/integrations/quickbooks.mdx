@@ -72,6 +72,12 @@ List or read one account, customer, vendor, item, or employee
 | --------- | ---- | ----------- |
 | `recordType` | string | Master-data record type returned by this action |
 | `item` | json | Single QuickBooks master-data record returned by a by-ID read |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `Name` | string | Item name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
 |   ↳ `ParentRef` | json | Parent item or category reference |
@@ -118,6 +124,12 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
 | `items` | array | QuickBooks master-data records returned by a list read |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `Name` | string | Item name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
 |   ↳ `ParentRef` | json | Parent item or category reference |
@@ -163,6 +175,11 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+| `startPosition` | number | One-based position of the first record in this page |
+| `maxResults` | number | Actual number of records returned in this page |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
 
 ### `quickbooks_create_customer`
 
@@ -190,6 +207,12 @@ Create a customer in the connected QuickBooks Online company
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Customer record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `DisplayName` | string | Customer display name |
 |   ↳ `CompanyName` | string | Customer company name |
 |   ↳ `GivenName` | string | Given name |
@@ -233,6 +256,12 @@ Sparse-update a customer in the connected QuickBooks Online company
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Customer record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `DisplayName` | string | Customer display name |
 |   ↳ `CompanyName` | string | Customer company name |
 |   ↳ `GivenName` | string | Given name |
@@ -274,6 +303,12 @@ Create a vendor in the connected QuickBooks Online company
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Vendor record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `DisplayName` | string | Vendor display name |
 |   ↳ `CompanyName` | string | Vendor company name |
 |   ↳ `GivenName` | string | Given name |
@@ -319,6 +354,12 @@ Sparse-update a vendor in the connected QuickBooks Online company
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Vendor record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `DisplayName` | string | Vendor display name |
 |   ↳ `CompanyName` | string | Vendor company name |
 |   ↳ `GivenName` | string | Given name |
@@ -360,6 +401,12 @@ Create a Service or Non-inventory item in QuickBooks Online
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Item record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `Name` | string | Item name |
 |   ↳ `Description` | string | Item sales description |
 |   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
@@ -386,7 +433,7 @@ Create a Service or Non-inventory item in QuickBooks Online
 
 ### `quickbooks_update_item`
 
-Sparse-update a Service or Non-inventory item in QuickBooks Online
+Sparse-update supported fields on an item without changing its type
 
 #### Input
 
@@ -394,7 +441,6 @@ Sparse-update a Service or Non-inventory item in QuickBooks Online
 | --------- | ---- | -------- | ----------- |
 | `itemId` | string | Yes | ID of the item to update |
 | `syncToken` | string | Yes | Current item sync token |
-| `itemType` | string | Yes | Current item type: service or non_inventory |
 | `name` | string | No | Replacement item name |
 | `incomeAccountId` | string | No | Replacement income account ID |
 | `description` | string | No | Replacement sales description |
@@ -413,6 +459,12 @@ Sparse-update a Service or Non-inventory item in QuickBooks Online
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Item record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 |   ↳ `Name` | string | Item name |
 |   ↳ `Description` | string | Item sales description |
 |   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |

@@ -356,8 +356,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Service', id: 'service' },
         { label: 'Non-inventory', id: 'non_inventory' },
       ],
-      condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
-      required: { field: 'operation', value: [...ITEM_OPERATIONS] },
+      condition: { field: 'operation', value: 'quickbooks_create_item' },
+      required: { field: 'operation', value: 'quickbooks_create_item' },
       value: () => 'service',
     },
     {
@@ -531,7 +531,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             itemId: optionalValue(params.itemId),
             syncToken: optionalValue(params.syncToken),
             name: optionalValue(params.name),
-            itemType: optionalValue(params.itemType),
+            itemType:
+              operation === 'quickbooks_create_item' ? optionalValue(params.itemType) : undefined,
             incomeAccountId: optionalValue(params.incomeAccountId),
             description: optionalValue(params.description),
             unitPrice: parseOptionalNumber(params.unitPrice, 'unitPrice'),
@@ -685,7 +686,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks catalogue maintenance',
       prompt:
-        'Build a workflow that reads QuickBooks accounts, then creates or updates approved Service and Non-inventory items with the correct income and expense account references.',
+        'Build a workflow that reads QuickBooks accounts, creates approved Service or Non-inventory items, or updates exposed item fields without changing item types.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'catalogue', 'operations'],
@@ -744,9 +745,9 @@ export const QuickBooksBlockMeta = {
     },
     {
       name: 'maintain-products-and-services',
-      description: 'Create or update supported Service and Non-inventory QuickBooks items.',
+      description: 'Create supported items or update exposed item fields without changing types.',
       content:
-        '# Maintain QuickBooks Products and Services\n\n## Steps\n1. Read Account master data to obtain approved account IDs.\n2. Create or update a Service or Non-inventory Item.\n3. Store the latest item ID and sync token.\n\n## Output\nReturn the native Item record. Do not claim to manage Inventory, Category, or Group items.',
+        '# Maintain QuickBooks Products and Services\n\n## Steps\n1. Read Account master data to obtain approved account IDs.\n2. Create a Service or Non-inventory Item, or update exposed basic fields without changing the existing item Type.\n3. Store the latest item ID and sync token.\n\n## Output\nReturn the native Item record. Do not claim to create Inventory, Category, or Group items or manage their specialized fields.',
     },
     {
       name: 'audit-quickbooks-master-data',
