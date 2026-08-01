@@ -24,6 +24,17 @@
  *
  * Override the cap with `SIM_TURBOPACK_CACHE_MAX_GB` (default 20).
  *
+ * The cap is a backstop, not routine maintenance. A normal session's cache sits
+ * around 1-2 GB; the 78 GB case was a month of accumulation while the feature was
+ * effectively abandoned. Measured cost of the size walk: ~30ms on a real cache,
+ * ~85ms at 2,000 files — under 2% of a warm restart.
+ *
+ * Safe to run while a dev server is live, which happens if a second server is
+ * started from the same checkout: the running server keeps its in-memory state
+ * and continues serving (verified — no crash, no corruption). It does stop
+ * persisting for the rest of that session, so its *next* start is cold once, then
+ * back to normal. Nothing to clean up.
+ *
  * Note for anyone benchmarking the cache: stop the dev server with SIGINT, not
  * `kill -9`. Turbopack discards a partially-written cache and rebuilds silently,
  * so a hard kill makes a real cache win read as no win at all.
