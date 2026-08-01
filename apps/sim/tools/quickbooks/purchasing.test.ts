@@ -448,6 +448,14 @@ describe('QuickBooks purchasing mutation bodies', () => {
 })
 
 describe('QuickBooks purchasing block', () => {
+  it('does not force array-valued wand prompts through JSON-object generation', () => {
+    for (const id of ['purchasingLines', 'billAllocations']) {
+      const subBlock = QuickBooksBlock.subBlocks.find((candidate) => candidate.id === id)
+      expect(subBlock?.wandConfig?.enabled).toBe(true)
+      expect(subBlock?.wandConfig?.generationType).toBeUndefined()
+    }
+  })
+
   it('parses dynamic purchasing JSON and numeric values in block parameter mapping', () => {
     expect(
       QuickBooksBlock.tools.config!.params!({

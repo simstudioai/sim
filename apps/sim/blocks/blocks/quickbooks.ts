@@ -696,7 +696,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         enabled: true,
         prompt:
           'Generate a JSON array of QuickBooks purchasing lines. Use account lines with lineType account, positive amount, accountId, and optional description; or item lines with lineType item, positive amount, itemId, and optional description, positive quantity, and positive unitPrice. When quantity and unitPrice are both present, amount must equal their product. Return ONLY the JSON array - no explanations, no extra text.',
-        generationType: 'json-object',
       },
     },
     {
@@ -794,7 +793,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         enabled: true,
         prompt:
           'Generate a JSON array of QuickBooks Bill allocations using only billId and a positive amount. Allocation amounts must total the payment amount. Return ONLY the JSON array - no explanations, no extra text.',
-        generationType: 'json-object',
       },
     },
     {
