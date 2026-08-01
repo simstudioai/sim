@@ -22,6 +22,7 @@ import {
   type OpenAICompatAssembledToolCall,
 } from '@/providers/openai-compat/stream-events'
 import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -38,7 +39,6 @@ import {
   sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 export type OpenAICompatCreateCompletion = (
   params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
@@ -428,7 +428,7 @@ export function createOpenAICompatStreamingToolLoopStream(
                   toolArgs,
                   request
                 )
-                const result = await executeTool(toolName, executionParams, {
+                const result = await executeProviderTool(toolName, executionParams, {
                   signal: loopAbortController.signal,
                 })
                 const toolCallEndTime = Date.now()

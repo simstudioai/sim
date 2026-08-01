@@ -112,6 +112,66 @@ describe('execution state lookup', () => {
     })
   })
 
+  it('recovers legacy workflow input from the pre-populated starter block state', async () => {
+    const legacyInput = { leadId: 'legacy-lead' }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: {},
+      },
+    ])
+    mockMaterializeExecutionData.mockResolvedValueOnce({
+      executionState: {
+        blockStates: {
+          'executed-block': {
+            output: { leadId: 'wrong-lead' },
+            executed: true,
+            executionTime: 10,
+          },
+          start: {
+            output: legacyInput,
+            executed: false,
+            executionTime: 0,
+          },
+        },
+      },
+    })
+
+    const result = await getExecutionInputForWorkflow('execution-1', 'workflow-1')
+
+    expect(result).toEqual({ found: true, input: legacyInput })
+  })
+
+  it('prefers persisted workflow input over the legacy starter block state', async () => {
+    const workflowInput = { leadId: 'current-lead' }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: {},
+      },
+    ])
+    mockMaterializeExecutionData.mockResolvedValueOnce({
+      workflowInput,
+      executionState: {
+        blockStates: {
+          start: {
+            output: { leadId: 'legacy-lead' },
+            executed: false,
+            executionTime: 0,
+          },
+        },
+      },
+    })
+
+    const result = await getExecutionInputForWorkflow('execution-1', 'workflow-1')
+
+    expect(result).toEqual({ found: true, input: workflowInput })
+  })
+
   it('checks older pointer-backed candidates when the latest has no execution state', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [
       {

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
 import type {
   BlockChildWorkflowStartedData,
@@ -15,9 +16,6 @@ import {
   SSEEventHandlerError,
   SSEStreamInterruptedError,
 } from '@/hooks/use-execution-stream'
-
-const logger = createLogger('workflow-execution-utils')
-
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
 import {
@@ -28,6 +26,11 @@ import {
 } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+const logger = createLogger('workflow-execution-utils')
+const BLOCK_FAILURE_DISPLAY_MESSAGE = 'Block failed'
+const RUN_FAILURE_DISPLAY_MESSAGE = 'Run failed'
+const VALIDATION_FAILURE_DISPLAY_MESSAGE = 'Workflow validation failed'
 
 /**
  * Updates the active blocks set and ref counts for a single block.
@@ -131,6 +134,46 @@ interface BlockEventHandlerDeps {
 }
 
 type BlockChildWorkflowStartedUpdate = BlockChildWorkflowStartedData
+
+interface BlockCompletedDisplayProjection {
+  input?: unknown
+  output?: unknown
+  clearLiveDisplay?: true
+}
+
+interface BlockErrorDisplayProjection {
+  input?: unknown
+  error?: string
+  clearLiveDisplay?: true
+}
+
+interface ExecutionErrorDisplayProjection {
+  present: boolean
+  error?: string
+}
+
+function getBlockCompletedDisplay(data: BlockCompletedData): BlockCompletedDisplayProjection {
+  const event = data as BlockCompletedData & { display?: BlockCompletedDisplayProjection }
+  if (!Object.hasOwn(event, 'display')) {
+    return { input: data.input, output: data.output }
+  }
+  return event.display ?? {}
+}
+
+function getBlockErrorDisplay(data: BlockErrorData): BlockErrorDisplayProjection {
+  const event = data as BlockErrorData & { display?: BlockErrorDisplayProjection }
+  if (!Object.hasOwn(event, 'display')) {
+    return { input: data.input, error: data.error }
+  }
+  return event.display ?? {}
+}
+
+function getExecutionErrorDisplay(data: { error: string }): ExecutionErrorDisplayProjection {
+  const event = data as typeof data & { display?: Omit<ExecutionErrorDisplayProjection, 'present'> }
+  if (!Object.hasOwn(event, 'display')) return { present: false }
+  const error = event.display?.error
+  return { present: true, ...(typeof error === 'string' ? { error } : {}) }
+}
 
 /**
  * Creates block event handlers for SSE execution events.
@@ -299,19 +342,26 @@ export function createBlockEventHandlers(
   })
 
   const updateConsoleEntry = (data: BlockCompletedData) => {
+    const display = getBlockCompletedDisplay(data)
+    const projectionOmittedContent =
+      display.clearLiveDisplay === true ||
+      (Object.hasOwn(data, 'display') &&
+        ((!Object.hasOwn(display, 'input') && data.input !== undefined) ||
+          (!Object.hasOwn(display, 'output') && data.output !== undefined)))
     updateConsole(
       data.blockId,
       {
         blockName: data.blockName,
         blockType: data.blockType,
         executionOrder: data.executionOrder,
-        input: data.input || {},
-        replaceOutput: data.output,
+        input: display.input ?? {},
+        replaceOutput: (display.output ?? {}) as Record<string, unknown>,
         success: true,
         durationMs: data.durationMs,
         startedAt: data.startedAt,
         endedAt: data.endedAt,
         isRunning: false,
+        ...(projectionOmittedContent ? { clearAgentStreamThinking: true } : {}),
         ...extractIterationFields(data),
       },
       executionIdRef.current
@@ -319,20 +369,27 @@ export function createBlockEventHandlers(
   }
 
   const updateConsoleErrorEntry = (data: BlockErrorData) => {
+    const display = getBlockErrorDisplay(data)
+    const projectionOmittedContent =
+      display.clearLiveDisplay === true ||
+      (Object.hasOwn(data, 'display') &&
+        ((!Object.hasOwn(display, 'input') && data.input !== undefined) ||
+          (!Object.hasOwn(display, 'error') && data.error !== undefined)))
     updateConsole(
       data.blockId,
       {
         blockName: data.blockName,
         blockType: data.blockType,
         executionOrder: data.executionOrder,
-        input: data.input || {},
+        input: display.input ?? {},
         replaceOutput: {},
         success: false,
-        error: data.error,
+        error: display.error || BLOCK_FAILURE_DISPLAY_MESSAGE,
         durationMs: data.durationMs,
         startedAt: data.startedAt,
         endedAt: data.endedAt,
         isRunning: false,
+        ...(projectionOmittedContent ? { clearAgentStreamThinking: true } : {}),
         ...extractIterationFields(data),
       },
       executionIdRef.current
@@ -472,16 +529,16 @@ interface ExecutionConsoleDeps {
 }
 
 /**
- * Reconciles still-running console entries with the server's authoritative
- * `finalBlockLogs` so that any block whose terminal `block:completed`/`block:error`
- * SSE event was lost gets the correct success/error state instead of being
- * swept to "canceled".
+ * Reconciles console entries with the server's authoritative, secret-safe
+ * `finalBlockLogs`. Reapplying running or content-bearing rows both recovers
+ * dropped terminal events and replaces an earlier live projection after late
+ * secret activation.
  */
 export function reconcileFinalBlockLogs(
   updateConsole: UpdateConsoleFn,
   workflowId: string,
   executionId: string | undefined,
-  finalBlockLogs: BlockLog[] | undefined
+  finalBlockLogs: SecretSafeBlockLog[] | undefined
 ): void {
   if (!finalBlockLogs?.length || !executionId) return
   for (const log of finalBlockLogs) {
@@ -491,8 +548,17 @@ export function reconcileFinalBlockLogs(
       entry.executionId === executionId &&
       entry.executionOrder === log.executionOrder
     const matchingEntry = entries.find(matchesFinalLog)
-    const runningEntry = entries.find((entry) => matchesFinalLog(entry) && entry.isRunning)
-    if (runningEntry) {
+    const hasExistingContent =
+      matchingEntry?.input !== undefined ||
+      matchingEntry?.output !== undefined ||
+      matchingEntry?.error !== undefined ||
+      matchingEntry?.agentStreamThinking !== undefined
+    if (matchingEntry && (matchingEntry.isRunning || hasExistingContent)) {
+      const projectionOmittedContent =
+        log.clearLiveDisplay === true ||
+        (log.input === undefined && matchingEntry.input !== undefined) ||
+        (log.output === undefined && matchingEntry.output !== undefined) ||
+        (log.error === undefined && matchingEntry.error !== undefined)
       updateConsole(
         log.blockId,
         {
@@ -500,14 +566,15 @@ export function reconcileFinalBlockLogs(
           blockName: log.blockName,
           blockType: log.blockType,
           replaceOutput: (log.output ?? {}) as Record<string, unknown>,
-          ...(log.input ? { input: log.input } : {}),
+          input: log.input ?? {},
           success: log.success,
-          ...(log.error ? { error: log.error } : {}),
+          error: log.error ?? null,
           durationMs: log.durationMs,
           startedAt: log.startedAt,
           endedAt: log.endedAt,
           isRunning: false,
           isCanceled: false,
+          ...(projectionOmittedContent ? { clearAgentStreamThinking: true } : {}),
         },
         executionId
       )
@@ -549,19 +616,26 @@ function reconcileChildTraceSpans(
       ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowInstanceId, span)
       : undefined
     if (span.blockId) {
-      const errorMessage = normalizeSpanError(span.output?.error)
+      const errorMessage = normalizeSpanError(span.errorMessage ?? span.output?.error)
+      const projectionOmittedContent = matchingEntry
+        ? (span.input === undefined && matchingEntry.input !== undefined) ||
+          (span.output === undefined && matchingEntry.output !== undefined) ||
+          (errorMessage === undefined && matchingEntry.error !== undefined)
+        : false
       updateConsole(
         span.blockId,
         {
           ...spanConsoleIdentity(span, childWorkflowInstanceId),
+          input: span.input ?? {},
           replaceOutput: (span.output ?? {}) as Record<string, unknown>,
           success: span.status !== 'error',
-          ...(errorMessage !== undefined ? { error: errorMessage } : {}),
+          error: errorMessage ?? null,
           durationMs: span.duration,
           startedAt: span.startTime,
           endedAt: span.endTime,
           isRunning: false,
           isCanceled: false,
+          ...(projectionOmittedContent ? { clearAgentStreamThinking: true } : {}),
         },
         executionId
       )
@@ -670,12 +744,17 @@ export function buildExecutionTiming(durationMs?: number): ExecutionTimingFields
 interface ExecutionErrorConsoleParams {
   workflowId: string
   executionId?: string
+  /** Raw runtime error used only for functional classification and result propagation. */
   error?: string
+  /** Server-projected error text safe for terminal display. */
+  displayError?: string
+  /** Distinguishes an intentionally empty projection from a legacy event with no projection. */
+  hasDisplayProjection?: boolean
   durationMs?: number
   blockLogs: BlockLog[]
   isPreExecutionError?: boolean
   /** Server's authoritative per-block terminal states, used to reconcile lost SSE events. */
-  finalBlockLogs?: BlockLog[]
+  finalBlockLogs?: SecretSafeBlockLog[]
 }
 
 /**
@@ -702,8 +781,14 @@ export function addExecutionErrorConsoleEntry(
   const isPreExecutionError = params.isPreExecutionError ?? false
   if (!isPreExecutionError && hasBlockError) return
 
-  const errorMessage = params.error || 'Run failed'
-  const isTimeout = errorMessage.toLowerCase().includes('timed out')
+  const hasDisplayProjection = params.hasDisplayProjection ?? params.displayError !== undefined
+  const fallbackMessage = isPreExecutionError
+    ? VALIDATION_FAILURE_DISPLAY_MESSAGE
+    : RUN_FAILURE_DISPLAY_MESSAGE
+  const errorMessage = hasDisplayProjection
+    ? params.displayError || fallbackMessage
+    : params.error || fallbackMessage
+  const isTimeout = (params.error ?? params.displayError ?? '').toLowerCase().includes('timed out')
   const timing = buildExecutionTiming(params.durationMs)
 
   addConsole({
@@ -784,7 +869,7 @@ interface CancelledConsoleParams {
   executionId?: string
   durationMs?: number
   /** Server's authoritative per-block terminal states, used to reconcile lost SSE events. */
-  finalBlockLogs?: BlockLog[]
+  finalBlockLogs?: SecretSafeBlockLog[]
 }
 
 /**
@@ -1060,6 +1145,7 @@ export async function executeWorkflowWithFullLogging(
           if (!isCurrentExecution()) return
           executionFinished = true
           const errorMessage = data.error || 'Run failed'
+          const display = getExecutionErrorDisplay(data)
           executionResult = {
             success: false,
             output: {},
@@ -1074,6 +1160,8 @@ export async function executeWorkflowWithFullLogging(
               workflowId: wfId,
               executionId: executionIdRef.current,
               error: errorMessage,
+              displayError: display.error,
+              hasDisplayProjection: display.present,
               durationMs: data.duration || 0,
               blockLogs: accumulatedBlockLogs,
               isPreExecutionError: accumulatedBlockLogs.length === 0,

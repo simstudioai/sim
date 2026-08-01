@@ -14,6 +14,7 @@ import {
 } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -35,7 +36,6 @@ import {
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('FireworksProvider')
 
@@ -294,7 +294,7 @@ export const fireworksProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
+            const result = await executeProviderTool(toolName, executionParams, {
               signal: request.abortSignal,
             })
             const toolCallEndTime = Date.now()

@@ -26,6 +26,7 @@ export interface EnvVarResolveOptions {
   onMissing?: 'keep' | 'throw' | 'empty'
   deep?: boolean
   missingKeys?: string[]
+  onResolved?: (name: string, value: string) => void
 }
 
 /**
@@ -37,7 +38,9 @@ export interface EnvVarResolveOptions {
  * - `onMissing: 'keep'` - Unknown patterns pass through (e.g., Grafana's `{{instance}}`)
  * - `deep: false` - Only processes strings by default; set `true` for nested objects
  */
-export const ENV_VAR_RESOLVE_DEFAULTS: Required<Omit<EnvVarResolveOptions, 'missingKeys'>> = {
+export const ENV_VAR_RESOLVE_DEFAULTS: Required<
+  Omit<EnvVarResolveOptions, 'missingKeys' | 'onResolved'>
+> = {
   resolveExactMatch: true,
   allowEmbedded: true,
   trimKeys: true,
@@ -70,7 +73,10 @@ export function resolveEnvVarReferences(
       if (exactMatch) {
         const envKey = trimKeys ? exactMatch[1].trim() : exactMatch[1]
         const envValue = envVars[envKey]
-        if (envValue !== undefined) return envValue
+        if (envValue !== undefined) {
+          if (Object.hasOwn(envVars, envKey)) options.onResolved?.(envKey, envValue)
+          return envValue
+        }
         if (options.missingKeys) options.missingKeys.push(envKey)
         if (onMissing === 'throw') {
           throw new Error(`Environment variable "${envKey}" was not found`)
@@ -88,7 +94,10 @@ export function resolveEnvVarReferences(
     return value.replace(envVarPattern, (match, varName) => {
       const envKey = trimKeys ? String(varName).trim() : String(varName)
       const envValue = envVars[envKey]
-      if (envValue !== undefined) return envValue
+      if (envValue !== undefined) {
+        if (Object.hasOwn(envVars, envKey)) options.onResolved?.(envKey, envValue)
+        return envValue
+      }
       if (options.missingKeys) options.missingKeys.push(envKey)
       if (onMissing === 'throw') {
         throw new Error(`Environment variable "${envKey}" was not found`)

@@ -4,11 +4,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { BlockType } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -435,6 +438,108 @@ describe('BlockExecutor', () => {
     const output = state.getBlockOutput(block.id)
     expect(output?.error).toBeTruthy()
     expect(output).not.toEqual({ content: '' })
+  })
+
+  it('projects a resolved secret out of Function syntax-error TraceSpans only', async () => {
+    const secret = 'function-secret-literal-7f3a91'
+    const block = createBlock()
+    block.metadata.name = 'Function 1'
+    block.config.params = {
+      code: 'return {{OPENAI_API_KEY}}',
+      language: 'javascript',
+    }
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'OPENAI_API_KEY',
+        plaintext: secret,
+        encryptedValue: 'encrypted-openai-api-key',
+      },
+    ])
+    const resolver = new VariableResolver(workflow, {}, state)
+    const syntaxError = `Syntax Error: Line 1: \`return ${secret}\` - Invalid or unexpected token`
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (_ctx, _block, inputs) => {
+        expect(inputs.code).toBe(`return ${secret}`)
+        throw new Error(syntaxError)
+      },
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.environmentVariables = { OPENAI_API_KEY: secret }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      `Function 1: ${syntaxError}`
+    )
+
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: secret, replacement: '{{OPENAI_API_KEY}}' },
+    ])
+    expect(state.getBlockOutput(block.id)).toEqual({ error: syntaxError })
+    expect(ctx.blockLogs[0]).toMatchObject({
+      input: { code: `return ${secret}` },
+      output: { error: syntaxError },
+      error: syntaxError,
+    })
+
+    const rawLogs = structuredClone(ctx.blockLogs)
+    const { traceSpans: rawTraceSpans } = buildTraceSpans({
+      success: false,
+      output: { error: syntaxError },
+      error: `Function 1: ${syntaxError}`,
+      logs: ctx.blockLogs,
+    })
+    const rawTraceSnapshot = structuredClone(rawTraceSpans)
+    const projectedTraceSpans = await projectTraceSpansForSecrets(rawTraceSpans, {
+      registry,
+      store: {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+      },
+    })
+
+    expect(ctx.blockLogs).toEqual(rawLogs)
+    expect(rawTraceSpans).toEqual(rawTraceSnapshot)
+    expect(projectedTraceSpans).toEqual([
+      expect.objectContaining({
+        name: 'Function 1',
+        input: expect.objectContaining({ code: 'return {{OPENAI_API_KEY}}' }),
+        output: {
+          error: 'Syntax Error: Line 1: `return {{OPENAI_API_KEY}}` - Invalid or unexpected token',
+        },
+      }),
+    ])
+    expect(JSON.stringify(projectedTraceSpans)).not.toContain(secret)
   })
 })
 

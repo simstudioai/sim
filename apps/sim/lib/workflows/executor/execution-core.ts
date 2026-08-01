@@ -34,18 +34,19 @@ import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  BlockCompletionCallbackData,
   ChildWorkflowContext,
   ContextExtensions,
   ExecutionCallbacks,
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type {
-  ExecutionResult,
-  NormalizedBlockOutput,
-  StartBlockRunMetadata,
-} from '@/executor/types'
+import type { ExecutionResult, StartBlockRunMetadata } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import {
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceProvenanceV1,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { isRunMetadataEnabled } from '@/executor/utils/start-block'
 import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
@@ -106,6 +107,8 @@ export interface ExecuteWorkflowCoreOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   stopAfterBlockId?: string
+  /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
   runFromBlock?: {
     startBlockId: string
@@ -253,6 +256,7 @@ async function finalizeExecutionOutcome(params: {
           endedAt,
           totalDurationMs: totalDuration || 0,
           traceSpans: traceSpans || [],
+          executionState: result.executionState,
         })
         return
       }
@@ -263,6 +267,7 @@ async function finalizeExecutionOutcome(params: {
           totalDurationMs: totalDuration || 0,
           traceSpans: traceSpans || [],
           workflowInput,
+          executionState: result.executionState,
         })
         return
       }
@@ -306,6 +311,7 @@ async function finalizeExecutionError(params: {
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
+      executionState: executionResult?.executionState,
     })
 
     return loggingSession.hasCompleted()
@@ -455,13 +461,49 @@ async function executeWorkflowCoreImpl(
 
     const mergedStates = mergeSubblockStateWithValues(blocks)
 
-    const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } = env
+    const {
+      personalEncrypted,
+      workspaceEncrypted,
+      personalDecrypted,
+      workspaceDecrypted,
+      decryptionFailures,
+    } = env
 
     // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
 
     // Use already-decrypted values for execution (no redundant decryption)
     const decryptedEnvVars: Record<string, string> = { ...personalDecrypted, ...workspaceDecrypted }
+
+    const resumeFromSnapshot = metadata.resumeFromSnapshot === true
+    const restoredState =
+      runFromBlock?.sourceSnapshot ?? (resumeFromSnapshot ? snapshot.state : undefined)
+    const restoreTrusted = resumeFromSnapshot || Boolean(runFromBlock?.sourceExecutionId)
+    const trustedLargeValueAccess = restoreTrusted
+      ? restoredState?.trustedLargeValueAccess
+      : undefined
+    const requireRestoredProvenance = restoredState !== undefined
+    const resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+      personalEncrypted,
+      workspaceEncrypted,
+      personalDecrypted,
+      workspaceDecrypted,
+      decryptionFailures,
+      restoredProvenance:
+        restoreTrusted || requireRestoredProvenance
+          ? restoredState?.resolvedSecretTraceProvenance
+          : undefined,
+      restoreTrusted,
+      requireRestoredProvenance,
+      scope: { userId: personalEnvUserId, workspaceId: providedWorkspaceId },
+    })
+    if (options.trustedInitialResolvedSecretTraceProvenance !== undefined) {
+      await resolvedSecretTraceRegistry.importProvenance(
+        options.trustedInitialResolvedSecretTraceProvenance,
+        { trusted: true }
+      )
+    }
+    loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
 
     loggingStarted = await loggingSession.safeStart({
       userId,
@@ -478,7 +520,6 @@ async function executeWorkflowCoreImpl(
     const filteredEdges = edges
 
     // Check if this is a resume execution before trigger resolution
-    const resumeFromSnapshot = metadata.resumeFromSnapshot === true
     const resumePendingQueue = snapshot.state?.pendingQueue
     const resumeRemainingEdges = snapshot.state?.remainingEdges
     const resumeTerminalNoop = metadata.resumeTerminalNoop === true
@@ -529,7 +570,6 @@ async function executeWorkflowCoreImpl(
       parallels,
       true
     )
-
     processedInput = input || {}
 
     // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
@@ -559,13 +599,7 @@ async function executeWorkflowCoreImpl(
       blockId: string,
       blockName: string,
       blockType: string,
-      output: {
-        input?: unknown
-        output: NormalizedBlockOutput
-        executionTime: number
-        startedAt: string
-        endedAt: string
-      },
+      output: BlockCompletionCallbackData,
       iterationContext?: IterationContext,
       childWorkflowContext?: ChildWorkflowContext
     ) => {
@@ -659,17 +693,34 @@ async function executeWorkflowCoreImpl(
 
     const largeValueExecutionIds = Array.from(
       new Set(
-        [executionId, ...(metadata.largeValueExecutionIds ?? [])].filter((id): id is string =>
-          Boolean(id)
-        )
+        [
+          executionId,
+          runFromBlock?.sourceExecutionId,
+          ...(metadata.largeValueExecutionIds ?? []),
+          ...(trustedLargeValueAccess?.executionIds ?? []),
+        ].filter((id): id is string => Boolean(id))
       )
     )
-    const largeValueKeys = metadata.largeValueKeys
-    const fileKeys = metadata.fileKeys
+    const largeValueKeys = Array.from(
+      new Set([
+        ...(metadata.largeValueKeys ?? []),
+        ...(trustedLargeValueAccess?.largeValueKeys ?? []),
+      ])
+    )
+    const fileKeys = Array.from(
+      new Set([...(metadata.fileKeys ?? []), ...(trustedLargeValueAccess?.fileKeys ?? [])])
+    )
     const allowLargeValueWorkflowScope =
       metadata.allowLargeValueWorkflowScope === true ||
       metadata.resumeFromSnapshot === true ||
-      Boolean(runFromBlock?.sourceSnapshot && !runFromBlock.sourceExecutionId)
+      Boolean(runFromBlock?.sourceSnapshot && !runFromBlock.sourceExecutionId) ||
+      Boolean(runFromBlock?.sourceExecutionId && !trustedLargeValueAccess)
+    loggingSession.setTraceLargeValueAccess({
+      largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
+      allowLargeValueWorkflowScope,
+    })
 
     // Resolve the org/workspace PII redaction policy once; serves both the input
     // stage (below) and the block-outputs stage (threaded into the executor).
@@ -801,6 +852,7 @@ async function executeWorkflowCoreImpl(
       })),
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
+      resolvedSecretTraceRegistry,
       metadata,
       startRunMetadata,
       abortSignal,

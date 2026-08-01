@@ -210,7 +210,8 @@ export interface ExecuteStreamOptions {
 export interface ExecuteFromBlockOptions {
   workflowId: string
   startBlockId: string
-  sourceSnapshot: SerializableExecutionState
+  sourceSnapshot?: SerializableExecutionState
+  sourceExecutionId?: string
   input?: any
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
@@ -348,6 +349,7 @@ export function useExecutionStream() {
       workflowId,
       startBlockId,
       sourceSnapshot,
+      sourceExecutionId,
       input,
       onExecutionId,
       callbacks = {},
@@ -370,7 +372,11 @@ export function useExecutionStream() {
         body: JSON.stringify({
           stream: true,
           input,
-          runFromBlock: { startBlockId, sourceSnapshot },
+          runFromBlock: {
+            startBlockId,
+            ...(sourceExecutionId ? { executionId: sourceExecutionId } : {}),
+            ...(sourceSnapshot ? { sourceSnapshot } : {}),
+          },
         }),
         signal: abortController.signal,
       })

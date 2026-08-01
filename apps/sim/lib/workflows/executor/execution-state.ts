@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
 import type { SerializableExecutionState } from '@/executor/execution/types'
@@ -28,6 +29,25 @@ function extractExecutionState(executionData: unknown): SerializableExecutionSta
   if (!executionData || typeof executionData !== 'object') return null
   const state = (executionData as Record<string, unknown>).executionState
   return isSerializableExecutionState(state) ? state : null
+}
+
+function extractLegacyWorkflowInput(executionData: Record<string, unknown>): unknown | undefined {
+  if (!isRecordLike(executionData.executionState)) return undefined
+  const { blockStates } = executionData.executionState
+  if (!isRecordLike(blockStates)) return undefined
+
+  for (const state of Object.values(blockStates)) {
+    if (
+      isRecordLike(state) &&
+      state.executed === false &&
+      state.executionTime === 0 &&
+      state.output != null
+    ) {
+      return state.output
+    }
+  }
+
+  return undefined
 }
 
 interface ExecutionStateRow {
@@ -109,7 +129,11 @@ export async function getExecutionInputForWorkflow(
   }
 
   const data = await materializeExecutionDataFromRow(row)
-  return { found: true, input: data?.workflowInput }
+  if (!data) return { found: true }
+  if (Object.hasOwn(data, 'workflowInput')) {
+    return { found: true, input: data.workflowInput }
+  }
+  return { found: true, input: extractLegacyWorkflowInput(data) }
 }
 
 export async function getLatestExecutionStateWithExecutionId(

@@ -1182,48 +1182,55 @@ export class AgentBlockHandler implements BlockHandler {
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
 
-      const response = await executeProviderRequest(providerId, {
-        model,
-        systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
-        context: 'context' in providerRequest ? providerRequest.context : undefined,
-        tools: providerRequest.tools,
-        temperature: providerRequest.temperature,
-        maxTokens: providerRequest.maxTokens,
-        apiKey: finalApiKey,
-        azureEndpoint: providerRequest.azureEndpoint,
-        azureApiVersion: providerRequest.azureApiVersion,
-        vertexProject: providerRequest.vertexProject,
-        vertexLocation: providerRequest.vertexLocation,
-        bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
-        bedrockSecretKey: providerRequest.bedrockSecretKey,
-        bedrockRegion: providerRequest.bedrockRegion,
-        responseFormat: providerRequest.responseFormat,
-        workflowId: providerRequest.workflowId,
-        workspaceId: ctx.workspaceId,
-        userId: ctx.userId,
-        stream: providerRequest.stream,
-        messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-        environmentVariables: normalizeStringRecord(ctx.environmentVariables),
-        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-        blockData,
-        blockNameMapping,
-        isDeployedContext: ctx.isDeployedContext,
-        callChain: ctx.callChain,
-        billingAttribution: ctx.metadata.billingAttribution,
-        // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
-        // its own child execution (a custom block) correlates and cancels against
-        // this real run instead of minting a phantom id.
-        executionId: ctx.executionId,
-        reasoningEffort: providerRequest.reasoningEffort,
-        verbosity: providerRequest.verbosity,
-        thinkingLevel: providerRequest.thinkingLevel,
-        promptCaching: providerRequest.promptCaching,
-        // Stable per-block identity; providers use it to route cache lookups.
-        blockId: block.id,
-        previousInteractionId: providerRequest.previousInteractionId,
-        agentEvents: providerRequest.agentEvents,
-        abortSignal: ctx.abortSignal,
-      })
+      const response = await executeProviderRequest(
+        providerId,
+        {
+          model,
+          systemPrompt:
+            'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+          context: 'context' in providerRequest ? providerRequest.context : undefined,
+          tools: providerRequest.tools,
+          temperature: providerRequest.temperature,
+          maxTokens: providerRequest.maxTokens,
+          apiKey: finalApiKey,
+          azureEndpoint: providerRequest.azureEndpoint,
+          azureApiVersion: providerRequest.azureApiVersion,
+          vertexProject: providerRequest.vertexProject,
+          vertexLocation: providerRequest.vertexLocation,
+          bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
+          bedrockSecretKey: providerRequest.bedrockSecretKey,
+          bedrockRegion: providerRequest.bedrockRegion,
+          responseFormat: providerRequest.responseFormat,
+          workflowId: providerRequest.workflowId,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          stream: providerRequest.stream,
+          messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+          environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+          workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
+          blockData,
+          blockNameMapping,
+          isDeployedContext: ctx.isDeployedContext,
+          callChain: ctx.callChain,
+          billingAttribution: ctx.metadata.billingAttribution,
+          // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
+          // its own child execution (a custom block) correlates and cancels against
+          // this real run instead of minting a phantom id.
+          executionId: ctx.executionId,
+          reasoningEffort: providerRequest.reasoningEffort,
+          verbosity: providerRequest.verbosity,
+          thinkingLevel: providerRequest.thinkingLevel,
+          promptCaching: providerRequest.promptCaching,
+          // Stable per-block identity; providers use it to route cache lookups.
+          blockId: block.id,
+          previousInteractionId: providerRequest.previousInteractionId,
+          agentEvents: providerRequest.agentEvents,
+          abortSignal: ctx.abortSignal,
+        },
+        {
+          resolvedSecretTraceRegistry: ctx.resolvedSecretTraceRegistry,
+        }
+      )
 
       return this.processProviderResponse(response, block, responseFormat)
     } catch (error) {

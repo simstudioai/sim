@@ -8,6 +8,7 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromDeepseekStream } from '@/providers/deepseek/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
@@ -25,7 +26,6 @@ import {
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('DeepseekProvider')
 
@@ -369,7 +369,7 @@ export const deepseekProvider: ProviderConfig = {
               }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, {
+              const result = await executeProviderTool(toolName, executionParams, {
                 signal: request.abortSignal,
               })
               const toolCallEndTime = Date.now()

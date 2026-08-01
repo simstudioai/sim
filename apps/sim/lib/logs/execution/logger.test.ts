@@ -3,6 +3,8 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
+import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 afterAll(resetDbChainMock)
 
@@ -242,6 +244,56 @@ describe('ExecutionLogger', () => {
       expect(completedData.billingAttribution).toEqual(billingAttribution)
     })
 
+    test('preserves server-only lifecycle metadata after execution-state PII masking', () => {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        preservePrivateExecutionStateMetadata(
+          redactedState: SerializableExecutionState | undefined,
+          originalState: SerializableExecutionState | undefined
+        ): SerializableExecutionState | undefined
+      }
+      const provenance = {
+        version: 1 as const,
+        complete: true,
+        entries: [{ name: 'API_SECRET', encryptedValue: 'enc:original-ciphertext' }],
+      }
+      const trustedLargeValueAccess = {
+        executionIds: ['execution-1'],
+        largeValueKeys: ['execution/workspace-1/workflow-1/execution-1/value.json'],
+        fileKeys: ['workspace-1/file-1'],
+      }
+      const originalState: SerializableExecutionState = {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+        resolvedSecretTraceProvenance: provenance,
+        trustedLargeValueAccess,
+      }
+      const redactedState: SerializableExecutionState = {
+        ...originalState,
+        resolvedSecretTraceProvenance: {
+          ...provenance,
+          entries: [{ name: 'API_SECRET', encryptedValue: '[MASKED]' }],
+        },
+        trustedLargeValueAccess: {
+          executionIds: [],
+          largeValueKeys: [],
+          fileKeys: [],
+        },
+      }
+
+      const preserved = loggerInstance.preservePrivateExecutionStateMetadata(
+        redactedState,
+        originalState
+      )
+
+      expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
+      expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
+      expect(preserved?.blockStates).toBe(redactedState.blockStates)
+    })
+
     test('summarizes oversized execution data before storage', () => {
       const loggerInstance = new ExecutionLogger() as any
       const largePayload = 'x'.repeat(1_100_000)
@@ -325,12 +377,71 @@ describe('ExecutionLogger', () => {
         activeExecutionPathLength: 0,
         pendingQueueLength: 0,
       })
-      expect(compacted.traceSpans?.[0]?.children?.[0]?.input).toEqual({
-        _truncated: true,
-        reason: 'execution_data_size_limit',
-        originalBytes: expect.any(Number),
-        summary: 'object with 2 keys',
+      expect(compacted.traceSpans?.[0]?.children?.[0]).not.toHaveProperty('input')
+    })
+
+    test('retains tool-call structure when aggregate trace content exceeds the compaction cap', () => {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage(
+          executionData: WorkflowExecutionLog['executionData'],
+          executionId: string
+        ): WorkflowExecutionLog['executionData']
+      }
+      const oversizedContent = 'x'.repeat(9_000)
+      const modelToolCalls = Array.from({ length: 200 }, (_, index) => ({
+        id: `model-call-${index}-${'m'.repeat(40)}`,
+        name: 'lookup',
+        arguments: oversizedContent,
+      }))
+      const toolCalls = Array.from({ length: 200 }, (_, index) => ({
+        id: `legacy-call-${index}-${'l'.repeat(40)}`,
+        name: 'legacy_lookup',
+        duration: 1,
+        startTime: '2025-01-01T00:00:00.000Z',
+        endTime: '2025-01-01T00:00:00.001Z',
+        status: 'success' as const,
+        input: oversizedContent,
+        output: oversizedContent,
+        error: oversizedContent,
+      }))
+
+      const compacted = loggerInstance.compactExecutionDataForStorage(
+        {
+          traceSpans: [
+            {
+              id: 'span-1',
+              name: 'Agent',
+              type: 'agent',
+              duration: 1,
+              startTime: '2025-01-01T00:00:00.000Z',
+              endTime: '2025-01-01T00:00:00.001Z',
+              status: 'success',
+              modelToolCalls,
+              toolCalls,
+            },
+          ],
+          finalOutput: { data: 'y'.repeat(1_100_000) },
+        },
+        'execution-tool-structure'
+      )
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.traceSpans?.[0]?.modelToolCalls).toHaveLength(modelToolCalls.length)
+      expect(compacted.traceSpans?.[0]?.modelToolCalls?.[0]).toEqual({
+        id: modelToolCalls[0].id,
+        name: 'lookup',
       })
+      expect(compacted.traceSpans?.[0]?.toolCalls).toHaveLength(toolCalls.length)
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).toEqual(
+        expect.objectContaining({
+          id: toolCalls[0].id,
+          name: 'legacy_lookup',
+          status: 'success',
+        })
+      )
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('input')
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('output')
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('error')
     })
   })
 

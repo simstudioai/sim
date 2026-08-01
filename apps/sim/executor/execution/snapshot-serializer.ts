@@ -224,6 +224,19 @@ export function serializePauseSnapshot(
     dagIncomingEdges,
     deactivatedEdges: edgeManager?.getDeactivatedEdges(),
     nodesWithActivatedEdge: edgeManager?.getNodesWithActivatedEdge(),
+    sourceExecutionId: context.executionId,
+    trustedLargeValueAccess: {
+      executionIds: Array.from(
+        new Set(
+          [context.executionId, ...(context.largeValueExecutionIds ?? [])].filter(
+            (id): id is string => Boolean(id)
+          )
+        )
+      ),
+      largeValueKeys: Array.from(new Set(context.largeValueKeys ?? [])),
+      fileKeys: Array.from(new Set(context.fileKeys ?? [])),
+    },
+    resolvedSecretTraceProvenance: context.resolvedSecretTraceRegistry?.exportProvenance(),
   }
 
   assertSnapshotValueIsCompact(context.workflowVariables, 'workflow variables')

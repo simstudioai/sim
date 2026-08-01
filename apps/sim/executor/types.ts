@@ -9,6 +9,7 @@ import type {
   PiiBlockOutputRedaction,
   SerializableExecutionState,
 } from '@/executor/execution/types'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { AgentStreamSink, UnsubscribeAgentStreamSink } from '@/providers/stream-events'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -354,6 +355,7 @@ export interface ExecutionContext {
   /** Trusted run metadata for the Start block's "Add run metadata" toggle. */
   startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   workflowVariables?: Record<string, any>
 
   decisions: {

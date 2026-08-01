@@ -9,6 +9,7 @@ import {
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -114,6 +115,27 @@ function createResolver(
 }
 
 describe('VariableResolver function block inputs', () => {
+  it('records a secret reached through workflow-variable indirection', async () => {
+    const { ctx, resolver } = createResolver()
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'resolved-secret', encryptedValue: 'ciphertext' },
+    ])
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'indirect', type: 'string', value: '{{TOKEN}}' },
+    }
+    ctx.environmentVariables = { TOKEN: 'resolved-secret' }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    const result = await resolver.resolveInputs(ctx, 'function', {
+      value: '<variable.indirect>',
+    })
+
+    expect(result.value).toBe('resolved-secret')
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'resolved-secret', replacement: '{{TOKEN}}' },
+    ])
+  })
+
   it('returns empty inputs when params are missing', async () => {
     const { block, ctx, resolver } = createResolver()
 

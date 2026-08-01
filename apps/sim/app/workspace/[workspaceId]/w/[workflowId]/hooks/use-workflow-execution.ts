@@ -16,6 +16,7 @@ import {
 } from '@/components/agent-stream/tool-call-lifecycle'
 import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type {
@@ -102,6 +103,20 @@ interface DebugValidationResult {
 }
 
 const WORKFLOW_EXECUTION_FAILURE_MESSAGE = 'Workflow execution failed'
+
+function getExecutionDisplayError(data: unknown): {
+  displayError?: string
+  hasDisplayProjection: boolean
+} {
+  if (!data || typeof data !== 'object' || !Object.hasOwn(data, 'display')) {
+    return { hasDisplayProjection: false }
+  }
+  const display = (data as { display?: { error?: unknown } }).display
+  return {
+    hasDisplayProjection: true,
+    ...(typeof display?.error === 'string' ? { displayError: display.error } : {}),
+  }
+}
 
 async function persistExecutionPointerProgress(
   workflowId: string,
@@ -261,6 +276,16 @@ function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamC
     )
   }
 
+  const clearThinking = (blockId: string) => {
+    const timer = thinkingFlushTimers.get(blockId)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      thinkingFlushTimers.delete(blockId)
+    }
+    thinkingByBlock.delete(blockId)
+    updateConsole(blockId, { clearAgentStreamThinking: true }, executionIdRef.current)
+  }
+
   const settleBlock = (blockId: string, status: 'success' | 'error' | 'cancelled') => {
     flushThinking(blockId)
     const map = toolCallsByBlock.get(blockId)
@@ -288,8 +313,21 @@ function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamC
   }
 
   const onStreamThinking = (data: StreamThinkingData) => {
+    const display = (
+      data as StreamThinkingData & {
+        display?: { text?: string; clearLiveDisplay?: true }
+      }
+    ).display
+    const hasDisplayProjection = Object.hasOwn(data, 'display')
+    const text = hasDisplayProjection ? display?.text : data.text
+    if (display?.clearLiveDisplay || (hasDisplayProjection && typeof text !== 'string')) {
+      clearThinking(data.blockId)
+      return
+    }
+    if (!text) return
+
     const prev = thinkingByBlock.get(data.blockId) ?? ''
-    thinkingByBlock.set(data.blockId, prev + data.text)
+    thinkingByBlock.set(data.blockId, prev + text)
     if (!thinkingFlushTimers.has(data.blockId)) {
       thinkingFlushTimers.set(
         data.blockId,
@@ -334,7 +372,14 @@ function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamC
     settleBlock(data.blockId, 'success')
   }
 
-  return { flushThinking, settleBlock, settleAll, onStreamThinking, onStreamTool, onStreamDone }
+  return {
+    flushThinking,
+    settleBlock,
+    settleAll,
+    onStreamThinking,
+    onStreamTool,
+    onStreamDone,
+  }
 }
 
 export function useWorkflowExecution() {
@@ -464,10 +509,12 @@ export function useWorkflowExecution() {
       workflowId?: string
       executionId?: string
       error?: string
+      displayError?: string
+      hasDisplayProjection?: boolean
       durationMs?: number
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
-      finalBlockLogs?: BlockLog[]
+      finalBlockLogs?: SecretSafeBlockLog[]
     }) => {
       if (!params.workflowId) return
       sharedHandleExecutionErrorConsole(
@@ -483,7 +530,7 @@ export function useWorkflowExecution() {
       workflowId?: string
       executionId?: string
       durationMs?: number
-      finalBlockLogs?: BlockLog[]
+      finalBlockLogs?: SecretSafeBlockLog[]
     }) => {
       if (!params.workflowId) return
       sharedHandleExecutionCancelledConsole(
@@ -862,27 +909,7 @@ export function useWorkflowExecution() {
                   streamedContent.set(id, chunks.join(''))
                 }
 
-                // Update streamed content and apply tokenization
                 if (result.logs) {
-                  result.logs.forEach((log: BlockLog) => {
-                    if (streamedContent.has(log.blockId)) {
-                      // For console display, show the actual structured block output instead of formatted streaming content
-                      // This ensures console logs match the block state structure
-                      // Use replaceOutput to completely replace the output instead of merging
-                      // Use the executionId from this execution context
-                      useTerminalConsoleStore.getState().updateConsole(
-                        log.blockId,
-                        {
-                          executionOrder: log.executionOrder,
-                          replaceOutput: log.output,
-                          success: true,
-                        },
-                        executionId
-                      )
-                    }
-                  })
-
-                  // Process all logs for streaming tokenization
                   const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
@@ -1208,7 +1235,6 @@ export function useWorkflowExecution() {
       const activeBlockRefCounts = new Map<string, number>()
       const streamedChunks = new Map<string, string[]>()
       const agentStreamChrome = createAgentStreamChrome({ executionIdRef, updateConsole })
-      const settleAgentStreamChrome = agentStreamChrome.settleBlock
       const settleAllAgentStreamChrome = agentStreamChrome.settleAll
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
@@ -1282,8 +1308,7 @@ export function useWorkflowExecution() {
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
             onBlockError: (data) => {
-              // Failures often skip stream:done — settle thinking/tool chrome here.
-              settleAgentStreamChrome(data.blockId, 'error')
+              agentStreamChrome.settleBlock(data.blockId, 'error')
               blockHandlers.onBlockError(data)
             },
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
@@ -1388,6 +1413,7 @@ export function useWorkflowExecution() {
                     decisions: existingSnapshot?.decisions || { router: {}, condition: {} },
                     completedLoops: existingSnapshot?.completedLoops || [],
                     activeExecutionPath: Array.from(mergedExecutedBlocks),
+                    sourceExecutionId: executionIdRef.current,
                   }
                   setLastExecutionSnapshot(activeWorkflowId, snapshot)
                   logger.info('Merged execution snapshot after run-until-block', {
@@ -1403,6 +1429,7 @@ export function useWorkflowExecution() {
                     decisions: { router: {}, condition: {} },
                     completedLoops: [],
                     activeExecutionPath: Array.from(executedBlockIds),
+                    sourceExecutionId: executionIdRef.current,
                   }
                   setLastExecutionSnapshot(activeWorkflowId, snapshot)
                   logger.info('Stored execution snapshot for run-from-block', {
@@ -1508,6 +1535,7 @@ export function useWorkflowExecution() {
                 workflowId: activeWorkflowId,
                 executionId: executionIdRef.current,
                 error: data.error,
+                ...getExecutionDisplayError(data),
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
                 isPreExecutionError,
@@ -1927,6 +1955,7 @@ export function useWorkflowExecution() {
       const effectiveSnapshot: SerializableExecutionState = isTriggerBlock
         ? emptySnapshot
         : snapshot || emptySnapshot
+      const sourceExecutionId = isTriggerBlock ? undefined : effectiveSnapshot.sourceExecutionId
 
       // Extract mock payload for trigger blocks
       let workflowInput: any
@@ -2009,6 +2038,7 @@ export function useWorkflowExecution() {
           workflowId,
           startBlockId: blockId,
           sourceSnapshot: effectiveSnapshot,
+          ...(sourceExecutionId ? { sourceExecutionId } : {}),
           input: workflowInput,
           onExecutionId: (id) => {
             if (runFromBlockOwnerRef.current !== runOwnerId) return
@@ -2031,7 +2061,6 @@ export function useWorkflowExecution() {
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
             onBlockError: (data) => {
-              // Failures often skip stream:done — settle thinking/tool chrome here.
               agentStreamChrome.settleBlock(data.blockId, 'error')
               blockHandlers.onBlockError(data)
             },
@@ -2065,6 +2094,7 @@ export function useWorkflowExecution() {
 
                 const updatedSnapshot: SerializableExecutionState = {
                   ...effectiveSnapshot,
+                  sourceExecutionId: executionId,
                   blockStates: mergedBlockStates,
                   executedBlocks: Array.from(mergedExecutedBlocks),
                   blockLogs: [...effectiveSnapshot.blockLogs, ...accumulatedBlockLogs],
@@ -2116,6 +2146,7 @@ export function useWorkflowExecution() {
                 workflowId,
                 executionId,
                 error: data.error,
+                ...getExecutionDisplayError(data),
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
                 finalBlockLogs: data.finalBlockLogs,
@@ -2473,6 +2504,7 @@ export function useWorkflowExecution() {
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
                   error: data.error,
+                  ...getExecutionDisplayError(data),
                   blockLogs: accumulatedBlockLogs,
                   finalBlockLogs: data.finalBlockLogs,
                 })
