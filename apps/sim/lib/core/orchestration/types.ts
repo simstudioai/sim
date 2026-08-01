@@ -12,3 +12,12 @@ export function statusForOrchestrationError(code: OrchestrationErrorCode | undef
   if (code === 'locked') return 423
   return 500
 }
+
+/**
+ * The slice of an HTTP request the audit log reads for client IP and user-agent
+ * capture. Optional on every orchestration function so the non-HTTP callers —
+ * copilot tools, background jobs — can omit what they do not have.
+ */
+export interface OrchestrationRequestContext {
+  headers: { get(name: string): string | null }
+}

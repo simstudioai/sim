@@ -140,7 +140,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const outcome = await performDeleteTable({ table: result.table, userId, requestId })
+    const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
     if (!outcome.success) {
       return NextResponse.json(
         { error: outcome.error ?? 'Failed to delete table' },

@@ -1,6 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import type {
+  OrchestrationErrorCode,
+  OrchestrationRequestContext,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
@@ -33,6 +36,8 @@ export interface PerformUpdateTableColumnParams {
     currencyCode?: string
   }
   requestId?: string
+  /** Forwarded to the audit record for IP / user-agent capture. */
+  request?: OrchestrationRequestContext
 }
 
 export interface PerformUpdateTableColumnResult {
@@ -96,7 +101,7 @@ function fail(error: string, errorCode: OrchestrationErrorCode): PerformUpdateTa
 export async function performUpdateTableColumn(
   params: PerformUpdateTableColumnParams
 ): Promise<PerformUpdateTableColumnResult> {
-  const { table, columnName, userId, updates } = params
+  const { table, columnName, userId, updates, request } = params
   const requestId = params.requestId ?? generateRequestId()
   const tableId = table.id
 
@@ -269,6 +274,7 @@ export async function performUpdateTableColumn(
     resourceName: table.name,
     description: `Updated column "${columnName}" in table "${table.name}"`,
     metadata: { columnName, updates },
+    ...(request ? { request } : {}),
   })
 
   return { success: true, table: updated }

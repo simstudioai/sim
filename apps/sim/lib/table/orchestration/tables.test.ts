@@ -4,14 +4,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockDeleteTable, mockDeleteRow, mockCaptureServerEvent, mockRecordAudit } = vi.hoisted(
-  () => ({
-    mockDeleteTable: vi.fn(),
-    mockDeleteRow: vi.fn(),
-    mockCaptureServerEvent: vi.fn(),
-    mockRecordAudit: vi.fn(),
-  })
-)
+const {
+  mockDeleteTable,
+  mockDeleteRow,
+  mockRenameTable,
+  mockCaptureServerEvent,
+  mockRecordAudit,
+  MockTableConflictError,
+} = vi.hoisted(() => ({
+  mockDeleteTable: vi.fn(),
+  mockDeleteRow: vi.fn(),
+  mockRenameTable: vi.fn(),
+  mockCaptureServerEvent: vi.fn(),
+  mockRecordAudit: vi.fn(),
+  MockTableConflictError: class extends Error {
+    readonly code = 'TABLE_EXISTS' as const
+    constructor(name: string) {
+      super(`A table named "${name}" already exists in this workspace`)
+    }
+  },
+}))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { TABLE_DELETED: 'table.deleted', TABLE_UPDATED: 'table.updated' },
@@ -22,14 +34,19 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/table/service', () => ({
   deleteTable: mockDeleteTable,
   moveTableToFolder: vi.fn(),
-  renameTable: vi.fn(),
+  renameTable: mockRenameTable,
   updateTableLocks: vi.fn(),
+  TableConflictError: MockTableConflictError,
 }))
 vi.mock('@/lib/table/rows/service', () => ({ deleteRow: mockDeleteRow }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 
 import { TableLockedError } from '@/lib/table/mutation-locks'
-import { performDeleteTable, performDeleteTableRow } from '@/lib/table/orchestration/tables'
+import {
+  performDeleteTable,
+  performDeleteTableRow,
+  performRenameTable,
+} from '@/lib/table/orchestration/tables'
 
 const TABLE = { id: 'table-1', name: 'Tasks', workspaceId: 'ws-1' } as unknown as TableDefinition
 
@@ -56,13 +73,23 @@ describe('performDeleteTable', () => {
     )
   })
 
-  it('does not audit a repeat delete of an already-archived table', async () => {
+  it('carries request provenance into the audit row', async () => {
+    mockDeleteTable.mockResolvedValue({ archived: { name: 'Tasks', workspaceId: 'ws-1' } })
+    const request = new Request('https://sim.ai', { headers: { 'user-agent': 'curl/8' } })
+
+    await performDeleteTable({ table: TABLE, userId: 'user-1', request })
+
+    expect(mockRecordAudit).toHaveBeenCalledWith(expect.objectContaining({ request }))
+  })
+
+  it('neither audits nor reports a repeat delete of an already-archived table', async () => {
     mockDeleteTable.mockResolvedValue({ archived: null })
 
     const result = await performDeleteTable({ table: TABLE, userId: 'user-1' })
 
     expect(result.success).toBe(true)
     expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('classifies a delete lock as locked and emits no telemetry', async () => {
@@ -72,6 +99,18 @@ describe('performDeleteTable', () => {
 
     expect(result).toMatchObject({ success: false, errorCode: 'locked' })
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('performRenameTable', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('classifies a name collision as a conflict, not bad input', async () => {
+    mockRenameTable.mockRejectedValue(new MockTableConflictError('Tasks'))
+
+    const result = await performRenameTable({ table: TABLE, newName: 'Tasks', userId: 'user-1' })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
   })
 })
 

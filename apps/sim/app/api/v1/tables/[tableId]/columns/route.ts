@@ -151,6 +151,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       userId,
       updates: validated.updates,
       requestId,
+      request,
     })
     if (!outcome.success || !outcome.table) {
       return NextResponse.json(

@@ -1,12 +1,21 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import type {
+  OrchestrationErrorCode,
+  OrchestrationRequestContext,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { deleteRow } from '@/lib/table/rows/service'
-import { deleteTable, moveTableToFolder, renameTable, updateTableLocks } from '@/lib/table/service'
+import {
+  deleteTable,
+  moveTableToFolder,
+  renameTable,
+  TableConflictError,
+  updateTableLocks,
+} from '@/lib/table/service'
 import {
   TABLE_LOCK_FLAGS,
   TABLE_LOCK_KINDS,
@@ -20,6 +29,8 @@ export interface PerformDeleteTableParams {
   table: TableDefinition
   userId: string
   requestId?: string
+  /** Forwarded to the audit record for IP / user-agent capture. */
+  request?: OrchestrationRequestContext
 }
 
 export interface PerformDeleteTableResult {
@@ -40,7 +51,7 @@ export interface PerformDeleteTableResult {
 export async function performDeleteTable(
   params: PerformDeleteTableParams
 ): Promise<PerformDeleteTableResult> {
-  const { table, userId } = params
+  const { table, userId, request } = params
   const requestId = params.requestId ?? generateRequestId()
 
   let archived: { name: string; workspaceId: string | null } | null
@@ -54,6 +65,9 @@ export async function performDeleteTable(
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 
+  // Both the audit and the analytics event describe an archive that happened, so
+  // both hang off the same evidence that one did. A repeat delete of an
+  // already-archived table succeeds and records nothing.
   if (archived) {
     recordAudit({
       workspaceId: archived.workspaceId,
@@ -63,15 +77,15 @@ export async function performDeleteTable(
       resourceId: table.id,
       resourceName: archived.name,
       description: `Archived table "${archived.name}"`,
+      ...(request ? { request } : {}),
     })
+    captureServerEvent(
+      userId,
+      'table_deleted',
+      { table_id: table.id, workspace_id: table.workspaceId },
+      { groups: { workspace: table.workspaceId } }
+    )
   }
-
-  captureServerEvent(
-    userId,
-    'table_deleted',
-    { table_id: table.id, workspace_id: table.workspaceId },
-    { groups: { workspace: table.workspaceId } }
-  )
 
   return { success: true }
 }
@@ -119,6 +133,8 @@ export interface PerformRenameTableParams {
   newName: string
   userId: string
   requestId?: string
+  /** Forwarded to the audit record for IP / user-agent capture. */
+  request?: OrchestrationRequestContext
 }
 
 export interface PerformTableMutationResult {
@@ -132,11 +148,18 @@ function classifyTableMutation(error: unknown, requestId: string, tableId: strin
   if (error instanceof TableLockedError) {
     return { success: false as const, error: error.message, errorCode: 'locked' as const }
   }
+  // A name collision is a conflict, not bad input — the same class
+  // `performRestoreTable` reports, and the 409 the UI route returned before it
+  // delegated. Matched on the type, not on "already exists" appearing in the
+  // message, so a rewording cannot silently demote it to a 400.
+  if (error instanceof TableConflictError) {
+    return { success: false as const, error: error.message, errorCode: 'conflict' as const }
+  }
   const message = toError(error).message
   if (message.includes('not found')) {
     return { success: false as const, error: message, errorCode: 'not_found' as const }
   }
-  if (message.includes('Invalid') || message.includes('already exists')) {
+  if (message.includes('Invalid')) {
     return { success: false as const, error: message, errorCode: 'validation' as const }
   }
   logger.error(`[${requestId}] Table mutation failed for ${tableId}`, { error })
@@ -147,7 +170,7 @@ function classifyTableMutation(error: unknown, requestId: string, tableId: strin
 export async function performRenameTable(
   params: PerformRenameTableParams
 ): Promise<PerformTableMutationResult> {
-  const { table, newName, userId } = params
+  const { table, newName, userId, request } = params
   const requestId = params.requestId ?? generateRequestId()
 
   try {
@@ -161,6 +184,7 @@ export async function performRenameTable(
       resourceName: renamed.name,
       description: `Renamed table to "${renamed.name}"`,
       metadata: { op: 'rename', previousName: table.name },
+      ...(request ? { request } : {}),
     })
     return { success: true }
   } catch (error) {
@@ -173,13 +197,15 @@ export interface PerformMoveTableParams {
   folderId: string | null
   userId: string
   requestId?: string
+  /** Forwarded to the audit record for IP / user-agent capture. */
+  request?: OrchestrationRequestContext
 }
 
 /** Moves a table between folders (or to the workspace root). */
 export async function performMoveTableToFolder(
   params: PerformMoveTableParams
 ): Promise<PerformTableMutationResult> {
-  const { table, folderId, userId } = params
+  const { table, folderId, userId, request } = params
   const requestId = params.requestId ?? generateRequestId()
   if (!table.workspaceId) {
     return { success: false, error: 'Table is not in a workspace', errorCode: 'validation' }
@@ -198,6 +224,7 @@ export async function performMoveTableToFolder(
         ? `Moved table "${name}" into a folder`
         : `Moved table "${name}" to the workspace root`,
       metadata: { op: 'move', folderId },
+      ...(request ? { request } : {}),
     })
     return { success: true }
   } catch (error) {
@@ -211,7 +238,7 @@ export interface PerformUpdateTableLocksParams {
   userId: string
   requestId?: string
   /** Forwarded to the audit record for IP / user-agent capture. */
-  request?: { headers: { get(name: string): string | null } }
+  request?: OrchestrationRequestContext
 }
 
 /**

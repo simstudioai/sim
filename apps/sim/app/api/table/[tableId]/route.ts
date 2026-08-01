@@ -199,6 +199,7 @@ export const PATCH = withRouteHandler(
           newName: validated.name,
           userId: authResult.userId,
           requestId,
+          request,
         })
         if (!renameOutcome.success) {
           return NextResponse.json(
@@ -224,6 +225,7 @@ export const PATCH = withRouteHandler(
           folderId: validated.folderId,
           userId: authResult.userId,
           requestId,
+          request,
         })
         if (!moveOutcome.success) {
           return NextResponse.json(
@@ -289,7 +291,12 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const outcome = await performDeleteTable({ table, userId: authResult.userId, requestId })
+      const outcome = await performDeleteTable({
+        table,
+        userId: authResult.userId,
+        requestId,
+        request,
+      })
       if (!outcome.success) {
         return NextResponse.json(
           { error: outcome.error ?? 'Failed to delete table' },

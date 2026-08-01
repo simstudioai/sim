@@ -100,7 +100,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    const outcome = await performDeleteTable({ table: result.table, userId, requestId })
+    const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
     if (!outcome.success) {
       return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to delete table')
     }

@@ -10,7 +10,6 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
-import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   COLUMN_TYPES,
@@ -502,12 +501,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             if (!deleteOutcome.success) {
               return { success: false, message: deleteOutcome.error ?? 'Failed to delete table' }
             }
-            captureServerEvent(
-              context.userId,
-              'table_deleted',
-              { table_id: tableId, workspace_id: workspaceId },
-              { groups: { workspace: workspaceId } }
-            )
             deleted.push(tableId)
           }
 
