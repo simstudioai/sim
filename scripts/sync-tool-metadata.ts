@@ -1,0 +1,218 @@
+#!/usr/bin/env bun
+/**
+ * Projects the executable tool registry down to its serializable metadata.
+ *
+ * `apps/sim/tools/registry.ts` is a ~9,000-line barrel importing all 4,300+
+ * tools. Each `ToolConfig` mixes plain data (`params`, `outputs`, `name`) with
+ * closures (`request.headers`, `transformResponse`, `directExecution`,
+ * `postProcess`), and it is those closures — and the SDK clients and API
+ * helpers they reach — that make the barrel cost ~4,700 modules to compile.
+ *
+ * No client-reachable caller needs a closure. They need `outputs` (block output
+ * inference), `params` (serialization and the tool-input panel), or merely
+ * whether an id exists. So this script emits that data on its own, letting those
+ * callers read tool metadata without pulling the registry.
+ *
+ * Two artifacts rather than one, because `outputs` is ~4 MB of the ~6 MB and has
+ * a single consumer — keeping it separate means callers that only need `params`
+ * or an id check don't pay for it:
+ *
+ *   tools/generated/tool-metadata.ts   id -> { name, description, version, params, oauth }
+ *   tools/generated/tool-outputs.ts    id -> outputs
+ *
+ * Each artifact holds its data as one JSON string parsed at runtime — see
+ * `serialize()` for why an imported `.json` or an object literal is not viable
+ * at this size.
+ *
+ * Usage:
+ *   bun run scripts/sync-tool-metadata.ts           # write artifacts
+ *   bun run scripts/sync-tool-metadata.ts --check    # fail (exit 1) if stale
+ */
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { tools } from '../apps/sim/tools/registry'
+import type { ToolConfig } from '../apps/sim/tools/types'
+
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
+const ROOT = resolve(SCRIPT_DIR, '..')
+const GENERATED_DIR = resolve(ROOT, 'apps/sim/tools/generated')
+const METADATA_PATH = resolve(GENERATED_DIR, 'tool-metadata.ts')
+const OUTPUTS_PATH = resolve(GENERATED_DIR, 'tool-outputs.ts')
+
+/**
+ * Fields copied into `tool-metadata.ts`. Every one must be plain data.
+ *
+ * Deliberately excluded: `request`, `transformResponse`, `directExecution`,
+ * `postProcess` (closures, and the whole reason the registry is expensive);
+ * `hosting` and `schemaEnrichment` (contain predicates/`enrichSchema`, and are
+ * only consumed server-side); `outputs` (emitted separately).
+ */
+const METADATA_FIELDS = ['name', 'description', 'version', 'params', 'oauth'] as const
+
+type ToolRecord = Record<string, ToolConfig>
+
+/** Recursively locates any function value, which must never reach the artifacts. */
+function findFunctionPaths(value: unknown, path: string, found: string[], depth = 0): void {
+  if (found.length >= 10 || depth > 10 || value == null) return
+  if (typeof value === 'function') {
+    found.push(path)
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => findFunctionPaths(item, `${path}[${i}]`, found, depth + 1))
+    return
+  }
+  if (typeof value === 'object') {
+    for (const [key, item] of Object.entries(value as object)) {
+      findFunctionPaths(item, `${path}.${key}`, found, depth + 1)
+    }
+  }
+}
+
+/**
+ * Drops empty param entries so consumers may iterate params unguarded.
+ *
+ * The registry contains one (`stt_deepgram_v2`), which crashes any caller that
+ * reads `param.type` while iterating. That entry is `undefined`, which
+ * `JSON.stringify` would drop anyway; this guard additionally covers an explicit
+ * `null` — which serializes faithfully and would reach consumers — and surfaces
+ * either case as a warning rather than silently.
+ */
+function normalizeParams(toolId: string, params: ToolConfig['params'] | undefined) {
+  const normalized: Record<string, unknown> = {}
+  let dropped = 0
+  for (const [paramId, config] of Object.entries(params ?? {})) {
+    if (config == null) {
+      dropped++
+      continue
+    }
+    normalized[paramId] = config
+  }
+  if (dropped > 0) {
+    console.warn(`[tool-metadata] ${toolId}: dropped ${dropped} empty param entr(y/ies)`)
+  }
+  return normalized
+}
+
+function build(registry: ToolRecord) {
+  const metadata: Record<string, unknown> = {}
+  const outputs: Record<string, unknown> = {}
+
+  // Sorted so the artifacts are stable across runs regardless of registry order.
+  for (const toolId of Object.keys(registry).sort()) {
+    const tool = registry[toolId] as ToolConfig & Record<string, unknown>
+    if (!tool) continue
+
+    const entry: Record<string, unknown> = { id: tool.id ?? toolId }
+    for (const field of METADATA_FIELDS) {
+      if (field === 'params') {
+        entry.params = normalizeParams(toolId, tool.params)
+      } else if (tool[field] !== undefined) {
+        entry[field] = tool[field]
+      }
+    }
+    metadata[toolId] = entry
+    if (tool.outputs !== undefined) outputs[toolId] = tool.outputs
+  }
+
+  const offenders: string[] = []
+  findFunctionPaths(metadata, 'metadata', offenders)
+  findFunctionPaths(outputs, 'outputs', offenders)
+  if (offenders.length > 0) {
+    throw new Error(
+      `Refusing to emit tool metadata: found non-serializable values at:\n  ${offenders.join('\n  ')}\n` +
+        `Add the offending field to the exclusion list in ${'scripts/sync-tool-metadata.ts'}.`
+    )
+  }
+
+  return {
+    metadata: serialize(
+      metadata,
+      'toolMetadata',
+      '/** Serializable metadata for every built-in tool, keyed by tool id. */'
+    ),
+    outputs: serialize(
+      outputs,
+      'toolOutputs',
+      '/** Declared output shapes for every built-in tool, keyed by tool id. */'
+    ),
+    toolCount: Object.keys(metadata).length,
+  }
+}
+
+/**
+ * Escapes a JSON document into a single-quoted JavaScript string literal.
+ *
+ * Single quotes rather than double: JSON is dense with `"`, which would need
+ * escaping inside a double-quoted literal and inflates the file by ~90%.
+ */
+function toJsStringLiteral(json: string): string {
+  const escaped = json
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    // Valid raw inside a JSON string, but line terminators in a JS literal.
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+  return `'${escaped}'`
+}
+
+/**
+ * Emits the data as a string parsed at runtime, rather than as an object
+ * literal or an imported `.json`.
+ *
+ * Both of the obvious alternatives are unusable at this size. A `.json` import
+ * (with `resolveJsonModule`, which this repo enables) makes TypeScript infer a
+ * literal type for all 4,300+ entries: it took `tsc --noEmit` from **12.6s to
+ * 8m07s**, a 38x regression, and an ambient `declare module` does not
+ * short-circuit it. A generated object literal costs the same, since it is the
+ * same inference work.
+ *
+ * A single string literal is one cheap token for the compiler and the bundler,
+ * and `JSON.parse` on a large payload is faster at runtime than evaluating the
+ * equivalent object literal.
+ *
+ * The trade-off is that these files diff as one line. That is acceptable for a
+ * generated artifact nothing reads by eye and CI verifies wholesale.
+ */
+function serialize(entries: Record<string, unknown>, exportName: string, doc: string): string {
+  const literal = toJsStringLiteral(JSON.stringify(entries))
+  return `// Generated by scripts/sync-tool-metadata.ts — do not edit.
+// Regenerate with: bun run tool-metadata:generate
+
+${doc}
+const ${exportName}: Record<string, unknown> = JSON.parse(
+  ${literal}
+)
+
+export default ${exportName}
+`
+}
+
+async function main() {
+  const checkOnly = process.argv.includes('--check')
+  const { metadata, outputs, toolCount } = build(tools as ToolRecord)
+
+  if (checkOnly) {
+    const [existingMetadata, existingOutputs] = await Promise.all([
+      readFile(METADATA_PATH, 'utf8').catch(() => null),
+      readFile(OUTPUTS_PATH, 'utf8').catch(() => null),
+    ])
+    if (existingMetadata !== metadata || existingOutputs !== outputs) {
+      throw new Error('Generated tool metadata is stale. Run: bun run tool-metadata:generate')
+    }
+    console.log(`✓ tool metadata in sync (${toolCount} tools)`)
+    return
+  }
+
+  await mkdir(GENERATED_DIR, { recursive: true })
+  await Promise.all([
+    writeFile(METADATA_PATH, metadata, 'utf8'),
+    writeFile(OUTPUTS_PATH, outputs, 'utf8'),
+  ])
+  console.log(`✓ wrote tool metadata for ${toolCount} tools`)
+}
+
+await main()
