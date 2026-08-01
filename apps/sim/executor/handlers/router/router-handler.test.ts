@@ -3,6 +3,10 @@ import '@sim/testing/mocks/executor'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const { mockResolveAutoModel } = vi.hoisted(() => ({
+  mockResolveAutoModel: vi.fn(),
+}))
+
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/credentials/access', () => ({
@@ -18,6 +22,13 @@ vi.mock('@/lib/credentials/access', () => ({
     canWriteWorkspace: true,
     isAdmin: true,
   }),
+}))
+
+vi.mock('@/lib/model-router/resolve', () => ({
+  addAutoRoutingCost: (cost: Record<string, number>, routingCost: number) =>
+    routingCost > 0 ? { ...cost, routing: routingCost, total: cost.total + routingCost } : cost,
+  resolveAutoModel: mockResolveAutoModel,
+  SIM_AUTO_SYSTEM_PREAMBLE: 'Sim auto system preamble',
 }))
 
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
@@ -71,8 +82,16 @@ describe('RouterBlockHandler', () => {
     mockWorkflow = {
       blocks: [mockBlock, mockTargetBlock1, mockTargetBlock2],
       connections: [
-        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-then1' },
-        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-else1' },
+        {
+          source: mockBlock.id,
+          target: mockTargetBlock1.id,
+          sourceHandle: 'condition-then1',
+        },
+        {
+          source: mockBlock.id,
+          target: mockTargetBlock2.id,
+          sourceHandle: 'condition-else1',
+        },
       ],
     }
 
@@ -108,6 +127,12 @@ describe('RouterBlockHandler', () => {
     })
     mockGetProviderFromModel.mockReturnValue('openai')
     mockGenerateRouterPrompt.mockReturnValue('Generated System Prompt')
+    mockResolveAutoModel.mockResolvedValue({
+      model: 'fireworks/glm-5.2',
+      tier: '2',
+      decidedBy: 'llm',
+      billableRoutingCost: 0.002,
+    })
 
     mockFetch.mockImplementation(() => {
       return Promise.resolve({
@@ -126,7 +151,10 @@ describe('RouterBlockHandler', () => {
 
   it('should handle router blocks', () => {
     expect(handler.canHandle(mockBlock)).toBe(true)
-    const nonRouterBlock: SerializedBlock = { ...mockBlock, metadata: { id: 'other' } }
+    const nonRouterBlock: SerializedBlock = {
+      ...mockBlock,
+      metadata: { id: 'other' },
+    }
     expect(handler.canHandle(nonRouterBlock)).toBe(false)
   })
 
@@ -438,6 +466,12 @@ describe('RouterBlockHandler V2', () => {
     })
     mockGetProviderFromModel.mockReturnValue('openai')
     mockGenerateRouterV2Prompt.mockReturnValue('Generated V2 System Prompt')
+    mockResolveAutoModel.mockResolvedValue({
+      model: 'fireworks/glm-5.2',
+      tier: '2',
+      decidedBy: 'llm',
+      billableRoutingCost: 0.002,
+    })
   })
 
   it('should handle router_v2 blocks', () => {
@@ -450,8 +484,16 @@ describe('RouterBlockHandler V2', () => {
       model: 'gpt-4o',
       apiKey: 'test-api-key',
       routes: JSON.stringify([
-        { id: 'route-support', title: 'Support', value: 'Customer support inquiries' },
-        { id: 'route-sales', title: 'Sales', value: 'Sales and pricing questions' },
+        {
+          id: 'route-support',
+          title: 'Support',
+          value: 'Customer support inquiries',
+        },
+        {
+          id: 'route-sales',
+          title: 'Sales',
+          value: 'Sales and pricing questions',
+        },
       ]),
     }
 
@@ -485,6 +527,68 @@ describe('RouterBlockHandler V2', () => {
     })
   })
 
+  it('resolves sim-auto before executing router V2 and preserves its public identity', async () => {
+    const inputs = {
+      context: 'How do I get Tableau on my work laptop?',
+      model: 'sim-auto',
+      routes: [
+        { id: 'route-support', title: 'Support', value: 'Something is broken' },
+        {
+          id: 'route-sales',
+          title: 'Request',
+          value: 'User wants something new',
+        },
+      ],
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content: JSON.stringify({
+            route: 'route-sales',
+            reasoning: 'This is a new request.',
+          }),
+          model: 'fireworks/glm-5.2',
+          tokens: { input: 100, output: 20, total: 120 },
+          cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+        }),
+    })
+
+    const result = await handler.execute(mockContext, mockRouterV2Block, inputs)
+
+    expect(mockResolveAutoModel).toHaveBeenCalledWith({
+      ctx: mockContext,
+      blockId: mockRouterV2Block.id,
+      signals: expect.objectContaining({
+        lastMessage: inputs.context,
+        messageCount: 1,
+        toolNames: [],
+        mediaKind: 'none',
+        hasResponseFormat: true,
+      }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+    expect(mockGetProviderFromModel).toHaveBeenCalledWith('fireworks/glm-5.2')
+
+    const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(requestBody).toMatchObject({
+      provider: 'openai',
+      model: 'fireworks/glm-5.2',
+      systemPrompt: 'Sim auto system preamble\n\nGenerated V2 System Prompt',
+    })
+    expect(result).toMatchObject({
+      model: 'sim-auto',
+      selectedRoute: 'route-sales',
+      cost: {
+        input: 0.001,
+        output: 0.0005,
+        routing: 0.002,
+        total: 0.0035,
+      },
+    })
+  })
+
   it('should include responseFormat in provider request', async () => {
     const inputs = {
       context: 'Test context',
@@ -498,7 +602,10 @@ describe('RouterBlockHandler V2', () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            content: JSON.stringify({ route: 'route-1', reasoning: 'Test reasoning' }),
+            content: JSON.stringify({
+              route: 'route-1',
+              reasoning: 'Test reasoning',
+            }),
             model: 'gpt-4o',
             tokens: { input: 100, output: 20, total: 120 },
           }),
@@ -572,7 +679,10 @@ describe('RouterBlockHandler V2', () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            content: JSON.stringify({ route: 'invalid-route', reasoning: 'Some reasoning' }),
+            content: JSON.stringify({
+              route: 'invalid-route',
+              reasoning: 'Some reasoning',
+            }),
             model: 'gpt-4o',
             tokens: { input: 100, output: 20, total: 120 },
           }),
@@ -597,7 +707,10 @@ describe('RouterBlockHandler V2', () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            content: JSON.stringify({ route: 'route-1', reasoning: 'Matched route 1' }),
+            content: JSON.stringify({
+              route: 'route-1',
+              reasoning: 'Matched route 1',
+            }),
             model: 'gpt-4o',
             tokens: { input: 100, output: 20, total: 120 },
           }),

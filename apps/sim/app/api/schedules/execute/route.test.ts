@@ -9,6 +9,8 @@ import {
   requestUtilsMockFns,
   resetDbChainMock,
   resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
   setEnvFlags,
 } from '@sim/testing'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -275,7 +277,10 @@ function createMockRequest(): NextRequest {
   } as NextRequest
 }
 
-afterAll(resetEnvFlagsMock)
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
@@ -290,6 +295,9 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.execute.mockResolvedValue([{ acquired: true }] as never)
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
     setEnvFlags({ isTriggerDevEnabled: false, isHosted: false, isProd: false, isDev: true })
+    // Prompt-job claims are skipped without the mothership credential; pin it so
+    // these cases do not depend on whether the runner happens to have a .env.
+    setEnv({ COPILOT_API_KEY: 'test-api-key' })
     mockShouldExecuteInline.mockReturnValue(false)
     mockEnqueue.mockReset()
     mockEnqueue.mockResolvedValue('job-id-1')

@@ -26,6 +26,7 @@ import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -217,14 +218,16 @@ export function SearchModal({
       context: 'workflow',
       run: () => invokeCommand('run-workflow'),
     })
-    list.push({
-      id: 'new-chat',
-      name: 'New chat',
-      keywords: 'chat message ask sim assistant home',
-      icon: Home,
-      context: 'global',
-      run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
-    })
+    if (isChatEnabled) {
+      list.push({
+        id: 'new-chat',
+        name: 'New chat',
+        keywords: 'chat message ask sim assistant home',
+        icon: Home,
+        context: 'global',
+        run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
+      })
+    }
     if (canEdit && onCreateWorkflow) {
       list.push({
         id: 'create-workflow',

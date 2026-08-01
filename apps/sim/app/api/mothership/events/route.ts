@@ -11,6 +11,7 @@ import type { NextRequest } from 'next/server'
 import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { chatPubSub } from '@/lib/copilot/chat-status'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 
@@ -37,6 +38,10 @@ const mothershipEventsHandler = createWorkspaceSSE({
 })
 
 export const GET = withRouteHandler((request: NextRequest) => {
+  // Closes streams held by tabs that were open when Chat was turned off; the
+  // client hook already declines to open new ones.
+  if (!isChatEnabled) return new Response(null, { status: 404 })
+
   const validation = mothershipEventsQuerySchema.safeParse(
     Object.fromEntries(request.nextUrl.searchParams.entries())
   )

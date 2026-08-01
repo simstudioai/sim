@@ -42,6 +42,7 @@ import { usePostHog } from 'posthog-js/react'
 import { SlackIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
@@ -91,6 +92,7 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
@@ -115,6 +117,13 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+/**
+ * Stable identity for the chat list's "no data" case. With Chat disabled the
+ * query never runs, so a `= []` default would mint a new array every render and
+ * invalidate every memo downstream of it.
+ */
+const EMPTY_CHATS: MothershipChatMetadata[] = []
 
 const SLACK_COMMUNITY_URL =
   'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
@@ -734,9 +743,13 @@ export const Sidebar = memo(function Sidebar({
       [
         {
           id: 'home',
-          label: 'New chat',
-          icon: Home,
-          href: `/workspace/${workspaceId}/home`,
+          label: isChatEnabled ? 'New chat' : 'New workflow',
+          icon: isChatEnabled ? Home : Plus,
+          href: isChatEnabled ? `/workspace/${workspaceId}/home` : undefined,
+          onClick: isChatEnabled ? undefined : createWorkflow,
+          // Creation navigates optimistically, so a read-only member would land
+          // on a workflow the server declined to create.
+          hidden: !isChatEnabled && !permissionsLoading && !canEdit,
         },
         {
           id: 'search',
@@ -753,7 +766,14 @@ export const Sidebar = memo(function Sidebar({
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, openSearchModal, permissionConfig.hideIntegrationsTab]
+    [
+      workspaceId,
+      openSearchModal,
+      createWorkflow,
+      canEdit,
+      permissionsLoading,
+      permissionConfig.hideIntegrationsTab,
+    ]
   )
 
   const workspaceNavItems = useMemo(
@@ -785,6 +805,7 @@ export const Sidebar = memo(function Sidebar({
           label: 'Scheduled tasks',
           icon: Calendar,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
+          hidden: !isChatEnabled,
         },
         {
           id: 'logs',
@@ -819,18 +840,23 @@ export const Sidebar = memo(function Sidebar({
     [navigateToSettings, getSettingsHref, setSidebarWidth]
   )
 
-  const { data: fetchedChats = [], isLoading: chatsLoading } = useMothershipChats(workspaceId)
+  const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
+    workspaceId,
+    { enabled: isChatEnabled }
+  )
 
   useMothershipChatEvents(workspaceId)
 
+  /**
+   * Stays empty when Chat is disabled, which also drops the command palette's
+   * Chats group — `SearchGroups` renders nothing for an empty list.
+   */
   const chats = useMemo(
     () =>
-      fetchedChats
-        ? fetchedChats.map((t) => ({
-            ...t,
-            href: `/workspace/${workspaceId}/chat/${t.id}`,
-          }))
-        : [],
+      fetchedChats.map((t) => ({
+        ...t,
+        href: `/workspace/${workspaceId}/chat/${t.id}`,
+      })),
     [fetchedChats, workspaceId]
   )
 
@@ -1381,126 +1407,130 @@ export const Sidebar = memo(function Sidebar({
                   )}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    <div className='chats-section flex flex-shrink-0 flex-col'>
-                      <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='text-[var(--text-muted)] text-small'>Chats</div>
-                      </div>
-                      {isCollapsed ? (
-                        <CollapsedSidebarMenu
-                          icon={chatsCollapsedIcon}
-                          hover={chatsHover}
-                          ariaLabel='Chats'
-                          className='mt-2'
-                        >
-                          {chatsLoading ? (
-                            <DropdownMenuItem disabled>
-                              <Loader className='h-[14px] w-[14px]' animate />
-                              Loading...
-                            </DropdownMenuItem>
-                          ) : chats.length === 0 ? (
-                            <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
-                          ) : (
-                            chats.map((chat) => (
-                              <CollapsedChatFlyoutItem
-                                key={chat.id}
-                                chat={chat}
-                                isCurrentRoute={pathname === chat.href}
-                                isMenuOpen={menuOpenChatId === chat.id}
-                                isEditing={chat.id === chatFlyoutRename.editingId}
-                                editValue={chatFlyoutRename.value}
-                                inputRef={chatFlyoutRename.inputRef}
-                                isRenaming={chatFlyoutRename.isSaving}
-                                onEditValueChange={chatFlyoutRename.setValue}
-                                onEditKeyDown={chatFlyoutRename.handleKeyDown}
-                                onEditBlur={handleChatRenameBlur}
-                                onContextMenu={handleChatContextMenu}
-                                onMorePointerDown={handleChatMorePointerDown}
-                                onMoreClick={handleChatMoreClick}
-                              />
-                            ))
-                          )}
-                        </CollapsedSidebarMenu>
-                      ) : (
-                        <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'mt-2 flex flex-col px-2')}>
-                          {chatsLoading ? (
-                            <SidebarItemSkeleton />
-                          ) : (
-                            <>
-                              {chats.length === 0 ? (
-                                <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
-                                  No chats yet
-                                </div>
-                              ) : null}
-                              {/* `selectChatOnly` populates `selectedChats` on every click, so
+                    {isChatEnabled && (
+                      <div className='chats-section flex flex-shrink-0 flex-col'>
+                        <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
+                          <div className='text-[var(--text-muted)] text-small'>Chats</div>
+                        </div>
+                        {isCollapsed ? (
+                          <CollapsedSidebarMenu
+                            icon={chatsCollapsedIcon}
+                            hover={chatsHover}
+                            ariaLabel='Chats'
+                            className='mt-2'
+                          >
+                            {chatsLoading ? (
+                              <DropdownMenuItem disabled>
+                                <Loader className='size-[14px]' animate />
+                                Loading...
+                              </DropdownMenuItem>
+                            ) : chats.length === 0 ? (
+                              <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
+                            ) : (
+                              chats.map((chat) => (
+                                <CollapsedChatFlyoutItem
+                                  key={chat.id}
+                                  chat={chat}
+                                  isCurrentRoute={pathname === chat.href}
+                                  isMenuOpen={menuOpenChatId === chat.id}
+                                  isEditing={chat.id === chatFlyoutRename.editingId}
+                                  editValue={chatFlyoutRename.value}
+                                  inputRef={chatFlyoutRename.inputRef}
+                                  isRenaming={chatFlyoutRename.isSaving}
+                                  onEditValueChange={chatFlyoutRename.setValue}
+                                  onEditKeyDown={chatFlyoutRename.handleKeyDown}
+                                  onEditBlur={handleChatRenameBlur}
+                                  onContextMenu={handleChatContextMenu}
+                                  onMorePointerDown={handleChatMorePointerDown}
+                                  onMoreClick={handleChatMoreClick}
+                                />
+                              ))
+                            )}
+                          </CollapsedSidebarMenu>
+                        ) : (
+                          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'mt-2 flex flex-col px-2')}>
+                            {chatsLoading ? (
+                              <SidebarItemSkeleton />
+                            ) : (
+                              <>
+                                {chats.length === 0 ? (
+                                  <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
+                                    No chats yet
+                                  </div>
+                                ) : null}
+                                {/* `selectChatOnly` populates `selectedChats` on every click, so
                                   a single entry just means "last clicked" — already conveyed by
                                   `isCurrentRoute`. Highlight from selection only for explicit
                                   multi-selection (size > 1), otherwise it lingers after navigating
                                   away from a chat. */}
-                              {chats.slice(0, visibleChatCount).map((chat) => {
-                                const isCurrentRoute = pathname === chat.href
-                                const isRenaming = chatFlyoutRename.editingId === chat.id
-                                const isSelected =
-                                  chat.id !== 'new' &&
-                                  hasChatMultiSelection &&
-                                  selectedChats.has(chat.id)
+                                {chats.slice(0, visibleChatCount).map((chat) => {
+                                  const isCurrentRoute = pathname === chat.href
+                                  const isRenaming = chatFlyoutRename.editingId === chat.id
+                                  const isSelected =
+                                    chat.id !== 'new' &&
+                                    hasChatMultiSelection &&
+                                    selectedChats.has(chat.id)
 
-                                if (isRenaming) {
-                                  return (
-                                    <div
-                                      key={chat.id}
-                                      className={chipVariants({ active: true, fullWidth: true })}
-                                    >
-                                      <input
-                                        ref={chatFlyoutRename.inputRef}
-                                        value={chatFlyoutRename.value}
-                                        onChange={(e) => chatFlyoutRename.setValue(e.target.value)}
-                                        onKeyDown={chatFlyoutRename.handleKeyDown}
-                                        onBlur={handleChatRenameBlur}
-                                        className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
-                                      />
-                                    </div>
-                                  )
-                                }
-
-                                return (
-                                  <SidebarChatItem
-                                    key={chat.id}
-                                    chat={chat}
-                                    isCurrentRoute={isCurrentRoute}
-                                    isSelected={isSelected}
-                                    isActive={!!chat.isActive}
-                                    isUnread={!!chat.isUnread}
-                                    isPinned={!!chat.isPinned}
-                                    isMenuOpen={menuOpenChatId === chat.id}
-                                    showCollapsedTooltips={showCollapsedTooltips}
-                                    onMultiSelectClick={handleChatClick}
-                                    onContextMenu={handleChatContextMenu}
-                                    onMorePointerDown={handleChatMorePointerDown}
-                                    onMoreClick={handleChatMoreClick}
-                                  />
-                                )
-                              })}
-                              {chats.length > 5 && (
-                                <button
-                                  type='button'
-                                  onClick={
-                                    chats.length > visibleChatCount
-                                      ? handleSeeMoreChats
-                                      : handleSeeLessChats
+                                  if (isRenaming) {
+                                    return (
+                                      <div
+                                        key={chat.id}
+                                        className={chipVariants({ active: true, fullWidth: true })}
+                                      >
+                                        <input
+                                          ref={chatFlyoutRename.inputRef}
+                                          value={chatFlyoutRename.value}
+                                          onChange={(e) =>
+                                            chatFlyoutRename.setValue(e.target.value)
+                                          }
+                                          onKeyDown={chatFlyoutRename.handleKeyDown}
+                                          onBlur={handleChatRenameBlur}
+                                          className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
+                                        />
+                                      </div>
+                                    )
                                   }
-                                  className={cn(
-                                    chipVariants({ fullWidth: true }),
-                                    'text-[var(--text-muted)] text-small'
-                                  )}
-                                >
-                                  {chats.length > visibleChatCount ? 'See more' : 'See less'}
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
+
+                                  return (
+                                    <SidebarChatItem
+                                      key={chat.id}
+                                      chat={chat}
+                                      isCurrentRoute={isCurrentRoute}
+                                      isSelected={isSelected}
+                                      isActive={!!chat.isActive}
+                                      isUnread={!!chat.isUnread}
+                                      isPinned={!!chat.isPinned}
+                                      isMenuOpen={menuOpenChatId === chat.id}
+                                      showCollapsedTooltips={showCollapsedTooltips}
+                                      onMultiSelectClick={handleChatClick}
+                                      onContextMenu={handleChatContextMenu}
+                                      onMorePointerDown={handleChatMorePointerDown}
+                                      onMoreClick={handleChatMoreClick}
+                                    />
+                                  )
+                                })}
+                                {chats.length > 5 && (
+                                  <button
+                                    type='button'
+                                    onClick={
+                                      chats.length > visibleChatCount
+                                        ? handleSeeMoreChats
+                                        : handleSeeLessChats
+                                    }
+                                    className={cn(
+                                      chipVariants({ fullWidth: true }),
+                                      'text-[var(--text-muted)] text-small'
+                                    )}
+                                  >
+                                    {chats.length > visibleChatCount ? 'See more' : 'See less'}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex flex-shrink-0 flex-col')}>
                       <div className='px-4 pb-2'>
