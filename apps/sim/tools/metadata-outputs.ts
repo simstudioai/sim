@@ -1,4 +1,5 @@
 import rawOutputs from '@/tools/generated/tool-outputs'
+import { resolveToolId } from '@/tools/tool-ids'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -28,5 +29,6 @@ const outputs: Record<string, ToolOutputs> = rawOutputs as Record<string, ToolOu
  * `Object.hasOwn` rather than a bare lookup — see `getToolMetadata` for why.
  */
 export function getToolOutputsMetadata(toolId: string): ToolOutputs | undefined {
-  return Object.hasOwn(outputs, toolId) ? outputs[toolId] : undefined
+  const resolved = resolveToolId(toolId)
+  return Object.hasOwn(outputs, resolved) ? outputs[resolved] : undefined
 }

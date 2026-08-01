@@ -18,6 +18,7 @@ import type {
   GenerationType,
 } from '@/blocks/types'
 import { isNonEmpty } from '@/tools/merge-params'
+import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { safeAssign } from '@/tools/safe-assign'
 import type {
   OAuthConfig,
@@ -25,7 +26,6 @@ import type {
   ToolConfig,
   ToolParameterItemSchema,
 } from '@/tools/types'
-import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
@@ -173,7 +173,7 @@ export interface ToolParameterConfig {
 }
 
 export interface ToolWithParameters {
-  toolConfig: ToolConfig
+  toolConfig: ToolMetadata
   allParameters: ToolParameterConfig[]
   userInputParameters: ToolParameterConfig[] // Parameters shown to user
   requiredParameters: ToolParameterConfig[] // Must be filled by user or LLM
@@ -301,7 +301,7 @@ export function getToolParametersConfig(
   blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): ToolWithParameters | null {
   try {
-    const toolConfig = getTool(toolId)
+    const toolConfig = getToolMetadata(toolId)
     if (!toolConfig) {
       logger.warn(`Tool not found: ${toolId}`)
       return null
@@ -971,7 +971,7 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
 ])
 
 export interface SubBlocksForToolInput {
-  toolConfig: ToolConfig
+  toolConfig: ToolMetadata
   subBlocks: BlockSubBlockConfig[]
   oauthConfig?: OAuthConfig
 }
@@ -992,7 +992,7 @@ export function getSubBlocksForToolInput(
   blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): SubBlocksForToolInput | null {
   try {
-    const toolConfig = getTool(toolId)
+    const toolConfig = getToolMetadata(toolId)
     if (!toolConfig) {
       logger.warn(`Tool not found: ${toolId}`)
       return null
