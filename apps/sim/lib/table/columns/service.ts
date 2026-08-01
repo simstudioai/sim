@@ -20,6 +20,7 @@ import {
   columnTypeOf,
   isValueCompatible,
   metadataWithoutClears,
+  ownedKeysOf,
   pickMetadata,
   TYPE_SPECIFIC_COLUMN_KEYS,
   type TypeSpecificColumnKey,
@@ -110,6 +111,7 @@ export async function addTableColumn(
       )
     }
 
+    const definition = columnTypeById(column.type)
     const newColumn: TableSchema['columns'][number] = {
       // Honor a caller-provided id (undo of a delete reuses the original id);
       // otherwise mint a fresh one.
@@ -118,9 +120,13 @@ export async function addTableColumn(
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
       unique: column.unique ?? false,
-      ...(column.options ? { options: column.options } : {}),
-      ...(column.multiple ? { multiple: true } : {}),
-      ...columnTypeById(column.type).defaultMetadata?.(column as ColumnDefinition),
+      // Every key the TARGET type owns, then its defaults. Naming
+      // `options`/`multiple` here meant a key whose type declares no
+      // `defaultMetadata` was silently dropped on create — a `precision` was
+      // accepted by the sidebar and the contract and then never reached the
+      // saved schema. Mirrors `buildConvertedColumn`'s carry-back loop.
+      ...metadataWithoutClears(pickMetadata(column, ownedKeysOf(definition.id))),
+      ...definition.defaultMetadata?.(column as ColumnDefinition),
     }
 
     const columnValidation = validateColumnDefinition(newColumn)

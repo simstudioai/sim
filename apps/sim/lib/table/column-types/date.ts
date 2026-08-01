@@ -51,6 +51,8 @@ export const dateColumnType: ColumnTypeDefinition = {
   supportsUnique: true,
   sampleValue: '2024-01-31',
   ownedMetadata: ownedKeysOf('date'),
+  // Turning `includeTime` off truncates every stored cell.
+  metadataRewritesCells: ['includeTime'],
   workflowInputType: 'string',
   editor: 'date',
   expandable: false,

@@ -18,4 +18,9 @@ export type {
   ColumnTypeDefinition,
   TypeSpecificColumnKey,
 } from '@/lib/table/column-types/types'
-export { TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
+export {
+  METADATA_KEY_OWNERS,
+  ownedKeysOf,
+  REQUIRED_METADATA_KEYS,
+  TYPE_SPECIFIC_COLUMN_KEYS,
+} from '@/lib/table/column-types/types'

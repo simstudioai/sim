@@ -102,6 +102,7 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { metadataKeysIn, metadataRewritesCells } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   areGroupDepsSatisfied,
@@ -1401,9 +1402,21 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       // schema-only path would leave the cache holding pre-migration values,
       // which the grid hides but emptiness checks, filters, and dependent-group
       // eligibility still act on. Everything else really is metadata-only.
+      // `includeTime` going false truncates every stored cell in the migration
+      // the service runs, so the metadata path is NOT always schema-only. Which
+      // keys do that is declared by the type (`metadataRewritesCells`) rather
+      // than listed here, so a future key that rewrites cells invalidates rows
+      // without an edit at this call site.
+      const updatedColumn = context?.previousDetail?.schema.columns.find(
+        (c) => getColumnId(c) === variables.columnName || c.name === variables.columnName
+      )
+      const { generic, dedicated } = metadataKeysIn(variables.updates)
       const rewritesRows =
         variables.updates.type !== undefined ||
         variables.updates.multiple !== undefined ||
+        (updatedColumn
+          ? metadataRewritesCells(updatedColumn, [...generic, ...dedicated])
+          : false) ||
         removesSelectOption(context?.previousDetail, variables)
       if (rewritesRows) invalidateTableSchema(queryClient, tableId)
       else invalidateTableSchemaOnly(queryClient, tableId)

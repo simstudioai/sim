@@ -21,6 +21,7 @@ import {
   ownersOfMetadataKey,
   TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
+import { metadataMigrationFor } from '@/lib/table/column-types/registry.server'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
 
@@ -108,6 +109,28 @@ describe('metadata key ownership', () => {
       expect(owners.length, `"${key}" has no owner`).toBeGreaterThan(0)
       for (const owner of owners) {
         expect(owner.ownedMetadata).toContain(key)
+      }
+    }
+  })
+})
+
+describe('client/server registry coupling', () => {
+  it('declares metadataRewritesCells exactly when the server half migrates', () => {
+    // The two halves are coupled by nothing but this assertion. A type that
+    // migrates cells without declaring it leaves clients showing stale rows
+    // after a metadata edit; declaring it without a migration makes them
+    // refetch for nothing.
+    for (const definition of ALL_COLUMN_TYPES) {
+      const declares = (definition.metadataRewritesCells ?? []).length > 0
+      const migrates = metadataMigrationFor(definition.id) !== undefined
+      expect(declares, `${definition.id} declares=${declares} migrates=${migrates}`).toBe(migrates)
+    }
+  })
+
+  it('only names keys it actually owns as cell-rewriting', () => {
+    for (const definition of ALL_COLUMN_TYPES) {
+      for (const key of definition.metadataRewritesCells ?? []) {
+        expect(definition.ownedMetadata).toContain(key)
       }
     }
   })

@@ -260,6 +260,21 @@ export interface ColumnTypeDefinition {
    */
   readonly genericMetadataUpdate?: readonly TypeSpecificColumnKey[]
 
+  /**
+   * Owned keys whose change REWRITES stored cells, not just how they render.
+   *
+   * The client-safe half of `migrateCellsForMetadata` (which lives in the
+   * server registry and cannot be imported here). Clients read it to decide
+   * whether a metadata edit invalidates cached ROW data as well as the schema:
+   * toggling a date column to date-only truncates every stored time
+   * server-side, and a grid still holding the pre-migration values disagrees
+   * with what filters and exports now see.
+   *
+   * `column-type-registry.test.ts` asserts this stays in step with the server
+   * registry, since nothing else couples the two halves.
+   */
+  readonly metadataRewritesCells?: readonly TypeSpecificColumnKey[]
+
   /** Workflow/block param type a column of this type maps onto. */
   readonly workflowInputType: 'string' | 'number' | 'boolean' | 'object'
 

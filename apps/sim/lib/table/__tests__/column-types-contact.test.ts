@@ -14,7 +14,11 @@ import {
   COLUMN_TYPE_REGISTRY,
   columnTypeById,
   isValueCompatible,
+  metadataRewritesCells,
+  metadataWithoutClears,
+  ownedKeysOf,
   ownersOfMetadataKey,
+  pickMetadata,
 } from '@/lib/table/column-types'
 import { coerceValue } from '@/lib/table/import'
 import { filterRulesToFilter } from '@/lib/table/query-builder/converters'
@@ -268,6 +272,27 @@ describe('review-round regressions', () => {
   it('leaves an imported date alone for a column that carries time', () => {
     const withTime = column('date', { includeTime: true })
     expect(coerceValue('2024-01-15T13:45:00Z', 'date', { column: withTime })).toContain('13:45')
+  })
+})
+
+describe('review-round-2 regressions', () => {
+  it("carries a create payload's precision onto the saved column", () => {
+    // `addTableColumn` named options/multiple explicitly and otherwise relied on
+    // `defaultMetadata`, which `number`/`percent` deliberately do not declare —
+    // so a precision accepted by the sidebar and the contract was dropped before
+    // it ever reached the schema.
+    const owned = ownedKeysOf('percent')
+    expect(owned).toContain('precision')
+    expect(metadataWithoutClears(pickMetadata({ precision: 2 }, owned))).toEqual({ precision: 2 })
+  })
+
+  it('marks a date-only toggle as rewriting cells so clients refetch rows', () => {
+    // The migration truncates every stored time server-side; a client that
+    // treated it as schema-only kept rendering pre-migration values.
+    expect(metadataRewritesCells(column('date'), ['includeTime'])).toBe(true)
+    // A purely presentational key must NOT force a row refetch.
+    expect(metadataRewritesCells(column('currency'), ['currencyCode'])).toBe(false)
+    expect(metadataRewritesCells(column('number'), ['precision'])).toBe(false)
   })
 })
 

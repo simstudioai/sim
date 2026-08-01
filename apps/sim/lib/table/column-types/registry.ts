@@ -223,6 +223,18 @@ export function metadataWithoutClears(patch: ColumnMetadataPatch): ColumnTypeMet
   return resolved
 }
 
+/**
+ * Whether writing `keys` on `column` rewrites its stored cells (rather than
+ * only how they render), so a client knows to invalidate cached row data.
+ */
+export function metadataRewritesCells(
+  column: ColumnDefinition,
+  keys: readonly TypeSpecificColumnKey[]
+): boolean {
+  const rewriting = columnTypeOf(column).metadataRewritesCells ?? []
+  return keys.some((key) => rewriting.includes(key))
+}
+
 /** Whether a column of `type` may carry `key`. */
 export function typeOwnsMetadataKey(type: string | undefined, key: TypeSpecificColumnKey): boolean {
   return columnTypeById(type).ownedMetadata.includes(key)
