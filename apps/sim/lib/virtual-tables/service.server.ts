@@ -15,6 +15,7 @@ interface VirtualTablePage {
   rows: TableRow[]
   totalCount: number | null
   keysetValid: boolean
+  hasMore?: boolean
 }
 
 interface VirtualTable {
@@ -78,7 +79,7 @@ export async function queryVirtualTableRows(
     limit: limit + 1,
     offset,
   })
-  const hasMore = page.rows.length > limit
+  const hasMore = page.hasMore === true || page.rows.length > limit
   const rows = page.rows.slice(0, limit)
   const lastRow = rows[rows.length - 1]
 

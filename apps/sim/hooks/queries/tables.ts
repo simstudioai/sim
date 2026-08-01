@@ -2104,6 +2104,12 @@ export async function downloadTableExport(
   format: 'csv' | 'json' = 'csv'
 ): Promise<void> {
   const url = `/api/table/${tableId}/export?format=${format}&t=${Date.now()}`
+  // boundary-raw-fetch: HEAD preflights a streaming download before browser navigation owns it
+  const response = await fetch(url, { method: 'HEAD' })
+  if (!response.ok) {
+    const status = [response.status, response.statusText].filter(Boolean).join(' ')
+    throw new Error(`Unable to export table (${status})`)
+  }
   const safeName = fileName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'table'
   const a = document.createElement('a')
   a.href = url

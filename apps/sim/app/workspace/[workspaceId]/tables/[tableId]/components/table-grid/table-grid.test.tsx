@@ -153,6 +153,8 @@ describe('TableGrid virtual cells', () => {
         <TableGrid
           workspaceId='workspace-1'
           tableId='virtual-table'
+          remoteSelections={[]}
+          emitCellSelection={vi.fn()}
           locks={{
             schemaLocked: true,
             insertLocked: true,
@@ -214,6 +216,8 @@ describe('TableGrid virtual cells', () => {
         <TableGrid
           workspaceId='workspace-1'
           tableId='virtual-table'
+          remoteSelections={[]}
+          emitCellSelection={vi.fn()}
           locks={{
             schemaLocked: true,
             insertLocked: true,

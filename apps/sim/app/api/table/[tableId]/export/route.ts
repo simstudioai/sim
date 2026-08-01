@@ -24,6 +24,20 @@ interface RouteParams {
   params: Promise<{ tableId: string }>
 }
 
+/** HEAD /api/table/[tableId]/export - Validates download access before browser navigation. */
+export const HEAD = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+  const requestId = generateRequestId()
+  const { tableId } = tableIdParamsSchema.parse(await params)
+  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  const access = await checkAccess(tableId, auth.userId, 'read')
+  if (!access.ok) return accessError(access, requestId, tableId)
+  return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+})
+
 /** GET /api/table/[tableId]/export - Streams the full table contents as CSV or JSON. */
 export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()

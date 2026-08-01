@@ -3,7 +3,7 @@
  */
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({ cn: (...values: unknown[]) => values.filter(Boolean).join(' ') }))
 vi.mock('@sim/emcn/icons', () => ({ ChevronDown: () => null }))
@@ -47,6 +47,10 @@ const HANDLERS = {
   onAutoResize: vi.fn(),
   onOpenConfig: vi.fn(),
 }
+
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+})
 
 afterEach(() => {
   vi.clearAllMocks()

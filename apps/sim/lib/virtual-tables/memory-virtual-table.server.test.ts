@@ -113,10 +113,11 @@ describe('Memory virtual table', () => {
       Array.from(strings)
         .join('')
         .match(/::text/g)
-    ).toHaveLength(5)
-    expect([values[0], values[2], values[4], values[6], values[8]]).toEqual([
+    ).toHaveLength(6)
+    expect([values[0], values[2], values[4], values[6], values[8], values[10]]).toEqual([
       'id',
       'conversation_id',
+      'transcript',
       'message_count',
       'created_at',
       'updated_at',
@@ -187,6 +188,7 @@ describe('Memory virtual table', () => {
         updatedAt: UPDATED_AT,
         data: [{ role: 'user', content: 'Hello' }],
         messageCount: 2,
+        rowBytes: 100,
       },
       {
         id: 'memory-2',
@@ -195,7 +197,12 @@ describe('Memory virtual table', () => {
         updatedAt: UPDATED_AT,
         data: [{ role: 'user', content: 'Second' }],
         messageCount: 1,
+        rowBytes: 100,
       },
+    ])
+    queueTableRows(schemaMock.memory, [
+      { id: 'memory-1', data: [{ role: 'user', content: 'Hello' }] },
+      { id: 'memory-2', data: [{ role: 'user', content: 'Second' }] },
     ])
     const result = await queryMemoryTableRows({
       workspaceId: 'workspace-1',
@@ -228,6 +235,7 @@ describe('Memory virtual table', () => {
           { role: 'assistant', content: 'Hi' },
         ],
         messageCount: 2,
+        rowBytes: 200,
       },
       {
         id: 'memory-1',
@@ -236,9 +244,20 @@ describe('Memory virtual table', () => {
         updatedAt: UPDATED_AT,
         data: [{ role: 'user', content: 'First' }],
         messageCount: 1,
+        rowBytes: 100,
       },
     ])
     queueTableRows(schemaMock.memory, [{ value: 3 }])
+    queueTableRows(schemaMock.memory, [
+      {
+        id: 'memory-2',
+        data: [
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi' },
+        ],
+      },
+      { id: 'memory-1', data: [{ role: 'user', content: 'First' }] },
+    ])
     const result = await queryMemoryTableRows({
       workspaceId: 'workspace-1',
       limit: 2,
@@ -400,6 +419,7 @@ describe('Memory virtual table', () => {
       rows: [],
       totalCount: null,
       keysetValid: true,
+      hasMore: false,
     })
 
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
@@ -413,8 +433,10 @@ describe('Memory virtual table', () => {
       updatedAt: UPDATED_AT,
       data: [{ role: 'user', content: 'Hello' }],
       messageCount: 1,
+      rowBytes: 100,
     }
     queueTableRows(schemaMock.memory, [candidate])
+    queueTableRows(schemaMock.memory, [{ id: candidate.id, data: candidate.data }])
 
     const offsetPage = await queryMemoryTableRows({
       workspaceId: 'workspace-1',
@@ -427,6 +449,7 @@ describe('Memory virtual table', () => {
     expect(dbChainMockFns.offset).toHaveBeenCalledWith(5)
 
     queueTableRows(schemaMock.memory, [candidate])
+    queueTableRows(schemaMock.memory, [{ id: candidate.id, data: candidate.data }])
 
     const keysetWhereCall = dbChainMockFns.where.mock.calls.length
     await expect(

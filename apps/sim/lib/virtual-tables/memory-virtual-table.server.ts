@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { memory, workspace } from '@sim/db/schema'
-import { and, count, desc, eq, isNull, lt, max, or, sql } from 'drizzle-orm'
-import { TABLE_LIMITS } from '@/lib/table/constants'
+import { and, count, desc, eq, inArray, isNull, lt, max, or, sql } from 'drizzle-orm'
+import { getMaxPageBytes, TABLE_LIMITS } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
   buildFilterClause,
@@ -38,6 +38,16 @@ function referencesMemoryTranscript(value: unknown): boolean {
 
 function createMemoryRowsQuery() {
   const messageCount = sql<number>`CASE WHEN jsonb_typeof(${memory.data}) = 'array' THEN jsonb_array_length(${memory.data}) ELSE 0 END`
+  const createdAtIso = sql<string>`to_char(${memory.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`
+  const updatedAtIso = sql<string>`to_char(${memory.updatedAt}, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`
+  const rowData = sql<JsonValue>`jsonb_build_object(
+    ${MEMORY_TABLE_COLUMNS.id}::text, ${memory.id},
+    ${MEMORY_TABLE_COLUMNS.conversationId}::text, ${memory.key},
+    ${MEMORY_TABLE_COLUMNS.transcript}::text, ${memory.data},
+    ${MEMORY_TABLE_COLUMNS.messageCount}::text, ${messageCount},
+    ${MEMORY_TABLE_COLUMNS.createdAt}::text, ${createdAtIso},
+    ${MEMORY_TABLE_COLUMNS.updatedAt}::text, ${updatedAtIso}
+  )`
   return db
     .select({
       id: memory.id,
@@ -48,12 +58,13 @@ function createMemoryRowsQuery() {
       deletedAt: memory.deletedAt,
       transcript: sql<JsonValue>`${memory.data}`.as('transcript'),
       messageCount: messageCount.mapWith(Number).as('message_count'),
+      rowBytes: sql<number>`octet_length((${rowData})::text)`.mapWith(Number).as('row_bytes'),
       data: sql<JsonValue>`jsonb_build_object(
         ${MEMORY_TABLE_COLUMNS.id}::text, ${memory.id},
         ${MEMORY_TABLE_COLUMNS.conversationId}::text, ${memory.key},
         ${MEMORY_TABLE_COLUMNS.messageCount}::text, ${messageCount},
-        ${MEMORY_TABLE_COLUMNS.createdAt}::text, ${memory.createdAt},
-        ${MEMORY_TABLE_COLUMNS.updatedAt}::text, ${memory.updatedAt}
+        ${MEMORY_TABLE_COLUMNS.createdAt}::text, ${createdAtIso},
+        ${MEMORY_TABLE_COLUMNS.updatedAt}::text, ${updatedAtIso}
       )`.as('data'),
     })
     .from(memory)
@@ -176,8 +187,8 @@ export async function queryMemoryTableRows({
       key: memoryRows.key,
       createdAt: memoryRows.createdAt,
       updatedAt: memoryRows.updatedAt,
-      data: memoryRows.transcript,
       messageCount: memoryRows.messageCount,
+      rowBytes: memoryRows.rowBytes,
     })
     .from(memoryRows)
     .where(pageWhere)
@@ -189,24 +200,69 @@ export async function queryMemoryTableRows({
     ? db.select({ value: count() }).from(memoryRows).where(baseWhere)
     : Promise.resolve(null)
   const [candidates, totalRows] = await Promise.all([candidatePromise, totalPromise])
-  const rows = candidates.map((candidate, index) =>
-    mapMemoryRecordToTableRow(
-      {
-        id: candidate.id,
-        key: candidate.key,
-        data: candidate.data,
-        messageCount: candidate.messageCount,
-        createdAt: candidate.createdAt,
-        updatedAt: candidate.updatedAt,
-      },
-      offset + index
-    )
-  )
+  const pageByteBudget = getMaxPageBytes() ?? TABLE_LIMITS.MAX_QUERY_RESULT_BYTES
+  const selectedCandidates: typeof candidates = []
+  let selectedBytes = 0
+  let hasMore = false
+
+  for (const candidate of candidates) {
+    const rowBytes = Number(candidate.rowBytes)
+    if (!Number.isFinite(rowBytes) || rowBytes < 0) {
+      throw new TableQueryValidationError('Memory table returned an invalid row size')
+    }
+    if (selectedCandidates.length === 0 && rowBytes > pageByteBudget) {
+      throw new TableQueryValidationError(
+        `Memory transcript exceeds the ${Math.floor(pageByteBudget / (1024 * 1024))}MB query response limit`,
+        'TABLE_QUERY_RESULT_TOO_LARGE'
+      )
+    }
+    if (selectedCandidates.length > 0 && selectedBytes + rowBytes > pageByteBudget) {
+      hasMore = true
+      break
+    }
+    selectedCandidates.push(candidate)
+    selectedBytes += rowBytes
+  }
+
+  const selectedIds = selectedCandidates.map((candidate) => candidate.id)
+  const transcripts =
+    selectedIds.length > 0
+      ? await db
+          .select({ id: memory.id, data: sql<JsonValue>`${memory.data}` })
+          .from(memory)
+          .where(
+            and(
+              eq(memory.workspaceId, workspaceId),
+              isNull(memory.deletedAt),
+              inArray(memory.id, selectedIds)
+            )
+          )
+          .limit(selectedIds.length)
+      : []
+  const transcriptById = new Map(transcripts.map((record) => [record.id, record.data]))
+  const rows = selectedCandidates.flatMap((candidate, index) => {
+    const transcript = transcriptById.get(candidate.id)
+    if (transcript === undefined) return []
+    return [
+      mapMemoryRecordToTableRow(
+        {
+          id: candidate.id,
+          key: candidate.key,
+          data: transcript,
+          messageCount: candidate.messageCount,
+          createdAt: candidate.createdAt,
+          updatedAt: candidate.updatedAt,
+        },
+        offset + index
+      ),
+    ]
+  })
 
   return {
     rows,
     totalCount: totalRows ? Number(totalRows[0].value) : null,
     keysetValid: !sort,
+    hasMore,
   }
 }
 /** Searches Memory cells in PostgreSQL while preserving the active view's row ordinals. */
