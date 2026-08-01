@@ -48,6 +48,19 @@ Three non-obvious properties, each of which was measured and is easy to undo by 
 - **Empty param entries are stripped.** The registry contains one (`stt_deepgram_v2`), which crashes callers that read `param.type` while iterating.
 - **Lookups resolve versions.** `getTool` maps an unversioned name onto the newest version, and 246 tools are versioned. A plain key lookup would silently report them missing — a quiet correctness bug, not a crash. `resolveToolId` reproduces that against the id set and is differentially tested against the original.
 
+## Testing code that reads tool metadata
+
+Mock the module the code under test actually reads. `vi.mock('@/tools/utils', () => toolsUtilsMock)` only controls `getTool`; code that reads `params`/`outputs`/`name` goes through `@/tools/metadata`, so mocking `tools/utils` there is a **no-op that still passes** — because the real generated artifacts happen to agree with the mock fixtures. The test looks green while controlling nothing.
+
+```ts
+import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
+
+vi.mock('@/tools/utils', () => toolsUtilsMock)      // executable lookup
+vi.mock('@/tools/metadata', () => toolsMetadataMock) // params / outputs / name
+```
+
+Both are backed by the same `mockToolConfigs`, so mocking both gives one consistent tool universe. If you are unsure whether a mock is load-bearing, change a fixture value to a sentinel and confirm the test fails.
+
 ## How to verify an edge actually got cut
 
 Do not eyeball imports — the registry is reached through several redundant paths, so cutting one buys nothing while another survives. Walk the graph:
