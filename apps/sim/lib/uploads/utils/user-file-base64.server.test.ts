@@ -3,7 +3,6 @@
  */
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -43,31 +42,8 @@ vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
   downloadExecutionFile: mockDownloadFile,
 }))
 
-const RENDERED_PDF_BUFFER = Buffer.from('%PDF-1.4 rendered', 'utf8')
-
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadFileFromStorage: mockDownloadFile,
-  downloadServableFileFromStorage: async (
-    file: UserFile,
-    requestId: string,
-    logger: unknown,
-    options: { maxBytes?: number } = {}
-  ) => {
-    // Mirrors the real resolver: a generation-source marker resolves to compiled
-    // bytes instead of the raw download, so tests can prove the swap actually happens.
-    if (file.type === 'text/x-python-pdf') {
-      return { buffer: RENDERED_PDF_BUFFER, contentType: 'application/pdf' }
-    }
-    // Mirrors the real resolver throwing when a generated doc's compiled artifact
-    // isn't ready yet.
-    if (file.type === 'text/x-still-compiling-test') {
-      throw new DocCompileUserError('Document is still being generated')
-    }
-    return {
-      buffer: await mockDownloadFile(file, requestId, logger, options),
-      contentType: file.type ?? 'application/octet-stream',
-    }
-  },
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -165,64 +141,6 @@ describe('hydrateUserFilesWithBase64', () => {
     )
 
     expect(hydrated.file.base64).toBe(Buffer.from('hello').toString('base64'))
-  })
-
-  it('hydrates a generated-document source marker to its rendered bytes, not the raw source download', async () => {
-    const rawSourceBytes = Buffer.from('import fpdf ...', 'utf8')
-    const file: UserFile = {
-      id: 'file-1',
-      name: 'report.pdf',
-      key: 'workspace/workspace-1/report.pdf',
-      url: '/api/files/serve/workspace/workspace-1/report.pdf?context=workspace',
-      size: rawSourceBytes.length,
-      type: 'text/x-python-pdf',
-    }
-
-    const hydrated = await hydrateUserFilesWithBase64(
-      { file },
-      { userId: 'user-1', maxBytes: 10_000 }
-    )
-
-    expect(hydrated.file.base64).toBe(RENDERED_PDF_BUFFER.toString('base64'))
-    expect(hydrated.file.base64).not.toBe(rawSourceBytes.toString('base64'))
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-  })
-
-  function stillCompilingFile(): UserFile {
-    return {
-      id: 'file-1',
-      name: 'report.pdf',
-      key: 'workspace/workspace-1/report.pdf',
-      url: '/api/files/serve/workspace/workspace-1/report.pdf?context=workspace',
-      size: 20,
-      type: 'text/x-still-compiling-test',
-    }
-  }
-
-  it('propagates DocCompileUserError when the caller asked to fail on a not-ready doc', async () => {
-    // Regression test: resolveBase64 used to swallow every readUserFileContent
-    // error (including this one) and return null, so a generated doc that's
-    // still compiling silently lost its base64 instead of surfacing the
-    // "still being generated" signal callers are supposed to retry on.
-    await expect(
-      hydrateUserFilesWithBase64(
-        { file: stillCompilingFile() },
-        { userId: 'user-1', maxBytes: 10_000, throwOnDocNotReady: true }
-      )
-    ).rejects.toThrow(DocCompileUserError)
-  })
-
-  it('leaves a not-ready doc unhydrated by default rather than failing the caller', async () => {
-    // Output decoration (a finished block's result, the final run response) hydrates
-    // through this same helper AFTER the work succeeded. Throwing there would mark
-    // completed work failed over a compile that finishes moments later, so the throw
-    // is opt-in and the default degrades.
-    const hydrated = await hydrateUserFilesWithBase64(
-      { file: stillCompilingFile() },
-      { userId: 'user-1', maxBytes: 10_000 }
-    )
-
-    expect(hydrated.file.base64).toBeUndefined()
   })
 
   it('materializes large refs before hydrating nested files', async () => {

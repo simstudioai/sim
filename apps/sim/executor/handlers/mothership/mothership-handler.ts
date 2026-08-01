@@ -23,7 +23,6 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
-import { inferAttachmentMimeType } from '@/providers/attachments'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
@@ -310,7 +309,7 @@ async function buildMothershipFileAttachments(
       maxSourceBytes: MAX_MOTHERSHIP_ATTACHMENT_BYTES,
     })
 
-    const content = createFileContentFromBase64(base64, inferAttachmentMimeType(userFile))
+    const content = createFileContentFromBase64(base64, userFile.type)
     if (!content) {
       throw new Error(`File type is not supported for Mothership attachments: ${userFile.name}`)
     }

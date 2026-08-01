@@ -19,13 +19,11 @@ import {
   getFileExtension,
   getMimeTypeFromExtension,
   inferContextFromKey,
-  isGeneratedDocumentSourceType,
   isInternalFileUrl,
   isRenderableDocumentName,
   processSingleFileToUserFile,
   type RawFileInput,
   resolveTrustedFileContext,
-  UnrenderableDocumentError,
 } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -348,13 +346,6 @@ export async function downloadFileFromStorage(
 export interface ServableFile {
   buffer: Buffer
   contentType: string
-  /**
-   * Set when the bytes could not be rendered and are being served as-is under a
-   * generic content type. The bytes are NOT the document the filename claims.
-   * {@link downloadServableFileFromStorage} refuses these rather than returning
-   * them — see {@link UnrenderableDocumentError}.
-   */
-  unrendered?: boolean
 }
 
 /**
@@ -384,22 +375,8 @@ export async function downloadServableFileFromStorage(
   })
 
   // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
-  // import below. A UserFile travels through workflow state, so `.name` and `.type`
-  // are both caller-editable and neither can rule the file out on its own: a
-  // generated doc can arrive with its name re-extensioned (.docx -> .doc) but its
-  // source marker intact, or with a hand-authored real MIME ("application/pdf")
-  // in place of the marker. Either signal routes to the resolver, whose magic-byte
-  // check on the actual stored bytes decides — real binaries pass through there
-  // unchanged. (The files/download route gates type-first instead; its type is the
-  // server-written DB record, which workflow state never is.)
-  // Normalize once: a stored type can arrive padded or upper-cased, and deciding the
-  // gate on the raw value while deciding `isGeneratedSource` on the normalized one
-  // would let a padded marker skip the resolver entirely when the name is not a
-  // renderable document.
-  const declaredType = userFile.type?.trim().toLowerCase()
-  const isGeneratedSource = isGeneratedDocumentSourceType(declaredType)
-  const needsRendering = isGeneratedSource || isRenderableDocumentName(userFile.name)
-  if (!needsRendering) {
+  // import below.
+  if (!isRenderableDocumentName(userFile.name)) {
     const ext = getFileExtension(userFile.name)
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
@@ -414,16 +391,9 @@ export async function downloadServableFileFromStorage(
     rawBuffer: buffer,
     fileName: userFile.name,
     workspaceId,
-    // Only the positive case carries meaning: the resolver reads this solely to decide
-    // whether compiling is warranted where no artifact lookup is possible.
-    isGeneratedSource,
     ownerKey: options.ownerKey,
     signal: options.signal,
   })
-
-  if (resolved.unrendered) {
-    throw new UnrenderableDocumentError(userFile.name)
-  }
 
   // Re-check: the raw download enforced maxBytes on the source, but a generated doc
   // resolves to a larger artifact.

@@ -81,10 +81,6 @@ async function hydrateExplicitBase64(
     allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
     userId: context.executionContext.userId,
     maxBytes: context.executionContext.base64MaxBytes,
-    // An explicit `<file.base64>` reference has no degraded mode — the resolver throws
-    // when content is missing. Opt in so a still-compiling document reports that
-    // instead of the generic size/availability message below.
-    throwOnDocNotReady: true,
   })
   if (!hydrated.base64) {
     throw new Error(

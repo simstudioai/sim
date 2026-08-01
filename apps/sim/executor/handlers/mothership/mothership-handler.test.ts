@@ -588,56 +588,6 @@ describe('MothershipBlockHandler', () => {
     ])
   })
 
-  it('attaches a generated document under its rendered MIME type, not its generation-source marker', async () => {
-    const fileContent = Buffer.from('%PDF-1.4 ...', 'utf8').toString('base64')
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-    mockReadUserFileContent.mockResolvedValueOnce(fileContent)
-
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'analyzed',
-          model: 'mothership',
-          conversationId: 'chat-uuid',
-          tokens: {},
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    )
-
-    await handler.execute(context, block, {
-      prompt: 'Analyze this file',
-      files: [
-        {
-          name: 'report.pdf',
-          key: 'workspace/workspace-1/report.pdf',
-          size: 16,
-          type: 'text/x-python-pdf',
-        },
-      ],
-    })
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body.fileAttachments).toEqual([
-      {
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: fileContent,
-        },
-        filename: 'report.pdf',
-      },
-    ])
-  })
-
   it('propagates local aborts to the mothership request', async () => {
     const abortController = new AbortController()
     context.abortSignal = abortController.signal

@@ -783,9 +783,6 @@ export class AgentBlockHandler implements BlockHandler {
         userId: ctx.userId,
         logger,
         maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
-        // These files are about to become provider attachments, so a document that
-        // is still compiling must fail loudly rather than reach the model empty.
-        throwOnDocNotReady: true,
       })
 
       const missingFile = hydratedFiles.find(

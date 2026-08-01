@@ -6,10 +6,10 @@ import {
   getContentType,
   getExtensionFromMimeType,
   getFileExtension,
-  getMimeTypeFromExtension,
   isGeneratedDocumentSourceType,
   MIME_TYPE_MAPPING,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
+  resolveFileType,
 } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import {
@@ -198,16 +198,10 @@ export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): 
 
 export function inferAttachmentMimeType(file: UserFile): string {
   const explicitType = file.type?.trim().toLowerCase()
-  if (
-    explicitType &&
-    explicitType !== 'application/octet-stream' &&
-    !isGeneratedDocumentSourceType(explicitType)
-  ) {
-    return explicitType
-  }
-
-  const inferred = getMimeTypeFromExtension(getFileExtension(file.name))
-  return inferred.toLowerCase()
+  return resolveFileType({
+    name: file.name,
+    type: isGeneratedDocumentSourceType(explicitType) ? '' : (explicitType ?? ''),
+  }).toLowerCase()
 }
 
 function isTextDocumentMimeType(mimeType: string): boolean {
