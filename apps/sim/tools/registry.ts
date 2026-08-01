@@ -4714,6 +4714,18 @@ import {
 } from '@/tools/zep'
 import { zerobounceGetCreditsTool, zerobounceVerifyEmailTool } from '@/tools/zerobounce'
 import {
+  zohoDeskAddCommentTool,
+  zohoDeskGetAttachmentTool,
+  zohoDeskGetContactTool,
+  zohoDeskGetThreadTool,
+  zohoDeskGetTicketTool,
+  zohoDeskListCommentsTool,
+  zohoDeskListOrganizationsTool,
+  zohoDeskListThreadsTool,
+  zohoDeskListTicketsTool,
+  zohoDeskUpdateTicketTool,
+} from '@/tools/zoho_desk'
+import {
   zoomCreateMeetingTool,
   zoomDeleteMeetingTool,
   zoomDeleteRecordingTool,
@@ -8921,6 +8933,16 @@ export const tools: Record<string, ToolConfig> = {
   zendesk_delete_organization: zendeskDeleteOrganizationTool,
   zendesk_search: zendeskSearchTool,
   zendesk_search_count: zendeskSearchCountTool,
+  zoho_desk_list_tickets: zohoDeskListTicketsTool,
+  zoho_desk_get_ticket: zohoDeskGetTicketTool,
+  zoho_desk_update_ticket: zohoDeskUpdateTicketTool,
+  zoho_desk_list_comments: zohoDeskListCommentsTool,
+  zoho_desk_add_comment: zohoDeskAddCommentTool,
+  zoho_desk_list_threads: zohoDeskListThreadsTool,
+  zoho_desk_get_thread: zohoDeskGetThreadTool,
+  zoho_desk_get_contact: zohoDeskGetContactTool,
+  zoho_desk_list_organizations: zohoDeskListOrganizationsTool,
+  zoho_desk_get_attachment: zohoDeskGetAttachmentTool,
   intercom_create_contact: intercomCreateContactTool,
   intercom_create_contact_v2: intercomCreateContactV2Tool,
   intercom_get_contact: intercomGetContactTool,

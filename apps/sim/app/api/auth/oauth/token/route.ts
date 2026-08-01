@@ -26,6 +26,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
+const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s]+)/
 
 /**
  * Get an access token for a specific credential
@@ -290,11 +291,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      // Zoho Desk persists its data-center-specific REST base URL in the scope
+      // string (derived from the token response api_domain) so callers never
+      // assume a host. Surface it as apiDomain for tool param injection.
+      let apiDomain: string | undefined
+      if (credential.providerId === 'zoho-desk' && credential.scope) {
+        const domainMatch = credential.scope.match(ZOHO_DESK_BASE_URL_REGEX)
+        if (domainMatch) {
+          apiDomain = domainMatch[1]
+        }
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(apiDomain && { apiDomain }),
         },
         { status: 200 }
       )
@@ -402,11 +415,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      // Zoho Desk persists its data-center-specific REST base URL in the scope
+      // string (derived from the token response api_domain) so callers never
+      // assume a host. Surface it as apiDomain for tool param injection.
+      let apiDomain: string | undefined
+      if (credential.providerId === 'zoho-desk' && credential.scope) {
+        const domainMatch = credential.scope.match(ZOHO_DESK_BASE_URL_REGEX)
+        if (domainMatch) {
+          apiDomain = domainMatch[1]
+        }
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(apiDomain && { apiDomain }),
         },
         { status: 200 }
       )

@@ -55,6 +55,7 @@ import {
   WebflowIcon,
   WordpressIcon,
   xIcon,
+  ZohoDeskIcon,
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
@@ -1098,6 +1099,31 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'salesforce',
   },
+  'zoho-desk': {
+    name: 'Zoho Desk',
+    icon: ZohoDeskIcon,
+    services: {
+      'zoho-desk': {
+        name: 'Zoho Desk',
+        description: 'Manage Zoho Desk tickets, comments, threads, and contacts.',
+        providerId: 'zoho-desk',
+        icon: ZohoDeskIcon,
+        baseProviderIcon: ZohoDeskIcon,
+        scopes: [
+          'Desk.tickets.ALL',
+          'Desk.contacts.READ',
+          'Desk.basic.READ',
+          'Desk.search.READ',
+          'Desk.webhooks.READ',
+          'Desk.webhooks.CREATE',
+          'Desk.webhooks.UPDATE',
+          'Desk.webhooks.DELETE',
+          'aaaserver.profile.READ',
+        ],
+      },
+    },
+    defaultService: 'zoho-desk',
+  },
   zoom: {
     name: 'Zoom',
     icon: ZoomIcon,
@@ -1602,6 +1628,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       )
       return {
         tokenEndpoint: 'https://auth.monday.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'zoho-desk': {
+      // Zoho's refresh_token grant returns a new access token but no new refresh
+      // token, so rotation stays off (the existing refresh token is preserved).
+      // The refresh must target the accounts server; a US/multi-DC-enabled client
+      // uses accounts.zoho.com. Data residency for API calls is honored separately
+      // via the persisted Desk base URL derived from the token response api_domain.
+      const { clientId, clientSecret } = getCredentials(env.ZOHO_CLIENT_ID, env.ZOHO_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://accounts.zoho.com/oauth/v2/token',
         clientId,
         clientSecret,
         useBasicAuth: false,

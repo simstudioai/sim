@@ -11,6 +11,16 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  // Zoho Desk scopes
+  'Desk.tickets.ALL': 'View and manage tickets',
+  'Desk.contacts.READ': 'View contacts',
+  'Desk.basic.READ': 'View basic account and organization data',
+  'Desk.search.READ': 'Search Zoho Desk data',
+  'Desk.webhooks.READ': 'View webhooks',
+  'Desk.webhooks.CREATE': 'Create webhooks',
+  'Desk.webhooks.UPDATE': 'Update webhooks',
+  'Desk.webhooks.DELETE': 'Delete webhooks',
+  'aaaserver.profile.READ': 'View your Zoho profile',
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',

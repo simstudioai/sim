@@ -1,0 +1,138 @@
+import { ZohoDeskIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
+import type { TriggerConfig } from '@/triggers/types'
+
+/**
+ * Zoho Desk event types that support a programmatic webhook subscription.
+ * Restricted to events documented in Zoho's webhook subscriptions schema.
+ */
+const ZOHO_DESK_EVENT_OPTIONS = [
+  { label: 'Ticket Created', id: 'Ticket_Add' },
+  { label: 'Ticket Updated', id: 'Ticket_Update' },
+  { label: 'Ticket Comment Added', id: 'Ticket_Comment_Add' },
+  { label: 'Ticket Comment Updated', id: 'Ticket_Comment_Update' },
+  { label: 'Ticket Thread Added', id: 'Ticket_Thread_Add' },
+  { label: 'Contact Created', id: 'Contact_Add' },
+  { label: 'Contact Updated', id: 'Contact_Update' },
+  { label: 'Contact Deleted', id: 'Contact_Delete' },
+  { label: 'Agent Created', id: 'Agent_Add' },
+  { label: 'Agent Updated', id: 'Agent_Update' },
+  { label: 'Agent Deleted', id: 'Agent_Delete' },
+  { label: 'Task Created', id: 'Task_Add' },
+  { label: 'Task Updated', id: 'Task_Update' },
+  { label: 'Task Deleted', id: 'Task_Delete' },
+  { label: 'Article Created', id: 'Article_Add' },
+  { label: 'Article Updated', id: 'Article_Update' },
+  { label: 'Article Deleted', id: 'Article_Delete' },
+]
+
+const ZOHO_DESK_SETUP_INSTRUCTIONS = [
+  'Connect your Zoho Desk account above. Webhooks require a Zoho Desk edition of Professional or higher (Free and Standard cannot create webhooks).',
+  'Enter your Organization ID. You can find it with the "List Organizations" operation on the Zoho Desk block.',
+  'Choose the event to subscribe to. For "Ticket Updated" you can optionally list up to 5 ticket field API names to watch; previous field values are included in the payload. For "Ticket Thread Added" you can filter by direction (incoming/outgoing).',
+  'Optionally restrict events to specific departments by entering comma-separated department IDs.',
+  'Click Save above. Sim creates the webhook subscription in Zoho Desk for you and tears it down automatically when the workflow is undeployed.',
+]
+  .map(
+    (instruction, index) => `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+  )
+  .join('')
+
+export const zohoDeskWebhookTrigger: TriggerConfig = {
+  id: 'zoho_desk',
+  name: 'Zoho Desk Event',
+  provider: 'zoho_desk',
+  description:
+    'Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, contact, agent, task, or article changes).',
+  version: '1.0.0',
+  icon: ZohoDeskIcon,
+
+  subBlocks: [
+    {
+      id: 'triggerCredentials',
+      title: 'Zoho Desk Account',
+      type: 'oauth-input',
+      description:
+        'This trigger creates and manages a webhook subscription in your Zoho Desk account.',
+      serviceId: 'zoho-desk',
+      requiredScopes: getScopesForService('zoho-desk'),
+      required: true,
+      mode: 'trigger',
+    },
+    {
+      id: 'orgId',
+      title: 'Organization ID',
+      type: 'short-input',
+      placeholder: 'e.g. 700123456',
+      description: 'The Zoho Desk organization (portal) to subscribe in.',
+      required: true,
+      mode: 'trigger',
+    },
+    {
+      id: 'eventType',
+      title: 'Event',
+      type: 'dropdown',
+      options: ZOHO_DESK_EVENT_OPTIONS,
+      value: () => 'Ticket_Add',
+      required: true,
+      mode: 'trigger',
+    },
+    {
+      id: 'departmentIds',
+      title: 'Department IDs (optional)',
+      type: 'short-input',
+      placeholder: 'Comma-separated department IDs',
+      description: 'Restrict events to these departments. Leave empty for all departments.',
+      mode: 'trigger',
+    },
+    {
+      id: 'fields',
+      title: 'Watched Fields (optional)',
+      type: 'short-input',
+      placeholder: 'Up to 5 comma-separated field API names',
+      description:
+        'For Ticket Updated: only fire when one of these fields changes (max 5). Previous values are included in the payload.',
+      condition: { field: 'eventType', value: 'Ticket_Update' },
+      mode: 'trigger',
+    },
+    {
+      id: 'direction',
+      title: 'Thread Direction',
+      type: 'dropdown',
+      options: [
+        { label: 'Both', id: 'both' },
+        { label: 'Incoming', id: 'in' },
+        { label: 'Outgoing', id: 'out' },
+      ],
+      value: () => 'both',
+      condition: { field: 'eventType', value: 'Ticket_Thread_Add' },
+      mode: 'trigger',
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: ZOHO_DESK_SETUP_INSTRUCTIONS,
+      mode: 'trigger',
+    },
+  ],
+
+  outputs: {
+    eventType: { type: 'string', description: 'The Zoho Desk event type (e.g. Ticket_Add)' },
+    eventTime: { type: 'string', description: 'Event time in milliseconds since epoch' },
+    orgId: { type: 'string', description: 'Zoho Desk organization ID' },
+    payload: {
+      type: 'json',
+      description: 'The full resource that changed (ticket, comment, thread, etc.)',
+    },
+    prevState: { type: 'json', description: 'Previous state of the resource (update events only)' },
+  },
+
+  webhook: {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  },
+}

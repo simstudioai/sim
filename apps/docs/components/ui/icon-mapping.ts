@@ -248,6 +248,7 @@ import {
   ZendeskIcon,
   ZepIcon,
   ZeroBounceIcon,
+  ZohoDeskIcon,
   ZoomIcon,
   ZoomInfoIcon,
 } from '@/components/icons'
@@ -535,6 +536,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   zendesk: ZendeskIcon,
   zep: ZepIcon,
   zerobounce: ZeroBounceIcon,
+  zoho_desk: ZohoDeskIcon,
   zoom: ZoomIcon,
   zoominfo: ZoomInfoIcon,
 }

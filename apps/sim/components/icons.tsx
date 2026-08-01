@@ -8927,3 +8927,20 @@ export function LogfireIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function ZohoDeskIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <path
+        d='M12 2.75c-4.28 0-7.75 3.47-7.75 7.75v3.1A2.6 2.6 0 0 0 3 16.35v1.3A2.6 2.6 0 0 0 5.6 20.25h1.15a.9.9 0 0 0 .9-.9v-4.9a.9.9 0 0 0-.9-.9H6.05v-2.15a5.95 5.95 0 0 1 11.9 0v2.15h-.7a.9.9 0 0 0-.9.9v4.9c0 .17.05.33.13.47-.5.6-1.24.98-2.08.98h-1.02a1.4 1.4 0 0 0-1.31-.9h-1a1.4 1.4 0 0 0 0 2.8h1a1.4 1.4 0 0 0 1.31-.9h1.02c2.06 0 3.74-1.63 3.83-3.67a2.6 2.6 0 0 0 1.44-2.33v-1.3a2.6 2.6 0 0 0-1.25-2.22v-3.1c0-4.28-3.47-7.75-7.75-7.75Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}

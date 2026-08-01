@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-31",
+  "updatedAt": "2026-08-01",
   "integrations": [
     {
       "type": "onepassword",
@@ -21811,6 +21811,72 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"]
+    },
+    {
+      "type": "zoho_desk",
+      "slug": "zoho-desk",
+      "name": "Zoho Desk",
+      "description": "Manage Zoho Desk tickets, comments, threads, and contacts",
+      "longDescription": "Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Can also trigger workflows from Zoho Desk webhook events.",
+      "bgColor": "#E42527",
+      "iconName": "ZohoDeskIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/zoho_desk",
+      "operations": [
+        {
+          "name": "List Tickets",
+          "description": "List tickets from a Zoho Desk organization with optional filters."
+        },
+        {
+          "name": "Get Ticket",
+          "description": "Retrieve a single Zoho Desk ticket by ID."
+        },
+        {
+          "name": "Update Ticket",
+          "description": "Update fields on an existing Zoho Desk ticket."
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a Zoho Desk ticket."
+        },
+        {
+          "name": "Add Comment",
+          "description": "Add a comment to a Zoho Desk ticket."
+        },
+        {
+          "name": "List Threads",
+          "description": "List conversation threads on a Zoho Desk ticket."
+        },
+        {
+          "name": "Get Thread",
+          "description": "Retrieve the full content of a single Zoho Desk ticket thread."
+        },
+        {
+          "name": "Get Contact",
+          "description": "Retrieve a Zoho Desk contact by ID."
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Download a Zoho Desk ticket attachment (from its href) as a file."
+        },
+        {
+          "name": "List Organizations",
+          "description": "List the Zoho Desk organizations (portals) the connected account can access."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [
+        {
+          "id": "zoho_desk",
+          "name": "Zoho Desk Event",
+          "description": "Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, contact, agent, task, or article changes)."
+        }
+      ],
+      "triggerCount": 1,
+      "authType": "oauth",
+      "oauthServiceId": "zoho-desk",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["customer-support", "ticketing", "automation"]
     },
     {
       "type": "zoom",
