@@ -8,7 +8,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { SELECT_OPTION_COLORS, type SelectOptionColor } from '@/lib/table'
+// Deep import, not the `@/lib/table` barrel — see select-options-editor.tsx.
+import { SELECT_OPTION_COLORS, type SelectOptionColor } from '@/lib/table/types'
 
 interface SelectColorPickerProps {
   color: SelectOptionColor | undefined

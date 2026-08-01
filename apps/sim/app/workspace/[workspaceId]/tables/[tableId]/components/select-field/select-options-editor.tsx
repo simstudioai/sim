@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, ChipInput } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
-import { SELECT_OPTION_COLORS, type SelectOption } from '@/lib/table'
+// Deep import, not the `@/lib/table` barrel: this is a VALUE, and a runtime
+// edge from a client component into that barrel reaches the executor and drags
+// the executable tool registry (~4,700 modules) into three route bundles. The
+// barrel is safe for `import type` only.
+import type { SelectOption } from '@/lib/table'
+import { SELECT_OPTION_COLORS } from '@/lib/table/types'
 import { SelectColorPicker } from './select-color-picker'
 
 interface SelectOptionsEditorProps {
