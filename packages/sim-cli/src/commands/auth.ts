@@ -25,14 +25,22 @@ import { printRecord } from '../output/render.js'
  * falls through to the user pasting it somewhere.
  */
 function openBrowser(url: string): void {
-  const command =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
+  /**
+   * Windows needs `cmd /c start "" <url>`.
+   *
+   * `start` is a cmd builtin, so it needs a shell — but its first quoted
+   * argument is the *window title*, and node quotes the URL because of the `?`
+   * and `&` in the query. Passing the URL alone therefore opens a console
+   * titled with the handoff link and no browser at all. The empty `""` takes
+   * the title slot so the URL lands where it belongs.
+   */
+  const [command, args] =
+    process.platform === 'win32'
+      ? ['cmd', ['/c', 'start', '', url]]
+      : [process.platform === 'darwin' ? 'open' : 'xdg-open', [url]]
+
   try {
-    const child = spawn(command, [url], {
-      stdio: 'ignore',
-      detached: true,
-      shell: process.platform === 'win32',
-    })
+    const child = spawn(command, args, { stdio: 'ignore', detached: true })
     child.on('error', () => {})
     child.unref()
   } catch {}

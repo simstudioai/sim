@@ -31,8 +31,10 @@ describe('buildRequest', () => {
     expect(built.query.workflowIds).toBe('wf_1,wf_2')
   })
 
+  // Keys here are camelCase because that is what commander stores — feeding
+  // flag-shaped keys is what let the camelCase mismatch through review.
   it('coerces numeric flags out of the strings argv gives', () => {
-    const built = buildRequest('listLogs', [], { 'min-duration-ms': '250' }, WORKSPACE)
+    const built = buildRequest('listLogs', [], { minDurationMs: '250' }, WORKSPACE)
     expect(built.query.minDurationMs).toBe(250)
   })
 
@@ -76,7 +78,7 @@ describe('buildRequest', () => {
     })
 
     it('rejects a non-numeric number', () => {
-      expect(() => buildRequest('listLogs', [], { 'min-cost': 'lots' }, WORKSPACE)).toThrow(
+      expect(() => buildRequest('listLogs', [], { minCost: 'lots' }, WORKSPACE)).toThrow(
         '--min-cost must be a number'
       )
     })

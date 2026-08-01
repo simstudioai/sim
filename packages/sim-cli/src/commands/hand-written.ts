@@ -6,7 +6,7 @@ import type { Command } from 'commander'
 import { clientFrom } from '../context.js'
 import type { QueryRowsResponse } from '../generated/v2-api.js'
 import { SimApiError } from '../http/client.js'
-import { type Column, printList, text } from '../output/render.js'
+import { type Column, printList, sanitize, text } from '../output/render.js'
 
 /**
  * Commands the generated runtime cannot produce.
@@ -28,23 +28,44 @@ type Row = QueryRowsResponse['data'][number]
  * cast that would erase exactly the typing this keeps honest.
  */
 async function streamToFile(body: ReadableStream<Uint8Array>, file: WriteStream): Promise<void> {
-  const reader = body.getReader()
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      // `write` returning false means the buffer is full; waiting for `drain` is
-      // what stops a large file being buffered entirely in memory.
-      if (!file.write(value)) await once(file, 'drain')
-    }
-  } finally {
-    reader.releaseLock()
-  }
-
-  await new Promise<void>((resolve, reject) => {
+  // Registered before the first write, not after the loop. `createWriteStream`
+  // opens lazily, so an EEXIST/EACCES/ENOSPC can surface at any point — with no
+  // listener attached it is an unhandled 'error' event that takes down the
+  // process instead of failing the download.
+  const failed = new Promise<never>((_resolve, reject) => {
     file.once('error', reject)
-    file.end(resolve)
   })
+
+  const pump = (async () => {
+    const reader = body.getReader()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        // `write` returning false means the buffer is full; waiting for `drain`
+        // is what stops a large file being buffered entirely in memory.
+        if (!file.write(value)) await once(file, 'drain')
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    await new Promise<void>((resolve) => file.end(resolve))
+  })()
+
+  try {
+    await Promise.race([pump, failed])
+  } catch (error) {
+    file.destroy()
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'EEXIST') {
+      throw new SimApiError(
+        `${file.path} already exists. Pass --force to overwrite, or -o to write elsewhere.`,
+        0
+      )
+    }
+    throw new SimApiError(`Could not write ${file.path}: ${(error as Error).message}`, 0)
+  }
 }
 
 /**
@@ -70,7 +91,8 @@ function rowColumns(rows: Row[]): Column<Row>[] {
       value: (row: Row) => {
         const value = row.data[key]
         if (value === null || value === undefined) return text(null)
-        return typeof value === 'object' ? JSON.stringify(value) : String(value)
+        // User-defined cell data is remote content; strip terminal controls.
+        return sanitize(typeof value === 'object' ? JSON.stringify(value) : String(value))
       },
     })),
   ]
@@ -89,36 +111,49 @@ export function attachHandWritten(program: Command): void {
     .command('download <fileId>')
     .description('Download a file')
     .option('-o, --output-file <path>', 'Where to write it (defaults to the file name)')
-    .action(async (fileId: string, options: { outputFile?: string }, command: Command) => {
-      const { client, profile } = clientFrom(command)
-      const workspaceId = client.requireWorkspace()
+    .option('--force', 'Overwrite the destination if it already exists')
+    .action(
+      async (
+        fileId: string,
+        options: { outputFile?: string; force?: boolean },
+        command: Command
+      ) => {
+        const { client, profile } = clientFrom(command)
+        const workspaceId = client.requireWorkspace()
 
-      if (!profile.apiKey) {
-        throw new SimApiError(`Not logged in on profile "${profile.name}". Run: sim login`, 0)
-      }
+        if (!profile.apiKey) {
+          throw new SimApiError(`Not logged in on profile "${profile.name}". Run: sim login`, 0)
+        }
 
-      const url = new URL(`${profile.endpoint}/api/v2/files/${encodeURIComponent(fileId)}`)
-      url.searchParams.set('workspaceId', workspaceId)
+        const url = new URL(`${profile.endpoint}/api/v2/files/${encodeURIComponent(fileId)}`)
+        url.searchParams.set('workspaceId', workspaceId)
 
-      const response = await fetch(url, { headers: { 'x-api-key': profile.apiKey } })
-      if (!response.ok || !response.body) {
-        const raw = await response.text().catch(() => '')
-        throw new SimApiError(
-          raw || `Download failed with status ${response.status}`,
-          response.status
+        const response = await fetch(url, { headers: { 'x-api-key': profile.apiKey } })
+        if (!response.ok || !response.body) {
+          const raw = await response.text().catch(() => '')
+          throw new SimApiError(
+            raw || `Download failed with status ${response.status}`,
+            response.status
+          )
+        }
+
+        const target =
+          options.outputFile ??
+          basename(
+            /filename="?([^";]+)"?/.exec(response.headers.get('content-disposition') ?? '')?.[1] ??
+              fileId
+          )
+
+        // `wx` fails rather than truncating: a download that silently replaces an
+        // existing file is unrecoverable, and the name often comes from the
+        // server's content-disposition rather than anything the caller typed.
+        await streamToFile(
+          response.body,
+          createWriteStream(target, { flags: options.force ? 'w' : 'wx' })
         )
+        console.log(chalk.green(`✓ Saved ${target}`))
       }
-
-      const target =
-        options.outputFile ??
-        basename(
-          /filename="?([^";]+)"?/.exec(response.headers.get('content-disposition') ?? '')?.[1] ??
-            fileId
-        )
-
-      await streamToFile(response.body, createWriteStream(target))
-      console.log(chalk.green(`✓ Saved ${target}`))
-    })
+    )
 
   // ── tables rows list ── columns come from user-defined row data ───────────
   const tables = group(program, 'tables')

@@ -7,9 +7,12 @@ import {
   duration,
   printList,
   printRecord,
+  sanitize,
   text,
   visibleWidth,
 } from './render.js'
+
+const ESC = String.fromCharCode(27)
 
 /** Colour is stripped when not writing to a TTY, so force it on for these assertions. */
 const coloured = new Chalk({ level: 1 })
@@ -187,5 +190,51 @@ describe('formatters', () => {
     expect(duration(999)).toBe('999ms')
     expect(duration(1500)).toBe('1.5s')
     expect(duration(90_000)).toBe('1m30s')
+  })
+})
+
+describe('sanitize', () => {
+  // Remote content — knowledge document text, table cell values, workflow names —
+  // reaches an interactive terminal through the human-readable renderers.
+  it('removes an OSC window-title sequence', () => {
+    expect(sanitize(`${ESC}]0;pwned\u0007hello`)).toBe('hello')
+  })
+
+  it('removes OSC terminated by ST rather than BEL', () => {
+    expect(sanitize(`${ESC}]0;pwned${ESC}\\hello`)).toBe('hello')
+  })
+
+  it('removes cursor movement that would overwrite what was already printed', () => {
+    expect(sanitize(`before${ESC}[2A${ESC}[2Kafter`)).toBe('beforeafter')
+  })
+
+  it('removes a full terminal reset', () => {
+    expect(sanitize(`${ESC}creset`)).toBe('reset')
+  })
+
+  it('removes non-SGR CSI, which the old SGR-only pattern left executable', () => {
+    // The reported hole: stripping only `ESC [ … m` passed everything else through.
+    expect(sanitize(`${ESC}[6n`)).toBe('')
+    expect(sanitize(`${ESC}[?1049h`)).toBe('')
+  })
+
+  it('removes bare C0 and C1 control characters', () => {
+    expect(sanitize('a\u0000b\u0008c\u009bd')).toBe('abcd')
+  })
+
+  it('takes the following byte with a bare ESC, since ESC + printable is a sequence', () => {
+    expect(sanitize('a\u001bdb')).toBe('ab')
+  })
+
+  it('keeps tabs and newlines, which are legitimate content', () => {
+    expect(sanitize('a\tb\nc')).toBe('a\tb\nc')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(sanitize('refund policy — 30 days')).toBe('refund policy — 30 days')
+  })
+
+  it('is applied to values passing through text()', () => {
+    expect(text(`${ESC}]0;x\u0007safe`)).toBe('safe')
   })
 })

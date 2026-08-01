@@ -10,6 +10,7 @@ import {
   duration,
   printList,
   printRecord,
+  sanitize,
   text,
   timestamp,
 } from '../output/render.js'
@@ -50,7 +51,8 @@ function renderCell(value: unknown, format: ColumnSpec['format']): string {
       return typeof value === 'number' ? `$${value.toFixed(4)}` : text(null)
     default:
       if (value === null || value === undefined || value === '') return text(null)
-      return typeof value === 'object' ? JSON.stringify(value) : String(value)
+      // Server-supplied: strip terminal control sequences before it can reach a tty.
+      return sanitize(typeof value === 'object' ? JSON.stringify(value) : String(value))
   }
 }
 

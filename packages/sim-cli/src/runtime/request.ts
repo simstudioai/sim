@@ -2,7 +2,7 @@ import { CLI_CONTRACT } from '../contract/commands.js'
 import type { FlagSpec } from '../contract/types.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 import { type QueryValue, SimApiError } from '../http/client.js'
-import { kebab } from './derive.js'
+import { camel, kebab } from './derive.js'
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -134,7 +134,9 @@ export function buildRequest(
       if (flag.omit) continue
 
       const flagName = flagNameFor(operation, field)
-      const raw = field === PROFILE_INJECTED_FIELD ? workspaceId : flags[flagName]
+      // Commander stores `--min-duration-ms` as `minDurationMs`; reading by the
+      // flag's own name silently finds nothing.
+      const raw = field === PROFILE_INJECTED_FIELD ? workspaceId : flags[camel(flagName)]
       const value = coerce(raw ?? undefined, descriptor, flag, flagName)
 
       if (value === undefined) {

@@ -56,3 +56,15 @@ export function deriveCommandPath(operation: V2OperationName): string[] {
 export function kebab(value: string): string {
   return value.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`)
 }
+
+/**
+ * `min-duration-ms` → `minDurationMs`, the key commander actually stores.
+ *
+ * Commander camelCases every multi-word flag when it builds its options object,
+ * so a lookup by the flag's own name finds nothing and the value is silently
+ * dropped — no error, the field just never reaches the API. Every read of a
+ * parsed flag has to go through this.
+ */
+export function camel(flag: string): string {
+  return flag.replace(/-([a-z])/g, (_match, character: string) => character.toUpperCase())
+}

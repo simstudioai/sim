@@ -121,7 +121,12 @@ export function CliAuthView() {
                   ? 'Could not load your workspaces. Connecting still works and issues a personal key; reload to pick a default workspace.'
                   : bindsToWorkspace
                     ? `Issues a key that can only reach ${chosen.name}.`
-                    : 'Issues a personal key tied to your account, defaulting to this workspace. Workspace-scoped keys need admin.'}
+                    : chosen
+                      ? 'Issues a personal key tied to your account, defaulting to this workspace. Workspace-scoped keys need admin.'
+                      : // No workspace picked, so none is sent and none becomes the
+                        // profile default — promising one here would describe a
+                        // grant that Connect is not about to make.
+                        'Issues a personal key tied to your account, with no default workspace.'}
             </p>
           </div>
         )}

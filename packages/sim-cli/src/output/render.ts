@@ -13,9 +13,50 @@ const EMPTY_GLYPH = '—'
 /** Cell text for values that have no useful rendering, kept visually quiet. */
 const EMPTY = chalk.dim(EMPTY_GLYPH)
 
+/**
+ * Escape sequences and control characters that must never reach a terminal
+ * from server-supplied data.
+ *
+ * Covers CSI (`ESC [ … final`), OSC (`ESC ] … BEL|ST`), single-character escapes
+ * such as `ESC c` (full reset), and the bare C0/C1 control range. Anything a
+ * knowledge document, table cell, or workflow name contains is remote content —
+ * a document could set the window title, move the cursor to overwrite what was
+ * already printed, reset the terminal, or on some emulators drive clipboard and
+ * paste controls.
+ *
+ * Matching only SGR (`… m`) was the hole: it stripped colour and left every
+ * other sequence executable.
+ */
+const ESC = String.fromCharCode(27)
+const CONTROL_PATTERN = new RegExp(
+  [
+    `${ESC}\\][^\\u0007${ESC}]*(?:\\u0007|${ESC}\\\\)?`, // OSC … BEL or ST
+    `${ESC}\\[[0-9;?]*[ -/]*[@-~]`, // CSI … final byte
+    // Any other ESC + printable: `ESC c` (full reset), `ESC 7`/`ESC 8` (cursor
+    // save/restore), `ESC (0` (line-drawing charset), and the rest. ESC is never
+    // legitimate content, so the whole two-byte form goes. OSC and CSI are
+    // matched above, so they win at the same position.
+    `${ESC}[ -~]`,
+    `${ESC}`, // a lone ESC with nothing valid after it
+    '[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]', // C0/C1, keeping \t and \n
+  ].join('|'),
+  'g'
+)
+
+/**
+ * Removes terminal control sequences from a server-supplied string.
+ *
+ * Applied where API values become display text, so the colour the CLI adds
+ * afterwards still works — sanitizing the finished cell would strip our own
+ * formatting too.
+ */
+export function sanitize(value: string): string {
+  return value.replace(CONTROL_PATTERN, '')
+}
+
 export function text(value: unknown): string {
   if (value === null || value === undefined || value === '') return EMPTY
-  return String(value)
+  return sanitize(String(value))
 }
 
 /** ISO timestamps are the wire format everywhere; show them without the milliseconds. */
