@@ -196,6 +196,19 @@ describe('QuickBooks purchasing line and allocation validation', () => {
         '[{"lineType":"item","amount":10,"itemId":"21","quantity":2,"unitPrice":6}]'
       )
     ).toThrow('amount must equal')
+    expect(
+      parseQuickBooksPurchasingLines(
+        '[{"lineType":"item","amount":1.01,"itemId":"21","quantity":3,"unitPrice":0.335}]'
+      )
+    ).toEqual([
+      {
+        lineType: 'item',
+        amount: 1.01,
+        itemId: '21',
+        quantity: 3,
+        unitPrice: 0.335,
+      },
+    ])
     expect(() =>
       parseQuickBooksPurchasingLines(Array.from({ length: 101 }, () => accountLine))
     ).toThrow('more than 100')

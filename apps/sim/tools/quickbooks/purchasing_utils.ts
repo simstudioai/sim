@@ -122,7 +122,7 @@ export function parseQuickBooksPurchasingLines(
     if (
       quantity !== undefined &&
       unitPrice !== undefined &&
-      !new Decimal(quantity).times(unitPrice).equals(new Decimal(amount))
+      !new Decimal(quantity).times(unitPrice).toDecimalPlaces(2).equals(new Decimal(amount))
     ) {
       throw new Error(`${itemName}.amount must equal quantity multiplied by unitPrice`)
     }
