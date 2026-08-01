@@ -52,11 +52,12 @@ describe('resolveCanvasBlockPresentation', () => {
 
   it('uses a static semantic title for a block without an operation selector', () => {
     const humanConfig = {
-      name: 'Human in the Loop',
+      name: 'Human',
       subBlocks: [],
       canvasPresentation: {
         typeLabel: 'Human',
         defaultTitle: 'Wait for Input',
+        defaultName: 'Human in the Loop',
       },
     } as Pick<BlockConfig, 'name' | 'subBlocks' | 'canvasPresentation'>
 
@@ -66,6 +67,12 @@ describe('resolveCanvasBlockPresentation', () => {
       usesDefaultTitle: true,
       operationSubBlockId: undefined,
       operationRowTitle: undefined,
+    })
+
+    expect(resolveCanvasBlockPresentation(humanConfig, 'Human 1', {})).toMatchObject({
+      title: 'Wait for Input',
+      typeLabel: 'Human',
+      usesDefaultTitle: true,
     })
   })
 })
