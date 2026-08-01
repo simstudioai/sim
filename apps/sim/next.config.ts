@@ -241,8 +241,9 @@ const nextConfig: NextConfig = {
      *
      * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
      * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
-     * A *corrupted* cache is a hard Turbopack panic, not a silent fallback —
-     * `bun run dev:cache:prune` and restart is the fix.
+     * A *corrupted* cache can abort Turbopack outright ("Cache corruption
+     * detected: checksum mismatch") rather than falling back — it depends whether
+     * the damaged region is read. `bun run dev:clean` and restart is the fix.
      *
      * If you re-measure any of this: `next dev` compiles routes on demand, so
      * startup time means nothing — time the first request to a route, restart the

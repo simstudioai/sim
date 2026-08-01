@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun run dev:cache:cap && next dev --port 3001",
     "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",
-    "dev:cache:prune": "bun run ../../scripts/prune-turbopack-cache.ts --force",
+    "dev:clean": "rm -rf .next/dev/cache",
     "build": "fumadocs-mdx && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
