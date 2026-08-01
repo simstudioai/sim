@@ -79,11 +79,12 @@ export const managedAgentListEventsTool: ToolConfig<
     }
 
     const types = normalizeStringList(params.eventTypes)
-    // A non-numeric or non-positive limit falls back to the default rather than
-    // silently becoming an unbounded (or empty) read.
-    const requested = Number(params.limit)
-    const maxItems =
-      Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : DEFAULT_EVENT_LIMIT
+    // Floor BEFORE the positivity check: a fractional limit like 0.5 would pass
+    // `> 0` and then floor to 0, which reads as "no cap" downstream and returns
+    // the whole history. Anything that does not floor to a positive integer
+    // falls back to the default rather than silently becoming unbounded.
+    const requested = Math.floor(Number(params.limit))
+    const maxItems = Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_EVENT_LIMIT
 
     try {
       const { events, total } = await listSessionEventsPage({

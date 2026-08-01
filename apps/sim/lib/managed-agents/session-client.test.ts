@@ -608,6 +608,27 @@ describe('listSessionEvents — bounded reads', () => {
     expect(capped.total).toBe(300)
   })
 
+  it('never returns the whole history for a zero or negative cap', async () => {
+    // `slice(-0)` is `slice(0)` — the entire array — so a zero cap must
+    // short-circuit rather than silently become an unbounded read.
+    global.fetch = pagedFetch(1)
+    const zero = await listSessionEventsPage({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: 0,
+    })
+    expect(zero.events).toHaveLength(0)
+    expect(zero.total).toBe(100)
+
+    global.fetch = pagedFetch(1)
+    const negative = await listSessionEventsPage({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      maxItems: -5,
+    })
+    expect(negative.events).toHaveLength(0)
+  })
+
   it('returns the whole history when uncapped', async () => {
     global.fetch = pagedFetch(3)
     const events = await listSessionEvents({ apiKey: 'sk-ant-fake', sessionId: 'sesn_1' })
