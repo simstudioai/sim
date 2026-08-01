@@ -463,7 +463,11 @@ async function hydrateUserFile(
   const cached = await state.cache.get(file)
   if (cached) {
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
-    if (Buffer.byteLength(cached, 'base64') > maxBytes) {
+    const cachedBytes = Buffer.byteLength(cached, 'base64')
+    if (isGeneratedDocumentSourceType(file.type)) {
+      file.size = cachedBytes
+    }
+    if (cachedBytes > maxBytes) {
       return stripBase64(file)
     }
     return { ...file, base64: cached }

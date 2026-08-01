@@ -149,6 +149,25 @@ describe('hydrateUserFilesWithBase64', () => {
     expect(hydrated.file.size).toBe(11)
   })
 
+  it('records cached rendered size when a generated document must use a provider upload path', async () => {
+    mockGetRedisClient.mockReturnValue(mockRedis)
+    mockRedis.get.mockResolvedValueOnce(Buffer.alloc(11).toString('base64'))
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'report.pdf',
+      key: 'workspace/2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f/report.pdf',
+      url: '',
+      size: 1,
+      type: 'text/x-python-pdf',
+    }
+
+    const hydrated = await hydrateUserFilesWithBase64({ file }, { maxBytes: 10, userId: 'user-1' })
+
+    expect(hydrated.file).not.toHaveProperty('base64')
+    expect(hydrated.file.size).toBe(11)
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+  })
+
   it('propagates generated documents that are still compiling', async () => {
     const notReady = new Error('Document is still being generated')
     notReady.name = 'DocCompileUserError'
