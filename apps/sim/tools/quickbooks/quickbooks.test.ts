@@ -5,19 +5,30 @@ import { evaluateOutputCondition } from '@/lib/workflows/blocks/block-outputs'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
+  quickbooksCreateBillPaymentTool,
+  quickbooksCreateBillTool,
   quickbooksCreateCreditMemoTool,
   quickbooksCreateCustomerPaymentTool,
   quickbooksCreateEstimateTool,
   quickbooksCreateInvoiceTool,
+  quickbooksCreatePurchaseOrderTool,
+  quickbooksCreatePurchaseTool,
   quickbooksCreateRefundReceiptTool,
   quickbooksCreateSalesReceiptTool,
+  quickbooksCreateVendorCreditTool,
+  quickbooksReadPurchasingTransactionsTool,
   quickbooksReadSalesTransactionsTool,
+  quickbooksUpdateBillPaymentTool,
+  quickbooksUpdateBillTool,
   quickbooksUpdateCreditMemoTool,
   quickbooksUpdateCustomerPaymentTool,
   quickbooksUpdateEstimateTool,
   quickbooksUpdateInvoiceTool,
+  quickbooksUpdatePurchaseOrderTool,
+  quickbooksUpdatePurchaseTool,
   quickbooksUpdateRefundReceiptTool,
   quickbooksUpdateSalesReceiptTool,
+  quickbooksUpdateVendorCreditTool,
   quickbooksVoidCustomerPaymentTool,
   quickbooksVoidInvoiceTool,
 } from '@/tools/quickbooks'
@@ -31,8 +42,6 @@ import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer
 import { quickbooksCreateItemTool } from '@/tools/quickbooks/create_item'
 import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
 import { quickbooksGetCompanyInfoTool } from '@/tools/quickbooks/get_company_info'
-import { quickbooksListBillsTool } from '@/tools/quickbooks/list_bills'
-import { quickbooksListPurchaseOrdersTool } from '@/tools/quickbooks/list_purchase_orders'
 import { quickbooksReadMasterDataTool } from '@/tools/quickbooks/read_master_data'
 import type {
   QuickBooksCreateCustomerParams,
@@ -866,34 +875,43 @@ describe('QuickBooks item mutations', () => {
 
 describe('QuickBooks tool and block boundaries', () => {
   const tools = [
+    quickbooksCreateBillPaymentTool,
+    quickbooksCreateBillTool,
     quickbooksCreateCreditMemoTool,
     quickbooksCreateCustomerTool,
     quickbooksCreateCustomerPaymentTool,
     quickbooksCreateEstimateTool,
     quickbooksCreateItemTool,
     quickbooksCreateInvoiceTool,
+    quickbooksCreatePurchaseOrderTool,
+    quickbooksCreatePurchaseTool,
     quickbooksCreateRefundReceiptTool,
     quickbooksCreateSalesReceiptTool,
     quickbooksCreateVendorTool,
+    quickbooksCreateVendorCreditTool,
     quickbooksGetCompanyInfoTool,
-    quickbooksListBillsTool,
-    quickbooksListPurchaseOrdersTool,
     quickbooksReadMasterDataTool,
+    quickbooksReadPurchasingTransactionsTool,
     quickbooksReadSalesTransactionsTool,
+    quickbooksUpdateBillPaymentTool,
+    quickbooksUpdateBillTool,
     quickbooksUpdateCreditMemoTool,
     quickbooksUpdateCustomerTool,
     quickbooksUpdateCustomerPaymentTool,
     quickbooksUpdateEstimateTool,
     quickbooksUpdateItemTool,
     quickbooksUpdateInvoiceTool,
+    quickbooksUpdatePurchaseOrderTool,
+    quickbooksUpdatePurchaseTool,
     quickbooksUpdateRefundReceiptTool,
     quickbooksUpdateSalesReceiptTool,
     quickbooksUpdateVendorTool,
+    quickbooksUpdateVendorCreditTool,
     quickbooksVoidCustomerPaymentTool,
     quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly 25 bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 34 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
@@ -904,7 +922,7 @@ describe('QuickBooks tool and block boundaries', () => {
     }
   })
 
-  it('exposes the 25 compact operations and unique subblock IDs', () => {
+  it('exposes the 34 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
@@ -930,8 +948,20 @@ describe('QuickBooks tool and block boundaries', () => {
       { label: 'Update Credit Memo', id: 'quickbooks_update_credit_memo' },
       { label: 'Create Refund Receipt', id: 'quickbooks_create_refund_receipt' },
       { label: 'Update Refund Receipt', id: 'quickbooks_update_refund_receipt' },
-      { label: 'List Purchase Orders', id: 'quickbooks_list_purchase_orders' },
-      { label: 'List Bills', id: 'quickbooks_list_bills' },
+      {
+        label: 'Read Purchasing Transactions',
+        id: 'quickbooks_read_purchasing_transactions',
+      },
+      { label: 'Create Purchase Order', id: 'quickbooks_create_purchase_order' },
+      { label: 'Update Purchase Order', id: 'quickbooks_update_purchase_order' },
+      { label: 'Create Bill', id: 'quickbooks_create_bill' },
+      { label: 'Update Bill', id: 'quickbooks_update_bill' },
+      { label: 'Create Bill Payment', id: 'quickbooks_create_bill_payment' },
+      { label: 'Update Bill Payment', id: 'quickbooks_update_bill_payment' },
+      { label: 'Create Vendor Credit', id: 'quickbooks_create_vendor_credit' },
+      { label: 'Update Vendor Credit', id: 'quickbooks_update_vendor_credit' },
+      { label: 'Create Purchase or Expense', id: 'quickbooks_create_purchase' },
+      { label: 'Update Purchase or Expense', id: 'quickbooks_update_purchase' },
     ])
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -1066,16 +1096,16 @@ describe('QuickBooks tool and block boundaries', () => {
     ).toBe(false)
     expect(
       evaluateSubBlockCondition(subBlocks.startPosition.condition, {
-        operation: 'quickbooks_list_purchase_orders',
-        readMode: 'by_id',
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
       })
     ).toBe(true)
     expect(
       evaluateSubBlockCondition(subBlocks.maxResults.condition, {
-        operation: 'quickbooks_list_bills',
+        operation: 'quickbooks_read_purchasing_transactions',
         readMode: 'by_id',
       })
-    ).toBe(true)
+    ).toBe(false)
     expect(
       typeof subBlocks.startPosition.condition === 'function'
         ? subBlocks.startPosition.condition()
@@ -1085,8 +1115,7 @@ describe('QuickBooks tool and block boundaries', () => {
       value: [
         'quickbooks_read_master_data',
         'quickbooks_read_sales_transactions',
-        'quickbooks_list_purchase_orders',
-        'quickbooks_list_bills',
+        'quickbooks_read_purchasing_transactions',
       ],
     })
     expect(
@@ -1097,6 +1126,7 @@ describe('QuickBooks tool and block boundaries', () => {
       field: 'operation',
       value: [
         'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
         'quickbooks_update_estimate',
         'quickbooks_update_invoice',
         'quickbooks_update_sales_receipt',
@@ -1105,16 +1135,21 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_update_customer_payment',
         'quickbooks_void_invoice',
         'quickbooks_void_customer_payment',
+        'quickbooks_update_purchase_order',
+        'quickbooks_update_bill',
+        'quickbooks_update_bill_payment',
+        'quickbooks_update_vendor_credit',
+        'quickbooks_update_purchase',
       ],
     })
     expect(QuickBooksBlock.outputs.items.condition).toEqual({
       field: 'operation',
-      value: ['quickbooks_read_master_data', 'quickbooks_read_sales_transactions'],
+      value: [
+        'quickbooks_read_master_data',
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
+      ],
       and: { field: 'readMode', value: 'list' },
-      or: {
-        field: 'operation',
-        value: ['quickbooks_list_purchase_orders', 'quickbooks_list_bills'],
-      },
     })
     const listOutputCondition = QuickBooksBlock.outputs.items.condition!
     expect(
@@ -1131,8 +1166,8 @@ describe('QuickBooks tool and block boundaries', () => {
     ).toBe(true)
     expect(
       evaluateOutputCondition(listOutputCondition, {
-        operation: { value: 'quickbooks_list_bills' },
-        readMode: { value: 'by_id' },
+        operation: { value: 'quickbooks_read_purchasing_transactions' },
+        readMode: { value: 'list' },
       })
     ).toBe(true)
     expect(subBlocks.syncToken.condition).toEqual({
@@ -1149,6 +1184,11 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_update_customer_payment',
         'quickbooks_void_invoice',
         'quickbooks_void_customer_payment',
+        'quickbooks_update_purchase_order',
+        'quickbooks_update_bill',
+        'quickbooks_update_bill_payment',
+        'quickbooks_update_vendor_credit',
+        'quickbooks_update_purchase',
       ],
     })
     expect(subBlocks.itemType.condition).toEqual({
