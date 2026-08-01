@@ -124,7 +124,7 @@ Read a Managed Agent session: status, stop reason, token usage, metadata, and an
 | `sessionId` | string | The session that was read. |
 | `status` | string | Session status — 'idle', 'running', 'rescheduling', or 'terminated'. |
 | `stopReason` | string | Why the session last stopped, e.g. 'end_turn' or 'requires_action'. |
-| `requiresAction` | boolean | True when the session is waiting on a tool confirmation or custom tool result. |
+| `requiresAction` | boolean | True when the session is waiting on a tool confirmation or custom tool result. If this is true while pendingTools is empty, the session is blocked but the API named no blocking events — surface it rather than treating the session as done. |
 | `pendingTools` | json | Blocking tool calls — \[\{id, eventType, kind, name, input\}\]. Route by kind: 'confirmation' ids go to Respond To Tool Confirmation, 'custom_tool_result' ids go to Respond To Custom Tool. |
 | `metadata` | json | Session metadata. |
 | `title` | string | Session title. |

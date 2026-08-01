@@ -408,6 +408,10 @@ export async function resolvePendingToolGates(
       // cap would drop. Filtering instead bounds memory to the id count while
       // staying correct however the API orders its pages.
       filter: (event) => Boolean(event.id && wanted.has(event.id)),
+      // Every wanted id is found at most once, so once the count matches there
+      // is nothing left to look for. Without this the filtered total never
+      // reaches any cap and the walk runs to the end of the tool history.
+      stopWhen: (found) => found.length >= wanted.size,
     })
   } catch {
     // Enrichment is best-effort — fall through to bare ids below.
@@ -503,6 +507,13 @@ async function listPaginated<T>(
      * entries on a chronological endpoint.
      */
     filter?: (item: T) => boolean
+    /**
+     * Checked after each page against everything collected so far. Lets a
+     * filtered read stop as soon as it has what it came for — otherwise
+     * `maxItems` never trips (the filtered total stays small) and the walk runs
+     * to the end of the history for nothing.
+     */
+    stopWhen?: (collected: T[]) => boolean
   }
 ): Promise<T[]> {
   const collected: T[] = []
@@ -528,6 +539,7 @@ async function listPaginated<T>(
     const body = (await resp.json()) as AnthropicListPage<T>
     const items = Array.isArray(body.data) ? body.data : []
     collected.push(...(input.filter ? items.filter(input.filter) : items))
+    if (input.stopWhen?.(collected)) break
     // Paging continues on the RAW page, not the filtered result: a page whose
     // every item was filtered out is not the end of the list.
     if (!body.next_page || items.length === 0) break

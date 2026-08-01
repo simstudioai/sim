@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { resolvePendingToolGates, retrieveSession } from '@/lib/managed-agents/session-client'
 import {
@@ -13,6 +14,8 @@ import type {
   ManagedAgentPendingTool,
 } from '@/tools/managed_agent/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ManagedAgentGetSession')
 
 /** `stop_reason.type` meaning the session is parked awaiting a client response. */
 const REQUIRES_ACTION = 'requires_action'
@@ -79,6 +82,17 @@ export const managedAgentGetSessionTool: ToolConfig<
             })
           : []
 
+      // A blocked session that names no blocking events is an anomaly: it waits
+      // indefinitely, but nothing here can say for what. `requiresAction` stays
+      // true because that is the truth — reporting false would tell a workflow
+      // the session is fine while it is parked forever — so log it instead, so
+      // the dead end is visible rather than silent.
+      if (requiresAction && pendingTools.length === 0) {
+        logger.warn('Managed Agent session requires action but reported no blocking event ids', {
+          sessionId: target.sessionId,
+        })
+      }
+
       return {
         success: true,
         output: {
@@ -119,7 +133,8 @@ export const managedAgentGetSessionTool: ToolConfig<
     },
     requiresAction: {
       type: 'boolean',
-      description: 'True when the session is waiting on a tool confirmation or custom tool result.',
+      description:
+        'True when the session is waiting on a tool confirmation or custom tool result. If this is true while pendingTools is empty, the session is blocked but the API named no blocking events — surface it rather than treating the session as done.',
     },
     pendingTools: {
       type: 'json',

@@ -528,6 +528,28 @@ describe('resolvePendingToolGates', () => {
     expect(gates[0]?.name).toBe('target')
   })
 
+  it('stops paging as soon as every wanted id is found', async () => {
+    // The filter keeps `collected` tiny, so no cap can ever trip — without an
+    // explicit stop the walk runs to the end of the tool history for nothing.
+    let page = 0
+    const spy = vi.fn(async () => {
+      page += 1
+      return Response.json({
+        data: [{ id: page === 1 ? 'want' : `other${page}`, type: 'agent.tool_use', name: 'x' }],
+        next_page: `c${page}`, // never null: only the stop condition ends this
+      })
+    }) as unknown as typeof fetch
+    global.fetch = spy
+
+    const gates = await resolvePendingToolGates({
+      apiKey: 'sk-ant-fake',
+      sessionId: 'sesn_1',
+      eventIds: ['want'],
+    })
+    expect(gates).toHaveLength(1)
+    expect((spy as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1)
+  })
+
   it('short-circuits with no ids', async () => {
     const spy = vi.fn() as unknown as typeof fetch
     global.fetch = spy
