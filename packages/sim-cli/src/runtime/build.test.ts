@@ -13,12 +13,15 @@ import { buildGeneratedCommands } from './build.js'
  * catch that class of bug.
  */
 
-const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
+const { mockRequest, output } = vi.hoisted(() => ({
+  mockRequest: vi.fn(),
+  output: { format: 'json' },
+}))
 
 vi.mock('../context.js', () => ({
   clientFrom: () => ({
     client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
-    profile: { workspaceId: 'ws_local', output: 'json', name: 'default', apiKey: 'k' },
+    profile: { workspaceId: 'ws_local', output: output.format, name: 'default', apiKey: 'k' },
   }),
 }))
 
@@ -106,6 +109,59 @@ describe('commands parsed through commander', () => {
       /cannot be undone/
     )
     expect(mockRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('single-resource rendering', () => {
+  async function lines(argv: string[], data: unknown, format = 'json'): Promise<string[]> {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data })
+    const captured: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      captured.push(line)
+    })
+    output.format = format
+    try {
+      await program().parseAsync(['node', 'sim', ...argv])
+    } finally {
+      output.format = 'json'
+    }
+    return captured
+  }
+
+  it('unwraps the single-key envelope a resource is returned in', async () => {
+    // `createMcpServer` answers `{ data: { mcpServer: {...} } }`. Rendering that
+    // as-is found one key holding an object, filtered it out as non-scalar, and
+    // printed nothing at all — the server was created and the CLI said so
+    // nowhere. Same silent-empty class as the body-cursor bug below.
+    const printed = await lines(
+      [
+        'mcp-servers',
+        'create',
+        '--name',
+        'Deepwiki',
+        '--transport',
+        'streamable-http',
+        '--url',
+        'https://mcp.deepwiki.com/mcp',
+      ],
+      { mcpServer: { id: 'mcp-1', name: 'Deepwiki', enabled: true } },
+      'text'
+    )
+
+    expect(printed.join('\n')).toMatch(/mcp-1/)
+    expect(printed.join('\n')).toMatch(/Deepwiki/)
+  })
+
+  it('leaves a payload with sibling keys intact', async () => {
+    // `upsertTableRow` returns `{ row, operation }` — two real fields, not an
+    // envelope. Unwrapping there would drop whether it inserted or updated.
+    const printed = await lines(['tables', 'upsert', 'tbl_1', '--data', '{}'], {
+      row: { id: 'r1' },
+      operation: 'inserted',
+    })
+
+    expect(JSON.parse(printed[0])).toEqual({ row: { id: 'r1' }, operation: 'inserted' })
   })
 })
 

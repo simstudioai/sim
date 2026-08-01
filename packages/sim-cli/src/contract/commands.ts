@@ -145,6 +145,52 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'chunks', path: 'chunkCount' },
     ],
   },
+  // Without these the inferred fallback dumps every scalar field — 20 columns
+  // for an MCP server, including `hasOauthClientSecret`.
+  listMcpServers: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'transport' },
+      { header: 'url' },
+      { header: 'status', path: 'connectionStatus' },
+      { header: 'tools', path: 'toolCount' },
+      { header: 'enabled', format: 'bool' },
+    ],
+  },
+  listSkills: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'description' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listCustomTools: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'description' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listFolders: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'parent', path: 'parentId' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listCredentials: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'provider' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+
   listAuditLogs: {
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },

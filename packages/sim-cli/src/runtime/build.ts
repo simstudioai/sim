@@ -94,6 +94,25 @@ function inferColumns(rows: unknown[]): Column<unknown>[] {
   }))
 }
 
+/**
+ * Unwraps the single-key envelope several v2 responses put their resource in —
+ * `{ mcpServer }`, `{ knowledgeBase }`, `{ row }`, `{ document }`, `{ table }`.
+ *
+ * Without this the record renderer sees one key whose value is an object,
+ * filters it out as non-scalar, and prints nothing at all: `sim mcp-servers
+ * create` exited 0 having created the server and said nothing about it.
+ *
+ * Only a lone key is unwrapped. A payload with siblings (`{ row, operation }`
+ * from upsert) is a real multi-field result and is rendered as it stands.
+ */
+function unwrapResource(data: unknown): unknown {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data
+  const entries = Object.entries(data)
+  if (entries.length !== 1) return data
+  const [, value] = entries[0]
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : data
+}
+
 /** The operation's one-line help, taken from the OpenAPI summary at generation time. */
 function summaryFor(operation: V2OperationName): string | undefined {
   return (V2_OPERATIONS[operation] as { summary?: string }).summary
@@ -263,7 +282,7 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
       query: request.query,
       body: request.body,
     })
-    const data = result?.data ?? result
+    const data = unwrapResource(result?.data ?? result)
 
     if (Array.isArray(data)) {
       // Reached when a non-paginated operation answers with a collection.
