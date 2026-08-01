@@ -16,6 +16,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -133,11 +134,13 @@ export const POST = withRouteHandler(
             executionId,
           }
         )
-        const trustedExecutionState = trustedExecutionData.executionState
-        const trustedProvenance =
-          trustedExecutionState && typeof trustedExecutionState === 'object'
-            ? (trustedExecutionState as Record<string, unknown>).resolvedSecretTraceProvenance
+        const trustedExecutionState =
+          trustedExecutionData.executionState &&
+          typeof trustedExecutionData.executionState === 'object' &&
+          !Array.isArray(trustedExecutionData.executionState)
+            ? (trustedExecutionData.executionState as SerializableExecutionState)
             : undefined
+        const trustedProvenance = trustedExecutionState?.resolvedSecretTraceProvenance
         if (trustedProvenance === undefined) {
           resolvedSecretTraceRegistry.markIncomplete()
         } else {
@@ -168,6 +171,7 @@ export const POST = withRouteHandler(
             totalDurationMs: totalDuration || result.metadata?.duration || 0,
             error: { message },
             traceSpans,
+            executionState: trustedExecutionState,
           })
         } else {
           await loggingSession.safeComplete({
@@ -175,6 +179,7 @@ export const POST = withRouteHandler(
             totalDurationMs: totalDuration || result.metadata?.duration || 0,
             finalOutput: result.output || {},
             traceSpans,
+            executionState: trustedExecutionState,
           })
         }
 

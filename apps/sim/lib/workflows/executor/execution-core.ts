@@ -256,6 +256,7 @@ async function finalizeExecutionOutcome(params: {
           endedAt,
           totalDurationMs: totalDuration || 0,
           traceSpans: traceSpans || [],
+          executionState: result.executionState,
         })
         return
       }
@@ -266,6 +267,7 @@ async function finalizeExecutionOutcome(params: {
           totalDurationMs: totalDuration || 0,
           traceSpans: traceSpans || [],
           workflowInput,
+          executionState: result.executionState,
         })
         return
       }

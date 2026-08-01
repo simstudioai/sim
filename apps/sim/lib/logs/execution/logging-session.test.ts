@@ -151,6 +151,41 @@ describe('LoggingSession terminal provenance', () => {
       })
     )
   })
+
+  it.each(['cancellation', 'pause'] as const)(
+    'preserves raw execution state on %s finalization',
+    async (finalization) => {
+      const session = new LoggingSession('workflow-1', `execution-state-${finalization}`, 'manual')
+      session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+      const executionState = {
+        blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+        executedBlocks: ['function-1'],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: ['function-1'],
+      }
+
+      if (finalization === 'cancellation') {
+        await session.completeWithCancellation({ executionState })
+      } else {
+        await session.completeWithPause({ executionState })
+      }
+
+      expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionState: expect.objectContaining({
+            blockStates: executionState.blockStates,
+            resolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [],
+            },
+          }),
+        })
+      )
+    }
+  )
 })
 
 beforeEach(() => {
@@ -596,15 +631,25 @@ describe('LoggingSession completion retries', () => {
     completeWorkflowExecutionMock
       .mockRejectedValueOnce(new Error('primary persistence failed'))
       .mockResolvedValueOnce({})
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: secret } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+    }
 
     await session.safeComplete({
       finalOutput: { echoed: secret },
+      executionState,
     })
 
     expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         finalOutput: { echoed: secret },
         finalizationPath: 'fallback_completed',
+        executionState: expect.objectContaining({ blockStates: executionState.blockStates }),
       })
     )
   })
@@ -944,6 +989,14 @@ describe('LoggingSession completion retries', () => {
     completeWorkflowExecutionMock
       .mockRejectedValueOnce(new Error('pause finalize failed'))
       .mockResolvedValueOnce({})
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+    }
 
     await expect(
       session.safeCompleteWithPause({
@@ -951,11 +1004,18 @@ describe('LoggingSession completion retries', () => {
         totalDurationMs: 10,
         traceSpans: [],
         workflowInput: { hello: 'world' },
+        executionState,
       })
     ).resolves.toBeUndefined()
 
     expect(session.hasCompleted()).toBe(true)
     expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        finalizationPath: 'paused',
+        executionState: expect.objectContaining({ blockStates: executionState.blockStates }),
+      })
+    )
   })
 
   it('persists last started block independently from cost accumulation', async () => {

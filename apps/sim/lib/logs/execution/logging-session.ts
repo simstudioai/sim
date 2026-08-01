@@ -156,6 +156,7 @@ export interface SessionCancelledParams {
   endedAt?: string
   totalDurationMs?: number
   traceSpans?: TraceSpan[]
+  executionState?: SerializableExecutionState
 }
 
 export interface SessionPausedParams {
@@ -163,6 +164,7 @@ export interface SessionPausedParams {
   totalDurationMs?: number
   traceSpans?: TraceSpan[]
   workflowInput?: any
+  executionState?: SerializableExecutionState
 }
 
 export interface LoggingSessionOptions {
@@ -902,6 +904,7 @@ export class LoggingSession {
         costSummary,
         finalOutput: { cancelled: true },
         traceSpans,
+        executionState: params.executionState,
         finalizationPath: 'cancelled',
         status: 'cancelled',
       })
@@ -999,6 +1002,7 @@ export class LoggingSession {
         finalOutput: { paused: true },
         traceSpans,
         workflowInput,
+        executionState: params.executionState,
         finalizationPath: 'paused',
         status: 'pending',
       })
@@ -1197,6 +1201,7 @@ export class LoggingSession {
         isError: false,
         finalizationPath: 'fallback_completed',
         finalOutput: params.finalOutput || {},
+        executionState: params.executionState,
       })
     }
   }
@@ -1256,6 +1261,7 @@ export class LoggingSession {
         isError: false,
         finalizationPath: 'cancelled',
         finalOutput: { cancelled: true },
+        executionState: params?.executionState,
         status: 'cancelled',
       })
     }
@@ -1283,6 +1289,7 @@ export class LoggingSession {
         isError: false,
         finalizationPath: 'paused',
         finalOutput: { paused: true },
+        executionState: params?.executionState,
         status: 'pending',
       })
     }

@@ -312,15 +312,22 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
   })
 
   it('restores trusted Secrets provenance before projecting legacy completion traces', async () => {
+    const trustedExecutionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+      resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+    }
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         workflowId: OWNER_WORKFLOW_ID,
         workspaceId: 'workspace-1',
         executionData: {
           billingAttribution: storedBillingAttribution,
-          executionState: {
-            resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
-          },
+          executionState: trustedExecutionState,
         },
       },
     ])
@@ -342,6 +349,44 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
+    expect(mockSafeComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState: trustedExecutionState })
+    )
+  })
+
+  it('forwards trusted execution state through legacy error completion', async () => {
+    const trustedExecutionState = {
+      blockStates: { 'function-1': { output: { error: 'raw-secret-value' } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+      resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        workflowId: OWNER_WORKFLOW_ID,
+        workspaceId: 'workspace-1',
+        executionData: {
+          billingAttribution: storedBillingAttribution,
+          executionState: trustedExecutionState,
+        },
+      },
+    ])
+
+    const res = await POST(
+      makeRequest(OWNER_WORKFLOW_ID, {
+        executionId: 'trusted-error-execution-id',
+        result: { success: false, error: 'failed' },
+      }),
+      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockSafeCompleteWithError).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState: trustedExecutionState })
+    )
   })
 
   it('forces structural-only traces when trusted stored provenance is unavailable', async () => {

@@ -1242,9 +1242,19 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('completes the child session and disposes the cancellation bridge', async () => {
+      const executionState = {
+        blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+      }
+      mockExecutorExecute.mockResolvedValue({
+        success: true,
+        output: { data: 'ok' },
+        executionState,
+      })
+
       await handler.execute(customBlockContext(), customBlock(), {})
 
       expect(mockSafeComplete).toHaveBeenCalledTimes(1)
+      expect(mockSafeComplete).toHaveBeenCalledWith(expect.objectContaining({ executionState }))
       expect(mockSafeCompleteWithError).not.toHaveBeenCalled()
       expect(mockDispose).toHaveBeenCalledTimes(1)
     })
@@ -1252,15 +1262,22 @@ describe('WorkflowBlockHandler', () => {
     it('records a cancelled child through the cancellation path', async () => {
       // Production shape: the engine reports cancellation as `success: false`
       // plus `status: 'cancelled'` on the ExecutionResult (never on metadata).
+      const executionState = {
+        blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+      }
       mockExecutorExecute.mockResolvedValue({
         success: false,
         output: {},
         status: 'cancelled',
+        executionState,
       })
 
       await handler.execute(customBlockContext(), customBlock(), {}).catch(() => {})
 
       expect(mockSafeCompleteWithCancellation).toHaveBeenCalledTimes(1)
+      expect(mockSafeCompleteWithCancellation).toHaveBeenCalledWith(
+        expect.objectContaining({ executionState })
+      )
       expect(mockSafeComplete).not.toHaveBeenCalled()
       // Already finalized as cancelled — must not be re-completed as an error.
       expect(mockSafeCompleteWithError).not.toHaveBeenCalled()

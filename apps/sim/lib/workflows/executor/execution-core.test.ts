@@ -1032,12 +1032,16 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   })
 
   it('routes cancelled executions through safeCompleteWithCancellation', async () => {
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+    }
     executorExecuteMock.mockResolvedValue({
       success: false,
       status: 'cancelled',
       output: {},
       logs: [],
       metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      executionState,
     })
 
     const result = await executeWorkflowCore({
@@ -1052,6 +1056,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect.objectContaining({
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        executionState,
       })
     )
     expect(safeCompleteMock).not.toHaveBeenCalled()
@@ -1060,12 +1065,16 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   })
 
   it('routes paused executions through safeCompleteWithPause', async () => {
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+    }
     executorExecuteMock.mockResolvedValue({
       success: true,
       status: 'paused',
       output: {},
       logs: [],
       metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      executionState,
     })
 
     const result = await executeWorkflowCore({
@@ -1081,6 +1090,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
         workflowInput: { hello: 'world' },
+        executionState,
       })
     )
     expect(safeCompleteMock).not.toHaveBeenCalled()

@@ -805,7 +805,12 @@ export class WorkflowBlockHandler implements BlockHandler {
     // Cancellation lives on `ExecutionResult.status` — `ExecutionMetadata.status`
     // has no 'cancelled' member, so reading it there never matches.
     if (executionResult.status === 'cancelled') {
-      await session.safeCompleteWithCancellation({ endedAt, totalDurationMs, traceSpans })
+      await session.safeCompleteWithCancellation({
+        endedAt,
+        totalDurationMs,
+        traceSpans,
+        executionState: executionResult.executionState,
+      })
       return
     }
 
@@ -815,6 +820,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       finalOutput: executionResult.output ?? {},
       traceSpans,
       workflowInput,
+      executionState: executionResult.executionState,
     })
   }
 
