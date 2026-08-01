@@ -193,11 +193,20 @@ type McpContext = Extract<ChatContext, { kind: 'mcp' }>
 type FileSelectionContext = Extract<ChatContext, { kind: 'file_selection' }>
 type TableSelectionContext = Extract<ChatContext, { kind: 'table_selection' }>
 
-/** Order-sensitive equality for two optional id lists. */
+/**
+ * Set equality for two optional id lists.
+ *
+ * Deliberately order-insensitive: a table selection's row ids come from a Set
+ * whose iteration order follows click order, and the same rows picked in a
+ * different order — or via a cell range rather than the gutter — are the same
+ * selection. Comparing by index would call those distinct and add a duplicate
+ * ordinalized chip pointing at rows already referenced.
+ */
 function sameIds(a: string[] | undefined, b: string[] | undefined): boolean {
   if (a === b) return true
   if (!a || !b || a.length !== b.length) return false
-  return a.every((id, i) => id === b[i])
+  const inA = new Set(a)
+  return b.every((id) => inA.has(id))
 }
 
 /**

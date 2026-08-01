@@ -67,6 +67,14 @@ describe('prepareContextForInsert', () => {
     expect(prepareContextForInsert(other, [fileSelection()])).not.toBeNull()
   })
 
+  it('treats the same rows picked in a different order as one selection', () => {
+    // Row ids iterate in click order, so re-picking the same rows differently
+    // must no-op rather than add a second chip over rows already referenced.
+    const reordered = tableSelection({ rowIds: ['r3', 'r1', 'r2'] })
+
+    expect(prepareContextForInsert(reordered, [tableSelection()])).toBeNull()
+  })
+
   it('distinguishes a cell range from the whole rows it spans', () => {
     const range = tableSelection({ columnIds: ['c_name'] })
 
