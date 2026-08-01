@@ -14,7 +14,7 @@ import {
   deleteWorkspaceCustomTool,
   getWorkspaceCustomTool,
   getWorkspaceCustomToolByTitle,
-  upsertCustomTools,
+  updateWorkspaceCustomTool,
 } from '@/lib/workflows/custom-tools/operations'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2CustomTool, v2CustomToolWriteError } from '@/app/api/v2/custom-tools/utils'
@@ -114,21 +114,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       }
     }
 
-    await upsertCustomTools({
-      tools: [
-        {
-          id,
-          title: title ?? current.title,
-          schema: schema ?? current.schema,
-          code: code ?? current.code,
-        },
-      ],
+    const updated = await updateWorkspaceCustomTool({
       workspaceId,
-      userId,
-      requestId,
+      toolId: id,
+      title: title ?? current.title,
+      schema: schema ?? current.schema,
+      code: code ?? current.code,
     })
-
-    const updated = await getWorkspaceCustomTool({ workspaceId, toolId: id })
     if (!updated) return v2Error('NOT_FOUND', 'Custom tool not found')
 
     recordAudit({

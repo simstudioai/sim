@@ -14,14 +14,14 @@ const {
   mockResolveWorkspaceAccess,
   mockListWorkspaceMcpServers,
   mockGetWorkspaceMcpServer,
-  mockMcpServerIdExists,
+  mockGetMcpServerIdState,
   mockPerformCreateMcpServer,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockListWorkspaceMcpServers: vi.fn(),
   mockGetWorkspaceMcpServer: vi.fn(),
-  mockMcpServerIdExists: vi.fn(),
+  mockGetMcpServerIdState: vi.fn(),
   mockPerformCreateMcpServer: vi.fn(),
 }))
 
@@ -33,7 +33,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 vi.mock('@/lib/mcp/queries', () => ({
   listWorkspaceMcpServers: mockListWorkspaceMcpServers,
   getWorkspaceMcpServer: mockGetWorkspaceMcpServer,
-  mcpServerIdExists: mockMcpServerIdExists,
+  getMcpServerIdState: mockGetMcpServerIdState,
 }))
 
 vi.mock('@/lib/mcp/orchestration', () => ({
@@ -204,7 +204,7 @@ describe('POST /api/v2/mcp-servers', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockMcpServerIdExists.mockResolvedValue(false)
+    mockGetMcpServerIdState.mockResolvedValue(null)
     mockPerformCreateMcpServer.mockResolvedValue({
       success: true,
       serverId: 'mcp-abc12345',
@@ -269,7 +269,7 @@ describe('POST /api/v2/mcp-servers', () => {
   })
 
   it('409s on a duplicate URL without letting the lib upsert', async () => {
-    mockMcpServerIdExists.mockResolvedValue(true)
+    mockGetMcpServerIdState.mockResolvedValue({ deleted: false })
 
     const res = await callCreate(VALID_BODY)
 
@@ -289,6 +289,20 @@ describe('POST /api/v2/mcp-servers', () => {
 
     expect(res.status).toBe(409)
     expect((await res.json()).error.code).toBe('CONFLICT')
+  })
+
+  it('revives a soft-deleted URL instead of stranding it behind a 409', async () => {
+    mockGetMcpServerIdState.mockResolvedValue({ deleted: true })
+    mockPerformCreateMcpServer.mockResolvedValue({
+      success: true,
+      serverId: 'mcp-abc12345',
+      updated: true,
+    })
+
+    const res = await callCreate(VALID_BODY)
+
+    expect(res.status).toBe(201)
+    expect(mockPerformCreateMcpServer).toHaveBeenCalled()
   })
 
   it('creates the server and returns 201 with the public shape', async () => {

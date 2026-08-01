@@ -14,14 +14,14 @@ const {
   mockGetWorkspaceCustomTool,
   mockGetWorkspaceCustomToolByTitle,
   mockDeleteWorkspaceCustomTool,
-  mockUpsertCustomTools,
+  mockUpdateWorkspaceCustomTool,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockGetWorkspaceCustomTool: vi.fn(),
   mockGetWorkspaceCustomToolByTitle: vi.fn(),
   mockDeleteWorkspaceCustomTool: vi.fn(),
-  mockUpsertCustomTools: vi.fn(),
+  mockUpdateWorkspaceCustomTool: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -33,7 +33,7 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   getWorkspaceCustomTool: mockGetWorkspaceCustomTool,
   getWorkspaceCustomToolByTitle: mockGetWorkspaceCustomToolByTitle,
   deleteWorkspaceCustomTool: mockDeleteWorkspaceCustomTool,
-  upsertCustomTools: mockUpsertCustomTools,
+  updateWorkspaceCustomTool: mockUpdateWorkspaceCustomTool,
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
@@ -175,7 +175,7 @@ describe('PATCH /api/v2/custom-tools/[id]', () => {
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceCustomTool.mockResolvedValue(buildTool())
     mockGetWorkspaceCustomToolByTitle.mockResolvedValue(null)
-    mockUpsertCustomTools.mockResolvedValue([buildTool()])
+    mockUpdateWorkspaceCustomTool.mockResolvedValue(buildTool())
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -186,20 +186,20 @@ describe('PATCH /api/v2/custom-tools/[id]', () => {
     const res = await callPatch({ workspaceId: 'workspace-1', code: 'return 1' })
 
     expect(res.status).toBe(404)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCustomTool).not.toHaveBeenCalled()
   })
 
   it('400s when no field to change is supplied', async () => {
     const res = await callPatch({ workspaceId: 'workspace-1' })
     expect(res.status).toBe(400)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCustomTool).not.toHaveBeenCalled()
   })
 
   it('surfaces an access-denied failure in the v2 error envelope', async () => {
     mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
     const res = await callPatch({ workspaceId: 'workspace-1', code: 'return 1' })
     expect(res.status).toBe(403)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCustomTool).not.toHaveBeenCalled()
   })
 
   it('returns the rate-limit response when denied', async () => {
@@ -213,7 +213,7 @@ describe('PATCH /api/v2/custom-tools/[id]', () => {
     mockGetWorkspaceCustomTool.mockResolvedValue(null)
     const res = await callPatch({ workspaceId: 'workspace-1', code: 'return 1' })
     expect(res.status).toBe(404)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCustomTool).not.toHaveBeenCalled()
   })
 
   it('409s when renaming onto an existing title', async () => {
@@ -223,27 +223,29 @@ describe('PATCH /api/v2/custom-tools/[id]', () => {
 
     expect(res.status).toBe(409)
     expect((await res.json()).error.code).toBe('CONFLICT')
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCustomTool).not.toHaveBeenCalled()
   })
 
   it('merges the partial body against the stored tool', async () => {
     const res = await callPatch({ workspaceId: 'workspace-1', code: 'return 2' })
 
     expect(res.status).toBe(200)
-    expect(mockUpsertCustomTools).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        tools: [
-          {
-            id: 'tool_abc123',
-            title: 'lookup_order',
-            schema: TOOL_SCHEMA,
-            code: 'return 2',
-          },
-        ],
-      })
-    )
+    expect(mockUpdateWorkspaceCustomTool).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      toolId: 'tool_abc123',
+      title: 'lookup_order',
+      schema: TOOL_SCHEMA,
+      code: 'return 2',
+    })
+  })
+
+  it('404s rather than orphaning a tool deleted between the read and the write', async () => {
+    mockUpdateWorkspaceCustomTool.mockResolvedValue(null)
+
+    const res = await callPatch({ workspaceId: 'workspace-1', code: 'return 2' })
+
+    expect(res.status).toBe(404)
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
   })
 })
 

@@ -118,6 +118,22 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     const actor = await getCredentialActorContext(id, userId)
     if (!actor.member && !actor.isAdmin) return v2Error('NOT_FOUND', 'Credential not found')
 
+    /**
+     * An env credential's display name IS its `envKey` — the lib only applies
+     * `displayName` to `oauth` and `service_account`, so accepting it here would
+     * either drop the rename silently (when sent alongside `description`) or
+     * fail with an unrelated environment-editor message (when sent alone).
+     */
+    if (
+      changes.displayName !== undefined &&
+      (existing.type === 'env_workspace' || existing.type === 'env_personal')
+    ) {
+      return v2Error(
+        'BAD_REQUEST',
+        'displayName cannot be set on an environment credential — its name is its envKey. Delete it and create one under the new key.'
+      )
+    }
+
     const result = await performUpdateCredential({ ...changes, credentialId: id, userId, request })
 
     if (!result.success) {

@@ -10,9 +10,9 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performCreateMcpServer } from '@/lib/mcp/orchestration'
 import {
+  getMcpServerIdState,
   getWorkspaceMcpServer,
   listWorkspaceMcpServers,
-  mcpServerIdExists,
 } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
@@ -106,14 +106,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * same URL silently overwrites the first. The internal surface and the
      * copilot rely on that; a public create must not, so the collision is
      * detected here, before the lib is given a chance to clobber the row.
+     *
+     * Only a *live* row is a conflict. A soft-deleted one is revived by the lib
+     * rather than inserted alongside, and reporting it as a duplicate would
+     * strand that URL for good: the detail routes resolve live rows only, so it
+     * could be neither fetched, patched, nor re-created.
      */
     const serverId = generateMcpServerId(workspaceId, body.url)
-    if (await mcpServerIdExists({ workspaceId, serverId })) {
+    const idState = await getMcpServerIdState({ workspaceId, serverId })
+    if (idState && !idState.deleted) {
       return v2Error(
         'CONFLICT',
         'An MCP server with this URL already exists in this workspace. Update it with PATCH /api/v2/mcp-servers/{id}.'
       )
     }
+    const revivingSoftDeleted = idState?.deleted === true
 
     const result = await performCreateMcpServer({
       workspaceId,
@@ -138,8 +145,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return v2McpOrchestrationError(result.errorCode, result.error ?? 'Failed to register server')
     }
 
-    // A concurrent create won the id race and the lib upserted onto it.
-    if (result.updated) {
+    /**
+     * `updated` means the lib wrote onto an existing row. Reviving the
+     * soft-deleted row we already saw is the intended outcome; otherwise a
+     * concurrent create won the id race between the check above and the write.
+     */
+    if (result.updated && !revivingSoftDeleted) {
       return v2Error('CONFLICT', 'An MCP server with this URL already exists in this workspace.')
     }
 

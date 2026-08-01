@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import type { z } from 'zod'
 import {
@@ -151,9 +151,21 @@ async function resolveEditableSkill(params: {
 /**
  * `upsertSkills` reports name collisions and vanished ids as thrown Errors.
  * Classify them rather than letting every caller re-match the message.
+ *
+ * The `23505` arm covers the race its in-transaction name `SELECT` cannot: two
+ * concurrent creates (or renames) both pass that check, and the loser is rejected
+ * by `skill_workspace_name_unique` as a raw Postgres error whose message matches
+ * nothing here — which would otherwise surface as a 500 for what is a conflict.
  */
 function classifyUpsertError(error: unknown): PerformSkillResult {
   const message = getErrorMessage(error, 'Failed to save skill')
+  if (getPostgresErrorCode(error) === '23505') {
+    return {
+      success: false,
+      error: 'That skill name is unavailable in this workspace',
+      errorCode: 'conflict',
+    }
+  }
   if (message.includes('is unavailable')) {
     return { success: false, error: message, errorCode: 'conflict' }
   }

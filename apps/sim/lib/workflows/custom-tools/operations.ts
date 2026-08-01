@@ -168,6 +168,35 @@ export async function getWorkspaceCustomToolByTitle(params: {
   return row ?? null
 }
 
+/**
+ * Updates a workspace tool in place, returning the updated row or null when the
+ * id no longer resolves in that workspace.
+ *
+ * Deliberately not `upsertCustomTools`: that treats an unresolvable id as a
+ * create and inserts under a *new* id, so a tool deleted concurrently with an
+ * edit would be silently re-created as an orphan under a different id while the
+ * caller's follow-up read of the original id 404s.
+ */
+export async function updateWorkspaceCustomTool(params: {
+  workspaceId: string
+  toolId: string
+  title: string
+  schema: unknown
+  code: string
+}) {
+  const [row] = await db
+    .update(customTools)
+    .set({
+      title: params.title,
+      schema: params.schema,
+      code: params.code,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, params.workspaceId)))
+    .returning()
+  return row ?? null
+}
+
 export async function deleteWorkspaceCustomTool(params: {
   workspaceId: string
   toolId: string

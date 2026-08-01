@@ -41,19 +41,23 @@ export async function getWorkspaceMcpServer(params: {
 }
 
 /**
- * Whether a row already occupies the deterministic id derived from a workspace
- * and URL — soft-deleted rows included, because the create path revives rather
- * than inserts alongside them. Lets a caller reject a duplicate registration
- * before the upsert in `performCreateMcpServer` overwrites the existing row.
+ * The state of the row occupying the deterministic id derived from a workspace
+ * and URL, or null when the id is free.
+ *
+ * The soft-deleted case has to be distinguished rather than merged into "taken":
+ * `performCreateMcpServer` revives such a row instead of inserting alongside it,
+ * so reporting it as a duplicate would make a soft-deleted URL permanently
+ * unusable — it cannot be fetched or patched either, since those resolve live
+ * rows only.
  */
-export async function mcpServerIdExists(params: {
+export async function getMcpServerIdState(params: {
   workspaceId: string
   serverId: string
-}): Promise<boolean> {
+}): Promise<{ deleted: boolean } | null> {
   const [row] = await db
-    .select({ id: mcpServers.id })
+    .select({ deletedAt: mcpServers.deletedAt })
     .from(mcpServers)
     .where(and(eq(mcpServers.id, params.serverId), eq(mcpServers.workspaceId, params.workspaceId)))
     .limit(1)
-  return Boolean(row)
+  return row ? { deleted: row.deletedAt !== null } : null
 }

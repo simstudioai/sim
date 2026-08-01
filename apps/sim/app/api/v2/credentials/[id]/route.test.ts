@@ -276,6 +276,25 @@ describe('PATCH /api/v2/credentials/[id]', () => {
     expect((await res.json()).error.code).toBe('SERVICE_UNAVAILABLE')
   })
 
+  it('rejects a displayName rename on an env credential instead of dropping it', async () => {
+    mockGetWorkspaceCredential.mockResolvedValue(
+      buildRow({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', displayName: 'STRIPE_API_KEY' })
+    )
+    const res = await callPatch({ workspaceId: WORKSPACE_ID, displayName: 'Renamed' })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toContain('envKey')
+    expect(mockPerformUpdateCredential).not.toHaveBeenCalled()
+  })
+
+  it('still allows a description change on an env credential', async () => {
+    mockGetWorkspaceCredential.mockResolvedValue(buildRow({ type: 'env_workspace' }))
+    const res = await callPatch({ workspaceId: WORKSPACE_ID, description: 'note' })
+
+    expect(res.status).toBe(200)
+    expect(mockPerformUpdateCredential).toHaveBeenCalled()
+  })
+
   it('rotates a secret without echoing it back', async () => {
     const res = await callPatch({ workspaceId: WORKSPACE_ID, apiToken: 'brand-new-token' })
     const body = await res.json()
