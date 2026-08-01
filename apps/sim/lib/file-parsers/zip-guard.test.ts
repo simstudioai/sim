@@ -30,6 +30,47 @@ async function buildZip(
   })
 }
 
+const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
+const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
+
+/**
+ * Rewrite every declared uncompressed size — in both the central directory and
+ * the local file headers — so the archive under-reports how much it expands to.
+ * This is the bypass a declared-size-only check cannot see. Zero-length records
+ * (JSZip emits a stored directory entry per folder) are left alone so the
+ * archive stays well-formed apart from the lie under test.
+ */
+function underDeclareSizes(source: Buffer, declared: number): Buffer {
+  const buffer = Buffer.from(source)
+  for (let offset = 0; offset + 30 <= buffer.length; offset++) {
+    const signature = buffer.readUInt32LE(offset)
+    if (signature === CENTRAL_DIRECTORY_HEADER_SIGNATURE) {
+      if (buffer.readUInt32LE(offset + 24) !== 0) {
+        buffer.writeUInt32LE(declared, offset + 24)
+      }
+    } else if (signature === LOCAL_FILE_HEADER_SIGNATURE) {
+      if (buffer.readUInt32LE(offset + 22) !== 0) {
+        buffer.writeUInt32LE(declared, offset + 22)
+      }
+    }
+  }
+  return buffer
+}
+
+/** Overwrite the compression method on every non-empty central-directory record. */
+function setCompressionMethod(source: Buffer, method: number): Buffer {
+  const buffer = Buffer.from(source)
+  for (let offset = 0; offset + 46 <= buffer.length; offset++) {
+    if (
+      buffer.readUInt32LE(offset) === CENTRAL_DIRECTORY_HEADER_SIGNATURE &&
+      buffer.readUInt32LE(offset + 24) !== 0
+    ) {
+      buffer.writeUInt16LE(method, offset + 10)
+    }
+  }
+  return buffer
+}
+
 describe('assertOoxmlArchiveWithinLimits', () => {
   it('accepts a well-formed archive within limits', async () => {
     const buffer = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
@@ -106,6 +147,53 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     decoy.writeUInt32LE(0x06054b50, 0)
     const tampered = Buffer.concat([realZip, decoy])
     expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ZipBombError)
+  })
+
+  it('rejects an archive that under-declares its uncompressed size', async () => {
+    // The declared sizes put this archive far under both limits, so only
+    // inflating it reveals that it actually expands ~200x further.
+    const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    const lying = underDeclareSizes(honest, 1000)
+
+    expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(
+      /inflates beyond the 1000 bytes it declares/
+    )
+  })
+
+  it('still accepts the same archive when its declared sizes are honest', async () => {
+    const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    expect(() => assertOoxmlArchiveWithinLimits(honest, HIGH_LIMITS)).not.toThrow()
+  })
+
+  it('rejects a stored entry whose declared size does not match its payload', async () => {
+    const zip = new JSZip()
+    zip.file('document.xml', 'A'.repeat(50_000))
+    const stored = (await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'STORE',
+    })) as Buffer
+
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(underDeclareSizes(stored, 10), HIGH_LIMITS)
+    ).toThrow(/stored entry declares 10 bytes but holds 50000/)
+  })
+
+  it('rejects an entry using a compression method the parsers cannot read', async () => {
+    const buffer = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(setCompressionMethod(buffer, 12), HIGH_LIMITS)
+    ).toThrow(/unsupported compression method 12/)
+  })
+
+  it('accepts a multi-entry archive whose entries all inflate to what they declare', async () => {
+    const buffer = await buildZip({
+      '[Content_Types].xml': '<?xml version="1.0"?><Types/>',
+      '_rels/.rels': '<?xml version="1.0"?><Relationships/>',
+      'word/document.xml': `<w:document>${'text '.repeat(5000)}</w:document>`,
+      'word/styles.xml': `<w:styles>${'style '.repeat(2000)}</w:styles>`,
+    })
+    expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).not.toThrow()
   })
 
   it('no-ops for buffers that are not ZIP archives', () => {

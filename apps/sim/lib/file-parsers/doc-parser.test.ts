@@ -64,6 +64,32 @@ describe('DocParser.parseBuffer', () => {
     expect(mockExtractRawText).not.toHaveBeenCalled()
   })
 
+  it('rejects a .doc that under-declares its uncompressed size', async () => {
+    // Declared sizes alone put this under every limit; officeparser and mammoth
+    // only notice the mismatch after inflating the entry in full, so the guard
+    // has to catch it before either library sees the buffer.
+    const zip = new JSZip()
+    zip.file('word/document.xml', 'A'.repeat(4 * 1024 * 1024))
+    const honest = (await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+    })) as Buffer
+
+    const lying = Buffer.from(honest)
+    for (let offset = 0; offset + 30 <= lying.length; offset++) {
+      const signature = lying.readUInt32LE(offset)
+      if (signature === CENTRAL_DIRECTORY_HEADER_SIGNATURE) {
+        lying.writeUInt32LE(1000, offset + 24)
+      } else if (signature === 0x04034b50) {
+        lying.writeUInt32LE(1000, offset + 22)
+      }
+    }
+
+    await expect(new DocParser().parseBuffer(lying)).rejects.toThrow(/do not match declared sizes/)
+    expect(mockParseOfficeAsync).not.toHaveBeenCalled()
+    expect(mockExtractRawText).not.toHaveBeenCalled()
+  })
+
   it('rejects a ZIP-shaped .doc whose central directory cannot be parsed', async () => {
     const buffer = Buffer.alloc(64)
     buffer.writeUInt32LE(0x04034b50, 0)
