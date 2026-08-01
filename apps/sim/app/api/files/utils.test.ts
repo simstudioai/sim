@@ -173,6 +173,26 @@ describe('extractFilename', () => {
         expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
+      it('defaults to a PRIVATE cache so access-verified content is never shared-cached', () => {
+        const response = createFileResponse({
+          buffer: Buffer.from('fake-image-data'),
+          contentType: 'image/png',
+          filename: 'safe-image.png',
+        })
+        // No explicit cacheControl → must NOT be `public` (a shared cache/CDN could re-serve authed bytes).
+        expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
+      })
+
+      it('honors an explicit cacheControl (e.g. public assets opt in)', () => {
+        const response = createFileResponse({
+          buffer: Buffer.from('fake-image-data'),
+          contentType: 'image/png',
+          filename: 'avatar.png',
+          cacheControl: 'public, max-age=31536000',
+        })
+        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000')
+      })
+
       it('should serve PDFs inline safely', () => {
         const response = createFileResponse({
           buffer: Buffer.from('fake-pdf-data'),

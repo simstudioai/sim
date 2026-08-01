@@ -47,7 +47,10 @@ export const GET = withRouteHandler(
         throw new FileNotFoundError('Not found')
       }
 
-      return await serveInlineImage(image, { sniff: false })
+      // A `key=` embed addresses a content-addressed, immutable storage key → cache it hard (privately)
+      // so re-opening a doc doesn't re-download every embedded image. A `fileId=` embed can point at new
+      // bytes after a re-upload, so it must keep revalidating.
+      return await serveInlineImage(image, { sniff: false, immutable: 'key' in ref })
     } catch (error) {
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)

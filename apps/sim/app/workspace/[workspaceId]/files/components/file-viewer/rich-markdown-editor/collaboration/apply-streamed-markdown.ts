@@ -23,6 +23,17 @@ export const AGENT_STREAM_ORIGIN = Symbol('agent-stream')
 export interface AgentStreamSession {
   shadow: Y.Doc
   fragment: Y.XmlFragment
+  /**
+   * The fragment↔PM binding metadata (`mapping`/`isOMark`) `updateYFragment` diffs against. Built ONCE
+   * from the seeded fragment on the first frame, then maintained IN PLACE by `updateYFragment` on every
+   * subsequent frame — the same persistent structure y-tiptap's own `ProsemirrorBinding` keeps for a
+   * doc's whole life. Caching it avoids an O(doc) `initProseMirrorDoc` tree rebuild per streamed frame.
+   * Safe ONLY because the shadow receives the agent's OWN reconciles and nothing else (never peer
+   * updates), so the fragment never changes outside `updateYFragment`; it is torn down with the session
+   * on leadership loss, so it can't outlive its fragment. A future change that ever applies an external
+   * update to `shadow` MUST reset this to `null`.
+   */
+  meta: ReturnType<typeof initProseMirrorDoc>['meta'] | null
 }
 
 /**
@@ -34,7 +45,7 @@ export function beginAgentStream(editor: Editor): AgentStreamSession | null {
   if (!binding) return null
   const shadow = new Y.Doc()
   Y.applyUpdate(shadow, Y.encodeStateAsUpdate(binding.doc))
-  return { shadow, fragment: shadow.getXmlFragment(COLLAB_DOC_FIELD) }
+  return { shadow, fragment: shadow.getXmlFragment(COLLAB_DOC_FIELD), meta: null }
 }
 
 /**
@@ -60,10 +71,10 @@ export function applyAgentStreamFrame(
   session.shadow.on('update', capture)
   try {
     session.shadow.transact(() => {
-      // `updateYFragment` diffs against the fragment's CURRENT content, so it needs the fragment↔PM
-      // binding metadata; `initProseMirrorDoc` reconstructs it from the fragment's present state.
-      const { meta } = initProseMirrorDoc(session.fragment, editor.schema)
-      updateYFragment(session.shadow, session.fragment, target, meta)
+      // Build the binding metadata once, then reuse it; updateYFragment maintains it in place. See
+      // AgentStreamSession.meta for why per-frame reuse is safe (and why a rebuild would be wasteful).
+      session.meta ??= initProseMirrorDoc(session.fragment, editor.schema).meta
+      updateYFragment(session.shadow, session.fragment, target, session.meta)
     }, AGENT_STREAM_ORIGIN)
   } finally {
     session.shadow.off('update', capture)

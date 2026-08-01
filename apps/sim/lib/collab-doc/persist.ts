@@ -17,14 +17,14 @@ const logger = createLogger('FileDocPersist')
  *   CONTENT version (`content_updated_at`, epoch ms) the relay records as what its live doc is synced to.
  * - `missing` — the file is gone (deleted); nothing to write.
  * - `conflict` — the file changed out-of-band since the relay's live doc last synced, so writing the
- *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written. `version` is the
- *   current durable version the relay adopts as its new If-Match to re-persist the current live stream
- *   (which already holds the out-of-band change via the write chokepoint).
+ *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written; the relay leaves the
+ *   durable content authoritative and does not advance its synced version (a later flush reconciles once
+ *   the chokepoint merge lands). No `version` is returned — the relay never reads one on this path.
  */
 export type PersistFileDocResult =
   | { status: 'persisted'; version: number }
   | { status: 'missing' }
-  | { status: 'conflict'; version: number }
+  | { status: 'conflict' }
   | { status: 'deferred' }
 
 /**
@@ -113,22 +113,13 @@ export async function persistFileDoc(
     }
   } catch (error) {
     if (!(error instanceof ContentVersionConflictError)) throw error
-    // Out-of-band content change since the live doc last synced — DON'T clobber. Return the current
-    // durable version so the relay adopts it as its new If-Match and re-persists the current live stream
-    // (which already holds the out-of-band change, merged in via the write chokepoint). No markdown body
-    // is returned: the relay never projects the durable body back over the live doc (that would be a
-    // destructive "make it match" that could move the doc backward and wipe newer edits).
-    const current = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
-    if (!current) return { status: 'missing' }
+    // Out-of-band content change since the live doc last synced — DON'T clobber. The relay leaves the
+    // durable content authoritative and does NOT re-persist or advance its synced version here (a later
+    // flush reconciles once the chokepoint merge lands), so it reads nothing off this result beyond the
+    // `conflict` status — no durable version re-read is needed.
     logger.warn(
       `Persist conflict for file ${fileId}; durable content changed out-of-band since sync`
     )
-    return {
-      status: 'conflict',
-      // The CONTENT version, not `updatedAt`: the relay adopts this as its If-Match. If a metadata write
-      // bumped `updatedAt` past `contentUpdatedAt`, returning `updatedAt` would make the re-persist's CAS
-      // (which checks `contentUpdatedAt`) never match → perpetual conflict.
-      version: (current.contentUpdatedAt ?? current.updatedAt).getTime(),
-    }
+    return { status: 'conflict' }
   }
 }
