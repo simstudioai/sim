@@ -6,7 +6,10 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
-import { truncateSelectionText } from '@/lib/copilot/chat/selection-context'
+import {
+  MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  truncateSelectionText,
+} from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
@@ -933,6 +936,13 @@ async function resolveFileSelectionResource(
  * is present the projection is narrowed to that cell range, otherwise every
  * column is included.
  */
+/** Renders one cell for a markdown table row, escaping the delimiters. */
+function renderTableCell(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const cell = typeof value === 'string' ? value : JSON.stringify(value)
+  return cell.replace(/\|/g, '\\|').replace(/\n/g, ' ')
+}
+
 async function resolveTableSelectionResource(
   tableId: string,
   workspaceId: string,
@@ -960,22 +970,24 @@ async function resolveTableSelectionResource(
 
   const header = `| ${columns.map((c) => c.name).join(' | ')} |`
   const divider = `| ${columns.map(() => '---').join(' | ')} |`
-  const body = rows
-    .map((row) => {
-      const cells = columns.map((col) => {
-        const value = row.data[getColumnId(col)]
-        if (value === null || value === undefined) return ''
-        const cell = typeof value === 'string' ? value : JSON.stringify(value)
-        return cell.replace(/\|/g, '\\|').replace(/\n/g, ' ')
-      })
-      return `| ${cells.join(' | ')} |`
-    })
-    .join('\n')
 
-  const scope = columnIds && columnIds.length > 0 ? 'cell range' : 'rows'
-  const content = `Selected ${scope} from table "${table.name}" (${rows.length} ${
-    rows.length === 1 ? 'row' : 'rows'
-  }):\n\n${header}\n${divider}\n${body}`
+  // Spend the character budget row by row: the row cap alone doesn't bound the
+  // prompt cost. The first row is always emitted, so a single oversized row
+  // still yields a table rather than an empty one.
+  const lines: string[] = []
+  let remaining = MAX_TABLE_SELECTION_CONTENT_LENGTH - header.length - divider.length
+  for (const row of rows) {
+    const line = `| ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
+    if (lines.length > 0 && line.length > remaining) break
+    lines.push(line)
+    remaining -= line.length + 1
+  }
+
+  const omitted = rows.length - lines.length
+  const shown = `${lines.length} ${lines.length === 1 ? 'row' : 'rows'}`
+  const scope = hasColumnScope ? 'cell range' : 'rows'
+  const size = omitted > 0 ? `${shown} of ${rows.length}, ${omitted} omitted for length` : shown
+  const content = `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n${lines.join('\n')}`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',

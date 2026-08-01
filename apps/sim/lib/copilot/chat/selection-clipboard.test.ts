@@ -23,6 +23,7 @@ function fakeClipboard(initial: Record<string, string> = {}) {
 const fileSelection: ChatContext = {
   kind: 'file_selection',
   fileId: 'wf_1',
+  fileName: 'notes.md',
   label: 'notes.md:2-4',
   text: 'the exact passage',
   startLine: 2,
@@ -32,6 +33,7 @@ const fileSelection: ChatContext = {
 const tableSelection: ChatContext = {
   kind: 'table_selection',
   tableId: 'tbl_1',
+  tableName: 'Sales',
   label: 'Sales (2 rows)',
   rowIds: ['r1', 'r2'],
 }
@@ -68,7 +70,24 @@ describe('selection clipboard codec', () => {
 
   it('rejects a file selection missing its text', () => {
     const dt = fakeClipboard({
-      [SIM_SELECTION_MIME]: JSON.stringify({ kind: 'file_selection', fileId: 'wf_1', label: 'x' }),
+      [SIM_SELECTION_MIME]: JSON.stringify({
+        kind: 'file_selection',
+        fileId: 'wf_1',
+        fileName: 'notes.md',
+        label: 'x',
+      }),
+    })
+    expect(readSelectionContextFromClipboard(dt)).toBeNull()
+  })
+
+  it('rejects a selection missing the resource name the chip renders from', () => {
+    const dt = fakeClipboard({
+      [SIM_SELECTION_MIME]: JSON.stringify({
+        kind: 'file_selection',
+        fileId: 'wf_1',
+        label: 'x',
+        text: 'passage',
+      }),
     })
     expect(readSelectionContextFromClipboard(dt)).toBeNull()
   })
@@ -78,6 +97,7 @@ describe('selection clipboard codec', () => {
       [SIM_SELECTION_MIME]: JSON.stringify({
         kind: 'table_selection',
         tableId: 'tbl_1',
+        tableName: 'Sales',
         label: 'x',
         rowIds: [],
       }),

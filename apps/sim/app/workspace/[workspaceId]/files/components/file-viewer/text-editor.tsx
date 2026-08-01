@@ -7,7 +7,6 @@ import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import {
   buildFileSelectionLabel,
-  selectionKey,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -395,7 +394,8 @@ export const TextEditor = memo(function TextEditor({
     return {
       kind: 'file_selection',
       fileId: file.id,
-      label: buildFileSelectionLabel(file.name, startLine, endLine, selectionKey([text])),
+      fileName: file.name,
+      label: buildFileSelectionLabel(file.name, startLine, endLine),
       text: truncateSelectionText(text),
       startLine,
       endLine,

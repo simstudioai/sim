@@ -12,7 +12,6 @@ import {
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { fileNameFromSelectionLabel } from '@/lib/copilot/chat/selection-context'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -90,9 +89,9 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   file_selection: {
     label: 'File selection',
     renderIcon: ({ context, className }) => {
-      // Strip the `:line` suffix so `getDocumentIcon` reads the real extension
-      // (e.g. `md`, not `md:12-40`) and shows the correct file glyph.
-      const FileDocIcon = getDocumentIcon('', fileNameFromSelectionLabel(context.label))
+      // The label carries a `:line` suffix, so read the extension off the file
+      // name the context carries — `getDocumentIcon` needs `md`, not `md:12-40`.
+      const FileDocIcon = getDocumentIcon('', context.fileName ?? context.label)
       return <FileDocIcon className={className} />
     },
   },

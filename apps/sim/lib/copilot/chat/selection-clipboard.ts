@@ -41,12 +41,18 @@ export function readSelectionContextFromClipboard(
     if (!parsed || typeof parsed.label !== 'string') return null
     // Require each kind's resolving field so a chip never pastes only to
     // resolve to nothing server-side.
-    if (parsed.kind === 'file_selection' && typeof parsed.text === 'string' && parsed.fileId) {
+    if (
+      parsed.kind === 'file_selection' &&
+      typeof parsed.text === 'string' &&
+      typeof parsed.fileName === 'string' &&
+      parsed.fileId
+    ) {
       return parsed
     }
     if (
       parsed.kind === 'table_selection' &&
       parsed.tableId &&
+      typeof parsed.tableName === 'string' &&
       Array.isArray(parsed.rowIds) &&
       parsed.rowIds.length > 0
     ) {

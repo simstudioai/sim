@@ -25,7 +25,7 @@ import {
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
-  isContextAlreadySelected,
+  prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
@@ -475,10 +475,11 @@ export function usePromptEditor({
    */
   const insertContextChip = useCallback(
     (context: ChatContext) => {
-      // A chip's `@label` token must be unique — `addContext` dedupes a matching
-      // label, so inserting a token for an already-present context would orphan
-      // it (a second token with no backing context). Skip and just focus.
-      if (isContextAlreadySelected(context, contextManagementRef.current.selectedContexts)) {
+      const prepared = prepareContextForInsert(
+        context,
+        contextManagementRef.current.selectedContexts
+      )
+      if (!prepared) {
         textareaRef.current?.focus()
         return
       }
@@ -487,16 +488,15 @@ export function usePromptEditor({
         const currentValue = valueRef.current
         const insertAt = textarea.selectionStart ?? currentValue.length
         const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-        const insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
+        const insertText = `${needsSpaceBefore ? ' ' : ''}@${prepared.label} `
         const newValue = `${currentValue.slice(0, insertAt)}${insertText}${currentValue.slice(insertAt)}`
-        const newPos = insertAt + insertText.length
 
-        pendingCursorRef.current = newPos
+        pendingCursorRef.current = insertAt + insertText.length
         valueRef.current = newValue
         setValueState(newValue)
       }
 
-      addContextNotified(context)
+      addContextNotified(prepared)
     },
     [textareaRef, addContextNotified]
   )
@@ -923,25 +923,20 @@ export function usePromptEditor({
     const selectionContext = readSelectionContextFromClipboard(e.clipboardData)
     if (selectionContext) {
       e.preventDefault()
-      // A chip's `@label` token must be unique — `addContext` dedupes a matching
-      // label, so inserting a token for an already-present selection would orphan
-      // it (a second token with no backing context). Skip and keep focus, mirroring
-      // insertContextChip.
-      if (
-        isContextAlreadySelected(selectionContext, contextManagementRef.current.selectedContexts)
-      ) {
-        return
-      }
+      const prepared = prepareContextForInsert(
+        selectionContext,
+        contextManagementRef.current.selectedContexts
+      )
+      if (!prepared) return
       const selStart = textarea.selectionStart ?? valueRef.current.length
       const selEnd = textarea.selectionEnd ?? selStart
       const needsSpaceBefore = selStart > 0 && !/\s/.test(valueRef.current.charAt(selStart - 1))
-      const insert = `${needsSpaceBefore ? ' ' : ''}@${selectionContext.label} `
+      const insert = `${needsSpaceBefore ? ' ' : ''}@${prepared.label} `
       textarea.setRangeText(insert, selStart, selEnd, 'end')
-      const newValue = textarea.value
       const caret = selStart + insert.length
-      contextManagementRef.current.addContext(selectionContext)
-      valueRef.current = newValue
-      setValueState(newValue)
+      contextManagementRef.current.addContext(prepared)
+      valueRef.current = textarea.value
+      setValueState(textarea.value)
       requestAnimationFrame(() => textarea.setSelectionRange(caret, caret))
       return
     }
@@ -1038,14 +1033,10 @@ export function usePromptEditor({
    * (the caller must then perform the cut deletion itself, since the default
    * was prevented).
    *
-   * Selection chips (`file_selection` / `table_selection`) can't fit a portable
-   * link — their inline text / row-id payload lives only in the context. When
-   * the selection is exactly one such chip (the common copy/cut of a
-   * highlight-to-chat chip), ride its full context on the custom
-   * `text/x-sim-selection` MIME so paste restores it; otherwise it would leave a
-   * bare `@label` with no backing data. Mixed selections keep the portable/plain
-   * path (the single-slot MIME can't carry more than one), so the chip degrades
-   * to its label text there rather than dropping the rest of the selection.
+   * Selection chips carry an inline text / row-id payload that no portable link
+   * can hold, so a lone selection chip rides the custom `text/x-sim-selection`
+   * MIME instead. That slot fits only one, so a mixed selection keeps the
+   * portable path and its selection chip degrades to bare label text.
    */
   const writeSanitizedClipboard = useCallback(
     (e: React.ClipboardEvent<HTMLTextAreaElement>): boolean => {

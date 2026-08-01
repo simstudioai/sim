@@ -14,7 +14,6 @@ import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   buildFileSelectionLabel,
-  selectionKey,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -1133,23 +1132,25 @@ export function LoadedRichMarkdownEditor({
   )
 
   const addToChat = useAddToChat()
+  /**
+   * No line range: this editor renders a ProseMirror document, whose block
+   * boundaries do not correspond to markdown source lines (blank lines between
+   * paragraphs, list markers, heading prefixes and fenced blocks all shift the
+   * real line). Reporting a derived count would label the chip — and prompt the
+   * agent — with line numbers that don't exist in the file.
+   */
   const buildSelectionContext = useCallback((): ChatContext | null => {
     if (!editor) return null
     const { from, to } = editor.state.selection
     if (from === to) return null
     const text = editor.state.doc.textBetween(from, to, '\n')
     if (!text.trim()) return null
-    // Markdown has no native line numbers; approximate from newlines before the
-    // selection so repeated selections in the same file get distinct labels.
-    const startLine = editor.state.doc.textBetween(0, from, '\n').split('\n').length
-    const endLine = startLine + text.split('\n').length - 1
     return {
       kind: 'file_selection',
       fileId: file.id,
-      label: buildFileSelectionLabel(file.name, startLine, endLine, selectionKey([text])),
+      fileName: file.name,
+      label: buildFileSelectionLabel(file.name),
       text: truncateSelectionText(text),
-      startLine,
-      endLine,
     }
   }, [editor, file.id, file.name])
 

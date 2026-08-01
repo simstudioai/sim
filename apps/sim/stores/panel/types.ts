@@ -28,6 +28,12 @@ export type ChatContext =
       kind: 'table_selection'
       tableId: string
       label: string
+      /**
+       * Name of the table the selection came from. Carried explicitly rather
+       * than parsed back out of `label`, which is a display string the input may
+       * rewrite to keep chip tokens unique.
+       */
+      tableName: string
       /** Ids of the selected rows. Always present (materialized from the grid selection). */
       rowIds: string[]
       /**
@@ -41,9 +47,19 @@ export type ChatContext =
       kind: 'file_selection'
       fileId: string
       label: string
-      /** The literal selected text, carried inline so the agent sees the exact passage. */
+      /** Name of the file the selection came from. See `tableName` above. */
+      fileName: string
+      /**
+       * The literal selected text. Carried inline rather than re-read
+       * server-side because the editor may hold unsaved changes — re-reading
+       * would hand the agent different bytes than the user highlighted.
+       */
       text: string
-      /** 1-based inclusive line range of the selection, when the source has lines. */
+      /**
+       * 1-based inclusive line range, present only when the source has real
+       * line numbers (Monaco). The rich-markdown editor's document model has no
+       * source lines, so it omits these rather than approximating them.
+       */
       startLine?: number
       endLine?: number
     }

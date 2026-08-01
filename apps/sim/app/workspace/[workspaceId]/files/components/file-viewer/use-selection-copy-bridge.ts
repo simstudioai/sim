@@ -8,15 +8,14 @@ import type { ChatContext } from '@/stores/panel'
  * Rides a selection {@link ChatContext} onto the editor's native copy so a
  * highlighted passage copied with Cmd+C pastes into Chat as a reference chip.
  *
- * The listener is attached to `containerRef` in the BUBBLE phase so it runs
- * AFTER the inner editor's own copy handler (Monaco and ProseMirror both call
- * `clearData()` then write `text/plain`/`text/html`) — the custom
- * `text/x-sim-selection` type is added last and survives, leaving normal copy
- * untouched. `buildContext` returns `null` when there is no non-empty selection.
+ * Attached in the BUBBLE phase so it runs after the inner editor's own copy
+ * handler — Monaco and ProseMirror both `clearData()` before writing
+ * `text/plain`, so the custom type must be added last to survive.
  *
- * `enabled` lets a caller whose container mounts late (e.g. behind a loading
- * gate) re-run the effect once the node exists — a ref object isn't reactive, so
- * without it the effect would bail on the first render and never re-attach.
+ * @param buildContext - Returns null when there is no non-empty selection.
+ * @param enabled - Re-runs the effect for a container that mounts late (behind a
+ * loading gate); a ref isn't reactive, so the effect would otherwise bail on the
+ * first render and never re-attach.
  */
 export function useSelectionCopyBridge(
   containerRef: RefObject<HTMLElement | null>,

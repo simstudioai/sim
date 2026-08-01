@@ -105,7 +105,6 @@ export const STORAGE_KEYS = {
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
   WORKSPACE_RECENCY: 'sim_workspace_recency',
   MOTHERSHIP_HANDOFF: 'sim_mothership_handoff',
-  MOTHERSHIP_PENDING_CONTEXTS: 'sim_mothership_pending_contexts',
 } as const
 
 export class WorkspaceRecencyStorage {
@@ -301,17 +300,28 @@ export class LandingWorkflowSeedStorage {
 }
 
 export interface MothershipHandoff {
-  /** The message to auto-send to Chat once the home surface mounts. */
-  message: string
+  /**
+   * Message to auto-send once the home surface mounts. Omit for a chip-only
+   * handoff, which seeds `contexts` into the input and waits for the user.
+   */
+  message?: string
   /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */
   contexts?: ChatContext[]
 }
 
+interface StoredHandoff extends MothershipHandoff {
+  workspaceId?: string
+  timestamp?: number
+}
+
 /**
- * One-shot handoff that seeds an auto-sent Chat (mothership) message when the
- * user is routed to the workspace home from elsewhere in the app — e.g. the
- * "Troubleshoot in Chat" action on an errored log, which tags the failed run
- * and asks Sim to fix it.
+ * One-shot handoff that seeds Chat (mothership) when the user is routed to the
+ * workspace home from elsewhere in the app. Two shapes share this slot:
+ *
+ * - **With a message** — auto-sent on mount, e.g. the "Troubleshoot in Chat"
+ *   action on an errored log, which tags the failed run and asks Sim to fix it.
+ * - **Chips only** — the highlight-to-chat action on the standalone Files and
+ *   Tables pages, which attaches reference chips and sends nothing.
  *
  * The home surface consumes this exactly once on mount. A short max-age guards
  * against a stale handoff firing on a later, unrelated visit, and `consume`
@@ -321,22 +331,35 @@ export class MothershipHandoffStorage {
   private static readonly KEY = STORAGE_KEYS.MOTHERSHIP_HANDOFF
 
   /**
-   * Store a handoff to be auto-sent on the next home-surface mount, scoped to
-   * the workspace it targets so a different workspace never claims it.
-   * @returns True if stored, false when the message or workspace is empty.
+   * Store a handoff for the next home-surface mount, scoped to the workspace it
+   * targets so a different workspace never claims it. Chip-only handoffs
+   * accumulate — "Add to chat" can fire twice before the route swap completes,
+   * and the second write must not drop the first.
+   * @returns True if stored, false when the workspace is empty or the handoff
+   * carries neither a message nor a context.
    */
   static store(handoff: MothershipHandoff, workspaceId: string): boolean {
-    const message = handoff.message.trim()
-    if (!message || !workspaceId) {
+    const message = handoff.message?.trim()
+    const contexts = handoff.contexts ?? []
+    if (!workspaceId || (!message && contexts.length === 0)) {
       return false
     }
 
     return BrowserStorage.setItem(MothershipHandoffStorage.KEY, {
-      message,
-      contexts: handoff.contexts,
+      ...(message ? { message } : {}),
+      contexts: message
+        ? contexts
+        : [...MothershipHandoffStorage.pendingContexts(workspaceId), ...contexts],
       workspaceId,
       timestamp: Date.now(),
     })
+  }
+
+  /** Contexts of an un-consumed chip-only handoff for `workspaceId`, else empty. */
+  private static pendingContexts(workspaceId: string): ChatContext[] {
+    const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
+    if (!data || data.message || data.workspaceId !== workspaceId) return []
+    return Array.isArray(data.contexts) ? data.contexts : []
   }
 
   /**
@@ -348,12 +371,7 @@ export class MothershipHandoffStorage {
    * @param maxAge - Maximum age in milliseconds (default: 60 seconds)
    */
   static consume(workspaceId: string, maxAge: number = 60 * 1000): MothershipHandoff | null {
-    const data = BrowserStorage.getItem<{
-      message?: string
-      contexts?: ChatContext[]
-      workspaceId?: string
-      timestamp?: number
-    } | null>(MothershipHandoffStorage.KEY, null)
+    const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
 
     if (!data) {
       return null
@@ -365,75 +383,20 @@ export class MothershipHandoffStorage {
 
     MothershipHandoffStorage.clear()
 
+    const contexts = Array.isArray(data.contexts) ? data.contexts : []
     if (
       !data.workspaceId ||
-      !data.message ||
+      (!data.message && contexts.length === 0) ||
       !data.timestamp ||
       Date.now() - data.timestamp > maxAge
     ) {
       return null
     }
 
-    return { message: data.message, contexts: data.contexts }
+    return { ...(data.message ? { message: data.message } : {}), contexts }
   }
 
   static clear(): boolean {
     return BrowserStorage.removeItem(MothershipHandoffStorage.KEY)
-  }
-}
-
-interface PendingContextsEntry {
-  contexts: ChatContext[]
-  workspaceId: string
-  timestamp: number
-}
-
-/**
- * Accumulates context chips to seed into the Chat input when it next mounts,
- * used by the highlight-to-chat action when no chat is currently listening
- * (e.g. the user is on the standalone Files/Tables page). Unlike
- * {@link MothershipHandoffStorage}, this never auto-sends — it only pre-fills
- * the input with reference chips, matching the passive "add to chat" behavior.
- * Multiple adds accumulate; `consume` drains and clears the list.
- */
-export class MothershipPendingContextStorage {
-  private static readonly KEY = STORAGE_KEYS.MOTHERSHIP_PENDING_CONTEXTS
-
-  /** Appends a context for the workspace, replacing any entry from another workspace. */
-  static store(context: ChatContext, workspaceId: string): boolean {
-    if (!workspaceId) return false
-    const existing = BrowserStorage.getItem<PendingContextsEntry | null>(
-      MothershipPendingContextStorage.KEY,
-      null
-    )
-    const contexts =
-      existing && existing.workspaceId === workspaceId ? [...existing.contexts, context] : [context]
-    return BrowserStorage.setItem(MothershipPendingContextStorage.KEY, {
-      contexts,
-      workspaceId,
-      timestamp: Date.now(),
-    })
-  }
-
-  /**
-   * Retrieves and clears the pending contexts for `workspaceId`. Entries owned
-   * by another workspace are left untouched; stale entries past `maxAge` are
-   * dropped.
-   * @param maxAge - Maximum age in milliseconds (default: 5 minutes)
-   */
-  static consume(workspaceId: string, maxAge: number = 5 * 60 * 1000): ChatContext[] {
-    const data = BrowserStorage.getItem<PendingContextsEntry | null>(
-      MothershipPendingContextStorage.KEY,
-      null
-    )
-    if (!data) return []
-    if (data.workspaceId !== workspaceId) return []
-    MothershipPendingContextStorage.clear()
-    if (!data.timestamp || Date.now() - data.timestamp > maxAge) return []
-    return Array.isArray(data.contexts) ? data.contexts : []
-  }
-
-  static clear(): boolean {
-    return BrowserStorage.removeItem(MothershipPendingContextStorage.KEY)
   }
 }

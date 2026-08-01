@@ -179,8 +179,10 @@ const ChatContextSchema = z.object({
   tabId: z.string().optional(),
   terminalId: z.string().optional(),
   text: z.string().max(MAX_FILE_SELECTION_TEXT_LENGTH).optional(),
+  fileName: z.string().optional(),
   startLine: z.number().int().positive().optional(),
   endLine: z.number().int().positive().optional(),
+  tableName: z.string().optional(),
   rowIds: z.array(z.string()).max(MAX_TABLE_SELECTION_ROWS).optional(),
   columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
 })

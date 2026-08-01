@@ -4,6 +4,10 @@
 
 import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  MAX_TABLE_SELECTION_ROWS,
+} from '@/lib/copilot/chat/selection-context'
 import type { ChatContext } from '@/stores/panel'
 
 const { discoverServerTools, getSkillById, getWorkspaceFile, getTableById, getRowsByIds } =
@@ -485,5 +489,68 @@ describe('processContextsServer - table_selection contexts', () => {
     )
 
     expect(result).toEqual([])
+  })
+
+  it('spends a character budget across rows and reports what it omitted', async () => {
+    // Row/column caps alone don't bound prompt cost: wide cells blow past the
+    // budget long before MAX_TABLE_SELECTION_ROWS.
+    const wide = 'x'.repeat(2_000)
+    const rows = Array.from({ length: MAX_TABLE_SELECTION_ROWS }, (_, i) => ({
+      id: `r${i}`,
+      data: { c_notes: wide },
+    }))
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+    getRowsByIds.mockResolvedValue(rows)
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Sales (500 rows)',
+          rowIds: rows.map((r) => r.id),
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    const [ctx] = result
+    expect(ctx.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    expect(ctx.content).toContain('omitted for length')
+  })
+
+  it('emits at least one row even when that row alone exceeds the budget', async () => {
+    const huge = 'x'.repeat(MAX_TABLE_SELECTION_CONTENT_LENGTH * 2)
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+    getRowsByIds.mockResolvedValue([{ id: 'r1', data: { c_notes: huge } }])
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Sales (1 row)',
+          rowIds: ['r1'],
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toContain(huge)
   })
 })
