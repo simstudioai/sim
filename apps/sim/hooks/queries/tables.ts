@@ -86,6 +86,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
+  ColumnDefinition,
   CsvHeaderMapping,
   EnrichmentRunDetail,
   RowData,
@@ -1365,7 +1366,15 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         const isRename = typeof (updates as { name?: string }).name === 'string'
         const nextColumns = previousDetail.schema.columns.map((c) => {
           if (getColumnId(c) !== columnName && c.name.toLowerCase() !== lower) return c
-          const next = { ...c, ...updates }
+          // A `null` in the payload CLEARS its key server-side, so the
+          // optimistic column must drop it too — spreading the null straight
+          // in would leave the grid rendering against a shape the server will
+          // never return.
+          const next: ColumnDefinition = { ...c }
+          for (const [key, value] of Object.entries(updates)) {
+            if (value === null) delete next[key as keyof ColumnDefinition]
+            else Object.assign(next, { [key]: value })
+          }
           if (isRename && next.id === undefined) next.id = getColumnId(c)
           return next
         })

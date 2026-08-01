@@ -159,8 +159,15 @@ function ColumnConfigBody({
   // type that loses it cannot leave a stale control behind.
   const wantsCurrency = typeOwnsMetadataKey(typeInput, 'currencyCode')
   const wantsPrecision = typeOwnsMetadataKey(typeInput, 'precision')
+  // `undefined` means "no precision declared" — the field is legitimately
+  // clearable back to rendering values as stored. A non-empty value that is not
+  // a finite number is treated the same rather than clamping to 0, so garbage
+  // never silently saves as "zero decimal places".
+  const precisionNumber = Number(precisionInput)
   const parsedPrecision =
-    precisionInput.trim() === '' ? undefined : clampPrecision(Number(precisionInput))
+    precisionInput.trim() === '' || !Number.isFinite(precisionNumber)
+      ? undefined
+      : clampPrecision(precisionNumber)
   const wantsIncludeTime = typeOwnsMetadataKey(typeInput, 'includeTime')
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
@@ -231,7 +238,7 @@ function ColumnConfigBody({
         options?: SelectOption[]
         multiple?: boolean
         currencyCode?: string
-        precision?: number
+        precision?: number | null
         includeTime?: boolean
       } = {
         ...(renamed ? { name: trimmedName } : {}),
@@ -243,8 +250,11 @@ function ColumnConfigBody({
         ...(wantsCurrency && (typeChanged || currencyChanged)
           ? { currencyCode: currencyInput }
           : {}),
-        ...(wantsPrecision && (typeChanged || precisionChanged) && parsedPrecision !== undefined
-          ? { precision: parsedPrecision }
+        // `null` clears the key. Gating on `!== undefined` meant emptying the
+        // field sent nothing at all, so an existing precision could never be
+        // removed once set.
+        ...(wantsPrecision && (typeChanged || precisionChanged)
+          ? { precision: parsedPrecision ?? null }
           : {}),
         ...(wantsIncludeTime && (typeChanged || includeTimeChanged)
           ? { includeTime: includeTimeInput }

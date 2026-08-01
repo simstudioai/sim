@@ -848,6 +848,18 @@ export interface RenameColumnData {
  */
 export type ColumnTypeMetadata = Partial<Pick<ColumnDefinition, TypeSpecificColumnKey>>
 
+/**
+ * A metadata write, where `null` means **remove this key**.
+ *
+ * Distinct from `undefined`, which means "this request does not touch the key".
+ * The difference is load-bearing for any key whose absence is itself meaningful:
+ * a `precision` that is absent renders a column's values as stored, so without
+ * a way to say "remove it" a precision could be set but never unset.
+ */
+export type ColumnMetadataPatch = {
+  [K in TypeSpecificColumnKey]?: ColumnDefinition[K] | null
+}
+
 export interface UpdateColumnTypeData extends ColumnTypeMetadata {
   tableId: string
   columnName: string
@@ -913,9 +925,9 @@ export interface UpdateColumnMetadataData {
   /**
    * The type-specific keys to write. Every key must be owned by the column's
    * type — `ownedMetadata` is the check, so this stays correct as types are
-   * added without naming a single key here.
+   * added without naming a single key here. A `null` value removes the key.
    */
-  metadata: Partial<ColumnDefinition>
+  metadata: ColumnMetadataPatch
 }
 
 export interface UpdateColumnConstraintsData {

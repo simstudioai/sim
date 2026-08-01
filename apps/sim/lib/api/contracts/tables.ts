@@ -38,7 +38,7 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
-import type { ColumnTypeMetadata } from '@/lib/table/types'
+import type { ColumnMetadataPatch } from '@/lib/table/types'
 import { SELECT_OPTION_COLORS } from '@/lib/table/types'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
@@ -103,7 +103,7 @@ function refineColumnOptions(
     type?: (typeof COLUMN_TYPES)[number]
     options?: z.infer<typeof selectOptionsSchema>
     multiple?: boolean
-  } & ColumnTypeMetadata,
+  } & ColumnMetadataPatch,
   ctx: z.RefinementCtx
 ): void {
   // Keys the type cannot be created without, checked before the ownership sweep
@@ -321,7 +321,10 @@ export const updateTableColumnBodySchema = z.object({
       unique: z.boolean().optional(),
       options: selectOptionsSchema.optional(),
       multiple: z.boolean().optional(),
-      precision: precisionSchema.optional(),
+      /** `null` clears the setting, returning the column to rendering values as
+       *  stored. Only the UPDATE surface accepts it — on a create there is
+       *  nothing to clear. */
+      precision: precisionSchema.nullable().optional(),
       includeTime: z.boolean().optional(),
       currencyCode: currencyCodeSchema.optional(),
     })

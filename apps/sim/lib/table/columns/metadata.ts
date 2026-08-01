@@ -12,10 +12,11 @@
 import {
   columnTypeById,
   metadataKeysIn,
+  metadataWithoutClears,
   ownersOfMetadataKey,
   pickMetadata,
 } from '@/lib/table/column-types'
-import type { ColumnDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, ColumnMetadataPatch } from '@/lib/table/types'
 
 /**
  * Rejects a metadata update that the column's resulting type cannot accept.
@@ -35,7 +36,7 @@ import type { ColumnDefinition } from '@/lib/table/types'
 export function validateMetadataUpdate(
   currentColumn: ColumnDefinition,
   resultingType: string | undefined,
-  updates: Partial<ColumnDefinition>
+  updates: ColumnMetadataPatch
 ): string | null {
   const { generic, dedicated } = metadataKeysIn(updates)
   const definition = columnTypeById(resultingType)
@@ -60,10 +61,15 @@ export function validateMetadataUpdate(
   // `updates` wholesale would fold in a pending `name`, so rejecting a bad
   // value would name the column by a rename that this very request is refusing
   // to perform.
+  // A cleared key (`null`) validates as ABSENT — that is what the write will
+  // leave behind — rather than as a null the type's validator has no arm for.
   const resulting: ColumnDefinition = {
     ...currentColumn,
     ...(resultingType ? { type: definition.id } : {}),
-    ...pickMetadata(updates, [...generic, ...dedicated]),
+    ...metadataWithoutClears(pickMetadata(updates, [...generic, ...dedicated])),
+  }
+  for (const key of [...generic, ...dedicated]) {
+    if (updates[key] === null) delete resulting[key]
   }
   const errors = definition.validateDefinition?.(resulting) ?? []
   return errors[0] ?? null

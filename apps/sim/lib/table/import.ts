@@ -411,7 +411,14 @@ export function coerceValue(
       return null
     }
     case 'date': {
-      return normalizeDateCellValue(String(value), options) ?? String(value)
+      const normalized = normalizeDateCellValue(String(value), options) ?? String(value)
+      // Then through the type itself, so a date-only column truncates the time
+      // here exactly as it does on every other write path. Skipping this let a
+      // CSV import be the one way to get an instant into a column whose schema
+      // says it holds calendar days.
+      const column: ColumnDefinition = { ...options?.column, name: '', type: 'date' }
+      const coerced = columnTypeById('date').coerce(normalized, column)
+      return coerced.ok ? (coerced.value as string) : normalized
     }
     case 'json': {
       if (typeof value === 'object') return value as Record<string, unknown> | unknown[]

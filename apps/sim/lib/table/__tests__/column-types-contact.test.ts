@@ -16,6 +16,8 @@ import {
   isValueCompatible,
   ownersOfMetadataKey,
 } from '@/lib/table/column-types'
+import { coerceValue } from '@/lib/table/import'
+import { filterRulesToFilter } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const column = (type: ColumnDefinition['type'], extra: Partial<ColumnDefinition> = {}) =>
@@ -220,6 +222,52 @@ describe('audit regressions', () => {
         .map((o) => o.id)
         .sort()
     ).toEqual(['number', 'percent'])
+  })
+})
+
+describe('review-round regressions', () => {
+  it('reads a formatted filter value through the column that owns it', () => {
+    // `parseScalar` returns NaN for `50%` / `1h` / `$1,234.56`, so the value
+    // stayed a string, hit the numeric cast, and the range filter was rejected.
+    const cases: Array<[ColumnDefinition['type'], string, number]> = [
+      ['percent', '50%', 50],
+      ['duration', '1h', 3600],
+      ['duration', '1:30', 90],
+      ['currency', '$1,234.56', 1234.56],
+    ]
+    for (const [type, typed, expected] of cases) {
+      const col = column(type)
+      const rules = [
+        { id: 'r1', logicalOperator: 'and' as const, column: 'c', operator: 'gte', value: typed },
+      ]
+      const filter = filterRulesToFilter(rules, [{ ...col, id: 'c' }])
+      expect(filter, `${type} ${typed}`).toEqual({ c: { $gte: expected } })
+    }
+  })
+
+  it('leaves text- and opaque-id columns on their existing coercion', () => {
+    // The type-aware parse must apply ONLY to cast columns. A text column keeps
+    // `parseScalar`'s long-standing number coercion, and a select keeps its
+    // option id verbatim — an id of "1" coerced to a number would compare
+    // against the stored JSON string by containment and match nothing.
+    const eq = (value: string, col: ColumnDefinition) =>
+      filterRulesToFilter(
+        [{ id: 'r1', logicalOperator: 'and' as const, column: 'c', operator: 'eq', value }],
+        [{ ...col, id: 'c' }]
+      )
+    expect(eq('123', column('string'))).toEqual({ c: 123 })
+    expect(eq('1', column('select', { options: [{ id: '1', name: 'One' }] }))).toEqual({ c: '1' })
+  })
+
+  it('truncates an imported date for a date-only column', () => {
+    // CSV import was the one write path that bypassed `applyIncludeTime`.
+    const dateOnly = column('date', { includeTime: false })
+    expect(coerceValue('2024-01-15T13:45:00Z', 'date', { column: dateOnly })).toBe('2024-01-15')
+  })
+
+  it('leaves an imported date alone for a column that carries time', () => {
+    const withTime = column('date', { includeTime: true })
+    expect(coerceValue('2024-01-15T13:45:00Z', 'date', { column: withTime })).toContain('13:45')
   })
 })
 

@@ -19,6 +19,7 @@ import {
   columnTypeById,
   columnTypeOf,
   isValueCompatible,
+  metadataWithoutClears,
   pickMetadata,
   TYPE_SPECIFIC_COLUMN_KEYS,
   type TypeSpecificColumnKey,
@@ -707,12 +708,14 @@ export async function updateColumnType(
       // rename can be honoured without a conversion; anything else would be
       // silently discarded, and answering success for a change that never
       // happened is the worst outcome available.
+      // Read the metadata keys from the registry, not a hand-written list. The
+      // three that used to be named here meant a newly declared key (a
+      // `precision`, an `includeTime`) rode this path and was silently
+      // discarded while the request reported success.
       const carriesOtherWork =
         data.required !== undefined ||
         data.unique !== undefined ||
-        data.options !== undefined ||
-        data.multiple !== undefined ||
-        data.currencyCode !== undefined
+        TYPE_SPECIFIC_COLUMN_KEYS.some((key) => data[key] !== undefined)
       if (carriesOtherWork) {
         throw new Error(
           `Column "${column.name}" is already type "${data.newType}"; re-issue the request without a type change.`
@@ -1164,12 +1167,24 @@ export async function updateColumnMetadata(
     // stamp a default onto a column that predates that key — writing
     // `includeTime: false` onto a legacy date column and truncating every
     // stored time as a side effect of an unrelated metadata edit.
-    const merged: ColumnDefinition = { ...column, ...incoming }
+    // A `null` REMOVES its key rather than writing one — that is how a setting
+    // whose absence is meaningful (a `precision`, which absent means "render as
+    // stored") is returned to that state once set.
+    const sentKeys = Object.keys(incoming) as TypeSpecificColumnKey[]
+    const merged: ColumnDefinition = { ...column, ...metadataWithoutClears(incoming) }
+    for (const key of sentKeys) {
+      if (incoming[key] === null) delete merged[key]
+    }
     const defaults = definition.defaultMetadata?.(merged) ?? {}
-    const sentKeys = new Set(Object.keys(incoming))
     const updatedColumn: ColumnDefinition = {
       ...merged,
-      ...pickMetadata(defaults, [...sentKeys] as TypeSpecificColumnKey[]),
+      // Defaults only fill keys this request SET; a cleared key stays cleared.
+      ...metadataWithoutClears(
+        pickMetadata(
+          defaults,
+          sentKeys.filter((key) => incoming[key] !== null)
+        )
+      ),
     }
 
     const columnValidation = validateColumnDefinition(updatedColumn)

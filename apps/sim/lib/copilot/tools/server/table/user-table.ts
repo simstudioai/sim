@@ -37,6 +37,7 @@ import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-na
 import {
   columnTypeById,
   metadataKeysIn,
+  metadataWithoutClears,
   pickMetadata,
   TYPE_SPECIFIC_COLUMN_KEYS,
   validateTypeMetadata,
@@ -1787,7 +1788,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 newType: newType as (typeof COLUMN_TYPES)[number],
                 options,
                 multiple,
-                ...pickMetadata(metadataUpdates, genericMetadataKeys),
+                ...metadataWithoutClears(pickMetadata(metadataUpdates, genericMetadataKeys)),
                 ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId

@@ -41,7 +41,12 @@ import type {
 } from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
 import { urlColumnType } from '@/lib/table/column-types/url'
-import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
+import type {
+  ColumnDefinition,
+  ColumnMetadataPatch,
+  ColumnTypeMetadata,
+  JsonValue,
+} from '@/lib/table/types'
 
 export { COLUMN_TYPES }
 export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
@@ -185,7 +190,7 @@ export function ownersOfMetadataKey(key: TypeSpecificColumnKey): ColumnTypeDefin
  * owner keeps its own writer — today only `select`'s `options` / `multiple`.
  * Callers branch on which set is non-empty instead of testing key names.
  */
-export function metadataKeysIn(updates: Partial<ColumnDefinition>): {
+export function metadataKeysIn(updates: ColumnMetadataPatch): {
   generic: TypeSpecificColumnKey[]
   dedicated: TypeSpecificColumnKey[]
 } {
@@ -202,6 +207,22 @@ export function metadataKeysIn(updates: Partial<ColumnDefinition>): {
   return { generic, dedicated }
 }
 
+/**
+ * A metadata patch with its clears dropped, for the conversion path.
+ *
+ * On a retype, "remove this key" and "never had this key" are the same thing —
+ * the converted column is rebuilt from the target type's owned keys — so a
+ * `null` is simply not carried across.
+ */
+export function metadataWithoutClears(patch: ColumnMetadataPatch): ColumnTypeMetadata {
+  const resolved: ColumnTypeMetadata = {}
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    const value = patch[key]
+    if (value !== undefined && value !== null) Object.assign(resolved, { [key]: value })
+  }
+  return resolved
+}
+
 /** Whether a column of `type` may carry `key`. */
 export function typeOwnsMetadataKey(type: string | undefined, key: TypeSpecificColumnKey): boolean {
   return columnTypeById(type).ownedMetadata.includes(key)
@@ -215,10 +236,10 @@ export function typeOwnsMetadataKey(type: string | undefined, key: TypeSpecificC
  * this key" to `filterUndefined` further down the write path.
  */
 export function pickMetadata(
-  updates: Partial<ColumnDefinition>,
+  updates: ColumnMetadataPatch,
   keys: readonly TypeSpecificColumnKey[]
-): Partial<ColumnDefinition> {
-  const picked: Partial<ColumnDefinition> = {}
+): ColumnMetadataPatch {
+  const picked: ColumnMetadataPatch = {}
   for (const key of keys) {
     if (updates[key] !== undefined) Object.assign(picked, { [key]: updates[key] })
   }
