@@ -7,6 +7,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isHosted } from '@/lib/core/config/env-flags'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import type { ExecutionContext } from '@/executor/types'
+import type { ModelCost } from '@/providers/cost-policy'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('ModelRouter')
@@ -83,7 +84,7 @@ const MAX_SIGNAL_CHARS = 2000
 const DECISION_CACHE_TTL_MS = 5 * 60 * 1000
 const DECISION_CACHE_MAX_ENTRIES = 500
 
-/** Compact facts about the pending agent-block task; never the full payload. */
+/** Compact facts about the pending LLM-backed block task; never the full payload. */
 export interface AutoRoutingSignals {
   systemPrompt?: string
   lastMessage?: string
@@ -126,6 +127,19 @@ export interface AutoRoutingResult {
    */
   billableRoutingCost: number
   usage?: ModelRouterUsage
+}
+
+export type AutoRoutedModelCost = ModelCost & { routing?: number }
+
+/** Adds a successful sim-auto classifier call to a settled provider cost. */
+export function addAutoRoutingCost(cost: ModelCost, routingCost: number): AutoRoutedModelCost {
+  if (routingCost <= 0) return cost
+
+  return {
+    ...cost,
+    routing: routingCost,
+    total: cost.total + routingCost,
+  }
 }
 
 const decisionCache = new Map<string, { tier: AutoTierId; expires: number }>()
@@ -192,7 +206,9 @@ async function pickModelForTier(
         await validateModelProvider(ctx.userId, ctx.workspaceId ?? undefined, model, ctx)
         return model
       } catch {
-        logger.info('sim-auto candidate unavailable, trying the next one', { model })
+        logger.info('sim-auto candidate unavailable, trying the next one', {
+          model,
+        })
       }
     }
   }
@@ -242,7 +258,7 @@ async function callModelRouter(
 }
 
 /**
- * Resolves the sim-auto pseudo-model to a concrete model for one agent-block
+ * Resolves the sim-auto pseudo-model to a concrete model for one block
  * execution. Never throws and never fails the workflow: any error, timeout,
  * non-hosted deployment, or fully unavailable pool column falls back to
  * `fallbackModel` (the block's standard default).
@@ -273,7 +289,12 @@ export async function resolveAutoModel(args: {
     if (cachedTier) {
       const model = await pickModelForTier(signals.mediaKind, cachedTier, ctx)
       if (!model) return fallback
-      return { model, tier: cachedTier, decidedBy: 'cache', billableRoutingCost: 0 }
+      return {
+        model,
+        tier: cachedTier,
+        decidedBy: 'cache',
+        billableRoutingCost: 0,
+      }
     }
 
     const response = await callModelRouter(signals, ctx, blockId)
