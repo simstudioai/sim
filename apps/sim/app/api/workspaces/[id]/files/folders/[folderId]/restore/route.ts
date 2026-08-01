@@ -3,12 +3,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { restoreWorkspaceFileFolderContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  performRestoreWorkspaceFileFolder,
-  workspaceFilesOrchestrationStatus,
-} from '@/lib/workspace-files/orchestration'
+import { performRestoreWorkspaceFileFolder } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolderRestoreAPI')
@@ -38,7 +36,7 @@ export const POST = withRouteHandler(
       if (!result.success) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
+          { status: statusForOrchestrationError(result.errorCode) }
         )
       }
       const { folder, restoredItems } = result

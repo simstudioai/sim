@@ -1,12 +1,14 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkspaceFileContentContract } from '@/lib/api/contracts/workspace-files'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace'
+import { performUpdateWorkspaceFileContent } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,78 +21,43 @@ const logger = createLogger('WorkspaceFileContentAPI')
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const parsed = await parseRequest(updateWorkspaceFileContentContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { id: workspaceId, fileId } = parsed.data.params
-      const { content, encoding } = parsed.data.body
-
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(`User ${session.user.id} lacks write permission for workspace ${workspaceId}`)
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      const buffer =
-        encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
-
-      const maxFileSizeBytes = 50 * 1024 * 1024
-      if (buffer.length > maxFileSizeBytes) {
-        return NextResponse.json(
-          { error: `File size exceeds ${maxFileSizeBytes / 1024 / 1024}MB limit` },
-          { status: 413 }
-        )
-      }
-
-      const updatedFile = await updateWorkspaceFileContent(
-        workspaceId,
-        fileId,
-        session.user.id,
-        buffer
-      )
-
-      logger.info(`Updated content for workspace file: ${updatedFile.name}`)
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FILE_UPDATED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: fileId,
-        resourceName: updatedFile.name,
-        description: `Updated content of file "${updatedFile.name}"`,
-        metadata: { contentSize: buffer.length },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        file: updatedFile,
-      })
-    } catch (error) {
-      const errorMessage = toError(error).message || 'Failed to update file content'
-      const isNotFound = errorMessage.includes('File not found')
-      const isQuotaExceeded = errorMessage.includes('Storage limit exceeded')
-      const status = isNotFound ? 404 : isQuotaExceeded ? 402 : 500
-
-      if (status === 500) {
-        logger.error('Error updating file content:', error)
-      } else {
-        logger.warn(errorMessage)
-      }
-
-      return NextResponse.json({ success: false, error: errorMessage }, { status })
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(updateWorkspaceFileContentContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
+    const { content, encoding } = parsed.data.body
+
+    const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    if (userPermission !== 'admin' && userPermission !== 'write') {
+      logger.warn(`User ${session.user.id} lacks write permission for workspace ${workspaceId}`)
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    const result = await performUpdateWorkspaceFileContent({
+      workspaceId,
+      fileId,
+      userId: session.user.id,
+      content,
+      encoding: encoding === 'base64' ? 'base64' : 'utf-8',
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      request,
+    })
+
+    if (!result.success || !result.file) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: messageForOrchestrationError(result, 'Failed to update file content'),
+        },
+        { status: statusForOrchestrationError(result.errorCode) }
+      )
+    }
+
+    return NextResponse.json({ success: true, file: result.file })
   }
 )

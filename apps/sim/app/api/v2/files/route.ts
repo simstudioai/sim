@@ -21,6 +21,7 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { toV2File } from '@/app/api/v2/files/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   decodeCursor,
@@ -56,9 +57,13 @@ function compareFiles(a: V2File, b: V2File): number {
 /**
  * GET /api/v2/files — List files in a workspace with cursor pagination.
  *
- * The shared {@link listWorkspaceFiles} manager returns the full active set
- * ordered by `uploadedAt`; v2 applies a bounded keyset slice over that result in
- * the route. Pushing `limit`/`cursor` down into the manager query is a follow-up.
+ * `scope=archived` reads Recently Deleted, which is what makes the restore
+ * endpoints usable — a caller can find the id of something it deleted.
+ *
+ * The shared {@link listWorkspaceFiles} manager returns the full set for the
+ * requested scope ordered by `uploadedAt`; v2 applies a bounded keyset slice
+ * over that result in the route. Pushing `limit`/`cursor` down into the manager
+ * query is a follow-up, and `scope` makes it more valuable, not less.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -80,25 +85,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, limit, cursor } = parsed.data.query
+    const { workspaceId, scope, limit, cursor } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const files = await listWorkspaceFiles(workspaceId)
+    const files = await listWorkspaceFiles(workspaceId, { scope })
 
-    const items: V2File[] = files
-      .map((f) => ({
-        id: f.id,
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        key: f.key,
-        uploadedBy: f.uploadedBy,
-        uploadedAt:
-          f.uploadedAt instanceof Date ? f.uploadedAt.toISOString() : String(f.uploadedAt),
-      }))
-      .sort(compareFiles)
+    const items: V2File[] = files.map(toV2File).sort(compareFiles)
 
     const decoded = cursor ? decodeCursor<FileCursor>(cursor) : null
     const afterCursor = decoded
@@ -126,8 +120,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
  * POST /api/v2/files — Upload a file to a workspace.
  *
  * Authorization runs fully (rate limit → workspace write access) before the
- * multipart body is buffered: the workspace is a contract-validated query param,
- * so an unauthorized caller never streams a 100 MB body into memory.
+ * multipart body is buffered: the workspace and the optional target `folderId`
+ * are contract-validated query params, so an unauthorized caller never streams a
+ * 100 MB body into memory.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -149,7 +144,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId } = parsed.data.query
+    const { workspaceId, folderId } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
@@ -190,7 +185,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId,
       buffer,
       file.name,
-      file.type || 'application/octet-stream'
+      file.type || 'application/octet-stream',
+      { folderId: folderId ?? null }
     )
 
     logger.info(`Uploaded file: ${file.name} to workspace ${workspaceId}`)
@@ -207,25 +203,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
     })
 
+    /**
+     * `uploadWorkspaceFile` returns the executor-facing `UserFile`, which carries
+     * neither the folder path nor the persisted timestamps, so the stored record
+     * is the source for the response projection.
+     */
     const fileRecord = await getWorkspaceFile(workspaceId, userFile.id)
-    const uploadedAt =
-      fileRecord?.uploadedAt instanceof Date
-        ? fileRecord.uploadedAt.toISOString()
-        : fileRecord?.uploadedAt
-          ? String(fileRecord.uploadedAt)
-          : new Date().toISOString()
-
-    const responseFile: V2File = {
-      id: userFile.id,
-      name: userFile.name,
-      size: userFile.size,
-      type: userFile.type,
-      key: userFile.key,
-      uploadedBy: userId,
-      uploadedAt,
+    if (!fileRecord) {
+      throw new Error(`Uploaded file ${userFile.id} could not be read back`)
     }
 
-    return v2Data(responseFile, { rateLimit, status: 201 })
+    return v2Data(toV2File(fileRecord), { rateLimit, status: 201 })
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       return v2Error('PAYLOAD_TOO_LARGE', error.message)
@@ -234,6 +222,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const message = getErrorMessage(error, 'Failed to upload file')
     if (error instanceof FileConflictError || message.includes('already exists')) {
       return v2Error('CONFLICT', message)
+    }
+    if (message === 'Target folder not found') {
+      return v2Error('NOT_FOUND', message)
     }
     if (message.includes('Storage limit') || message.includes('storage limit')) {
       return v2Error('PAYLOAD_TOO_LARGE', 'Storage limit exceeded')

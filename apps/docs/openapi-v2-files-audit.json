@@ -23,7 +23,11 @@
   "tags": [
     {
       "name": "Files",
-      "description": "Upload, download, list, and archive workspace files (v2). Workspace-scoped via the required workspaceId query parameter."
+      "description": "Upload, download, list, rename, archive, restore, share, and replace the contents of workspace files (v2). Workspace-scoped via the required workspaceId query parameter or body field."
+    },
+    {
+      "name": "File Folders",
+      "description": "Organize workspace files into folders (v2). File folders have their own endpoints rather than being served by the generic folders surface."
     },
     {
       "name": "Audit Logs",
@@ -40,7 +44,7 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List the active files in a workspace with opaque cursor pagination. Results are ordered by upload time. Pass the `nextCursor` from a previous response to fetch the next page; a `null` `nextCursor` means there are no more results.",
+        "description": "List a workspace's files with opaque cursor pagination. Results are ordered by upload time. Pass the `nextCursor` from a previous response to fetch the next page; a `null` `nextCursor` means there are no more results. Use `scope=archived` to page through Recently Deleted — that is how you find the id of a file to restore.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -53,6 +57,17 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "`active` (the default) lists live files; `archived` lists the ones in Recently Deleted, which is how you find an id to restore.",
+            "schema": {
+              "type": "string",
+              "enum": ["active", "archived"],
+              "default": "active"
+            }
           },
           {
             "name": "limit",
@@ -97,8 +112,11 @@
                       "size": 1024,
                       "type": "text/csv",
                       "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                      "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                      "folderPath": "Reports/Q1",
                       "uploadedBy": "user_abc123",
-                      "uploadedAt": "2026-01-15T10:30:00Z"
+                      "uploadedAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
                     }
                   ],
                   "nextCursor": "eyJ1cGxvYWRlZEF0IjoiMjAyNi0wMS0xNVQxMDozMDowMFoiLCJpZCI6IndmX1YxU3RHWFI4ejVqZEhpNkJteVQ5MSJ9"
@@ -126,7 +144,7 @@
       "post": {
         "operationId": "uploadFile",
         "summary": "Upload File",
-        "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the request body is buffered. Maximum file size is 100MB. Duplicate filenames within a workspace are rejected. Returns `201 Created`.",
+        "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace — and the optional target `folderId` — are supplied as query parameters (not form fields) so authorization runs before the request body is buffered. Maximum file size is 100MB. A name already taken in the destination folder is rejected with `409`; the in-app uploader instead auto-suffixes, so the two surfaces differ here on purpose. Returns `201 Created`.\n\nPresigned upload is not part of the public API: it debits the storage quota only in a separate register step, so a caller that never registers would leave unaccounted bytes in storage. This buffered path debits inside the upload transaction.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -139,6 +157,16 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "required": false,
+            "description": "Target file folder. Omit to upload to the workspace root. Supplied as a query parameter, like `workspaceId`, so authorization runs before the multipart body is buffered.",
+            "schema": {
+              "type": "string",
+              "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+            }
           }
         ],
         "requestBody": {
@@ -186,8 +214,11 @@
                     "size": 1024,
                     "type": "text/csv",
                     "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "folderPath": "Reports/Q1",
                     "uploadedBy": "user_abc123",
-                    "uploadedAt": "2026-01-15T10:30:00Z"
+                    "uploadedAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z"
                   }
                 }
               }
@@ -418,6 +449,112 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "renameFile",
+        "summary": "Rename File",
+        "description": "Rename a file. Renaming only — use `POST /api/v2/files/move` to change which folder a file lives in. A name already taken in the same folder is rejected with `409`.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"name\": \"renamed.csv\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "name"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the file.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "The new filename. Cannot contain `/`, `\\`, or be `.` / `..`.",
+                    "example": "renamed.csv"
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "name": "renamed.csv"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed file.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "name": "renamed.csv",
+                    "size": 1024,
+                    "type": "text/csv",
+                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "folderPath": "Reports/Q1",
+                    "uploadedBy": "user_abc123",
+                    "uploadedAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -694,6 +831,1176 @@
           }
         }
       }
+    },
+    "/api/v2/files/{fileId}/restore": {
+      "post": {
+        "operationId": "restoreFile",
+        "summary": "Restore File",
+        "description": "Restore an archived file. Find archived ids with `GET /api/v2/files?scope=archived`. If the original name has since been taken by a live file, the file is restored under a suffixed name.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/restore\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the file.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file was restored.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RestoreFileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "restored": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/move": {
+      "post": {
+        "operationId": "moveFileItems",
+        "summary": "Move Files and Folders",
+        "description": "Move files and/or folders into a folder. `targetFolderId: null` — or omitting it — moves the selection to the workspace root. At least one of `fileIds` or `folderIds` must be non-empty. The whole selection moves under one lock, so a name collision at the destination fails the request with `409` instead of applying part of it.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/move\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"fileIds\": [\"wf_V1StGXR8z5jdHi6BmyT91\"], \"targetFolderId\": \"fold_9Kq2mZ7pR4tLxWc0Ye3Nu\"}'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the items.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "fileIds": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Files to move."
+                  },
+                  "folderIds": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Folders to move. Descendants follow their folder."
+                  },
+                  "targetFolderId": {
+                    "type": ["string", "null"],
+                    "description": "Destination folder. `null` or omitted moves to the workspace root.",
+                    "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+                  }
+                }
+              },
+              "examples": {
+                "intoFolder": {
+                  "summary": "Move two files into a folder",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "fileIds": ["wf_V1StGXR8z5jdHi6BmyT91", "wf_2QrTb9xLm4PvZc7Ns1Ka"],
+                    "targetFolderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+                  }
+                },
+                "toRoot": {
+                  "summary": "Move a folder back to the workspace root",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "folderIds": ["fold_9Kq2mZ7pR4tLxWc0Ye3Nu"],
+                    "targetFolderId": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The items were moved.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2MoveFileItemsResponse"
+                },
+                "example": {
+                  "data": {
+                    "movedItems": {
+                      "files": 2,
+                      "folders": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/bulk-archive": {
+      "post": {
+        "operationId": "bulkArchiveFileItems",
+        "summary": "Archive Files and Folders",
+        "description": "Archive (soft delete) files and/or folders in one call. Archiving a folder cascades to everything under it, so `deletedItems` reports totals larger than the selection. Archived items remain listable via `scope=archived` and can be restored.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/bulk-archive\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"fileIds\": [\"wf_V1StGXR8z5jdHi6BmyT91\"], \"folderIds\": [\"fold_9Kq2mZ7pR4tLxWc0Ye3Nu\"]}'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the items.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "fileIds": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Files to archive."
+                  },
+                  "folderIds": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Folders to archive, together with their contents."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "fileIds": ["wf_V1StGXR8z5jdHi6BmyT91"],
+                "folderIds": ["fold_9Kq2mZ7pR4tLxWc0Ye3Nu"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The items were archived.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BulkArchiveFileItemsResponse"
+                },
+                "example": {
+                  "data": {
+                    "deletedItems": {
+                      "files": 3,
+                      "folders": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/folders": {
+      "get": {
+        "operationId": "listFileFolders",
+        "summary": "List File Folders",
+        "description": "List a workspace's file-folder tree. The tree is bounded, so it is returned as a single page and `nextCursor` is always `null`. File folders are managed only here — the generic `/api/v2/folders` surface does not serve them, because every file-folder mutation runs behind a per-workspace lock and file-folder names are path segments.",
+        "tags": ["File Folders"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\\\n  \"https://www.sim.ai/api/v2/files/folders?workspaceId=YOUR_WORKSPACE_ID\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "`active` (the default) lists live folders; `archived` lists the ones in Recently Deleted, which is how you find an id to restore.",
+            "schema": {
+              "type": "string",
+              "enum": ["active", "archived"],
+              "default": "active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's file folders.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileFolderListResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                      "name": "Q1",
+                      "parentId": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw",
+                      "path": "Reports/Q1",
+                      "sortOrder": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z",
+                      "deletedAt": null
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createFileFolder",
+        "summary": "Create File Folder",
+        "description": "Create a file folder. `parentId: null` — or omitting it — creates the folder at the workspace root. The name becomes a path segment, so `/`, `\\`, `.` and `..` are rejected. A sibling with the same name is rejected with `409`. Returns `201 Created`.",
+        "tags": ["File Folders"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/folders\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"name\": \"Q1\"}'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "name"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace to create the folder in.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "Folder name. Cannot contain `/`, `\\`, or be `.` / `..`.",
+                    "example": "Q1"
+                  },
+                  "parentId": {
+                    "type": ["string", "null"],
+                    "description": "Parent folder. `null` or omitted creates the folder at the workspace root.",
+                    "example": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw"
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "name": "Q1",
+                "parentId": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The folder was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileFolderResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "name": "Q1",
+                    "parentId": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw",
+                    "path": "Reports/Q1",
+                    "sortOrder": 0,
+                    "createdAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z",
+                    "deletedAt": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/folders/{folderId}": {
+      "patch": {
+        "operationId": "updateFileFolder",
+        "summary": "Update File Folder",
+        "description": "Rename, reparent, or reorder a file folder. At least one of `name`, `parentId`, or `sortOrder` is required; omitted fields keep their stored values. Reparenting is cycle-checked, so making a folder its own descendant is rejected with `400`.",
+        "tags": ["File Folders"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\\\n  \"https://www.sim.ai/api/v2/files/folders/fold_9Kq2mZ7pR4tLxWc0Ye3Nu\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"name\": \"Q2\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileFolderIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the folder.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "New folder name. Cannot contain `/`, `\\`, or be `.` / `..`.",
+                    "example": "Q2"
+                  },
+                  "parentId": {
+                    "type": ["string", "null"],
+                    "description": "New parent folder. `null` moves the folder to the workspace root."
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "New ordering position among siblings."
+                  }
+                }
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Q2"
+                  }
+                },
+                "reparent": {
+                  "summary": "Move to the workspace root",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "parentId": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileFolderResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "name": "Q2",
+                    "parentId": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw",
+                    "path": "Reports/Q2",
+                    "sortOrder": 0,
+                    "createdAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z",
+                    "deletedAt": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFileFolder",
+        "summary": "Archive File Folder",
+        "description": "Archive (soft delete) a folder and everything under it. `deletedItems` counts the whole cascade. Restore it with `POST /api/v2/files/folders/{folderId}/restore`.",
+        "tags": ["File Folders"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\\\n  \"https://www.sim.ai/api/v2/files/folders/fold_9Kq2mZ7pR4tLxWc0Ye3Nu?workspaceId=YOUR_WORKSPACE_ID\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileFolderIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The folder and its contents were archived.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DeleteFileFolderResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "deleted": true,
+                    "deletedItems": {
+                      "files": 3,
+                      "folders": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/folders/{folderId}/restore": {
+      "post": {
+        "operationId": "restoreFileFolder",
+        "summary": "Restore File Folder",
+        "description": "Restore an archived folder together with the subtree that was archived with it. `restoredItems.folders` counts the folder itself. Find archived ids with `GET /api/v2/files/folders?scope=archived`.",
+        "tags": ["File Folders"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/folders/fold_9Kq2mZ7pR4tLxWc0Ye3Nu/restore\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileFolderIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the folder.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The folder and its subtree were restored.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RestoreFileFolderResponse"
+                },
+                "example": {
+                  "data": {
+                    "folder": {
+                      "id": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                      "name": "Q1",
+                      "parentId": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw",
+                      "path": "Reports/Q1",
+                      "sortOrder": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z",
+                      "deletedAt": null
+                    },
+                    "restoredItems": {
+                      "files": 3,
+                      "folders": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/share": {
+      "get": {
+        "operationId": "getFileShare",
+        "summary": "Get File Share",
+        "description": "Read a file's public share state. `share` is `null` when the file has never been shared. The encrypted password is never returned — `hasPassword` is the only password signal.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, archive the file instead.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/share?workspaceId=YOUR_WORKSPACE_ID\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file's share state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2GetFileShareResponse"
+                },
+                "example": {
+                  "data": {
+                    "share": {
+                      "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+                      "token": "share-token-example",
+                      "url": "https://www.sim.ai/f/share-token-example",
+                      "isActive": true,
+                      "resourceType": "file",
+                      "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                      "authType": "public",
+                      "hasPassword": false,
+                      "allowedEmails": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "upsertFileShare",
+        "summary": "Enable or Disable File Share",
+        "description": "Enable or disable a file's public share. Requires workspace `write`.\n\nThe share token is always server-generated; there is no way to supply one. `authType` selects how the link is gated: `public` (anyone with the link), `password` (requires `password` on first enable), or `email` / `sso` (requires a non-empty `allowedEmails`). Omitting `authType` on a re-enable keeps the stored mode, and the org access-control policy is evaluated against that stored mode rather than against `public`. Disabling is never blocked by the policy.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, archive the file instead.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/share\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"isActive\": true, \"authType\": \"public\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "isActive"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the file.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "isActive": {
+                    "type": "boolean",
+                    "description": "Whether the share should resolve. `false` disables without revoking."
+                  },
+                  "authType": {
+                    "type": "string",
+                    "enum": ["public", "password", "email", "sso"],
+                    "description": "How the link is gated. Omit on a re-enable to keep the stored mode."
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "Plaintext password for a `password` share. Required on first enable; omit to keep the stored one."
+                  },
+                  "allowedEmails": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 320
+                    },
+                    "description": "Allowed addresses or `@domain` patterns for an `email` / `sso` share. Must be non-empty when enabling one."
+                  }
+                }
+              },
+              "examples": {
+                "publicLink": {
+                  "summary": "Enable a public link",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isActive": true,
+                    "authType": "public"
+                  }
+                },
+                "passwordProtected": {
+                  "summary": "Enable a password-protected link",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isActive": true,
+                    "authType": "password",
+                    "password": "EXAMPLE_PASSWORD"
+                  }
+                },
+                "disable": {
+                  "summary": "Disable (keeps the token and stored config)",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isActive": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The share after the update.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2UpsertFileShareResponse"
+                },
+                "example": {
+                  "data": {
+                    "share": {
+                      "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+                      "token": "share-token-example",
+                      "url": "https://www.sim.ai/f/share-token-example",
+                      "isActive": true,
+                      "resourceType": "file",
+                      "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                      "authType": "public",
+                      "hasPassword": false,
+                      "allowedEmails": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/content": {
+      "put": {
+        "operationId": "updateFileContent",
+        "summary": "Replace File Content",
+        "description": "Replace a file's bytes. This is a full replace, not an append: `content` becomes the entire body of the file. Use `encoding: \"base64\"` for non-UTF-8 bytes. The decoded body is capped at 50MB and still debits the workspace storage quota, so a write that would push the payer past its limit fails with `413`.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/content\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"content\": \"id,name\\\\n1,alpha\\\\n\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "content"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the file.",
+                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "The file's new full contents, interpreted per `encoding`."
+                  },
+                  "encoding": {
+                    "type": "string",
+                    "enum": ["utf-8", "base64"],
+                    "default": "utf-8",
+                    "description": "How to decode `content` into bytes."
+                  }
+                }
+              },
+              "examples": {
+                "text": {
+                  "summary": "Replace with UTF-8 text",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "content": "id,name\n1,alpha\n"
+                  }
+                },
+                "binary": {
+                  "summary": "Replace with base64-encoded bytes",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "content": "aWQsbmFtZQoxLGFscGhhCg==",
+                    "encoding": "base64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated file.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "name": "data.csv",
+                    "size": 16,
+                    "type": "text/csv",
+                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "folderPath": "Reports/Q1",
+                    "uploadedBy": "user_abc123",
+                    "uploadedAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T11:05:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -734,6 +2041,16 @@
         "schema": {
           "type": "string"
         }
+      },
+      "FileFolderIdPath": {
+        "name": "folderId",
+        "in": "path",
+        "required": true,
+        "description": "The unique identifier of the file folder.",
+        "schema": {
+          "type": "string",
+          "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+        }
       }
     },
     "headers": {
@@ -764,7 +2081,18 @@
       "V2File": {
         "type": "object",
         "description": "A workspace file as exposed by the v2 surface.",
-        "required": ["id", "name", "size", "type", "key", "uploadedBy", "uploadedAt"],
+        "required": [
+          "id",
+          "name",
+          "size",
+          "type",
+          "key",
+          "folderId",
+          "folderPath",
+          "uploadedBy",
+          "uploadedAt",
+          "updatedAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -801,6 +2129,22 @@
             "type": "string",
             "format": "date-time",
             "description": "ISO 8601 timestamp of when the file was uploaded.",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "folderId": {
+            "type": ["string", "null"],
+            "description": "The containing file folder, or null when the file sits at the workspace root.",
+            "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+          },
+          "folderPath": {
+            "type": ["string", "null"],
+            "description": "Slash-joined folder names for `folderId`, or null at the workspace root.",
+            "example": "Reports/Q1"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of the last write, content or metadata.",
             "example": "2026-01-15T10:30:00Z"
           }
         }
@@ -993,6 +2337,340 @@
             }
           }
         }
+      },
+      "V2FileFolder": {
+        "type": "object",
+        "description": "A file folder as exposed by the v2 surface. File folders are managed only through `/api/v2/files/folders/**`; the generic `/api/v2/folders` surface does not serve them.",
+        "required": [
+          "id",
+          "name",
+          "parentId",
+          "path",
+          "sortOrder",
+          "createdAt",
+          "updatedAt",
+          "deletedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique folder identifier.",
+            "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+          },
+          "name": {
+            "type": "string",
+            "description": "Folder name. Becomes a path segment, so it cannot contain `/`, `\\`, `.` or `..`.",
+            "example": "Q1"
+          },
+          "parentId": {
+            "type": ["string", "null"],
+            "description": "The parent folder, or null at the workspace root.",
+            "example": "fold_3Bd8vT1yQ6sKzMn5Ap7Rw"
+          },
+          "path": {
+            "type": "string",
+            "description": "Slash-joined names from the workspace root down to and including this folder.",
+            "example": "Reports/Q1"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "description": "Manual ordering position among siblings.",
+            "example": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 creation timestamp.",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of the last update.",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "deletedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Set when the folder is archived (in Recently Deleted) rather than live."
+          }
+        }
+      },
+      "V2FileItemCounts": {
+        "type": "object",
+        "description": "Counts of what an operation actually touched. A folder cascades to its descendants, so these exceed the size of the selection.",
+        "required": ["files", "folders"],
+        "properties": {
+          "files": {
+            "type": "integer",
+            "description": "Number of files affected.",
+            "example": 3
+          },
+          "folders": {
+            "type": "integer",
+            "description": "Number of folders affected.",
+            "example": 1
+          }
+        }
+      },
+      "V2FileShare": {
+        "type": "object",
+        "description": "A file's public share. Never carries the storage key or the encrypted password — `hasPassword` is the only password signal exposed.",
+        "required": [
+          "id",
+          "token",
+          "url",
+          "isActive",
+          "resourceType",
+          "resourceId",
+          "authType",
+          "hasPassword",
+          "allowedEmails"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique share identifier.",
+            "example": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb"
+          },
+          "token": {
+            "type": "string",
+            "description": "The public token embedded in the share URL. Always server-generated.",
+            "example": "share-token-example"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The public share URL.",
+            "example": "https://www.sim.ai/f/share-token-example"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the share currently resolves. Disabling does not revoke — see the endpoint description."
+          },
+          "resourceType": {
+            "type": "string",
+            "enum": ["file", "folder"],
+            "description": "The kind of resource shared. Always `file` on this surface."
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "The shared resource id.",
+            "example": "wf_V1StGXR8z5jdHi6BmyT91"
+          },
+          "authType": {
+            "type": "string",
+            "enum": ["public", "password", "email", "sso"],
+            "description": "How the share is gated."
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Whether a password is stored for this share."
+          },
+          "allowedEmails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Allow-list of addresses or `@domain` patterns for `email`/`sso` shares. Empty otherwise."
+          }
+        }
+      },
+      "V2RestoreFileResult": {
+        "type": "object",
+        "description": "Acknowledgement returned by a successful file restore.",
+        "required": ["id", "restored"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the restored file.",
+            "example": "wf_V1StGXR8z5jdHi6BmyT91"
+          },
+          "restored": {
+            "type": "boolean",
+            "const": true,
+            "description": "Always true on a successful restore."
+          }
+        }
+      },
+      "V2MoveFileItemsResult": {
+        "type": "object",
+        "description": "What the move actually relocated.",
+        "required": ["movedItems"],
+        "properties": {
+          "movedItems": {
+            "$ref": "#/components/schemas/V2FileItemCounts"
+          }
+        }
+      },
+      "V2BulkArchiveFileItemsResult": {
+        "type": "object",
+        "description": "What the archive actually soft-deleted, including the cascade.",
+        "required": ["deletedItems"],
+        "properties": {
+          "deletedItems": {
+            "$ref": "#/components/schemas/V2FileItemCounts"
+          }
+        }
+      },
+      "V2DeleteFileFolderResult": {
+        "type": "object",
+        "description": "Acknowledgement returned by archiving a folder, with the cascade totals.",
+        "required": ["id", "deleted", "deletedItems"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the archived folder.",
+            "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Always true on a successful archive."
+          },
+          "deletedItems": {
+            "$ref": "#/components/schemas/V2FileItemCounts"
+          }
+        }
+      },
+      "V2RestoreFileFolderResult": {
+        "type": "object",
+        "description": "The restored folder plus what its subtree restore touched. `restoredItems.folders` counts the folder itself.",
+        "required": ["folder", "restoredItems"],
+        "properties": {
+          "folder": {
+            "$ref": "#/components/schemas/V2FileFolder"
+          },
+          "restoredItems": {
+            "$ref": "#/components/schemas/V2FileItemCounts"
+          }
+        }
+      },
+      "V2GetFileShareResult": {
+        "type": "object",
+        "description": "The file's share state, or null when the file has never been shared.",
+        "required": ["share"],
+        "properties": {
+          "share": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/V2FileShare"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The share, or null when the file has never been shared."
+          }
+        }
+      },
+      "V2UpsertFileShareResult": {
+        "type": "object",
+        "description": "The share after the upsert.",
+        "required": ["share"],
+        "properties": {
+          "share": {
+            "$ref": "#/components/schemas/V2FileShare"
+          }
+        }
+      },
+      "V2FileFolderResponse": {
+        "type": "object",
+        "description": "A single file folder.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2FileFolder"
+          }
+        }
+      },
+      "V2FileFolderListResponse": {
+        "type": "object",
+        "description": "A workspace's file-folder tree. The tree is bounded, so it is always returned as one page and `nextCursor` is always null.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "The folders.",
+            "items": {
+              "$ref": "#/components/schemas/V2FileFolder"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Always null on this endpoint; present so every v2 list shares one envelope."
+          }
+        }
+      },
+      "V2RestoreFileResponse": {
+        "type": "object",
+        "description": "The result of restoring a file.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2RestoreFileResult"
+          }
+        }
+      },
+      "V2MoveFileItemsResponse": {
+        "type": "object",
+        "description": "The result of a move.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2MoveFileItemsResult"
+          }
+        }
+      },
+      "V2BulkArchiveFileItemsResponse": {
+        "type": "object",
+        "description": "The result of a bulk archive.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2BulkArchiveFileItemsResult"
+          }
+        }
+      },
+      "V2DeleteFileFolderResponse": {
+        "type": "object",
+        "description": "The result of archiving a folder.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2DeleteFileFolderResult"
+          }
+        }
+      },
+      "V2RestoreFileFolderResponse": {
+        "type": "object",
+        "description": "The result of restoring a folder.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2RestoreFileFolderResult"
+          }
+        }
+      },
+      "V2GetFileShareResponse": {
+        "type": "object",
+        "description": "The file's public share state.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2GetFileShareResult"
+          }
+        }
+      },
+      "V2UpsertFileShareResponse": {
+        "type": "object",
+        "description": "The share after enabling or disabling it.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2UpsertFileShareResult"
+          }
+        }
       }
     },
     "responses": {
@@ -1115,6 +2793,38 @@
               "error": {
                 "code": "INTERNAL_ERROR",
                 "message": "Internal server error"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with existing state — most often a name already taken in the destination folder.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "A file named \"data.csv\" already exists in this workspace"
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The body exceeds the per-request size limit, or accepting it would push the workspace past its storage quota.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "Storage limit exceeded"
               }
             }
           }

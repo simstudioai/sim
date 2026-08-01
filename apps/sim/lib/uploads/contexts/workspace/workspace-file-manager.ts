@@ -19,6 +19,7 @@ import {
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -1072,7 +1073,7 @@ export async function updateWorkspaceFileContent(
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
@@ -1275,7 +1276,7 @@ export async function renameWorkspaceFile(
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   if (fileRecord.name === normalizedName) {
@@ -1432,7 +1433,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
 
   const fileRecord = await findWorkspaceFileForLifecycle(db, workspaceId, fileId)
   if (!fileRecord) {
-    throw new Error('File not found')
+    throw new OrchestrationError('not_found', 'File not found')
   }
 
   if (!fileRecord.deletedAt) {

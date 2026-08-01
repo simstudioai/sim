@@ -1,4 +1,10 @@
 export {
+  MAX_WORKSPACE_FILE_CONTENT_BYTES,
+  type PerformUpdateWorkspaceFileContentParams,
+  type PerformUpdateWorkspaceFileContentResult,
+  performUpdateWorkspaceFileContent,
+} from './content'
+export {
   type PerformCreateWorkspaceFileFolderParams,
   type PerformCreateWorkspaceFileFolderResult,
   type PerformDeleteWorkspaceFileItemsParams,
@@ -23,6 +29,12 @@ export {
   performRestoreWorkspaceFile,
   performRestoreWorkspaceFileFolder,
   performUpdateWorkspaceFileFolder,
-  type WorkspaceFilesOrchestrationErrorCode,
-  workspaceFilesOrchestrationStatus,
 } from './file-folder-lifecycle'
+export {
+  type PerformGetWorkspaceFileShareParams,
+  type PerformGetWorkspaceFileShareResult,
+  type PerformUpsertWorkspaceFileShareParams,
+  type PerformUpsertWorkspaceFileShareResult,
+  performGetWorkspaceFileShare,
+  performUpsertWorkspaceFileShare,
+} from './share'

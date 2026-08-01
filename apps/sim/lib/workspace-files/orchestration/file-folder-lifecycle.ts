@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   bulkArchiveWorkspaceFileItems,
@@ -22,21 +23,6 @@ import {
 
 const logger = createLogger('WorkspaceFileFolderLifecycle')
 
-export type WorkspaceFilesOrchestrationErrorCode =
-  | 'validation'
-  | 'not_found'
-  | 'conflict'
-  | 'internal'
-
-export function workspaceFilesOrchestrationStatus(
-  errorCode: WorkspaceFilesOrchestrationErrorCode | undefined
-): number {
-  if (errorCode === 'validation') return 400
-  if (errorCode === 'conflict') return 409
-  if (errorCode === 'not_found') return 404
-  return 500
-}
-
 export interface PerformDeleteWorkspaceFileItemsParams {
   workspaceId: string
   userId: string
@@ -53,7 +39,7 @@ export interface PerformDeleteWorkspaceFileItemsParams {
 export interface PerformDeleteWorkspaceFileItemsResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   deletedItems?: WorkspaceFileArchiveResult
 }
 
@@ -68,7 +54,7 @@ export interface PerformMoveWorkspaceFileItemsParams {
 export interface PerformMoveWorkspaceFileItemsResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   movedItems?: { files: number; folders: number }
 }
 
@@ -82,7 +68,7 @@ export interface PerformRenameWorkspaceFileParams {
 export interface PerformRenameWorkspaceFileResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   file?: WorkspaceFileRecord
 }
 
@@ -95,7 +81,7 @@ export interface PerformRestoreWorkspaceFileParams {
 export interface PerformRestoreWorkspaceFileResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
 }
 
 export interface PerformCreateWorkspaceFileFolderParams {
@@ -108,7 +94,7 @@ export interface PerformCreateWorkspaceFileFolderParams {
 export interface PerformCreateWorkspaceFileFolderResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   folder?: WorkspaceFileFolderRecord
 }
 
@@ -124,7 +110,7 @@ export interface PerformUpdateWorkspaceFileFolderParams {
 export interface PerformUpdateWorkspaceFileFolderResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   folder?: WorkspaceFileFolderRecord
 }
 
@@ -137,7 +123,7 @@ export interface PerformRestoreWorkspaceFileFolderParams {
 export interface PerformRestoreWorkspaceFileFolderResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   folder?: WorkspaceFileFolderRecord
   restoredItems?: WorkspaceFileArchiveResult
 }
@@ -316,6 +302,10 @@ export async function performRenameWorkspaceFile(
     if (error instanceof FileConflictError || getPostgresErrorCode(error) === '23505') {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
     }
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
+    }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }
@@ -331,7 +321,7 @@ export interface PerformMoveRenameWorkspaceFileParams {
 export interface PerformMoveRenameWorkspaceFileResult {
   success: boolean
   error?: string
-  errorCode?: WorkspaceFilesOrchestrationErrorCode
+  errorCode?: OrchestrationErrorCode
   file?: WorkspaceFileRecord
 }
 
@@ -413,6 +403,10 @@ export async function performRestoreWorkspaceFile(
     logger.error('Failed to restore workspace file', { error })
     if (error instanceof FileConflictError || getPostgresErrorCode(error) === '23505') {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
+    }
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
