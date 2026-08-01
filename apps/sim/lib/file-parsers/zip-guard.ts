@@ -34,6 +34,9 @@ const UINT16_SENTINEL = 0xffff
 const COMPRESSION_METHOD_STORED = 0
 const COMPRESSION_METHOD_DEFLATE = 8
 
+/** General-purpose bit 3: sizes live in a trailing data descriptor, not the local header. */
+const DATA_DESCRIPTOR_FLAG = 0x0008
+
 export interface OoxmlSizeLimits {
   /** Hard ceiling on the summed declared uncompressed size of all entries. */
   maxTotalUncompressedBytes: number
@@ -274,6 +277,12 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
  * to exactly what it declared and passes, having already been bounded by
  * {@link sumDeclaredUncompressedSize}.
  *
+ * The central and local headers must also agree on the compression method and
+ * sizes, because the parsers disagree about which one to trust — JSZip reads
+ * the central directory, SheetJS switches on the local header — and a record
+ * that reads as STORED here but DEFLATE downstream would skip inflation
+ * verification entirely.
+ *
  * Returns an error message when the archive is lying or is shaped in a way that
  * cannot be verified, and `null` when every entry checks out.
  */
@@ -308,6 +317,31 @@ function findInflationMismatch(buffer: Buffer, location: CentralDirectoryLocatio
       buffer.readUInt16LE(localHeaderOffset + 28)
     if (dataStart > buffer.length) {
       return 'entry data starts outside the archive'
+    }
+
+    // The two headers must agree on how the payload is encoded. JSZip trusts
+    // the central directory while SheetJS switches on the local header's
+    // method, so a record that claims STORED centrally and DEFLATE locally
+    // would skip verification here and still be inflated downstream.
+    const localFlags = buffer.readUInt16LE(localHeaderOffset + 6)
+    const localMethod = buffer.readUInt16LE(localHeaderOffset + 8)
+    if (localMethod !== compressionMethod) {
+      return `entry declares compression method ${compressionMethod} centrally but ${localMethod} locally`
+    }
+
+    // Sizes must agree too, for the same reason. They are legitimately absent
+    // from the local header when the data-descriptor flag is set, and are
+    // sentinels under ZIP64, so only compare when both are actually present.
+    const hasDataDescriptor = (localFlags & DATA_DESCRIPTOR_FLAG) !== 0
+    const localCompressedSize = buffer.readUInt32LE(localHeaderOffset + 18)
+    const localUncompressedSize = buffer.readUInt32LE(localHeaderOffset + 22)
+    if (
+      !hasDataDescriptor &&
+      localCompressedSize !== UINT32_SENTINEL &&
+      localUncompressedSize !== UINT32_SENTINEL &&
+      (localCompressedSize !== compressedSize || localUncompressedSize !== uncompressedSize)
+    ) {
+      return `entry declares ${compressedSize}/${uncompressedSize} bytes centrally but ${localCompressedSize}/${localUncompressedSize} locally`
     }
 
     if (compressionMethod === COMPRESSION_METHOD_STORED) {

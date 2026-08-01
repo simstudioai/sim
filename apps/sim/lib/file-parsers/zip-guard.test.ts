@@ -57,15 +57,31 @@ function underDeclareSizes(source: Buffer, declared: number): Buffer {
   return buffer
 }
 
-/** Overwrite the compression method on every non-empty central-directory record. */
-function setCompressionMethod(source: Buffer, method: number): Buffer {
+/**
+ * Overwrite the compression method on every non-empty record. `where` selects
+ * which header is rewritten, so a test can make the two disagree — JSZip trusts
+ * the central method while SheetJS switches on the local one.
+ */
+function setCompressionMethod(
+  source: Buffer,
+  method: number,
+  where: 'central' | 'local' | 'both' = 'both'
+): Buffer {
   const buffer = Buffer.from(source)
   for (let offset = 0; offset + 46 <= buffer.length; offset++) {
+    const signature = buffer.readUInt32LE(offset)
     if (
-      buffer.readUInt32LE(offset) === CENTRAL_DIRECTORY_HEADER_SIGNATURE &&
-      buffer.readUInt32LE(offset + 24) !== 0
+      signature === CENTRAL_DIRECTORY_HEADER_SIGNATURE &&
+      buffer.readUInt32LE(offset + 24) !== 0 &&
+      where !== 'local'
     ) {
       buffer.writeUInt16LE(method, offset + 10)
+    } else if (
+      signature === LOCAL_FILE_HEADER_SIGNATURE &&
+      buffer.readUInt32LE(offset + 22) !== 0 &&
+      where !== 'central'
+    ) {
+      buffer.writeUInt16LE(method, offset + 8)
     }
   }
   return buffer
@@ -184,6 +200,35 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(setCompressionMethod(buffer, 12), HIGH_LIMITS)
     ).toThrow(/unsupported compression method 12/)
+  })
+
+  it('rejects an entry whose central and local compression methods disagree', async () => {
+    // Claiming STORED centrally skips the bounded inflation, while SheetJS
+    // switches on the local header and would inflate the payload anyway.
+    const honest = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
+    const split = setCompressionMethod(honest, 0, 'central')
+
+    expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(
+      /compression method 0 centrally but 8 locally/
+    )
+  })
+
+  it('rejects an entry whose central and local declared sizes disagree', async () => {
+    const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    const buffer = Buffer.from(honest)
+    for (let offset = 0; offset + 30 <= buffer.length; offset++) {
+      if (
+        buffer.readUInt32LE(offset) === LOCAL_FILE_HEADER_SIGNATURE &&
+        buffer.readUInt32LE(offset + 22) !== 0
+      ) {
+        buffer.writeUInt32LE(64, offset + 22)
+      }
+    }
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).toThrow(
+      /200000 bytes centrally but .* locally/
+    )
   })
 
   it('accepts a multi-entry archive whose entries all inflate to what they declare', async () => {
