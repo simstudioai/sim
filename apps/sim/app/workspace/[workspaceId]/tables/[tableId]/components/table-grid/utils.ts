@@ -373,26 +373,27 @@ export function selectedColumnIds(
 
 /**
  * Materializes a `table_selection` chat context from a grid selection, applying
- * the shared row/column caps. `columnIds` narrows the context to a cell range; a
- * range covering every column is equivalent to whole rows, so it collapses to an
- * open scope (the server then includes all columns, and stays correct if the
- * schema changes). Returns null before the table name has loaded or when nothing
- * is selected.
+ * the shared row/column caps. `columnIds` narrows the context to a cell range;
+ * omit it for a whole-row selection, where the agent should see every column.
+ * Returns null before the table name has loaded or when nothing is selected.
+ *
+ * A range is never widened back to an open scope for "covering everything":
+ * the only counts available to callers come from the rendered grid, which both
+ * drops hidden columns and expands workflow groups, so "all of them" cannot be
+ * compared to the schema. Treating a full-width range as whole rows would let
+ * the server re-fetch columns the user had hidden.
  */
 export function buildTableSelectionContext(opts: {
   tableId: string
   tableName: string | undefined
-  totalColumnCount: number
   rowIds: string[]
   columnIds?: string[]
 }): ChatContext | null {
-  const { tableId, tableName, totalColumnCount, columnIds } = opts
+  const { tableId, tableName, columnIds } = opts
   if (!tableName || opts.rowIds.length === 0) return null
   const rowIds = opts.rowIds.slice(0, MAX_TABLE_SELECTION_ROWS)
   const scopedColumnIds =
-    columnIds && columnIds.length > 0 && columnIds.length < totalColumnCount
-      ? columnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS)
-      : undefined
+    columnIds && columnIds.length > 0 ? columnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS) : undefined
   return {
     kind: 'table_selection',
     tableId,

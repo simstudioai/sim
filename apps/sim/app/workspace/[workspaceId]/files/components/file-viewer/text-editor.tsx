@@ -390,7 +390,13 @@ export const TextEditor = memo(function TextEditor({
     const text = model.getValueInRange(sel)
     if (!text.trim()) return null
     const startLine = sel.startLineNumber
-    const endLine = sel.endLineNumber
+    // A full-line highlight ends at column 1 of the FOLLOWING line, so that line
+    // contributed no text — reporting it would claim a range one line longer
+    // than what was selected, in both the chip label and the agent's prompt.
+    const endLine =
+      sel.endColumn === 1 && sel.endLineNumber > startLine
+        ? sel.endLineNumber - 1
+        : sel.endLineNumber
     return {
       kind: 'file_selection',
       fileId: file.id,

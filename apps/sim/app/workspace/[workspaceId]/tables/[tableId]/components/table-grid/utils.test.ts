@@ -30,7 +30,7 @@ describe('selectedColumnIds', () => {
 })
 
 describe('buildTableSelectionContext', () => {
-  const base = { tableId: 't1', tableName: 'Sales', totalColumnCount: 3 }
+  const base = { tableId: 't1', tableName: 'Sales' }
 
   it('returns null before the table name has loaded, or with nothing selected', () => {
     expect(buildTableSelectionContext({ ...base, tableName: undefined, rowIds: ['r1'] })).toBeNull()
@@ -49,14 +49,22 @@ describe('buildTableSelectionContext', () => {
     expect(context.label).toContain(`${MAX_TABLE_SELECTION_ROWS} rows`)
   })
 
-  it('collapses a range covering every column to an open scope', () => {
-    // Equivalent to whole rows — leaving it open keeps the server correct if the
-    // schema changes, instead of pinning a now-stale column list.
+  it('keeps a full-width range scoped rather than widening it to every column', () => {
+    // Callers can only count rendered columns, which drop hidden ones and expand
+    // workflow groups — so "covers everything visible" is not "covers the
+    // schema". Widening here would re-fetch columns the user had hidden.
     const context = buildTableSelectionContext({
       ...base,
       rowIds: ['r1'],
       columnIds: ['c0', 'c1', 'c2'],
     })
+
+    if (context?.kind !== 'table_selection') throw new Error('expected a table_selection')
+    expect(context.columnIds).toEqual(['c0', 'c1', 'c2'])
+  })
+
+  it('leaves the scope open only when no columns are given (whole rows)', () => {
+    const context = buildTableSelectionContext({ ...base, rowIds: ['r1'] })
 
     if (context?.kind !== 'table_selection') throw new Error('expected a table_selection')
     expect(context.columnIds).toBeUndefined()
@@ -65,7 +73,6 @@ describe('buildTableSelectionContext', () => {
   it('keeps a narrower range scoped, capped at the column limit', () => {
     const context = buildTableSelectionContext({
       ...base,
-      totalColumnCount: MAX_TABLE_SELECTION_COLUMNS + 50,
       rowIds: ['r1'],
       columnIds: Array.from({ length: MAX_TABLE_SELECTION_COLUMNS + 10 }, (_, i) => `c${i}`),
     })

@@ -2985,7 +2985,6 @@ export function TableGrid({
             context: buildTableSelectionContext({
               tableId,
               tableName: tableNameRef.current,
-              totalColumnCount: cols.length,
               // Every selected id, not just the loaded page: the chip carries
               // ids and the server re-fetches them, so an unloaded row still
               // reaches the agent. Only the pasted text is limited to `rows`.
@@ -3034,7 +3033,6 @@ export function TableGrid({
           context: buildTableSelectionContext({
             tableId,
             tableName: tableNameRef.current,
-            totalColumnCount: cols.length,
             rowIds: currentRows.map((row) => row.id),
             columnIds: selectedColumnIds(cols, sel),
           }),
@@ -3062,7 +3060,6 @@ export function TableGrid({
       const rangeContext = buildTableSelectionContext({
         tableId,
         tableName: tableNameRef.current,
-        totalColumnCount: cols.length,
         rowIds: rangeRowIds,
         columnIds: selectedColumnIds(cols, sel),
       })
@@ -3787,11 +3784,29 @@ export function TableGrid({
     : contextMenuRowIds.length || 1
 
   /**
+   * Rows the Add to Chat chip will reference, before the async drain that
+   * select-all and column selections perform. A gutter `some` selection can
+   * extend past the loaded page, and the chip carries ids the server re-fetches,
+   * so it uses the whole set rather than the loaded intersection
+   * `contextMenuRowIds` holds. Shared with the menu label so the count shown and
+   * the count sent can't disagree.
+   */
+  const addToChatRowIds = useMemo<string[]>(() => {
+    if (
+      rowSelection.kind === 'some' &&
+      contextMenu.row &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+    ) {
+      return [...rowSelection.ids]
+    }
+    return contextMenuRowIds
+  }, [rowSelection, contextMenu.row, contextMenuRowIds])
+
+  /**
    * Column ids for an "Add to chat" table selection. A spreadsheet-style cell
    * range AND a column-header selection (which spans every row of the chosen
    * columns) narrow the columns; whole-row (gutter) selections and single rows
-   * send every column (undefined). A range spanning all columns is equivalent to
-   * whole rows, so it also collapses to undefined.
+   * send every column (undefined).
    */
   const contextMenuColumnIds = useMemo<string[] | undefined>(() => {
     if (!contextMenu.isOpen || !contextMenu.row) return undefined
@@ -3807,8 +3822,11 @@ export function TableGrid({
     if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return undefined
     // Collapsed here too (not only in buildTableSelectionContext) because this
     // also decides whether the menu item reads "cell range" or "rows".
+    // Not collapsed to `undefined` when it spans every visible column: hidden
+    // columns mean "all visible" is not "all", and widening would send the agent
+    // columns the user hid. See buildTableSelectionContext.
     const ids = selectedColumnIds(displayColumns, sel)
-    return ids.length > 0 && ids.length < displayColumns.length ? ids : undefined
+    return ids.length > 0 ? ids : undefined
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows, displayColumns])
 
   const addToChat = useAddToChat()
@@ -3818,14 +3836,7 @@ export function TableGrid({
     // `contextMenuRowIds` reflects; drain up to the cap so the chip references as
     // many rows as it can carry (bounded by MAX_TABLE_SELECTION_ROWS) instead of a
     // silent loaded-only subset — mirroring how the copy path loads before writing.
-    const gutterSelection = rowSelectionRef.current
-    // Prefer the whole gutter selection over the loaded intersection.
-    let sourceRowIds =
-      gutterSelection.kind === 'some' &&
-      contextMenu.row &&
-      rowSelectionIncludes(gutterSelection, contextMenu.row.id)
-        ? [...gutterSelection.ids]
-        : contextMenuRowIds
+    let sourceRowIds = addToChatRowIds
     if (contextMenuIsSelectAll || isColumnSelectionRef.current) {
       try {
         const { rows: loaded } = await ensureRowsLoadedUpToRef.current(MAX_TABLE_SELECTION_ROWS)
@@ -3844,20 +3855,17 @@ export function TableGrid({
     const context = buildTableSelectionContext({
       tableId,
       tableName: tableData?.name,
-      totalColumnCount: displayColumns.length,
       rowIds: sourceRowIds,
       columnIds: contextMenuColumnIds,
     })
     if (context) addToChat(context)
   }, [
     addToChat,
-    contextMenuRowIds,
+    addToChatRowIds,
     contextMenuColumnIds,
     contextMenuIsSelectAll,
-    contextMenu.row,
     tableId,
     tableData?.name,
-    displayColumns.length,
   ])
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
@@ -4582,8 +4590,9 @@ export function TableGrid({
         disableInsert={!canManualAddRow}
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
-        onAddToChat={contextMenuRowIds.length > 0 ? handleAddSelectionToChat : undefined}
+        onAddToChat={addToChatRowIds.length > 0 ? handleAddSelectionToChat : undefined}
         addToChatCellScoped={Boolean(contextMenuColumnIds)}
+        addToChatRowCount={contextMenuIsSelectAll ? selectedRowCount : addToChatRowIds.length}
       />
 
       <ExpandedCellPopover
