@@ -1,0 +1,116 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
+import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
+import { buildQuickBooksCreateBillBody } from '@/tools/quickbooks/purchasing_utils'
+import type {
+  QuickBooksCreateBillParams,
+  QuickBooksMutationResponse,
+  QuickBooksPurchasingTransaction,
+} from '@/tools/quickbooks/types'
+import {
+  QUICKBOOKS_MUTATION_OUTPUTS,
+  QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
+} from '@/tools/quickbooks/types'
+import {
+  addQuickBooksRequestId,
+  buildQuickBooksEntityUrl,
+  getQuickBooksToolHeaders,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const quickbooksCreateBillTool: ToolConfig<
+  QuickBooksCreateBillParams,
+  QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
+> = {
+  id: 'quickbooks_create_bill',
+  name: 'QuickBooks Create Bill',
+  description: 'Create a vendor bill without paying it',
+  version: '1.0.0',
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks OAuth access token',
+    },
+    realmId: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks company ID derived from the connected credential',
+    },
+    vendorId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Bill vendor ID',
+    },
+    lines: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Bounded account-based or item-based expense lines',
+    },
+    apAccountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional accounts-payable account ID',
+    },
+    transactionDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Bill date in YYYY-MM-DD format',
+    },
+    dueDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Bill due date in YYYY-MM-DD format',
+    },
+    documentNumber: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional bill number',
+    },
+    privateNote: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Internal bill note',
+    },
+    requestId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional Intuit idempotency request ID, up to 50 characters',
+    },
+  },
+  oauth: {
+    required: true,
+    provider: 'quickbooks',
+    requiredScopes: ['com.intuit.quickbooks.accounting'],
+  },
+  errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
+  request: {
+    url: (p) =>
+      addQuickBooksRequestId(buildQuickBooksEntityUrl(p.realmId, 'bill'), p.requestId).toString(),
+    method: 'POST',
+    headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
+    body: buildQuickBooksCreateBillBody,
+    retry: { enabled: false },
+    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
+  },
+  transformResponse: (r) =>
+    transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'Bill'),
+  outputs: {
+    record: {
+      type: 'json',
+      description: 'Created native QuickBooks Bill',
+      properties: QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
+    },
+    ...QUICKBOOKS_MUTATION_OUTPUTS,
+  },
+}

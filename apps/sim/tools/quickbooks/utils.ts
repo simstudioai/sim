@@ -15,6 +15,7 @@ import type {
   QuickBooksMasterDataRecordType,
   QuickBooksMutationResponse,
   QuickBooksPaginationParams,
+  QuickBooksPurchasingTransactionType,
   QuickBooksReference,
   QuickBooksSalesTransactionType,
   QuickBooksVendor,
@@ -24,6 +25,7 @@ import type {
 export type QuickBooksQueryEntity =
   | 'Account'
   | 'Bill'
+  | 'BillPayment'
   | 'CreditMemo'
   | 'Customer'
   | 'Employee'
@@ -32,9 +34,11 @@ export type QuickBooksQueryEntity =
   | 'Item'
   | 'Payment'
   | 'PurchaseOrder'
+  | 'Purchase'
   | 'RefundReceipt'
   | 'SalesReceipt'
   | 'Vendor'
+  | 'VendorCredit'
 
 interface QuickBooksQueryResponse<T> {
   QueryResponse?: Partial<Record<QuickBooksQueryEntity, T[]>> & {
@@ -91,6 +95,17 @@ export function validateQuickBooksPagination(
   return { startPosition, maxResults }
 }
 
+export const QUICKBOOKS_PURCHASING_ENTITIES = {
+  bill: { entity: 'Bill', resource: 'bill' },
+  bill_payment: { entity: 'BillPayment', resource: 'billpayment' },
+  purchase: { entity: 'Purchase', resource: 'purchase' },
+  purchase_order: { entity: 'PurchaseOrder', resource: 'purchaseorder' },
+  vendor_credit: { entity: 'VendorCredit', resource: 'vendorcredit' },
+} as const satisfies Record<
+  QuickBooksPurchasingTransactionType,
+  { entity: QuickBooksQueryEntity; resource: string }
+>
+
 export function buildQuickBooksQueryUrl(
   realmId: string,
   entity: QuickBooksQueryEntity,
@@ -118,6 +133,18 @@ export function getQuickBooksSalesEntity(transactionType: QuickBooksSalesTransac
   const config = QUICKBOOKS_SALES_ENTITIES[transactionType]
   if (!config) {
     throw new Error(`Unsupported QuickBooks sales transaction type: ${String(transactionType)}`)
+  }
+  return config
+}
+
+export function getQuickBooksPurchasingEntity(
+  transactionType: QuickBooksPurchasingTransactionType
+) {
+  const config = QUICKBOOKS_PURCHASING_ENTITIES[transactionType]
+  if (!config) {
+    throw new Error(
+      `Unsupported QuickBooks purchasing transaction type: ${String(transactionType)}`
+    )
   }
   return config
 }
@@ -282,6 +309,24 @@ export function optionalQuickBooksString(value?: string): string | undefined {
   if (value === undefined) return undefined
   const normalized = value.trim()
   return normalized || undefined
+}
+
+const QUICKBOOKS_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+export function validateQuickBooksDate(
+  value: string | undefined,
+  fieldName: string
+): string | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (!normalized) return undefined
+  if (!QUICKBOOKS_DATE_PATTERN.test(normalized)) {
+    throw new Error(`${fieldName} must use YYYY-MM-DD`)
+  }
+  const date = new Date(`${normalized}T00:00:00Z`)
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
+    throw new Error(`${fieldName} must be a valid date`)
+  }
+  return normalized
 }
 
 export function quickBooksEmailAddress(value?: string): { Address: string } | undefined {

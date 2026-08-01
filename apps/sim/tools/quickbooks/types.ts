@@ -190,9 +190,15 @@ export interface QuickBooksTransaction {
   CustomerMemo?: { value?: string }
   VendorRef?: QuickBooksReference
   APAccountRef?: QuickBooksReference
+  AccountRef?: QuickBooksReference
+  EntityRef?: QuickBooksReference & { type?: string }
   DepositToAccountRef?: QuickBooksReference
   PaymentMethodRef?: QuickBooksReference
   PaymentRefNum?: string
+  PaymentType?: string
+  PayType?: string
+  CheckPayment?: { BankAccountRef?: QuickBooksReference; [key: string]: unknown }
+  CreditCardPayment?: { CCAccountRef?: QuickBooksReference; [key: string]: unknown }
   CurrencyRef?: QuickBooksReference
   ExchangeRate?: number
   Line?: Array<Record<string, unknown>>
@@ -211,6 +217,7 @@ export interface QuickBooksTransaction {
 export type QuickBooksPurchaseOrder = QuickBooksTransaction
 export type QuickBooksBill = QuickBooksTransaction
 export type QuickBooksSalesTransaction = QuickBooksTransaction
+export type QuickBooksPurchasingTransaction = QuickBooksTransaction
 
 export interface QuickBooksAuthParams {
   accessToken: string
@@ -255,6 +262,144 @@ export interface QuickBooksReadSalesTransactionsParams extends QuickBooksAuthPar
   transactionId?: string
   startPosition?: number
   maxResults?: number
+}
+
+export type QuickBooksPurchasingTransactionType =
+  | 'purchase_order'
+  | 'bill'
+  | 'bill_payment'
+  | 'vendor_credit'
+  | 'purchase'
+
+export interface QuickBooksReadPurchasingTransactionsParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksPurchasingTransactionType
+  readMode: QuickBooksMasterDataReadMode
+  transactionId?: string
+  startPosition?: number
+  maxResults?: number
+}
+
+export type QuickBooksPurchasingLineType = 'account' | 'item'
+
+export interface QuickBooksPurchasingLineInput {
+  lineType: QuickBooksPurchasingLineType
+  amount: number
+  accountId?: string
+  itemId?: string
+  description?: string
+  quantity?: number
+  unitPrice?: number
+}
+
+export interface QuickBooksBillAllocationInput {
+  billId: string
+  amount: number
+}
+
+export interface QuickBooksCreatePurchaseOrderParams extends QuickBooksAuthParams {
+  vendorId: string
+  apAccountId: string
+  lines: QuickBooksPurchasingLineInput[]
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdatePurchaseOrderParams extends QuickBooksAuthParams {
+  purchaseOrderId: string
+  syncToken: string
+  vendorId?: string
+  apAccountId?: string
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+}
+
+export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
+  vendorId: string
+  lines: QuickBooksPurchasingLineInput[]
+  apAccountId?: string
+  transactionDate?: string
+  dueDate?: string
+  documentNumber?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateBillParams extends QuickBooksAuthParams {
+  billId: string
+  syncToken: string
+  vendorId: string
+  apAccountId?: string
+  transactionDate?: string
+  dueDate?: string
+  documentNumber?: string
+  privateNote?: string
+}
+
+export type QuickBooksBillPaymentType = 'check' | 'credit_card'
+
+export interface QuickBooksCreateBillPaymentParams extends QuickBooksAuthParams {
+  vendorId: string
+  totalAmount: number
+  paymentType: QuickBooksBillPaymentType
+  paymentAccountId: string
+  billAllocations: QuickBooksBillAllocationInput[]
+  transactionDate?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateBillPaymentParams extends QuickBooksAuthParams {
+  billPaymentId: string
+  syncToken: string
+  vendorId: string
+  transactionDate?: string
+  privateNote?: string
+}
+
+export interface QuickBooksCreateVendorCreditParams extends QuickBooksAuthParams {
+  vendorId: string
+  lines: QuickBooksPurchasingLineInput[]
+  apAccountId?: string
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateVendorCreditParams extends QuickBooksAuthParams {
+  vendorCreditId: string
+  syncToken: string
+  vendorId: string
+  apAccountId?: string
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+}
+
+export type QuickBooksPurchasePaymentType = 'cash' | 'check' | 'credit_card'
+
+export interface QuickBooksCreatePurchaseParams extends QuickBooksAuthParams {
+  paymentType: QuickBooksPurchasePaymentType
+  paymentAccountId: string
+  lines: QuickBooksPurchasingLineInput[]
+  vendorId?: string
+  transactionDate?: string
+  paymentReference?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdatePurchaseParams extends QuickBooksAuthParams {
+  purchaseId: string
+  syncToken: string
+  currentPaymentType: QuickBooksPurchasePaymentType
+  vendorId?: string
+  transactionDate?: string
+  paymentReference?: string
+  privateNote?: string
 }
 
 export type QuickBooksSalesLineType = 'item' | 'description'
@@ -471,6 +616,19 @@ export interface QuickBooksReadSalesTransactionsResponse extends ToolResponse {
   }
 }
 
+export interface QuickBooksReadPurchasingTransactionsResponse extends ToolResponse {
+  output: {
+    transactionType: QuickBooksPurchasingTransactionType
+    item?: QuickBooksPurchasingTransaction
+    items?: QuickBooksPurchasingTransaction[]
+    startPosition?: number
+    maxResults?: number
+    nextStartPosition?: number
+    hasMore?: boolean
+    time: string | null
+  }
+}
+
 export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: string }>
   extends ToolResponse {
   output: {
@@ -496,8 +654,10 @@ export type QuickBooksResponse =
   | QuickBooksListResponse<QuickBooksPurchaseOrder | QuickBooksBill>
   | QuickBooksReadMasterDataResponse
   | QuickBooksReadSalesTransactionsResponse
+  | QuickBooksReadPurchasingTransactionsResponse
   | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
+  | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
   | QuickBooksVoidResponse
 
 export const QUICKBOOKS_REFERENCE_PROPERTIES: Record<string, OutputProperty> = {
@@ -885,6 +1045,81 @@ export const QUICKBOOKS_SALES_TRANSACTION_PROPERTIES: Record<string, OutputPrope
   PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
   TxnStatus: { type: 'string', description: 'Transaction status', optional: true },
   TxnTaxDetail: { type: 'json', description: 'Calculated tax details', optional: true },
+  MetaData: {
+    type: 'json',
+    description: 'Transaction creation and update timestamps',
+    optional: true,
+    properties: QUICKBOOKS_METADATA_PROPERTIES,
+  },
+}
+
+export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks purchasing transaction ID' },
+  SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
+  DocNumber: { type: 'string', description: 'Transaction document number', optional: true },
+  TxnDate: { type: 'string', description: 'Transaction date', optional: true },
+  DueDate: { type: 'string', description: 'Bill due date', optional: true },
+  VendorRef: {
+    type: 'json',
+    description: 'Vendor reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  APAccountRef: {
+    type: 'json',
+    description: 'Accounts-payable account reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  AccountRef: {
+    type: 'json',
+    description: 'Payment account reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  EntityRef: {
+    type: 'json',
+    description: 'Purchase payee reference',
+    optional: true,
+    properties: {
+      ...QUICKBOOKS_REFERENCE_PROPERTIES,
+      type: { type: 'string', description: 'Referenced entity type', optional: true },
+    },
+  },
+  PaymentType: { type: 'string', description: 'Purchase payment type', optional: true },
+  PayType: { type: 'string', description: 'Bill-payment type', optional: true },
+  CheckPayment: {
+    type: 'json',
+    description: 'Check payment account details',
+    optional: true,
+  },
+  CreditCardPayment: {
+    type: 'json',
+    description: 'Credit-card payment account details',
+    optional: true,
+  },
+  PaymentRefNum: { type: 'string', description: 'Payment reference number', optional: true },
+  CurrencyRef: {
+    type: 'json',
+    description: 'Transaction currency reference',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  Line: {
+    type: 'array',
+    description: 'Native QuickBooks expense or allocation lines',
+    optional: true,
+    items: { type: 'json' },
+  },
+  LinkedTxn: {
+    type: 'array',
+    description: 'Transactions linked by QuickBooks',
+    optional: true,
+    items: { type: 'json' },
+  },
+  TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
+  Balance: { type: 'number', description: 'Remaining transaction balance', optional: true },
+  PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
   MetaData: {
     type: 'json',
     description: 'Transaction creation and update timestamps',
