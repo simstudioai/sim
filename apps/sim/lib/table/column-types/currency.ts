@@ -1,5 +1,6 @@
 import { TypeCurrency } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 import {
   formatCurrencyDisplay,
   formatCurrencyForInput,
@@ -16,7 +17,7 @@ export const currencyColumnType: ColumnTypeDefinition = {
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 123,
-  ownedMetadata: ['currencyCode'],
+  ownedMetadata: ownedKeysOf('currency'),
   workflowInputType: 'number',
   editor: 'text',
   expandable: false,

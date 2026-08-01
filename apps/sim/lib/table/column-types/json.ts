@@ -1,5 +1,6 @@
 import { TypeJson } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 
 export const jsonColumnType: ColumnTypeDefinition = {
   id: 'json',
@@ -9,7 +10,7 @@ export const jsonColumnType: ColumnTypeDefinition = {
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 'value',
-  ownedMetadata: [],
+  ownedMetadata: ownedKeysOf('json'),
   workflowInputType: 'object',
   editor: 'text',
   expandable: true,
@@ -26,6 +27,11 @@ export const jsonColumnType: ColumnTypeDefinition = {
     } catch {
       return `${column.name} must be valid JSON`
     }
+  },
+
+  display(value) {
+    if (value === null || value === undefined) return { kind: 'empty' }
+    return { kind: 'json', text: JSON.stringify(value) }
   },
 
   formatForDisplay(value) {

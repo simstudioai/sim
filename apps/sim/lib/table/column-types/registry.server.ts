@@ -207,6 +207,34 @@ async function migrateCellsToSelectIds(
 }
 
 /**
+ * Truncates a date column's stored cells to bare calendar days.
+ *
+ * Runs when `includeTime` is switched **off**. Without it the schema would
+ * claim date-only while cells still carried a time, so two rows on the same day
+ * would keep comparing unequal and the column would render times it says it
+ * does not have.
+ *
+ * A left-slice, not a cast: the stored form is a literal wall time with no
+ * zone, and `::timestamptz` would resolve it against the server's zone and
+ * shift the day. Switching `includeTime` back on is deliberately NOT reversible
+ * — the time of day is gone once truncated, which is why the UI warns first.
+ */
+async function truncateDateCellsToCalendarDay(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string
+): Promise<void> {
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          to_jsonb(left(data->>${columnKey}::text, 10)))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'
+          AND length(data->>${columnKey}::text) > 10`
+  )
+}
+
+/**
  * Every column type plus its migrations. The `Record<ColumnType, …>`
  * annotation is the same completeness gate the client-safe registry uses: a
  * new type will not compile until it appears here too.
@@ -215,7 +243,16 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   string: COLUMN_TYPE_REGISTRY.string,
   number: COLUMN_TYPE_REGISTRY.number,
   boolean: COLUMN_TYPE_REGISTRY.boolean,
-  date: COLUMN_TYPE_REGISTRY.date,
+  date: {
+    ...COLUMN_TYPE_REGISTRY.date,
+    // Only the off direction rewrites: turning `includeTime` ON leaves existing
+    // calendar days as they are (they simply have no time yet), while turning
+    // it OFF must strip times the schema no longer admits.
+    migrateCellsForMetadata: ({ trx, tableId, columnKey, target }) =>
+      target.includeTime
+        ? Promise.resolve()
+        : truncateDateCellsToCalendarDay(trx, tableId, columnKey),
+  },
   json: COLUMN_TYPE_REGISTRY.json,
   select: {
     ...COLUMN_TYPE_REGISTRY.select,
@@ -225,6 +262,11 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
       migrateSelectCellsToNames(trx, tableId, columnKey, previous.options ?? []),
   },
   currency: COLUMN_TYPE_REGISTRY.currency,
+  percent: COLUMN_TYPE_REGISTRY.percent,
+  email: COLUMN_TYPE_REGISTRY.email,
+  phone: COLUMN_TYPE_REGISTRY.phone,
+  url: COLUMN_TYPE_REGISTRY.url,
+  duration: COLUMN_TYPE_REGISTRY.duration,
 }
 
 /** The inbound migration for a target type, if it has one. */

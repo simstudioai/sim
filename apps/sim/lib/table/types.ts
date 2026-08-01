@@ -68,6 +68,26 @@ export interface ColumnDefinition {
    * single row. Absent means {@link DEFAULT_CURRENCY_CODE}.
    */
   currencyCode?: string
+  /**
+   * Decimal places a `number` or `percent` column renders to. Display metadata
+   * only — the cell keeps its full stored precision, so lowering this rounds
+   * what is shown and raising it back recovers the original digits.
+   *
+   * Absent on a `number` column renders the value as stored, which is what
+   * every column predating this key does; only an explicit value forces
+   * fixed-width output.
+   */
+  precision?: number
+  /**
+   * Whether a `date` column carries a time of day.
+   *
+   * `false` (the default) stores a bare calendar day, `YYYY-MM-DD`, and renders
+   * it without a timezone conversion — which is the only correct shape for a
+   * birthday or due date. `true` stores a full ISO instant and renders it in
+   * the viewer's zone. Changing this rewrites cells, so `date` declares a
+   * `migrateCellsForMetadata`.
+   */
+  includeTime?: boolean
 }
 
 /** The column `type` discriminator, named so callers don't index into the interface. */

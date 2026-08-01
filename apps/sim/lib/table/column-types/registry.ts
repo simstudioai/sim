@@ -22,8 +22,12 @@
 import { booleanColumnType } from '@/lib/table/column-types/boolean'
 import { currencyColumnType } from '@/lib/table/column-types/currency'
 import { dateColumnType } from '@/lib/table/column-types/date'
+import { durationColumnType } from '@/lib/table/column-types/duration'
+import { emailColumnType } from '@/lib/table/column-types/email'
 import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
+import { percentColumnType } from '@/lib/table/column-types/percent'
+import { phoneColumnType } from '@/lib/table/column-types/phone'
 import {
   MULTI_SELECT_OPERATORS,
   SINGLE_SELECT_OPERATORS,
@@ -36,6 +40,7 @@ import type {
   TypeSpecificColumnKey,
 } from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
+import { urlColumnType } from '@/lib/table/column-types/url'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 export { COLUMN_TYPES }
@@ -53,6 +58,11 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   json: jsonColumnType,
   select: selectColumnType,
   currency: currencyColumnType,
+  percent: percentColumnType,
+  email: emailColumnType,
+  phone: phoneColumnType,
+  url: urlColumnType,
+  duration: durationColumnType,
 }
 
 /** Every definition, in the same order as {@link COLUMN_TYPES}. */

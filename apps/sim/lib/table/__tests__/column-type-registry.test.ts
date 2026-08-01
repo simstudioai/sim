@@ -36,9 +36,9 @@ describe('registry shape', () => {
 
   it('falls back to string for an unknown type instead of throwing', () => {
     // A malformed or future schema must render as text, not crash mid-render.
-    expect(columnTypeById('percent').id).toBe('string')
+    expect(columnTypeById('geolocation').id).toBe('string')
     expect(columnTypeById(undefined).id).toBe('string')
-    expect(isColumnType('percent')).toBe(false)
+    expect(isColumnType('geolocation')).toBe(false)
     expect(isColumnType('currency')).toBe(true)
   })
 
@@ -173,19 +173,19 @@ describe('metadata ownership', () => {
   const options = [{ id: 'opt_a', name: 'A' }]
 
   it.each`
-    label                      | definition                                                  | valid    | needle
-    ${'options on select'}     | ${column({ type: 'select', options })}                      | ${true}  | ${''}
-    ${'options on string'}     | ${column({ type: 'string', options })}                      | ${false} | ${'cannot define options'}
-    ${'options on currency'}   | ${column({ type: 'currency', options })}                    | ${false} | ${'cannot define options'}
-    ${'multiple on number'}    | ${column({ type: 'number', multiple: true })}               | ${false} | ${'cannot be multiple'}
-    ${'code on currency'}      | ${column({ type: 'currency', currencyCode: 'USD' })}        | ${true}  | ${''}
-    ${'code on number'}        | ${column({ type: 'number', currencyCode: 'USD' })}          | ${false} | ${'cannot define a currency'}
-    ${'code on select'}        | ${column({ type: 'select', currencyCode: 'USD', options })} | ${false} | ${'cannot define a currency'}
-    ${'unsupported code'}      | ${column({ type: 'currency', currencyCode: 'ZZZ' })}        | ${false} | ${'invalid currency code'}
-    ${'unique on select'}      | ${column({ type: 'select', unique: true, options })}        | ${false} | ${'cannot be unique'}
-    ${'unique on currency'}    | ${column({ type: 'currency', unique: true })}               | ${true}  | ${''}
-    ${'select with no option'} | ${column({ type: 'select' })}                               | ${false} | ${'at least one option'}
-    ${'unknown type'}          | ${column({ type: 'percent' as ColumnDefinition['type'] })}  | ${false} | ${'invalid type'}
+    label                      | definition                                                     | valid    | needle
+    ${'options on select'}     | ${column({ type: 'select', options })}                         | ${true}  | ${''}
+    ${'options on string'}     | ${column({ type: 'string', options })}                         | ${false} | ${'cannot define options'}
+    ${'options on currency'}   | ${column({ type: 'currency', options })}                       | ${false} | ${'cannot define options'}
+    ${'multiple on number'}    | ${column({ type: 'number', multiple: true })}                  | ${false} | ${'cannot be multiple'}
+    ${'code on currency'}      | ${column({ type: 'currency', currencyCode: 'USD' })}           | ${true}  | ${''}
+    ${'code on number'}        | ${column({ type: 'number', currencyCode: 'USD' })}             | ${false} | ${'cannot define a currency'}
+    ${'code on select'}        | ${column({ type: 'select', currencyCode: 'USD', options })}    | ${false} | ${'cannot define a currency'}
+    ${'unsupported code'}      | ${column({ type: 'currency', currencyCode: 'ZZZ' })}           | ${false} | ${'invalid currency code'}
+    ${'unique on select'}      | ${column({ type: 'select', unique: true, options })}           | ${false} | ${'cannot be unique'}
+    ${'unique on currency'}    | ${column({ type: 'currency', unique: true })}                  | ${true}  | ${''}
+    ${'select with no option'} | ${column({ type: 'select' })}                                  | ${false} | ${'at least one option'}
+    ${'unknown type'}          | ${column({ type: 'geolocation' as ColumnDefinition['type'] })} | ${false} | ${'invalid type'}
   `(
     'rejects $label',
     ({

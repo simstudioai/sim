@@ -1,5 +1,6 @@
 import { TagIcon } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 import { MAX_SELECT_OPTIONS } from '@/lib/table/constants'
 import {
   optionIds,
@@ -40,7 +41,7 @@ export const selectColumnType: ColumnTypeDefinition = {
   storesOpaqueIds: true,
   supportsUnique: false,
   sampleValue: 'Option',
-  ownedMetadata: ['options', 'multiple'],
+  ownedMetadata: ownedKeysOf('select'),
   // Both keep `updateColumnOptions`: changing them runs an option-removal guard
   // and rewrites every cell between option ids and names, which the generic
   // schema-only writer deliberately does not do.
@@ -143,5 +144,12 @@ export const selectColumnType: ColumnTypeDefinition = {
 
   formatForInput(value, column) {
     return selectColumnType.formatForDisplay(value, column)
+  },
+
+  // Draws even when the cell is empty — an unset select shows a muted "None"
+  // so it still reads as a dropdown. The grid resolves ids to options off the
+  // column, which is why no value rides along here.
+  display() {
+    return { kind: 'select' }
   },
 }

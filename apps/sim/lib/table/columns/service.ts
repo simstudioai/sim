@@ -37,6 +37,7 @@ import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   ColumnDefinition,
+  ColumnTypeMetadata,
   DeleteColumnData,
   JsonValue,
   RenameColumnData,
@@ -66,16 +67,13 @@ const logger = createLogger('TableColumnService')
  */
 export async function addTableColumn(
   tableId: string,
-  column: {
+  column: ColumnTypeMetadata & {
     id?: string
     name: string
     type: string
     required?: boolean
     unique?: boolean
     position?: number
-    options?: SelectOption[]
-    multiple?: boolean
-    currencyCode?: string
   },
   requestId: string
 ): Promise<TableDefinition> {

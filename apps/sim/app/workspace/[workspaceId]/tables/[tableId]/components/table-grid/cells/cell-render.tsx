@@ -7,6 +7,7 @@ import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
+import type { ColumnCellDisplay } from '@/lib/table/column-types/types'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
 import { resolveSelectOptions, SelectPill } from '../../select-field'
@@ -122,27 +123,37 @@ export function resolveCellRender({
     return { kind: 'empty' }
   }
 
-  if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
-  // Always render select cells as the `select` kind — an empty one shows a muted
-  // "None" so every select cell reads as a clickable dropdown.
-  if (column.type === 'select') {
-    return { kind: 'select', options: resolveSelectOptions(column, value) }
+  // Every plain typed cell: the column's type says WHAT to draw, this switch
+  // says how. Adding a type therefore adds no branch here — which is the rule
+  // the previous chain of `column.type === …` tests broke.
+  const definition = columnTypeOf(column)
+  const cell: ColumnCellDisplay = definition.display?.(value, column) ?? {
+    kind: isNull ? 'empty' : 'text',
+    text: isNull ? '' : definition.formatForDisplay(value, column),
   }
-  if (isNull) return { kind: 'empty' }
-  // Formatted here rather than in a render branch because the symbol and
-  // fraction digits come from the COLUMN's currency, which the render switch
-  // (keyed on kind alone) no longer has. Renders as plain text — a currency
-  // cell is a number cell with a symbol, so it stays left-aligned like one.
-  if (column.type === 'currency') {
-    return { kind: 'text', text: columnTypeOf(column).formatForDisplay(value, column) }
+
+  switch (cell.kind) {
+    case 'boolean':
+      return { kind: 'boolean', checked: cell.checked }
+    case 'select':
+      return { kind: 'select', options: resolveSelectOptions(column, value) }
+    case 'json':
+      return { kind: 'json', text: cell.text }
+    case 'date':
+      return { kind: 'date', text: cell.text }
+    case 'linkable':
+      // Promotion needs the current workspace id, which is request context the
+      // registry deliberately does not hold.
+      return resolveLinkKind(cell.text, currentWorkspaceId) ?? { kind: 'text', text: cell.text }
+    case 'empty':
+      return { kind: 'empty' }
+    case 'text':
+      return { kind: 'text', text: cell.text }
+    default: {
+      const _exhaustive: never = cell
+      return _exhaustive
+    }
   }
-  if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
-  if (column.type === 'date') return { kind: 'date', text: String(value) }
-  if (column.type === 'string') {
-    const text = stringifyValue(value)
-    return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'text', text }
-  }
-  return { kind: 'text', text: stringifyValue(value) }
 }
 
 function stringifyValue(value: unknown): string {

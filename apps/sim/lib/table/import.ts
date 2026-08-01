@@ -13,10 +13,10 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
-import type { ColumnType } from '@/lib/table/column-types'
+import { type ColumnType, columnTypeById } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
-import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue, RowData, TableSchema } from '@/lib/table/types'
 
 /**
  * Field separators we sniff for, in tie-break priority order. Semicolon files are
@@ -385,7 +385,12 @@ export function inferSchemaFromCsv(
 export function coerceValue(
   value: unknown,
   colType: CsvColumnType,
-  options?: NormalizeDateCellOptions & { currencyCode?: string }
+  options?: NormalizeDateCellOptions & {
+    currencyCode?: string
+    /** The target column, so a type whose coercion depends on its own metadata
+     *  (a `percent`'s precision) reads the column's value rather than the default. */
+    column?: Partial<ColumnDefinition>
+  }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
@@ -416,8 +421,22 @@ export function coerceValue(
         return String(value)
       }
     }
-    default:
-      return String(value)
+    default: {
+      // Every other type, driven by the registry rather than a case per id.
+      //
+      // The distinction that matters is `jsonbCast`. A text-cast column keeps
+      // the raw string when its type cannot parse the value — that is this
+      // function's deliberate difference from the registry's `coerce`, and it
+      // is what lets the row error name the offending input. A column whose
+      // cast is `numeric` or `timestamptz` cannot: filters and sorts apply that
+      // cast to whatever is stored, so a single unparseable cell makes EVERY
+      // query against the column error in Postgres. Those null instead.
+      const definition = columnTypeById(colType)
+      const column: ColumnDefinition = { ...options?.column, name: '', type: definition.id }
+      const coerced = definition.coerce(value as JsonValue, column)
+      if (coerced.ok) return coerced.value as ReturnType<typeof coerceValue>
+      return definition.jsonbCast === null ? String(value) : null
+    }
   }
 }
 
@@ -594,6 +613,7 @@ export function coerceRowsForTable(
       const colType = (col.type as CsvColumnType) ?? 'string'
       coerced[getColumnId(col)] = coerceValue(value, colType, {
         ...options,
+        column: col,
         ...(col.currencyCode !== undefined ? { currencyCode: col.currencyCode } : {}),
       }) as RowData[string]
     }

@@ -34,10 +34,15 @@ export const COLUMN_TYPES = [
   'string',
   'number',
   'currency',
+  'percent',
   'boolean',
   'date',
-  'json',
   'select',
+  'email',
+  'phone',
+  'url',
+  'duration',
+  'json',
 ] as const
 
 export type ColumnType = (typeof COLUMN_TYPES)[number]
@@ -60,9 +65,42 @@ export type ColumnCellEditor =
  * means extending this list and that type's `ownedMetadata` — not editing the
  * validator.
  */
-export const TYPE_SPECIFIC_COLUMN_KEYS = ['options', 'multiple', 'currencyCode'] as const
+export const TYPE_SPECIFIC_COLUMN_KEYS = [
+  'options',
+  'multiple',
+  'currencyCode',
+  'precision',
+  'includeTime',
+] as const
 
 export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
+
+/**
+ * Which column types may carry each type-specific key — the single declaration
+ * of metadata ownership.
+ *
+ * Lives here rather than on the definitions because this module imports no
+ * icons, so the API contracts (which are client-reachable and must not pull
+ * `@sim/emcn/icons`) can enforce the same rule the server does. Each type's
+ * `ownedMetadata` is derived from this via {@link ownedKeysOf}, so the two
+ * cannot drift.
+ *
+ * A key may have several owners: `number` and `percent` both format to a
+ * declared number of decimal places, and sharing `precision` is what lets a
+ * column convert between them without the key being stripped in transit.
+ */
+export const METADATA_KEY_OWNERS: Record<TypeSpecificColumnKey, readonly ColumnType[]> = {
+  options: ['select'],
+  multiple: ['select'],
+  currencyCode: ['currency'],
+  precision: ['number', 'percent'],
+  includeTime: ['date'],
+}
+
+/** The type-specific keys a column type owns, for its `ownedMetadata`. */
+export function ownedKeysOf(type: ColumnType): readonly TypeSpecificColumnKey[] {
+  return TYPE_SPECIFIC_COLUMN_KEYS.filter((key) => METADATA_KEY_OWNERS[key].includes(type))
+}
 
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
@@ -92,8 +130,6 @@ export type ColumnCellDisplay =
   | { kind: 'boolean'; checked: boolean }
   /** Option pills; the grid resolves ids to options off the column. */
   | { kind: 'select' }
-  /** Filled/empty stars out of `max`. */
-  | { kind: 'rating'; value: number; max: number }
   /** Renders nothing. */
   | { kind: 'empty' }
 
@@ -230,6 +266,21 @@ export interface ColumnTypeDefinition {
 
   /** Stored value → display text (grid cell, CSV, clipboard, width measurement). */
   formatForDisplay(value: unknown, column: ColumnDefinition): string
+
+  /**
+   * Stored value → the render kind the grid draws for a plain cell.
+   *
+   * Defaults to `formatForDisplay` as plain text, with a null/undefined cell
+   * rendering as `empty`. Override only when the type draws as something other
+   * than text — a checkbox, option pills, stars.
+   *
+   * A type that renders even when its cell is empty (`boolean` draws an
+   * unchecked box, `select` draws a muted "None") must say so here, because
+   * this hook owns the null decision. That used to be an ordering dependency
+   * in `cell-render.tsx`: the two `column.type ===` checks that had to sit
+   * above the shared `isNull` early-return, where nothing recorded why.
+   */
+  display?(value: unknown, column: ColumnDefinition): ColumnCellDisplay
 
   /** Stored value → the text an editor input starts with. */
   formatForInput(value: unknown, column: ColumnDefinition): string

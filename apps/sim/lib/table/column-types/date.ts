@@ -1,11 +1,34 @@
 import { Calendar as CalendarIcon } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 import {
   formatDateCellDisplay,
   normalizeDateCellValue,
   storedDateToEditable,
 } from '@/lib/table/dates'
-import type { JsonValue } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
+
+/**
+ * Drops the time of day from a normalized value when the column is date-only.
+ *
+ * `normalizeDateCellValue` already returns a bare `YYYY-MM-DD` for input that
+ * carried no time, so this only bites when a time arrives anyway — a paste, a
+ * CSV cell, a tool write. Without it a "Due date" column silently accumulates
+ * instants, and two rows entered the same day stop comparing equal.
+ *
+ * A calendar date is a prefix of the wall-instant form, so the truncation is a
+ * slice rather than a re-parse; going through `Date` would reintroduce exactly
+ * the timezone conversion this storage shape exists to avoid.
+ */
+function applyIncludeTime(normalized: string, column: ColumnDefinition): string {
+  // Only an EXPLICIT `false` truncates. An absent flag means a column created
+  // before this key existed, and those columns hold instants — defaulting them
+  // to date-only would silently truncate a stored time on the next write to any
+  // cell. New columns get `includeTime: false` stamped at creation instead, so
+  // the good default applies going forward without rewriting history.
+  if (column.includeTime !== false) return normalized
+  return normalized.slice(0, 10)
+}
 
 export const dateColumnType: ColumnTypeDefinition = {
   id: 'date',
@@ -15,24 +38,27 @@ export const dateColumnType: ColumnTypeDefinition = {
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: '2024-01-31',
-  ownedMetadata: [],
+  ownedMetadata: ownedKeysOf('date'),
   workflowInputType: 'string',
   editor: 'date',
   expandable: false,
   typeaheadPattern: /[\d\-/]/,
   parseErrorMessage: 'Invalid date',
 
-  coerce(value) {
+  coerce(value, column) {
     if (typeof value === 'string') {
       const normalized = normalizeDateCellValue(value)
-      return normalized === null ? { ok: false } : { ok: true, value: normalized }
+      if (normalized === null) return { ok: false }
+      return { ok: true, value: applyIncludeTime(normalized, column) }
     }
     // Date instances and epoch numbers may still be out of the representable
     // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
     // an Invalid Date, so an over-range value degrades to `{ ok: false }`
     // rather than crashing the write.
     const date = value instanceof Date ? value : typeof value === 'number' ? new Date(value) : null
-    if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
+    if (date && !Number.isNaN(date.getTime())) {
+      return { ok: true, value: applyIncludeTime(date.toISOString(), column) }
+    }
     return { ok: false }
   },
 
@@ -53,11 +79,24 @@ export const dateColumnType: ColumnTypeDefinition = {
     return valid ? null : `${column.name} must be valid date`
   },
 
+  display(value) {
+    if (value === null || value === undefined) return { kind: 'empty' }
+    return { kind: 'date', text: String(value) }
+  },
+
   formatForDisplay(value) {
     return formatDateCellDisplay(String(value), { seconds: true })
   },
 
   formatForInput(value) {
     return storedDateToEditable(String(value))
+  },
+
+  // Stamped only on creation, so a NEW date column is date-only by default —
+  // the right shape for the due dates and birthdays most date columns hold —
+  // while a column that predates the key keeps its instants (see
+  // `applyIncludeTime`).
+  defaultMetadata(column) {
+    return { includeTime: column.includeTime ?? false }
   },
 }
