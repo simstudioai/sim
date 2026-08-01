@@ -484,6 +484,18 @@ describe('QuickBooks purchasing block', () => {
     expect(operationIds).toContain('quickbooks_read_purchasing_transactions')
   })
 
+  it('requires the existing Purchase payment type without fabricating a default', () => {
+    const currentPaymentType = QuickBooksBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'currentPurchasePaymentType'
+    )
+
+    expect(currentPaymentType?.required).toEqual({
+      field: 'operation',
+      value: 'quickbooks_update_purchase',
+    })
+    expect(currentPaymentType?.value).toBeUndefined()
+  })
+
   it('keeps every subblock ID unique and purchasing updates header-only', () => {
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)

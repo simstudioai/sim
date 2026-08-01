@@ -767,7 +767,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       ],
       condition: { field: 'operation', value: 'quickbooks_update_purchase' },
       required: { field: 'operation', value: 'quickbooks_update_purchase' },
-      value: () => 'cash',
     },
     {
       id: 'paymentAccountId',
