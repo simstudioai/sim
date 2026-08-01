@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react'
-import { BLOCK_DIMENSIONS, NoteBlockView } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, getNoteBlockHeight, NoteBlockView } from '@sim/workflow-renderer'
 import type { NodeProps } from 'reactflow'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
@@ -59,10 +59,9 @@ export const NoteBlock = memo(function NoteBlock({
     return typeof storedContent === 'string' ? storedContent : ''
   }, [data.isPreview, data.subBlockValues, storedValues])
 
-  const isEmpty = content.trim().length === 0
-
   const userPermissions = useUserPermissionsContext()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
+  const isEmpty = content.trim().length === 0
 
   /**
    * Calculate deterministic dimensions based on content structure. Uses fixed
@@ -71,13 +70,7 @@ export const NoteBlock = memo(function NoteBlock({
   useBlockDimensions({
     blockId: id,
     calculateDimensions: () => {
-      const contentHeight = isEmpty
-        ? BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-        : BLOCK_DIMENSIONS.NOTE_BASE_CONTENT_HEIGHT
-      const calculatedHeight =
-        BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + contentHeight
-
-      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
+      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: getNoteBlockHeight(isEmpty) }
     },
     dependencies: [isEmpty],
   })
@@ -90,7 +83,9 @@ export const NoteBlock = memo(function NoteBlock({
       hasRing={hasRing}
       ringStyles={ringStyles}
       onSelect={handleClick}
-      actionBar={<ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />}
+      actionBar={
+        <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} variant='swell' />
+      }
     />
   )
 })

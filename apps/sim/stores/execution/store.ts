@@ -67,9 +67,10 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
   },
 
   setActiveBlocks: (workflowId, blockIds) => {
+    const activeBlockIds = new Set(blockIds)
     set({
       workflowExecutions: updatedMap(get().workflowExecutions, workflowId, {
-        activeBlockIds: new Set(blockIds),
+        activeBlockIds,
       }),
     })
   },

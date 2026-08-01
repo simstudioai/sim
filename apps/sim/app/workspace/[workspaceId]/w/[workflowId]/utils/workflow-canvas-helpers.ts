@@ -108,6 +108,18 @@ export function isPositionalTriggerBlock(
 }
 
 /**
+ * Returns whether a container should be emphasized as a new drop target.
+ * Moving within the block's existing container is a position change, not a
+ * re-parent operation, so it must not activate the container highlight.
+ */
+export function shouldHighlightContainerDropTarget(
+  currentParentId: string | null | undefined,
+  targetContainerId: string
+): boolean {
+  return currentParentId !== targetContainerId
+}
+
+/**
  * Clears drag highlight classes and resets cursor state.
  * Used when drag operations end or are cancelled.
  */

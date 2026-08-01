@@ -9,8 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   DirectUploadErrorMock,
   executionStoreState,
+  mockCancel,
   mockExecute,
   mockFetch,
+  mockHandleExecutionCancelledConsole,
+  mockRequestJson,
   mockRunUploadStrategy,
   terminalStoreState,
   workflowBlocks,
@@ -87,8 +90,11 @@ const {
   return {
     DirectUploadErrorMock,
     executionStoreState,
+    mockCancel: vi.fn(),
     mockExecute: vi.fn(),
     mockFetch: vi.fn(),
+    mockHandleExecutionCancelledConsole: vi.fn(),
+    mockRequestJson: vi.fn(),
     mockRunUploadStrategy: vi.fn(),
     terminalStoreState,
     workflowBlocks,
@@ -105,7 +111,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/api/client/request', () => ({
-  requestJson: vi.fn(),
+  requestJson: mockRequestJson,
 }))
 
 vi.mock('@/lib/api/contracts/workflows', () => ({
@@ -172,7 +178,7 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-u
   }),
   reconcileFinalBlockLogs: vi.fn(),
   addExecutionErrorConsoleEntry: vi.fn(),
-  handleExecutionCancelledConsole: vi.fn(),
+  handleExecutionCancelledConsole: mockHandleExecutionCancelledConsole,
   handleExecutionErrorConsole: vi.fn(),
 }))
 
@@ -208,7 +214,7 @@ vi.mock('@/hooks/use-execution-stream', () => {
       execute: mockExecute,
       executeFromBlock: vi.fn(),
       reconnect: vi.fn(),
-      cancel: vi.fn(),
+      cancel: mockCancel,
       cancelExecute: vi.fn(),
       cancelReconnect: vi.fn(),
     }),
@@ -340,6 +346,44 @@ async function drainStream(value: unknown): Promise<void> {
   const reader = value.stream.getReader()
   while (!(await reader.read()).done) {}
 }
+
+describe('useWorkflowExecution cancellation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+    mockRequestJson.mockResolvedValue({ success: true })
+  })
+
+  afterEach(() => {
+    executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+  })
+
+  it('stops the local execution state immediately while cancelling the server execution', () => {
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    act(() => {
+      result().handleCancelExecution()
+    })
+
+    expect(mockCancel).toHaveBeenCalledWith('workflow-1')
+    expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
+    expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setIsDebugging).toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setActiveBlocks).toHaveBeenCalledWith('workflow-1', expect.any(Set))
+    expect(mockHandleExecutionCancelledConsole.mock.calls[0]?.[1]).toEqual({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        params: { id: 'workflow-1', executionId: 'execution-1' },
+      })
+    )
+
+    unmount()
+  })
+})
 
 describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {

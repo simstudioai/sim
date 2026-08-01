@@ -9,6 +9,8 @@ import { BLOCK_DIMENSIONS } from '../dimensions'
 
 const BORDER_PADDING_PX = 36
 const SAMPLE_SPACING_PX = 1
+/** Smallest arc-length step used to cross a floating-point segment seam. */
+const PERIMETER_CURSOR_EPSILON_PX = 0.0001
 /**
  * How far every connection knob stands off the card edge. Edges anchor exactly
  * this far out (the `-7px` handle outsets in workflow-block-view), so the two
@@ -134,9 +136,19 @@ interface WorkflowBlockBorderProps {
   nodeId?: string
   getConnectionNodeId?: () => string | null
   ports: WorkflowBorderPort[]
+  /** Enables the transient pointer-following swell used to start or target connections. */
+  cursorSwellEnabled?: boolean
+  /** Limits pointer-following swells to specific card sides. */
+  cursorSwellSides?: readonly WorkflowCardSide[]
   radius?: number
   hasRing: boolean
   ringStyles: string
+  /** Paints the unified silhouette with the canonical selected-state color. */
+  isSelected?: boolean
+  /** Fills the card body without changing its silhouette or border color. */
+  bodyFill?: string
+  /** Explicit layout width for fixed-size hosts; omit to measure the host. */
+  width?: number
   /**
    * Card height in layout px. Must match what the card actually renders — the
    * silhouette is drawn from it, so an over-estimate paints a card taller than
@@ -156,6 +168,15 @@ interface PerimeterPoint {
   tx: number
   ty: number
 }
+
+const getPerimeterPointSide = (point: Pick<PerimeterPoint, 'nx' | 'ny'>): WorkflowCardSide =>
+  Math.abs(point.nx) > Math.abs(point.ny)
+    ? point.nx < 0
+      ? 'left'
+      : 'right'
+    : point.ny < 0
+      ? 'top'
+      : 'bottom'
 
 interface PerimeterSegment {
   kind: 'line' | 'arc'
@@ -657,17 +678,23 @@ const appendExactInterval = (
   to: number
 ) => {
   let cursor = from
-  while (cursor < to - 0.0001) {
+  while (cursor < to - PERIMETER_CURSOR_EPSILON_PX) {
     const located = pointAtArcLength(geometry, startS + cursor)
     const available = located.segment.length - located.local
     const step = Math.min(to - cursor, available)
+    if (!Number.isFinite(step) || step <= 0) break
+    const nextCursor = cursor + step
+    if (nextCursor <= cursor) {
+      cursor = Math.min(to, cursor + PERIMETER_CURSOR_EPSILON_PX)
+      continue
+    }
     const end = located.segment.pointAt(located.local + step)
     commands.push(
       located.segment.kind === 'line'
         ? `L${end.x.toFixed(2)} ${end.y.toFixed(2)}`
         : `A${located.segment.radius} ${located.segment.radius} 0 0 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`
     )
-    cursor += step
+    cursor = nextCursor
   }
 }
 
@@ -803,16 +830,21 @@ export function WorkflowBlockBorder({
   nodeId,
   getConnectionNodeId,
   ports,
+  cursorSwellEnabled = true,
+  cursorSwellSides,
   radius = 16,
   hasRing,
   ringStyles,
+  isSelected = false,
+  bodyFill = 'var(--surface-2)',
+  width,
   height,
   onCursorHandleChange,
   onActionMenuReadyChange,
 }: WorkflowBlockBorderProps) {
   const clipId = `workflow-border-${useId().replaceAll(':', '')}`
   const svgRef = useRef<SVGSVGElement>(null)
-  const [size, setSize] = useState({ width: 250, height: height ?? 100 })
+  const [size, setSize] = useState({ width: width ?? 250, height: height ?? 100 })
   const [renderedPath, setRenderedPath] = useState<{
     d: string
     startS: number
@@ -862,10 +894,11 @@ export function WorkflowBlockBorder({
   useLayoutEffect(() => {
     if (height !== undefined) {
       if (!Number.isFinite(height) || height <= 0) return
+      const nextWidth = width ?? 250
       setSize((current) =>
-        current.width === 250 && Math.abs(current.height - height) < 0.5
+        current.width === nextWidth && Math.abs(current.height - height) < 0.5
           ? current
-          : { width: 250, height }
+          : { width: nextWidth, height }
       )
       return
     }
@@ -892,7 +925,7 @@ export function WorkflowBlockBorder({
     const observer = new ResizeObserver(update)
     observer.observe(host)
     return () => observer.disconnect()
-  }, [height])
+  }, [height, width])
 
   useLayoutEffect(() => {
     const perimeter = buildRoundedRectPerimeter(size.width, size.height, radius)
@@ -1084,14 +1117,7 @@ export function WorkflowBlockBorder({
       const activePortId = draggedPortRef.current ?? hoveredPortRef.current
       if (cursorAmplitude.value * CURSOR_PEAK_PX >= BULGE_VISIBLE_THRESHOLD_PX && !handingOff) {
         const { point } = pointAtArcLength(geometry, cursorS.value)
-        const edgeSide =
-          Math.abs(point.nx) > Math.abs(point.ny)
-            ? point.nx < 0
-              ? 'left'
-              : 'right'
-            : point.ny < 0
-              ? 'top'
-              : 'bottom'
+        const edgeSide = getPerimeterPointSide(point)
         const side =
           edgeSide === 'left' || edgeSide === 'right'
             ? edgeSide
@@ -1350,6 +1376,9 @@ export function WorkflowBlockBorder({
         return
       }
       const nearest = closestSample(geometry.samples, localX, localY)
+      const cursorSideAllowed =
+        cursorSwellSides === undefined ||
+        cursorSwellSides.includes(getPerimeterPointSide(nearest.sample))
       const nearestPort = geometry.ports
         .filter((port) => port.magnetizable !== false)
         .map((port) => ({
@@ -1369,6 +1398,7 @@ export function WorkflowBlockBorder({
        */
       const magnetized =
         inEdgeZone &&
+        cursorSideAllowed &&
         nearestPort !== undefined &&
         nearestPort.distance * scale <= MAGNETIZE_DISTANCE_PX
       const hitElement = document.elementFromPoint(clientX, clientY)
@@ -1382,7 +1412,7 @@ export function WorkflowBlockBorder({
        * actually hit. Its broad SVG shoulders are visual chrome and must not
        * consume the usable top-left/top-right card edge beneath them.
        */
-      const cursorDisplacementVisible = inEdgeZone && !pointerOverActionControl
+      const cursorDisplacementVisible = inEdgeZone && cursorSideAllowed && !pointerOverActionControl
       cursorSRef.current.target =
         magnetized && !nearestPort.port.color ? nearestPort.port.s : nearest.sample.s
       /*
@@ -1449,17 +1479,25 @@ export function WorkflowBlockBorder({
       updatePointerTarget(event.clientX, event.clientY)
     }
 
-    trackingRoot.addEventListener('pointerenter', onPointerEnter)
-    trackingRoot.addEventListener('pointerleave', onPointerLeave)
-    // Capture before React Flow handle handlers stopPropagation, otherwise
-    // draggedPortRef stays empty and pointerleave tears down the drag handle.
-    trackingRoot.addEventListener('pointerdown', onPointerDown, true)
-    window.addEventListener('pointerup', onPointerUp)
     updatePointerTargetRef.current = updatePointerTarget
     resetPointerTrackingRef.current = stopPointerTracking
-    if (trackingRoot.matches(':hover')) {
-      hoverSpringRef.current.target = 1
-      beginPointerTracking()
+    if (cursorSwellEnabled) {
+      trackingRoot.addEventListener('pointerenter', onPointerEnter)
+      trackingRoot.addEventListener('pointerleave', onPointerLeave)
+      trackingRoot.addEventListener('pointerdown', onPointerDown, true)
+      window.addEventListener('pointerup', onPointerUp)
+      if (trackingRoot.matches(':hover')) {
+        hoverSpringRef.current.target = 1
+        beginPointerTracking()
+      }
+    } else {
+      hoveredPortRef.current = null
+      draggedPortRef.current = null
+      hoverSpringRef.current = { value: 0, velocity: 0, target: 0 }
+      cursorHoverAllowedRef.current = false
+      cursorAmplitudeRef.current = { value: 0, velocity: 0, target: 0 }
+      cursorSRef.current.velocity = 0
+      cursorSRef.current.value = cursorSRef.current.target
     }
     /*
      * First paint is synchronous, inside this layout effect, so a card never
@@ -1484,9 +1522,14 @@ export function WorkflowBlockBorder({
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
       frameRef.current = null
     }
-  }, [])
+  }, [cursorSwellEnabled, cursorSwellSides])
 
   useEffect(() => {
+    if (!cursorSwellEnabled) {
+      resetPointerTrackingRef.current()
+      return
+    }
+
     /*
      * A connection drag captures the pointer on the origin card's handle, so
      * this card sees no pointerenter. Window pointermove still fires; feeding
@@ -1545,11 +1588,15 @@ export function WorkflowBlockBorder({
       }
       resetPointerTrackingRef.current()
     }
-  }, [getConnectionNodeId, nodeId])
+  }, [cursorSwellEnabled, getConnectionNodeId, nodeId])
 
   const ring = resolveRing(ringStyles)
   const { d: path } = renderedPath
-  const silhouetteColor = hasRing && ring.solid ? ring.color : 'var(--border-1)'
+  const silhouetteColor = isSelected
+    ? 'var(--text-secondary)'
+    : hasRing && ring.solid
+      ? ring.color
+      : 'var(--border-1)'
 
   return (
     <svg
@@ -1573,7 +1620,7 @@ export function WorkflowBlockBorder({
           </clipPath>
         </defs>
       )}
-      {hasRing && !ring.solid && path && (
+      {hasRing && !isSelected && !ring.solid && path && (
         <path
           d={path}
           fill='none'
@@ -1634,7 +1681,7 @@ export function WorkflowBlockBorder({
             width={Math.max(0, size.width - 1.5)}
             height={Math.max(0, size.height - 1.5)}
             rx={Math.max(0, radius - 0.75)}
-            fill='var(--surface-2)'
+            fill={bodyFill}
           />
         </>
       )}

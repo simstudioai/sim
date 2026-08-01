@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isPositionalTriggerBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
+import {
+  isPositionalTriggerBlock,
+  shouldHighlightContainerDropTarget,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
 
 describe('isPositionalTriggerBlock', () => {
   it('returns true for a top-level block with no incoming edges', () => {
@@ -58,5 +61,16 @@ describe('isPositionalTriggerBlock', () => {
     ]
 
     expect(isPositionalTriggerBlock(pastedBlock, edges)).toBe(false)
+  })
+})
+
+describe('shouldHighlightContainerDropTarget', () => {
+  it('does not highlight the loop while a nested block moves within it', () => {
+    expect(shouldHighlightContainerDropTarget('loop-1', 'loop-1')).toBe(false)
+  })
+
+  it('highlights a different container as a genuine re-parent target', () => {
+    expect(shouldHighlightContainerDropTarget('loop-1', 'loop-2')).toBe(true)
+    expect(shouldHighlightContainerDropTarget(null, 'loop-1')).toBe(true)
   })
 })

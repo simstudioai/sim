@@ -56,6 +56,13 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   integrationType: IntegrationType.Email,
   bgColor: '#FFFFFF',
   icon: GmailIcon,
+  canvasPresentation: {
+    typeLabel: 'Gmail',
+    defaultTitle: 'Send Email',
+    defaultName: 'Gmail',
+    operationSubBlockId: 'operation',
+    operationRowTitle: 'Action',
+  },
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'gmail_v2' },
   triggerAllowed: true,

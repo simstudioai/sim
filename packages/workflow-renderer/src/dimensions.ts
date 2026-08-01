@@ -32,10 +32,19 @@ export const BLOCK_DIMENSIONS = {
   WORKFLOW_SENTENCE_LINE_HEIGHT: 24,
   /** Footer divider above the error row: 1px border + 6px padding */
   WORKFLOW_FOOTER_DIVIDER_HEIGHT: 7,
-  NOTE_CONTENT_PADDING: 14,
+  /** Total vertical padding around the note's content viewport (`p-2`). */
+  NOTE_CONTENT_PADDING: 16,
   NOTE_MIN_CONTENT_HEIGHT: 20,
-  NOTE_BASE_CONTENT_HEIGHT: 60,
+  /** Bounded canvas preview, including its `p-2`; full content stays in the editor. */
+  NOTE_CONTENT_VIEWPORT_HEIGHT: 176,
 } as const
+
+/** Keeps note DOM, React Flow bounds, and auto-layout on the same height. */
+export const getNoteBlockHeight = (isEmpty: boolean) =>
+  BLOCK_DIMENSIONS.HEADER_HEIGHT +
+  (isEmpty
+    ? BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+    : BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT)
 
 export const CONTAINER_DIMENSIONS = {
   DEFAULT_WIDTH: 500,

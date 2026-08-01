@@ -5,7 +5,7 @@ import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useLastRunPath } from '@/stores/execution'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -30,20 +30,11 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
   const isEnabled = currentBlock?.enabled ?? true
   const isLocked = currentBlock?.locked ?? false
-  const isPreview = data?.isPreview || false
-
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const isFocused = currentBlockId === id
 
-  const lastRunPath = useLastRunPath()
-  const executionStatus = data.executionStatus
-  const runPathStatus: 'success' | 'error' | undefined =
-    executionStatus === 'success' || executionStatus === 'error'
-      ? executionStatus
-      : isPreview
-        ? undefined
-        : lastRunPath.get(id)
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
 
   /**
    * Nesting depth, walking the parent chain so the view can apply nested
@@ -71,12 +62,20 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isEnabled={isEnabled}
       isLocked={isLocked}
       isFocused={isFocused}
-      runPathStatus={runPathStatus}
+      isRunning={isWorkflowRunning}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
       onSelect={() => setCurrentBlockId(id)}
-      actionBar={<ActionBar blockId={id} blockType={data.kind} disabled={!canEditWorkflow} />}
+      actionBar={
+        <ActionBar
+          blockId={id}
+          blockType={data.kind}
+          disabled={!canEditWorkflow}
+          variant='swell'
+          isRunning={isWorkflowRunning}
+        />
+      }
     />
   )
 })

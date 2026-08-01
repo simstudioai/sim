@@ -612,7 +612,12 @@ export function SearchModal({
 
   const filteredToolOps = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndCap(toolOperations, (op) => op.searchValue, deferredSearch)
+    return filterAndCap(
+      toolOperations,
+      (op) => op.name,
+      deferredSearch,
+      (op) => op.searchValue
+    )
   }, [isOnWorkflowPage, toolOperations, deferredSearch])
 
   const filteredDocs = useMemo(() => {

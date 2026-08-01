@@ -32,11 +32,12 @@ export function getCursorSourceHandlePosition(side: WorkflowCardSide): Position 
  * Outputs always leave from the right. The swell lets a drag START on any
  * edge — including the left, which is the input side — but the connection it
  * creates is an output, so it anchors right regardless of where the gesture
- * began. Anchoring an output on the left would put an outgoing line on the
- * input port and read as a second input.
+ * began. Loop and parallel containers retain their semantic end handles;
+ * regular cards use the canonical positioned right anchor.
  */
 export function normalizeCursorSourceHandleId(
-  handleId: string | null | undefined
+  handleId: string | null | undefined,
+  blockType?: string
 ): string | null | undefined {
   if (handleId?.startsWith(CURSOR_BRANCH_SOURCE_HANDLE_PREFIX)) {
     return handleId.slice(CURSOR_BRANCH_SOURCE_HANDLE_PREFIX.length)
@@ -44,6 +45,9 @@ export function normalizeCursorSourceHandleId(
 
   const prefix = `${CURSOR_SOURCE_HANDLE_ID}-`
   if (!handleId?.startsWith(prefix)) return handleId
+
+  if (blockType === 'loop') return 'loop-end-source'
+  if (blockType === 'parallel') return 'parallel-end-source'
 
   return getPositionedSourceHandleId('right')
 }

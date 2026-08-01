@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge } from '@/lib/workflows/autolayout/types'
@@ -98,11 +97,10 @@ describe('layoutBlocksCore', () => {
     const { nodes } = layoutBlocksCore(blocks, edges, { isContainer: false })
     const sourceNode = nodes.get('source')!
 
-    // The error branch's target handle lines up with the source's error handle,
-    // which sits ERROR_BOTTOM_OFFSET above the source's real bottom edge.
-    const errorHandleY =
-      sourceNode.position.y + sourceNode.metrics.height - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
-    expect(nodes.get('failed')!.position.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET).toBe(errorHandleY)
+    // The error branch's centered target lines up with the source's bottom-edge error handle.
+    const failedNode = nodes.get('failed')!
+    const errorHandleY = sourceNode.position.y + sourceNode.metrics.height
+    expect(failedNode.position.y + failedNode.metrics.height / 2).toBe(errorHandleY)
     expect(nodes.get('ok')!.position.y).toBeLessThan(nodes.get('failed')!.position.y)
   })
 })
