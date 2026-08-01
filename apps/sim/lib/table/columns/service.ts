@@ -12,7 +12,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { omit } from '@sim/utils/object'
+import { filterUndefined, omit } from '@sim/utils/object'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import {
@@ -20,14 +20,15 @@ import {
   columnTypeOf,
   isValueCompatible,
   TYPE_SPECIFIC_COLUMN_KEYS,
+  type TypeSpecificColumnKey,
 } from '@/lib/table/column-types'
 import {
+  metadataMigrationFor,
   migrationFrom,
   migrationTo,
   writeBackCoercedCells,
 } from '@/lib/table/column-types/registry.server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
@@ -45,7 +46,7 @@ import type {
   TableMetadata,
   TableSchema,
   UpdateColumnConstraintsData,
-  UpdateColumnCurrencyData,
+  UpdateColumnMetadataData,
   UpdateColumnOptionsData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
@@ -1110,20 +1111,30 @@ export async function updateColumnOptions(
 }
 
 /**
- * Changes the currency a `currency` column renders in.
+ * Changes a column's own type-specific metadata without changing its type — a
+ * `currency`'s ISO code, a `number`'s `precision`, a `date`'s `includeTime`.
  *
- * Deliberately the cheapest column mutation in this module: cells store a bare
- * number, so re-denominating a column touches only the schema — no row rewrite,
- * no compatibility scan, no scaled timeouts. It notably does **not** convert
- * amounts between currencies; `1000` stays `1000`, now labelled in the new code.
+ * One writer for every such key, driven by the registry. Which keys a column
+ * may carry comes from its type's `ownedMetadata`, normalization from
+ * `defaultMetadata`, and validation from `validateDefinition`, so adding a
+ * metadata key needs no edit here at all. This replaced six near-identical
+ * copies of `updateColumnCurrency` (service, both column routes, the copilot
+ * tool) that each named `currencyCode` by hand.
  *
- * @param data - Column + target ISO 4217 code
+ * Usually the cheapest column mutation in this module: presentational metadata
+ * reformats what is already stored, so no row is touched and no compatibility
+ * scan runs. Re-denominating a currency column notably does **not** convert
+ * amounts — `1000` stays `1000`, now labelled in the new code. A type whose
+ * metadata does change the stored bytes declares `migrateCellsForMetadata` and
+ * gets a scaled-timeout cell rewrite inside this same transaction.
+ *
+ * @param data - Column + the metadata keys to write
  * @param requestId - Request ID for logging
  * @returns Updated table definition
- * @throws Error if the table or column is missing, or the column is not a currency column
+ * @throws Error if the table or column is missing, or the column's type does not own a key being set
  */
-export async function updateColumnCurrency(
-  data: UpdateColumnCurrencyData,
+export async function updateColumnMetadata(
+  data: UpdateColumnMetadataData,
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
@@ -1136,40 +1147,68 @@ export async function updateColumnCurrency(
     }
 
     const column = schema.columns[columnIndex]
-    if (column.type !== 'currency') {
-      throw new Error(`Cannot set currency on column "${column.name}" of type "${column.type}"`)
+    const definition = columnTypeOf(column)
+    const incoming = filterUndefined(data.metadata)
+    for (const key of Object.keys(incoming) as TypeSpecificColumnKey[]) {
+      if (!definition.ownedMetadata.includes(key)) {
+        throw new Error(`Cannot set ${key} on column "${column.name}" of type "${column.type}"`)
+      }
     }
 
-    const updatedColumn: ColumnDefinition = {
-      ...column,
-      currencyCode: resolveCurrencyCode(data.currencyCode),
-    }
+    // Normalize through the type's own defaults so what lands in the schema is
+    // exactly what a newly created column of this type would carry — an
+    // omitted currency code resolves to the default rather than persisting as
+    // undefined and re-resolving on every read.
+    const merged: ColumnDefinition = { ...column, ...incoming }
+    const updatedColumn: ColumnDefinition = { ...merged, ...definition.defaultMetadata?.(merged) }
+
     const columnValidation = validateColumnDefinition(updatedColumn)
     if (!columnValidation.valid) {
       throw new Error(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
-    const constrained = await applyConstraints(
-      trx,
-      data.tableId,
-      updatedColumn,
-      getColumnId(column),
-      data
-    )
+    const columnKey = getColumnId(column)
+    const constrained = await applyConstraints(trx, data.tableId, updatedColumn, columnKey, data)
 
-    // Only a no-op when nothing at all changed — currency, constraints, name.
+    // Compare every owned key, not just the ones passed in: `defaultMetadata`
+    // may have resolved one the caller omitted.
+    const metadataChanged = definition.ownedMetadata.some(
+      (key) => updatedColumn[key] !== column[key]
+    )
     const renamePending = data.newName !== undefined && data.newName !== column.name
-    if (
-      constrained === updatedColumn &&
-      updatedColumn.currencyCode === column.currencyCode &&
-      !renamePending
-    ) {
+    if (constrained === updatedColumn && !metadataChanged && !renamePending) {
       return table
     }
 
-    const withCurrency = schema.columns.map((c, i) => (i === columnIndex ? constrained : c))
-    const updatedColumns = withCurrency.map((c, i) =>
-      i === columnIndex ? applyPendingRename(withCurrency, columnIndex, data.newName) : c
+    // Only the types whose metadata changes the stored bytes declare this. It
+    // runs inside this transaction so a failed rewrite cannot leave the schema
+    // claiming a shape the cells do not have.
+    if (metadataChanged) {
+      const migrate = metadataMigrationFor(column.type)
+      if (migrate) {
+        // Same scaling the retype and options writers use — a set-based rewrite
+        // over a large table must not trip the default 5s statement timeout,
+        // and `idleMs` has to move with it or the transaction is killed between
+        // statements instead.
+        const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+          baseMs: 60_000,
+          perRowMs: 2,
+        })
+        await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+        await migrate({
+          trx,
+          tableId: data.tableId,
+          columnKey,
+          previous: column,
+          target: updatedColumn,
+          resolved: new Map(),
+        })
+      }
+    }
+
+    const withMetadata = schema.columns.map((c, i) => (i === columnIndex ? constrained : c))
+    const updatedColumns = withMetadata.map((c, i) =>
+      i === columnIndex ? applyPendingRename(withMetadata, columnIndex, data.newName) : c
     )
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
@@ -1180,7 +1219,7 @@ export async function updateColumnCurrency(
       .where(eq(userTableDefinitions.id, data.tableId))
 
     logger.info(
-      `[${requestId}] Set currency for column "${column.name}" to "${updatedColumn.currencyCode}" in table ${data.tableId}`
+      `[${requestId}] Updated ${Object.keys(incoming).join(', ') || 'metadata'} for column "${column.name}" in table ${data.tableId}`
     )
 
     return { ...table, schema: updatedSchema, updatedAt: now }

@@ -41,6 +41,18 @@ export interface ColumnTypeServerDefinition {
    * other type — a `select`'s option ids, for instance.
    */
   readonly migrateCellsFrom?: ColumnCellMigration
+  /**
+   * Rewrites cells when this type's own metadata changes on a column that
+   * keeps its type — `date` re-normalizing between an instant and a calendar
+   * day as `includeTime` is toggled.
+   *
+   * Omitted by types whose metadata is purely presentational: re-denominating
+   * a `currency` column or changing a `number`'s `precision` reformats what is
+   * already stored and must NOT touch a row.
+   *
+   * `previous` and `target` differ only in the metadata keys being written.
+   */
+  readonly migrateCellsForMetadata?: ColumnCellMigration
 }
 
 /** A column type plus its server-only migrations. */

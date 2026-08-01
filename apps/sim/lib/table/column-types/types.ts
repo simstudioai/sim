@@ -67,6 +67,36 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
+/**
+ * How the grid draws a plain (non-workflow-output) cell of this type.
+ *
+ * Plain data, deliberately — no React here, so the registry stays importable
+ * from the server half. The grid owns the actual markup for each kind; the type
+ * only says *which* kind its value is, which is what lets a type stop being a
+ * `column.type === …` branch in `cell-render.tsx`.
+ *
+ * `linkable` is text the grid may promote to a favicon link or an in-workspace
+ * resource chip — that promotion needs the current workspace id, which is
+ * request context the registry has no business holding.
+ */
+export type ColumnCellDisplay =
+  /** Plain text, already formatted. */
+  | { kind: 'text'; text: string }
+  /** Text that may be promoted to a link / resource chip if it is wholly a URL. */
+  | { kind: 'linkable'; text: string }
+  /** Monospace one-line JSON. */
+  | { kind: 'json'; text: string }
+  /** Timestamp string, rendered through the grid's date formatter. */
+  | { kind: 'date'; text: string }
+  /** In-place checkbox. */
+  | { kind: 'boolean'; checked: boolean }
+  /** Option pills; the grid resolves ids to options off the column. */
+  | { kind: 'select' }
+  /** Filled/empty stars out of `max`. */
+  | { kind: 'rating'; value: number; max: number }
+  /** Renders nothing. */
+  | { kind: 'empty' }
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
@@ -118,6 +148,20 @@ export interface ColumnTypeDefinition {
    * without touching the validator.
    */
   readonly ownedMetadata: readonly TypeSpecificColumnKey[]
+
+  /**
+   * Which of {@link ownedMetadata} the generic `updateColumnMetadata` writer
+   * handles. Defaults to all of them.
+   *
+   * `select` overrides this to empty: changing its `options` / `multiple`
+   * needs an option-removal guard and rewrites every cell between ids and
+   * names, so those keep their dedicated `updateColumnOptions` path. Every
+   * other key is schema-only (or declares a
+   * `migrateCellsForMetadata` in the server registry) and needs no bespoke
+   * writer — which is what stops each new key from adding another near-copy of
+   * the six that `currencyCode` used to need.
+   */
+  readonly genericMetadataUpdate?: readonly TypeSpecificColumnKey[]
 
   /** Workflow/block param type a column of this type maps onto. */
   readonly workflowInputType: 'string' | 'number' | 'boolean' | 'object'

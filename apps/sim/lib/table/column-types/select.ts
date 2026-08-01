@@ -41,6 +41,10 @@ export const selectColumnType: ColumnTypeDefinition = {
   supportsUnique: false,
   sampleValue: 'Option',
   ownedMetadata: ['options', 'multiple'],
+  // Both keep `updateColumnOptions`: changing them runs an option-removal guard
+  // and rewrites every cell between option ids and names, which the generic
+  // schema-only writer deliberately does not do.
+  genericMetadataUpdate: [],
   workflowInputType: 'string',
   editor: 'select',
   expandable: false,

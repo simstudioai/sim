@@ -17,7 +17,7 @@ const {
   mockCheckAccess,
   mockRenameColumn,
   mockUpdateColumnType,
-  mockUpdateColumnCurrency,
+  mockUpdateColumnMetadata,
   mockUpdateColumnOptions,
   mockUpdateColumnConstraints,
   mockAddTableColumn,
@@ -26,7 +26,7 @@ const {
   mockCheckAccess: vi.fn(),
   mockRenameColumn: vi.fn(),
   mockUpdateColumnType: vi.fn(),
-  mockUpdateColumnCurrency: vi.fn(),
+  mockUpdateColumnMetadata: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
   mockUpdateColumnConstraints: vi.fn(),
   mockAddTableColumn: vi.fn(),
@@ -38,7 +38,7 @@ vi.mock('@/lib/table', () => ({
   deleteColumn: mockDeleteColumn,
   renameColumn: mockRenameColumn,
   updateColumnConstraints: mockUpdateColumnConstraints,
-  updateColumnCurrency: mockUpdateColumnCurrency,
+  updateColumnMetadata: mockUpdateColumnMetadata,
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
@@ -92,7 +92,7 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     })
     // The whole point: the rename must not have been committed.
     expect(mockRenameColumn).not.toHaveBeenCalled()
-    expect(mockUpdateColumnCurrency).not.toHaveBeenCalled()
+    expect(mockUpdateColumnMetadata).not.toHaveBeenCalled()
   })
 
   it('rejects an unsupported currency code without renaming first', async () => {
@@ -107,14 +107,17 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     const response = await patch({ name: 'renamed', currencyCode: 'ZZZ' })
 
     expect(response.status).toBe(400)
+    // The currency type's own `validateDefinition` message — the same one the
+    // add-column path already returned. The route no longer carries a second,
+    // differently-worded copy of this check.
     expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('Invalid currency code'),
+      error: 'Column "amount" has invalid currency code "ZZZ". Use an ISO 4217 code, e.g. USD',
     })
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
   it('still applies a rename when the currency it rides on is unchanged', async () => {
-    // `updateColumnCurrency` no-ops on an unchanged code. The rename folded into
+    // `updateColumnMetadata` no-ops on an unchanged code. The rename folded into
     // the same request must not be dropped with it.
     mockCheckAccess.mockResolvedValue({
       ok: true,
@@ -125,13 +128,13 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
         },
       },
     })
-    mockUpdateColumnCurrency.mockResolvedValue({ schema: { columns: [] } })
+    mockUpdateColumnMetadata.mockResolvedValue({ schema: { columns: [] } })
 
     const response = await patch({ name: 'renamed', currencyCode: 'USD' })
 
     expect(response.status).toBe(200)
-    expect(mockUpdateColumnCurrency).toHaveBeenCalledWith(
-      expect.objectContaining({ currencyCode: 'USD', newName: 'renamed' }),
+    expect(mockUpdateColumnMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { currencyCode: 'USD' }, newName: 'renamed' }),
       expect.any(String)
     )
   })
@@ -158,7 +161,7 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     })
     // Stands in for the race the guards cannot close: the column stopped being
     // a currency between the snapshot the guards read and this write.
-    mockUpdateColumnCurrency.mockRejectedValue(
+    mockUpdateColumnMetadata.mockRejectedValue(
       new Error('Cannot set currency on column "amount" of type "string"')
     )
 
@@ -189,7 +192,7 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
       error: expect.stringContaining('already exists'),
     })
     // The typed write would otherwise have committed under a rename that fails.
-    expect(mockUpdateColumnCurrency).not.toHaveBeenCalled()
+    expect(mockUpdateColumnMetadata).not.toHaveBeenCalled()
     expect(mockRenameColumn).not.toHaveBeenCalled()
   })
 
@@ -303,7 +306,7 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
         schema: { columns: [{ id: 'col_a', name: 'amount', type: 'currency' }] },
       },
     })
-    mockUpdateColumnCurrency.mockResolvedValue({ schema: { columns: [] } })
+    mockUpdateColumnMetadata.mockResolvedValue({ schema: { columns: [] } })
 
     const response = await patch({ name: 'renamed', currencyCode: 'eur' })
 
@@ -311,9 +314,13 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     // One transaction, not two: the rename rides along with the currency write,
     // so neither half can commit without the other.
     expect(mockRenameColumn).not.toHaveBeenCalled()
-    expect(mockUpdateColumnCurrency).toHaveBeenCalledWith(
+    expect(mockUpdateColumnMetadata).toHaveBeenCalledWith(
       // Addressed by stable id; the contract upper-cases the code on the way in.
-      expect.objectContaining({ columnName: 'col_a', currencyCode: 'EUR', newName: 'renamed' }),
+      expect.objectContaining({
+        columnName: 'col_a',
+        metadata: { currencyCode: 'EUR' },
+        newName: 'renamed',
+      }),
       expect.any(String)
     )
   })

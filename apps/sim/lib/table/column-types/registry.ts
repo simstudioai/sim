@@ -30,7 +30,11 @@ import {
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
-import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import type {
+  ColumnType,
+  ColumnTypeDefinition,
+  TypeSpecificColumnKey,
+} from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
@@ -114,4 +118,69 @@ export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefiniti
 /** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
   return columnTypeOf(column).filterOperatorsFor?.(column) ?? null
+}
+
+/**
+ * Metadata key → the type that owns it. Built once from `ownedMetadata`, which
+ * is already the declaration every type makes; deriving the reverse index here
+ * is what lets the routes ask "may this column carry this key?" without naming
+ * a single key themselves.
+ */
+const METADATA_KEY_OWNER = new Map<TypeSpecificColumnKey, ColumnTypeDefinition>()
+for (const definition of Object.values(COLUMN_TYPE_REGISTRY)) {
+  for (const key of definition.ownedMetadata) {
+    METADATA_KEY_OWNER.set(key, definition)
+  }
+}
+
+/** The column type that owns a type-specific metadata key. */
+export function ownerOfMetadataKey(key: TypeSpecificColumnKey): ColumnTypeDefinition | undefined {
+  return METADATA_KEY_OWNER.get(key)
+}
+
+/**
+ * The type-specific metadata keys present in an update payload, split by which
+ * writer handles them.
+ *
+ * `generic` goes to `updateColumnMetadata` (schema write, plus the type's
+ * `migrateCellsForMetadata` when it declares one); `dedicated` is a key whose
+ * owner keeps its own writer — today only `select`'s `options` / `multiple`.
+ * Callers branch on which set is non-empty instead of testing key names.
+ */
+export function metadataKeysIn(updates: Partial<ColumnDefinition>): {
+  generic: TypeSpecificColumnKey[]
+  dedicated: TypeSpecificColumnKey[]
+} {
+  const generic: TypeSpecificColumnKey[] = []
+  const dedicated: TypeSpecificColumnKey[] = []
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    if (updates[key] === undefined) continue
+    const owner = METADATA_KEY_OWNER.get(key)
+    const handled = owner?.genericMetadataUpdate ?? owner?.ownedMetadata ?? []
+    ;(handled.includes(key) ? generic : dedicated).push(key)
+  }
+  return { generic, dedicated }
+}
+
+/** Whether a column of `type` may carry `key`. */
+export function typeOwnsMetadataKey(type: string | undefined, key: TypeSpecificColumnKey): boolean {
+  return columnTypeById(type).ownedMetadata.includes(key)
+}
+
+/**
+ * The named metadata keys from an update payload, as a spreadable object.
+ *
+ * Skips keys the payload does not carry, so spreading the result never
+ * introduces an explicit `undefined` — which would otherwise read as "clear
+ * this key" to `filterUndefined` further down the write path.
+ */
+export function pickMetadata(
+  updates: Partial<ColumnDefinition>,
+  keys: readonly TypeSpecificColumnKey[]
+): Partial<ColumnDefinition> {
+  const picked: Partial<ColumnDefinition> = {}
+  for (const key of keys) {
+    if (updates[key] !== undefined) Object.assign(picked, { [key]: updates[key] })
+  }
+  return picked
 }

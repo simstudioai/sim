@@ -236,3 +236,11 @@ export function migrationTo(type: ColumnType): ColumnCellMigration | undefined {
 export function migrationFrom(type: ColumnType): ColumnCellMigration | undefined {
   return COLUMN_TYPE_SERVER_REGISTRY[type]?.migrateCellsFrom
 }
+
+/**
+ * The same-type migration a metadata change runs, if the type declares one.
+ * Absent for presentational metadata, which must never touch a row.
+ */
+export function metadataMigrationFor(type: ColumnType): ColumnCellMigration | undefined {
+  return COLUMN_TYPE_SERVER_REGISTRY[type]?.migrateCellsForMetadata
+}

@@ -2,6 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
+import type { TypeSpecificColumnKey } from '@/lib/table/column-types/types'
 import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
@@ -778,7 +779,17 @@ export interface RenameColumnData {
   newName: string
 }
 
-export interface UpdateColumnTypeData {
+/**
+ * Every type-specific metadata key, all optional. `buildConvertedColumn` reads
+ * `data[key]` for each key in `TYPE_SPECIFIC_COLUMN_KEYS`, so deriving the
+ * payload's metadata slice from `ColumnDefinition` instead of restating the
+ * keys is what makes that indexed read a compile error until a newly declared
+ * key is carriable — rather than a key that silently cannot be set on a
+ * conversion.
+ */
+export type ColumnTypeMetadata = Partial<Pick<ColumnDefinition, TypeSpecificColumnKey>>
+
+export interface UpdateColumnTypeData extends ColumnTypeMetadata {
   tableId: string
   columnName: string
   /**
@@ -787,12 +798,6 @@ export interface UpdateColumnTypeData {
    */
   newName?: string
   newType: (typeof COLUMN_TYPES)[number]
-  /** Options to set when changing to a `select` type. */
-  options?: SelectOption[]
-  /** Whether the `select` column accepts multiple options per cell. */
-  multiple?: boolean
-  /** Currency to set when changing to the `currency` type. */
-  currencyCode?: string
   /**
    * The `unique` value the same request is about to set. Validated inside the
    * retype against the post-conversion values, because the conversion is what
@@ -827,11 +832,15 @@ export interface UpdateColumnOptionsData {
 }
 
 /**
- * Payload for `updateColumnCurrency`. Unlike an options update this rewrites no
- * cells — a currency cell stores a plain number, and `currencyCode` only
- * changes how it is rendered.
+ * Payload for `updateColumnMetadata` — writing a column's own type-specific
+ * keys without changing its type.
+ *
+ * Usually rewrites no cells: a currency cell stores a plain number and
+ * `currencyCode` only changes how it is rendered. A type whose metadata does
+ * change the stored shape (`date`'s `includeTime`) declares
+ * `migrateCellsForMetadata` and is rewritten in the same transaction.
  */
-export interface UpdateColumnCurrencyData {
+export interface UpdateColumnMetadataData {
   tableId: string
   columnName: string
   /**
@@ -842,7 +851,12 @@ export interface UpdateColumnCurrencyData {
   /** Constraints to apply in the SAME transaction as this write. */
   unique?: boolean
   required?: boolean
-  currencyCode: string
+  /**
+   * The type-specific keys to write. Every key must be owned by the column's
+   * type — `ownedMetadata` is the check, so this stays correct as types are
+   * added without naming a single key here.
+   */
+  metadata: Partial<ColumnDefinition>
 }
 
 export interface UpdateColumnConstraintsData {
