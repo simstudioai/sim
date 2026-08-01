@@ -34,6 +34,52 @@ import { z } from 'zod'
 const ROOT = path.resolve(import.meta.dir, '..')
 const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 const OUTPUT = path.join(ROOT, 'packages/sim-cli/src/generated/v2-api.ts')
+const DOCS_DIR = path.join(ROOT, 'apps/docs')
+
+/** OpenAPI documents to read operation summaries from. */
+const SPEC_FILES = [
+  'openapi-core.json',
+  'openapi-v2-workflows.json',
+  'openapi-v2-logs.json',
+  'openapi-v2-tables.json',
+  'openapi-v2-knowledge.json',
+  'openapi-v2-files-audit.json',
+] as const
+
+/**
+ * `METHOD /api/v2/{id}/…` → the spec's one-line summary.
+ *
+ * The contracts carry validation, not prose, so `--help` text has to come from
+ * somewhere else. The specs already hold a hand-written summary per operation
+ * and `check:openapi` guarantees every contract has one, so reading them here
+ * reuses documentation that is already written and already verified rather than
+ * inventing a second place to describe the same endpoint.
+ */
+function loadSummaries(): Map<string, string> {
+  const summaries = new Map<string, string>()
+
+  for (const file of SPEC_FILES) {
+    let spec: Record<string, any>
+    try {
+      spec = JSON.parse(readFileSync(path.join(DOCS_DIR, file), 'utf8'))
+    } catch {
+      // A missing spec is not fatal: the CLI falls back to `METHOD path`, and
+      // `check:openapi` is what actually enforces the specs' presence.
+      continue
+    }
+
+    for (const [specPath, methods] of Object.entries(spec.paths ?? {})) {
+      for (const [method, operation] of Object.entries(methods as Record<string, any>)) {
+        const summary = operation?.summary
+        if (typeof summary === 'string') {
+          summaries.set(`${method.toUpperCase()} ${specPath}`, summary)
+        }
+      }
+    }
+  }
+
+  return summaries
+}
 
 /** Contract modules to read, in emit order. */
 const DOMAINS = [
@@ -179,8 +225,90 @@ function pathParams(routePath: string): string[] {
   return [...routePath.matchAll(/\[([^\]]+)\]/g)].map((m) => m[1])
 }
 
+/**
+ * The kind a request field reduces to for the CLI's purposes.
+ *
+ * Everything from argv arrives as a string, so this is what tells the runtime
+ * how to turn `"50"` into `50`, a bare `--flag` into `true`, and `'{"a":1}'`
+ * into an object. `unknown` covers `z.unknown()`/`z.any()`, which the CLI can
+ * only accept as JSON.
+ */
+type FieldKind =
+  | 'string'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'enum'
+  | 'array'
+  | 'object'
+  | 'unknown'
+
+function fieldKind(schema: JsonSchema): FieldKind {
+  if (schema.enum) return 'enum'
+
+  const variants = schema.anyOf ?? schema.oneOf
+  if (variants) {
+    // Nullable is spelled as a union with `null`; a single non-null branch is
+    // the field's real kind. A genuine multi-branch union has no single flag
+    // shape, so it falls through to `unknown` and is taken as JSON.
+    const concrete = variants.filter((v: JsonSchema) => v.type !== 'null')
+    return concrete.length === 1 ? fieldKind(concrete[0]) : 'unknown'
+  }
+
+  const type = Array.isArray(schema.type)
+    ? schema.type.find((t: string) => t !== 'null')
+    : schema.type
+
+  switch (type) {
+    case 'string':
+    case 'number':
+    case 'integer':
+    case 'boolean':
+    case 'array':
+    case 'object':
+      return type
+    default:
+      return 'unknown'
+  }
+}
+
+/**
+ * Describes one request slot's fields for the runtime that builds flags.
+ *
+ * Emitted as data rather than baked into types because the CLI has to *iterate*
+ * these at startup to construct commands — a type alone cannot be walked.
+ */
+function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | null {
+  if (!schema) return null
+
+  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+  const properties: Record<string, JsonSchema> = json.properties ?? {}
+  const required = new Set<string>(json.required ?? [])
+  const keys = Object.keys(properties)
+
+  // A union body (e.g. single-row vs batch insert) has no flat field list; the
+  // runtime falls back to taking the whole body as JSON.
+  if (keys.length === 0) return null
+
+  const lines = keys.map((key) => {
+    const property = properties[key]
+    const parts = [`kind: '${fieldKind(property)}'`]
+    if (required.has(key)) parts.push('required: true')
+    if (property.enum) {
+      parts.push(
+        `values: [${property.enum.map((v: unknown) => JSON.stringify(v)).join(', ')}] as const`
+      )
+    }
+    if (property.default !== undefined) parts.push(`default: ${JSON.stringify(property.default)}`)
+    return `${indent}  ${JSON.stringify(key)}: { ${parts.join(', ')} },`
+  })
+
+  return `{\n${lines.join('\n')}\n${indent}}`
+}
+
 function render(operations: Operation[]): string {
   const out: string[] = []
+  const summaries = loadSummaries()
 
   out.push('/**')
   out.push(' * GENERATED FILE — DO NOT EDIT.')
@@ -217,7 +345,18 @@ function render(operations: Operation[]): string {
     out.push('')
   }
 
-  out.push('/** Every v2 operation, keyed by name. */')
+  out.push('/**')
+  out.push(' * Every v2 operation, keyed by name.')
+  out.push(' *')
+  out.push(' * `query` and `body` describe each field well enough for the CLI to build a')
+  out.push(' * flag for it and coerce the string argv gives back: its kind, whether it is')
+  out.push(' * required, its enum values, and its server-side default. A slot the contract')
+  out.push(' * does not declare — or one whose shape is a union with no flat field list —')
+  out.push(' * is absent, and the runtime falls back to taking it as JSON.')
+  out.push(' *')
+  out.push(" * `summary` is the operation's one-line description, lifted from the OpenAPI")
+  out.push(' * specs so `--help` reuses prose that is already written and already checked.')
+  out.push(' */')
   out.push('export const V2_OPERATIONS = {')
   for (const op of operations) {
     const params = pathParams(op.contract.path)
@@ -226,6 +365,15 @@ function render(operations: Operation[]): string {
     out.push(`    path: '${op.contract.path}',`)
     out.push(`    pathParams: [${params.map((p) => `'${p}'`).join(', ')}] as const,`)
     out.push(`    responseMode: '${op.contract.response.mode}',`)
+    // OpenAPI writes `{id}` where the contract writes `[id]`.
+    const summary = summaries.get(
+      `${op.contract.method} ${op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
+    )
+    if (summary) out.push(`    summary: ${JSON.stringify(summary)},`)
+    for (const slot of ['query', 'body'] as const) {
+      const map = renderSlotMap(op.contract[slot], '    ')
+      if (map) out.push(`    ${slot}: ${map},`)
+    }
     out.push('  },')
   }
   out.push('} as const')

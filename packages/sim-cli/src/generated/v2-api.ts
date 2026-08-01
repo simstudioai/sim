@@ -20,7 +20,7 @@ export type AddTableColumnBody = {
   column: {
     id?: string
     name: string
-    type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
     required?: boolean
     unique?: boolean
     position?: number
@@ -29,6 +29,7 @@ export type AddTableColumnBody = {
       name: string
     }>
     multiple?: boolean
+    currencyCode?: string
   }
 }
 
@@ -37,7 +38,7 @@ export type AddTableColumnResponse = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -46,6 +47,7 @@ export type AddTableColumnResponse = {
         name: string
       }>
       multiple?: boolean
+      currencyCode?: unknown
     }>
   }
 }
@@ -122,7 +124,7 @@ export type CreateTableBody = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
       required?: boolean
       unique?: boolean
       workflowGroupId?: string
@@ -131,6 +133,7 @@ export type CreateTableBody = {
         name: string
       }>
       multiple?: boolean
+      currencyCode?: string
     }>
   }
   workspaceId: string
@@ -147,7 +150,7 @@ export type CreateTableResponse = {
         columns: Array<{
           id?: string
           name: string
-          type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+          type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
           required: boolean
           unique: boolean
           workflowGroupId?: string
@@ -156,6 +159,7 @@ export type CreateTableResponse = {
             name: string
           }>
           multiple?: boolean
+          currencyCode?: unknown
         }>
       }
       rowCount: number
@@ -285,7 +289,7 @@ export type DeleteTableColumnResponse = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -294,6 +298,7 @@ export type DeleteTableColumnResponse = {
         name: string
       }>
       multiple?: boolean
+      currencyCode?: unknown
     }>
   }
 }
@@ -724,7 +729,7 @@ export type GetTableResponse = {
         columns: Array<{
           id?: string
           name: string
-          type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+          type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
           required: boolean
           unique: boolean
           workflowGroupId?: string
@@ -733,6 +738,7 @@ export type GetTableResponse = {
             name: string
           }>
           multiple?: boolean
+          currencyCode?: unknown
         }>
       }
       rowCount: number
@@ -1092,7 +1098,7 @@ export type ListTablesResponse = {
       columns: Array<{
         id?: string
         name: string
-        type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+        type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
         required: boolean
         unique: boolean
         workflowGroupId?: string
@@ -1101,6 +1107,7 @@ export type ListTablesResponse = {
           name: string
         }>
         multiple?: boolean
+        currencyCode?: unknown
       }>
     }
     rowCount: number
@@ -1255,6 +1262,7 @@ export type SearchKnowledgeBody = {
     value: string | number | boolean
     valueTo?: string | number
   }>
+  searchMode?: 'vector' | 'hybrid' | null
 }
 
 export type SearchKnowledgeResponse = {
@@ -1387,7 +1395,7 @@ export type UpdateTableColumnBody = {
   columnName: string
   updates: {
     name?: string
-    type?: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+    type?: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -1395,6 +1403,7 @@ export type UpdateTableColumnBody = {
       name: string
     }>
     multiple?: boolean
+    currencyCode?: string
   }
 }
 
@@ -1403,7 +1412,7 @@ export type UpdateTableColumnResponse = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -1412,6 +1421,7 @@ export type UpdateTableColumnResponse = {
         name: string
       }>
       multiple?: boolean
+      currencyCode?: unknown
     }>
   }
 }
@@ -1505,289 +1515,582 @@ export type UpsertTableRowResponse = {
   }
 }
 
-/** Every v2 operation, keyed by name. */
+/**
+ * Every v2 operation, keyed by name.
+ *
+ * `query` and `body` describe each field well enough for the CLI to build a
+ * flag for it and coerce the string argv gives back: its kind, whether it is
+ * required, its enum values, and its server-side default. A slot the contract
+ * does not declare — or one whose shape is a union with no flat field list —
+ * is absent, and the runtime falls back to taking it as JSON.
+ *
+ * `summary` is the operation's one-line description, lifted from the OpenAPI
+ * specs so `--help` reuses prose that is already written and already checked.
+ */
 export const V2_OPERATIONS = {
   addTableColumn: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Add Column',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      column: { kind: 'object', required: true },
+    },
   },
   cancelWorkflowExecution: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/executions/[executionId]/cancel',
     pathParams: ['id', 'executionId'] as const,
     responseMode: 'json',
+    summary: 'Cancel an execution',
   },
   createKnowledgeBase: {
     method: 'POST',
     path: '/api/v2/knowledge',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'Create Knowledge Base',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      description: { kind: 'string' },
+      chunkingConfig: { kind: 'object', default: { maxSize: 1024, minSize: 100, overlap: 200 } },
+    },
   },
   createTable: {
     method: 'POST',
     path: '/api/v2/tables',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'Create Table',
+    body: {
+      name: { kind: 'string', required: true },
+      description: { kind: 'string' },
+      schema: { kind: 'object', required: true },
+      workspaceId: { kind: 'string', required: true },
+      folderId: { kind: 'string' },
+    },
   },
   createTableRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Create Rows',
   },
   deleteFile: {
     method: 'DELETE',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
     responseMode: 'json',
+    summary: 'Delete File',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   deleteKnowledgeBase: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[id]',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Delete Knowledge Base',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   deleteKnowledgeDocument: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
     pathParams: ['id', 'documentId'] as const,
     responseMode: 'json',
+    summary: 'Delete Document',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   deleteTable: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Delete Table',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   deleteTableColumn: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Delete Column',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      columnName: { kind: 'string', required: true },
+    },
   },
   deleteTableRow: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
     responseMode: 'json',
+    summary: 'Delete Row',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   deleteTableRows: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Delete Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      filter: { kind: 'unknown' },
+      limit: { kind: 'integer' },
+      rowIds: { kind: 'array' },
+    },
   },
   deployWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/deploy',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Deploy Workflow',
   },
   downloadFile: {
     method: 'GET',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
     responseMode: 'binary',
+    summary: 'Download File',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   executeWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/execute',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Execute a workflow',
+    body: {
+      input: { kind: 'object' },
+      async: { kind: 'boolean', default: false },
+      stream: { kind: 'boolean', default: false },
+      selectedOutputs: { kind: 'array' },
+      includeThinking: { kind: 'boolean', default: false },
+      includeToolCalls: { kind: 'boolean', default: false },
+      includeFileBase64: { kind: 'boolean' },
+      base64MaxBytes: { kind: 'integer' },
+    },
   },
   exportWorkflow: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/export',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Export a workflow',
   },
   getAuditLog: {
     method: 'GET',
     path: '/api/v2/audit-logs/[id]',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Get Audit Log',
   },
   getExecution: {
     method: 'GET',
     path: '/api/v2/logs/executions/[executionId]',
     pathParams: ['executionId'] as const,
     responseMode: 'json',
+    summary: 'Get Execution',
   },
   getKnowledgeBase: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Get Knowledge Base',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   getKnowledgeDocument: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
     pathParams: ['id', 'documentId'] as const,
     responseMode: 'json',
+    summary: 'Get Document',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   getLog: {
     method: 'GET',
     path: '/api/v2/logs/[id]',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Get Log',
   },
   getTable: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Get Table',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   getTableRow: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
     responseMode: 'json',
+    summary: 'Get Row',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   getUsageSummary: {
     method: 'GET',
     path: '/api/v2/billing/usage',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'Get Usage Summary',
+    query: {
+      workspaceId: { kind: 'string' },
+    },
   },
   getWorkflow: {
     method: 'GET',
     path: '/api/v2/workflows/[id]',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Get Workflow',
   },
   getWorkflowExecution: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/executions/[executionId]',
     pathParams: ['id', 'executionId'] as const,
     responseMode: 'json',
+    summary: 'Get execution status',
+    query: {
+      includeOutput: { kind: 'enum', values: ['true', 'false'] as const },
+      selectedOutputs: { kind: 'string' },
+    },
   },
   importWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/import',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'Import a workflow',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      folderId: { kind: 'string' },
+      name: { kind: 'string' },
+      description: { kind: 'string' },
+      workflow: { kind: 'unknown', required: true },
+    },
   },
   listAuditLogs: {
     method: 'GET',
     path: '/api/v2/audit-logs',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Audit Logs',
+    query: {
+      action: { kind: 'string' },
+      resourceType: { kind: 'string' },
+      resourceId: { kind: 'string' },
+      workspaceId: { kind: 'string' },
+      actorId: { kind: 'string' },
+      startDate: { kind: 'string' },
+      endDate: { kind: 'string' },
+      includeDeparted: { kind: 'enum', values: ['true', 'false'] as const },
+      limit: { kind: 'number', default: 50 },
+      cursor: { kind: 'string' },
+    },
   },
   listFiles: {
     method: 'GET',
     path: '/api/v2/files',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Files',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      limit: { kind: 'number', default: 100 },
+      cursor: { kind: 'string' },
+    },
   },
   listKnowledgeBases: {
     method: 'GET',
     path: '/api/v2/knowledge',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Knowledge Bases',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   listKnowledgeDocuments: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'List Documents',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      limit: { kind: 'integer', default: 50 },
+      search: { kind: 'string' },
+      enabledFilter: {
+        kind: 'enum',
+        values: ['all', 'enabled', 'disabled'] as const,
+        default: 'all',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: [
+          'filename',
+          'fileSize',
+          'tokenCount',
+          'chunkCount',
+          'uploadedAt',
+          'processingStatus',
+          'enabled',
+        ] as const,
+        default: 'uploadedAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
+      cursor: { kind: 'string' },
+    },
   },
   listLogs: {
     method: 'GET',
     path: '/api/v2/logs',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Logs',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      workflowIds: { kind: 'string' },
+      folderIds: { kind: 'string' },
+      triggers: { kind: 'string' },
+      level: { kind: 'enum', values: ['info', 'error'] as const },
+      startDate: { kind: 'string' },
+      endDate: { kind: 'string' },
+      executionId: { kind: 'string' },
+      minDurationMs: { kind: 'number' },
+      maxDurationMs: { kind: 'number' },
+      minCost: { kind: 'number' },
+      maxCost: { kind: 'number' },
+      model: { kind: 'string' },
+      details: { kind: 'enum', values: ['basic', 'full'] as const, default: 'basic' },
+      includeTraceSpans: { kind: 'boolean' },
+      includeFinalOutput: { kind: 'boolean' },
+      limit: { kind: 'number', default: 100 },
+      cursor: { kind: 'string' },
+      order: { kind: 'enum', values: ['desc', 'asc'] as const, default: 'desc' },
+    },
   },
   listTableRows: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'List rows',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      limit: { kind: 'integer' },
+      cursor: { kind: 'string' },
+    },
   },
   listTables: {
     method: 'GET',
     path: '/api/v2/tables',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Tables',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   listUsageLogs: {
     method: 'GET',
     path: '/api/v2/billing/usage/logs',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Usage Logs',
+    query: {
+      source: {
+        kind: 'enum',
+        values: [
+          'workflow',
+          'wand',
+          'copilot',
+          'workspace-chat',
+          'mcp_copilot',
+          'mothership_block',
+          'knowledge-base',
+          'voice-input',
+          'enrichment',
+        ] as const,
+      },
+      workspaceId: { kind: 'string' },
+      period: {
+        kind: 'enum',
+        values: ['1d', '7d', '30d', 'all', 'custom'] as const,
+        default: '30d',
+      },
+      startDate: { kind: 'string' },
+      endDate: { kind: 'string' },
+      limit: { kind: 'integer', default: 50 },
+      cursor: { kind: 'string' },
+    },
   },
   listWorkflows: {
     method: 'GET',
     path: '/api/v2/workflows',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'List Workflows',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      folderId: { kind: 'string' },
+      deployedOnly: { kind: 'boolean' },
+      limit: { kind: 'number', default: 50 },
+      cursor: { kind: 'string' },
+    },
   },
   queryRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Query Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      predicate: { kind: 'unknown' },
+      sort: { kind: 'array' },
+      limit: { kind: 'integer' },
+      cursor: { kind: 'string' },
+    },
   },
   rollbackWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/rollback',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Rollback Workflow',
   },
   searchKnowledge: {
     method: 'POST',
     path: '/api/v2/knowledge/search',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'Search Knowledge',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      knowledgeBaseIds: { kind: 'unknown', required: true },
+      query: { kind: 'string' },
+      topK: { kind: 'number', default: 10 },
+      tagFilters: { kind: 'array' },
+      searchMode: { kind: 'enum', default: 'vector' },
+    },
   },
   undeployWorkflow: {
     method: 'DELETE',
     path: '/api/v2/workflows/[id]/deploy',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Undeploy Workflow',
   },
   updateKnowledgeBase: {
     method: 'PUT',
     path: '/api/v2/knowledge/[id]',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Update Knowledge Base',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string' },
+      description: { kind: 'string' },
+      chunkingConfig: { kind: 'object' },
+    },
   },
   updateRowsByFilter: {
     method: 'PUT',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Update Rows by Filter',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      filter: { kind: 'unknown', required: true },
+      data: { kind: 'unknown', required: true },
+      limit: { kind: 'integer' },
+    },
   },
   updateTableColumn: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Update Column',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      columnName: { kind: 'string', required: true },
+      updates: { kind: 'object', required: true },
+    },
   },
   updateTableRow: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
     responseMode: 'json',
+    summary: 'Update Row',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      data: { kind: 'unknown', required: true },
+    },
   },
   uploadFile: {
     method: 'POST',
     path: '/api/v2/files',
     pathParams: [] as const,
     responseMode: 'json',
+    summary: 'Upload File',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   uploadKnowledgeDocument: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents',
     pathParams: ['id'] as const,
     responseMode: 'json',
+    summary: 'Upload Document',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   upsertTableRow: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/upsert',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
+    summary: 'Upsert Row',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      data: { kind: 'unknown', required: true },
+      conflictTarget: { kind: 'string' },
+    },
   },
 } as const
 

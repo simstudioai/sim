@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest'
+import { SimApiError } from '../http/client.js'
+import { deriveCommandPath } from './derive.js'
+import { buildRequest } from './request.js'
+
+const WORKSPACE = 'ws_local'
+
+describe('buildRequest', () => {
+  it('substitutes path params from positional args and injects the workspace', () => {
+    expect(buildRequest('upsertTableRow', ['tbl_1'], { data: '{"a":1}' }, WORKSPACE)).toEqual({
+      path: '/api/v2/tables/tbl_1/rows/upsert',
+      query: {},
+      body: { workspaceId: WORKSPACE, data: { a: 1 } },
+    })
+  })
+
+  it('puts the workspace in whichever slot the contract declares it', () => {
+    // Same field, different slot: body for upsert above, query here.
+    const built = buildRequest('listTables', [], {}, WORKSPACE)
+    expect(built.query).toEqual({ workspaceId: WORKSPACE })
+    expect(built.body).toBeUndefined()
+  })
+
+  it('maps a contract flag alias back to its field name', () => {
+    const built = buildRequest('upsertTableRow', ['t'], { data: '{}', on: 'email' }, WORKSPACE)
+    expect(built.body).toMatchObject({ conflictTarget: 'email' })
+  })
+
+  it('comma-joins a list flag the route splits, which the type calls a string', () => {
+    const built = buildRequest('listLogs', [], { workflow: ['wf_1', 'wf_2'] }, WORKSPACE)
+    expect(built.query.workflowIds).toBe('wf_1,wf_2')
+  })
+
+  it('coerces numeric flags out of the strings argv gives', () => {
+    const built = buildRequest('listLogs', [], { 'min-duration-ms': '250' }, WORKSPACE)
+    expect(built.query.minDurationMs).toBe(250)
+  })
+
+  it('omits absent optional fields so the server applies its own default', () => {
+    const built = buildRequest('listLogs', [], {}, WORKSPACE)
+    expect(built.query).toEqual({ workspaceId: WORKSPACE })
+    expect(built.query).not.toHaveProperty('order')
+  })
+
+  it('never sends a field the contract marked omit', () => {
+    // `stream` would switch the response to SSE, which the JSON client cannot read.
+    const built = buildRequest('executeWorkflow', ['wf_1'], { stream: true }, WORKSPACE)
+    expect(built.body ?? {}).not.toHaveProperty('stream')
+  })
+
+  it('percent-encodes path params so an id cannot retarget the request', () => {
+    expect(buildRequest('getTable', ['a/b?c'], {}, WORKSPACE).path).toBe('/api/v2/tables/a%2Fb%3Fc')
+  })
+
+  describe('failures, all before any network call', () => {
+    it('rejects a missing path arg', () => {
+      expect(() => buildRequest('getTable', [], {}, WORKSPACE)).toThrow('Missing <tableId>')
+    })
+
+    it('rejects a missing required flag', () => {
+      expect(() => buildRequest('upsertTableRow', ['t'], {}, WORKSPACE)).toThrow(
+        '--data is required'
+      )
+    })
+
+    it('rejects malformed JSON, naming the flag the caller typed', () => {
+      expect(() => buildRequest('upsertTableRow', ['t'], { data: '{oops' }, WORKSPACE)).toThrow(
+        '--data must be valid JSON'
+      )
+    })
+
+    it('rejects a value outside an enum', () => {
+      expect(() => buildRequest('listLogs', [], { level: 'warn' }, WORKSPACE)).toThrow(
+        '--level must be one of: info, error'
+      )
+    })
+
+    it('rejects a non-numeric number', () => {
+      expect(() => buildRequest('listLogs', [], { 'min-cost': 'lots' }, WORKSPACE)).toThrow(
+        '--min-cost must be a number'
+      )
+    })
+
+    it('explains an unset workspace in terms of how to set one', () => {
+      expect(() => buildRequest('listTables', [], {}, null)).toThrow(SimApiError)
+      expect(() => buildRequest('listTables', [], {}, null)).toThrow(
+        'sim configure --set-workspace'
+      )
+    })
+  })
+})
+
+describe('deriveCommandPath', () => {
+  it('derives collection and item verbs from the method and path shape', () => {
+    expect(deriveCommandPath('listTables')).toEqual(['tables', 'list'])
+    expect(deriveCommandPath('getTable')).toEqual(['tables', 'get'])
+    expect(deriveCommandPath('createTable')).toEqual(['tables', 'create'])
+    expect(deriveCommandPath('deleteTable')).toEqual(['tables', 'delete'])
+  })
+
+  it('nests a sub-resource', () => {
+    expect(deriveCommandPath('getKnowledgeDocument')).toEqual(['knowledge', 'documents', 'get'])
+    expect(deriveCommandPath('listTableRows')).toEqual(['tables', 'rows', 'list'])
+  })
+
+  it('treats a verb-like trailing segment as the command name', () => {
+    expect(deriveCommandPath('upsertTableRow')).toEqual(['tables', 'upsert'])
+    expect(deriveCommandPath('searchKnowledge')).toEqual(['knowledge', 'search'])
+  })
+})

@@ -4,12 +4,9 @@ import chalk from 'chalk'
 import { Command } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth.js'
 import { configureCommand } from './commands/configure.js'
-import { filesCommand } from './commands/files.js'
-import { knowledgeCommand } from './commands/knowledge.js'
-import { logsCommand } from './commands/logs.js'
-import { tablesCommand } from './commands/tables.js'
-import { workflowsCommand } from './commands/workflows.js'
+import { attachHandWritten } from './commands/hand-written.js'
 import { SimApiError } from './http/client.js'
+import { buildGeneratedCommands } from './runtime/build.js'
 
 const program = new Command()
 
@@ -26,11 +23,24 @@ program.addCommand(logoutCommand())
 program.addCommand(whoamiCommand())
 program.addCommand(profilesCommand())
 program.addCommand(configureCommand())
-program.addCommand(workflowsCommand())
-program.addCommand(logsCommand())
-program.addCommand(tablesCommand())
-program.addCommand(filesCommand())
-program.addCommand(knowledgeCommand())
+
+/**
+ * Leaves owned by hand-written commands, which the generated runtime skips.
+ *
+ * Each is here because generation genuinely cannot produce it, not because it
+ * has not been migrated: `files download` streams binary rather than JSON, and
+ * `tables rows list` discovers its columns from user-defined row data at
+ * runtime with a nested `data` object the generic renderer would flatten badly.
+ */
+const HAND_WRITTEN = new Set(['files download', 'tables rows list'])
+
+for (const command of buildGeneratedCommands(HAND_WRITTEN)) {
+  program.addCommand(command)
+}
+
+// Added after the generated groups so their leaves merge into the same group
+// object rather than creating a duplicate top-level command.
+attachHandWritten(program)
 
 program.addHelpText(
   'after',
