@@ -254,7 +254,7 @@ export function EditorBubbleMenu({
             <>
               <ToolbarButton
                 icon={Blimp}
-                label='Add to chat'
+                label='Add to Chat'
                 isActive={false}
                 onClick={onAddToChat}
               />

@@ -85,7 +85,7 @@ export function ContextMenu({
   disableDuplicate = false,
   disableDelete = false,
   onAddToChat,
-  addToChatLabel = 'Add to chat',
+  addToChatLabel = 'Add to Chat',
 }: ContextMenuProps) {
   const count = selectedRowCount.toLocaleString()
   const deleteLabel = selectedRowCount > 1 ? `Delete ${count} rows` : 'Delete row'

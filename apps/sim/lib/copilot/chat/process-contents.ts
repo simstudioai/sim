@@ -930,6 +930,14 @@ async function resolveFileSelectionResource(
   }
 }
 
+/**
+ * Longest form the size clause can take for `total` rows — every row omitted.
+ * Used to reserve prefix space before the real counts are known.
+ */
+function worstCaseSizeClause(total: number): string {
+  return `${total} of ${total}, ${total} omitted for length`
+}
+
 /** Renders one cell for a markdown table row, escaping the delimiters. */
 function renderTableCell(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -971,24 +979,32 @@ async function resolveTableSelectionResource(
 
   const header = `| ${columns.map((c) => c.name).join(' | ')} |`
   const divider = `| ${columns.map(() => '---').join(' | ')} |`
+  const scope = hasColumnScope ? 'cell range' : 'rows'
+  const describe = (size: string) =>
+    `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n`
 
-  // Spend the character budget row by row: the row cap alone doesn't bound the
-  // prompt cost. The first row is always emitted, so a single oversized row
-  // still yields a table rather than an empty one.
+  // Spend the character budget row by row. Everything that is not a row — the
+  // prose, the table head, and every newline — is reserved up front, or the cap
+  // is silently overrun whenever the last row leaves less slack than the prefix
+  // needs. The reserve uses the longest form the size clause can take (every row
+  // omitted), since its real value isn't known until packing finishes; a few
+  // characters of unused slack beats overshooting the documented bound.
   const lines: string[] = []
-  let remaining = MAX_TABLE_SELECTION_CONTENT_LENGTH - header.length - divider.length
+  let remaining =
+    MAX_TABLE_SELECTION_CONTENT_LENGTH - describe(worstCaseSizeClause(rows.length)).length
   for (const row of rows) {
     const line = `| ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
-    if (lines.length > 0 && line.length > remaining) break
+    // The first row always goes in, so a single oversized row still yields a
+    // table rather than an empty one.
+    if (lines.length > 0 && line.length + 1 > remaining) break
     lines.push(line)
     remaining -= line.length + 1
   }
 
   const omitted = rows.length - lines.length
   const shown = `${lines.length} ${lines.length === 1 ? 'row' : 'rows'}`
-  const scope = hasColumnScope ? 'cell range' : 'rows'
   const size = omitted > 0 ? `${shown} of ${rows.length}, ${omitted} omitted for length` : shown
-  const content = `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n${lines.join('\n')}`
+  const content = `${describe(size)}${lines.join('\n')}`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',

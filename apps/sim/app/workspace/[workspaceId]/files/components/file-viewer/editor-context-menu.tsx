@@ -67,7 +67,7 @@ export function EditorContextMenu({
           <>
             <DropdownMenuItem disabled={!hasSelection} onSelect={onAddToChat}>
               <Blimp />
-              Add to chat
+              Add to Chat
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

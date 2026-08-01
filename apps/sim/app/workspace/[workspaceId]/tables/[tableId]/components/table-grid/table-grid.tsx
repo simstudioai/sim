@@ -4631,7 +4631,7 @@ export function TableGrid({
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
         onAddToChat={contextMenuRowIds.length > 0 ? handleAddSelectionToChat : undefined}
-        addToChatLabel={contextMenuColumnIds ? 'Add cell range to chat' : 'Add rows to chat'}
+        addToChatLabel={contextMenuColumnIds ? 'Add cell range to Chat' : 'Add rows to Chat'}
       />
 
       <ExpandedCellPopover

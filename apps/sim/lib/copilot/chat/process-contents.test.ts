@@ -491,6 +491,46 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(result).toEqual([])
   })
 
+  it('keeps the whole rendered content within budget when rows pack tightly', async () => {
+    // Rows small enough to fill the budget almost exactly: the last accepted row
+    // leaves only a few characters of slack, so a budget that forgot to reserve
+    // the prose prefix and newlines overruns the cap here while passing on
+    // coarse fixtures that stop far short of the limit.
+    const cell = 'x'.repeat(100)
+    const rows = Array.from({ length: MAX_TABLE_SELECTION_ROWS }, (_, i) => ({
+      id: `r${i}`,
+      data: { c_notes: cell },
+    }))
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+    getRowsByIds.mockResolvedValue(rows)
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Sales (500 rows)',
+          rowIds: rows.map((r) => r.id),
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    const [ctx] = result
+    expect(ctx.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    // Guard against passing by emitting almost nothing — it must still be a
+    // real table that genuinely approaches the cap.
+    expect(ctx.content.length).toBeGreaterThan(MAX_TABLE_SELECTION_CONTENT_LENGTH * 0.9)
+    expect(ctx.content).toContain('omitted for length')
+  })
+
   it('spends a character budget across rows and reports what it omitted', async () => {
     // Row/column caps alone don't bound prompt cost: wide cells blow past the
     // budget long before MAX_TABLE_SELECTION_ROWS.
