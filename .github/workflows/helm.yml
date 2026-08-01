@@ -1,0 +1,157 @@
+name: Helm Chart
+
+on:
+  push:
+    branches: [main, staging, dev]
+    paths:
+      - 'helm/sim/**'
+      - '.github/workflows/helm.yml'
+  pull_request:
+    branches: [main, staging, dev]
+    paths:
+      - 'helm/sim/**'
+      - '.github/workflows/helm.yml'
+
+concurrency:
+  group: helm-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  chart:
+    name: Lint, test, and validate chart
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.16.4
+
+      - name: Helm lint
+        run: helm lint helm/sim --values helm/sim/ci/default-values.yaml
+
+      - name: Helm unit tests
+        run: |
+          # Official helm-unittest image, pinned by immutable digest (tag 3.17.3-0.8.2).
+          # Run as the runner's UID so the container can write into the bind
+          # mount (it creates tests/__snapshot__), with a writable HOME for helm.
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD/helm/sim:/apps" \
+            helmunittest/helm-unittest@sha256:b653db7d5665bc6cec677b15c5eaa1c0377c0de8ac4eb1df58b924478baa21e1 .
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL -o /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  /tmp/kubeconform.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+
+      - name: Render and validate manifests (default configuration)
+        run: |
+          helm template sim helm/sim --namespace sim \
+            --values helm/sim/ci/default-values.yaml \
+            | /tmp/kubeconform -strict -summary \
+                -kubernetes-version 1.29.0 \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+      - name: Render and validate manifests (all components enabled)
+        run: |
+          helm template sim helm/sim --namespace sim \
+            --values helm/sim/ci/full-values.yaml \
+            | /tmp/kubeconform -strict -summary \
+                -kubernetes-version 1.29.0 \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+      - name: Render every example values file
+        run: |
+          set -euo pipefail
+          for f in helm/sim/examples/values-*.yaml; do
+            echo "--- $f"
+            # Examples intentionally omit secrets (their headers document the
+            # required --set flags), so supply the CI dummies alongside each.
+            helm template sim helm/sim --namespace sim \
+              --values "$f" \
+              --values helm/sim/ci/default-values.yaml \
+              --set copilot.postgresql.auth.password=ci-dummy-password \
+              --set copilot.server.env.AGENT_API_DB_ENCRYPTION_KEY=cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici \
+              --set copilot.server.env.INTERNAL_API_SECRET=cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici \
+              --set copilot.server.env.LICENSE_KEY=ci-dummy-license \
+              --set copilot.server.env.SIM_BASE_URL=https://ci.example.com \
+              --set copilot.server.env.SIM_AGENT_API_KEY=ci-dummy-agent-key \
+              --set copilot.server.env.REDIS_URL=redis://ci-redis:6379 \
+              --set copilot.server.env.OPENAI_API_KEY_1=ci-dummy-openai-key \
+              --set externalDatabase.password=ci-dummy-password > /dev/null
+          done
+
+  version-bump:
+    name: Chart version bumped
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Require a Chart.yaml version bump when chart content changes
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}"
+          merge_base=$(git merge-base "$base" HEAD)
+          changed=$(git diff --name-only "$merge_base" HEAD)
+          if echo "$changed" | grep -q '^helm/sim/'; then
+            base_version=$(git show "$merge_base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
+            head_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
+            echo "base=$base_version head=$head_version"
+            if [ "$base_version" = "$head_version" ]; then
+              echo "::error::helm/sim/** changed but Chart.yaml version did not (still $head_version). Bump it per SemVer."
+              exit 1
+            fi
+          else
+            echo "No chart changes; skipping."
+          fi
+
+  install:
+    name: Install on kind and run helm test
+    needs: chart
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.16.4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
+        with:
+          version: v0.24.0
+
+      - name: Install chart
+        run: |
+          helm install sim helm/sim \
+            --namespace sim --create-namespace \
+            --values helm/sim/ci/default-values.yaml \
+            --values helm/sim/ci/kind-values.yaml \
+            --wait --timeout 15m
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n sim get pods -o wide || true
+          kubectl -n sim get events --sort-by=.lastTimestamp | tail -40 || true
+          kubectl -n sim describe pods | tail -100 || true
+          kubectl -n sim logs deploy/sim-app -c migrations --tail=50 || true
+          kubectl -n sim logs deploy/sim-app --tail=80 || true
+
+      - name: Run helm test
+        run: helm test sim --namespace sim --timeout 5m

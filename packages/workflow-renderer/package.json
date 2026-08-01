@@ -39,7 +39,7 @@
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
     "@types/react": "^19",
-    "lucide-react": "^0.479.0",
+    "lucide-react": "^0.511.0",
     "react": "19.2.4",
     "reactflow": "^11.11.4",
     "remark-breaks": "^4.0.0",

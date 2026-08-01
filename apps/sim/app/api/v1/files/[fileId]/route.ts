@@ -6,11 +6,16 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import {
+  fetchServableWorkspaceFileBuffer,
+  getWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   checkRateLimit,
   createRateLimitResponse,
+  v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
@@ -34,7 +39,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1DownloadFileContract, request, context)
+    const parsed = await parseRequest(v1DownloadFileContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { fileId } = parsed.data.params
@@ -48,7 +55,9 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const buffer = await fetchWorkspaceFileBuffer(fileRecord)
+    // Generated docs store their generation source; serve the rendered artifact.
+    // Its content type is the rendered one, not the source MIME on the record.
+    const { buffer, contentType } = await fetchServableWorkspaceFileBuffer(fileRecord)
 
     recordAudit({
       workspaceId,
@@ -73,21 +82,30 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       { groups: { workspace: workspaceId } }
     )
 
-    return new Response(new Uint8Array(buffer), {
-      status: 200,
-      headers: {
-        'Content-Type': fileRecord.type || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
-        'Content-Length': String(buffer.length),
-        'X-File-Id': fileRecord.id,
-        'X-File-Name': encodeURIComponent(fileRecord.name),
-        'X-Uploaded-At':
-          fileRecord.uploadedAt instanceof Date
-            ? fileRecord.uploadedAt.toISOString()
-            : String(fileRecord.uploadedAt),
-      },
-    })
+    // View, not copy — a second full copy would double peak memory for a large file.
+    return new Response(
+      new Uint8Array(buffer.buffer as ArrayBuffer, buffer.byteOffset, buffer.byteLength),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': contentType || fileRecord.type || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
+          'Content-Length': String(buffer.length),
+          'X-File-Id': fileRecord.id,
+          'X-File-Name': encodeURIComponent(fileRecord.name),
+          'X-Uploaded-At':
+            fileRecord.uploadedAt instanceof Date
+              ? fileRecord.uploadedAt.toISOString()
+              : String(fileRecord.uploadedAt),
+        },
+      }
+    )
   } catch (error) {
+    // A generated doc whose artifact is still compiling is retryable, not a fault:
+    // without this the caller sees a 500 and has no reason to try again.
+    if (isDocNotReadyError(error)) {
+      return NextResponse.json({ error: docNotReadyMessage() }, { status: 409 })
+    }
     logger.error(`[${requestId}] Error downloading file:`, error)
     return NextResponse.json({ error: 'Failed to download file' }, { status: 500 })
   }
@@ -104,7 +122,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
     }
 
     const userId = rateLimit.userId!
-    const parsed = await parseRequest(v1DeleteFileContract, request, context)
+    const parsed = await parseRequest(v1DeleteFileContract, request, context, {
+      validationErrorResponse: v1ValidationErrorResponse,
+    })
     if (!parsed.success) return parsed.response
 
     const { fileId } = parsed.data.params

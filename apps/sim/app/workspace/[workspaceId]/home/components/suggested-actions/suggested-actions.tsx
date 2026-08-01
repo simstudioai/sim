@@ -10,7 +10,6 @@ import { usePostHog } from 'posthog-js/react'
 import { ActionRow } from '@/components/action-row'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
-  getAllBlockMeta,
   INTEGRATIONS,
   type OAuthServiceMatch,
   resolveOAuthServiceForIntegration,
@@ -18,7 +17,8 @@ import {
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBareIconStyle } from '@/blocks/brand-icon-style'
+import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'

@@ -1,28 +1,26 @@
 /**
  * @vitest-environment node
+ *
+ * Uses vi.spyOn against the shared module instances instead of vi.mock: under
+ * `isolate: false` the module under test may already be cached from another
+ * test file, bound to whatever dependency instances were live at that time.
+ * Spying on the instance this file resolves patches the exact namespace the
+ * cached module reads at call time, so the tests behave identically whether
+ * the module graph is fresh or reused.
  */
-import {
-  inputValidationMock,
-  inputValidationMockFns,
-  permissionsMock,
-  permissionsMockFns,
-} from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockUploadWorkspaceFile } = vi.hoisted(() => ({
-  mockUploadWorkspaceFile: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
-}))
-
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as inputValidation from '@/lib/core/security/input-validation.server'
 import {
   ExternalUrlValidationError,
   fetchExternalUrlToWorkspace,
 } from '@/lib/uploads/contexts/workspace/fetch-external-url'
+import * as workspaceFileManager from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import * as workspacePermissions from '@/lib/workspaces/permissions/utils'
+
+const validateUrlWithDNSSpy = vi.spyOn(inputValidation, 'validateUrlWithDNS')
+const secureFetchWithPinnedIPSpy = vi.spyOn(inputValidation, 'secureFetchWithPinnedIP')
+const getUserEntityPermissionsSpy = vi.spyOn(workspacePermissions, 'getUserEntityPermissions')
+const uploadWorkspaceFileSpy = vi.spyOn(workspaceFileManager, 'uploadWorkspaceFile')
 
 function makeResponse(body: string, contentType = 'application/octet-stream'): Response {
   return new Response(body, { status: 200, headers: { 'content-type': contentType } })
@@ -30,27 +28,39 @@ function makeResponse(body: string, contentType = 'application/octet-stream'): R
 
 describe('fetchExternalUrlToWorkspace', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+    validateUrlWithDNSSpy.mockReset()
+    secureFetchWithPinnedIPSpy.mockReset()
+    getUserEntityPermissionsSpy.mockReset()
+    uploadWorkspaceFileSpy.mockReset()
+
+    validateUrlWithDNSSpy.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
     })
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockUploadWorkspaceFile.mockImplementation(
-      async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
-        id: `wf_${fileName}`,
-        name: fileName,
-        size: 0,
-        type: 'application/octet-stream',
-        url: `/api/files/serve/${workspaceId}/${fileName}`,
-        key: `${workspaceId}/${fileName}`,
-        context: 'workspace',
-      })
+    getUserEntityPermissionsSpy.mockResolvedValue('write')
+    uploadWorkspaceFileSpy.mockImplementation(
+      async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) =>
+        ({
+          id: `wf_${fileName}`,
+          name: fileName,
+          size: 0,
+          type: 'application/octet-stream',
+          url: `/api/files/serve/${workspaceId}/${fileName}`,
+          key: `${workspaceId}/${fileName}`,
+          context: 'workspace',
+        }) as unknown as Awaited<ReturnType<typeof workspaceFileManager.uploadWorkspaceFile>>
     )
   })
 
+  afterAll(() => {
+    validateUrlWithDNSSpy.mockRestore()
+    secureFetchWithPinnedIPSpy.mockRestore()
+    getUserEntityPermissionsSpy.mockRestore()
+    uploadWorkspaceFileSpy.mockRestore()
+  })
+
   it('downloads each URL independently — never dedups by path filename', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP
+    secureFetchWithPinnedIPSpy
       .mockResolvedValueOnce(makeResponse('first bytes', 'image/png'))
       .mockResolvedValueOnce(makeResponse('different second bytes', 'image/png'))
 
@@ -69,12 +79,12 @@ describe('fetchExternalUrlToWorkspace', () => {
     expect(second.filename).toBe('image.png')
     expect(first.buffer.toString()).toBe('first bytes')
     expect(second.buffer.toString()).toBe('different second bytes')
-    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(2)
+    expect(secureFetchWithPinnedIPSpy).toHaveBeenCalledTimes(2)
+    expect(uploadWorkspaceFileSpy).toHaveBeenCalledTimes(2)
   })
 
   it('throws ExternalUrlValidationError when SSRF validation fails', async () => {
-    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+    validateUrlWithDNSSpy.mockResolvedValue({
       isValid: false,
       error: 'Blocked private IP',
     })
@@ -85,11 +95,11 @@ describe('fetchExternalUrlToWorkspace', () => {
         userId: 'user-1',
       })
     ).rejects.toBeInstanceOf(ExternalUrlValidationError)
-    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(secureFetchWithPinnedIPSpy).not.toHaveBeenCalled()
   })
 
   it('throws on non-2xx fetch responses', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+    secureFetchWithPinnedIPSpy.mockResolvedValue(
       new Response('not found', { status: 404, statusText: 'Not Found' })
     )
 
@@ -102,9 +112,7 @@ describe('fetchExternalUrlToWorkspace', () => {
   })
 
   it('skips workspace save when saveToWorkspace is false', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/file.txt',
@@ -114,14 +122,12 @@ describe('fetchExternalUrlToWorkspace', () => {
     })
 
     expect(result.savedWorkspaceFile).toBeUndefined()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
+    expect(uploadWorkspaceFileSpy).not.toHaveBeenCalled()
+    expect(getUserEntityPermissionsSpy).not.toHaveBeenCalled()
   })
 
   it('skips workspace save when no workspaceId is provided', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/file.txt',
@@ -129,14 +135,12 @@ describe('fetchExternalUrlToWorkspace', () => {
     })
 
     expect(result.savedWorkspaceFile).toBeUndefined()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(uploadWorkspaceFileSpy).not.toHaveBeenCalled()
   })
 
   it('skips workspace save when user lacks write permission', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
+    getUserEntityPermissionsSpy.mockResolvedValue('read')
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/file.txt',
@@ -145,14 +149,12 @@ describe('fetchExternalUrlToWorkspace', () => {
     })
 
     expect(result.savedWorkspaceFile).toBeUndefined()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(uploadWorkspaceFileSpy).not.toHaveBeenCalled()
   })
 
   it('returns parsed bytes but skips save when user is not a workspace member', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
+    getUserEntityPermissionsSpy.mockResolvedValue(null)
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/file.txt',
@@ -162,13 +164,11 @@ describe('fetchExternalUrlToWorkspace', () => {
 
     expect(result.buffer.toString()).toBe('bytes')
     expect(result.savedWorkspaceFile).toBeUndefined()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(uploadWorkspaceFileSpy).not.toHaveBeenCalled()
   })
 
   it('returns the saved workspace file when permission allows save', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/notes.txt',
@@ -176,7 +176,7 @@ describe('fetchExternalUrlToWorkspace', () => {
       workspaceId: 'workspace-1',
     })
 
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+    expect(uploadWorkspaceFileSpy).toHaveBeenCalledWith(
       'workspace-1',
       'user-1',
       expect.any(Buffer),
@@ -187,10 +187,8 @@ describe('fetchExternalUrlToWorkspace', () => {
   })
 
   it('swallows workspace save errors so parsing can still proceed', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
-    mockUploadWorkspaceFile.mockRejectedValueOnce(new Error('disk full'))
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
+    uploadWorkspaceFileSpy.mockRejectedValueOnce(new Error('disk full'))
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/file.txt',
@@ -203,9 +201,7 @@ describe('fetchExternalUrlToWorkspace', () => {
   })
 
   it('forwards custom headers to the fetch', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('bytes', 'text/plain')
-    )
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
 
     await fetchExternalUrlToWorkspace({
       url: 'https://files.slack.com/files-pri/T07/download/report.txt',
@@ -213,7 +209,7 @@ describe('fetchExternalUrlToWorkspace', () => {
       headers: { Authorization: 'Bearer xoxb-test-token' },
     })
 
-    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(secureFetchWithPinnedIPSpy).toHaveBeenCalledWith(
       'https://files.slack.com/files-pri/T07/download/report.txt',
       '203.0.113.10',
       expect.objectContaining({
@@ -223,9 +219,7 @@ describe('fetchExternalUrlToWorkspace', () => {
   })
 
   it('uses content-type from response headers', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      makeResponse('pdf bytes', 'application/pdf')
-    )
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('pdf bytes', 'application/pdf'))
 
     const result = await fetchExternalUrlToWorkspace({
       url: 'https://example.com/report.pdf',

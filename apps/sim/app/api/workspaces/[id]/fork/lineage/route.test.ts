@@ -1,28 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockAssertWorkspaceAdminAccess,
   mockGetForkParent,
   mockGetForkChildren,
   mockGetUndoableRunForTarget,
   mockGetEffectiveWorkspacePermission,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockAssertWorkspaceAdminAccess: vi.fn(),
   mockGetForkParent: vi.fn(),
   mockGetForkChildren: vi.fn(),
   mockGetUndoableRunForTarget: vi.fn(),
   mockGetEffectiveWorkspacePermission: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
@@ -43,6 +36,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { GET } from '@/app/api/workspaces/[id]/fork/lineage/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const WORKSPACE_ID = 'workspace-1'
 const VIEWER_ID = 'user-1'

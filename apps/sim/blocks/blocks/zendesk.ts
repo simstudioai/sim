@@ -721,7 +721,7 @@ export const ZendeskBlockMeta = {
   templates: [
     {
       icon: ZendeskIcon,
-      title: 'Support ticket knowledge search',
+      title: 'Zendesk ticket knowledge search',
       prompt:
         'Create a knowledge base connected to my Zendesk account so all past tickets, resolutions, and agent notes are automatically synced and searchable. Then build an agent my support team can ask things like "how do we usually resolve the SSO login issue?" or "has anyone reported this billing bug before?" to find past solutions instantly.',
       modules: ['knowledge-base', 'agent'],

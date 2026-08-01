@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
 
 const {
@@ -11,7 +12,6 @@ const {
   mockCreatePinnedFetch,
   mockExecuteAnthropic,
   sentinelFetch,
-  envState,
 } = vi.hoisted(() => {
   const anthropicArgs: Array<Record<string, unknown>> = []
   const sentinelFetch = vi.fn()
@@ -27,15 +27,10 @@ const {
     mockCreatePinnedFetch: vi.fn(() => sentinelFetch),
     mockExecuteAnthropic: vi.fn(),
     sentinelFetch,
-    envState: {
-      AZURE_ANTHROPIC_ENDPOINT: undefined as string | undefined,
-      AZURE_ANTHROPIC_API_VERSION: undefined as string | undefined,
-    },
   }
 })
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mockAnthropic }))
-vi.mock('@/lib/core/config/env', () => ({ env: envState }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidate,
   createPinnedFetch: mockCreatePinnedFetch,
@@ -61,16 +56,17 @@ function request(overrides: Partial<ProviderRequest>): ProviderRequest {
 /** Invokes the createClient factory handed to the Anthropic core and returns the SDK options it built. */
 function buildClientOptions(): Record<string, unknown> {
   const config = mockExecuteAnthropic.mock.calls[0][1]
-  config.createClient('k', false)
+  config.createClient('k')
   return anthropicArgs[0]
 }
+
+afterAll(resetEnvMock)
 
 describe('azureAnthropicProvider — SSRF pinning', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     anthropicArgs.length = 0
-    envState.AZURE_ANTHROPIC_ENDPOINT = undefined
-    envState.AZURE_ANTHROPIC_API_VERSION = undefined
+    setEnv({ AZURE_ANTHROPIC_ENDPOINT: undefined, AZURE_ANTHROPIC_API_VERSION: undefined })
     mockExecuteAnthropic.mockResolvedValue({ content: 'ok' })
   })
 
@@ -87,13 +83,25 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
   })
 
   it('does not pin when the endpoint comes from trusted server env', async () => {
-    envState.AZURE_ANTHROPIC_ENDPOINT = 'https://trusted.services.ai.azure.com'
+    setEnv({ AZURE_ANTHROPIC_ENDPOINT: 'https://trusted.services.ai.azure.com' })
 
     await azureAnthropicProvider.executeRequest(request({ azureEndpoint: undefined }))
 
     expect(mockValidate).not.toHaveBeenCalled()
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
     expect(buildClientOptions()).not.toHaveProperty('fetch')
+  })
+
+  it('keeps the registry model in core and resolves a separate Azure wire model', async () => {
+    setEnv({ AZURE_ANTHROPIC_ENDPOINT: 'https://identity.services.ai.azure.com' })
+    const providerRequest = request({})
+
+    await azureAnthropicProvider.executeRequest(providerRequest)
+
+    const [forwardedRequest, config] = mockExecuteAnthropic.mock.calls[0]
+    expect(forwardedRequest.model).toBe('azure-anthropic/claude-3-5-sonnet')
+    expect(config.resolveWireModel(forwardedRequest)).toBe('claude-3-5-sonnet')
+    expect(buildClientOptions().defaultHeaders).not.toHaveProperty('anthropic-beta')
   })
 
   it('throws and never builds a client when validation blocks the endpoint', async () => {

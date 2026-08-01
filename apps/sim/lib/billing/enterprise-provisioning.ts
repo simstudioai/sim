@@ -21,10 +21,11 @@ import {
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 
-const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -33,7 +34,7 @@ function metadataRecord(value: unknown): Record<string, unknown> {
 }
 
 function isNonterminalSubscriptionStatus(status: string | null | undefined): boolean {
-  return !status || !TERMINAL_SUBSCRIPTION_STATUSES.has(status)
+  return !status || !TERMINAL_STATUSES.has(status)
 }
 
 function subscriptionOrganizationId(metadata: unknown): string | null {
@@ -249,7 +250,6 @@ export interface EnterpriseProvisioningView {
   organizationId: string
   status: EnterpriseOperationStatus
   monthlyInvoiceAmountUsd: number
-  includedMonthlyCredits: number
   usageLimitCredits: number
   seats: number
   concurrencyLimit: number
@@ -276,19 +276,19 @@ function slugifyOrganizationName(name: string, organizationId: string): string {
   return `${base || 'organization'}-${organizationId.slice(-8)}`
 }
 
-/** Builds a commercial-terms key while preserving legacy keys when new terms are omitted. */
+/** Builds a deterministic key from every Enterprise commercial term. */
 export function buildEnterpriseProvisioningRequestKey(
   input: IssueEnterpriseProvisioningInput,
   organizationId: string
 ): string {
-  const includedMonthlyCredits = dollarsToCredits(input.monthlyInvoiceAmountUsd)
+  const usageLimitCredits =
+    input.usageLimitCredits ?? dollarsToCredits(input.monthlyInvoiceAmountUsd)
   const requestTerms: Array<string | number> = [
-    'enterprise-v2',
+    'enterprise-v3',
     input.ownerUserId,
     organizationId,
     Math.round(input.monthlyInvoiceAmountUsd * 100),
-    includedMonthlyCredits,
-    input.usageLimitCredits ?? includedMonthlyCredits,
+    usageLimitCredits,
     input.seats,
   ]
   if (input.concurrencyLimit !== undefined) requestTerms.push(input.concurrencyLimit)
@@ -308,7 +308,6 @@ function toEnterpriseProvisioningView(
     organizationId: request.organizationId,
     status: deriveEnterpriseOperationStatus(row.status, payload),
     monthlyInvoiceAmountUsd: request.invoiceAmountCents / 100,
-    includedMonthlyCredits: request.includedMonthlyCredits,
     usageLimitCredits: request.usageLimitCredits,
     seats: request.seats,
     concurrencyLimit: getBillingConcurrencyLimit('enterprise', request.concurrencyLimit),
@@ -423,7 +422,7 @@ export async function issueEnterpriseProvisioning(
       'Monthly invoice amount must be at least $0.01 and use whole cents'
     )
   }
-  const includedMonthlyCredits = dollarsToCredits(input.monthlyInvoiceAmountUsd)
+  const defaultUsageLimitCredits = dollarsToCredits(input.monthlyInvoiceAmountUsd)
   if (
     input.concurrencyLimit !== undefined &&
     parseBillingConcurrencyLimit(input.concurrencyLimit) !== input.concurrencyLimit
@@ -550,8 +549,7 @@ export async function issueEnterpriseProvisioning(
       requestedByEmail: input.requestedByEmail,
       requestedByUserId: input.requestedByUserId,
       invoiceAmountCents,
-      includedMonthlyCredits,
-      usageLimitCredits: input.usageLimitCredits ?? includedMonthlyCredits,
+      usageLimitCredits: input.usageLimitCredits ?? defaultUsageLimitCredits,
       seats: input.seats,
       ...(input.concurrencyLimit !== undefined ? { concurrencyLimit: input.concurrencyLimit } : {}),
       pausePaymentCollection: input.pausePaymentCollection ?? false,
@@ -580,7 +578,6 @@ export async function issueEnterpriseProvisioning(
       metadata: {
         organizationId: view.organizationId,
         invoiceAmountCents: Math.round(view.monthlyInvoiceAmountUsd * 100),
-        includedMonthlyCredits: view.includedMonthlyCredits,
         usageLimitCredits: view.usageLimitCredits,
         seats: view.seats,
         concurrencyLimit: view.concurrencyLimit,
@@ -826,7 +823,6 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
     enterpriseOperationId: context.eventId,
     invoiceAmountCents: request.invoiceAmountCents.toString(),
     monthlyPrice: (request.invoiceAmountCents / 100).toFixed(2),
-    includedMonthlyCredits: request.includedMonthlyCredits.toString(),
     usageLimitCredits: request.usageLimitCredits.toString(),
     seats: request.seats.toString(),
     ...(request.concurrencyLimit !== undefined

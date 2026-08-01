@@ -59,6 +59,7 @@ import { getTreeTool, getTreeV2Tool } from '@/tools/github/get_tree'
 import { getWorkflowTool, getWorkflowV2Tool } from '@/tools/github/get_workflow'
 import { getWorkflowRunTool, getWorkflowRunV2Tool } from '@/tools/github/get_workflow_run'
 import { issueCommentTool, issueCommentV2Tool } from '@/tools/github/issue_comment'
+import { jobLogsTool } from '@/tools/github/job_logs'
 import { latestCommitTool, latestCommitV2Tool } from '@/tools/github/latest_commit'
 import { listBranchesTool, listBranchesV2Tool } from '@/tools/github/list_branches'
 import { listCommitsTool, listCommitsV2Tool } from '@/tools/github/list_commits'
@@ -71,6 +72,7 @@ import { listPRCommentsTool, listPRCommentsV2Tool } from '@/tools/github/list_pr
 import { listProjectsTool, listProjectsV2Tool } from '@/tools/github/list_projects'
 import { listPRsTool, listPRsV2Tool } from '@/tools/github/list_prs'
 import { listReleasesTool, listReleasesV2Tool } from '@/tools/github/list_releases'
+import { listReviewThreadsTool } from '@/tools/github/list_review_threads'
 import { listStargazersTool, listStargazersV2Tool } from '@/tools/github/list_stargazers'
 import { listTagsTool, listTagsV2Tool } from '@/tools/github/list_tags'
 import { listWorkflowRunsTool, listWorkflowRunsV2Tool } from '@/tools/github/list_workflow_runs'
@@ -78,9 +80,11 @@ import { listWorkflowsTool, listWorkflowsV2Tool } from '@/tools/github/list_work
 import { mergePRTool, mergePRV2Tool } from '@/tools/github/merge_pr'
 import { prTool, prV2Tool } from '@/tools/github/pr'
 import { removeLabelTool, removeLabelV2Tool } from '@/tools/github/remove_label'
+import { replyReviewThreadTool } from '@/tools/github/reply_review_thread'
 import { repoInfoTool, repoInfoV2Tool } from '@/tools/github/repo_info'
 import { requestReviewersTool, requestReviewersV2Tool } from '@/tools/github/request_reviewers'
 import { rerunWorkflowTool, rerunWorkflowV2Tool } from '@/tools/github/rerun_workflow'
+import { resolveReviewThreadTool } from '@/tools/github/resolve_review_thread'
 import { searchCodeTool, searchCodeV2Tool } from '@/tools/github/search_code'
 import { searchCommitsTool, searchCommitsV2Tool } from '@/tools/github/search_commits'
 import { searchIssuesTool, searchIssuesV2Tool } from '@/tools/github/search_issues'
@@ -88,6 +92,7 @@ import { searchReposTool, searchReposV2Tool } from '@/tools/github/search_repos'
 import { searchUsersTool, searchUsersV2Tool } from '@/tools/github/search_users'
 import { starGistTool, starGistV2Tool } from '@/tools/github/star_gist'
 import { starRepoTool, starRepoV2Tool } from '@/tools/github/star_repo'
+import { statusCheckRollupTool } from '@/tools/github/status_check_rollup'
 import { triggerWorkflowTool, triggerWorkflowV2Tool } from '@/tools/github/trigger_workflow'
 import { unstarGistTool, unstarGistV2Tool } from '@/tools/github/unstar_gist'
 import { unstarRepoTool, unstarRepoV2Tool } from '@/tools/github/unstar_repo'
@@ -161,6 +166,7 @@ export const githubGetWorkflowRunTool = getWorkflowRunTool
 export const githubGetWorkflowRunV2Tool = getWorkflowRunV2Tool
 export const githubIssueCommentTool = issueCommentTool
 export const githubIssueCommentV2Tool = issueCommentV2Tool
+export const githubJobLogsTool = jobLogsTool
 export const githubLatestCommitTool = latestCommitTool
 export const githubLatestCommitV2Tool = latestCommitV2Tool
 export const githubListBranchesTool = listBranchesTool
@@ -177,6 +183,7 @@ export const githubListProjectsTool = listProjectsTool
 export const githubListProjectsV2Tool = listProjectsV2Tool
 export const githubListReleasesTool = listReleasesTool
 export const githubListReleasesV2Tool = listReleasesV2Tool
+export const githubListReviewThreadsTool = listReviewThreadsTool
 export const githubListWorkflowRunsTool = listWorkflowRunsTool
 export const githubListWorkflowRunsV2Tool = listWorkflowRunsV2Tool
 export const githubListWorkflowsTool = listWorkflowsTool
@@ -187,12 +194,15 @@ export const githubPrTool = prTool
 export const githubPrV2Tool = prV2Tool
 export const githubRemoveLabelTool = removeLabelTool
 export const githubRemoveLabelV2Tool = removeLabelV2Tool
+export const githubReplyReviewThreadTool = replyReviewThreadTool
 export const githubRepoInfoTool = repoInfoTool
 export const githubRepoInfoV2Tool = repoInfoV2Tool
 export const githubRequestReviewersTool = requestReviewersTool
 export const githubRequestReviewersV2Tool = requestReviewersV2Tool
 export const githubRerunWorkflowTool = rerunWorkflowTool
 export const githubRerunWorkflowV2Tool = rerunWorkflowV2Tool
+export const githubResolveReviewThreadTool = resolveReviewThreadTool
+export const githubStatusCheckRollupTool = statusCheckRollupTool
 export const githubTriggerWorkflowTool = triggerWorkflowTool
 export const githubTriggerWorkflowV2Tool = triggerWorkflowV2Tool
 export const githubUpdateBranchProtectionTool = updateBranchProtectionTool

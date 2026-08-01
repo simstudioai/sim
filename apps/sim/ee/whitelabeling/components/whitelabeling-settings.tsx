@@ -79,7 +79,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
 
   return (
     <div className='flex flex-col gap-1.5'>
-      <Label className='text-[var(--text-primary)] text-small'>{label}</Label>
+      <Label>{label}</Label>
       <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
         <div
           className={cn(
@@ -336,7 +336,9 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     type='button'
                     onClick={logoUpload.handleThumbnailClick}
                     disabled={logoUpload.isUploading}
-                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    aria-label={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
+                    title={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
+                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {logoUpload.isUploading ? (
                       <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -353,27 +355,17 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     )}
                   </button>
                 </DropZone>
-                <div className='flex gap-2'>
+                {logoUpload.previewUrl && (
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={logoUpload.handleThumbnailClick}
-                    disabled={logoUpload.isUploading}
-                    className='text-small'
+                    onClick={logoUpload.handleRemove}
+                    aria-label='Remove logo'
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
-                    {logoUpload.previewUrl ? 'Change' : 'Upload'}
+                    <X className='size-[14px]' />
                   </Button>
-                  {logoUpload.previewUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={logoUpload.handleRemove}
-                      className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
-                    >
-                      <X className='size-[14px]' />
-                    </Button>
-                  )}
-                </div>
+                )}
                 <input
                   ref={logoUpload.fileInputRef}
                   type='file'
@@ -394,7 +386,9 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     type='button'
                     onClick={wordmarkUpload.handleThumbnailClick}
                     disabled={wordmarkUpload.isUploading}
-                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    aria-label={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
+                    title={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
+                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {wordmarkUpload.isUploading ? (
                       <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -411,27 +405,17 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
                     )}
                   </button>
                 </DropZone>
-                <div className='flex gap-2'>
+                {wordmarkUpload.previewUrl && (
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={wordmarkUpload.handleThumbnailClick}
-                    disabled={wordmarkUpload.isUploading}
-                    className='text-small'
+                    onClick={wordmarkUpload.handleRemove}
+                    aria-label='Remove wordmark'
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
-                    {wordmarkUpload.previewUrl ? 'Change' : 'Upload'}
+                    <X className='size-[14px]' />
                   </Button>
-                  {wordmarkUpload.previewUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={wordmarkUpload.handleRemove}
-                      className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
-                    >
-                      <X className='size-[14px]' />
-                    </Button>
-                  )}
-                </div>
+                )}
                 <input
                   ref={wordmarkUpload.fileInputRef}
                   type='file'

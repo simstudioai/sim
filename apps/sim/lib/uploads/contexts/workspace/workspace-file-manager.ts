@@ -19,10 +19,10 @@ import {
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
-import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName, restoreWithUniqueName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   deleteFile,
@@ -32,6 +32,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -72,6 +73,13 @@ export interface WorkspaceFileRecord {
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
+  /**
+   * Content-scoped version (see the `content_updated_at` column): advances only on content writes, never
+   * on metadata. The collab persist's optimistic-concurrency validator. Optional on the DTO because
+   * display/mothership constructors don't carry it — the real DB mapper (the only source seed/persist
+   * read) always populates it from the NOT NULL column.
+   */
+  contentUpdatedAt?: Date | null
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
   /** Public share state, attached at the API boundary. `null` when never shared. */
@@ -82,7 +90,6 @@ interface ListWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
-  includeReservedSystemFiles?: boolean
   /** Propagate storage errors when an incomplete list would be unsafe. */
   throwOnError?: boolean
 }
@@ -165,6 +172,8 @@ async function insertWorkspaceFileMetadataInTx(
       deletedAt: null,
       uploadedAt: new Date(),
       updatedAt: new Date(),
+      // Creation IS the first content write, so stamp the content version too (metadata writes never do).
+      contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
     .returning()
@@ -269,7 +278,7 @@ function withCopySuffix(fileName: string, n: number): string {
 /**
  * Picks a display name that does not collide with an active workspace file (`original_name`).
  */
-async function allocateUniqueWorkspaceFileName(
+export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
   baseName: string,
   folderId?: string | null
@@ -379,6 +388,11 @@ export async function uploadWorkspaceFile(
 
       const pathPrefix = getServePathPrefix()
       const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
+
+      // Fan out the live-tree signal for the direct-upload paths (multipart
+      // fallback, copilot create, /api/files/upload, v1 files) — the presigned
+      // path already notifies from its register route.
+      await notifyWorkspaceFilesChanged(workspaceId)
 
       return {
         id: fileId,
@@ -696,6 +710,7 @@ function mapWorkspaceFileRecord(
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
+    contentUpdatedAt: file.contentUpdatedAt,
   }
 }
 
@@ -755,11 +770,7 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const {
-      scope = 'active',
-      hydrateFolderPaths = true,
-      includeReservedSystemFiles = false,
-    } = options ?? {}
+    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
@@ -783,24 +794,13 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const needsFolderPaths =
-      files.some((file) => file.folderId) && (hydrateFolderPaths || !includeReservedSystemFiles)
+    const needsFolderPaths = files.some((file) => file.folderId) && hydrateFolderPaths
     const folders = needsFolderPaths
-      ? includeReservedSystemFiles && options?.folders
-        ? options.folders
-        : await listWorkspaceFileFolders(workspaceId, {
-            scope: 'all',
-            includeReservedSystemFolders: true,
-          })
+      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
       : []
     const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
 
-    return files
-      .map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
-      .filter((file) => {
-        if (includeReservedSystemFiles) return true
-        return !isReservedWorkflowAliasBackingDisplayPath(file.folderPath)
-      })
+    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     if (options?.throwOnError) throw error
@@ -894,9 +894,7 @@ async function getWorkspaceFileByExactReference(
     return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
   }
 
-  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1), {
-    includeReservedSystemFolders: true,
-  })
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1))
   return folderId ? getWorkspaceFileByName(workspaceId, segments.at(-1) ?? '', { folderId }) : null
 }
 
@@ -907,12 +905,6 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
-  const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: fileReference })
-  if (alias) {
-    if (alias.kind === 'plans_dir') return null
-    return resolveWorkspaceFileReference(workspaceId, alias.backingPath)
-  }
-
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
   if (normalizedReference.startsWith('wf_')) {
     const file = await getWorkspaceFile(workspaceId, normalizedReference)
@@ -925,17 +917,23 @@ export async function resolveWorkspaceFileReference(
   )
   if (exactReferenceFile) return exactReferenceFile
 
-  const files = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
+  const files = await listWorkspaceFiles(workspaceId)
   return findWorkspaceFileRecord(files, fileReference)
 }
 
 /**
- * Get a specific workspace file
+ * Get a specific workspace file.
+ *
+ * By default a DB error is logged and swallowed to `null` — for most callers "couldn't load it"
+ * and "doesn't exist" are handled the same way. Pass `{ throwOnError: true }` when the caller must
+ * distinguish a genuinely-absent file (`null`) from a transient read failure (throws): the
+ * collaborative-doc seed builder relies on this so a DB blip never looks like an empty file and gets
+ * seeded as blank content over the real document.
  */
 export async function getWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  options?: { includeDeleted?: boolean }
+  options?: { includeDeleted?: boolean; throwOnError?: boolean }
 ): Promise<WorkspaceFileRecord | null> {
   try {
     const { includeDeleted = false } = options ?? {}
@@ -963,20 +961,60 @@ export async function getWorkspaceFile(
     return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
+    if (options?.throwOnError) throw error
     return null
   }
 }
 
 /**
- * Download workspace file content
+ * Download the bytes a user should actually receive for a workspace file.
+ *
+ * Generated docs (docx/pptx/pdf/xlsx) store their GENERATION SOURCE as the primary
+ * file, so {@link fetchWorkspaceFileBuffer} hands back JavaScript/Python text under
+ * a `.docx` name. This resolves the rendered artifact instead, and is what every
+ * download/attachment surface should call. Reach for the raw reader only when the
+ * source itself is wanted (style extraction, compile checks, the copilot VFS).
+ *
+ * Throws `DocCompileUserError` when a generated doc's artifact is still compiling —
+ * callers turn that into a retryable 409 rather than shipping source.
  */
-export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
+export async function fetchServableWorkspaceFileBuffer(
+  fileRecord: WorkspaceFileRecord,
+  options: { maxBytes?: number; signal?: AbortSignal; requestId?: string } = {}
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const { downloadServableFileFromStorage } = await import('@/lib/uploads/utils/file-utils.server')
+
+  return downloadServableFileFromStorage(
+    {
+      id: fileRecord.id,
+      name: fileRecord.name,
+      url: fileRecord.url ?? fileRecord.path,
+      size: fileRecord.size,
+      type: fileRecord.type,
+      key: fileRecord.key,
+      context: fileRecord.storageContext ?? 'workspace',
+    },
+    options.requestId ?? generateRequestId(),
+    logger,
+    options
+  )
+}
+
+/**
+ * Download raw workspace file content. For generated docs this is the GENERATION
+ * SOURCE, not the rendered document — see {@link fetchServableWorkspaceFileBuffer}.
+ */
+export async function fetchWorkspaceFileBuffer(
+  fileRecord: WorkspaceFileRecord,
+  options: { maxBytes?: number } = {}
+): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
   try {
     const buffer = await downloadFile({
       key: fileRecord.key,
       context: fileRecord.storageContext ?? 'workspace',
+      maxBytes: options.maxBytes,
     })
     logger.info(
       `Successfully downloaded workspace file: ${fileRecord.name} (${buffer.length} bytes)`
@@ -989,6 +1027,18 @@ export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord):
 }
 
 /**
+ * Thrown by {@link updateWorkspaceFileContent} when its `expectedUpdatedAt` optimistic-concurrency
+ * guard fails — the file changed out-of-band since the caller read it. Callers catch this to reconcile
+ * (re-read + merge) rather than overwrite. Not a failure: the durable file is left untouched.
+ */
+export class ContentVersionConflictError extends Error {
+  constructor(readonly fileId: string) {
+    super(`Workspace file ${fileId} changed since it was read (optimistic-concurrency conflict)`)
+    this.name = 'ContentVersionConflictError'
+  }
+}
+
+/**
  * Updates a workspace file through a versioned object swap. Blob I/O completes
  * before the short metadata-and-ledger transaction.
  */
@@ -997,7 +1047,26 @@ export async function updateWorkspaceFileContent(
   fileId: string,
   userId: string,
   content: Buffer,
-  contentType?: string
+  contentType?: string,
+  options?: {
+    /**
+     * Whether to stream this write into any open collaborative editor as a live CRDT merge. Defaults
+     * to `true`, so EVERY external write path (copilot tools, the file tool, the content route) reaches
+     * an open editor through this one chokepoint — no per-writer wiring to forget. Pass `false` only
+     * for a write that must NOT touch the live doc: the relay's own project-to-markdown persist (which
+     * would otherwise merge the doc back into itself in a loop), and empty-shell creates whose real
+     * content arrives via a subsequent write.
+     */
+    syncLiveDoc?: boolean
+    /**
+     * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
+     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * throws {@link ContentVersionConflictError} without clobbering. Checked against the
+     * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
+     * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
+     */
+    expectedUpdatedAt?: Date
+  }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
@@ -1056,14 +1125,39 @@ export async function updateWorkspaceFileContent(
           throw new Error('File not found')
         }
 
+        // Optimistic-concurrency guard: the row is `FOR UPDATE`-locked, so comparing its committed
+        // CONTENT version to the caller's expected value and then writing is atomic — a racing writer
+        // blocks here until this transaction resolves. Compare `contentUpdatedAt` (which advances only on
+        // content writes), NOT `updatedAt` (which a rename/move also bumps): guarding on `updatedAt` let a
+        // metadata bump masquerade as an out-of-band CONTENT change, so a racing live-doc persist would
+        // reconcile stale durable content and clobber in-flight edits. Coalesce to `updatedAt` for rows
+        // predating the column. A mismatch means the CONTENT changed out-of-band; abort rather than clobber.
+        if (
+          options?.expectedUpdatedAt &&
+          currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
+        ) {
+          throw new ContentVersionConflictError(fileId)
+        }
+
         const sizeDiff = content.length - currentFile.size
+        const now = new Date()
+        // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
+        // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
+        // breaking the version ordering the whole optimistic-concurrency scheme relies on (stuck If-Match,
+        // wrong reconcile). We hold this row's FOR UPDATE lock, so `currentFile.contentUpdatedAt` is the
+        // latest committed value; stamp strictly after it. (Also removes same-millisecond collisions.)
+        // `updatedAt` stays plain wall-clock — it is display/sort only, never the concurrency token.
+        const contentUpdatedAt = new Date(
+          Math.max(now.getTime(), currentFile.contentUpdatedAt.getTime() + 1)
+        )
         const [updatedFile] = await tx
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            updatedAt: new Date(),
+            updatedAt: now,
+            contentUpdatedAt,
           })
           .where(
             and(
@@ -1116,6 +1210,24 @@ export async function updateWorkspaceFileContent(
       await cleanupWorkspaceStorageObject(finalized.oldKey, 'version replacement')
     }
 
+    // Stream this write into any open collaborative editor as a CRDT merge, so a copilot/tool edit
+    // shows up live instead of the file silently changing underneath the reader. Gated to markdown (the
+    // only format the collaborative editor renders) and best-effort (a no-op when nobody has the file
+    // open; never throws). This is the single chokepoint every external writer shares — the relay's own
+    // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
+    if (
+      options?.syncLiveDoc !== false &&
+      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
+    ) {
+      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
+      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
+      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
+      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
+      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'), {
+        version: finalized.file.contentUpdatedAt.getTime(),
+      })
+    }
+
     const pathPrefix = getServePathPrefix()
     const currentFolderPath =
       finalized.file.folderId === fileRecord.folderId ? fileRecord.folderPath : null
@@ -1136,8 +1248,13 @@ export async function updateWorkspaceFileContent(
       deletedAt: finalized.file.deletedAt,
       uploadedAt: finalized.file.uploadedAt,
       updatedAt: finalized.file.updatedAt,
+      contentUpdatedAt: finalized.file.contentUpdatedAt,
     }
   } catch (error) {
+    // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
+    // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
+    // by the inner finalization catch before it propagated here.
+    if (error instanceof ContentVersionConflictError) throw error
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
     throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
   }

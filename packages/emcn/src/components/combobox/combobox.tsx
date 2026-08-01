@@ -118,6 +118,19 @@ export interface ComboboxProps
   onArrowLeft?: () => void
   /** Enable search input in dropdown (useful for multiselect) */
   searchable?: boolean
+  /**
+   * Notified when the dropdown's search box changes value, including the `''` a
+   * select, close, Escape, or ArrowLeft resets it to. Deduped, so an already-empty
+   * query resetting again is silent and a consumer sees nothing while `searchable`
+   * is false.
+   *
+   * This is the `searchable` search box only. In `editable` mode the typed text
+   * arrives via `onChange`, not here.
+   *
+   * Client-side filtering of `options` is unaffected — this is an additional
+   * signal for consumers that also resolve matches server-side.
+   */
+  onSearchChange?: (query: string) => void
   /** Placeholder for search input */
   searchPlaceholder?: string
   /** Size variant */
@@ -183,6 +196,7 @@ const Combobox = memo(
         onOpenChange,
         onArrowLeft,
         searchable = false,
+        onSearchChange,
         searchPlaceholder = 'Search...',
         align = 'start',
         dropdownWidth = 'trigger',
@@ -201,7 +215,29 @@ const Combobox = memo(
       const listboxId = useId()
       const [open, setOpen] = useState(false)
       const [highlightedIndex, setHighlightedIndex] = useState(-1)
-      const [searchQuery, setSearchQuery] = useState('')
+      const [searchQuery, setSearchQueryState] = useState('')
+      /**
+       * Read through a ref so `updateSearchQuery` keeps a stable identity —
+       * `handleSelect`, `handleBlur`, and `handleKeyDown` all capture it without
+       * listing it as a dependency.
+       */
+      const onSearchChangeRef = useRef(onSearchChange)
+      useEffect(() => {
+        onSearchChangeRef.current = onSearchChange
+      }, [onSearchChange])
+      /**
+       * Single write path for the search box so `onSearchChange` cannot be missed on a
+       * reset. Deduped because several paths reset redundantly — Escape both handles the
+       * key and lets the popover dismiss, and an editable select blurs after selecting —
+       * which the raw setState absorbed silently but a consumer callback would not.
+       */
+      const searchQueryRef = useRef('')
+      const updateSearchQuery = useCallback((next: string) => {
+        if (searchQueryRef.current === next) return
+        searchQueryRef.current = next
+        setSearchQueryState(next)
+        onSearchChangeRef.current?.(next)
+      }, [])
       const searchInputRef = useRef<HTMLInputElement>(null)
       const containerRef = useRef<HTMLDivElement>(null)
       const dropdownRef = useRef<HTMLDivElement>(null)
@@ -316,7 +352,7 @@ const Combobox = memo(
           if (customOnSelect) {
             customOnSelect()
             // Always reset search/highlight so stale queries don't filter new options
-            setSearchQuery('')
+            updateSearchQuery('')
             setHighlightedIndex(-1)
             if (!keepOpen) {
               setOpen(false)
@@ -335,7 +371,7 @@ const Combobox = memo(
             if (!keepOpen) {
               setOpen(false)
               setHighlightedIndex(-1)
-              setSearchQuery('')
+              updateSearchQuery('')
               if (editable && inputRef.current) {
                 inputRef.current.blur()
               }
@@ -382,7 +418,7 @@ const Combobox = memo(
           if (!activeElement || (!isInContainer && !isInDropdown && !isSearchInput)) {
             setOpen(false)
             setHighlightedIndex(-1)
-            setSearchQuery('')
+            updateSearchQuery('')
           }
         }, 150)
       }, [])
@@ -397,7 +433,7 @@ const Combobox = memo(
           if (e.key === 'Escape') {
             setOpen(false)
             setHighlightedIndex(-1)
-            setSearchQuery('')
+            updateSearchQuery('')
             if (editable && inputRef.current) {
               inputRef.current.blur()
             }
@@ -459,7 +495,7 @@ const Combobox = memo(
             if (open && onArrowLeft) {
               e.preventDefault()
               onArrowLeft()
-              setSearchQuery('')
+              updateSearchQuery('')
               setHighlightedIndex(-1)
             }
           }
@@ -542,7 +578,7 @@ const Combobox = memo(
           open={open}
           onOpenChange={(next) => {
             setOpen(next)
-            if (!next) setSearchQuery('')
+            if (!next) updateSearchQuery('')
             onOpenChange?.(next)
           }}
         >
@@ -687,7 +723,7 @@ const Combobox = memo(
                     className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => updateSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
                       // Forward navigation keys to main handler
                       // Only forward ArrowLeft/ArrowRight when cursor is at the boundary

@@ -3,7 +3,6 @@
  */
 
 import {
-  dbChainMock,
   dbChainMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
@@ -44,7 +43,6 @@ vi.mock('@opentelemetry/api', () => ({
   trace: { getActiveSpan: mockGetActiveSpan },
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 

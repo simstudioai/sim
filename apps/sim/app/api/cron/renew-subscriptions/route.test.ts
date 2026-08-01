@@ -6,9 +6,7 @@
 import {
   authOAuthUtilsMock,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
-  redisConfigMock,
   redisConfigMockFns,
   resetDbChainMock,
 } from '@sim/testing'
@@ -23,8 +21,6 @@ vi.mock('@/lib/auth/internal', () => ({
   verifyCronAuth: mockVerifyCronAuth,
 }))
 
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 
 import { GET } from './route'

@@ -17,6 +17,12 @@
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderInWorkspace,
+  assertFolderMutable,
+  FolderLockedError,
+  FolderNotFoundError,
+} from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -24,20 +30,17 @@ import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  extractWorkflowMetadata,
-  type VariableType,
-  type WorkflowImportRequest,
-  type WorkflowVariable,
-} from '@/app/api/v1/admin/types'
+import { extractWorkflowMetadata, type WorkflowImportRequest } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowImportAPI')
 
@@ -65,6 +68,23 @@ export const POST = withRouteHandler(
       if (!workspaceData) {
         return notFoundResponse('Workspace')
       }
+
+      /**
+       * Migration 0272 dropped the FK on `workflow.folder_id`, so nothing but this check
+       * stands between the caller and a folder in another workspace — or one from another
+       * resource's tree. A workflow filed under an unreachable folder still executes and
+       * bills, escapes the folder delete cascade, and never counts toward
+       * `guardLastWorkflows`.
+       *
+       * Ownership before lock state, mirroring `v1/workflows/import`: `assertFolderMutable`
+       * walks the ancestor chain without filtering on workspace, so checking it first would
+       * let a caller distinguish a locked folder in someone else's workspace (423) from a
+       * nonexistent one (404).
+       */
+      if (folderId) {
+        await assertFolderInWorkspace(folderId, workspaceId)
+      }
+      await assertFolderMutable(folderId ?? null)
 
       const workflowContent =
         typeof body.workflow === 'string' ? body.workflow : JSON.stringify(body.workflow)
@@ -110,49 +130,29 @@ export const POST = withRouteHandler(
         variables: {},
       })
 
-      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData)
+      /**
+       * Same normalization the editor and the v1 import API run, via the one
+       * shared implementation — without it this route wrote raw parsed state,
+       * so a dangling edge tripped the `workflow_edges` foreign key and a block
+       * missing its backfilled columns could land unopenable.
+       */
+      const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(workflowData)
+      if (warnings.length > 0) {
+        logger.warn('Admin API: normalized imported workflow with warnings', { warnings })
+      }
+
+      const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+        ...workflowData,
+        ...preparedState,
+      })
 
       if (!saveResult.success) {
         await db.delete(workflow).where(eq(workflow.id, workflowId))
         return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
       }
 
-      if (
-        workflowData.variables &&
-        typeof workflowData.variables === 'object' &&
-        !Array.isArray(workflowData.variables)
-      ) {
-        const variablesRecord: Record<string, WorkflowVariable> = {}
-        const vars = workflowData.variables as Record<
-          string,
-          { id?: string; name: string; type?: VariableType; value: unknown }
-        >
-        Object.entries(vars).forEach(([key, v]) => {
-          const varId = v.id || key
-          variablesRecord[varId] = {
-            id: varId,
-            name: v.name,
-            type: v.type ?? 'string',
-            value: v.value,
-          }
-        })
-
-        await db
-          .update(workflow)
-          .set({ variables: variablesRecord, updatedAt: new Date() })
-          .where(eq(workflow.id, workflowId))
-      } else if (workflowData.variables && Array.isArray(workflowData.variables)) {
-        const variablesRecord: Record<string, WorkflowVariable> = {}
-        workflowData.variables.forEach((v) => {
-          const varId = v.id || generateId()
-          variablesRecord[varId] = {
-            id: varId,
-            name: v.name,
-            type: (v.type as VariableType) ?? 'string',
-            value: v.value,
-          }
-        })
-
+      const variablesRecord = normalizeImportedVariables(workflowData.variables)
+      if (Object.keys(variablesRecord).length > 0) {
         await db
           .update(workflow)
           .set({ variables: variablesRecord, updatedAt: new Date() })
@@ -171,6 +171,12 @@ export const POST = withRouteHandler(
 
       return NextResponse.json(response)
     } catch (error) {
+      if (error instanceof FolderNotFoundError) {
+        return badRequestResponse(error.message)
+      }
+      if (error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       logger.error('Admin API: Failed to import workflow', { error })
       return internalErrorResponse('Failed to import workflow')
     }

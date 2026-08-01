@@ -4,5 +4,3 @@ export { tiktokPostNoLongerPublicTrigger } from '@/triggers/tiktok/post_no_longe
 export { tiktokPostPubliclyAvailableTrigger } from '@/triggers/tiktok/post_publicly_available'
 export { tiktokPostPublishCompleteTrigger } from '@/triggers/tiktok/post_publish_complete'
 export { tiktokPostPublishFailedTrigger } from '@/triggers/tiktok/post_publish_failed'
-export { tiktokVideoPublishCompletedTrigger } from '@/triggers/tiktok/video_publish_completed'
-export { tiktokVideoUploadFailedTrigger } from '@/triggers/tiktok/video_upload_failed'

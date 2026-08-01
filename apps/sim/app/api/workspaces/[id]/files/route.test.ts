@@ -7,9 +7,9 @@ import { authMockFns, permissionsMock, permissionsMockFns, posthogServerMock } f
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUploadWorkspaceFile, mockGetSharesForResources, mockRecordAudit } = vi.hoisted(() => ({
+const { mockUploadWorkspaceFile, mockGetWorkspaceShares, mockRecordAudit } = vi.hoisted(() => ({
   mockUploadWorkspaceFile: vi.fn(),
-  mockGetSharesForResources: vi.fn(),
+  mockGetWorkspaceShares: vi.fn(),
   mockRecordAudit: vi.fn(),
 }))
 
@@ -27,7 +27,7 @@ vi.mock('@/lib/uploads/shared/types', async (importOriginal) => {
 })
 
 vi.mock('@/lib/public-shares/share-manager', () => ({
-  getSharesForResources: mockGetSharesForResources,
+  getWorkspaceShares: mockGetWorkspaceShares,
 }))
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -80,7 +80,7 @@ describe('workspace files upload route', () => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockGetSharesForResources.mockResolvedValue(new Map())
+    mockGetWorkspaceShares.mockResolvedValue(new Map())
     mockUploadWorkspaceFile.mockResolvedValue({
       id: 'file-1',
       name: 'file.txt',

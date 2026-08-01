@@ -70,11 +70,18 @@ function patchCachedLists(
 /**
  * Fetch all interfaces for a workspace.
  */
-export function useInterfacesList(workspaceId?: string, scope: InterfaceQueryScope = 'active') {
+export function useInterfacesList(
+  workspaceId?: string,
+  scope: InterfaceQueryScope = 'active',
+  options?: {
+    /** Defer the fetch (e.g. until a menu that needs the list is open). Defaults to `true`. */
+    enabled?: boolean
+  }
+) {
   return useQuery({
     queryKey: interfaceKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchInterfaces(workspaceId as string, scope, signal),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: INTERFACE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })

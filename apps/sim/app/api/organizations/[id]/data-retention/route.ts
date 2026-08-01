@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import type { DataRetentionSettings } from '@sim/db/schema'
-import { member, organization, workspace } from '@sim/db/schema'
+import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type OrganizationRetentionValues,
@@ -13,6 +13,10 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import {
+  getForeignWorkspaceTargetsReason,
+  getPiiRedactionDenialReason,
+} from '@/lib/billing/retention'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -63,27 +67,6 @@ function normalizeConfigured(
       : null,
     retentionOverrides: settings?.retentionOverrides ?? null,
   }
-}
-
-/**
- * Which granular stages (`input`/`blockOutputs`) are already enabled per rule
- * target (`workspaceId ?? ''` = the org default). Used to gate the
- * `pii-granular-redaction` flag on *new* enablement only: when the flag is off,
- * an org that already configured granular stages must still be able to re-save
- * unrelated settings (the UI re-sends the full PII snapshot every save), so we
- * reject only a stage transitioning off→on, never a preserved one.
- */
-function granularStageEnablement(
-  settings: OrganizationRetentionValues['piiRedaction']
-): Map<string, { input: boolean; blockOutputs: boolean }> {
-  const map = new Map<string, { input: boolean; blockOutputs: boolean }>()
-  for (const rule of settings?.rules ?? []) {
-    map.set(rule.workspaceId ?? '', {
-      input: rule.stages?.input?.enabled === true,
-      blockOutputs: rule.stages?.blockOutputs?.enabled === true,
-    })
-  }
-  return map
 }
 
 /**
@@ -225,34 +208,14 @@ export const PUT = withRouteHandler(
       merged.taskCleanupHours = body.taskCleanupHours
     }
     if (body.piiRedaction !== undefined) {
-      if (!piiRedactionEnabled) {
-        return NextResponse.json(
-          { error: 'PII redaction is not enabled for this organization' },
-          { status: 403 }
-        )
-      }
-      if (!piiGranularRedactionEnabled) {
-        // Reject only a granular stage transitioning off→on; a body that merely
-        // preserves already-enabled granular stages must still save (the UI
-        // re-sends the full snapshot on every save), so existing orgs aren't
-        // locked out of unrelated retention changes when the flag is off.
-        const currentGranular = granularStageEnablement(current.piiRedaction)
-        const newlyEnablesGranular = (body.piiRedaction?.rules ?? []).some((rule) => {
-          const cur = currentGranular.get(rule.workspaceId ?? '')
-          return (
-            (rule.stages?.input?.enabled === true && !cur?.input) ||
-            (rule.stages?.blockOutputs?.enabled === true && !cur?.blockOutputs)
-          )
-        })
-        if (newlyEnablesGranular) {
-          return NextResponse.json(
-            {
-              error:
-                'Granular PII redaction (workflow input and block outputs) is not enabled for this organization',
-            },
-            { status: 403 }
-          )
-        }
+      const denialReason = getPiiRedactionDenialReason({
+        current: current.piiRedaction,
+        incoming: body.piiRedaction,
+        piiRedactionEnabled,
+        piiGranularRedactionEnabled,
+      })
+      if (denialReason) {
+        return NextResponse.json({ error: denialReason }, { status: 403 })
       }
       merged.piiRedaction = body.piiRedaction
     }
@@ -260,27 +223,13 @@ export const PUT = withRouteHandler(
       merged.retentionOverrides = body.retentionOverrides
     }
 
-    const targetedWorkspaceIds = new Set<string>()
-    for (const override of body.retentionOverrides ?? []) {
-      targetedWorkspaceIds.add(override.workspaceId)
-    }
-    for (const rule of body.piiRedaction?.rules ?? []) {
-      if (rule.workspaceId) targetedWorkspaceIds.add(rule.workspaceId)
-    }
-    if (targetedWorkspaceIds.size > 0) {
-      const ids = [...targetedWorkspaceIds]
-      const orgWorkspaces = await db
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(and(eq(workspace.organizationId, organizationId), inArray(workspace.id, ids)))
-      const known = new Set(orgWorkspaces.map((row) => row.id))
-      const unknown = ids.filter((id) => !known.has(id))
-      if (unknown.length > 0) {
-        return NextResponse.json(
-          { error: `Override targets workspaces outside this organization: ${unknown.join(', ')}` },
-          { status: 400 }
-        )
-      }
+    const foreignTargetsReason = await getForeignWorkspaceTargetsReason({
+      organizationId,
+      retentionOverrides: body.retentionOverrides,
+      piiRedaction: body.piiRedaction,
+    })
+    if (foreignTargetsReason) {
+      return NextResponse.json({ error: foreignTargetsReason }, { status: 400 })
     }
 
     const [updated] = await db

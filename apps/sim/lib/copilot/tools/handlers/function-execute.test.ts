@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const {
   mockIsFeatureEnabled,
@@ -16,6 +17,7 @@ const {
   mockListWorkspaceFiles,
   mockFindWorkspaceFileRecord,
   mockFetchWorkspaceFileBuffer,
+  mockFetchServableWorkspaceFileBuffer,
   mockGetSandboxWorkspaceFilePath,
   mockListWorkspaceFileFolders,
 } = vi.hoisted(() => ({
@@ -31,6 +33,7 @@ const {
   mockListWorkspaceFiles: vi.fn(),
   mockFindWorkspaceFileRecord: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
+  mockFetchServableWorkspaceFileBuffer: vi.fn(),
   mockGetSandboxWorkspaceFilePath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
 }))
@@ -52,6 +55,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
   fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
   findWorkspaceFileRecord: mockFindWorkspaceFileRecord,
   getSandboxWorkspaceFilePath: mockGetSandboxWorkspaceFilePath,
@@ -63,13 +67,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
   decodeVfsPathSegments: (p: string) => p.split('/'),
   encodeVfsPathSegments: (s: string[]) => s.join('/'),
-}))
-vi.mock('@/lib/copilot/vfs/workflow-alias-resolver', () => ({
-  resolveWorkflowAliasForWorkspace: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/copilot/vfs/workflow-aliases', () => ({
-  isPlanAliasPath: () => false,
-  workflowAliasSandboxPath: (p: string) => p,
 }))
 
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
@@ -309,6 +306,61 @@ describe('executeFunctionExecute file mounts', () => {
     expect(file.type).toBeUndefined()
   })
 
+  describe('generated documents', () => {
+    const docRecord = {
+      ...fileRecord,
+      name: 'report.docx',
+      key: 'workspace/ws_1/report.docx',
+      // The stored bytes are the generator source, so the record declares its size.
+      type: 'text/x-docxjs',
+      size: 6_242,
+    }
+
+    beforeEach(() => {
+      mockFindWorkspaceFileRecord.mockReturnValue(docRecord)
+      mockListWorkspaceFiles.mockResolvedValue([docRecord])
+      mockGetSandboxWorkspaceFilePath.mockReturnValue('/home/user/files/report.docx')
+      mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+        buffer: Buffer.from('PK\u0003\u0004rendered-docx'),
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+    })
+
+    it('never presigns the raw key, even on cloud storage', async () => {
+      mockHasCloudStorage.mockReturnValue(true)
+
+      await executeFunctionExecute({ inputFiles: ['files/report.docx'] }, context as never)
+
+      // Presigning record.key would hand the sandbox the generator source.
+      expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+      expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+      expect(mockFetchServableWorkspaceFileBuffer).toHaveBeenCalledTimes(1)
+    })
+
+    it('mounts the rendered bytes as base64, not utf-8', async () => {
+      mockHasCloudStorage.mockReturnValue(true)
+
+      await executeFunctionExecute({ inputFiles: ['files/report.docx'] }, context as never)
+
+      const file = mountedFiles()[0]
+      // record.type is text/x-docxjs; keying off it would utf-8 decode a binary.
+      expect(file.encoding).toBe('base64')
+      expect(Buffer.from(file.content as string, 'base64').toString()).toContain('rendered-docx')
+    })
+
+    it('budgets the mount on rendered length, not the declared source size', async () => {
+      mockHasCloudStorage.mockReturnValue(true)
+      // A tiny source that renders past the aggregate mount budget.
+      mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
+        new PayloadSizeLimitError({ label: 'servable file download', maxBytes: 1 })
+      )
+
+      await expect(
+        executeFunctionExecute({ inputFiles: ['files/report.docx'] }, context as never)
+      ).rejects.toThrow(/mount limit/)
+    })
+  })
+
   it('cloud storage: throws when a file exceeds the per-file URL mount limit', async () => {
     mockFindWorkspaceFileRecord.mockReturnValue({ ...fileRecord, size: 600 * 1024 * 1024 })
 
@@ -382,5 +434,92 @@ describe('executeFunctionExecute file mounts', () => {
     expect(file.path).toBe('/home/user/files/Reports/q1.csv')
     expect(file.content).toBe('a,b\n1,2\n')
     expect(file.type).toBeUndefined()
+  })
+})
+
+async function mountError(inputs: Record<string, unknown>): Promise<string> {
+  try {
+    await executeFunctionExecute(inputs, context as never)
+  } catch (error) {
+    return (error as Error).message
+  }
+  throw new Error('expected the mount to be rejected')
+}
+
+describe('executeFunctionExecute unmountable namespaces', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({ success: true })
+    mockIsFeatureEnabled.mockResolvedValue(false)
+    mockHasCloudStorage.mockReturnValue(true)
+    mockListWorkspaceFiles.mockResolvedValue([])
+    mockFindWorkspaceFileRecord.mockReturnValue(null)
+    mockListWorkspaceFileFolders.mockResolvedValue([])
+  })
+
+  it('tells the agent a tool-result artifact is backend-served, not a wrong path', async () => {
+    const message = await mountError({
+      inputFiles: ['internal/tool-results/user_table-toolu_019Ef.json'],
+    })
+
+    expect(message).toContain('Cannot mount "internal/tool-results/user_table-toolu_019Ef.json"')
+    expect(message).toContain('stored by the copilot backend')
+    expect(message).toContain('This path is correct')
+    expect(message).toContain('outputs.files[].path')
+    expect(message).toContain('user_table: outputPath')
+    // The old message sent the agent hunting for a canonical path that never existed.
+    expect(message).not.toContain('Input file not found')
+    expect(message).not.toContain('canonical VFS path copied from glob/read')
+  })
+
+  it('covers the rest of internal/ without the tool-result rerun advice', async () => {
+    const message = await mountError({ inputFiles: ['internal/memories/SESSION.md'] })
+
+    expect(message).toContain('served by the copilot backend')
+    expect(message).toContain('read or grep it')
+    expect(message).not.toContain('outputPath')
+  })
+
+  it('points recently-deleted/ paths at restore_resource', async () => {
+    const message = await mountError({ inputFiles: ['recently-deleted/files/old.csv'] })
+
+    expect(message).toContain('restore_resource')
+  })
+
+  it('points tables/ paths at inputs.tables', async () => {
+    const message = await mountError({ inputFiles: ['tables/Leads/meta.json'] })
+
+    expect(message).toContain('inputs.tables')
+  })
+
+  it('names the namespace for VFS metadata views', async () => {
+    const message = await mountError({ inputFiles: ['workflows/My%20Flow/state.json'] })
+
+    expect(message).toContain('workflows/ paths are VFS metadata views')
+  })
+
+  it('keeps the uploads/ guidance intact', async () => {
+    const message = await mountError({ inputFiles: ['uploads/report.json'] })
+
+    expect(message).toContain('materialize_file')
+  })
+
+  it('still reports a genuine files/ miss as not found', async () => {
+    const message = await mountError({ inputFiles: ['files/typo.csv'] })
+
+    expect(message).toContain('Input file not found: "files/typo.csv"')
+  })
+
+  it('explains an unmountable namespace passed as a directory', async () => {
+    const message = await mountError({ inputs: { directories: ['internal/tool-results'] } })
+
+    expect(message).toContain('Cannot mount "internal/tool-results"')
+    expect(message).toContain('stored by the copilot backend')
+  })
+
+  it('still reports a genuine files/ folder miss as not found', async () => {
+    const message = await mountError({ inputs: { directories: ['files/Missing'] } })
+
+    expect(message).toContain('Input directory not found: "files/Missing"')
   })
 })

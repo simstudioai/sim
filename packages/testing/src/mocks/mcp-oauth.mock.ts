@@ -44,6 +44,13 @@ export class McpOauthInsecureUrlErrorMock extends Error {
   }
 }
 
+export class OauthStepTimeoutErrorMock extends Error {
+  constructor(step: string, ms: number) {
+    super(`MCP OAuth step "${step}" did not settle within ${ms}ms`)
+    this.name = 'OauthStepTimeoutErrorMock'
+  }
+}
+
 /**
  * Returns the provider config back as the constructed instance, matching the
  * original identity passthrough. Declared as a named function (not an arrow) so
@@ -82,5 +89,12 @@ export const mcpOauthMock = {
   withMcpOauthRefreshLock: mcpOauthMockFns.mockWithMcpOauthRefreshLock,
   McpOauthRedirectRequired: McpOauthRedirectRequiredMock,
   McpOauthInsecureUrlError: McpOauthInsecureUrlErrorMock,
+  OauthStepTimeoutError: OauthStepTimeoutErrorMock,
   SimMcpOauthProvider: vi.fn().mockImplementation(buildSimMcpOauthProvider),
+  // Pass-through: run the step immediately, no bounding, so route tests exercise real behavior.
+  // Wrap in Promise.resolve like the real helper so a mock returning a non-promise still chains.
+  makeTimedStep:
+    () =>
+    <T>(_step: string, _ms: number, fn: () => Promise<T>): Promise<T> =>
+      Promise.resolve(fn()),
 }

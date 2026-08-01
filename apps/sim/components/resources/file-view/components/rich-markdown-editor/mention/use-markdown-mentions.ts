@@ -55,7 +55,7 @@ export function useMarkdownMentions(
         id: file.id,
         label: file.name,
         group: 'Files',
-        icon: mentionIcon('file', file.id),
+        icon: mentionIcon('file', file.id, file.name),
       })
     for (const folder of folders.data ?? [])
       items.push({

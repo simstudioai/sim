@@ -93,13 +93,11 @@ describe('serializeOutputForFile (json / txt / md)', () => {
 })
 
 describe('normalizeOutputWorkspaceFileName', () => {
-  it('derives the leaf file name from workflow alias output paths', () => {
-    expect(normalizeOutputWorkspaceFileName('workflows/My%20Workflow/changelog.md')).toBe(
-      'changelog.md'
+  it('derives the leaf file name from nested, percent-encoded output paths', () => {
+    expect(normalizeOutputWorkspaceFileName('files/My%20Folder/notes.md')).toBe('notes.md')
+    expect(normalizeOutputWorkspaceFileName('files/My%20Folder/phase%201/implementation.md')).toBe(
+      'implementation.md'
     )
-    expect(
-      normalizeOutputWorkspaceFileName('workflows/My%20Workflow/.plans/phase%201/implementation.md')
-    ).toBe('implementation.md')
   })
 
   it('still handles normal workspace file output paths', () => {

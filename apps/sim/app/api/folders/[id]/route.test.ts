@@ -7,17 +7,19 @@ import {
   auditMock,
   authMockFns,
   createMockRequest,
+  dbChainMockFns,
+  foldersLifecycleMock,
+  foldersLifecycleMockFns,
   type MockUser,
   permissionsMock,
   permissionsMockFns,
-  workflowsOrchestrationMock,
-  workflowsOrchestrationMockFns,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockDbRef } = vi.hoisted(() => {
+const { mockLogger } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -29,12 +31,14 @@ const { mockLogger, mockDbRef } = vi.hoisted(() => {
   }
   return {
     mockLogger: logger,
-    mockDbRef: { current: null as any },
   }
 })
 
-const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteFolder
-const mockPerformUpdateFolder = workflowsOrchestrationMockFns.mockPerformUpdateFolder
+const mockDeleteFolder = foldersLifecycleMockFns.mockDeleteFolder
+const mockUpdateFolder = foldersLifecycleMockFns.mockUpdateFolder
+
+/** Parent ids the mocked engine treats as closing a cycle for the folder under test. */
+const cyclicParentIds = new Set<string>()
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
@@ -45,22 +49,9 @@ vi.mock('@sim/logger', () => ({
   getRequestContext: () => undefined,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@sim/db', () => ({
-  get db() {
-    return mockDbRef.current
-  },
-}))
-vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+vi.mock('@/lib/folders/lifecycle', () => foldersLifecycleMock)
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
-
-interface FolderDbMockOptions {
-  folderLookupResult?: any
-  updateResult?: any[]
-  throwError?: boolean
-  circularCheckResults?: any[]
-}
 
 const TEST_USER: MockUser = {
   id: 'user-123',
@@ -80,57 +71,16 @@ const mockFolder = {
   updatedAt: new Date('2024-01-01T00:00:00Z'),
 }
 
-function createFolderDbMock(options: FolderDbMockOptions = {}) {
-  const {
-    folderLookupResult = mockFolder,
-    updateResult = [{ ...mockFolder, name: 'Updated Folder' }],
-    throwError = false,
-    circularCheckResults = [],
-  } = options
+/** Queues the folder-existence lookup the route runs before authorizing. */
+function queueFolderLookup(folder: Record<string, unknown> = mockFolder) {
+  queueTableRows(schemaMock.folder, [folder])
+}
 
-  let callCount = 0
-
-  const mockSelect = vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation(() => ({
-      where: vi.fn().mockImplementation(() => ({
-        then: vi.fn().mockImplementation((callback) => {
-          if (throwError) {
-            throw new Error('Database error')
-          }
-
-          callCount++
-          if (callCount === 1) {
-            const result = folderLookupResult === undefined ? [] : [folderLookupResult]
-            return Promise.resolve(callback(result))
-          }
-          if (callCount > 1 && circularCheckResults.length > 0) {
-            const index = callCount - 2
-            const result = circularCheckResults[index] ? [circularCheckResults[index]] : []
-            return Promise.resolve(callback(result))
-          }
-          return Promise.resolve(callback([]))
-        }),
-      })),
-    })),
-  }))
-
-  const mockUpdate = vi.fn().mockImplementation(() => ({
-    set: vi.fn().mockImplementation(() => ({
-      where: vi.fn().mockImplementation(() => ({
-        returning: vi.fn().mockReturnValue(updateResult),
-      })),
-    })),
-  }))
-
-  const mockDelete = vi.fn().mockImplementation(() => ({
-    where: vi.fn().mockImplementation(() => Promise.resolve()),
-  }))
-
-  return {
-    select: mockSelect,
-    update: mockUpdate,
-    delete: mockDelete,
-  }
+/** Makes the next folder lookup throw, exercising the route's 500 path. */
+function failFolderLookup() {
+  dbChainMockFns.where.mockImplementationOnce(() => {
+    throw new Error('Database error')
+  })
 }
 
 function mockAuthenticatedUser(user?: MockUser) {
@@ -142,16 +92,20 @@ function mockUnauthenticated() {
 }
 
 describe('Individual Folder API Route', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
-    mockDbRef.current = createFolderDbMock()
-    mockPerformDeleteFolder.mockResolvedValue({
+    mockDeleteFolder.mockResolvedValue({
       success: true,
       deletedItems: { folders: 1, workflows: 0 },
     })
-    mockPerformUpdateFolder.mockImplementation(async (params) => {
+    mockUpdateFolder.mockImplementation(async (params) => {
       if (params.parentId && params.parentId === params.folderId) {
         return {
           success: false,
@@ -159,13 +113,7 @@ describe('Individual Folder API Route', () => {
           errorCode: 'validation',
         }
       }
-      if (
-        params.parentId &&
-        (await workflowsUtilsMockFns.mockCheckForCircularReference(
-          params.folderId,
-          params.parentId
-        ))
-      ) {
+      if (params.parentId && cyclicParentIds.has(params.parentId)) {
         return {
           success: false,
           error: 'Cannot create circular folder reference',
@@ -186,13 +134,14 @@ describe('Individual Folder API Route', () => {
         },
       }
     })
-    workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(false)
+    cyclicParentIds.clear()
   })
 
   describe('PUT /api/folders/[id]', () => {
     it('should update folder successfully', async () => {
       mockAuthenticatedUser()
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: 'Updated Folder Name',
         color: '#FF0000',
@@ -213,6 +162,7 @@ describe('Individual Folder API Route', () => {
     it('should update parent folder successfully', async () => {
       mockAuthenticatedUser()
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
         parentId: 'parent-folder-1',
@@ -244,6 +194,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('read')
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
       })
@@ -261,6 +212,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('write')
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
       })
@@ -278,6 +230,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('admin')
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
       })
@@ -291,9 +244,30 @@ describe('Individual Folder API Route', () => {
       expect(data).toHaveProperty('folder')
     })
 
+    it('rejects a locked write on a resource type that has no lock semantics', async () => {
+      mockAuthenticatedUser()
+      queueFolderLookup()
+
+      const req = createMockRequest(
+        'PUT',
+        { locked: true },
+        {},
+        'http://localhost:3000/api/folders/folder-1?resourceType=knowledge_base'
+      )
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toBe('Folder locking is only supported for workflow folders')
+      expect(mockUpdateFolder).not.toHaveBeenCalled()
+    })
+
     it('should return 400 when trying to set folder as its own parent', async () => {
       mockAuthenticatedUser()
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
         parentId: 'folder-1',
@@ -311,6 +285,7 @@ describe('Individual Folder API Route', () => {
     it('should trim folder name when updating', async () => {
       mockAuthenticatedUser()
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: '  Folder With Spaces  ',
       })
@@ -325,9 +300,7 @@ describe('Individual Folder API Route', () => {
     it('should handle database errors gracefully', async () => {
       mockAuthenticatedUser()
 
-      mockDbRef.current = createFolderDbMock({
-        throwError: true,
-      })
+      failFolderLookup()
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -347,9 +320,12 @@ describe('Individual Folder API Route', () => {
   })
 
   describe('Input Validation', () => {
-    it('should handle empty folder name', async () => {
+    it('rejects an empty folder name', async () => {
+      // The contract bounds `name` to 1-255 chars: renaming a folder to '' previously
+      // slipped through as a no-op 200, which silently discarded the user's rename.
       mockAuthenticatedUser()
 
+      queueFolderLookup()
       const req = createMockRequest('PUT', {
         name: '',
       })
@@ -357,7 +333,23 @@ describe('Individual Folder API Route', () => {
 
       const response = await PUT(req, { params })
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(400)
+    })
+
+    it('rejects a whitespace-only folder name', async () => {
+      // The write path trims before persisting, so validating the raw string would let
+      // '   ' through and store an empty name — the same failure the '' case closes.
+      mockAuthenticatedUser()
+
+      queueFolderLookup()
+      const req = createMockRequest('PUT', {
+        name: '   ',
+      })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(400)
     })
 
     it('should handle invalid JSON payload', async () => {
@@ -383,16 +375,14 @@ describe('Individual Folder API Route', () => {
     it('should prevent circular references when updating parent', async () => {
       mockAuthenticatedUser()
 
-      mockDbRef.current = createFolderDbMock({
-        folderLookupResult: {
-          id: 'folder-3',
-          parentId: null,
-          name: 'Folder 3',
-          workspaceId: 'workspace-123',
-        },
+      queueFolderLookup({
+        id: 'folder-3',
+        parentId: null,
+        name: 'Folder 3',
+        workspaceId: 'workspace-123',
       })
 
-      workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(true)
+      cyclicParentIds.add('folder-1')
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -406,9 +396,8 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
-      expect(workflowsUtilsMockFns.mockCheckForCircularReference).toHaveBeenCalledWith(
-        'folder-3',
-        'folder-1'
+      expect(mockUpdateFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: 'folder-3', parentId: 'folder-1' })
       )
     })
   })
@@ -417,9 +406,7 @@ describe('Individual Folder API Route', () => {
     it('should delete folder and all contents successfully', async () => {
       mockAuthenticatedUser()
 
-      mockDbRef.current = createFolderDbMock({
-        folderLookupResult: mockFolder,
-      })
+      queueFolderLookup()
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -431,12 +418,32 @@ describe('Individual Folder API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
       expect(data).toHaveProperty('deletedItems')
-      expect(mockPerformDeleteFolder).toHaveBeenCalledWith({
+      expect(mockDeleteFolder).toHaveBeenCalledWith({
+        resourceType: 'workflow',
         folderId: 'folder-1',
         workspaceId: 'workspace-123',
         userId: TEST_USER.id,
         folderName: 'Test Folder',
       })
+    })
+
+    it('surfaces a delete-locked resource as 423, not a generic 500', async () => {
+      mockAuthenticatedUser()
+      queueFolderLookup()
+      mockDeleteFolder.mockResolvedValueOnce({
+        success: false,
+        error: 'Cannot delete folder: table Ledger is delete-locked',
+        errorCode: 'locked',
+      })
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(423)
+      const data = await response.json()
+      expect(data.error).toBe('Cannot delete folder: table Ledger is delete-locked')
     })
 
     it('should return 401 for unauthenticated delete requests', async () => {
@@ -457,6 +464,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('read')
 
+      queueFolderLookup()
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
@@ -472,9 +480,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('write')
 
-      mockDbRef.current = createFolderDbMock({
-        folderLookupResult: mockFolder,
-      })
+      queueFolderLookup()
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -485,16 +491,14 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
-      expect(mockPerformDeleteFolder).toHaveBeenCalled()
+      expect(mockDeleteFolder).toHaveBeenCalled()
     })
 
     it('should allow folder deletion for admin permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('admin')
 
-      mockDbRef.current = createFolderDbMock({
-        folderLookupResult: mockFolder,
-      })
+      queueFolderLookup()
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -505,15 +509,13 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
-      expect(mockPerformDeleteFolder).toHaveBeenCalled()
+      expect(mockDeleteFolder).toHaveBeenCalled()
     })
 
     it('should handle database errors during deletion', async () => {
       mockAuthenticatedUser()
 
-      mockDbRef.current = createFolderDbMock({
-        throwError: true,
-      })
+      failFolderLookup()
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })

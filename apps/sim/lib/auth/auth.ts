@@ -34,6 +34,8 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
+import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -103,6 +105,7 @@ import {
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -193,8 +196,24 @@ if (validStripeKey) {
   })
 }
 
+/**
+ * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
+ * Better Auth walks the x-forwarded-for chain right to left, skips these
+ * hops, and records the first untrusted address as the session client IP —
+ * preventing header spoofing behind multi-hop proxies.
+ */
+const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
+  .split(',')
+  .map((entry) => entry.trim())
+  .filter(Boolean)
+
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
+  // Where Better Auth sends OAuth callbacks that fail before the flow state is
+  // parsed — most commonly a provider-side Cancel/Deny. Without this it
+  // defaults to a nonexistent `/error` (a 404 dead-end), which strands the
+  // desktop sign-in/connect handoffs since their loopback is never pinged.
+  onAPIError: { errorURL: `${getBaseUrl()}/oauth-error` },
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
@@ -210,11 +229,33 @@ export const auth = betterAuth({
   session: {
     cookieCache: {
       enabled: true,
-      maxAge: 24 * 60 * 60, // 24 hours in seconds
+      // Better Auth's default, and deliberately short: the cached session is a
+      // signed cookie that `getSession` returns WITHOUT re-reading the database,
+      // so this is the window in which a revoked, expired, or signed-out session
+      // still authenticates. Anything longer is an un-revocable credential — at
+      // 24h a sign-out on one device left every other surface looking signed in
+      // for a day while every database-backed check (socket handshakes, the
+      // desktop handoff) failed against a row that no longer existed. The
+      // `version` below only covers org-wide invalidation, so this TTL remains
+      // the only bound on per-device sign-out latency.
+      maxAge: 5 * 60, // 5 minutes in seconds
+      /**
+       * Embeds the member org's security-policy version. Bumping the version
+       * (policy change, org-wide revocation) invalidates every cached session
+       * cookie in the org on its next request, forcing a DB session read —
+       * revocation latency becomes the policy cache TTL, not the full `maxAge`.
+       */
+      version: async (session) =>
+        getSessionCookieCacheVersion(session as { userId?: string | null }),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 0,
+  },
+  advanced: {
+    ipAddress: {
+      ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
+    },
   },
   user: {
     deleteUser: {
@@ -301,6 +342,15 @@ export const auth = betterAuth({
               error,
             })
           }
+
+          /**
+           * Places the user in the instance organization before they reach the
+           * workspace list, so their first workspace is created org-owned and
+           * org-scoped enterprise settings apply to it from the start. No-ops
+           * unless `INSTANCE_ORG_NAME` is set, and swallows its own failures so
+           * organization setup can never block a signup.
+           */
+          await joinInstanceOrganization(user.id)
 
           if (isHosted && user.email && user.emailVerified) {
             try {
@@ -638,7 +688,7 @@ export const auth = betterAuth({
           try {
             // Find the first organization this user is a member of
             const members = await db
-              .select()
+              .select({ organizationId: schema.member.organizationId })
               .from(schema.member)
               .where(eq(schema.member.userId, session.userId))
               .limit(1)
@@ -649,9 +699,12 @@ export const auth = betterAuth({
                 organizationId: members[0].organizationId,
               })
 
+              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
+
               return {
                 data: {
                   ...session,
+                  expiresAt,
                   activeOrganizationId: members[0].organizationId,
                 },
               }
@@ -667,6 +720,26 @@ export const auth = betterAuth({
             })
             return { data: session }
           }
+        },
+      },
+      update: {
+        /**
+         * Better Auth's sliding refresh rewrites `expiresAt` to
+         * `now + expiresIn` (30 days), which would silently stretch a
+         * policy-shortened session back out — re-clamp on every refresh.
+         * The current session row is read from the endpoint context; when
+         * it is unavailable (non-refresh update paths) the update passes
+         * through untouched and the next refresh re-clamps.
+         */
+        before: async (data, ctx) => {
+          if (!data.expiresAt) return { data }
+          const current = ctx?.context?.session?.session
+          if (!current) return { data }
+          const expiresAt = await clampExpiryForSession({
+            ...current,
+            expiresAt: new Date(data.expiresAt),
+          })
+          return { data: { ...data, expiresAt } }
         },
       },
     },
@@ -768,6 +841,13 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    /**
+     * Same flag that hides the email/password signup form (DISABLE_EMAIL_SIGNUP).
+     * Blocks /sign-up/email at the better-auth layer so ripping out the frontend
+     * form cannot be bypassed by calling the endpoint directly. Existing users
+     * can still sign in.
+     */
+    disableSignUp: isEmailSignupDisabled,
     requireEmailVerification: isEmailVerificationEnabled,
     /**
      * When someone signs up with an already-registered email, better-auth returns a
@@ -890,11 +970,6 @@ export const auth = betterAuth({
             message: 'Email/password authentication is disabled. Please use SSO to sign in.',
           })
       }
-
-      if (isEmailSignupDisabled && ctx.path.startsWith('/sign-up/email'))
-        throw new APIError('FORBIDDEN', {
-          message: 'Email sign-up is disabled. Please use Google, Microsoft, or GitHub.',
-        })
 
       const isSignIn = ctx.path.startsWith('/sign-in')
       const isSignUp = ctx.path.startsWith('/sign-up')
@@ -1039,6 +1114,16 @@ export const auth = betterAuth({
           throw error
         }
       },
+      /**
+       * Without this, /sign-in/email-otp auto-registers any unknown email —
+       * bypassing the signup gate entirely (no captcha, no /sign-up path).
+       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form (and by
+       * DISABLE_REGISTRATION, whose /sign-up path check has the same blind
+       * spot); when set, better-auth also silently skips sending OTPs to
+       * unknown emails (enumeration-safe) while existing users keep OTP
+       * sign-in.
+       */
+      disableSignUp: isEmailSignupDisabled || isRegistrationDisabled,
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
@@ -3167,8 +3252,14 @@ export const auth = betterAuth({
         },
       ],
     }),
-    // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED
+    /**
+     * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
+     * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
+     * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
+     * section visible and `hasSSOAccess` passing while sign-in silently had no
+     * SSO provider behind it.
+     */
+    ...(isSsoEnabled
       ? [
           sso({
             /**

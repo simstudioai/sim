@@ -3,6 +3,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -14,6 +15,25 @@ export async function executeOAuthGetAuthLink(
   const rawCredentialId = rawParams.credentialId || rawParams.credential_id
   const credentialId = rawCredentialId ? String(rawCredentialId) : undefined
   const baseUrl = getBaseUrl()
+
+  // A service account is not an OAuth provider. Catch it here — before the fuzzy
+  // resolver's substring match can swallow e.g. `slack-custom-bot` into the
+  // Slack OAuth service — and return a coherent failure directly rather than
+  // throwing into the generic catch below, which would attach a contradicting
+  // workspace `oauth_url` and "connect manually" message. Normalize spaces and
+  // underscores so a readable form ("slack custom bot") is caught too.
+  const serviceAccountId = providerName
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, '-')
+  if (isServiceAccountProviderId(serviceAccountId)) {
+    const message =
+      `"${providerName}" is a service account, not an OAuth provider. ` +
+      `Emit a service_account credential tag with the service's OAuth provider ` +
+      `value instead (e.g. "slack") — it opens the service account setup form in chat.`
+    return { success: false, error: message, output: { message } }
+  }
+
   try {
     if (!context.workspaceId || !context.userId) {
       throw new Error('workspaceId and userId are required to generate an OAuth link')

@@ -122,6 +122,14 @@ export interface FileViewStreaming {
    * snapshots are applied live; a rebuild is only revealed while it extends what is shown.
    */
   isIncremental?: boolean
+  /**
+   * The agent edit operation driving the stream, when known
+   * (`create`/`append`/`update`/`patch`). In the collaborative path it decides only
+   * whether to stream mid-flight: an `update` (from-scratch rewrite) is HELD until
+   * settle so the open doc doesn't collapse to a partial result, while
+   * `append`/`patch`/`create` apply each frame.
+   */
+  operation?: string
   disableAutoScroll?: boolean
   /** Remounts the editor when the agent starts a new turn against the same file. */
   contextKey?: string
@@ -157,6 +165,18 @@ export interface FileViewProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streaming?: FileViewStreaming
+  /**
+   * Opt this surface into live collaborative editing (markdown files only). Set by the
+   * Files page and the embedded chat file preview; other hosts leave it off so
+   * collaboration and agent-streaming never target one editor.
+   */
+  collaborative?: boolean
+  /**
+   * Called (debounced) with the markdown document's leading-heading text while the file
+   * is still untitled, so the caller can name the file after it. Only wired for the
+   * editable markdown editor.
+   */
+  onDeriveTitleFromHeading?: (headingText: string) => void
   /**
    * How this host moves the viewer — the router half of `host`. Supplied by a
    * host that owns a router (`router.push`); omitted by a `'public'` one, where
@@ -265,6 +285,8 @@ function FileViewContent({
   saveRef,
   discardRef,
   streaming,
+  collaborative,
+  onDeriveTitleFromHeading,
 }: FileViewSurfaceProps & { file: FileViewRecord }) {
   const { source, grants } = useResourceOfKind('file')
   const canEdit = grants.write
@@ -309,6 +331,8 @@ function FileViewContent({
           saveRef={saveRef}
           discardRef={discardRef}
           streaming={streaming}
+          collaborative={collaborative}
+          onDeriveTitleFromHeading={onDeriveTitleFromHeading}
         />
       )
     }

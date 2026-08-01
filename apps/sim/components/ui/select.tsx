@@ -80,6 +80,7 @@ const SelectContent = React.forwardRef<
       )}
       position={position}
       {...props}
+      data-native-surface-overlay=''
     >
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport

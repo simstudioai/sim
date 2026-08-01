@@ -27,6 +27,7 @@ import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { captureEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -218,14 +219,16 @@ export function SearchModal({
       context: 'workflow',
       run: () => invokeCommand('run-workflow'),
     })
-    list.push({
-      id: 'new-chat',
-      name: 'New chat',
-      keywords: 'chat message ask sim assistant home',
-      icon: Home,
-      context: 'global',
-      run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
-    })
+    if (isChatEnabled) {
+      list.push({
+        id: 'new-chat',
+        name: 'New chat',
+        keywords: 'chat message ask sim assistant home',
+        icon: Home,
+        context: 'global',
+        run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
+      })
+    }
     if (canEdit && onCreateWorkflow) {
       list.push({
         id: 'create-workflow',
@@ -622,7 +625,7 @@ export function SearchModal({
     <>
       <div
         className={cn(
-          'fixed inset-0 z-40 transition-opacity duration-100',
+          'fixed inset-0 z-[var(--z-modal)] transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={handleOverlayClick}
@@ -635,7 +638,7 @@ export function SearchModal({
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{
@@ -668,112 +671,62 @@ export function SearchModal({
               </Command.Empty>
 
               {showSection('actions') && (
-                <ActionsGroup
-                  items={filteredActions}
-                  onSelect={handleActionSelect}
-                  query={deferredSearch}
-                />
+                <ActionsGroup items={filteredActions} onSelect={handleActionSelect} />
               )}
               {showSection('connectedAccounts') && (
                 <ConnectedAccountsGroup
                   items={filteredConnectedAccounts}
                   onSelect={navSelectHandlers.connectedAccount}
-                  query={deferredSearch}
                 />
               )}
               {showSection('integrations') && (
                 <IntegrationsGroup
                   items={filteredIntegrations}
                   onSelect={navSelectHandlers.integration}
-                  query={deferredSearch}
                 />
               )}
               {showSection('blocks') && (
-                <BlocksGroup
-                  items={filteredBlocks}
-                  onSelect={handleBlockSelectAsBlock}
-                  query={deferredSearch}
-                />
+                <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
               )}
               {showSection('tools') && (
-                <ToolsGroup
-                  items={filteredTools}
-                  onSelect={handleBlockSelectAsTool}
-                  query={deferredSearch}
-                />
+                <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
               )}
               {showSection('triggers') && (
-                <TriggersGroup
-                  items={filteredTriggers}
-                  onSelect={handleBlockSelectAsTrigger}
-                  query={deferredSearch}
-                />
+                <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
               )}
               {showSection('chats') && (
-                <ChatsGroup
-                  items={filteredChats}
-                  onSelect={navSelectHandlers.chat}
-                  query={deferredSearch}
-                />
+                <ChatsGroup items={filteredChats} onSelect={navSelectHandlers.chat} />
               )}
               {showSection('workflows') && (
-                <WorkflowsGroup
-                  items={filteredWorkflows}
-                  onSelect={handleWorkflowSelect}
-                  query={deferredSearch}
-                />
+                <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
               )}
               {showSection('tables') && (
-                <TablesGroup
-                  items={filteredTables}
-                  onSelect={navSelectHandlers.table}
-                  query={deferredSearch}
-                />
+                <TablesGroup items={filteredTables} onSelect={navSelectHandlers.table} />
               )}
               {showSection('interfaces') && (
                 <InterfacesGroup
                   items={filteredInterfaces}
                   onSelect={navSelectHandlers.interface}
-                  query={deferredSearch}
                 />
               )}
               {showSection('files') && (
-                <FilesGroup
-                  items={filteredFiles}
-                  onSelect={navSelectHandlers.file}
-                  query={deferredSearch}
-                />
+                <FilesGroup items={filteredFiles} onSelect={navSelectHandlers.file} />
               )}
               {showSection('knowledgeBases') && (
                 <KnowledgeBasesGroup
                   items={filteredKnowledgeBases}
                   onSelect={navSelectHandlers.kb}
-                  query={deferredSearch}
                 />
               )}
               {showSection('toolOperations') && (
-                <ToolOpsGroup
-                  items={filteredToolOps}
-                  onSelect={handleToolOperationSelect}
-                  query={deferredSearch}
-                />
+                <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
               )}
               {showSection('workspaces') && (
-                <WorkspacesGroup
-                  items={filteredWorkspaces}
-                  onSelect={handleWorkspaceSelect}
-                  query={deferredSearch}
-                />
+                <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
               )}
-              {showSection('docs') && (
-                <DocsGroup items={filteredDocs} onSelect={handleDocSelect} query={deferredSearch} />
-              )}
+              {showSection('docs') && <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />}
               {showSection('pages') && (
-                <PagesGroup
-                  items={filteredPages}
-                  onSelect={handlePageSelect}
-                  query={deferredSearch}
-                />
+                <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
               )}
             </Command.List>
           </Command>

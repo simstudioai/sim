@@ -18,7 +18,14 @@ export const LOG_COLUMNS = {
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 
-export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled' | 'cancelling'
+export type LogStatus =
+  | 'error'
+  | 'pending'
+  | 'running'
+  | 'redacting'
+  | 'info'
+  | 'cancelled'
+  | 'cancelling'
 
 /**
  * Maps raw status string to LogStatus for display.
@@ -29,6 +36,8 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
   switch (status) {
     case 'running':
       return 'running'
+    case 'redacting':
+      return 'redacting'
     case 'pending':
       return 'pending'
     case 'cancelling':
@@ -55,6 +64,7 @@ export const STATUS_CONFIG: Record<
   error: { variant: 'red', label: 'Error', color: 'var(--text-error)', filterable: true },
   pending: { variant: 'amber', label: 'Pending', color: '#f59e0b', filterable: true },
   running: { variant: 'amber', label: 'Running', color: '#f59e0b', filterable: true },
+  redacting: { variant: 'amber', label: 'Redacting', color: '#f59e0b', filterable: false },
   cancelling: { variant: 'amber', label: 'Cancelling...', color: '#f59e0b', filterable: false },
   cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316', filterable: true },
   info: {
@@ -76,6 +86,7 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   mothership: 'pink',
   workflow: 'blue-secondary',
   form: 'teal',
+  custom_block: 'blue-secondary',
 }
 
 interface StatusBadgeProps {
@@ -176,31 +187,6 @@ export function parseDuration(log: LogWithDuration): number | null {
 export function formatLatency(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
   return formatDuration(ms, { precision: 2 }) ?? '—'
-}
-
-export function formatDateShort(dateStr: string): string {
-  const hasTime = dateStr.includes('T')
-  const [datePart, timePart] = dateStr.split('T')
-  const [, month, day] = datePart.split('-').map(Number)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  const dateLabel = `${months[month - 1]} ${day}`
-  if (hasTime && timePart) {
-    return `${dateLabel} ${timePart.slice(0, 5)}`
-  }
-  return dateLabel
 }
 
 export const formatDate = (dateString: string) => {

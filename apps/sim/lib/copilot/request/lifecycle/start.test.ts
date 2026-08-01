@@ -5,7 +5,8 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -25,7 +26,6 @@ const {
   hasAbortMarker,
   releasePendingChatStream,
   fetchGo,
-  billingFlags,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
@@ -40,10 +40,6 @@ const {
   hasAbortMarker: vi.fn(),
   releasePendingChatStream: vi.fn(),
   fetchGo: vi.fn(),
-  billingFlags: {
-    isHosted: false,
-    isCopilotBillingAttributionV1Enabled: false,
-  },
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -117,16 +113,6 @@ vi.mock('@/lib/copilot/request/session/sse', () => ({
   SSE_RESPONSE_HEADERS: {},
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(),
-      })),
-    })),
-  },
-}))
-
 vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: null,
 }))
@@ -140,15 +126,6 @@ vi.mock('@/lib/copilot/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return billingFlags.isHosted
-  },
-  get isCopilotBillingAttributionV1Enabled() {
-    return billingFlags.isCopilotBillingAttributionV1Enabled
-  },
-}))
-
 import { createSSEStream, requestChatTitle } from './start'
 
 async function drainStream(stream: ReadableStream) {
@@ -159,11 +136,18 @@ async function drainStream(stream: ReadableStream) {
   }
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('createSSEStream terminal error handling', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    billingFlags.isHosted = false
-    billingFlags.isCopilotBillingAttributionV1Enabled = false
+    resetDbChainMock()
+    setEnvFlags({ isHosted: false })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Test title' }), {
         status: 200,
@@ -342,10 +326,15 @@ describe('createSSEStream terminal error handling', () => {
 })
 
 describe('requestChatTitle billing protocol', () => {
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    billingFlags.isHosted = true
-    billingFlags.isCopilotBillingAttributionV1Enabled = true
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Billing Protocol' }), {
         status: 200,
@@ -379,7 +368,7 @@ describe('requestChatTitle billing protocol', () => {
   })
 
   it('sends explicit legacy-v0 during the Sim-first compatibility stage', async () => {
-    billingFlags.isCopilotBillingAttributionV1Enabled = false
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
 
     await requestChatTitle({
       message: 'explain billing',

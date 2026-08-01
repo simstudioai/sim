@@ -35,13 +35,12 @@ import {
 const payload = {
   version: 1 as const,
   request: {
-    requestKey: 'enterprise-v2:owner-1:org-1:10000:20000:20000:5:1250',
+    requestKey: 'enterprise-v3:owner-1:org-1:10000:20000:5:1250',
     ownerUserId: 'owner-1',
     organizationId: 'org-1',
     requestedByEmail: 'admin@sim.ai',
     requestedByUserId: 'admin-1',
     invoiceAmountCents: 10000,
-    includedMonthlyCredits: 20000,
     usageLimitCredits: 20000,
     seats: 5,
     concurrencyLimit: 1250,
@@ -81,7 +80,6 @@ function stripeSubscription(
     items: { data: Array.from({ length: options.itemCount ?? 1 }, () => item) },
     metadata: {
       invoiceAmountCents: '10000',
-      includedMonthlyCredits: '20000',
       usageLimitCredits: '20000',
       seats: '5',
       concurrencyLimit: '1250',
@@ -152,7 +150,7 @@ describe('Enterprise issuance Stripe-term correlation', () => {
       ...payload,
       request: {
         ...payload.request,
-        requestKey: 'enterprise-v2:owner-1:org-1:10000:20000:20000:5:1250:draft-collection',
+        requestKey: 'enterprise-v3:owner-1:org-1:10000:20000:5:1250:draft-collection',
         pausePaymentCollection: true,
       },
     }
@@ -180,7 +178,7 @@ describe('Enterprise issuance Stripe-term correlation', () => {
     ['wrong interval count', { intervalCount: 2 }],
     ['automatic collection', { collectionMethod: 'charge_automatically' }],
     ['wrong due terms', { daysUntilDue: 14 }],
-    ['wrong credits', { metadata: { includedMonthlyCredits: '999' } }],
+    ['wrong usage limit', { metadata: { usageLimitCredits: '999' } }],
     ['wrong seats', { metadata: { seats: '6' } }],
     ['wrong concurrency', { metadata: { concurrencyLimit: '999' } }],
   ] as const)('rejects %s', (_name, options) => {
@@ -220,6 +218,12 @@ describe('Enterprise metadata intent admission state', () => {
 
     expect(state.hasUnappliedIntent).toBe(true)
     expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toEqual({
+      id: 'config-2',
+      status: 'pending',
+      requestedMetadata: { seats: 7 },
+      error: null,
+    })
   })
 
   it('falls back to applied seats for a dead-lettered intent', async () => {
@@ -241,6 +245,33 @@ describe('Enterprise metadata intent admission state', () => {
 
     expect(state.hasUnappliedIntent).toBe(false)
     expect(state.effectiveSeatCapacity).toBe(10)
+    expect(state.configurationUpdate).toEqual({
+      id: 'config-2',
+      status: 'failed',
+      requestedMetadata: { seats: 7 },
+      error: null,
+    })
+  })
+
+  it('hides the update after the verified webhook applies its operation id', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'pending',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '7', simConfigRevision: '2', simConfigOperationId: 'config-2' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(false)
+    expect(state.configurationUpdate).toBeNull()
   })
 
   it('fails closed when the newest desired metadata payload is malformed', async () => {

@@ -126,7 +126,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user.info.basic': "Read a user's profile info (open id, avatar, display name)",
   'user.info.profile': "Read a user's profile info (bio, verification status, username)",
   'user.info.stats': "Read a user's stats (follower, following, likes, and video counts)",
-  'video.publish': "Directly post content to a user's TikTok profile",
   'video.upload': "Share content to a creator's account as a draft for further edit and post",
   'video.list': "Read a user's public TikTok videos",
 
@@ -238,6 +237,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Mail.ReadBasic': 'Read Microsoft emails',
   'Mail.Read': 'Read Microsoft emails',
   'Mail.Send': 'Send emails',
+  'Calendars.ReadWrite': 'Read and manage Outlook calendar events',
   'Files.Read': 'Read OneDrive files',
   'Files.ReadWrite': 'Read and write OneDrive files',
   'Tasks.ReadWrite': 'Read and manage Planner tasks',
@@ -543,6 +543,42 @@ export function getServiceAccountProviderForProviderId(providerId: string): stri
   return serviceConfig?.serviceAccountProviderId
 }
 
+/**
+ * The two provider ids a service answers to. Structurally satisfied by both
+ * `OAuthServiceConfig` and the lighter `OAuthServiceMatch` that catalog
+ * resolution returns, so callers pass whichever they already hold.
+ */
+export interface ServiceProviderIdentity {
+  providerId: string
+  serviceAccountProviderId?: string
+}
+
+/**
+ * Whether a stored credential's `providerId` authenticates the given service.
+ *
+ * A service is reachable by two ids: its own OAuth `providerId` (`jira`) and
+ * the service-account provider its family issues (`atlassian-service-account`).
+ * One Atlassian API token authenticates Jira, Jira Service Management, and
+ * Confluence alike, so matching on the OAuth `providerId` alone hides a
+ * service-account credential from every product page it actually powers.
+ *
+ * Prefer this over comparing `getServiceConfigByProviderId(id)?.providerId`
+ * against a service: that resolver walks `OAUTH_PROVIDERS` in declaration
+ * order and answers "which service owns this id", which for a family-wide
+ * service-account id is an arbitrary single winner — `atlassian-service-account`
+ * resolves to the `Atlassian Service Account` pseudo-service and
+ * `google-service-account` to whichever Google service is declared first.
+ */
+export function credentialProviderMatchesService(
+  credentialProviderId: string,
+  service: ServiceProviderIdentity
+): boolean {
+  return (
+    service.providerId === credentialProviderId ||
+    service.serviceAccountProviderId === credentialProviderId
+  )
+}
+
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []
@@ -609,6 +645,18 @@ for (const [baseProviderId, providerConfig] of Object.entries(OAUTH_PROVIDERS)) 
     PROVIDER_ID_TO_BASE_PROVIDER[service.providerId] = {
       baseProvider: baseProviderId,
       serviceKey,
+    }
+    // Service-account credentials are stored under `serviceAccountProviderId`
+    // (e.g. `claude-platform-service-account`). Map it to the same base so
+    // icon/name resolution doesn't fall back to a mis-split base provider — the
+    // hyphen split only recovers a single-segment base (`google`), not a
+    // multi-segment one (`claude-platform`). First service to claim it wins.
+    const saProviderId = service.serviceAccountProviderId
+    if (saProviderId && !PROVIDER_ID_TO_BASE_PROVIDER[saProviderId]) {
+      PROVIDER_ID_TO_BASE_PROVIDER[saProviderId] = {
+        baseProvider: baseProviderId,
+        serviceKey,
+      }
     }
   }
 }

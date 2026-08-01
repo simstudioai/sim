@@ -48,6 +48,9 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
           query,
           numResults: num,
           type: 'auto',
+          // Exa omits page content unless it is requested, which would leave
+          // every snippet empty. Highlights keep the payload small.
+          highlights: true,
           apiKey: env.EXA_API_KEY ?? '',
         })
 
@@ -58,6 +61,7 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
                 url?: string
                 text?: string
                 summary?: string
+                highlights?: string[]
                 publishedDate?: string
               }>
             }
@@ -68,7 +72,7 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
           const transformedResults: SearchResult[] = exaResults.map((result, index) => ({
             title: result.title ?? '',
             link: result.url ?? '',
-            snippet: result.text ?? result.summary ?? '',
+            snippet: result.highlights?.join(' ') || result.text || result.summary || '',
             date: result.publishedDate,
             position: index + 1,
           }))

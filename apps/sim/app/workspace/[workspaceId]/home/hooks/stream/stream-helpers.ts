@@ -5,7 +5,6 @@ import {
   CrawlWebsite,
   CreateFile,
   CreateWorkflow,
-  DeleteWorkflow,
   DeployApi,
   DeployChat,
   DeployMcp,
@@ -15,12 +14,12 @@ import {
   Grep,
   ManageCredential,
   ManageCustomTool,
-  ManageFolder,
   ManageMcpTool,
   ManageScheduledTask,
   ManageSkill,
   QueryLogs,
   Redeploy,
+  Rm,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
@@ -29,10 +28,9 @@ import {
   WorkspaceFile,
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
-import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -49,12 +47,12 @@ export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
   Redeploy.id,
 ])
 
-export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id, 'mkdir', 'mv'])
+export const FOLDER_TOOL_NAMES: Set<string> = new Set([Rm.id, 'mkdir', 'mv'])
 
 export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
   'mv',
   'cp',
-  DeleteWorkflow.id,
+  Rm.id,
   // Removed legacy tools, kept while their grace-period executors remain.
   'move_workflow',
   'rename_workflow',
@@ -106,51 +104,6 @@ export function finalizeResidualToolCalls(
   }
 }
 
-function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined {
-  const lastSegment = segments[segments.length - 1]
-  if (!lastSegment) return undefined
-  if (/\.[^/.]+$/.test(lastSegment) && segments.length > 1) {
-    return segments[segments.length - 2]
-  }
-  return lastSegment
-}
-
-export function extractResourceFromReadResult(
-  path: string | undefined,
-  output: unknown
-): MothershipResource | null {
-  if (!path) return null
-
-  const segments = path
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
-  if (!resourceType || !segments[1]) return null
-
-  const obj = output && typeof output === 'object' ? (output as Record<string, unknown>) : undefined
-  if (!obj) return null
-
-  let id = obj.id as string | undefined
-  let name = obj.name as string | undefined
-
-  if (!id && typeof obj.content === 'string') {
-    try {
-      const parsed = JSON.parse(obj.content)
-      id = parsed?.id as string | undefined
-      name = parsed?.name as string | undefined
-    } catch {}
-  }
-
-  const fallbackTitle =
-    resourceType === 'workflow'
-      ? resolveLeafWorkflowPathSegment(segments)
-      : segments[1] || segments[segments.length - 1]
-
-  if (!id) return null
-  return { type: resourceType, id, title: name || fallbackTitle || id }
-}
-
 function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
@@ -169,17 +122,6 @@ function resolveTargetWorkflowName(args: Record<string, unknown> | undefined): s
 
   const registry = useWorkflowRegistry.getState()
   return resolveWorkflowNameForDisplay(args?.workflowId ?? registry.hydration.workflowId)
-}
-
-function resolveDeletedWorkflowTarget(workflowIds: unknown): string | undefined {
-  if (!Array.isArray(workflowIds) || workflowIds.length === 0) return undefined
-  const names = workflowIds
-    .map(resolveWorkflowNameForDisplay)
-    .filter((name): name is string => Boolean(name))
-  if (names.length === 0) return undefined
-  if (workflowIds.length === 1) return names[0]
-  if (workflowIds.length === 2 && names.length === 2) return `${names[0]} and ${names[1]}`
-  return `${names[0]} and ${workflowIds.length - 1} more`
 }
 
 function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
@@ -275,11 +217,6 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   if (name === EditWorkflow.id) {
     const workflowName = resolveTargetWorkflowName(args)
     return workflowName ? `Editing ${workflowName}` : 'Editing workflow'
-  }
-
-  if (name === DeleteWorkflow.id) {
-    const workflowTarget = resolveDeletedWorkflowTarget(args?.workflowIds)
-    if (workflowTarget) return `Deleting ${workflowTarget}`
   }
 
   if (name === QueryLogs.id) {
@@ -408,6 +345,11 @@ export function resolveStreamingToolDisplayTitle(
     return toolTitle ? `Creating ${toolTitle}` : undefined
   }
 
+  if (name === 'rm') {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Deleting ${toolTitle}` : undefined
+  }
+
   if (name === ScrapePage.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Scraping ${url}` : undefined
@@ -449,26 +391,6 @@ export function resolveStreamingToolDisplayTitle(
         matchStreamingStringArg(streamingArgs, 'credentialName'),
       displayName:
         matchStreamingStringArg(streamingArgs, 'displayName') ??
-        matchStreamingStringArg(streamingArgs, 'newName') ??
-        matchStreamingStringArg(streamingArgs, 'name'),
-    })
-  }
-
-  if (name === ManageFolder.id) {
-    // create/rename/move are string literals: the live tool only offers delete
-    // (mkdir/mv replaced the rest), but grace-period checkpoint resumes and
-    // transcript replays still stream the legacy operations.
-    const operation = matchStreamingStringArg(streamingArgs, 'operation')
-    if (!operation) return undefined
-    return getToolDisplayTitle(name, {
-      operation,
-      path:
-        matchStreamingStringArg(streamingArgs, 'oldPath') ??
-        matchStreamingStringArg(streamingArgs, 'source') ??
-        matchStreamingStringArg(streamingArgs, 'path'),
-      name:
-        matchStreamingStringArg(streamingArgs, 'newPath') ??
-        matchStreamingStringArg(streamingArgs, 'destination') ??
         matchStreamingStringArg(streamingArgs, 'newName') ??
         matchStreamingStringArg(streamingArgs, 'name'),
     })

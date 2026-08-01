@@ -6,8 +6,9 @@
  * API key, …) instead of running an OAuth flow — mirroring the Atlassian
  * service-account pattern: the token is verified once server-side, encrypted,
  * and returned as the access token at execution time with no exchange or
- * refresh. This module holds only UI/contract metadata (field lists, labels,
- * docs links); server-side verification lives in
+ * refresh. This module holds the client-safe UI/contract metadata (field
+ * lists, labels, docs links) plus pure derivations over it (required-field
+ * lookups, connect-modal error copy); server-side verification lives in
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
@@ -47,6 +48,13 @@ export interface TokenServiceAccountDescriptor {
   /** Optional one-line caveat rendered under the token field. */
   helpText?: string
   /**
+   * Optional provider-specific message that replaces the generic
+   * `invalid_credentials` rejection copy. Use it to name the exact
+   * credential-paste mistake most users make (e.g. copying the API secret key
+   * instead of the Admin API access token) rather than a vague "double-check".
+   */
+  invalidCredentialsHelp?: string
+  /**
    * HTTP auth scheme the pasted token requires at execution time. Defaults to
    * `bearer` (`Authorization: Bearer <token>`); `x-api-token` providers (e.g.
    * Pipedrive) send the token in an `x-api-token` header instead, and the
@@ -69,6 +77,8 @@ export const TRELLO_SERVICE_ACCOUNT_PROVIDER_ID = 'trello-service-account' as co
 export const CALCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'calcom-service-account' as const
 export const WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID = 'wealthbox-service-account' as const
 export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account' as const
+export const CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID =
+  'claude-platform-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -87,6 +97,7 @@ export type TokenServiceAccountProviderId =
   | typeof CALCOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -260,6 +271,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
     helpText:
       'Legacy admin-created custom apps reveal the shpat_ token once; new Dev Dashboard apps issue tokens via OAuth, not a UI reveal. The token is store-bound and does not expire.',
+    invalidCredentialsHelp:
+      'Shopify rejected this token. Make sure you copied the Admin API access token (starts with shpat_) — not the API key or API secret key — for an app installed on this exact store domain, and that it has not since been revoked or regenerated.',
   },
   [WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -350,6 +363,23 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Each Pipedrive user has one API token per company — regenerating it breaks every integration using the old value, and API-token traffic gets lower rate limits than OAuth.',
     authStyle: 'x-api-token',
   },
+  [CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Claude Platform',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'sk-ant-...',
+        secret: true,
+        hintPattern: /^sk-ant-/,
+        hintMessage: 'Claude Platform API keys usually start with sk-ant-.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
+  },
 }
 
 /**
@@ -377,4 +407,32 @@ export function getTokenServiceAccountDescriptor(
   return isTokenServiceAccountProviderId(providerId)
     ? TOKEN_SERVICE_ACCOUNT_DESCRIPTORS[providerId]
     : undefined
+}
+
+/**
+ * Maps a credential-verification `error.code` to a user-facing message for a
+ * given provider. Provider-specific copy is inherited from the descriptor
+ * (token noun, service label, and the optional `invalidCredentialsHelp`
+ * override) rather than hard-coded in the shared connect modal. An
+ * unknown/absent code falls back to a generic retry message.
+ */
+export function getTokenServiceAccountErrorMessage(
+  descriptor: TokenServiceAccountDescriptor,
+  code: string | undefined
+): string {
+  switch (code) {
+    case 'invalid_credentials':
+      return (
+        descriptor.invalidCredentialsHelp ??
+        `We couldn't authenticate with that ${descriptor.tokenNoun}. Double-check it in ${descriptor.serviceLabel} and try again.`
+      )
+    case 'site_not_found':
+      return "We couldn't find an account at that domain. Check the spelling and try again."
+    case 'provider_unavailable':
+      return `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`
+    case 'duplicate_display_name':
+      return 'A credential with that name already exists in this workspace.'
+    default:
+      return "We couldn't add this credential. Try again in a moment."
+  }
 }

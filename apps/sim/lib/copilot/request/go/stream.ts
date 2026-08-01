@@ -97,6 +97,31 @@ export class BillingLimitError extends Error {
 }
 
 /**
+ * Shown to the user when a leg ends early. It must not promise that retrying
+ * helps: the backend has already produced its outcome for this leg, and the
+ * turn's completed work is persisted by the finalizer.
+ */
+export const STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE =
+  'The assistant stopped before finishing this turn. The work it already completed has been saved — send a message to continue from there.'
+
+/**
+ * The SSE body closed after a `200` response without a terminal event: the
+ * backend accepted the leg, ran it, and ended it on whatever outcome it reached
+ * in-band. Distinct from {@link CopilotBackendError} because there is no HTTP
+ * failure here — the leg is already claimed on the backend, so the outcome is
+ * deterministic and re-posting it cannot change anything.
+ */
+export class StreamEndedWithoutTerminalError extends Error {
+  readonly path: string
+
+  constructor(path: string) {
+    super(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+    this.name = 'StreamEndedWithoutTerminalError'
+    this.path = path
+  }
+}
+
+/**
  * Options for the shared stream processing loop.
  */
 export interface StreamLoopOptions extends OrchestratorOptions {
@@ -352,7 +377,7 @@ export async function runStreamLoop(
           state: filePreviewAdapterState,
         })
 
-        await prePersistClientExecutableToolCall(streamEvent, context)
+        await prePersistClientExecutableToolCall(streamEvent, context, options)
 
         try {
           await options.onEvent?.(streamEvent)
@@ -486,15 +511,14 @@ export async function runStreamLoop(
         endedOn = CopilotSseCloseReason.Aborted
       } else {
         const streamPath = new URL(fetchUrl).pathname
-        const message = `Copilot backend stream ended before a terminal event on ${streamPath}`
-        context.errors.push(message)
+        context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
         logger.error('Copilot backend stream ended before a terminal event', {
           path: streamPath,
           requestId: context.requestId,
           messageId: context.messageId,
         })
         endedOn = CopilotSseCloseReason.ClosedNoTerminal
-        throw new CopilotBackendError(message, { status: 503 })
+        throw new StreamEndedWithoutTerminalError(streamPath)
       }
     }
   } catch (error) {

@@ -24,7 +24,7 @@ export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')  # if using ch
 | `INTERNAL_API_SECRET` | Shared auth between `sim-app` ↔ `sim-realtime` pods | 32 bytes = 64 hex chars | Both deployments must roll together — temporary realtime errors during the rollout |
 | `CRON_SECRET` | Authenticates scheduled CronJob pods to the app | 32 bytes = 64 hex chars | Rotating just needs `helm upgrade`; next cron run uses the new value |
 | `API_ENCRYPTION_KEY` (optional) | Encrypts user-stored API keys (OpenAI tokens, etc.) at rest in Postgres | **Exactly 64 hex chars** (the app rejects other lengths) | Without it, keys are stored plain. Once set, never rotate without a migration |
-| `POSTGRES_PASSWORD` (chart-bundled Postgres only) | Postgres superuser password | Any length ≥ 12 chars matching `^[a-zA-Z0-9._-]+$` | Requires Postgres pod restart + app rollout |
+| `POSTGRES_PASSWORD` (chart-bundled Postgres only) | Postgres superuser password | ≥ 8 chars (schema-enforced) matching `^[a-zA-Z0-9._-]+$`; 32-byte hex recommended | Requires Postgres pod restart + app rollout |
 
 The `^[a-zA-Z0-9._-]+$` constraint on the Postgres password exists because the chart embeds the password into `DATABASE_URL` without URL-encoding. The `tr -d '/+='` strips the three problematic characters from `openssl rand -base64` output. The chart enforces this regex at template time.
 

@@ -178,11 +178,13 @@ import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/lin
 import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
+import { LogfireBlock, LogfireBlockMeta } from '@/blocks/blocks/logfire'
 import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpBlockMeta } from '@/blocks/blocks/mailchimp'
 import { MailgunBlock, MailgunBlockMeta } from '@/blocks/blocks/mailgun'
+import { ManagedAgentBlock, ManagedAgentBlockMeta } from '@/blocks/blocks/managed_agent'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block, Mem0BlockMeta } from '@/blocks/blocks/mem0'
@@ -292,6 +294,7 @@ import { STSBlock, STSBlockMeta } from '@/blocks/blocks/sts'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock, SupabaseBlockMeta } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TailscaleBlock, TailscaleBlockMeta } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyBlockMeta } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
@@ -504,12 +507,14 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   linq: LinqBlock,
+  logfire: LogfireBlock,
   logs: LogsBlock,
   logs_v2: LogsV2Block,
   loops: LoopsBlock,
   luma: LumaBlock,
   mailchimp: MailchimpBlock,
   mailgun: MailgunBlock,
+  managed_agent: ManagedAgentBlock,
   manual_trigger: ManualTriggerBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
@@ -609,6 +614,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   stt_v2: SttV2Block,
   supabase: SupabaseBlock,
   table: TableBlock,
+  table_v2: TableV2Block,
   tailscale: TailscaleBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
@@ -803,10 +809,12 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   linkedin: LinkedInBlockMeta,
   linkup: LinkupBlockMeta,
   linq: LinqBlockMeta,
+  logfire: LogfireBlockMeta,
   loops: LoopsBlockMeta,
   luma: LumaBlockMeta,
   mailchimp: MailchimpBlockMeta,
   mailgun: MailgunBlockMeta,
+  managed_agent: ManagedAgentBlockMeta,
   mem0: Mem0BlockMeta,
   microsoft_ad: MicrosoftAdBlockMeta,
   microsoft_dataverse: MicrosoftDataverseBlockMeta,

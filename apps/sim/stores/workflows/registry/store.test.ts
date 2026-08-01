@@ -8,19 +8,10 @@
  * variables / deployment stores, guarding against superseded responses.
  */
 import { QueryClient } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson, sharedQueryClient } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
+const { sharedQueryClient } = vi.hoisted(() => ({
   sharedQueryClient: { current: null as unknown },
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
-
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
-  getQueryClient: () => sharedQueryClient.current as QueryClient,
 }))
 
 const { replaceWorkflowState, initializeFromWorkflow, setVariablesState, clearError } = vi.hoisted(
@@ -79,8 +70,27 @@ vi.mock('@/hooks/queries/deployments', () => ({
   },
 }))
 
+import * as requestModule from '@/lib/api/client/request'
+import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+/**
+ * Spy on the real module namespaces instead of vi.mock: under `isolate: false`
+ * shared consumers (`@/hooks/queries/utils/fetch-workflow-envelope`, the
+ * registry store) may be cached across test files, so patching the real
+ * namespaces is the only wiring that composes — and vi.mock here would leak
+ * this file's fixtures into later files that share those consumers.
+ */
+const mockRequestJson = vi.spyOn(requestModule, 'requestJson')
+const getQueryClientSpy = vi
+  .spyOn(getQueryClientModule, 'getQueryClient')
+  .mockImplementation(() => sharedQueryClient.current as QueryClient)
+
+afterAll(() => {
+  mockRequestJson.mockRestore()
+  getQueryClientSpy.mockRestore()
+})
 
 function makeEnvelope(overrides: Record<string, unknown> = {}) {
   return {
@@ -102,6 +112,7 @@ function makeEnvelope(overrides: Record<string, unknown> = {}) {
 describe('registry store loadWorkflowState (collapsed cache)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getQueryClientSpy.mockImplementation(() => sharedQueryClient.current as QueryClient)
     // The store dispatches an `active-workflow-changed` CustomEvent on the
     // window; provide a minimal stub under the node environment.
     vi.stubGlobal('window', { dispatchEvent: vi.fn() })

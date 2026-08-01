@@ -43,6 +43,9 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
   Credit: () => <span />,
+  Label: ({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) => (
+    <label htmlFor={htmlFor}>{children}</label>
+  ),
   Switch: ({
     checked,
     disabled,

@@ -9,7 +9,7 @@ export const forkAvailabilityKeys = {
 }
 
 /** Availability flips only on plan changes or flag rollouts - cache generously. */
-const FORK_AVAILABILITY_STALE_TIME = 5 * 60 * 1000
+export const FORK_AVAILABILITY_STALE_TIME = 5 * 60 * 1000
 
 interface ForkingAvailability {
   available: boolean

@@ -37,4 +37,3 @@ package.json @simstudioai/deps
 bun.lock @simstudioai/deps
 **/bun.lock @simstudioai/deps
 bunfig.toml @simstudioai/deps
-.npmrc @simstudioai/deps

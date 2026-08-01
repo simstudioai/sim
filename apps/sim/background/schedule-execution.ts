@@ -11,7 +11,7 @@ import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
-import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, type SQL, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   BILLING_ATTRIBUTION_HEADER,
@@ -30,6 +30,7 @@ import {
   getExecutionTimeout,
   getTimeoutErrorMessage,
 } from '@/lib/core/execution-limits'
+import type { DbOrTx } from '@/lib/db/types'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -40,6 +41,8 @@ import {
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
+import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
+import type { ScheduleDisableReason } from '@/lib/workflows/schedules/disable-reasons'
 import {
   SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
   SCHEDULE_EXECUTION_QUEUE_NAME,
@@ -69,6 +72,12 @@ type WorkflowScheduleUpdate = Partial<Omit<WorkflowScheduleInsert, 'failedCount'
   status?: WorkflowScheduleInsert['status'] | SQL
 }
 type ExecutionCoreResult = Awaited<ReturnType<typeof executeWorkflowCore>>
+
+/** Result of a guarded schedule UPDATE. `status` is the row's value after the write. */
+type ScheduleUpdateOutcome = {
+  updated: boolean
+  status: string | null
+}
 
 function incrementScheduleFailedCount(): SQL {
   return sql`COALESCE(${workflowSchedule.failedCount}, 0) + 1`
@@ -141,8 +150,23 @@ async function applyScheduleUpdate(
   updates: WorkflowScheduleUpdate,
   requestId: string,
   context: string,
-  options: { expectedLastQueuedAt?: Date | null } = {}
-): Promise<boolean> {
+  options: {
+    expectedLastQueuedAt?: Date | null
+    allowCompleted?: boolean
+    /**
+     * Set at call sites that can transition the row to `disabled`. Presence both
+     * opts the site into the auto-disable email and adds a `status <> 'disabled'`
+     * guard, so the transition fires exactly once per disable.
+     */
+    disableReason?: ScheduleDisableReason
+    /** Required inside a transaction, where mail must wait for commit. */
+    deferNotification?: boolean
+    /** Join a caller's transaction instead of using the pooled client. */
+    executor?: DbOrTx
+  } = {}
+): Promise<ScheduleUpdateOutcome> {
+  let outcome: ScheduleUpdateOutcome
+
   try {
     const claimGuard =
       options.expectedLastQueuedAt === undefined
@@ -151,19 +175,58 @@ async function applyScheduleUpdate(
           ? isNull(workflowSchedule.lastQueuedAt)
           : eq(workflowSchedule.lastQueuedAt, options.expectedLastQueuedAt)
 
-    const updatedRows = await db
+    // A run that completes itself mid-execution (complete_scheduled_task, or a
+    // manage_scheduled_task update) sets status='completed'. The post-run
+    // bookkeeping that follows would otherwise write status='active' and a
+    // fresh nextRunAt straight back over it — the claim guard does not catch
+    // this, because completing the job does not touch lastQueuedAt. Terminal
+    // means terminal: only callers that explicitly opt in may move a completed
+    // row.
+    const notCompletedGuard = options.allowCompleted
+      ? undefined
+      : ne(workflowSchedule.status, 'completed')
+
+    /**
+     * `RETURNING` yields the NEW row, so `status === 'disabled'` alone only means
+     * "is disabled". Excluding rows that were already disabled makes a returned
+     * row a true `active -> disabled` edge. Scoped to disable-capable call sites
+     * so lock releases on already-disabled rows still work.
+     */
+    const notAlreadyDisabled = options.disableReason
+      ? ne(workflowSchedule.status, 'disabled')
+      : undefined
+
+    const updatedRows = await (options.executor ?? db)
       .update(workflowSchedule)
       .set(updates)
       .where(
-        and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt), claimGuard)
+        and(
+          eq(workflowSchedule.id, scheduleId),
+          isNull(workflowSchedule.archivedAt),
+          claimGuard,
+          notCompletedGuard,
+          notAlreadyDisabled
+        )
       )
-      .returning({ id: workflowSchedule.id })
+      .returning({ id: workflowSchedule.id, status: workflowSchedule.status })
 
-    return updatedRows.length > 0
+    const row = updatedRows[0]
+    outcome = { updated: Boolean(row), status: row?.status ?? null }
   } catch (error) {
     logger.error(`[${requestId}] ${context}`, error, { cause: describeError(error) })
     throw error
   }
+
+  // Outside the try: a mail failure must never surface as a schedule-tick fault.
+  if (options.disableReason && !options.deferNotification && outcome.status === 'disabled') {
+    await notifyScheduleAutoDisabled({
+      scheduleId,
+      reason: options.disableReason,
+      requestId,
+    })
+  }
+
+  return outcome
 }
 
 export async function releaseScheduleLock(
@@ -183,7 +246,41 @@ export async function releaseScheduleLock(
     updates.nextRunAt = nextRunAt
   }
 
-  return applyScheduleUpdate(scheduleId, updates, requestId, context, options)
+  const outcome = await applyScheduleUpdate(scheduleId, updates, requestId, context, options)
+  return outcome.updated
+}
+
+/**
+ * Applies {@link buildScheduleFailureUpdate} through the same guarded write the
+ * trigger.dev path uses, and reports whether the row just transitioned to
+ * `disabled`. Callers own the notification so an in-transaction caller can defer
+ * it until after commit.
+ */
+export async function applyScheduleFailureUpdate(params: {
+  scheduleId: string
+  now: Date
+  nextRunAt: Date | null
+  expectedLastQueuedAt: Date
+  requestId: string
+  context: string
+  executor?: DbOrTx
+}): Promise<{ updated: boolean; disabled: boolean }> {
+  const { scheduleId, now, nextRunAt, expectedLastQueuedAt, requestId, context, executor } = params
+
+  const outcome = await applyScheduleUpdate(
+    scheduleId,
+    buildScheduleFailureUpdate(now, nextRunAt),
+    requestId,
+    context,
+    {
+      expectedLastQueuedAt,
+      disableReason: 'consecutive_failures',
+      deferNotification: true,
+      executor,
+    }
+  )
+
+  return { updated: outcome.updated, disabled: outcome.status === 'disabled' }
 }
 
 function getScheduleClaimedAt(payload: ScheduleExecutionPayload): Date | null {
@@ -223,7 +320,7 @@ async function retryScheduleAfterInfraFailure({
       buildScheduleFailureUpdate(now, nextRunAt),
       requestId,
       `Error updating schedule ${payload.scheduleId} after exhausted infrastructure retries`,
-      { expectedLastQueuedAt: claimedAt }
+      { expectedLastQueuedAt: claimedAt, disableReason: 'consecutive_failures' }
     )
     return
   }
@@ -648,10 +745,12 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
     const updateClaimedSchedule = (
       updates: WorkflowScheduleUpdate,
-      context: string
-    ): Promise<boolean> =>
+      context: string,
+      disableReason?: ScheduleDisableReason
+    ): Promise<ScheduleUpdateOutcome> =>
       applyScheduleUpdate(payload.scheduleId, updates, requestId, context, {
         expectedLastQueuedAt: claimedAt,
+        disableReason,
       })
 
     try {
@@ -777,7 +876,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
                 status: 'disabled',
                 ...resetScheduleInfraRetryCount(),
               },
-              `Failed to disable schedule ${payload.scheduleId} after authentication error`
+              `Failed to disable schedule ${payload.scheduleId} after authentication error`,
+              'authentication_error'
             )
             return
           }
@@ -794,7 +894,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
                 status: 'disabled',
                 ...resetScheduleInfraRetryCount(),
               },
-              `Failed to disable schedule ${payload.scheduleId} after authorization error`
+              `Failed to disable schedule ${payload.scheduleId} after authorization error`,
+              'authorization_error'
             )
             return
           }
@@ -808,7 +909,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
                 status: 'disabled',
                 ...resetScheduleInfraRetryCount(),
               },
-              `Failed to disable schedule ${payload.scheduleId} after missing workflow`
+              `Failed to disable schedule ${payload.scheduleId} after missing workflow`,
+              'workflow_not_found'
             )
             return
           }
@@ -847,7 +949,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             })
             await updateClaimedSchedule(
               buildScheduleFailureUpdate(now, nextRunAt),
-              `Error updating schedule ${payload.scheduleId} after usage limit check`
+              `Error updating schedule ${payload.scheduleId} after usage limit check`,
+              'consecutive_failures'
             )
             return
           }
@@ -869,7 +972,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
             await updateClaimedSchedule(
               buildScheduleFailureUpdate(now, nextRunAt),
-              `Error updating schedule ${payload.scheduleId} after preprocessing failure`
+              `Error updating schedule ${payload.scheduleId} after preprocessing failure`,
+              'consecutive_failures'
             )
             return
           }
@@ -937,7 +1041,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
               nextRunAt: null,
               ...resetScheduleInfraRetryCount(),
             },
-            `Failed to disable schedule ${payload.scheduleId} after skip`
+            `Failed to disable schedule ${payload.scheduleId} after skip`,
+            'invalid_schedule'
           )
           return
         }
@@ -967,7 +1072,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
         await updateClaimedSchedule(
           buildScheduleFailureUpdate(now, nextRunAt),
-          `Error updating schedule ${payload.scheduleId} after failure`
+          `Error updating schedule ${payload.scheduleId} after failure`,
+          'consecutive_failures'
         )
       } catch (error: unknown) {
         logger.error(
@@ -979,7 +1085,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
         await updateClaimedSchedule(
           buildScheduleFailureUpdate(now, nextRunAt),
-          `Error updating schedule ${payload.scheduleId} after execution error`
+          `Error updating schedule ${payload.scheduleId} after execution error`,
+          'consecutive_failures'
         )
       }
     } catch (error: unknown) {
@@ -1365,7 +1472,9 @@ export async function executeJobInline(payload: JobExecutionPayload) {
           },
           requestId,
           `Error updating job ${payload.scheduleId} after completion`,
-          { expectedLastQueuedAt: now }
+          // The tool already set status='completed'; this is bookkeeping on a
+          // deliberately terminal row, so it opts past the not-completed guard.
+          { expectedLastQueuedAt: now, allowCompleted: true }
         )
         return
       }
@@ -1450,14 +1559,17 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       },
       requestId,
       `Error updating job ${payload.scheduleId} after failure`,
-      { expectedLastQueuedAt: now }
+      {
+        expectedLastQueuedAt: now,
+        disableReason: shouldDisable ? 'consecutive_failures' : undefined,
+      }
     )
   }
 }
 
 export const scheduleExecutionTaskOptions = {
   id: 'schedule-execution',
-  machine: 'medium-1x' as const,
+  machine: 'medium-2x' as const,
   retry: {
     maxAttempts: 1,
   },

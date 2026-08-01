@@ -10,12 +10,18 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   addWorkflowGroup,
   deleteWorkflowGroup,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
-import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  normalizeColumn,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableWorkflowGroupsAPI')
 
@@ -47,6 +53,8 @@ async function validateWorkflowInWorkspace(
  * share this mapper instead of repeating the if-chain three times.
  */
 function mapWorkflowGroupError(error: unknown, fallbackMessage: string): NextResponse {
+  const lockError = tableLockErrorResponse(error)
+  if (lockError) return lockError
   if (error instanceof Error) {
     const msg = error.message
     if (msg === 'Table not found' || msg.includes('not found')) {
@@ -99,6 +107,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       },
       requestId
     )
+    signalTableSchemaChanged(tableId)
     return NextResponse.json({
       success: true,
       data: {
@@ -161,6 +170,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       },
       requestId
     )
+    signalTableSchemaChanged(tableId)
     return NextResponse.json({
       success: true,
       data: {
@@ -194,6 +204,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       { tableId, groupId: validated.groupId },
       requestId
     )
+    signalTableSchemaChanged(tableId)
     return NextResponse.json({
       success: true,
       data: {

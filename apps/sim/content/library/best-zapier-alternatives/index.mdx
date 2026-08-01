@@ -3,7 +3,7 @@ slug: best-zapier-alternatives
 title: '10 Best Zapier Alternatives for Workflow Automation'
 description: Zapier's per-task pricing punishes growth. Compare the 10 best Zapier alternatives - free, open-source, and AI-native - with real pricing breakdowns and use-case recommendations.
 date: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-23
 authors:
   - emir
 readingTime: 14
@@ -17,7 +17,7 @@ faq:
   - q: "Is n8n better than Zapier?"
     a: "For teams with developer resources, n8n wins on cost (free self-hosted with no execution limits) and data control (nothing leaves your infrastructure). Zapier wins on ease of use, integration breadth (7,000+ apps vs. n8n's smaller catalog), and polished onboarding. The best answer depends on whether your team has the expertise to manage a self-hosted instance. If you do, n8n can save thousands annually. If you don't, the time cost of maintaining n8n may exceed the subscription savings."
   - q: "What is the cheapest Zapier alternative?"
-    a: "For zero-cost automation, n8n and Activepieces self-hosted options are free with no execution limits. Among paid hosted platforms, Pabbly Connect starts at $16/month with annual billing and includes 12,000 tasks with no charges for internal steps. Pabbly also offers lifetime pricing from $249 one-time, making it the cheapest long-term option for teams that want hosted automation without managing their own servers."
+    a: "For zero-cost automation, n8n and Activepieces self-hosted options are free with no execution limits, and Activepieces cloud includes 10 free active flows before charging $5 per active flow per month. Among paid hosted platforms, Pabbly Connect's Standard plan covers 10,000 tasks per month with no charges for internal steps. Pabbly also offers lifetime pricing from $349 one-time for 3,000 tasks per month, making it the cheapest long-term option for teams that want hosted automation without managing their own servers."
   - q: "Can I migrate my Zaps to another platform?"
     a: "There is no automated migration tool between platforms. You need to rebuild workflows manually. Simple two- to three-step Zaps typically take 10 - 15 minutes to recreate on any alternative platform. Complex multi-branch workflows with conditional logic, custom formatting, and multiple API connections can take 30 - 60 minutes each. Most Zapier Zaps can be recreated in Make in 15 - 30 minutes because the concepts are similar, and a full migration typically takes one to two days for a moderate-sized automation library."
   - q: "What is the difference between Zapier and an AI agent workflow platform?"
@@ -25,7 +25,7 @@ faq:
   - q: "Does Sim charge per task like Zapier does?"
     a: "No. Sim uses a credit-based model instead of per-task billing, and it supports bring-your-own API keys so you can avoid markup on model usage entirely. A free plan is available with no credit card required."
   - q: "Is there a Zapier alternative that supports human approval steps in an automation?"
-    a: "Relay.app is purpose-built for this — it pauses a workflow, notifies the right person, collects their input, and continues, rather than treating every step as fully automated. It's best suited to RevOps, HR, legal, and finance workflows where a judgment call needs a human in the loop before the automation proceeds."
+    a: "Relay.app was purpose-built for this, but it is shutting down: new signups closed on July 16, 2026, free accounts end August 15, 2026, and paid accounts end September 14, 2026. For new builds, use a platform with native human-in-the-loop approvals instead. Sim ships approval steps that pause a run, notify the right person, collect their decision, and resume, which covers the same RevOps, HR, legal, and finance workflows without a migration deadline."
 ---
 
 You're here because the invoice surprised you.
@@ -42,9 +42,9 @@ Whether you're hitting the complexity ceiling, need self-hosting for compliance,
 
 - **n8n:** Self-host for free with no execution limits and full data control. Requires technical chops but can't be beat on cost or privacy.
 
-- **Pabbly Connect:** Flat-rate pricing with a lifetime deal starting at $249 one-time. The budget pick for straightforward multi-step automations.
+- **Pabbly Connect:** Flat-rate pricing with a [lifetime deal](https://buy.pabbly.com/connect-onetime/) starting at $349 one-time. The budget pick for straightforward multi-step automations.
 
-- **Workato:** Enterprise-grade integration with strong governance, audit logging, and support SLAs. Priced accordingly, starting around $1,000/month.
+- **Workato:** Enterprise-grade integration with strong governance, audit logging, and support SLAs. Priced accordingly — Workato [does not publish rates](https://www.workato.com/pricing) and quotes every deal through sales.
 
 - **Activepieces:** Open-source with an MIT license and a cleaner, more approachable UI than n8n. Growing integration library (750+) with a free self-hosted tier.
 
@@ -52,7 +52,7 @@ Whether you're hitting the complexity ceiling, need self-hosting for compliance,
 
 - **Pipedream:** Hybrid code + no-code with serverless execution and 1,000+ integrations. Best for developers who want to drop real Node.js, Python, or Go into a workflow wherever a connector falls short.
 
-- **Relay.app:** Purpose-built for human-in-the-loop workflows that pause for approval or review. Best for RevOps, HR, legal, and finance teams where one step needs a human decision.
+- **Relay.app (shutting down):** Was purpose-built for human-in-the-loop approval workflows, but the product is winding down — free accounts end August 15, 2026 and paid accounts September 14, 2026. Listed here only because existing users need somewhere to go.
 
 - **Integrately:** One-click, pre-built automations with minimal configuration. Best for standard, well-defined scenarios where setup speed matters more than deep customization.
 
@@ -86,7 +86,7 @@ A free plan is available with no credit card required, and paid plans follow a c
 
 Instead of a linear list of steps, Make gives you a visual canvas showing exactly how data flows through your automation. You can see branches, conditions, loops, and error handlers all at once, making debugging easier because you can literally trace where things went wrong.
 
-The pricing model is where Make changes the math for growing teams. Make's Core plan starts at $10.59/month for 10,000 operations, compared to Zapier's $29.99/month for 750 tasks at entry-level pricing. Operations and tasks don't map 1:1; Make counts operations differently than Zapier counts tasks, and a single Zapier task might equal three to eight Make operations. Most teams running moderate automation volume will spend meaningfully less on Make.
+The pricing model is where Make changes the math for growing teams. [Make's](https://www.make.com/en/pricing) Core plan starts at $12/month for 10,000 credits, compared to [Zapier's](https://zapier.com/pricing) $29.99/month for 750 tasks at entry-level pricing. Annual billing takes about 15% off Make's rate. Operations and tasks don't map 1:1; Make counts operations differently than Zapier counts tasks, and a single Zapier task might equal three to eight Make operations. Most teams running moderate automation volume will spend meaningfully less on Make.
 
 Make connects 3,000+ apps and offers deeper per-app API coverage than Zapier on many integrations, with native modules for routers, iterators, aggregators, and error handlers that let you build workflows Zapier simply can't express in its linear editor.
 
@@ -100,7 +100,7 @@ n8n gives you a node-based visual editor with full JavaScript (and Python) suppo
 
 The data privacy angle is the primary reason teams choose n8n over hosted alternatives. Self-hosting means workflow data, API credentials, and execution logs never touch a third-party server. For companies in regulated industries or with strict data residency requirements, this isn't a nice-to-have; it's a hard requirement that rules out most other tools on this list.
 
-n8n provides unlimited workflows and executions for free if you're willing to self-host. It requires a server and some DevOps knowledge, but there are no per-task charges at all. The cloud-managed version starts at roughly $24/month for teams that want n8n's workflow capabilities without managing infrastructure.
+n8n provides unlimited workflows and executions for free if you're willing to self-host. It requires a server and some DevOps knowledge, but there are no per-task charges at all. The [cloud-managed version](https://n8n.io/pricing/) starts at €20/month billed annually for 2,500 workflow executions, for teams that want n8n's workflow capabilities without managing infrastructure. Note that n8n is fair-code licensed, not open source — we break down [what that means for self-hosting](/library/apache-2-0-vs-fair-code).
 
 This means you'll need considerable technical expertise in setup and ongoing maintenance, including updates, backups, SSL, and uptime monitoring, to save more. If your team doesn't have someone comfortable with Docker, server provisioning, and debugging node-level errors, n8n will cost you time instead of saving it.
 
@@ -110,7 +110,7 @@ This means you'll need considerable technical expertise in setup and ongoing mai
 
 Pabbly Connect's value proposition is straightforward: flat-rate pricing with no per-task surcharges on internal steps. There is no charge for internal tasks like filters and routers, which means your actual task consumption is lower than the equivalent workflow would cost on Zapier.
 
-Paid subscription plans include Standard at $16/month for 12,000 tasks, Pro at $33/month for 24,000 tasks, and Ultimate at $67/month for up to 300,000 tasks (billed annually). But the real differentiator is the lifetime deal: Pabbly Connect offers unlimited workflows with lifetime pricing from $249 one-time. That's a single payment for perpetual access with a fixed monthly task allocation. For solopreneurs and small businesses running stable, predictable automations, the long-term savings compared to any recurring-fee platform are substantial.
+[Pabbly Connect's](https://www.pabbly.com/connect/) subscription lineup is a free tier at 100 tasks/month, a Standard plan at 10,000 tasks/month, and an Unlimited plan, with annual billing discounted against monthly. But the real differentiator is the [lifetime deal](https://buy.pabbly.com/connect-onetime/): a one-time payment from $349 for 3,000 tasks/month, $799 for 10,000, or $1,298 for 20,000. That's a single payment for perpetual access with a fixed monthly task allocation. For solopreneurs and small businesses running stable, predictable automations, the long-term savings compared to any recurring-fee platform are substantial.
 
 As of March 2026, Pabbly Connect supports over 2,000 application integrations and handles multi-step workflows, conditional logic, webhook triggers, and scheduled automation. However, the interface feels less polished than Zapier or Make, with occasional quirky UX decisions, and support is email-only on lower plans with response times that can stretch past 24 hours.
 
@@ -134,13 +134,13 @@ Workato is where you land when "we need Zapier but for the enterprise" stops bei
 
 Enterprise-grade security features include robust audit logging, role-based access control, environment management (dev/staging/production), and support SLAs backed by contractual commitments. Workato connects deeply into ERP systems, CRMs, HRIS platforms, and custom internal applications, making it the standard choice for enterprises running mission-critical integrations across SAP, Salesforce, Workday, and NetSuite.
 
-The pricing puts it firmly out of range for SMBs: expect starting costs around $1,000/month with pricing that scales based on connector count and recipe volume. This is negotiated, contract-based enterprise purchasing.
+Pricing puts it firmly out of range for SMBs. [Workato publishes no rates at all](https://www.workato.com/pricing) — every deal is quoted through sales and scales on connector count and recipe volume. This is negotiated, contract-based enterprise purchasing, so budget for a procurement cycle rather than a credit card.
 
 **Best for:** Enterprises running mission-critical integrations across ERP, CRM, and custom systems where governance, compliance, and reliable support SLAs justify the premium cost.
 
 ### Activepieces: Best Open-Source Pick for Non-Technical Users
 
-Activepieces occupies a useful niche: open-source automation that doesn't require DevOps expertise to get started. Activepieces is licensed under MIT, the self-hosted version is free, and the cloud tier offers a free plan for light usage.
+Activepieces occupies a useful niche: open-source automation that doesn't require DevOps expertise to get started. [Activepieces](https://www.activepieces.com/pricing) is licensed under MIT, the self-hosted version is free, and the cloud tier includes 10 free active flows before charging $5 per active flow per month with unlimited runs.
 
 The interface is cleaner and more approachable than n8n's, which makes Activepieces the better open-source pick for teams that want the benefits of open source (data control, no vendor lock-in, community-driven development) without the technical overhead of managing a self-hosted n8n instance.
 
@@ -158,15 +158,17 @@ The pricing includes a generous free tier for individual developers and usage-ba
 
 **Best for:** Developers who need broad integration support with the freedom to write custom logic in real code wherever a no-code connector doesn't exist.
 
-### Relay.app: Best for Human-in-the-Loop Workflows
+### Relay.app: Shutting Down in 2026
 
-Relay.app addresses a genuine gap that Zapier and most alternatives ignore: workflows where a human needs to approve, review, or decide before automation continues.
+**Relay.app is winding down.** [New signups and free-to-paid upgrades closed on July 16, 2026](https://www.relay.app/), free accounts stop working on August 15, 2026, and paying customers lose access on September 14, 2026. Do not start a new build here. If you are an existing user, export your data before your deadline and pick a replacement now — we cover the options in [Relay.app alternatives](/library/best-relay-app-alternatives-2026).
+
+It is worth understanding what Relay.app did well, because that is the capability you need to replace. Relay.app addressed a genuine gap that Zapier and most alternatives ignore: workflows where a human needs to approve, review, or decide before automation continues.
 
 Full automation is inappropriate in many business contexts. Legal review, financial approvals, content sign-off, HR decisions; these all involve judgment calls that you don't want an automation engine making unilaterally. But fully manual handling is equally wasteful when 90% of the workflow is routine, and only one step requires human input. Relay.app lets you build the automated pipeline and insert human decision points exactly where they're needed. The workflow pauses, notifies the right person, collects their input, and continues.
 
-The interface is clean, the setup is straightforward, and the concept is immediately understandable to non-technical stakeholders. The limitation is scope: Relay.app doesn't try to be a general-purpose automation powerhouse. It's purpose-built for approval and review workflows.
+The interface was clean, the setup straightforward, and the concept immediately understandable to non-technical stakeholders. The limitation was scope: Relay.app never tried to be a general-purpose automation powerhouse.
 
-**Best for:** RevOps, HR, legal, and finance teams where full automation is inappropriate but full manual handling is equally wasteful.
+**What to do instead:** if approval steps are the reason you were looking at Relay.app, choose a platform where human-in-the-loop is a first-class feature rather than a bolt-on. Sim ships approval blocks that pause a run, route it to the right person, and resume on their decision.
 
 ### Integrately: Best for One-Click Setup
 
@@ -189,37 +191,37 @@ Start with two questions: What specifically is failing for you in Zapier? And wh
 | I want AI agents that reason and decide, not just data routing | Sim | Native AI decision-making blocks, multi-LLM support, self-hostable |
 | I need self-hosting for data compliance | n8n or Sim | Both offer Docker/Kubernetes deployment with no data leaving your infrastructure |
 | I just want something cheaper with visual workflows | Make | Operations-based pricing costs 2 - 5x less than Zapier at equivalent volume |
-| I want the absolute lowest cost, period | Pabbly Connect | Flat-rate pricing, lifetime deal from $249 one-time, no per-task surcharges on internal steps |
+| I want the absolute lowest cost, period | Pabbly Connect | Flat-rate pricing, lifetime deal from $349 one-time, no per-task surcharges on internal steps |
 | I'm deep in the Microsoft ecosystem | Power Automate | Native M365/Azure/Dynamics integration, possibly already in your license |
 | I need enterprise governance and support SLAs | Workato | Built for mission-critical integration with audit logging and environment management |
 | I want open source, but I'm not deeply technical | Activepieces | MIT-licensed, cleaner UI than n8n, free self-hosted tier |
 | I need code + no-code in the same workflow | Pipedream | Write Node.js/Python/Go alongside no-code steps, serverless execution |
-| I need human approval steps in my automation | Relay.app | Purpose-built for workflows that pause for human review or decision |
+| I need human approval steps in my automation | Sim | Native approval steps that pause a run for human review, then resume (Relay.app, the former pick here, is shutting down in 2026) |
 | I want basic automation running in five minutes | Integrately | Pre-built one-click automations with minimal configuration |
 
 ## Zapier vs. Alternatives: Pricing Breakdown
 
-This table shows pricing as of mid-2026. Verify all figures directly with vendors before committing to a purchase, as pricing changes frequently.
+Every figure below was checked against the vendor's own pricing page on July 23, 2026, and each tool name links to the page it came from. Pricing changes often — click through and confirm before you commit to a purchase.
 
 | Tool | Pricing Model | Entry-Level Paid Plan | Tasks/Ops Included | Free Tier? | Self-Host Option? |
 | --- | --- | --- | --- | --- | --- |
-| Zapier | Per-task | $29.99/mo (monthly) | 750 tasks | Yes (100 tasks/mo, 2-step only) | No |
-| Sim | Credit-based | Varies by plan | Credit-based allocation | Yes (free plan, no CC required) | Yes (Docker/K8s) |
-| Make | Per-operation (credit) | ~$10.59/mo (annual) | 10,000 operations | Yes (1,000 ops/mo) | No |
-| n8n | Self-host free; cloud paid | ~$24/mo (cloud) | Unlimited (self-hosted) | Yes (self-hosted unlimited) | Yes |
-| Pabbly Connect | Flat-rate | $16/mo (annual) | 12,000 tasks | Yes (100 tasks/mo) | No |
-| Power Automate | Per-user/month | ~$15/user/mo | Varies by plan | Included in some M365 licenses | No (on-prem gateway available) |
-| Workato | Custom/contract | ~$1,000/mo | Negotiated | No | No |
-| Activepieces | Free self-hosted; cloud plans | Cloud free tier available | Varies | Yes (self-hosted unlimited) | Yes |
-| Pipedream | Usage-based | Free tier generous | Varies by plan | Yes | No |
-| Relay.app | Per-run | Varies | Varies by plan | Yes (limited) | No |
-| Integrately | Task-based | Competitive entry price | Varies by tier | Yes (limited) | No |
+| [Zapier](https://zapier.com/pricing) | Per-task | $29.99/mo (monthly), $19.99/mo (annual) | 750 tasks | Yes (100 tasks/mo, 2-step only) | No |
+| [Sim](https://sim.ai) | Credit-based | Varies by plan | Credit-based allocation | Yes (free plan, no CC required) | Yes (Docker/K8s) |
+| [Make](https://www.make.com/en/pricing) | Per-credit | $12/mo (monthly), ~15% off annual | 10,000 credits | Yes (1,000 credits/mo) | No |
+| [n8n](https://n8n.io/pricing/) | Self-host free; cloud paid | €20/mo (annual) | 2,500 executions cloud; unlimited self-hosted | Yes (self-hosted unlimited) | Yes |
+| [Pabbly Connect](https://www.pabbly.com/connect/) | Flat-rate + lifetime option | Standard tier; [lifetime from $349](https://buy.pabbly.com/connect-onetime/) | 10,000 tasks (Standard) | Yes (100 tasks/mo) | No |
+| [Power Automate](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) | Per-user/month | $15/user/mo (paid yearly) | Varies by plan | Included in some M365 licenses | No (on-prem gateway available) |
+| [Workato](https://www.workato.com/pricing) | Custom/contract | Not published — quote only | Negotiated | No | No |
+| [Activepieces](https://www.activepieces.com/pricing) | Free self-hosted; cloud plans | $5/active flow/mo after 10 free | Unlimited runs | Yes (10 active flows) | Yes (MIT) |
+| [Pipedream](https://pipedream.com/pricing) | Usage-based | Free tier generous | Varies by plan | Yes | No |
+| [Relay.app](https://www.relay.app/) | Shutting down 2026 | Closed to new signups | n/a | No (signups closed) | No |
+| [Integrately](https://integrately.com/pricing) | Task-based | Competitive entry price | Varies by tier | Yes (limited) | No |
 
 Key insights from this table:
 
 - Zapier's per-task model and operations-based models (Make) and flat-rate models (Pabbly Connect) behave very differently at scale
 - Zapier's per-step task counting model means costs escalate quickly as workflows grow in complexity
-- A five-step workflow running 100 times per day costs 500 tasks daily on Zapier, while Make's Core plan covers 10,000 operations per month for $10.59, and Pabbly's flat rate doesn't penalize you for internal steps at all
+- A five-step workflow running 100 times per day costs 500 tasks daily on Zapier, while Make's Core plan covers 10,000 credits per month for $12, and Pabbly's flat rate doesn't penalize you for internal steps at all
 - For high-volume teams, the annual difference can be thousands of dollars
 
 ## The Bottom Line
@@ -227,3 +229,5 @@ Key insights from this table:
 The best Zapier alternatives in 2026 are split into three categories. If your primary goal is cost reduction, Make and Pabbly Connect deliver the most dramatic savings with different trade-offs: Make gives you visual complexity at lower per-operation pricing, while Pabbly's flat rate and lifetime deal make costs fully predictable. If your goal is data control and compliance, n8n (self-hosted), Activepieces, and Sim all offer self-hosting options that keep your data on your own infrastructure. And if your workflows have outgrown trigger-action logic entirely and you need AI agents that reason, decide, and act across your stack, Sim is the platform built from the ground up for that shift.
 
 No single tool replaces Zapier for every team. Start by identifying the specific constraint that brought you here, whether it's pricing, complexity, data control, or AI capabilities, and match it against the routing table above. Most teams that switch successfully do so because they understand what they actually need rather than chasing the tool with the longest feature list.
+
+If n8n is the alternative you're leaning toward, we compare it against its own field in [10 best n8n alternatives](/library/n8n-alternatives). If you're evaluating on AI capability rather than cost, [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) covers the same ground from that angle, and [open-source AI agent platforms](/library/open-source-ai-agent-platforms) narrows it to self-hostable options. Teams who specifically need a human approval step should start with [Relay.app alternatives](/library/best-relay-app-alternatives-2026).

@@ -2,15 +2,15 @@
  * @vitest-environment node
  */
 
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { describe, expect, it, vi } from 'vitest'
-
-const execute = vi.hoisted(() => vi.fn())
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
-vi.mock('@sim/db', () => ({ dbReplica: { execute } }))
+
+const execute = dbChainMockFns.execute
 
 const dialect = new PgDialect()
 
@@ -32,7 +32,14 @@ import {
   getLatestCompletedGlobalWorkMonth,
 } from '@/lib/global-work/summary'
 
+afterAll(resetDbChainMock)
+
 describe('Global Work Pacific reporting windows', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
   it('defaults to the latest completed Pacific month across a year boundary', () => {
     expect(getLatestCompletedGlobalWorkMonth(new Date('2026-01-15T12:00:00.000Z'))).toBe('2025-12')
   })

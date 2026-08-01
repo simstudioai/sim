@@ -45,6 +45,14 @@ const hasDirectMigrationUrl = Boolean(process.env.MIGRATION_DATABASE_URL)
  * `max_lifetime: null` pins the session for the whole run: the postgres-js
  * default recycles the connection after 30–60 min, silently dropping the
  * session advisory lock and `SET`s.
+ *
+ * Deliberately does NOT set `fetch_types: false`, unlike the app pools in
+ * `packages/db/db.ts`. Script migrations bind JS arrays directly through
+ * postgres-js's own `sql` tag (`= ANY(${ids}::text[])`, `unnest(${ids}::text[])`),
+ * and that binding is powered by the `pg_catalog.pg_type` fetch this option would
+ * skip. Copying the app's options here for consistency fails every registered
+ * script migration with `22P02`, aborting the migration container and blocking
+ * startup on every deploy and every fresh self-hosted install.
  */
 const client = postgres(url, {
   max: 1,

@@ -1,9 +1,10 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { ChipInput, ChipModalField, ChipSelect, ChipTextarea, SecretInput, Switch } from '@sim/emcn'
+import { ChipInput, ChipSelect, ChipTextarea, SecretInput, Switch } from '@sim/emcn'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { DestinationType } from '@/lib/data-drains/types'
+import { SettingRow } from '@/ee/components/setting-row'
 
 type DestinationBranch = Pick<
   CreateDataDrainBody,
@@ -44,54 +45,67 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='Bucket'>
+      <SettingRow label='Bucket' htmlFor='drain-s3-bucket'>
         <ChipInput
+          id='drain-s3-bucket'
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
           placeholder='my-logs-bucket'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Region'>
+      </SettingRow>
+      <SettingRow label='Region' htmlFor='drain-s3-region'>
         <ChipInput
+          id='drain-s3-region'
           value={state.region}
           onChange={(e) => setState({ ...state, region: e.target.value })}
           placeholder='us-east-1'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Prefix (optional)'>
+      </SettingRow>
+      <SettingRow label='Prefix (optional)' htmlFor='drain-s3-prefix-optional'>
         <ChipInput
+          id='drain-s3-prefix-optional'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Endpoint (optional, S3-compatible stores)'>
+      </SettingRow>
+      <SettingRow
+        label='Endpoint (optional, S3-compatible stores)'
+        htmlFor='drain-s3-endpoint-optional-s3-compatible-stores'
+      >
         <ChipInput
+          id='drain-s3-endpoint-optional-s3-compatible-stores'
           value={state.endpoint}
           onChange={(e) => setState({ ...state, endpoint: e.target.value })}
           placeholder='https://s3.example.com'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Force path style (MinIO, Ceph)'>
+      </SettingRow>
+      <SettingRow
+        label='Force path style (MinIO, Ceph)'
+        htmlFor='drain-s3-force-path-style-minio-ceph'
+      >
         <Switch
+          id='drain-s3-force-path-style-minio-ceph'
           checked={state.forcePathStyle}
           onCheckedChange={(v) => setState({ ...state, forcePathStyle: v })}
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Access key ID'>
+      </SettingRow>
+      <SettingRow label='Access key ID' htmlFor='drain-s3-access-key-id'>
         <SecretInput
+          id='drain-s3-access-key-id'
           value={state.accessKeyId}
           onChange={(v) => setState({ ...state, accessKeyId: v })}
           placeholder='AKIA...'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Secret access key'>
+      </SettingRow>
+      <SettingRow label='Secret access key' htmlFor='drain-s3-secret-access-key'>
         <SecretInput
+          id='drain-s3-secret-access-key'
           value={state.secretAccessKey}
           onChange={(v) => setState({ ...state, secretAccessKey: v })}
           placeholder='Paste your secret access key'
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) =>
@@ -126,28 +140,31 @@ const gcsFormSpec: DestinationFormSpec<GCSState> = {
   initialState: { bucket: '', prefix: '', serviceAccountJson: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='Bucket'>
+      <SettingRow label='Bucket' htmlFor='drain-gcs-bucket'>
         <ChipInput
+          id='drain-gcs-bucket'
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
           placeholder='my-logs-bucket'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Prefix (optional)'>
+      </SettingRow>
+      <SettingRow label='Prefix (optional)' htmlFor='drain-gcs-prefix-optional'>
         <ChipInput
+          id='drain-gcs-prefix-optional'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Service account JSON key'>
+      </SettingRow>
+      <SettingRow label='Service account JSON key' htmlFor='drain-gcs-service-account-json-key'>
         <ChipTextarea
+          id='drain-gcs-service-account-json-key'
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
           rows={6}
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) => s.bucket.length >= 3 && s.serviceAccountJson.length > 0,
@@ -177,41 +194,49 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='Account name'>
+      <SettingRow label='Account name' htmlFor='drain-azure-blob-account-name'>
         <ChipInput
+          id='drain-azure-blob-account-name'
           value={state.accountName}
           onChange={(e) => setState({ ...state, accountName: e.target.value })}
           placeholder='mystorageaccount'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Container'>
+      </SettingRow>
+      <SettingRow label='Container' htmlFor='drain-azure-blob-container'>
         <ChipInput
+          id='drain-azure-blob-container'
           value={state.containerName}
           onChange={(e) => setState({ ...state, containerName: e.target.value })}
           placeholder='sim-exports'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Prefix (optional)'>
+      </SettingRow>
+      <SettingRow label='Prefix (optional)' htmlFor='drain-azure-blob-prefix-optional'>
         <ChipInput
+          id='drain-azure-blob-prefix-optional'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Endpoint suffix (optional)'>
+      </SettingRow>
+      <SettingRow
+        label='Endpoint suffix (optional)'
+        htmlFor='drain-azure-blob-endpoint-suffix-optional'
+      >
         <ChipInput
+          id='drain-azure-blob-endpoint-suffix-optional'
           value={state.endpointSuffix}
           onChange={(e) => setState({ ...state, endpointSuffix: e.target.value })}
           placeholder='blob.core.windows.net'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Account key'>
+      </SettingRow>
+      <SettingRow label='Account key' htmlFor='drain-azure-blob-account-key'>
         <SecretInput
+          id='drain-azure-blob-account-key'
           value={state.accountKey}
           onChange={(v) => setState({ ...state, accountKey: v })}
           placeholder='Paste your storage account key'
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) =>
@@ -250,35 +275,42 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
   initialState: { site: 'us1', service: '', tags: '', apiKey: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='Site'>
+      <SettingRow label='Site'>
         <ChipSelect
+          aria-label='Site'
           value={state.site}
           onChange={(v) => setState({ ...state, site: v as DatadogState['site'] })}
           options={DATADOG_SITE_OPTIONS}
           align='start'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Service (optional)'>
+      </SettingRow>
+      <SettingRow label='Service (optional)' htmlFor='drain-datadog-service-optional'>
         <ChipInput
+          id='drain-datadog-service-optional'
           value={state.service}
           onChange={(e) => setState({ ...state, service: e.target.value })}
           placeholder='sim'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Tags (optional, comma-separated)'>
+      </SettingRow>
+      <SettingRow
+        label='Tags (optional, comma-separated)'
+        htmlFor='drain-datadog-tags-optional-comma-separated'
+      >
         <ChipInput
+          id='drain-datadog-tags-optional-comma-separated'
           value={state.tags}
           onChange={(e) => setState({ ...state, tags: e.target.value })}
           placeholder='env:prod,team:platform'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='API key'>
+      </SettingRow>
+      <SettingRow label='API key' htmlFor='drain-datadog-api-key'>
         <SecretInput
+          id='drain-datadog-api-key'
           value={state.apiKey}
           onChange={(v) => setState({ ...state, apiKey: v })}
           placeholder='Paste your Datadog API key'
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) => s.apiKey.length > 0,
@@ -305,35 +337,42 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
   initialState: { projectId: '', datasetId: '', tableId: '', serviceAccountJson: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='Project ID'>
+      <SettingRow label='Project ID' htmlFor='drain-bigquery-project-id'>
         <ChipInput
+          id='drain-bigquery-project-id'
           value={state.projectId}
           onChange={(e) => setState({ ...state, projectId: e.target.value })}
           placeholder='my-gcp-project'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Dataset'>
+      </SettingRow>
+      <SettingRow label='Dataset' htmlFor='drain-bigquery-dataset'>
         <ChipInput
+          id='drain-bigquery-dataset'
           value={state.datasetId}
           onChange={(e) => setState({ ...state, datasetId: e.target.value })}
           placeholder='sim_drains'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Table'>
+      </SettingRow>
+      <SettingRow label='Table' htmlFor='drain-bigquery-table'>
         <ChipInput
+          id='drain-bigquery-table'
           value={state.tableId}
           onChange={(e) => setState({ ...state, tableId: e.target.value })}
           placeholder='workflow_logs'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Service account JSON key'>
+      </SettingRow>
+      <SettingRow
+        label='Service account JSON key'
+        htmlFor='drain-bigquery-service-account-json-key'
+      >
         <ChipTextarea
+          id='drain-bigquery-service-account-json-key'
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
           rows={6}
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) =>
@@ -375,70 +414,82 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='Account identifier'>
+      <SettingRow label='Account identifier' htmlFor='drain-snowflake-account-identifier'>
         <ChipInput
+          id='drain-snowflake-account-identifier'
           value={state.account}
           onChange={(e) => setState({ ...state, account: e.target.value })}
           placeholder='orgname-accountname'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='User'>
+      </SettingRow>
+      <SettingRow label='User' htmlFor='drain-snowflake-user'>
         <ChipInput
+          id='drain-snowflake-user'
           value={state.user}
           onChange={(e) => setState({ ...state, user: e.target.value })}
           placeholder='SIM_DRAIN_USER'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Warehouse'>
+      </SettingRow>
+      <SettingRow label='Warehouse' htmlFor='drain-snowflake-warehouse'>
         <ChipInput
+          id='drain-snowflake-warehouse'
           value={state.warehouse}
           onChange={(e) => setState({ ...state, warehouse: e.target.value })}
           placeholder='COMPUTE_WH'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Database'>
+      </SettingRow>
+      <SettingRow label='Database' htmlFor='drain-snowflake-database'>
         <ChipInput
+          id='drain-snowflake-database'
           value={state.database}
           onChange={(e) => setState({ ...state, database: e.target.value })}
           placeholder='SIM'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Schema'>
+      </SettingRow>
+      <SettingRow label='Schema' htmlFor='drain-snowflake-schema'>
         <ChipInput
+          id='drain-snowflake-schema'
           value={state.schema}
           onChange={(e) => setState({ ...state, schema: e.target.value })}
           placeholder='PUBLIC'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Table'>
+      </SettingRow>
+      <SettingRow label='Table' htmlFor='drain-snowflake-table'>
         <ChipInput
+          id='drain-snowflake-table'
           value={state.table}
           onChange={(e) => setState({ ...state, table: e.target.value })}
           placeholder='WORKFLOW_LOGS'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Column (optional, defaults to "DATA")'>
+      </SettingRow>
+      <SettingRow
+        label='Column (optional, defaults to "DATA")'
+        htmlFor='drain-snowflake-column-optional-defaults-to-data'
+      >
         <ChipInput
+          id='drain-snowflake-column-optional-defaults-to-data'
           value={state.column}
           onChange={(e) => setState({ ...state, column: e.target.value })}
           placeholder='DATA'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Role (optional)'>
+      </SettingRow>
+      <SettingRow label='Role (optional)' htmlFor='drain-snowflake-role-optional'>
         <ChipInput
+          id='drain-snowflake-role-optional'
           value={state.role}
           onChange={(e) => setState({ ...state, role: e.target.value })}
           placeholder='SIM_DRAIN_ROLE'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Private key (PEM, PKCS8)'>
+      </SettingRow>
+      <SettingRow label='Private key (PEM, PKCS8)' htmlFor='drain-snowflake-private-key-pem-pkcs8'>
         <ChipTextarea
+          id='drain-snowflake-private-key-pem-pkcs8'
           value={state.privateKey}
           onChange={(e) => setState({ ...state, privateKey: e.target.value })}
           placeholder='-----BEGIN PRIVATE KEY-----'
           rows={6}
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) =>
@@ -477,34 +528,41 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
   initialState: { url: '', signatureHeader: '', signingSecret: '', bearerToken: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <ChipModalField type='custom' flush title='URL'>
+      <SettingRow label='URL' htmlFor='drain-webhook-url'>
         <ChipInput
+          id='drain-webhook-url'
           value={state.url}
           onChange={(e) => setState({ ...state, url: e.target.value })}
           placeholder='https://example.com/sim-drain'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Signature header (optional)'>
+      </SettingRow>
+      <SettingRow
+        label='Signature header (optional)'
+        htmlFor='drain-webhook-signature-header-optional'
+      >
         <ChipInput
+          id='drain-webhook-signature-header-optional'
           value={state.signatureHeader}
           onChange={(e) => setState({ ...state, signatureHeader: e.target.value })}
           placeholder='X-Sim-Signature'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Signing secret'>
+      </SettingRow>
+      <SettingRow label='Signing secret' htmlFor='drain-webhook-signing-secret'>
         <SecretInput
+          id='drain-webhook-signing-secret'
           value={state.signingSecret}
           onChange={(v) => setState({ ...state, signingSecret: v })}
           placeholder='At least 32 characters'
         />
-      </ChipModalField>
-      <ChipModalField type='custom' flush title='Bearer token (optional)'>
+      </SettingRow>
+      <SettingRow label='Bearer token (optional)' htmlFor='drain-webhook-bearer-token-optional'>
         <SecretInput
+          id='drain-webhook-bearer-token-optional'
           value={state.bearerToken}
           onChange={(v) => setState({ ...state, bearerToken: v })}
           placeholder='Paste your bearer token'
         />
-      </ChipModalField>
+      </SettingRow>
     </>
   ),
   isComplete: (s) => s.url.length > 0 && s.signingSecret.length >= 32,

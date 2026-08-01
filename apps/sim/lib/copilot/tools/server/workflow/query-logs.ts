@@ -145,12 +145,17 @@ export const queryLogsServerTool: BaseServerTool<QueryLogsArgs, unknown> = {
 
     if (args.pattern) {
       logger.info('query_logs grep', { workspaceId, executionId: args.executionId })
-      const { matches, truncated } = await grepSpans(traceSpans, args.pattern, viewCtx)
+      const { matches, truncated, patternNotice } = await grepSpans(
+        traceSpans,
+        args.pattern,
+        viewCtx
+      )
       return {
         executionId: detail.executionId,
         workflowId: detail.workflowId,
         status: detail.status,
         pattern: args.pattern,
+        ...(patternNotice ? { patternNotice } : {}),
         matches,
         truncated,
       }

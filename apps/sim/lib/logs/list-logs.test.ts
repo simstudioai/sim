@@ -2,18 +2,12 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { selectMock } = vi.hoisted(() => ({ selectMock: vi.fn() }))
-
-vi.mock('@sim/db', () => {
-  const instance = { select: selectMock }
-  return { db: instance, dbReplica: instance }
-})
-
-// Local drizzle-orm mock: the global mock's `sql` lacks `.as()` and the chain
-// mock doesn't support `.orderBy().limit()`. We only need condition/sql builders
-// to produce truthy stubs (the mocked db ignores them).
+// Local drizzle-orm mock: the global mock's `sql` lacks `.as()`. We only need
+// condition/sql builders to produce truthy stubs (the mocked db ignores them).
 vi.mock('drizzle-orm', () => {
   const make = (): Record<string, unknown> => {
     const o: Record<string, unknown> = {}
@@ -64,15 +58,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import type { ListLogsParams } from './list-logs'
 import { decodeCursor, listLogs } from './list-logs'
 
-/** A chainable, thenable query-builder stub that resolves to the given rows. */
-function builder(rows: unknown[]) {
-  const b: Record<string, unknown> = {}
-  for (const method of ['from', 'leftJoin', 'innerJoin', 'where', 'orderBy', 'limit']) {
-    b[method] = () => b
-  }
-  ;(b as { then: unknown }).then = (resolve: (value: unknown) => unknown) => resolve(rows)
-  return b
-}
+afterAll(resetDbChainMock)
 
 function workflowRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -136,12 +122,12 @@ function baseParams(overrides: Partial<ListLogsParams> = {}): ListLogsParams {
 describe('listLogs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('merges workflow and job rows into summaries', async () => {
-    selectMock
-      .mockReturnValueOnce(builder([workflowRow()]))
-      .mockReturnValueOnce(builder([jobRow()]))
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
+    queueTableRows(jobExecutionLogs, [jobRow()])
 
     const result = await listLogs(baseParams(), 'user-1')
 
@@ -165,14 +151,11 @@ describe('listLogs', () => {
 
   it('returns a decodable nextCursor when results exceed the limit', async () => {
     // limit 1, two workflow rows → page of 1, hasMore true
-    selectMock
-      .mockReturnValueOnce(
-        builder([
-          workflowRow({ id: 'log-a', sortValue: new Date('2026-01-02T00:00:00.000Z') }),
-          workflowRow({ id: 'log-b', sortValue: new Date('2026-01-01T00:00:00.000Z') }),
-        ])
-      )
-      .mockReturnValueOnce(builder([]))
+    queueTableRows(workflowExecutionLogs, [
+      workflowRow({ id: 'log-a', sortValue: new Date('2026-01-02T00:00:00.000Z') }),
+      workflowRow({ id: 'log-b', sortValue: new Date('2026-01-01T00:00:00.000Z') }),
+    ])
+    queueTableRows(jobExecutionLogs, [])
 
     const result = await listLogs(baseParams({ limit: 1 }), 'user-1')
 
@@ -183,12 +166,12 @@ describe('listLogs', () => {
   })
 
   it('excludes job logs when a workflow-specific filter is present', async () => {
-    selectMock.mockReturnValueOnce(builder([workflowRow()]))
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
 
     const result = await listLogs(baseParams({ workflowIds: 'wf-1' }), 'user-1')
 
     // Only the workflow query runs; the job query is Promise.resolve([]).
-    expect(selectMock).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     expect(result.data).toHaveLength(1)
     expect(result.data[0].workflowId).toBe('wf-1')
   })

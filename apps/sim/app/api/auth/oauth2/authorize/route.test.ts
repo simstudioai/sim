@@ -1,8 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMockRequest,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvMock,
+  setEnv,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetSession,
@@ -15,8 +21,6 @@ const {
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/auth/auth', () => ({
   auth: { api: { oAuth2LinkAccount: mockOAuth2LinkAccount } },
@@ -70,10 +74,14 @@ function oauthCredentialActor(overrides: Record<string, unknown> = {}) {
 }
 
 describe('OAuth2 authorize route', () => {
+  afterAll(() => {
+    resetEnvMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    process.env.NEXT_PUBLIC_APP_URL = BASE_URL
+    setEnv({ NEXT_PUBLIC_APP_URL: BASE_URL })
     mockGetSession.mockResolvedValue({ user: { id: USER_ID } })
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,

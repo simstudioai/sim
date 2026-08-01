@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
+import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 const mockFetch = vi.fn()
 
@@ -48,7 +49,7 @@ describe('validateShopifyServiceAccount', () => {
       normalizedDomain: 'acme-store.myshopify.com',
     })
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://acme-store.myshopify.com/admin/api/2024-10/graphql.json',
+      `https://acme-store.myshopify.com/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
       {
         method: 'POST',
         headers: {

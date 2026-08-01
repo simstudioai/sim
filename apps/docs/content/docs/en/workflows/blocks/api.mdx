@@ -40,6 +40,7 @@ The request payload for POST, PUT, and PATCH, sent as JSON. Type it directly, or
 - **Retries.** Number of retry attempts on timeouts, `429` responses, and `5xx` errors. Defaults to 0.
 - **Retry delay / Max retry delay (ms).** The exponential-backoff bounds used between retries.
 - **Retry non-idempotent methods.** Off by default, so POST and PATCH are not retried, which avoids duplicate writes. Turn it on only when a repeated request is safe.
+- **Proxy URL.** Optional `http://` proxy the request egresses through, such as a residential proxy for targets that block datacenter IPs. The proxy host must be publicly reachable, and only the `http://` scheme is supported (an `https://` target still tunnels through it securely). Keep proxy credentials in an environment variable and reference it as `{{PROXY_URL}}` rather than typing them into the field.
 
 ## Outputs
 

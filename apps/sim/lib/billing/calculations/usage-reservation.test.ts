@@ -1,24 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockFlags } = vi.hoisted(() => ({
-  mockFlags: { isBillingEnabled: true, isHosted: true },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFlags.isBillingEnabled
-  },
-  get isHosted() {
-    return mockFlags.isHosted
-  },
-}))
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
+import { redisConfigMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   releaseExecutionSlot,
   reserveExecutionSlot,
@@ -54,11 +38,13 @@ function hashTag(key: string): string | undefined {
   return key.match(/\{([^}]+)\}/)?.[1]
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('usage-reservation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFlags.isBillingEnabled = true
-    mockFlags.isHosted = true
+    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isHosted: true })
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
   })
 
@@ -253,14 +239,14 @@ describe('usage-reservation', () => {
     })
 
     it('is a no-op when billing enforcement is disabled', async () => {
-      mockFlags.isBillingEnabled = false
+      setEnvFlags({ isBillingEnabled: false })
       const result = await reserveExecutionSlot(baseParams)
       expect(result.reserved).toBe(true)
       expect(evalMock).not.toHaveBeenCalled()
     })
 
     it('is a no-op on self-hosted deployments', async () => {
-      mockFlags.isHosted = false
+      setEnvFlags({ isHosted: false })
       const result = await reserveExecutionSlot(baseParams)
       expect(result).toEqual({ reserved: true, created: false })
       expect(evalMock).not.toHaveBeenCalled()
@@ -427,7 +413,7 @@ describe('usage-reservation', () => {
     })
 
     it('is a no-op when billing enforcement is disabled', async () => {
-      mockFlags.isBillingEnabled = false
+      setEnvFlags({ isBillingEnabled: false })
       await releaseExecutionSlot('exec-1')
       expect(getMock).not.toHaveBeenCalled()
     })

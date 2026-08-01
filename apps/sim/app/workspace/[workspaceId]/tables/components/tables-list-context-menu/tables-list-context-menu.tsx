@@ -1,7 +1,7 @@
 'use client'
 
 import { DropdownMenuItem, Upload } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { FolderPlus, Plus } from '@sim/emcn/icons'
 import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
 interface TablesListContextMenuProps {
@@ -9,8 +9,10 @@ interface TablesListContextMenuProps {
   position: { x: number; y: number }
   onClose: () => void
   onCreateTable?: () => void
+  onCreateFolder?: () => void
   onUploadCsv?: () => void
   disableCreate?: boolean
+  disableCreateFolder?: boolean
   disableUpload?: boolean
 }
 
@@ -19,8 +21,10 @@ export function TablesListContextMenu({
   position,
   onClose,
   onCreateTable,
+  onCreateFolder,
   onUploadCsv,
   disableCreate = false,
+  disableCreateFolder = false,
   disableUpload = false,
 }: TablesListContextMenuProps) {
   return (
@@ -29,6 +33,12 @@ export function TablesListContextMenu({
         <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
           <Plus />
           Create table
+        </DropdownMenuItem>
+      )}
+      {onCreateFolder && (
+        <DropdownMenuItem disabled={disableCreateFolder} onSelect={onCreateFolder}>
+          <FolderPlus />
+          New folder
         </DropdownMenuItem>
       )}
       {onUploadCsv && (

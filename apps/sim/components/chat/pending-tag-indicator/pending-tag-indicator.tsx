@@ -9,10 +9,15 @@ import { ThinkingLoader } from '@/components/ui'
  * because every chat surface shows it, including ones that draw no special
  * tags at all.
  */
-export function PendingTagIndicator() {
+interface PendingTagIndicatorProps {
+  /** Activity copy shown beside the shimmer. Defaults to the generic wait. */
+  label?: string
+}
+
+export function PendingTagIndicator({ label = 'Thinking…' }: PendingTagIndicatorProps = {}) {
   return (
     <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' label='Thinking…' labelRatio={0.7} />
+      <ThinkingLoader size={20} startVariant='corners' label={label} labelRatio={0.7} />
     </div>
   )
 }

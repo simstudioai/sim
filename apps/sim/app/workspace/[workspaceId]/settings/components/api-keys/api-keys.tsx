@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipConfirmModal, Switch, Tooltip, toast } from '@sim/emcn'
+import { ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
@@ -98,6 +98,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
   const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
   const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
+  const conflictNames = useMemo(() => new Set(conflicts), [conflicts])
   const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
 
   const allowPersonalApiKeys =
@@ -264,7 +265,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
               <SettingsSection label='Personal'>
                 <div className='flex flex-col gap-2'>
                   {filteredPersonalKeys.map(({ key }) => {
-                    const isConflict = conflicts.includes(key.name)
+                    const isConflict = conflictNames.has(key.name)
                     return (
                       <div key={key.id} className='flex flex-col gap-2'>
                         <div className='flex items-center justify-between gap-3'>
@@ -318,11 +319,12 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
             <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-[var(--text-body)] text-sm'>Allow personal API keys</span>
+                  <Label htmlFor='allow-personal-api-keys'>Allow personal API keys</Label>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <button
                         type='button'
+                        aria-label='About personal API keys'
                         className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
                       >
                         <Info className='size-[12px]' strokeWidth={2} />
@@ -337,6 +339,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                 </div>
                 {isLoadingSettings ? null : (
                   <Switch
+                    id='allow-personal-api-keys'
                     checked={allowPersonalApiKeys}
                     disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
                     onCheckedChange={async (checked) => {

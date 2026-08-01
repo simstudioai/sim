@@ -241,7 +241,7 @@ Search for contacts in HubSpot using filters, sorting, and queries
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against contact name, email, and other text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["email", "firstname", "lastname", "phone"\]\) |
-| `limit` | number | No | Maximum number of results to return \(max 100\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
 | `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
@@ -460,7 +460,7 @@ Search for companies in HubSpot using filters, sorting, and queries
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against company name, domain, and other text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["name", "domain", "industry"\]\) |
-| `limit` | number | No | Maximum number of results to return \(max 100\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
 | `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
@@ -577,7 +577,7 @@ Create a new deal in HubSpot with the given properties (e.g., dealname, amount, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Yes | Deal properties as JSON object. Must include dealname \(e.g., \{"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"\}\) |
+| `properties` | object | Yes | Deal properties as JSON object. Should include dealname and dealstage, plus pipeline when the account has multiple pipelines \(e.g., \{"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"\}\) |
 | `associations` | array | No | Array of associations to create with the deal as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
 
 #### Output
@@ -644,7 +644,7 @@ Search for deals in HubSpot using filters, sorting, and queries
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against deal name and other text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["dealname", "amount", "dealstage"\]\) |
-| `limit` | number | No | Maximum number of results to return \(max 200\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
 | `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
@@ -811,7 +811,7 @@ Search for tickets in HubSpot using filters, sorting, and queries
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against ticket subject and other text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["subject", "content", "hs_ticket_priority"\]\) |
-| `limit` | number | No | Maximum number of results to return \(max 200\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
 | `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
@@ -936,7 +936,7 @@ Search for notes in HubSpot using filters, sorting, and queries
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against note text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["hs_note_body", "hs_timestamp", "hubspot_owner_id"\]\) |
-| `limit` | number | No | Maximum number of results to return \(max 100\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
 | `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
@@ -1076,7 +1076,7 @@ Search for email engagements in HubSpot using filters, sorting, and queries
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against email text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["hs_email_subject", "hs_email_text", "hs_timestamp"\]\) |
-| `limit` | number | No | Maximum number of results to return \(max 100\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
 | `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
@@ -1187,6 +1187,282 @@ Associate two HubSpot records. Creates the default (unlabeled) association unles
 | `fromObjectId` | string | ID of the source record |
 | `toObjectId` | string | ID of the associated target record |
 | `labels` | array | Association labels \(empty for default associations\) |
+| `success` | boolean | Operation success status |
+
+### `hubspot_delete_association`
+
+Remove all associations between two HubSpot records
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The source object type \(e.g., "contacts", "companies", "deals"\) |
+| `objectId` | string | Yes | The ID of the source record |
+| `toObjectType` | string | Yes | The target object type \(e.g., "emails", "notes", "contacts"\) |
+| `toObjectId` | string | Yes | The ID of the target record |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fromObjectId` | string | Source record ID |
+| `toObjectId` | string | Target record ID |
+| `deleted` | boolean | Whether the associations were removed |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_association_labels`
+
+Retrieve the association types (category, typeId, label) defined between two HubSpot object types
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The source object type \(e.g., "contacts", "companies", "deals"\) |
+| `toObjectType` | string | Yes | The target object type \(e.g., "emails", "notes", "contacts"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `labels` | array | Association types defined between the two object types |
+|   ↳ `category` | string | Association category \(HUBSPOT_DEFINED or USER_DEFINED\) |
+|   ↳ `typeId` | number | Association type ID |
+|   ↳ `label` | string | Human-readable label \(null for unlabeled defaults\) |
+| `success` | boolean | Operation success status |
+
+### `hubspot_delete_contact`
+
+Archive a contact in HubSpot by ID (moves it to the recycling bin)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The numeric ID of the contact to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contactId` | string | ID of the deleted contact |
+| `deleted` | boolean | Whether the contact was archived |
+| `success` | boolean | Operation success status |
+
+### `hubspot_delete_company`
+
+Archive a company in HubSpot by ID (moves it to the recycling bin)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The numeric ID of the company to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyId` | string | ID of the deleted company |
+| `deleted` | boolean | Whether the company was archived |
+| `success` | boolean | Operation success status |
+
+### `hubspot_delete_deal`
+
+Archive a deal in HubSpot by ID (moves it to the recycling bin)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dealId` | string | Yes | The numeric ID of the deal to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dealId` | string | ID of the deleted deal |
+| `deleted` | boolean | Whether the deal was archived |
+| `success` | boolean | Operation success status |
+
+### `hubspot_delete_ticket`
+
+Archive a ticket in HubSpot by ID (moves it to the recycling bin)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Yes | The numeric ID of the ticket to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticketId` | string | ID of the deleted ticket |
+| `deleted` | boolean | Whether the ticket was archived |
+| `success` | boolean | Operation success status |
+
+### `hubspot_delete_line_item`
+
+Archive a line item in HubSpot by ID (moves it to the recycling bin)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lineItemId` | string | Yes | The numeric ID of the line item to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineItemId` | string | ID of the deleted line item |
+| `deleted` | boolean | Whether the line item was archived |
+| `success` | boolean | Operation success status |
+
+### `hubspot_search_line_items`
+
+Search for line items in HubSpot using filters, sorting, and queries
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+| `query` | string | No | Search query string to match against line item name and other text fields |
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["name", "quantity", "price"\]\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineItems` | array | Array of HubSpot line item records |
+|   ↳ `name` | string | Line item name |
+|   ↳ `description` | string | Full description of the product |
+|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|   ↳ `quantity` | string | Number of units included |
+|   ↳ `price` | string | Unit price |
+|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|   ↳ `hs_line_item_currency_code` | string | Currency code |
+|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `total` | number | Total number of matching line items |
+| `success` | boolean | Operation success status |
+
+### `hubspot_search_quotes`
+
+Search for quotes in HubSpot using filters, sorting, and queries
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+| `query` | string | No | Search query string to match against quote title and other text fields |
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["hs_title", "hs_expiration_date"\]\) |
+| `limit` | number | No | Maximum number of results to return \(max 200, default 10\) |
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `quotes` | array | Array of HubSpot quote records |
+|   ↳ `hs_title` | string | Quote name/title |
+|   ↳ `hs_expiration_date` | string | Expiration date |
+|   ↳ `hs_status` | string | Quote status |
+|   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `total` | number | Total number of matching quotes |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_list_memberships`
+
+Retrieve the record IDs that are members of a HubSpot list, ordered by record ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | The ID of the list to read members from |
+| `limit` | string | No | Maximum number of results per page \(max 250, default 100\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `memberships` | array | Records that are members of the list |
+|   ↳ `recordId` | string | ID of the member record |
+|   ↳ `membershipTimestamp` | string | When the record was added to the list |
+| `success` | boolean | Operation success status |
+
+### `hubspot_add_list_memberships`
+
+Add records to a manual (static) HubSpot list by record ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | The ID of the list to add records to \(MANUAL or SNAPSHOT lists only\) |
+| `recordIds` | array | Yes | Record IDs to add to the list, as a JSON array \(e.g., \["123","456"\]\) or comma-separated string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordIdsAdded` | array | IDs of the records that were added to the list |
+| `recordIdsMissing` | array | IDs of the requested records that were not found |
+| `success` | boolean | Operation success status |
+
+### `hubspot_remove_list_memberships`
+
+Remove records from a manual (static) HubSpot list by record ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | The ID of the list to remove records from \(MANUAL or SNAPSHOT lists only\) |
+| `recordIds` | array | Yes | Record IDs to remove from the list, as a JSON array \(e.g., \["123","456"\]\) or comma-separated string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordIdsRemoved` | array | IDs of the records that were removed from the list |
+| `recordIdsMissing` | array | IDs of the requested records that were not found |
 | `success` | boolean | Operation success status |
 
 ### `hubspot_list_line_items`
@@ -1459,7 +1735,7 @@ Create a new appointment in HubSpot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Yes | Appointment properties as JSON object \(e.g., \{"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"\}\) |
+| `properties` | object | Yes | Appointment properties as JSON object. Must include hs_appointment_start \(e.g., \{"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"\}\) |
 | `associations` | array | No | Array of associations to create with the appointment as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
 
 #### Output
@@ -1784,7 +2060,7 @@ Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom o
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | Connect a HubSpot account so Sim can poll your CRM on your behalf. |
 | `objectType` | string | Yes | What you want to watch. |
-| `customObjectTypeId` | string | No | HubSpot custom object type ID \(e.g.  |
+| `customObjectTypeId` | string | No | HubSpot custom object type ID \(e.g. "2-12345"\). Find it in HubSpot Settings → Objects → Custom Objects. |
 | `listId` | string | No | The HubSpot list to watch for new members. |
 | `eventType` | string | No | Created fires once per new record. Updated fires on any modification. Property Changed fires only when the chosen property changes value. |
 | `targetPropertyName` | string | No | Fires only when this specific property changes value on a record. |
@@ -1792,7 +2068,7 @@ Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom o
 | `pipelineId` | string | No | Restrict to a single pipeline. |
 | `stageId` | string | No | Restrict to a single stage within the selected pipeline. |
 | `ownerId` | string | No | Restrict to records owned by a specific HubSpot user. |
-| `filters` | string | No | JSON array of HubSpot search filters, AND-combined. Each item: \{ |
+| `filters` | string | No | JSON array of HubSpot search filters, AND-combined. Each item: \{"propertyName":"...","operator":"EQ","value":"..."\}. Operators: EQ, NEQ, CONTAINS_TOKEN, NOT_CONTAINS_TOKEN, GT, GTE, LT, LTE, BETWEEN, IN, NOT_IN, HAS_PROPERTY, NOT_HAS_PROPERTY. |
 | `maxRecordsPerPoll` | string | No | Soft cap on records emitted per poll \(default 50, max 1000\). Excess rolls over to the next poll. |
 
 #### Output

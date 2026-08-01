@@ -1,9 +1,3 @@
-export type {
-  AddResourceDropdownProps,
-  AvailableItem,
-  FileFolderTreeNode,
-  WorkflowTreeNode,
-} from './add-resource-dropdown'
 export {
   AddResourceDropdown,
   buildFileFolderTree,

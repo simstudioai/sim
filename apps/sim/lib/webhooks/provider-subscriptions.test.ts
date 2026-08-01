@@ -1,16 +1,17 @@
 /**
  * @vitest-environment node
  */
+
+import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetEffectiveDecryptedEnv, mockGetProviderHandler } = vi.hoisted(() => ({
-  mockGetEffectiveDecryptedEnv: vi.fn(),
+const { mockGetEffectiveDecryptedEnv } = environmentUtilsMockFns
+
+afterAll(resetEnvironmentUtilsMock)
+
+const { mockGetProviderHandler } = vi.hoisted(() => ({
   mockGetProviderHandler: vi.fn(),
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveDecryptedEnv: mockGetEffectiveDecryptedEnv,
 }))
 
 vi.mock('@/lib/webhooks/providers', () => ({

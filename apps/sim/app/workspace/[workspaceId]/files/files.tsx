@@ -33,10 +33,14 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/components/resources/file-view'
+// boundary-resource-internal: file-doc presence pieces the page header renders beside the view; not part of the view's own surface
+import { FileDocAvatars } from '@/components/resources/file-view/components/rich-markdown-editor/collaboration/file-doc-avatars'
+// boundary-resource-internal: file-doc presence pieces the page header renders beside the view; not part of the view's own surface
+import { FileDocRoomProvider } from '@/components/resources/file-view/components/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { generateUniqueName } from '@/lib/core/utils/unique-name'
 import { captureEvent } from '@/lib/posthog/client'
-import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
@@ -73,11 +77,16 @@ import {
   timeCell,
   useBackgroundContextMenu,
 } from '@/app/workspace/[workspaceId]/components'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import {
+  parseMoveOptionValue,
+  ROOT_MOVE_OPTION_VALUE,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
+import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import {
   filesFilterParsers,
   filesFilterUrlKeys,
@@ -85,8 +94,15 @@ import {
   filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  uniqueMarkdownName,
+} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -210,6 +226,11 @@ export function Files() {
   const grants = useMemo(() => grantsFromPermissions(userPermissions), [userPermissions])
   const { config: permissionConfig } = usePermissionConfig()
 
+  // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
+  // browser. "Who's in this file" comes from the file-doc room (see FileDocRoomProvider),
+  // not from who's browsing the Files section.
+  useWorkspaceFilesRoom(workspaceId)
+
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
       router.replace(`/workspace/${workspaceId}`)
@@ -219,6 +240,11 @@ export function Files() {
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const pinnedFileIds = usePinnedIds(workspaceId, 'file')
+  // Folders pin under their own resource type, so their pinned set is a separate query.
+  const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const pinItem = usePinItem()
+  const unpinItem = useUnpinItem()
   const membersById = useMemo(() => {
     const map = new Map<string, WorkspaceMember>()
     for (const member of members ?? []) map.set(member.userId, member)
@@ -363,6 +389,34 @@ export function Files() {
     [selectedFile, workspaceId]
   )
 
+  /**
+   * While a file is still untitled, name it after the leading heading the user types in its editor. The
+   * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
+   * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   */
+  const handleDeriveTitleFromHeading = useCallback(
+    (headingText: string) => {
+      const currentFile = selectedFileRef.current
+      if (!currentFile || !isUntitledName(currentFile.name)) return
+      const derived = deriveMarkdownFileName(headingText)
+      if (!derived) return
+      const siblingNames = new Set(
+        filesRef.current
+          .filter(
+            (f) =>
+              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
+          )
+          .map((f) => f.name)
+      )
+      const name = uniqueMarkdownName(derived, siblingNames)
+      if (name === currentFile.name) return
+      renameFile
+        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
+        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
+    },
+    [workspaceId]
+  )
+
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
     <ShareModal
@@ -388,12 +442,34 @@ export function Files() {
         directSize.set(file.folderId, (directSize.get(file.folderId) ?? 0) + file.size)
       }
     }
+    /**
+     * Children indexed once rather than re-scanning `folders` per node — the roll-up visits
+     * every folder, so the filter made this quadratic.
+     */
+    const childrenByParent = new Map<string, WorkspaceFileFolderApi[]>()
+    for (const folder of folders) {
+      if (!folder.parentId) continue
+      const siblings = childrenByParent.get(folder.parentId)
+      if (siblings) siblings.push(folder)
+      else childrenByParent.set(folder.parentId, [folder])
+    }
+
     const totalSize = new Map<string, number>()
+    /**
+     * `visiting` terminates a parent/child cycle. The optimistic folder-move write can produce
+     * one in cache, and without the guard this recurses until the stack blows and takes the
+     * whole page down — the same guard the shared folder helpers carry.
+     */
+    const visiting = new Set<string>()
     const getTotal = (folderId: string): number => {
-      if (totalSize.has(folderId)) return totalSize.get(folderId)!
-      const children = folders.filter((f) => f.parentId === folderId)
+      const cached = totalSize.get(folderId)
+      if (cached !== undefined) return cached
+      if (visiting.has(folderId)) return 0
+      visiting.add(folderId)
       const size =
-        (directSize.get(folderId) ?? 0) + children.reduce((s, c) => s + getTotal(c.id), 0)
+        (directSize.get(folderId) ?? 0) +
+        (childrenByParent.get(folderId) ?? []).reduce((sum, child) => sum + getTotal(child.id), 0)
+      visiting.delete(folderId)
       totalSize.set(folderId, size)
       return size
     }
@@ -410,18 +486,29 @@ export function Files() {
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
-    return [...searched].sort((a, b) => {
-      let cmp = 0
-      if (col === 'updated') {
-        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-      } else if (col === 'created') {
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      } else {
-        cmp = a.name.localeCompare(b.name)
-      }
+    // Decorate-sort: compute each key + pinned flag once (O(N)) rather than parsing dates per comparison.
+    const decorated = searched.map((folder) => ({
+      folder,
+      pinned: pinnedFolderIds.has(folder.id),
+      key:
+        col === 'updated'
+          ? new Date(folder.updatedAt).getTime()
+          : col === 'created'
+            ? new Date(folder.createdAt).getTime()
+            : folder.name,
+    }))
+    decorated.sort((a, b) => {
+      // Pinned folders float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const cmp =
+        typeof a.key === 'number' && typeof b.key === 'number'
+          ? a.key - b.key
+          : String(a.key).localeCompare(String(b.key))
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
+    return decorated.map((d) => d.folder)
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const filteredFiles = useMemo(() => {
     const needle = debouncedSearchTerm.trim().toLowerCase()
@@ -458,32 +545,36 @@ export function Files() {
 
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
-    return [...result].sort((a, b) => {
-      let cmp = 0
-      switch (col) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'size':
-          cmp = a.size - b.size
-          break
-        case 'type':
-          cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
-          break
-        case 'created':
-          cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
-          break
-        case 'updated':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'owner':
-          cmp = (membersById.get(a.uploadedBy)?.name ?? '').localeCompare(
-            membersById.get(b.uploadedBy)?.name ?? ''
-          )
-          break
-      }
+    // Decorate-sort: compute each row's sort key + pinned flag ONCE (O(N)), then compare precomputed
+    // keys — the comparator ran per-comparison work (Date parsing, `formatFileType`, member lookups) at
+    // O(N log N). Stable sort + pinned-primary ordering are preserved.
+    const decorated = result.map((f) => ({
+      f,
+      pinned: pinnedFileIds.has(f.id),
+      key:
+        col === 'size'
+          ? f.size
+          : col === 'type'
+            ? formatFileType(f.type, f.name)
+            : col === 'created'
+              ? new Date(f.uploadedAt).getTime()
+              : col === 'updated'
+                ? new Date(f.updatedAt).getTime()
+                : col === 'owner'
+                  ? (membersById.get(f.uploadedBy)?.name ?? '')
+                  : f.name,
+    }))
+    decorated.sort((a, b) => {
+      // Pinned files float to the top of every sort/direction — pinning is a
+      // user-declared priority, not another sort key to be inverted by `desc`.
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const cmp =
+        typeof a.key === 'number' && typeof b.key === 'number'
+          ? a.key - b.key
+          : String(a.key).localeCompare(String(b.key))
       return dir === 'asc' ? cmp : -cmp
     })
+    return decorated.map((d) => d.f)
   }, [
     files,
     currentFolderId,
@@ -493,6 +584,7 @@ export function Files() {
     uploadedByFilter,
     activeSort,
     membersById,
+    pinnedFileIds,
   ])
 
   const baseRows: ResourceRow[] = useMemo(() => {
@@ -502,6 +594,7 @@ export function Files() {
         name: {
           icon: <Folder className='size-[14px]' />,
           label: folder.name,
+          pinned: pinnedFolderIds.has(folder.id),
         },
         size: {
           label:
@@ -527,6 +620,7 @@ export function Files() {
           name: {
             icon: <Icon className='size-[14px]' />,
             label: file.name,
+            pinned: pinnedFileIds.has(file.id),
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
@@ -544,7 +638,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, pinnedFolderIds, pinnedFileIds])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -967,6 +1061,7 @@ export function Files() {
         })
       } catch (err) {
         logger.error('Failed to download file:', err)
+        toast.error(getErrorMessage(err, `Failed to download "${file.name}"`))
       }
     },
     [workspaceId]
@@ -1087,25 +1182,44 @@ export function Files() {
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
 
-  const handleBulkDownload = useCallback(() => {
+  const [isDownloadingArchive, setIsDownloadingArchive] = useState(false)
+  // Ref as well as state: two clicks in the same tick would both pass a state check,
+  // and each concurrent archive holds the whole zip in tab memory.
+  const archiveDownloadInFlightRef = useRef(false)
+
+  const downloadArchive = useCallback(
+    async (selection: { fileIds?: string[]; folderIds?: string[] }) => {
+      if (archiveDownloadInFlightRef.current) return
+      archiveDownloadInFlightRef.current = true
+      setIsDownloadingArchive(true)
+      try {
+        await triggerArchiveDownload({ workspaceId, ...selection })
+      } catch (err) {
+        logger.error('Failed to download selection:', err)
+        toast.error(getErrorMessage(err, 'Failed to download the selected files'))
+      } finally {
+        archiveDownloadInFlightRef.current = false
+        setIsDownloadingArchive(false)
+      }
+    },
+    [workspaceId]
+  )
+
+  const handleBulkDownload = useCallback(async () => {
     const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
     if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
       handleDownload(selectedFiles[0])
       return
     }
 
-    const query = new URLSearchParams()
-    for (const fileId of selectedFileIds) query.append('fileIds', fileId)
-    for (const folderId of selectedFolderIds) query.append('folderIds', folderId)
-
-    if (query.size === 0) return
+    if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     captureEvent(posthogRef.current, 'file_downloaded', {
       workspace_id: workspaceId,
       is_bulk: true,
       file_count: selectedFileIds.length + selectedFolderIds.length,
     })
-    window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
-  }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
+    await downloadArchive({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
+  }, [selectedFileIds, selectedFolderIds, files, handleDownload, downloadArchive, workspaceId])
 
   const fileDetailBreadcrumbs = useMemo(() => {
     if (!selectedFile) return []
@@ -1198,9 +1312,7 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      const name = generateUniqueName(existingNames, (attempt) =>
-        attempt === 0 ? 'untitled.md' : `untitled (${attempt}).md`
-      )
+      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
@@ -1291,18 +1403,19 @@ export function Files() {
     if (!item) return
     const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
     if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
-      handleBulkDownload()
+      void handleBulkDownload()
       closeContextMenu()
       return
     }
     if (item.kind === 'folder') {
-      window.location.href = `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(item.folder.id)}`
+      const folderId = item.folder.id
       closeContextMenu()
+      void downloadArchive({ folderIds: [folderId] })
       return
     }
     handleDownload(item.file)
     closeContextMenu()
-  }, [selectedRowIds, handleBulkDownload, closeContextMenu, workspaceId, handleDownload])
+  }, [selectedRowIds, handleBulkDownload, closeContextMenu, downloadArchive, handleDownload])
 
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1336,9 +1449,20 @@ export function Files() {
     closeContextMenu()
   }, [selectedRowIds, handleBulkDelete, closeContextMenu])
 
+  const handleContextMenuTogglePin = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const resourceType = item.kind === 'folder' ? 'folder' : 'file'
+    const pinned =
+      item.kind === 'folder' ? pinnedFolderIds.has(item.id) : pinnedFileIds.has(item.id)
+    const mutation = pinned ? unpinItem : pinItem
+    mutation.mutate({ workspaceId, resourceType, resourceId: item.id })
+    closeContextMenu()
+  }, [workspaceId, pinnedFolderIds, pinnedFileIds, closeContextMenu])
+
   const handleContextMenuMove = useCallback(
     async (optionValue: string) => {
-      const targetFolderId = optionValue === '__root__' ? null : optionValue
+      const targetFolderId = parseMoveOptionValue(optionValue)
       try {
         await moveItems.mutateAsync({
           workspaceId,
@@ -1688,10 +1812,18 @@ export function Files() {
   const memberOptions: ComboboxOption[] = useMemo(() => memberFilterOptions(members), [members])
 
   const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
+    // Index children by parent ONCE (the same pattern used for folder sizes + descendant maps above),
+    // so building the tree is O(N) instead of a full `folders.filter` scan at every node (O(N²)).
+    const childrenByParent = new Map<string | null, typeof folders>()
+    for (const f of folders) {
+      const key = f.parentId ?? null
+      const arr = childrenByParent.get(key)
+      if (arr) arr.push(f)
+      else childrenByParent.set(key, [f])
+    }
     const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
-      folders
+      (childrenByParent.get(parentId) ?? [])
         .filter((f) => {
-          if ((f.parentId ?? null) !== parentId) return false
           if (selectedFolderIds.includes(f.id)) return false
           return selectedFolderIds.every(
             (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)
@@ -1700,7 +1832,7 @@ export function Files() {
         .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
         .map((f) => ({ value: f.id, label: f.name, children: buildSubtree(f.id) }))
 
-    return [{ value: '__root__', label: 'Files', children: [] }, ...buildSubtree(null)]
+    return [{ value: ROOT_MOVE_OPTION_VALUE, label: 'Files', children: [] }, ...buildSubtree(null)]
   }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
 
   const sortConfig: SortConfig = useMemo(
@@ -1886,36 +2018,44 @@ export function Files() {
   if (selectedFile && selectedFileSource) {
     return (
       <>
-        <Resource>
-          <Resource.Header
-            icon={FilesIcon}
-            breadcrumbs={fileDetailBreadcrumbs}
-            actions={fileActions}
-          />
-          <FileView
-            key={selectedFile.id}
-            source={selectedFileSource}
-            grants={grants}
-            host='page'
-            onNavigate={navigate}
-            previewMode={previewMode}
-            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
-            onDirtyChange={setIsDirty}
-            onSaveStatusChange={handleSaveStatusChange}
-            saveRef={saveRef}
-            discardRef={discardRef}
-          />
+        {/* The room provider scopes "who's in this file" presence to the open document: the
+            editor (inside FileView) publishes the server-authenticated roster and the
+            header's FileDocAvatars reads it — both must be descendants. */}
+        <FileDocRoomProvider>
+          <Resource>
+            <Resource.Header
+              icon={FilesIcon}
+              breadcrumbs={fileDetailBreadcrumbs}
+              actions={fileActions}
+              aside={<FileDocAvatars />}
+            />
+            <FileView
+              key={selectedFile.id}
+              source={selectedFileSource}
+              grants={grants}
+              host='page'
+              onNavigate={navigate}
+              previewMode={previewMode}
+              autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
+              onDirtyChange={setIsDirty}
+              onSaveStatusChange={handleSaveStatusChange}
+              saveRef={saveRef}
+              discardRef={discardRef}
+              collaborative
+              onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
+            />
 
-          <ChipConfirmModal
-            open={showUnsavedChangesAlert}
-            onOpenChange={setShowUnsavedChangesAlert}
-            srTitle='Unsaved Changes'
-            title='Unsaved Changes'
-            text='You have unsaved changes. Are you sure you want to discard them?'
-            dismissLabel='Keep editing'
-            confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
-          />
-        </Resource>
+            <ChipConfirmModal
+              open={showUnsavedChangesAlert}
+              onOpenChange={setShowUnsavedChangesAlert}
+              srTitle='Unsaved Changes'
+              title='Unsaved Changes'
+              text='You have unsaved changes. Are you sure you want to discard them?'
+              dismissLabel='Keep editing'
+              confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
+            />
+          </Resource>
+        </FileDocRoomProvider>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}
@@ -1931,6 +2071,16 @@ export function Files() {
       </>
     )
   }
+
+  /**
+   * Read off the same ref the context-menu handlers use, so the menu's Pin/Unpin label
+   * describes the row that was right-clicked. Opening the menu is a state change, so
+   * this re-reads on the render that shows it.
+   */
+  const contextMenuItem = contextMenuItemRef.current
+  const isContextMenuItemPinned = contextMenuItem
+    ? (contextMenuItem.kind === 'folder' ? pinnedFolderIds : pinnedFileIds).has(contextMenuItem.id)
+    : false
 
   return (
     <div
@@ -1968,7 +2118,9 @@ export function Files() {
                 onMove={canEdit ? handleContextMenuMove : undefined}
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
-                isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+                isLoading={
+                  bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
+                }
               />
               {isDraggingOver ? (
                 <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
@@ -2009,11 +2161,9 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        onShare={
-          canEdit && contextMenuItemRef.current?.kind === 'file'
-            ? handleContextMenuShare
-            : undefined
-        }
+        onShare={canEdit && contextMenuItem?.kind === 'file' ? handleContextMenuShare : undefined}
+        onTogglePin={handleContextMenuTogglePin}
+        pinned={isContextMenuItemPinned}
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}

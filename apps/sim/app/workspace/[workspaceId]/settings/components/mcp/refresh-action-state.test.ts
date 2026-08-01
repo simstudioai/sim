@@ -31,6 +31,20 @@ describe('getRefreshActionState', () => {
     })
   })
 
+  it('keeps Failed when a disconnected OAuth refresh has a concrete error', () => {
+    expect(
+      getRefreshActionState({
+        mutationStatus: 'success',
+        connectionStatus: 'disconnected',
+        workflowsUpdated: 0,
+      })
+    ).toEqual({
+      text: 'Failed',
+      textTone: 'error',
+      disabled: false,
+    })
+  })
+
   it('preserves successful refresh feedback', () => {
     expect(
       getRefreshActionState({

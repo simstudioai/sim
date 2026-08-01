@@ -56,7 +56,7 @@ const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'schedule',
-      title: 'Put any agent on a schedule.',
+      title: 'Put any AI agent on a schedule.',
       subtitle:
         'Sim turns a workflow into a scheduled task with one trigger, from 15-minute intervals to monthly closes, in your timezone.',
       cta: { label: 'Schedule your first agent', href: '/signup' },

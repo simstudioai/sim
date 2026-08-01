@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteMothershipChatContract,
@@ -188,7 +188,8 @@ export const PATCH = withRouteHandler(
           and(
             eq(copilotChats.id, chatId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .returning({
@@ -264,12 +265,14 @@ export const DELETE = withRouteHandler(
       }
 
       const [deletedChat] = await db
-        .delete(copilotChats)
+        .update(copilotChats)
+        .set({ deletedAt: new Date() })
         .where(
           and(
             eq(copilotChats.id, chatId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .returning({

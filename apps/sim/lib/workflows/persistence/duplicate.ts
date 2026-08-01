@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import {
+  folder as folderTable,
   workflow,
   workflowBlocks,
   workflowEdges,
-  workflowFolder,
   workflowSubflows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -73,14 +73,14 @@ async function assertTargetFolderMutable(
     visited.add(currentFolderId)
     const [folder] = await tx
       .select({
-        id: workflowFolder.id,
-        parentId: workflowFolder.parentId,
-        workspaceId: workflowFolder.workspaceId,
-        locked: workflowFolder.locked,
-        archivedAt: workflowFolder.archivedAt,
+        id: folderTable.id,
+        parentId: folderTable.parentId,
+        workspaceId: folderTable.workspaceId,
+        locked: folderTable.locked,
+        archivedAt: folderTable.deletedAt,
       })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, currentFolderId))
+      .from(folderTable)
+      .where(and(eq(folderTable.id, currentFolderId), eq(folderTable.resourceType, 'workflow')))
       .limit(1)
 
     if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
@@ -182,8 +182,8 @@ export async function duplicateWorkflow(
       ? eq(workflow.folderId, targetFolderId)
       : isNull(workflow.folderId)
     const folderParentCondition = targetFolderId
-      ? eq(workflowFolder.parentId, targetFolderId)
-      : isNull(workflowFolder.parentId)
+      ? eq(folderTable.parentId, targetFolderId)
+      : isNull(folderTable.parentId)
 
     const [[workflowMinResult], [folderMinResult]] = await Promise.all([
       tx
@@ -191,9 +191,15 @@ export async function duplicateWorkflow(
         .from(workflow)
         .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
       tx
-        .select({ minOrder: min(workflowFolder.sortOrder) })
-        .from(workflowFolder)
-        .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+        .select({ minOrder: min(folderTable.sortOrder) })
+        .from(folderTable)
+        .where(
+          and(
+            eq(folderTable.workspaceId, targetWorkspaceId),
+            eq(folderTable.resourceType, 'workflow'),
+            folderParentCondition
+          )
+        ),
     ])
     const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
       number | null
@@ -326,6 +332,7 @@ export async function duplicateWorkflow(
         if (updatedSubBlocks && typeof updatedSubBlocks === 'object') {
           updatedSubBlocks = remapConditionIdsInSubBlocks(
             updatedSubBlocks as Record<string, any>,
+            block.type,
             block.id,
             newBlockId
           )

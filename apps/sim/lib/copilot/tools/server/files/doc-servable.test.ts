@@ -1,18 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { e2bFlag, betaFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
-  e2bFlag: { value: true },
-  betaFlag: { value: false },
+const { mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
   mockLoadCompiledDoc: vi.fn(),
   mockRunSandboxTask: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/e2b', () => ({
-  executeInE2B: vi.fn(),
-  executeShellInE2B: vi.fn(),
+vi.mock('@/lib/execution/remote-sandbox', () => ({
+  executeInSandbox: vi.fn(),
+  executeShellInSandbox: vi.fn(),
 }))
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },
@@ -27,14 +26,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: mockLoadCompiledDoc,
   storeCompiledDoc: vi.fn(),
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn(async () => betaFlag.value),
-}))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isE2BDocEnabled() {
-    return e2bFlag.value
-  },
 }))
 vi.mock('@/app/api/files/utils', () => ({
   getContentType: (name: string) =>
@@ -53,11 +44,12 @@ const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01])
 const XLSX_SOURCE = Buffer.from('from openpyxl import Workbook\n# generates an xlsx', 'utf-8')
 
+afterAll(resetEnvFlagsMock)
+
 describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    e2bFlag.value = true
-    betaFlag.value = false
+    setEnvFlags({ isDocSandboxEnabled: true })
   })
 
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
@@ -93,7 +85,7 @@ describe('resolveServableDocBytes', () => {
 
   it('throws DocCompileUserError when a generated doc artifact is not ready (E2B regime)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    e2bFlag.value = true
+    setEnvFlags({ isDocSandboxEnabled: true })
 
     await expect(
       resolveServableDocBytes({
@@ -108,7 +100,7 @@ describe('resolveServableDocBytes', () => {
 
   it('compiles via the sandbox when E2B is disabled and no artifact is stored', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    e2bFlag.value = false
+    setEnvFlags({ isDocSandboxEnabled: false })
     const compiled = Buffer.from('%PDF-isolated-vm-binary')
     mockRunSandboxTask.mockResolvedValue(compiled)
 
@@ -151,10 +143,9 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
   })
 
-  it('throws when a generated XLSX artifact is not ready (E2B + mothership-beta enabled)', async () => {
+  it('throws when a generated XLSX artifact is not ready (E2B enabled)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
-    e2bFlag.value = true
-    betaFlag.value = true
+    setEnvFlags({ isDocSandboxEnabled: true })
 
     await expect(
       resolveServableDocBytes({
@@ -167,16 +158,30 @@ describe('resolveServableDocBytes', () => {
     expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
 
-  it('returns raw XLSX source when there is no workspaceId (xlsx has no isolated-vm path)', async () => {
-    betaFlag.value = true
+  it('throws instead of returning XLSX source when E2B is disabled', async () => {
+    mockLoadCompiledDoc.mockResolvedValue(null)
+    setEnvFlags({ isDocSandboxEnabled: false })
 
-    const result = await resolveServableDocBytes({
-      rawBuffer: XLSX_SOURCE,
-      fileName: 'sheet.xlsx',
-      workspaceId: undefined,
-    })
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: XLSX_SOURCE,
+        fileName: 'sheet.xlsx',
+        workspaceId: WORKSPACE_ID,
+      })
+    ).rejects.toBeInstanceOf(DocCompileUserError)
 
-    expect(result.buffer).toBe(XLSX_SOURCE)
+    expect(mockRunSandboxTask).not.toHaveBeenCalled()
+  })
+
+  it('throws instead of returning XLSX source when there is no workspaceId', async () => {
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: XLSX_SOURCE,
+        fileName: 'sheet.xlsx',
+        workspaceId: undefined,
+      })
+    ).rejects.toBeInstanceOf(DocCompileUserError)
+
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
     expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })

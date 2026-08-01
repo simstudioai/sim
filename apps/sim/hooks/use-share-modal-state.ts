@@ -5,7 +5,7 @@ import type {
   ShareRecord,
   ShareResourceType,
 } from '@/lib/api/contracts/public-shares'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { buildShareUrl } from '@/lib/public-shares/urls'
 
@@ -119,7 +119,7 @@ export function useShareModalState({
   const isAuthTypeAllowed = (candidate: ShareAuthType) =>
     policy.allowedAuthTypes === null || policy.allowedAuthTypes.includes(candidate)
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) || savedAccessMode === 'sso'
+  const ssoEnabled = isSsoEnabled || savedAccessMode === 'sso'
   const candidateAuthTypes: ShareAuthType[] = [
     ...BASE_AUTH_TYPES,
     ...(ssoEnabled ? (['sso'] as const) : []),

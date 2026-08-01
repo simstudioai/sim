@@ -63,17 +63,34 @@ export const RESERVED_PARAMS = new Set([
 ])
 
 /**
- * Output names the block projects itself (`success`/`error` from `buildOutputs`,
- * `cost` from the executor's billing aggregation). A user-named exposed output
- * must never shadow these — an output literally named `cost` would clobber the
- * billed cost. `result` is deliberately NOT reserved: it only exists as a system
+ * Output names the block projects itself: `success`/`error`/`errorType`/`errorRef`
+ * from `buildOutputs`, plus `cost` (kept reserved for forward compatibility now
+ * that the child bills its own run). A user-named exposed output must never
+ * shadow these. `result` is deliberately NOT reserved: it only exists as a system
  * field when no outputs are curated, which cannot co-occur with a named output.
+ * Compared lowercased, so every entry here must be lowercase.
  */
-export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'cost'])
+export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'cost', 'errortype', 'errorref'])
 
 /** Whether an exposed-output name collides with a system output field. */
 export function isReservedOutputName(name: string): boolean {
   return RESERVED_OUTPUT_NAMES.has(name.trim().toLowerCase())
+}
+
+/**
+ * Collect a custom block's per-field param values into the child `inputMapping`
+ * JSON string: every non-reserved, non-empty param keyed by the source field's
+ * stable id. Shared by the hidden `inputMapping` sub-block (canvas serialization)
+ * and the agent-tool transform, so both paths assemble the mapping identically.
+ */
+export function assembleCustomBlockInputMapping(params: Record<string, unknown>): string {
+  const mapping: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(params)) {
+    if (RESERVED_PARAMS.has(key)) continue
+    if (val === undefined || val === '') continue
+    mapping[key] = val
+  }
+  return JSON.stringify(mapping)
 }
 
 /** Map a Start input field type to the editor sub-block type used to collect it. */
@@ -161,15 +178,7 @@ export function buildCustomBlockConfig(
         type: 'code',
         language: 'json',
         hidden: true,
-        value: (params) => {
-          const mapping: Record<string, unknown> = {}
-          for (const [key, val] of Object.entries(params)) {
-            if (RESERVED_PARAMS.has(key)) continue
-            if (val === undefined || val === '') continue
-            mapping[key] = val
-          }
-          return JSON.stringify(mapping)
-        },
+        value: (params) => assembleCustomBlockInputMapping(params),
       },
       ...fieldSubBlocks,
     ],
@@ -200,13 +209,15 @@ function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['ou
   const outputs: BlockConfig['outputs'] = {
     success: { type: 'boolean', description: 'Execution success status' },
     error: { type: 'string', description: 'Error message' },
+    errorType: { type: 'string', description: 'Machine-readable failure class' },
+    errorRef: { type: 'string', description: 'Opaque reference to the failed run' },
   }
-  if (exposed && exposed.length > 0) {
-    for (const out of exposed) {
-      outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
-    }
-  } else {
-    outputs.result = { type: 'json', description: 'Workflow execution result' }
+  // No whole-`result` fallback: curation is required at publish, so every
+  // consumer-visible field is one the publisher chose. A legacy row with no
+  // curated outputs advertises no data fields and fails loudly at invocation
+  // rather than silently reverting to exposing the child's raw terminal state.
+  for (const out of exposed ?? []) {
+    outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
   }
   return outputs
 }

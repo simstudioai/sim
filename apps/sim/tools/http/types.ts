@@ -8,6 +8,7 @@ export interface RequestParams {
   params?: TableRow[] | string
   pathParams?: Record<string, string>
   formData?: Record<string, string | Blob>
+  proxyUrl?: string
   timeout?: number
   retries?: number
   retryDelayMs?: number

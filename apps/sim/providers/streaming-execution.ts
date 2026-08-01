@@ -1,4 +1,5 @@
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type { AgentStreamEvent, AgentStreamFormat } from '@/providers/stream-events'
 import type { TimeSegment } from '@/providers/types'
 
 /**
@@ -57,7 +58,11 @@ type StreamingTiming = SimpleTiming | AccumulatedTiming
 interface StreamFinalizer {
   /** Live output object — write final `content`/`tokens`/`cost` here on drain. */
   output: NormalizedBlockOutput
-  /** Overwrites placeholder timing from the drain timestamp. Call once on drain. */
+  /**
+   * Overwrites placeholder timing from the drain timestamp. Providers may call
+   * this after populating output; the factory also guarantees finalization when
+   * the stream closes, errors, or is cancelled.
+   */
   finalizeTiming: () => void
 }
 
@@ -79,12 +84,20 @@ interface CreateStreamingExecutionOptions {
   /** Marks `execution.isStreaming = true` when set. */
   isStreaming?: boolean
   /**
+   * Declares whether {@link createStream} returns UTF-8 answer bytes (`text`)
+   * or an in-process {@link AgentStreamEvent} object stream (`agent-events-v1`).
+   * Defaults to `'text'` so existing providers stay unchanged.
+   */
+  streamFormat?: AgentStreamFormat
+  /**
    * Builds the provider stream. Receives the live `output` object and a
    * `finalizeTiming` hook. The provider wires its native stream factory and, in
    * the drain callback, writes final content/tokens/cost onto `output` then
    * calls `finalizeTiming()`.
    */
-  createStream: (handles: StreamFinalizer) => ReadableStream
+  createStream: (
+    handles: StreamFinalizer
+  ) => ReadableStream<Uint8Array> | ReadableStream<AgentStreamEvent>
 }
 
 /**
@@ -104,6 +117,7 @@ export function createStreamingExecution(
     initialCost,
     toolCalls,
     isStreaming,
+    streamFormat = 'text',
     createStream,
   } = options
 
@@ -146,27 +160,86 @@ export function createStreamingExecution(
     providerTiming,
     cost: initialCost,
   }
+  const executionMetadata = {
+    startTime: providerStartTimeISO,
+    endTime: nowISO,
+    duration,
+  }
 
   const timingKind = timing.kind
-  const stream = createStream({
+  let timingFinalized = false
+  const finalizeTimingOnce = () => {
+    if (timingFinalized) return
+    timingFinalized = true
+    finalizeTiming(output, providerStartTime, timingKind)
+    const finalizedTiming = output.providerTiming
+    if (finalizedTiming) {
+      executionMetadata.endTime = finalizedTiming.endTime
+      executionMetadata.duration = finalizedTiming.duration
+    }
+  }
+  const providerStream = createStream({
     output,
-    finalizeTiming: () => finalizeTiming(output, providerStartTime, timingKind),
+    finalizeTiming: finalizeTimingOnce,
   })
+  const stream = timingFinalized
+    ? providerStream
+    : streamFormat === 'agent-events-v1'
+      ? withTimingFinalization(
+          providerStream as ReadableStream<AgentStreamEvent>,
+          finalizeTimingOnce
+        )
+      : withTimingFinalization(providerStream as ReadableStream<Uint8Array>, finalizeTimingOnce)
 
   return {
     stream,
+    streamFormat,
     execution: {
       success: true,
       output,
       logs: [],
-      metadata: {
-        startTime: providerStartTimeISO,
-        endTime: nowISO,
-        duration,
-      },
+      metadata: executionMetadata,
       ...(isStreaming ? { isStreaming: true } : {}),
     },
   }
+}
+
+/**
+ * Finalizes provider timing exactly once when a stream settles while preserving
+ * backpressure and cancellation on the provider's original stream.
+ */
+function withTimingFinalization<T>(
+  stream: ReadableStream<T>,
+  finalize: () => void
+): ReadableStream<T> {
+  const reader = stream.getReader()
+
+  return new ReadableStream<T>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          finalize()
+          reader.releaseLock()
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        finalize()
+        reader.releaseLock()
+        controller.error(error)
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason)
+      } finally {
+        finalize()
+        reader.releaseLock()
+      }
+    },
+  })
 }
 
 /**

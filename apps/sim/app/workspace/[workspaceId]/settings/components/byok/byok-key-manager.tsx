@@ -66,6 +66,13 @@ interface BYOKKeyManagerBaseProps {
   description?: string
   /** Show the provider search box (hidden when there are only a couple). */
   showSearch?: boolean
+  /**
+   * Controlled search value + setter. The BYOK settings page passes the shared
+   * `?search=` binding (`useSettingsSearch`) so the search is deep-linkable;
+   * modal/embedded consumers omit both and keep local state.
+   */
+  searchTerm?: string
+  onSearchTermChange?: (value: string) => void
 }
 
 /** One key per provider; saving replaces the stored key. */
@@ -138,7 +145,9 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     showSearch = true,
   } = props
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [localSearchTerm, setLocalSearchTerm] = useState('')
+  const searchTerm = props.searchTerm ?? localSearchTerm
+  const setSearchTerm = props.onSearchTermChange ?? setLocalSearchTerm
   const [editing, setEditing] = useState<EditingState | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [nameInput, setNameInput] = useState('')
@@ -261,7 +270,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     if (props.multiKey) {
       const keyCount = getProviderKeys(provider.id).length
       return (
-        <div className='flex flex-shrink-0 items-center gap-2'>
+        <div className='flex items-center gap-2'>
           <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
@@ -274,7 +283,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
     if (readOnly) return null
     return (
-      <div className='flex flex-shrink-0 items-center gap-2'>
+      <div className='flex items-center gap-2'>
         <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
         <Chip onClick={() => openDeleteConfirm(provider.id)}>Delete</Chip>
       </div>

@@ -45,6 +45,8 @@ vi.mock('@/lib/api/client/request', () => ({
 
 vi.mock('@/lib/api/client/errors', () => ({
   isValidationError: vi.fn(() => false),
+  isApiClientError: vi.fn(() => false),
+  extractValidationIssues: vi.fn(() => []),
 }))
 
 vi.mock('@/lib/api/contracts/tables', () => ({

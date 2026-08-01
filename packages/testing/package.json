@@ -42,6 +42,7 @@
     }
   },
   "scripts": {
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",

@@ -71,15 +71,23 @@ export function deriveFilePreviewSession(
       return base
 
     case 'file_preview_content': {
+      const incomingVersion =
+        typeof payload.previewVersion === 'number' && Number.isFinite(payload.previewVersion)
+          ? payload.previewVersion
+          : (prev?.previewVersion ?? 0) + 1
+      // Replay-safe accumulation. A content event may be re-delivered or re-processed (a client
+      // re-render/re-subscribe, or a stream replay); `previewVersion` is monotonic per tool call, so only
+      // apply when it STRICTLY advances. Without this guard a re-delivered `delta` double-appends (the
+      // duplicated-tail bug) and a replayed older `snapshot` regresses the text. `base` already carries
+      // `prev.previewText`, so an ignored replay leaves the accumulated text untouched.
+      if (prev && incomingVersion <= prev.previewVersion) {
+        return { ...base, status: 'streaming' }
+      }
       const previewText =
         payload.contentMode === 'delta'
           ? (prev?.previewText ?? '') + payload.content
           : payload.content
-      const previewVersion =
-        typeof payload.previewVersion === 'number' && Number.isFinite(payload.previewVersion)
-          ? payload.previewVersion
-          : (prev?.previewVersion ?? 0) + 1
-      return { ...base, status: 'streaming', previewText, previewVersion }
+      return { ...base, status: 'streaming', previewText, previewVersion: incomingVersion }
     }
 
     case 'file_preview_complete':

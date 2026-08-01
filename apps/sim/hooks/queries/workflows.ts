@@ -102,6 +102,11 @@ export function useWorkflowStates(
       queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowEnvelope(id, signal),
       select: mapWorkflowState,
       staleTime: WORKFLOW_STATE_STALE_TIME,
+      // Read-only preview consumer that fans out one full workflow envelope
+      // per id. Left off the desktop focus-refetch default so returning to a
+      // table with many workflow columns doesn't fire N heavy envelope
+      // fetches at once. No-op on the web (default is already false).
+      refetchOnWindowFocus: false as const,
     })),
   })
   const map = new Map<string, WorkflowState | null>()
@@ -111,12 +116,16 @@ export function useWorkflowStates(
   return map
 }
 
-export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQueryScope }) {
+export function useWorkflows(
+  workspaceId?: string,
+  options?: { scope?: WorkflowQueryScope; enabled?: boolean }
+) {
   const { scope = 'active' } = options || {}
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
+    enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: WORKFLOW_LIST_STALE_TIME,
   })

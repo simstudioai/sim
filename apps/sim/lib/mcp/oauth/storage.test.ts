@@ -2,29 +2,20 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   encryptionMock,
   encryptionMockFns,
+  redisConfigMockFns,
   resetDbChainMock,
-  schemaMock,
+  resetRedisConfigMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcquireLock, mockReleaseLock, mockExtendLock } = vi.hoisted(() => ({
-  mockAcquireLock: vi.fn(),
-  mockReleaseLock: vi.fn(),
-  mockExtendLock: vi.fn(),
-}))
+const { mockAcquireLock, mockReleaseLock, mockExtendLock } = redisConfigMockFns
 
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('@sim/db/schema', () => schemaMock)
+afterAll(resetRedisConfigMock)
+
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: mockAcquireLock,
-  releaseLock: mockReleaseLock,
-  extendLock: mockExtendLock,
-}))
 
 import {
   getOrCreateOauthRow,

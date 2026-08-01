@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   addCopilotChatResourceContract,
@@ -16,22 +16,11 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
+import type { ChatResource } from '@/lib/copilot/resources/persistence'
 import { GENERIC_RESOURCE_TITLES } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatResourcesAPI')
-
-const VALID_RESOURCE_TYPES = new Set<ResourceType>([
-  'table',
-  'file',
-  'workflow',
-  'knowledgebase',
-  'folder',
-  'scheduledtask',
-  'log',
-  'integration',
-])
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
@@ -57,14 +46,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ success: true })
     }
 
-    if (!VALID_RESOURCE_TYPES.has(resource.type)) {
-      return createBadRequestResponse(`Invalid resource type: ${resource.type}`)
-    }
-
     const [chat] = await db
       .select({ resources: copilotChats.resources })
       .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          isNull(copilotChats.deletedAt)
+        )
+      )
       .limit(1)
 
     if (!chat) {
@@ -91,7 +82,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     await db
       .update(copilotChats)
       .set({ resources: sql`${JSON.stringify(merged)}::jsonb`, updatedAt: new Date() })
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          isNull(copilotChats.deletedAt)
+        )
+      )
 
     logger.info('Added resource to chat', { chatId, resource })
 
@@ -124,7 +121,13 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     const [chat] = await db
       .select({ resources: copilotChats.resources })
       .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          isNull(copilotChats.deletedAt)
+        )
+      )
       .limit(1)
 
     if (!chat) {
@@ -142,7 +145,13 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     await db
       .update(copilotChats)
       .set({ resources: sql`${JSON.stringify(newOrder)}::jsonb`, updatedAt: new Date() })
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          isNull(copilotChats.deletedAt)
+        )
+      )
 
     logger.info('Reordered resources for chat', { chatId, count: newOrder.length })
 
@@ -182,7 +191,13 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
         ), '[]'::jsonb)`,
         updatedAt: new Date(),
       })
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          isNull(copilotChats.deletedAt)
+        )
+      )
       .returning({ resources: copilotChats.resources })
 
     if (!updated) {

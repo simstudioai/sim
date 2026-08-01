@@ -379,7 +379,7 @@ export const JupyterBlockMeta = {
     },
     {
       icon: JupyterIcon,
-      title: 'Notebook directory sync report',
+      title: 'Jupyter directory sync report',
       prompt:
         'Build a workflow that lists the contents of a Jupyter server directory and writes a summary of files and notebooks to a Table.',
       modules: ['tables', 'workflows'],
@@ -388,7 +388,7 @@ export const JupyterBlockMeta = {
     },
     {
       icon: JupyterIcon,
-      title: 'Read notebook and summarize',
+      title: 'Summarize a Jupyter notebook',
       prompt:
         'Build a workflow that reads a Jupyter notebook, has an agent summarize its cells, and sends the summary in Chat.',
       modules: ['agent', 'workflows'],
@@ -406,7 +406,7 @@ export const JupyterBlockMeta = {
     },
     {
       icon: JupyterIcon,
-      title: 'Archive and clean up notebooks',
+      title: 'Archive Jupyter notebooks',
       prompt:
         'Build a scheduled workflow that copies old notebooks on a Jupyter server into an archive directory, then deletes the originals.',
       modules: ['scheduled', 'workflows'],

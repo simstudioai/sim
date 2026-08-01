@@ -1035,7 +1035,7 @@ export const ShopifyBlockMeta = {
   templates: [
     {
       icon: ShopifyIcon,
-      title: 'E-commerce order monitor',
+      title: 'Shopify order monitor',
       prompt:
         'Build a workflow that monitors Shopify orders, flags high-value or unusual orders for review, tracks fulfillment status in a table, and sends daily inventory and sales summaries to Slack with restock alerts when items run low.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
@@ -1045,7 +1045,7 @@ export const ShopifyBlockMeta = {
     },
     {
       icon: ShopifyIcon,
-      title: 'Unpaid order recovery',
+      title: 'Shopify unpaid order recovery',
       prompt:
         'Build a scheduled workflow that lists Shopify orders left open and unpaid in the past day, drafts a personalized recovery email referencing the items, and sends it via Gmail while logging recovery attempts to a table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1055,7 +1055,7 @@ export const ShopifyBlockMeta = {
     },
     {
       icon: ShopifyIcon,
-      title: 'Low-stock restock alerter',
+      title: 'Shopify restock alerter',
       prompt:
         'Create a scheduled hourly workflow that lists Shopify inventory items, computes days-of-cover from recent sales velocity, flags SKUs below a configurable threshold, and posts a Slack alert to the operations channel with the variant, location, and recommended reorder quantity.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1074,7 +1074,7 @@ export const ShopifyBlockMeta = {
     },
     {
       icon: ShopifyIcon,
-      title: 'Fulfillment status tracker',
+      title: 'Shopify fulfillment tracker',
       prompt:
         'Create a scheduled workflow that lists Shopify orders and their fulfillment status, updates a status table with shipped, in-transit, and delivered states, and proactively emails customers when their order misses an SLA so support gets ahead of the inquiry.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1084,7 +1084,7 @@ export const ShopifyBlockMeta = {
     },
     {
       icon: ShopifyIcon,
-      title: 'Product launch publisher',
+      title: 'Shopify product launcher',
       prompt:
         'Build a workflow that takes a new product brief, creates the product in Shopify with variants and pricing, adds it to the right collection, drafts a launch announcement, and queues a Slack and email broadcast for marketing review before going live.',
       modules: ['agent', 'workflows'],
@@ -1094,7 +1094,7 @@ export const ShopifyBlockMeta = {
     },
     {
       icon: ShopifyIcon,
-      title: 'Order anomaly detector',
+      title: 'Shopify order anomaly detector',
       prompt:
         'Create a scheduled workflow that runs every fifteen minutes, lists recent Shopify orders, scores each for anomalies — high value, unusual destination, mismatched billing — flags suspects in a review queue table, and Slacks the operations team for hands-on inspection.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],

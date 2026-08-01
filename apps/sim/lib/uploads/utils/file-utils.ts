@@ -1,7 +1,11 @@
 import type { Logger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import type { StorageContext } from '@/lib/uploads'
-import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
+import {
+  ACCEPTED_FILE_TYPES,
+  SUPPORTED_ARCHIVE_EXTENSIONS,
+  SUPPORTED_DOCUMENT_EXTENSIONS,
+} from '@/lib/uploads/utils/validation'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -204,6 +208,77 @@ export const MODEL_SUPPORTED_IMAGE_MIME_TYPES = new Set([
 export function getFileExtension(filename: string): string {
   const lastDot = filename.lastIndexOf('.')
   return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
+}
+
+/**
+ * Whether a file renders in the collaborative rich markdown editor. Server-safe counterpart to the
+ * client's `isMarkdownFile` (which uses `resolvePreviewType`): the editor treats a file as markdown by
+ * its `text/markdown` MIME *or* a `.md`/`.markdown` extension — MIME first, matching the client — so a
+ * `text/markdown` file with a non-`.md` name still counts. Used to gate server work (e.g. the live-doc
+ * merge) to exactly the files that can be open in that editor.
+ */
+export function isMarkdownFile(file: { type?: string | null; name: string }): boolean {
+  if (file.type === 'text/markdown') return true
+  const ext = getFileExtension(file.name)
+  return ext === 'md' || ext === 'markdown'
+}
+
+/**
+ * Extensions whose stored bytes may be a generation source that renders to a larger
+ * binary. Everything else stores exactly what it serves, so its declared size is
+ * an accurate byte budget.
+ */
+const RENDERABLE_DOCUMENT_EXTENSIONS = new Set(['pdf', 'docx', 'pptx', 'xlsx'])
+
+/**
+ * Content types under which a generated document's *generation source* is stored. A
+ * file carrying one of these renders to something other than its stored bytes, so any
+ * surface that hands out the file itself has to resolve it first. Both PDF generators
+ * are here: the E2B path stores Python, the isolated-vm path stores pdf-lib JS.
+ */
+export const GENERATED_DOCUMENT_SOURCE_TYPES = new Set<string>([
+  'text/x-docxjs',
+  'text/x-pptxgenjs',
+  'text/x-pdflibjs',
+  'text/x-python-pdf',
+  'text/x-python-xlsx',
+])
+
+/** True when the stored bytes for `contentType` are a generation source. */
+export function isGeneratedDocumentSourceType(contentType: string | undefined | null): boolean {
+  return contentType ? GENERATED_DOCUMENT_SOURCE_TYPES.has(contentType) : false
+}
+
+/**
+ * Ceiling on a single rendered generated document. A generator source is text and is
+ * orders of magnitude smaller than the document it produces, so the declared size is no
+ * bound at all and the rendered bytes need a cap of their own.
+ */
+export const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
+
+/** True when `fileName` may be backed by a generation source rather than final bytes. */
+export function isRenderableDocumentName(fileName: string): boolean {
+  return RENDERABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(fileName))
+}
+
+const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
+
+/**
+ * True when a file name is a supported archive (zip). Detection is by extension
+ * so it is robust to the varied/empty MIME types browsers assign to archives.
+ */
+export function isArchiveFileName(filename: string): boolean {
+  return ARCHIVE_EXTENSIONS.has(getFileExtension(filename))
+}
+
+/**
+ * Single source of truth for the "extract a .zip first" guidance shown wherever
+ * the agent tries to read/grep a raw archive (upload reader, chat payload). A
+ * `.zip`'s contents aren't readable until it is decompressed into workspace
+ * `files/`, so this points at the explicit one-time extract step.
+ */
+export function buildArchiveExtractGuidance(name: string): string {
+  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with materialize_file(fileNames: ["${name}"], operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {

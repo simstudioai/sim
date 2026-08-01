@@ -1,17 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckInternalAuth, mockMaskPIIBatch } = vi.hoisted(() => ({
-  mockCheckInternalAuth: vi.fn(),
+const { mockMaskPIIBatch } = vi.hoisted(() => ({
   mockMaskPIIBatch: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkInternalAuth: mockCheckInternalAuth,
-}))
+const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth
 
 vi.mock('@/lib/guardrails/validate_pii', () => ({
   maskPIIBatch: mockMaskPIIBatch,

@@ -1,4 +1,12 @@
 import type { ExaSearchParams, ExaSearchResponse } from '@/tools/exa/types'
+import {
+  applyFreshness,
+  buildExtras,
+  parseCommaList,
+  parseJsonSchema,
+  requireCostTotal,
+  resolveCategory,
+} from '@/tools/exa/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
@@ -6,7 +14,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   name: 'Exa Search',
   description:
     'Search the web using Exa AI. Returns relevant search results with titles, URLs, and text snippets.',
-  version: '1.0.0',
+  version: '2.0.0',
 
   params: {
     query: {
@@ -19,19 +27,14 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return (e.g., 5, 10, 25). Default: 10, max: 25',
-    },
-    useAutoprompt: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to use autoprompt to improve the query (true or false). Default: false',
+      description: 'Number of results to return (1-100). Default: 10',
     },
     type: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search type: "neural", "keyword", "auto", or "fast". Default: "auto"',
+      description:
+        'Search type: "instant", "fast", "auto", "deep-lite", "deep", or "deep-reasoning". Default: "auto"',
     },
     includeDomains: {
       type: 'string',
@@ -52,7 +55,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       required: false,
       visibility: 'user-only',
       description:
-        'Filter by category: company, research paper, news, pdf, github, tweet, personal site, linkedin profile, financial report',
+        'Filter by category: company, publication, news, personal site, financial report, people',
     },
     text: {
       type: 'boolean',
@@ -72,37 +75,102 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       visibility: 'user-only',
       description: 'Include AI-generated summaries in results (default: false)',
     },
+    summaryQuery: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Query to focus the generated summaries on a specific question',
+    },
+    subpages: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of subpages to crawl per result (0-100). Default: 0',
+    },
+    subpageTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Comma-separated keywords to target specific subpages (e.g., "docs,pricing,about")',
+    },
+    extrasLinks: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of links to extract from each result page (0-1000). Default: 0',
+    },
+    extrasImageLinks: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of image URLs to extract from each result page (0-1000). Default: 0',
+    },
+    outputSchema: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON Schema describing a synthesized answer to build from the results. Returned in structuredOutput.',
+    },
+    systemPrompt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Additional guidance for generating the synthesized output',
+    },
+    userLocation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Two-letter ISO country code to localize results (e.g., "US")',
+    },
+    maxAgeHours: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Cache freshness in hours (-1 to 720). 0 always crawls live, -1 uses cache only. Cannot be combined with livecrawl.',
+    },
+    livecrawlTimeout: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Live crawl timeout in milliseconds (max 90000). Default: 10000',
+    },
     livecrawl: {
       type: 'string',
       required: false,
       visibility: 'user-only',
       description:
-        'Live crawling mode: never (default), fallback, always, or preferred (always try livecrawl, fall back to cache if fails)',
-    },
-    startCrawlDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Only include results crawled on or after this ISO 8601 date (e.g., "2024-01-01" or "2024-01-01T00:00:00.000Z")',
-    },
-    endCrawlDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Only include results crawled on or before this ISO 8601 date',
+        'Deprecated: use maxAgeHours instead. Live crawling mode: never, fallback, always, or preferred',
     },
     startPublishedDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Only include results published on or after this ISO 8601 date',
+      description:
+        'Only include results published on or after this ISO 8601 date (e.g., "2024-01-01" or "2024-01-01T00:00:00.000Z")',
     },
     endPublishedDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Only include results published on or before this ISO 8601 date',
+    },
+    startCrawlDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Deprecated: use startPublishedDate. Only include results crawled on or after this ISO 8601 date',
+    },
+    endCrawlDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Deprecated: use endPublishedDate. Only include results crawled on or before this ISO 8601 date',
     },
     apiKey: {
       type: 'string',
@@ -118,11 +186,8 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
-        const costDollars = output.__costDollars as { total?: number } | undefined
-        if (costDollars?.total == null) {
-          throw new Error('Exa search response missing costDollars field')
-        }
-        return { cost: costDollars.total, metadata: { costDollars } }
+        const cost = requireCostTotal(output, 'search')
+        return { cost, metadata: { costDollars: output.__costDollars } }
       },
     },
     rateLimit: {
@@ -143,54 +208,51 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
         query: params.query,
       }
 
-      // Add optional parameters if provided
       if (params.numResults) body.numResults = Number(params.numResults)
-      if (params.useAutoprompt !== undefined) body.useAutoprompt = params.useAutoprompt
       if (params.type) body.type = params.type
+      if (params.userLocation) body.userLocation = params.userLocation
 
-      // Domain filtering
-      if (params.includeDomains) {
-        body.includeDomains = params.includeDomains
-          .split(',')
-          .map((d: string) => d.trim())
-          .filter((d: string) => d.length > 0)
-      }
-      if (params.excludeDomains) {
-        body.excludeDomains = params.excludeDomains
-          .split(',')
-          .map((d: string) => d.trim())
-          .filter((d: string) => d.length > 0)
-      }
+      const includeDomains = parseCommaList(params.includeDomains)
+      if (includeDomains) body.includeDomains = includeDomains
+      const excludeDomains = parseCommaList(params.excludeDomains)
+      if (excludeDomains) body.excludeDomains = excludeDomains
 
-      // Category filtering
-      if (params.category) body.category = params.category
+      const category = resolveCategory(params.category)
+      if (category) body.category = category
 
-      // Date filtering
-      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
-      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
       if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate
       if (params.endPublishedDate) body.endPublishedDate = params.endPublishedDate
+      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
+      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
 
-      // Build contents object for content options
+      const outputSchema = parseJsonSchema(params.outputSchema, 'outputSchema')
+      if (outputSchema) body.outputSchema = outputSchema
+      if (params.systemPrompt) body.systemPrompt = params.systemPrompt
+
+      /**
+       * On `/search` the content options are nested under `contents` — unlike
+       * `/contents`, where the same fields sit at the top level.
+       */
       const contents: Record<string, any> = {}
 
-      if (params.text !== undefined) {
-        contents.text = params.text
-      }
+      if (params.text !== undefined) contents.text = params.text
+      if (params.highlights !== undefined) contents.highlights = params.highlights
 
-      if (params.highlights !== undefined) {
-        contents.highlights = params.highlights
-      }
-
-      if (params.summary !== undefined) {
+      if (params.summaryQuery) {
+        contents.summary = { query: params.summaryQuery }
+      } else if (params.summary !== undefined) {
         contents.summary = params.summary
       }
 
-      if (params.livecrawl) {
-        contents.livecrawl = params.livecrawl
-      }
+      if (params.subpages) contents.subpages = Number(params.subpages)
+      const subpageTarget = parseCommaList(params.subpageTarget)
+      if (subpageTarget) contents.subpageTarget = subpageTarget
 
-      // Add contents to body if not empty
+      const extras = buildExtras(params)
+      if (extras) contents.extras = extras
+
+      applyFreshness(contents, params)
+
       if (Object.keys(contents).length > 0) {
         body.contents = contents
       }
@@ -205,7 +267,8 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     return {
       success: true,
       output: {
-        results: data.results.map((result: any) => ({
+        results: (data.results ?? []).map((result: any) => ({
+          id: result.id,
           title: result.title || '',
           url: result.url,
           publishedDate: result.publishedDate,
@@ -215,8 +278,15 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           image: result.image,
           text: result.text,
           highlights: result.highlights,
+          highlightScores: result.highlightScores,
+          subpages: result.subpages,
+          entities: result.entities,
+          extras: result.extras,
           score: result.score,
         })),
+        requestId: data.requestId,
+        structuredOutput: data.output?.content,
+        grounding: data.output?.grounding,
         __costDollars: data.costDollars,
       },
     }
@@ -229,6 +299,10 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       items: {
         type: 'object',
         properties: {
+          id: {
+            type: 'string',
+            description: 'Result identifier, usable as an id on the Get Contents operation',
+          },
           title: { type: 'string', description: 'The title of the search result' },
           url: { type: 'string', description: 'The URL of the search result' },
           publishedDate: { type: 'string', description: 'Date when the content was published' },
@@ -237,9 +311,43 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           favicon: { type: 'string', description: "URL of the site's favicon" },
           image: { type: 'string', description: 'URL of a representative image from the page' },
           text: { type: 'string', description: 'Text snippet or full content from the page' },
-          score: { type: 'number', description: 'Relevance score for the search result' },
+          highlights: {
+            type: 'array',
+            description: 'Relevant snippets extracted from the page',
+            items: { type: 'string' },
+          },
+          highlightScores: {
+            type: 'array',
+            description: 'Similarity score for each highlight',
+            items: { type: 'number' },
+          },
+          subpages: { type: 'json', description: 'Crawled subpages of the result' },
+          entities: {
+            type: 'json',
+            description: 'Structured entity data for company, people, and publication results',
+          },
+          extras: {
+            type: 'json',
+            description: 'Extracted links and image links when requested',
+          },
+          score: {
+            type: 'number',
+            description: 'Relevance score. Only returned by the legacy neural search type',
+            optional: true,
+          },
         },
       },
+    },
+    requestId: { type: 'string', description: 'Exa request identifier, useful for support' },
+    structuredOutput: {
+      type: 'json',
+      description: 'Synthesized answer matching outputSchema, when one was supplied',
+      optional: true,
+    },
+    grounding: {
+      type: 'json',
+      description: 'Field-level citations backing the synthesized output',
+      optional: true,
     },
   },
 }

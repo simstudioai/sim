@@ -3,13 +3,21 @@ import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
+import { isRecordLike } from '@sim/utils/object'
+import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { convertAnthropicRequestHistory } from '@/providers/anthropic/request-history'
+import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/streaming-tool-loop'
+import {
+  addAnthropicUsage,
+  buildAnthropicUsageCost,
+  buildAnthropicUsageTokens,
+  createAnthropicUsageAccumulator,
+} from '@/providers/anthropic/usage'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
-import { buildAnthropicMessageContent } from '@/providers/attachments'
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
@@ -17,16 +25,12 @@ import {
   supportsTemperature,
 } from '@/providers/models'
 import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { adaptAnthropicToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
-import {
-  calculateCost,
-  prepareToolExecution,
-  prepareToolsWithUsageControl,
-  sumToolCosts,
-} from '@/providers/utils'
+import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 /**
@@ -38,19 +42,53 @@ export interface AnthropicProviderConfig {
   /** Human-readable label for logging */
   providerLabel: string
   /** Factory function to create the Anthropic client */
-  createClient: (apiKey: string, useNativeStructuredOutputs: boolean) => Anthropic
+  createClient: (apiKey: string) => Anthropic
+  /** Resolves the provider-specific model or deployment name sent on the wire. */
+  resolveWireModel?: (request: ProviderRequest) => string
   /** Logger instance */
   logger: Logger
 }
 
+type AnthropicPayload = Anthropic.Messages.MessageStreamParams
+
+/** Anthropic's only cache type; the default 5-minute TTL suits agent reuse. */
+const EPHEMERAL_CACHE: Anthropic.Messages.CacheControlEphemeral = { type: 'ephemeral' }
+
 /**
- * Custom payload type extending the SDK's base message creation params.
- * Adds fields not yet in the SDK: adaptive thinking, output_format, output_config.
+ * Builds the `system` field as text blocks.
+ *
+ * Always an array, never a bare string, so the shape does not depend on whether
+ * prompt caching is on and `cache_control` always has a block to attach to.
+ * Returns `undefined` when there is no system text so the field is omitted.
  */
-interface AnthropicPayload extends Omit<Anthropic.Messages.MessageStreamParams, 'thinking'> {
-  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive' }
-  output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
-  output_config?: { effort: string }
+function buildSystemBlocks(
+  texts: string[],
+  cacheLastBlock: boolean
+): Anthropic.Messages.TextBlockParam[] | undefined {
+  const blocks: Anthropic.Messages.TextBlockParam[] = texts
+    .filter((text) => text.trim().length > 0)
+    .map((text) => ({ type: 'text', text }))
+
+  if (blocks.length === 0) return undefined
+
+  if (cacheLastBlock) {
+    blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], cache_control: EPHEMERAL_CACHE }
+  }
+  return blocks
+}
+
+/**
+ * Marks the final tool definition, caching every tool ahead of it.
+ *
+ * Typed on `ToolUnion` to match the payload field: every member of that union,
+ * including the server-side tools, accepts `cache_control`.
+ */
+function withCacheBreakpointOnLast(
+  tools: Anthropic.Messages.ToolUnion[]
+): Anthropic.Messages.ToolUnion[] {
+  const marked = [...tools]
+  marked[marked.length - 1] = { ...marked[marked.length - 1], cache_control: EPHEMERAL_CACHE }
+  return marked
 }
 
 /**
@@ -92,7 +130,7 @@ const ANTHROPIC_THINKING_OUTPUT_HEADROOM = 4096
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
  * Fable 5 supports ONLY adaptive thinking (always on; type: "disabled" is rejected).
  * Sonnet 5 supports ONLY adaptive thinking (manual budget_tokens returns a 400 error).
- * Opus 4.8 and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
+ * Opus 5, Opus 4.8, and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
  * Opus 4.5 supports effort but NOT adaptive thinking — it uses budget_tokens with type: "enabled".
  */
@@ -101,6 +139,7 @@ function supportsAdaptiveThinking(modelId: string): boolean {
   return (
     normalizedModel.includes('fable-5') ||
     normalizedModel.includes('sonnet-5') ||
+    normalizedModel.includes('opus-5') ||
     normalizedModel.includes('opus-4-8') ||
     normalizedModel.includes('opus-4.8') ||
     normalizedModel.includes('opus-4-7') ||
@@ -115,18 +154,25 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Fable 5, Sonnet 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Fable 5, Sonnet 5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
+ * The newest Claude generations default `thinking.display` to `omitted`
+ * (empty thinking blocks, no thinking deltas). Their registry entries mark
+ * `capabilities.thinking.streamed: 'summary'`, and for those models Sim opts
+ * back in with `display: 'summarized'` — but only on agent-events runs, so
+ * legacy runs keep the exact pre-agent-events request shape.
+ *
  * Returns both the thinking config and optional output_config for adaptive thinking.
  */
-function buildThinkingConfig(
+export function buildThinkingConfig(
   modelId: string,
-  thinkingLevel: string
+  thinkingLevel: string,
+  agentEvents: boolean
 ): {
-  thinking: { type: 'enabled'; budget_tokens: number } | { type: 'adaptive' }
-  outputConfig?: { effort: string }
+  thinking: Anthropic.Messages.ThinkingConfigParam
+  outputConfig?: Anthropic.Messages.OutputConfig
 } | null {
   const capability = getThinkingCapability(modelId)
   if (!capability || !capability.levels.includes(thinkingLevel)) {
@@ -135,9 +181,14 @@ function buildThinkingConfig(
 
   // Models with effort support use adaptive thinking
   if (supportsAdaptiveThinking(modelId)) {
+    const requestSummarizedDisplay = agentEvents && capability.streamed === 'summary'
     return {
-      thinking: { type: 'adaptive' },
-      outputConfig: { effort: thinkingLevel },
+      thinking: {
+        type: 'adaptive',
+        ...(requestSummarizedDisplay ? { display: 'summarized' as const } : {}),
+      },
+      // Levels are validated against the model's capability list above.
+      outputConfig: { effort: thinkingLevel as Anthropic.Messages.OutputConfig['effort'] },
     }
   }
 
@@ -205,61 +256,22 @@ export async function executeAnthropicProviderRequest(
     request.responseFormat && supportsNativeStructuredOutputs(modelId)
   )
 
-  const anthropic = config.createClient(request.apiKey, useNativeStructuredOutputs)
-
-  const messages: Anthropic.Messages.MessageParam[] = []
-  let systemPrompt = request.systemPrompt || ''
-
-  if (request.context) {
-    messages.push({
-      role: 'user',
-      content: request.context,
-    })
-  }
-
-  if (request.messages) {
-    request.messages.forEach((msg) => {
-      if (msg.role === 'function') {
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: msg.name || '',
-              content: msg.content || undefined,
-            },
-          ],
-        })
-      } else if (msg.function_call) {
-        const toolUseId = `${msg.function_call.name}-${Date.now()}`
-        messages.push({
-          role: 'assistant',
-          content: [
-            {
-              type: 'tool_use',
-              id: toolUseId,
-              name: msg.function_call.name,
-              input: JSON.parse(msg.function_call.arguments),
-            },
-          ],
-        })
-      } else {
-        const content = buildAnthropicMessageContent(msg.content, msg.files, config.providerId)
-        messages.push({
-          role: msg.role === 'assistant' ? 'assistant' : 'user',
-          // double-cast-allowed: shared attachment builder returns Anthropic-compatible content blocks but avoids importing SDK-only union types
-          content: content as unknown as Anthropic.Messages.ContentBlockParam[],
-        })
-      }
-    })
-  }
+  const anthropic = config.createClient(request.apiKey)
+  const wireModel = config.resolveWireModel?.(request) ?? modelId
+  const convertedHistory = convertAnthropicRequestHistory({
+    messages: request.messages,
+    systemPrompt: request.systemPrompt,
+    context: request.context,
+    providerId,
+  })
+  const messages = convertedHistory.messages
+  const systemPrompt = convertedHistory.systemPrompt
 
   if (messages.length === 0) {
     messages.push({
       role: 'user',
-      content: [{ type: 'text', text: systemPrompt || 'Hello' }],
+      content: [{ type: 'text', text: 'Hello' }],
     })
-    systemPrompt = ''
   }
 
   let anthropicTools: Anthropic.Messages.Tool[] | undefined = request.tools?.length
@@ -270,44 +282,41 @@ export async function executeAnthropicProviderRequest(
   let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
   if (anthropicTools?.length) {
-    try {
-      preparedTools = prepareToolsWithUsageControl(
-        anthropicTools,
-        request.tools,
-        logger,
-        providerId
-      )
-      const { tools: filteredTools, toolChoice: tc } = preparedTools
+    preparedTools = prepareToolsWithUsageControl(anthropicTools, request.tools, logger, providerId)
+    const { tools: filteredTools, toolChoice: preparedToolChoice } = preparedTools
+    anthropicTools = filteredTools?.length
+      ? (filteredTools as Anthropic.Messages.Tool[])
+      : undefined
 
-      if (filteredTools?.length) {
-        anthropicTools = filteredTools
-
-        if (typeof tc === 'object' && tc !== null) {
-          if (tc.type === 'tool') {
-            toolChoice = tc
-            logger.info(`Using ${providerLabel} tool_choice format: force tool "${tc.name}"`)
-          } else {
-            toolChoice = 'auto'
-            logger.warn(`Received non-${providerLabel} tool_choice format, defaulting to auto`)
-          }
-        } else if (tc === 'auto' || tc === 'none') {
-          toolChoice = tc
-          logger.info(`Using tool_choice mode: ${tc}`)
-        } else {
-          toolChoice = 'auto'
-          logger.warn('Unexpected tool_choice format, defaulting to auto')
-        }
+    if (anthropicTools?.length) {
+      if (preparedToolChoice === 'auto' || preparedToolChoice === 'none') {
+        toolChoice = preparedToolChoice
+        logger.info(`Using tool_choice mode: ${preparedToolChoice}`)
+      } else if (
+        preparedToolChoice?.type === 'tool' &&
+        typeof preparedToolChoice.name === 'string' &&
+        preparedToolChoice.name.length > 0
+      ) {
+        toolChoice = preparedToolChoice
+        logger.info(
+          `Using ${providerLabel} tool_choice format: force tool "${preparedToolChoice.name}"`
+        )
+      } else {
+        throw new Error(`Invalid ${providerLabel} tool choice returned by tool preparation`)
       }
-    } catch (error) {
-      logger.error('Error in prepareToolsWithUsageControl:', { error })
-      toolChoice = 'auto'
     }
   }
 
+  /**
+   * System text accumulates here and is turned into blocks once, below, after
+   * any schema instructions are appended. Keeping it as plain strings until
+   * then means only one place knows the wire shape.
+   */
+  const systemTexts = systemPrompt ? [systemPrompt] : []
+
   const payload: AnthropicPayload = {
-    model: request.model,
+    model: wireModel,
     messages,
-    system: systemPrompt,
     max_tokens:
       Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
     ...(supportsTemperature(request.model) && {
@@ -320,16 +329,16 @@ export async function executeAnthropicProviderRequest(
 
     if (useNativeStructuredOutputs) {
       const transformedSchema = transformJSONSchema(schema)
-      payload.output_format = {
-        type: 'json_schema',
-        schema: transformedSchema,
+      payload.output_config = {
+        ...payload.output_config,
+        format: {
+          type: 'json_schema',
+          schema: transformedSchema,
+        },
       }
       logger.info(`Using native structured outputs for model: ${modelId}`)
     } else {
-      const schemaInstructions = generateSchemaInstructions(schema, request.responseFormat.name)
-      payload.system = payload.system
-        ? `${payload.system}\n\n${schemaInstructions}`
-        : schemaInstructions
+      systemTexts.push(generateSchemaInstructions(schema, request.responseFormat.name))
       logger.info(`Using prompt-based structured outputs for model: ${modelId}`)
     }
   }
@@ -337,11 +346,18 @@ export async function executeAnthropicProviderRequest(
   // Add extended thinking configuration if supported and requested
   // The 'none' sentinel means "disable thinking" — skip configuration entirely.
   if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-    const thinkingConfig = buildThinkingConfig(request.model, request.thinkingLevel)
+    const thinkingConfig = buildThinkingConfig(
+      request.model,
+      request.thinkingLevel,
+      request.agentEvents === true
+    )
     if (thinkingConfig) {
       payload.thinking = thinkingConfig.thinking
       if (thinkingConfig.outputConfig) {
-        payload.output_config = thinkingConfig.outputConfig
+        payload.output_config = {
+          ...payload.output_config,
+          ...thinkingConfig.outputConfig,
+        }
       }
 
       // Keep budget_tokens < max_tokens (see constants above) by shrinking the budget
@@ -401,7 +417,70 @@ export async function executeAnthropicProviderRequest(
     }
   }
 
-  const shouldStreamToolCalls = request.streamToolCalls ?? false
+  /**
+   * Prompt-cache breakpoints go on the static prefix, once, after tools and
+   * system text are final. Anthropic hashes the prefix in tools → system →
+   * messages order, so marking the last tool and the last system block caches
+   * everything ahead of the conversation, which is the part that stays byte
+   * stable across turns. Both tool loops spread this payload, so placing them
+   * here covers the streaming and non-streaming paths alike.
+   */
+  const cacheStaticPrefix = request.promptCaching === true
+  if (cacheStaticPrefix && payload.tools?.length) {
+    payload.tools = withCacheBreakpointOnLast(payload.tools)
+  }
+  payload.system = buildSystemBlocks(systemTexts, cacheStaticPrefix)
+
+  if (request.stream && anthropicTools && anthropicTools.length > 0) {
+    logger.info(`Using streaming tool loop for ${providerLabel} request`)
+
+    const providerStartTime = Date.now()
+    const providerStartTimeISO = new Date(providerStartTime).toISOString()
+    const timeSegments: TimeSegment[] = []
+    const forcedTools = preparedTools?.forcedTools || []
+
+    return createStreamingExecution({
+      model: request.model,
+      providerStartTime,
+      providerStartTimeISO,
+      timing: {
+        kind: 'accumulated',
+        modelTime: 0,
+        toolsTime: 0,
+        firstResponseTime: 0,
+        iterations: 1,
+        timeSegments,
+      },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+      isStreaming: true,
+      streamFormat: 'agent-events-v1',
+      createStream: ({ output, finalizeTiming }) =>
+        createAnthropicStreamingToolLoopStream({
+          anthropic,
+          payload,
+          request,
+          messages,
+          providerId,
+          logger,
+          timeSegments,
+          forcedTools,
+          onComplete: (result) => {
+            output.content = result.content
+            output.tokens = result.tokens
+            output.cost = result.cost
+            output.toolCalls = result.toolCalls as NormalizedBlockOutput['toolCalls']
+            if (output.providerTiming) {
+              output.providerTiming.modelTime = result.modelTime
+              output.providerTiming.toolsTime = result.toolsTime
+              output.providerTiming.firstResponseTime = result.firstResponseTime
+              output.providerTiming.iterations = result.iterations
+            }
+            finalizeTiming()
+          },
+        }),
+    })
+  }
 
   if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
     logger.info(`Using streaming response for ${providerLabel} request (no tools)`)
@@ -425,22 +504,29 @@ export async function executeAnthropicProviderRequest(
       initialTokens: { input: 0, output: 0, total: 0 },
       initialCost: { total: 0.0, input: 0.0, output: 0.0 },
       isStreaming: true,
+      streamFormat: 'agent-events-v1',
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
-          (content, usage) => {
+          ({ content, usage, thinking }) => {
+            const tokens = buildAnthropicUsageTokens(usage)
+            const cost = buildAnthropicUsageCost(request.model, usage)
             output.content = content
-            output.tokens = {
-              input: usage.input_tokens,
-              output: usage.output_tokens,
-              total: usage.input_tokens + usage.output_tokens,
-            }
+            output.tokens = tokens
+            output.cost = cost
 
-            const costResult = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
+            const segment = output.providerTiming?.timeSegments?.[0]
+            if (segment) {
+              segment.provider = providerId
+              segment.tokens = tokens
+              segment.cost = {
+                input: cost.input,
+                output: cost.output,
+                total: cost.total,
+              }
+              if (thinking) {
+                segment.thinkingContent = thinking
+              }
             }
 
             finalizeTiming()
@@ -449,408 +535,6 @@ export async function executeAnthropicProviderRequest(
     })
 
     return streamingResult
-  }
-
-  if (request.stream && !shouldStreamToolCalls) {
-    logger.info(
-      `Using non-streaming mode for ${providerLabel} request (tool calls executed silently)`
-    )
-
-    const providerStartTime = Date.now()
-    const providerStartTimeISO = new Date(providerStartTime).toISOString()
-
-    try {
-      const initialCallTime = Date.now()
-      const originalToolChoice = payload.tool_choice
-      const forcedTools = preparedTools?.forcedTools || []
-      let usedForcedTools: string[] = []
-
-      let currentResponse = await createMessage(anthropic, payload, request.abortSignal)
-      const firstResponseTime = Date.now() - initialCallTime
-
-      let content = ''
-
-      if (Array.isArray(currentResponse.content)) {
-        content = currentResponse.content
-          .filter((item) => item.type === 'text')
-          .map((item) => item.text)
-          .join('\n')
-      }
-
-      const tokens = {
-        input: currentResponse.usage?.input_tokens || 0,
-        output: currentResponse.usage?.output_tokens || 0,
-        total:
-          (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
-      }
-
-      const toolCalls = []
-      const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...messages]
-      let iterationCount = 0
-      let hasUsedForcedTool = false
-      let modelTime = firstResponseTime
-      let toolsTime = 0
-
-      const timeSegments: TimeSegment[] = [
-        {
-          type: 'model',
-          name: request.model,
-          startTime: initialCallTime,
-          endTime: initialCallTime + firstResponseTime,
-          duration: firstResponseTime,
-        },
-      ]
-
-      const firstCheckResult = checkForForcedToolUsage(
-        currentResponse,
-        originalToolChoice,
-        forcedTools,
-        usedForcedTools
-      )
-      if (firstCheckResult) {
-        hasUsedForcedTool = firstCheckResult.hasUsedForcedTool
-        usedForcedTools = firstCheckResult.usedForcedTools
-      }
-
-      try {
-        while (iterationCount < MAX_TOOL_ITERATIONS) {
-          const textContent = currentResponse.content
-            .filter((item) => item.type === 'text')
-            .map((item) => item.text)
-            .join('\n')
-
-          if (textContent) {
-            content = textContent
-          }
-
-          const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
-
-          enrichLastModelSegmentFromAnthropicResponse(timeSegments, currentResponse, textContent, {
-            model: request.model,
-          })
-
-          if (!toolUses || toolUses.length === 0) {
-            break
-          }
-
-          const toolsStartTime = Date.now()
-
-          const toolExecutionPromises = toolUses.map(async (toolUse) => {
-            const toolCallStartTime = Date.now()
-            const toolName = toolUse.name
-            const toolArgs = toolUse.input as Record<string, unknown>
-
-            try {
-              const tool = request.tools?.find((t) => t.id === toolName)
-              if (!tool) return null
-
-              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, {
-                signal: request.abortSignal,
-              })
-              const toolCallEndTime = Date.now()
-
-              return {
-                toolUse,
-                toolName,
-                toolArgs,
-                toolParams,
-                result,
-                startTime: toolCallStartTime,
-                endTime: toolCallEndTime,
-                duration: toolCallEndTime - toolCallStartTime,
-              }
-            } catch (error) {
-              const toolCallEndTime = Date.now()
-              logger.error('Error processing tool call:', { error, toolName })
-
-              return {
-                toolUse,
-                toolName,
-                toolArgs,
-                toolParams: {},
-                result: {
-                  success: false,
-                  output: undefined,
-                  error: getErrorMessage(error, 'Tool execution failed'),
-                },
-                startTime: toolCallStartTime,
-                endTime: toolCallEndTime,
-                duration: toolCallEndTime - toolCallStartTime,
-              }
-            }
-          })
-
-          const executionResults = await Promise.allSettled(toolExecutionPromises)
-
-          // Collect all tool_use and tool_result blocks for batching
-          const toolUseBlocks: Anthropic.Messages.ToolUseBlockParam[] = []
-          const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
-
-          for (const settledResult of executionResults) {
-            if (settledResult.status === 'rejected' || !settledResult.value) continue
-
-            const {
-              toolUse,
-              toolName,
-              toolArgs,
-              toolParams,
-              result,
-              startTime,
-              endTime,
-              duration,
-            } = settledResult.value
-
-            timeSegments.push({
-              type: 'tool',
-              name: toolName,
-              startTime: startTime,
-              endTime: endTime,
-              duration: duration,
-              toolCallId: toolUse.id,
-            })
-
-            let resultContent: unknown
-            if (result.success && result.output) {
-              toolResults.push(result.output)
-              resultContent = result.output
-            } else {
-              resultContent = {
-                error: true,
-                message: result.error || 'Tool execution failed',
-                tool: toolName,
-              }
-            }
-
-            toolCalls.push({
-              name: toolName,
-              arguments: toolParams,
-              startTime: new Date(startTime).toISOString(),
-              endTime: new Date(endTime).toISOString(),
-              duration: duration,
-              result: resultContent,
-              success: result.success,
-            })
-
-            // Add to batched arrays using the ORIGINAL ID from Claude's response
-            toolUseBlocks.push({
-              type: 'tool_use',
-              id: toolUse.id,
-              name: toolName,
-              input: toolArgs,
-            })
-
-            toolResultBlocks.push({
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: JSON.stringify(resultContent),
-            })
-          }
-
-          // Per Anthropic docs: thinking blocks must be preserved in assistant messages
-          // during tool use to maintain reasoning continuity.
-          const thinkingBlocks = currentResponse.content.filter(
-            (
-              item
-            ): item is
-              | Anthropic.Messages.ThinkingBlock
-              | Anthropic.Messages.RedactedThinkingBlock =>
-              item.type === 'thinking' || item.type === 'redacted_thinking'
-          )
-
-          // Add ONE assistant message with thinking + tool_use blocks
-          if (toolUseBlocks.length > 0) {
-            currentMessages.push({
-              role: 'assistant',
-              content: [
-                ...thinkingBlocks,
-                ...toolUseBlocks,
-              ] as Anthropic.Messages.ContentBlockParam[],
-            })
-          }
-
-          // Add ONE user message with ALL tool_result blocks
-          if (toolResultBlocks.length > 0) {
-            currentMessages.push({
-              role: 'user',
-              content: toolResultBlocks as Anthropic.Messages.ContentBlockParam[],
-            })
-          }
-
-          const thisToolsTime = Date.now() - toolsStartTime
-          toolsTime += thisToolsTime
-
-          const nextPayload: AnthropicPayload = {
-            ...payload,
-            messages: currentMessages,
-          }
-
-          // Per Anthropic docs: forced tool_choice is incompatible with thinking.
-          // Only auto and none are supported when thinking is enabled.
-          const thinkingEnabled = !!payload.thinking
-          if (
-            !thinkingEnabled &&
-            typeof originalToolChoice === 'object' &&
-            hasUsedForcedTool &&
-            forcedTools.length > 0
-          ) {
-            const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
-
-            if (remainingTools.length > 0) {
-              nextPayload.tool_choice = {
-                type: 'tool',
-                name: remainingTools[0],
-              }
-              logger.info(`Forcing next tool: ${remainingTools[0]}`)
-            } else {
-              nextPayload.tool_choice = undefined
-              logger.info('All forced tools have been used, removing tool_choice parameter')
-            }
-          } else if (
-            !thinkingEnabled &&
-            hasUsedForcedTool &&
-            typeof originalToolChoice === 'object'
-          ) {
-            nextPayload.tool_choice = undefined
-            logger.info(
-              'Removing tool_choice parameter for subsequent requests after forced tool was used'
-            )
-          }
-
-          const nextModelStartTime = Date.now()
-
-          currentResponse = await createMessage(anthropic, nextPayload, request.abortSignal)
-
-          const nextCheckResult = checkForForcedToolUsage(
-            currentResponse,
-            nextPayload.tool_choice,
-            forcedTools,
-            usedForcedTools
-          )
-          if (nextCheckResult) {
-            hasUsedForcedTool = nextCheckResult.hasUsedForcedTool
-            usedForcedTools = nextCheckResult.usedForcedTools
-          }
-
-          const nextModelEndTime = Date.now()
-          const thisModelTime = nextModelEndTime - nextModelStartTime
-
-          timeSegments.push({
-            type: 'model',
-            name: request.model,
-            startTime: nextModelStartTime,
-            endTime: nextModelEndTime,
-            duration: thisModelTime,
-          })
-
-          modelTime += thisModelTime
-
-          if (currentResponse.usage) {
-            tokens.input += currentResponse.usage.input_tokens || 0
-            tokens.output += currentResponse.usage.output_tokens || 0
-            tokens.total +=
-              (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
-          }
-
-          iterationCount++
-        }
-
-        if (iterationCount === MAX_TOOL_ITERATIONS) {
-          const trailingText = currentResponse.content
-            .filter((item) => item.type === 'text')
-            .map((item) => item.text)
-            .join('\n')
-          enrichLastModelSegmentFromAnthropicResponse(timeSegments, currentResponse, trailingText, {
-            model: request.model,
-          })
-        }
-      } catch (error) {
-        logger.error(`Error in ${providerLabel} request:`, { error })
-        throw error
-      }
-
-      const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-
-      const streamingPayload = {
-        ...payload,
-        messages: currentMessages,
-        stream: true,
-        tool_choice: undefined,
-      }
-
-      const streamResponse = await anthropic.messages.create(
-        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming,
-        request.abortSignal ? { signal: request.abortSignal } : undefined
-      )
-
-      const streamingResult = createStreamingExecution({
-        model: request.model,
-        providerStartTime,
-        providerStartTimeISO,
-        timing: {
-          kind: 'accumulated',
-          modelTime,
-          toolsTime,
-          firstResponseTime,
-          iterations: iterationCount + 1,
-          timeSegments,
-        },
-        initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
-        initialCost: {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          toolCost: undefined as number | undefined,
-          total: accumulatedCost.total,
-        },
-        toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
-        isStreaming: true,
-        createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAnthropicStream(
-            streamResponse as AsyncIterable<RawMessageStreamEvent>,
-            (streamContent, usage) => {
-              output.content = streamContent
-              output.tokens = {
-                input: tokens.input + usage.input_tokens,
-                output: tokens.output + usage.output_tokens,
-                total: tokens.total + usage.input_tokens + usage.output_tokens,
-              }
-
-              const streamCost = calculateCost(
-                request.model,
-                usage.input_tokens,
-                usage.output_tokens
-              )
-              const tc = sumToolCosts(toolResults)
-              output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
-              }
-
-              finalizeTiming()
-            }
-          ),
-      })
-
-      return streamingResult
-    } catch (error) {
-      const providerEndTime = Date.now()
-      const providerEndTimeISO = new Date(providerEndTime).toISOString()
-      const totalDuration = providerEndTime - providerStartTime
-
-      logger.error(`Error in ${providerLabel} request:`, {
-        error,
-        duration: totalDuration,
-      })
-
-      throw new ProviderError(toError(error).message, {
-        startTime: providerStartTimeISO,
-        endTime: providerEndTimeISO,
-        duration: totalDuration,
-      })
-    }
   }
 
   const providerStartTime = Date.now()
@@ -874,23 +558,8 @@ export async function executeAnthropicProviderRequest(
         .join('\n')
     }
 
-    const tokens = {
-      input: currentResponse.usage?.input_tokens || 0,
-      output: currentResponse.usage?.output_tokens || 0,
-      total:
-        (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
-    }
-
-    const initialCost = calculateCost(
-      request.model,
-      currentResponse.usage?.input_tokens || 0,
-      currentResponse.usage?.output_tokens || 0
-    )
-    const cost = {
-      input: initialCost.input,
-      output: initialCost.output,
-      total: initialCost.total,
-    }
+    const usage = createAnthropicUsageAccumulator()
+    addAnthropicUsage(usage, currentResponse.usage)
 
     const toolCalls = []
     const toolResults: Record<string, unknown>[] = []
@@ -936,9 +605,17 @@ export async function executeAnthropicProviderRequest(
 
         enrichLastModelSegmentFromAnthropicResponse(timeSegments, currentResponse, textContent, {
           model: request.model,
+          providerId,
         })
 
-        if (!toolUses || toolUses.length === 0) {
+        if (toolUses.length > 0 && currentResponse.stop_reason !== 'tool_use') {
+          throw new Error(
+            `${providerLabel} returned tool use with stop_reason ${
+              currentResponse.stop_reason ?? 'missing'
+            }`
+          )
+        }
+        if (toolUses.length === 0) {
           break
         }
 
@@ -947,17 +624,36 @@ export async function executeAnthropicProviderRequest(
         const toolExecutionPromises = toolUses.map(async (toolUse) => {
           const toolCallStartTime = Date.now()
           const toolName = toolUse.name
-          const toolArgs = toolUse.input as Record<string, unknown>
+          const toolArgs = isRecordLike(toolUse.input) ? toolUse.input : undefined
           // Preserve the original tool_use ID from Claude's response
           const toolUseId = toolUse.id
 
           try {
+            if (!toolArgs) {
+              throw new Error(`Arguments for tool "${toolName}" must be an object`)
+            }
+
             const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) return null
+            if (!tool) {
+              const toolCallEndTime = Date.now()
+              return {
+                toolUseId,
+                toolName,
+                toolArgs,
+                toolParams: {},
+                result: {
+                  success: false,
+                  output: undefined,
+                  error: `Tool not found: ${toolName}`,
+                },
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallEndTime - toolCallStartTime,
+              }
+            }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
             const result = await executeTool(toolName, executionParams, {
-              skipPostProcess: true,
               signal: request.abortSignal,
             })
             const toolCallEndTime = Date.now()
@@ -973,13 +669,16 @@ export async function executeAnthropicProviderRequest(
               duration: toolCallEndTime - toolCallStartTime,
             }
           } catch (error) {
+            if (isAbortError(error) || request.abortSignal?.aborted) {
+              throw error
+            }
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call:', { error, toolName })
 
             return {
               toolUseId,
               toolName,
-              toolArgs,
+              toolArgs: toolArgs ?? {},
               toolParams: {},
               result: {
                 success: false,
@@ -993,15 +692,12 @@ export async function executeAnthropicProviderRequest(
           }
         })
 
-        const executionResults = await Promise.allSettled(toolExecutionPromises)
+        const executionResults = await Promise.all(toolExecutionPromises)
 
         // Collect all tool_use and tool_result blocks for batching
-        const toolUseBlocks: Anthropic.Messages.ToolUseBlockParam[] = []
         const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
 
-        for (const settledResult of executionResults) {
-          if (settledResult.status === 'rejected' || !settledResult.value) continue
-
+        for (const executionResult of executionResults) {
           const {
             toolUseId,
             toolName,
@@ -1011,7 +707,7 @@ export async function executeAnthropicProviderRequest(
             startTime,
             endTime,
             duration,
-          } = settledResult.value
+          } = executionResult
 
           timeSegments.push({
             type: 'tool',
@@ -1023,9 +719,11 @@ export async function executeAnthropicProviderRequest(
           })
 
           let resultContent: unknown
-          if (result.success && result.output) {
-            toolResults.push(result.output)
-            resultContent = result.output
+          if (result.success) {
+            if (isRecordLike(result.output)) {
+              toolResults.push(result.output)
+            }
+            resultContent = result.output ?? null
           } else {
             resultContent = {
               error: true,
@@ -1044,38 +742,32 @@ export async function executeAnthropicProviderRequest(
             success: result.success,
           })
 
-          // Add to batched arrays using the ORIGINAL ID from Claude's response
-          toolUseBlocks.push({
-            type: 'tool_use',
-            id: toolUseId,
-            name: toolName,
-            input: toolArgs,
-          })
-
           toolResultBlocks.push({
             type: 'tool_result',
             tool_use_id: toolUseId,
             content: JSON.stringify(resultContent),
+            is_error: !result.success,
           })
         }
 
-        // Per Anthropic docs: thinking blocks must be preserved in assistant messages
-        // during tool use to maintain reasoning continuity.
-        const thinkingBlocks = currentResponse.content.filter(
+        const assistantBlocks = currentResponse.content.filter(
           (
             item
-          ): item is Anthropic.Messages.ThinkingBlock | Anthropic.Messages.RedactedThinkingBlock =>
-            item.type === 'thinking' || item.type === 'redacted_thinking'
+          ): item is
+            | Anthropic.Messages.TextBlock
+            | Anthropic.Messages.ThinkingBlock
+            | Anthropic.Messages.RedactedThinkingBlock
+            | Anthropic.Messages.ToolUseBlock =>
+            item.type === 'text' ||
+            item.type === 'thinking' ||
+            item.type === 'redacted_thinking' ||
+            item.type === 'tool_use'
         )
 
-        // Add ONE assistant message with thinking + tool_use blocks
-        if (toolUseBlocks.length > 0) {
+        if (assistantBlocks.some((item) => item.type === 'tool_use')) {
           currentMessages.push({
             role: 'assistant',
-            content: [
-              ...thinkingBlocks,
-              ...toolUseBlocks,
-            ] as Anthropic.Messages.ContentBlockParam[],
+            content: assistantBlocks,
           })
         }
 
@@ -1155,21 +847,7 @@ export async function executeAnthropicProviderRequest(
 
         modelTime += thisModelTime
 
-        if (currentResponse.usage) {
-          tokens.input += currentResponse.usage.input_tokens || 0
-          tokens.output += currentResponse.usage.output_tokens || 0
-          tokens.total +=
-            (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
-
-          const iterationCost = calculateCost(
-            request.model,
-            currentResponse.usage.input_tokens || 0,
-            currentResponse.usage.output_tokens || 0
-          )
-          cost.input += iterationCost.input
-          cost.output += iterationCost.output
-          cost.total += iterationCost.total
-        }
+        addAnthropicUsage(usage, currentResponse.usage)
 
         iterationCount++
       }
@@ -1181,6 +859,7 @@ export async function executeAnthropicProviderRequest(
           .join('\n')
         enrichLastModelSegmentFromAnthropicResponse(timeSegments, currentResponse, trailingText, {
           model: request.model,
+          providerId,
         })
       }
     } catch (error) {
@@ -1191,79 +870,14 @@ export async function executeAnthropicProviderRequest(
     const providerEndTime = Date.now()
     const providerEndTimeISO = new Date(providerEndTime).toISOString()
     const totalDuration = providerEndTime - providerStartTime
-
-    if (request.stream) {
-      logger.info(`Using streaming for final ${providerLabel} response after tool processing`)
-
-      const streamingPayload = {
-        ...payload,
-        messages: currentMessages,
-        stream: true,
-        tool_choice: undefined,
-      }
-
-      const streamResponse = await anthropic.messages.create(
-        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming,
-        request.abortSignal ? { signal: request.abortSignal } : undefined
-      )
-
-      const streamingResult = createStreamingExecution({
-        model: request.model,
-        providerStartTime,
-        providerStartTimeISO,
-        timing: {
-          kind: 'accumulated',
-          modelTime,
-          toolsTime,
-          firstResponseTime,
-          iterations: iterationCount + 1,
-          timeSegments,
-        },
-        initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
-        initialCost: {
-          input: cost.input,
-          output: cost.output,
-          toolCost: undefined as number | undefined,
-          total: cost.total,
-        },
-        toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
-        isStreaming: true,
-        createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAnthropicStream(
-            streamResponse as AsyncIterable<RawMessageStreamEvent>,
-            (streamContent, usage) => {
-              output.content = streamContent
-              output.tokens = {
-                input: tokens.input + usage.input_tokens,
-                output: tokens.output + usage.output_tokens,
-                total: tokens.total + usage.input_tokens + usage.output_tokens,
-              }
-
-              const streamCost = calculateCost(
-                request.model,
-                usage.input_tokens,
-                usage.output_tokens
-              )
-              const tc2 = sumToolCosts(toolResults)
-              output.cost = {
-                input: cost.input + streamCost.input,
-                output: cost.output + streamCost.output,
-                toolCost: tc2 || undefined,
-                total: cost.total + streamCost.total + tc2,
-              }
-
-              finalizeTiming()
-            }
-          ),
-      })
-
-      return streamingResult
-    }
+    const tokens = buildAnthropicUsageTokens(usage)
+    const cost = buildAnthropicUsageCost(request.model, usage)
 
     return {
       content,
       model: request.model,
       tokens,
+      cost,
       toolCalls:
         toolCalls.length > 0
           ? toolCalls.map((tc) => ({
@@ -1297,6 +911,10 @@ export async function executeAnthropicProviderRequest(
       duration: totalDuration,
     })
 
+    if (isAbortError(error) || request.abortSignal?.aborted) {
+      throw error
+    }
+
     throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
@@ -1316,6 +934,7 @@ function enrichLastModelSegmentFromAnthropicResponse(
   textContent: string,
   extras?: {
     model?: string
+    providerId?: string
     ttft?: number
     errorType?: string
     errorMessage?: string
@@ -1341,17 +960,12 @@ function enrichLastModelSegmentFromAnthropicResponse(
         : {},
   }))
 
-  const segmentTokens = response.usage ? buildAnthropicSegmentTokens(response.usage) : undefined
-
+  const usage = createAnthropicUsageAccumulator()
+  addAnthropicUsage(usage, response.usage)
+  const segmentTokens = buildAnthropicUsageTokens(usage)
   let cost: { input: number; output: number; total: number } | undefined
-  if (
-    extras?.model &&
-    segmentTokens &&
-    typeof segmentTokens.input === 'number' &&
-    typeof segmentTokens.output === 'number'
-  ) {
-    const useCached = (segmentTokens.cacheRead ?? 0) > 0
-    const full = calculateCost(extras.model, segmentTokens.input, segmentTokens.output, useCached)
+  if (extras?.model) {
+    const full = buildAnthropicUsageCost(extras.model, usage)
     cost = { input: full.input, output: full.output, total: full.total }
   }
 
@@ -1362,29 +976,9 @@ function enrichLastModelSegmentFromAnthropicResponse(
     finishReason: response.stop_reason ?? undefined,
     tokens: segmentTokens,
     cost,
-    provider: 'anthropic',
+    provider: extras?.providerId,
     ttft: extras?.ttft,
     errorType: extras?.errorType,
     errorMessage: extras?.errorMessage,
   })
-}
-
-/**
- * Builds a segment token breakdown from Anthropic usage data, surfacing prompt
- * cache reads/writes separately and producing a corrected `total` that includes
- * cache_creation tokens (which Anthropic bills as input tokens but omits from
- * `input_tokens`).
- */
-function buildAnthropicSegmentTokens(usage: Anthropic.Messages.Message['usage']): BlockTokens {
-  const input = usage.input_tokens ?? 0
-  const output = usage.output_tokens ?? 0
-  const cacheRead = usage.cache_read_input_tokens ?? 0
-  const cacheWrite = usage.cache_creation_input_tokens ?? 0
-  return {
-    input,
-    output,
-    total: input + output + cacheRead + cacheWrite,
-    ...(cacheRead > 0 && { cacheRead }),
-    ...(cacheWrite > 0 && { cacheWrite }),
-  }
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { Navbar } from '@/app/(landing)/components/navbar'
 
 /**
@@ -25,7 +26,8 @@ interface LogoShellProps {
 
 export function LogoShell({ children, center = false, footer }: LogoShellProps) {
   return (
-    <div className='light relative flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='light desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+      <DesktopTitleBarLane />
       <Navbar logoOnly />
       <main
         className={cn('flex flex-1 flex-col', center && 'items-center justify-center px-4 pb-16')}

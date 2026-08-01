@@ -1,0 +1,434 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { readSSEEvents } from '@/lib/core/utils/sse'
+import {
+  type AnthropicSessionEvent,
+  type CreateSessionInput,
+  createSession,
+  type EnvironmentType,
+  getEnvironmentType,
+  getSession,
+  interruptSession,
+  listSessionEvents,
+  openSessionStream,
+  sendSessionEvents,
+  sendUserMessage,
+} from '@/lib/managed-agents/session-client'
+
+/**
+ * Runs a Claude Platform Managed Agent session end-to-end and returns the
+ * accumulated assistant text. This is the one genuinely-custom piece of the
+ * integration: the Managed Agents lifecycle is create → send → stream →
+ * catch-up → reconnect, which the single-request tool framework can't model.
+ *
+ * Completion is driven only by real terminal signals — a `session.status_idle`
+ * (`end_turn`) event, or the authoritative session `status` when the event
+ * stream is quiet — never by a heuristic timer. Pure with respect to Sim (no
+ * `@sim/db`, no executor types); the caller supplies the decrypted API key.
+ */
+
+const logger = createLogger('ManagedAgentRunSession')
+
+/** Upper bound on stream-close → catch-up → reopen cycles per invocation. */
+const MAX_RECONNECT_ITERATIONS = 120
+/** Wall-clock backstop for the reconnect loop (not the live-stream duration). */
+const MAX_SESSION_MS = 15 * 60 * 1000
+const RECONNECT_BACKOFF_START_MS = 500
+const RECONNECT_BACKOFF_MAX_MS = 5000
+
+export interface RunManagedAgentInput {
+  apiKey: string
+  agentId: string
+  environmentId: string
+  /** Env-type hint from the block; used only if server-side resolution fails. */
+  environmentType?: EnvironmentType
+  userMessage: string
+  title?: string
+  vaultIds?: string[]
+  memoryStoreId?: string
+  memoryAccess?: 'read_write' | 'read_only'
+  memoryInstructions?: string
+  files?: Array<{ fileId: string; mountPath?: string }>
+  sessionParameters?: Record<string, string>
+  signal?: AbortSignal
+}
+
+export interface RunManagedAgentResult {
+  ok: boolean
+  content: string
+  sessionId?: string
+  error?: string
+  inputTokens?: number
+  outputTokens?: number
+}
+
+type Terminal = { status: 'complete' | 'error'; reason?: string }
+/** Result of handling one event: an optional terminal signal, plus whether the event must be retried. */
+type HandleResult = { terminal?: Terminal; retry?: boolean }
+
+/** True for session lifecycle events (`session.status_*` / `session.error`). */
+function isLifecycleEvent(type: string | undefined): boolean {
+  return !!type && (type.startsWith('session.status_') || type === 'session.error')
+}
+
+/**
+ * Epoch millis for an event's `processed_at`. A missing/unparseable value
+ * counts as OLDEST (`-Infinity`) so an untimestamped lifecycle event can never
+ * outrank a timestamped one in either direction — a stray untimestamped event
+ * neither poisons the high-water mark (blocking later real events) nor clears a
+ * timestamped pause. Persisted lifecycle events always carry `processed_at`;
+ * this is purely defensive.
+ */
+function eventTime(value: string | null | undefined): number {
+  if (!value) return Number.NEGATIVE_INFINITY
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed
+}
+
+/** Best-effort `user.interrupt` for a session Sim is abandoning (cancel / cap). Never throws. */
+async function interruptQuietly(apiKey: string, sessionId: string): Promise<void> {
+  try {
+    await interruptSession({ apiKey, sessionId })
+  } catch (err) {
+    logger.warn('Failed to interrupt managed agent session on cancel', {
+      sessionId,
+      error: getErrorMessage(err),
+    })
+  }
+}
+
+export async function runManagedAgentSession(
+  input: RunManagedAgentInput
+): Promise<RunManagedAgentResult> {
+  const { apiKey, signal } = input
+  if (signal?.aborted) return { ok: false, content: '', error: 'aborted' }
+
+  const userMessage = input.userMessage.trim()
+  if (!userMessage) return { ok: false, content: '', error: 'User message is required.' }
+
+  // Resolve the environment type up front so the payload routes correctly:
+  // self-hosted environments reject `resources`, so memory must go via metadata
+  // there. The authoritative source is the API; the block's hint is only a
+  // fallback if that lookup fails.
+  const environmentType =
+    (await getEnvironmentType({ apiKey, environmentId: input.environmentId, signal })) ??
+    input.environmentType
+
+  const createInput: CreateSessionInput = {
+    apiKey,
+    agentId: input.agentId,
+    environmentId: input.environmentId,
+    ...(environmentType ? { environmentType } : {}),
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.vaultIds && input.vaultIds.length > 0 ? { vaultIds: input.vaultIds } : {}),
+    ...(input.memoryStoreId ? { memoryStoreId: input.memoryStoreId } : {}),
+    ...(input.memoryStoreId && input.memoryAccess ? { memoryAccess: input.memoryAccess } : {}),
+    ...(input.memoryStoreId && input.memoryInstructions
+      ? { memoryInstructions: input.memoryInstructions }
+      : {}),
+    ...(input.files && input.files.length > 0 ? { files: input.files } : {}),
+    ...(input.sessionParameters && Object.keys(input.sessionParameters).length > 0
+      ? { sessionParameters: input.sessionParameters }
+      : {}),
+    ...(signal ? { signal } : {}),
+  }
+
+  let sessionId: string
+  try {
+    const session = await createSession(createInput)
+    sessionId = session.id
+  } catch (error) {
+    return {
+      ok: false,
+      content: '',
+      error: getErrorMessage(error, 'Failed to create Managed Agent session'),
+    }
+  }
+
+  logger.info('Created managed agent session', {
+    sessionId,
+    agentId: input.agentId,
+    environmentId: input.environmentId,
+  })
+
+  try {
+    await sendUserMessage({ apiKey, sessionId, text: userMessage, signal })
+  } catch (error) {
+    // The session exists but we could not drive it. The message may still have
+    // reached the sandbox (abort/error can race the delivered request), so stop
+    // the session rather than leave it possibly running against the key.
+    await interruptQuietly(apiKey, sessionId)
+    return {
+      ok: false,
+      content: '',
+      sessionId,
+      error: signal?.aborted ? 'aborted' : getErrorMessage(error, 'Failed to send user message'),
+    }
+  }
+
+  const assistantText = { value: '' }
+  const seenIds = new Set<string>()
+  const startedAt = Date.now()
+  let backoffMs = RECONNECT_BACKOFF_START_MS
+  let sawActivity = false
+  // A `requires_action` idle means the session is paused waiting on a tool
+  // result, not finished. We derive it from the NEWEST lifecycle event by
+  // `processed_at` (tracked across the live stream and catch-up), so a lagging
+  // or out-of-order history can never clear a newer pause and let an idle
+  // snapshot report an in-progress session complete.
+  let latestLifecycleAt = Number.NEGATIVE_INFINITY
+  let requiresActionOutstanding = false
+  let terminal: Terminal | null = null
+
+  const process = async (event: AnthropicSessionEvent): Promise<boolean> => {
+    if (
+      event.type === 'agent.message' ||
+      event.type === 'agent.custom_tool_use' ||
+      event.type === 'session.status_running'
+    ) {
+      sawActivity = true
+    }
+    if (isLifecycleEvent(event.type)) {
+      const at = eventTime(event.processed_at)
+      if (at >= latestLifecycleAt) {
+        latestLifecycleAt = at
+        requiresActionOutstanding =
+          event.type === 'session.status_idle' && event.stop_reason?.type === 'requires_action'
+      }
+    }
+    const outcome = await handleEvent({ event, assistantText, apiKey, sessionId, signal })
+    // Mark the event seen only once fully handled. A custom-tool reply that
+    // failed to send stays unseen so the next catch-up retries it instead of
+    // stranding the session on an unanswered requires_action pause.
+    if (event.id && !outcome.retry) seenIds.add(event.id)
+    if (outcome.terminal) {
+      terminal = outcome.terminal
+      return true
+    }
+    return false
+  }
+
+  try {
+    for (let iteration = 0; iteration < MAX_RECONNECT_ITERATIONS && !terminal; iteration++) {
+      if (signal?.aborted) break
+      if (Date.now() - startedAt > MAX_SESSION_MS) {
+        // Giving up on a session that may still be running — stop it so it
+        // does not keep consuming the workspace key past our cap.
+        await interruptQuietly(apiKey, sessionId)
+        terminal = {
+          status: 'error',
+          reason: `Session did not reach a terminal state within ${Math.floor(MAX_SESSION_MS / 1000)}s.`,
+        }
+        break
+      }
+
+      const streamResp = await openSessionStream({ apiKey, sessionId, signal })
+      await readSSEEvents<AnthropicSessionEvent>(streamResp, {
+        signal,
+        onParseError: (raw, err) => {
+          logger.warn('Un-parseable SSE line', {
+            sessionId,
+            preview: raw.slice(0, 200),
+            error: getErrorMessage(err),
+          })
+        },
+        onEvent: async (event) => {
+          if (event.id && seenIds.has(event.id)) return undefined
+          return (await process(event)) ? true : undefined
+        },
+      })
+      if (terminal || signal?.aborted) break
+
+      // Stream closed without a terminal event. Reconcile the full event
+      // history — the terminal event or final text may have landed during the
+      // gap. Events are deduped by id; entries without an id are skipped here
+      // (they are non-persisted stream previews, never history).
+      const history = await listSessionEvents({ apiKey, sessionId, signal })
+      let progressed = false
+      for (const event of history) {
+        if (!event.id || seenIds.has(event.id)) continue
+        const isTerminal = await process(event)
+        // Count as progress only when the event was actually consumed (marked
+        // seen). A custom-tool reply that failed stays unseen for retry — it
+        // must NOT reset the backoff, or a persistently-failing reply would
+        // spin the reconnect loop with no delay.
+        if (seenIds.has(event.id)) progressed = true
+        if (isTerminal) break
+      }
+      if (terminal || signal?.aborted) break
+
+      // Still no terminal event. Consult the authoritative session status: a
+      // finished session reports `idle`/`terminated`; a working one reports
+      // `running`. `idle` counts as complete only once the agent has actually
+      // started (a freshly-created session is `idle` before its first turn).
+      const snapshot = await getSession({ apiKey, sessionId, signal })
+      if (snapshot?.status === 'terminated') {
+        terminal = { status: 'error', reason: 'Session terminated.' }
+        break
+      }
+      if (snapshot?.status === 'idle' && sawActivity && !requiresActionOutstanding) {
+        terminal = { status: 'complete' }
+        break
+      }
+
+      // Working (or not yet started) — back off and reopen, resetting the
+      // backoff whenever catch-up surfaced new events.
+      if (progressed) {
+        backoffMs = RECONNECT_BACKOFF_START_MS
+      } else {
+        await sleep(backoffMs)
+        backoffMs = Math.min(backoffMs * 2, RECONNECT_BACKOFF_MAX_MS)
+      }
+    }
+  } catch (error) {
+    // Any exit from the loop with the session possibly still running must stop
+    // it — a mid-run stream/API failure is no different from an abort or cap.
+    await interruptQuietly(apiKey, sessionId)
+    if (signal?.aborted) {
+      return { ok: false, content: assistantText.value, sessionId, error: 'aborted' }
+    }
+    logger.error('Managed agent stream failed', { sessionId, error: getErrorMessage(error) })
+    return {
+      ok: false,
+      content: assistantText.value,
+      sessionId,
+      error: getErrorMessage(error, 'Managed Agent session failed'),
+    }
+  }
+
+  if (signal?.aborted) {
+    await interruptQuietly(apiKey, sessionId)
+    return { ok: false, content: assistantText.value, sessionId, error: 'aborted' }
+  }
+  if (!terminal) {
+    // Reconnect cap reached while the session may still be running — stop it so
+    // it does not keep consuming the workspace key after we give up.
+    await interruptQuietly(apiKey, sessionId)
+    return {
+      ok: false,
+      content: assistantText.value,
+      sessionId,
+      error: 'Reconnect iteration cap reached without a terminal state.',
+    }
+  }
+  if (terminal.status === 'error') {
+    return {
+      ok: false,
+      content: assistantText.value,
+      sessionId,
+      error: terminal.reason ?? 'Managed Agent session failed.',
+    }
+  }
+
+  // Best-effort cumulative token usage for the block output.
+  const snapshot = await getSession({ apiKey, sessionId, signal })
+  return {
+    ok: true,
+    content: assistantText.value,
+    sessionId,
+    ...(snapshot?.usage?.inputTokens !== undefined
+      ? { inputTokens: snapshot.usage.inputTokens }
+      : {}),
+    ...(snapshot?.usage?.outputTokens !== undefined
+      ? { outputTokens: snapshot.usage.outputTokens }
+      : {}),
+  }
+}
+
+async function handleEvent(args: {
+  event: AnthropicSessionEvent
+  assistantText: { value: string }
+  apiKey: string
+  sessionId: string
+  signal?: AbortSignal
+}): Promise<HandleResult> {
+  const { event, assistantText, apiKey, sessionId, signal } = args
+
+  if (event.type === 'agent.message') {
+    // Accumulate text only from persisted (id-bearing) messages. An idless
+    // `agent.message` is a stream-only preview that is never deduped, so
+    // appending it would double the text once the persisted copy arrives.
+    // Idless lifecycle/terminal events still flow through the handlers below.
+    if (event.id && Array.isArray(event.content)) {
+      for (const block of event.content) {
+        if (block?.type === 'text' && typeof block.text === 'string') {
+          assistantText.value += block.text
+        }
+      }
+    }
+    return {}
+  }
+
+  if (event.type === 'agent.custom_tool_use') {
+    // Without an id we cannot correlate a reply; sending an empty id would
+    // strand the session, so log and let it resolve on its own instead.
+    if (!event.id) {
+      logger.warn('Managed Agent custom_tool_use arrived without an id — skipping reply', {
+        sessionId,
+      })
+      return {}
+    }
+    logger.warn(
+      `Managed Agent invoked a custom tool "${event.name ?? '<unknown>'}" that Sim does not provide — replying with error`
+    )
+    try {
+      await sendSessionEvents({
+        apiKey,
+        signal,
+        sessionId,
+        events: [
+          {
+            type: 'user.custom_tool_result',
+            custom_tool_use_id: event.id,
+            content: [
+              {
+                type: 'text',
+                text: 'This Managed Agent is being invoked from a Sim workflow block. Sim does not provide custom tools here — configure the agent to use only tools available in its Claude Platform workspace.',
+              },
+            ],
+            is_error: true,
+          },
+        ],
+      })
+    } catch (err) {
+      logger.error('Failed to send custom_tool_result error reply', {
+        sessionId,
+        error: getErrorMessage(err),
+      })
+      // Leave the event unseen so the next catch-up retries the reply rather
+      // than stranding the session on this unanswered tool call.
+      return { retry: true }
+    }
+    return {}
+  }
+
+  if (event.type === 'session.status_terminated') {
+    return { terminal: { status: 'error', reason: event.error?.message ?? 'session_terminated' } }
+  }
+
+  if (event.type === 'session.status_idle') {
+    const stop = event.stop_reason?.type
+    if (stop === 'end_turn') return { terminal: { status: 'complete' } }
+    if (stop === 'retries_exhausted') {
+      return { terminal: { status: 'error', reason: 'retries_exhausted' } }
+    }
+    // `requires_action` (paused for a pending tool call) and any unspecified
+    // idle are NOT terminal here. A freshly-created session is `idle` with no
+    // stop reason before its first turn, so completing on an unspecified idle
+    // would report empty content; instead defer to the authoritative-status
+    // gate, which only completes once `sawActivity` is set.
+    return {}
+  }
+
+  if (event.type === 'session.error') {
+    return {
+      terminal: {
+        status: 'error',
+        reason: event.error?.message ?? event.message ?? 'session_error',
+      },
+    }
+  }
+
+  return {}
+}

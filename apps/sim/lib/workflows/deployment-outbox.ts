@@ -48,6 +48,7 @@ import {
   markDeploymentComponentReadiness,
   markDeploymentOperationFailed,
   recordDeploymentOperationRetry,
+  setDeploymentTxTimeouts,
   type WorkflowDeploymentOperation,
 } from '@/lib/workflows/persistence/deployment-operations'
 import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from '@/lib/workflows/schedules'
@@ -1022,6 +1023,7 @@ async function deleteSchedulesForDeploymentIfInactive(params: {
   operationFence?: DeploymentCleanupOperationFence
 }): Promise<boolean> {
   return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     await tx
       .select({ id: workflowTable.id })
       .from(workflowTable)
@@ -1202,6 +1204,7 @@ async function createSchedulesIfStillActive(params: {
   blocks: Record<string, BlockState>
 }) {
   return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     const [workflowRecord] = await tx
       .select({ id: workflowTable.id })
       .from(workflowTable)
@@ -1250,6 +1253,7 @@ async function pruneWorkflowGroupOutputsIfStillActive(params: {
   requestId: string
 }): Promise<void> {
   await db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
     const [workflowRecord] = await tx
       .select({ id: workflowTable.id })
       .from(workflowTable)

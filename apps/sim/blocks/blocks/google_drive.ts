@@ -1546,7 +1546,7 @@ export const GoogleDriveBlockMeta = {
   templates: [
     {
       icon: BookOpen,
-      title: 'Personal knowledge assistant',
+      title: 'Google Drive personal notes assistant',
       prompt:
         'Create a knowledge base and connect it to my Google Drive, Notion, or Obsidian so all my notes, docs, and articles are automatically synced and embedded. Then build an agent that I can ask anything — it should answer with citations and deploy as a chat endpoint.',
       modules: ['knowledge-base', 'agent'],

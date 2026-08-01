@@ -16,10 +16,12 @@ import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   extractStorageKey,
+  extractWorkspaceIdFromExecutionKey,
   getFileExtension,
   getMimeTypeFromExtension,
   inferContextFromKey,
   isInternalFileUrl,
+  isRenderableDocumentName,
   processSingleFileToUserFile,
   type RawFileInput,
   resolveTrustedFileContext,
@@ -375,15 +377,19 @@ export async function downloadServableFileFromStorage(
 
   // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
   // import below.
-  const ext = getFileExtension(userFile.name)
-  if (ext !== 'pdf' && ext !== 'docx' && ext !== 'pptx' && ext !== 'xlsx') {
+  if (!isRenderableDocumentName(userFile.name)) {
+    const ext = getFileExtension(userFile.name)
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
 
   const { parseWorkspaceFileKey } = await import(
     '@/lib/uploads/contexts/workspace/workspace-file-manager'
   )
-  const workspaceId = userFile.key ? (parseWorkspaceFileKey(userFile.key) ?? undefined) : undefined
+  const workspaceId = userFile.key
+    ? (parseWorkspaceFileKey(userFile.key) ??
+      extractWorkspaceIdFromExecutionKey(userFile.key) ??
+      undefined)
+    : undefined
 
   const { resolveServableDocBytes } = await import('@/lib/copilot/tools/server/files/doc-compile')
   const resolved = await resolveServableDocBytes({

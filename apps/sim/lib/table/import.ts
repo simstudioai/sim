@@ -13,17 +13,49 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
+import type { ColumnType } from '@/lib/table/column-types'
+import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
 /**
- * Single source of truth for the `csv-parse` options used by both the buffered
- * sync parser and the streaming parser. `columns: true` emits each record as an
- * object keyed by the (first-row) headers.
+ * Field separators we sniff for, in tie-break priority order. Semicolon files are
+ * the standard CSV export of European-locale Excel; pipe shows up in log exports.
  */
-export function csvParseOptions(delimiter = ','): CsvParseOptions {
+export const CSV_DELIMITER_CANDIDATES = [',', ';', '\t', '|'] as const
+
+export type CsvDelimiter = (typeof CSV_DELIMITER_CANDIDATES)[number]
+
+/**
+ * Bytes inspected when sniffing the delimiter. Read from the head of the file on
+ * every path (client preview, streamed upload, background worker) so all of them
+ * observe the same prefix and therefore agree on the result.
+ */
+export const CSV_DELIMITER_SNIFF_BYTES = 64 * 1024
+
+/**
+ * Single source of truth for the `csv-parse` options used by both the buffered
+ * sync parser and the streaming parser.
+ *
+ * `columns` is a function rather than `true` so the *actual header row* is
+ * captured. With `relax_column_count`, a record shorter than the header simply
+ * omits the trailing keys, so `Object.keys(records[0])` under-reports the schema
+ * whenever the first data row is ragged — the header callback is authoritative.
+ */
+export function csvParseOptions(
+  delimiter = ',',
+  onHeaders?: (headers: string[]) => void
+): CsvParseOptions {
   return {
-    columns: true,
+    columns: (header: string[]) => {
+      // Deliver headers deduped to match the record keys: csv-parse collapses duplicate
+      // column names into a single object key (last value wins), so the consumer's schema
+      // inference and mapping must see the same unique set — not the raw duplicates, which
+      // would invent phantom columns that never receive a value. csv-parse still keys on the
+      // raw array we return here, so returning it unchanged preserves that collapsing.
+      onHeaders?.(dedupeHeaders(header))
+      return header
+    },
     skip_empty_lines: true,
     trim: true,
     relax_column_count: true,
@@ -40,13 +72,141 @@ export function csvParseOptions(delimiter = ','): CsvParseOptions {
  * file stream into it and iterate records with `for await`; backpressure flows
  * back to the source while each record is processed. Use this for HTTP uploads
  * so the file is never fully buffered in memory.
+ *
+ * `onHeaders` fires once, before the first record, with the full header row.
  */
-export function createCsvParser(delimiter = ','): Parser {
-  return parseCsvStream(csvParseOptions(delimiter))
+export function createCsvParser(delimiter = ',', onHeaders?: (headers: string[]) => void): Parser {
+  return parseCsvStream(csvParseOptions(delimiter, onHeaders))
 }
 
-/** Narrower type than `COLUMN_TYPES` used internally for coercion. */
-export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
+/**
+ * Drops later exact-duplicate header names, preserving first-occurrence order. Mirrors how
+ * `csv-parse` collapses duplicate column names into a single record key (last value wins), so
+ * the header set stays in lockstep with the object keys the parser actually emits.
+ */
+export function dedupeHeaders(headers: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const header of headers) {
+    if (seen.has(header)) continue
+    seen.add(header)
+    unique.push(header)
+  }
+  return unique
+}
+
+/** Decodes CSV bytes as UTF-8, passing strings through unchanged. */
+export function decodeCsvText(input: Buffer | Uint8Array | string): string {
+  if (typeof input === 'string') return input
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) return input.toString('utf-8')
+  return new TextDecoder('utf-8').decode(input as Uint8Array)
+}
+
+/**
+ * Sniffs the field separator by trial-parsing the sample with each candidate and
+ * keeping the one whose column count is most *consistent* across rows.
+ *
+ * A real parse (rather than counting raw characters) is what makes this safe on
+ * files whose quoted cells contain other candidates — `alarms.csv` exports a
+ * semicolon-separated file whose `raw_text` cells are full of commas and
+ * newlines, and a naive frequency count picks the comma.
+ *
+ * Each candidate is scored `modalWidth × consistency` — the modal (most common)
+ * row width times the fraction of rows at that width. This balances the two
+ * failure modes: ranking on width alone lets a delimiter that merely widens the
+ * header win (a comma splitting a semicolon file's unquoted header), while
+ * ranking on consistency alone lets a separator that appears uniformly *inside*
+ * values win over a real delimiter whose rows are legitimately ragged (a pipe
+ * embedded once per row beating a semicolon that yields 2- and 3-column rows).
+ * The product rewards a split that is both wide and uniform; ties break toward
+ * the wider split, then toward candidate order. Using the modal width (not the
+ * first row's) keeps one stray ragged row from distorting the score, and a
+ * single-column file (no candidate reaches two columns) falls back to `fallback`.
+ *
+ * Files that stay exactly tied on both score and width are genuinely ambiguous —
+ * e.g. `name;value,unit` splits into two columns under either `;` or `,` — so the
+ * global-default candidate order (comma first) decides, and both readings still
+ * produce a valid table.
+ *
+ * All callers funnel through here, so the sample is prepared identically for
+ * every import path: when the sample is a prefix sliced out of a larger file, a
+ * possibly-partial trailing line is dropped before parsing so a mid-record cut
+ * can't skew the counts. Pass `complete: true` when the sample is the entire file
+ * (nothing was sliced off) so a final row with no trailing newline still counts —
+ * dropping it would silently discard the only distinguishing data row of a tiny
+ * file and let a header-widening separator win.
+ */
+export async function detectCsvDelimiter(
+  input: Buffer | Uint8Array | string,
+  fallback: CsvDelimiter = ',',
+  { complete = false }: { complete?: boolean } = {}
+): Promise<CsvDelimiter> {
+  const { parse } = await import('csv-parse/sync')
+  const decoded = decodeCsvText(input)
+  // Drop a partial final line only when the sample is a truncated prefix; keep every row when
+  // the sample is the whole file (or a single line) so a trailing-newline-less last row counts.
+  const lastNewline = decoded.lastIndexOf('\n')
+  const text = !complete && lastNewline > 0 ? decoded.slice(0, lastNewline + 1) : decoded
+  if (text.trim() === '') return fallback
+
+  let best: { delimiter: CsvDelimiter; fields: number; score: number } | null = null
+
+  for (const delimiter of CSV_DELIMITER_CANDIDATES) {
+    let records: string[][]
+    try {
+      records = parse(text, {
+        columns: false,
+        skip_empty_lines: true,
+        relax_column_count: true,
+        relax_quotes: true,
+        skip_records_with_error: true,
+        bom: true,
+        delimiter,
+      }) as string[][]
+    } catch {
+      continue
+    }
+
+    if (records.length === 0) continue
+
+    // Modal row width: the most frequent column count, tie-broken toward the wider one.
+    const widthCounts = new Map<number, number>()
+    for (const record of records) {
+      widthCounts.set(record.length, (widthCounts.get(record.length) ?? 0) + 1)
+    }
+    let fields = 0
+    let modalFreq = 0
+    for (const [width, freq] of widthCounts) {
+      if (freq > modalFreq || (freq === modalFreq && width > fields)) {
+        fields = width
+        modalFreq = freq
+      }
+    }
+    if (fields < 2) continue
+
+    // Reward a split that is both wide and uniform; ties break toward the wider split.
+    const score = fields * (modalFreq / records.length)
+
+    if (!best || score > best.score || (score === best.score && fields > best.fields)) {
+      best = { delimiter, fields, score }
+    }
+  }
+
+  return best?.delimiter ?? fallback
+}
+
+/**
+ * Column types the CSV path coerces. Derived from the registry rather than
+ * restated, so a new type is covered automatically.
+ */
+export type CsvColumnType = ColumnType
+
+/**
+ * The subset {@link inferColumnType} can return. Every other type either needs
+ * configuration inference cannot supply (`select`'s options, `currency`'s
+ * code) or would swallow ordinary text (`json`).
+ */
+type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -103,24 +263,20 @@ export async function parseCsvBuffer(
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
   const { parse } = await import('csv-parse/sync')
 
-  let text: string
-  if (typeof input === 'string') {
-    text = input
-  } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) {
-    text = input.toString('utf-8')
-  } else {
-    text = new TextDecoder('utf-8').decode(input as Uint8Array)
-  }
+  const text = decodeCsvText(input)
 
-  // double-cast-allowed: shared csvParseOptions() loses the `columns: true` literal that drives
-  // csv-parse's record-vs-string[][] overload, but `columns: true` is always set so records are objects
-  const parsed = parse(text, csvParseOptions(delimiter)) as unknown as Record<string, unknown>[]
+  let headers: string[] = []
+  const options = csvParseOptions(delimiter, (h) => {
+    headers = h
+  })
+  // double-cast-allowed: shared csvParseOptions() loses the `columns` literal that drives
+  // csv-parse's record-vs-string[][] overload, but `columns` is always set so records are objects
+  const parsed = parse(text, options) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
     throw new Error('CSV file has no data rows')
   }
 
-  const headers = Object.keys(parsed[0])
   if (headers.length === 0) {
     throw new Error('CSV file has no headers')
   }
@@ -131,9 +287,11 @@ export async function parseCsvBuffer(
 /**
  * Infers a column type from a sample of non-empty values. Order matters: we
  * prefer narrower types (number > boolean > ISO date) and fall back to string.
- * JSON is never inferred automatically.
+ * JSON and currency are never inferred automatically — currency because the
+ * column would also have to guess an ISO code from a symbol, and guessing wrong
+ * mislabels every amount in the column.
  */
-export function inferColumnType(values: unknown[]): Exclude<CsvColumnType, 'json'> {
+export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
@@ -216,11 +374,18 @@ export function inferSchemaFromCsv(
  * empty inputs or values that cannot be parsed (numbers/booleans). Dates fall
  * back to the original string when unparseable so that schema validation can
  * reject it with context rather than silently inserting `null`.
+ *
+ * Deliberately NOT routed through the column-type registry's `coerce`, despite
+ * covering the same types. The registry's contract is "coerced or rejected",
+ * which the write path turns into `null`; an import instead wants an
+ * unparseable date or JSON blob to survive as its raw string so the row-level
+ * validation error names the offending value. Unifying the two would silently
+ * swap a descriptive import error for a blanked cell.
  */
 export function coerceValue(
   value: unknown,
   colType: CsvColumnType,
-  options?: NormalizeDateCellOptions
+  options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
@@ -228,6 +393,12 @@ export function coerceValue(
       const n = Number(value)
       return Number.isNaN(n) ? null : n
     }
+    // Importing into an existing currency column: the file carries the
+    // formatted amount (`$1,234.56`) but the cell stores a bare number. The
+    // column's currency is forwarded because it decides how a lone separator
+    // reads — a three-decimal currency's `0,500` is a half, not five hundred.
+    case 'currency':
+      return parseCurrencyInput(value, options?.currencyCode)
     case 'boolean': {
       const s = String(value).toLowerCase()
       if (s === 'true') return true
@@ -421,7 +592,10 @@ export function coerceRowsForTable(
       const col = colByName.get(colName)
       if (!col) continue
       const colType = (col.type as CsvColumnType) ?? 'string'
-      coerced[getColumnId(col)] = coerceValue(value, colType, options) as RowData[string]
+      coerced[getColumnId(col)] = coerceValue(value, colType, {
+        ...options,
+        ...(col.currencyCode !== undefined ? { currencyCode: col.currencyCode } : {}),
+      }) as RowData[string]
     }
     return coerced
   })
@@ -504,7 +678,11 @@ export async function parseFileRows(
     return parseJsonRows(buffer)
   }
   if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
-    const delimiter = ext === 'tsv' ? '\t' : ','
+    const delimiter = await detectCsvDelimiter(
+      buffer.subarray(0, CSV_DELIMITER_SNIFF_BYTES),
+      ext === 'tsv' ? '\t' : ',',
+      { complete: buffer.length <= CSV_DELIMITER_SNIFF_BYTES }
+    )
     return parseCsvBuffer(buffer, delimiter)
   }
   throw new Error(`Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`)

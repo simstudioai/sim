@@ -20,7 +20,10 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import {
+  agentStreamProtocolResponseHeaders,
+  createStreamingResponse,
+} from '@/lib/workflows/streaming/streaming'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import type { ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -250,6 +253,8 @@ export const POST = withRouteHandler(
       const executionMode = isApiCaller
         ? (persistedSnapshot.metadata.executionMode ?? 'sync')
         : undefined
+      const includeThinking = persistedSnapshot.metadata.includeThinking === true
+      const includeToolCalls = persistedSnapshot.metadata.includeToolCalls === true
 
       if (isApiCaller && executionMode === 'stream') {
         const stream = await createStreamingResponse({
@@ -257,12 +262,16 @@ export const POST = withRouteHandler(
           streamConfig: {
             selectedOutputs: persistedSnapshot.selectedOutputs,
             timeoutMs: preprocessResult.executionTimeout?.sync,
+            includeThinking,
+            includeToolCalls,
           },
           executionId: enqueueResult.resumeExecutionId,
           workspaceId: workflow.workspaceId || undefined,
           workflowId,
           userId: enqueueResult.userId,
           allowLargeValueWorkflowScope: true,
+          requestSignal: request.signal,
+          requestHeaders: request.headers,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             PauseResumeManager.startResumeExecution({
               ...resumeArgs,
@@ -275,6 +284,8 @@ export const POST = withRouteHandler(
         return new NextResponse(stream, {
           headers: {
             ...SSE_HEADERS,
+            // Echo the negotiated stream protocol (same as the public chat route).
+            ...agentStreamProtocolResponseHeaders({ requestHeaders: request.headers }),
             'X-Execution-Id': enqueueResult.resumeExecutionId,
           },
         })

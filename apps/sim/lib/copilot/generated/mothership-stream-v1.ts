@@ -30,6 +30,7 @@ export type MothershipStreamV1ToolExecutor = 'go' | 'sim' | 'client'
 export type MothershipStreamV1ToolMode = 'sync' | 'async'
 export type MothershipStreamV1ToolStatus =
   | 'generating'
+  | 'awaiting_approval'
   | 'executing'
   | 'success'
   | 'error'
@@ -546,6 +547,7 @@ export const MothershipStreamV1ToolPhase = {
 
 export const MothershipStreamV1ToolStatus = {
   generating: 'generating',
+  awaiting_approval: 'awaiting_approval',
   executing: 'executing',
   success: 'success',
   error: 'error',

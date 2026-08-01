@@ -8,6 +8,8 @@ import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
@@ -21,9 +23,11 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useInterfacesList, useRestoreInterface } from '@/hooks/queries/interfaces'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useMothershipChats, useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import {
@@ -31,7 +35,6 @@ import {
   useWorkspaceFileFolders,
 } from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -45,6 +48,9 @@ type ResourceType =
   | 'file'
   | 'folder'
   | 'workspace_folder'
+  | 'knowledge_folder'
+  | 'table_folder'
+  | 'chat'
 
 function getResourceHref(
   workspaceId: string,
@@ -67,6 +73,12 @@ function getResourceHref(
       return `${base}/w`
     case 'workspace_folder':
       return `${base}/files?folderId=${id}`
+    case 'knowledge_folder':
+      return `${base}/knowledge?folderId=${id}`
+    case 'table_folder':
+      return `${base}/tables?folderId=${id}`
+    case 'chat':
+      return `${base}/chat/${id}`
   }
 }
 
@@ -83,9 +95,12 @@ const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, Mothersh
   folder: 'folder',
   workspace_folder: 'filefolder',
   interface: 'interface',
+  knowledge_folder: 'folder',
+  table_folder: 'folder',
   table: 'table',
   knowledge: 'knowledgebase',
   file: 'file',
+  chat: 'task',
 }
 
 interface DeletedResource {
@@ -109,6 +124,7 @@ const TABS: { id: ResourceType; label: string }[] = [
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
+  { id: 'chat', label: 'Chats' },
 ]
 
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
@@ -116,9 +132,12 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   folder: 'Folder',
   workspace_folder: 'File Folder',
   interface: 'Interface',
+  knowledge_folder: 'Knowledge Folder',
+  table_folder: 'Table Folder',
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
+  chat: 'Chat',
 }
 
 function ResourceIcon({ resource }: { resource: DeletedResource }) {
@@ -130,10 +149,44 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
   )
 }
 
+/**
+ * Folder trees served by the generic folders API, other than the workflow tree that owns the
+ * standalone "Folders" tab. Each entry names the deleted-resource type it produces, the
+ * `resourceType` its rows are read and restored under, and the tab it files beneath — a
+ * foldered resource's folders belong with the resource, the way a file folder sits under
+ * Files. Declared once so adding a foldered resource is one row here rather than a fourth
+ * copy of the query/collect/restore triple below.
+ */
+const FOLDERED_RESOURCE_TREES = [
+  { type: 'knowledge_folder', resourceType: 'knowledge_base', tab: 'knowledge' },
+  { type: 'table_folder', resourceType: 'table', tab: 'table' },
+] as const satisfies readonly {
+  type: Exclude<ResourceType, 'all'>
+  resourceType: ServedFolderResourceType
+  tab: ResourceType
+}[]
+
+const FOLDER_TREE_TAB_BY_TYPE = new Map<ResourceType, ResourceType>(
+  FOLDERED_RESOURCE_TREES.map((tree) => [tree.type, tree.tab])
+)
+
+/**
+ * Restore brings a workflow back but deliberately does NOT re-enable its schedules, webhooks,
+ * or chats. Archive overwrites their enabled state without recording what it was, so restoring
+ * to a constant would re-enable something the user had deliberately switched off — and a
+ * deliberately-disabled schedule or webhook is a common state, not an edge case, so that would
+ * be wrong more often than right.
+ *
+ * Leaving it off is the safe choice; leaving it UNSAID is not. Restoring anything that carries
+ * automations says so at the moment of restore, so re-enabling is a known step rather than a
+ * silent surprise.
+ */
+const PAUSED_AUTOMATION_TYPES = new Set<ResourceType>(['workflow', 'folder'])
+
 function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
   if (activeTab === 'all') return true
   if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
-  return resource.type === activeTab
+  return resource.type === activeTab || FOLDER_TREE_TAB_BY_TYPE.get(resource.type) === activeTab
 }
 
 export function RecentlyDeleted() {
@@ -142,7 +195,7 @@ export function RecentlyDeleted() {
   const workspaceId = params?.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
-  const [{ tab: activeTab, search: urlSearchTerm }, setRecentlyDeletedFilters] = useQueryStates(
+  const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
     recentlyDeletedParsers,
     recentlyDeletedUrlKeys
   )
@@ -160,9 +213,7 @@ export function RecentlyDeleted() {
    * write is debounced. Filtering below is cheap in-memory over a small list, so
    * it reads the instant value too.
    */
-  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
-    setRecentlyDeletedFilters({ search: value }, options)
-  )
+  const [urlSearchTerm, setSearchTerm] = useSettingsSearch()
 
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
@@ -173,8 +224,23 @@ export function RecentlyDeleted() {
   const interfacesQuery = useInterfacesList(workspaceId, 'archived')
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
+  /**
+   * One archived-folder query per non-workflow tree, in the fixed order of
+   * {@link FOLDERED_RESOURCE_TREES} so the hook call order stays stable.
+   */
+  const knowledgeFoldersQuery = useFolders(workspaceId, {
+    scope: 'archived',
+    resourceType: 'knowledge_base',
+  })
+  const tableFoldersQuery = useFolders(workspaceId, { scope: 'archived', resourceType: 'table' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
   const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
+  // Restoring a chat navigates to a route that 404s with Chat off, and this
+  // query's loading/error state feeds the whole panel's.
+  const chatsQuery = useMothershipChats(workspaceId, {
+    scope: 'archived',
+    enabled: isChatEnabled,
+  })
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
@@ -183,6 +249,7 @@ export function RecentlyDeleted() {
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
+  const restoreChat = useRestoreMothershipChat(workspaceId)
 
   const isLoading =
     workflowsQuery.isLoading ||
@@ -190,8 +257,11 @@ export function RecentlyDeleted() {
     interfacesQuery.isLoading ||
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
+    knowledgeFoldersQuery.isLoading ||
+    tableFoldersQuery.isLoading ||
     filesQuery.isLoading ||
-    workspaceFoldersQuery.isLoading
+    workspaceFoldersQuery.isLoading ||
+    chatsQuery.isLoading
 
   const error =
     workflowsQuery.error ||
@@ -199,8 +269,11 @@ export function RecentlyDeleted() {
     interfacesQuery.error ||
     tablesQuery.error ||
     knowledgeQuery.error ||
+    knowledgeFoldersQuery.error ||
+    tableFoldersQuery.error ||
     filesQuery.error ||
-    workspaceFoldersQuery.error
+    workspaceFoldersQuery.error ||
+    chatsQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -220,7 +293,7 @@ export function RecentlyDeleted() {
         id: folder.id,
         name: folder.name,
         type: 'folder',
-        deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
+        deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
       })
     }
@@ -255,6 +328,30 @@ export function RecentlyDeleted() {
       })
     }
 
+    /**
+     * Keyed by `tree.type`, not by array position: an index-aligned pairing would silently file
+     * knowledge folders under Tables (and vice versa) if the const above were ever reordered,
+     * with no type error and no test to catch it.
+     */
+    const folderTreeData: Record<
+      (typeof FOLDERED_RESOURCE_TREES)[number]['type'],
+      typeof knowledgeFoldersQuery.data
+    > = {
+      knowledge_folder: knowledgeFoldersQuery.data,
+      table_folder: tableFoldersQuery.data,
+    }
+    FOLDERED_RESOURCE_TREES.forEach((tree) => {
+      for (const folder of folderTreeData[tree.type] ?? []) {
+        items.push({
+          id: folder.id,
+          name: folder.name,
+          type: tree.type,
+          deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
+          workspaceId: folder.workspaceId,
+        })
+      }
+    })
+
     for (const f of filesQuery.data ?? []) {
       items.push({
         id: f.id,
@@ -275,6 +372,17 @@ export function RecentlyDeleted() {
       })
     }
 
+    for (const chat of chatsQuery.data ?? []) {
+      if (!chat.deletedAt) continue
+      items.push({
+        id: chat.id,
+        name: chat.name,
+        type: 'chat',
+        deletedAt: chat.deletedAt,
+        workspaceId,
+      })
+    }
+
     return items
   }, [
     workflowsQuery.data,
@@ -282,8 +390,11 @@ export function RecentlyDeleted() {
     interfacesQuery.data,
     tablesQuery.data,
     knowledgeQuery.data,
+    knowledgeFoldersQuery.data,
+    tableFoldersQuery.data,
     filesQuery.data,
     workspaceFoldersQuery.data,
+    chatsQuery.data,
     workspaceId,
   ])
 
@@ -384,6 +495,20 @@ export function RecentlyDeleted() {
             folderId: resource.id,
           })
           break
+        case 'knowledge_folder':
+        case 'table_folder': {
+          const tree = FOLDERED_RESOURCE_TREES.find((entry) => entry.type === resource.type)
+          if (!tree) break
+          await restoreFolder.mutateAsync({
+            folderId: resource.id,
+            workspaceId: resource.workspaceId,
+            resourceType: tree.resourceType,
+          })
+          break
+        }
+        case 'chat':
+          await restoreChat.mutateAsync(resource.id)
+          break
       }
 
       setRestoredItems((prev) => new Map(prev).set(resource.id, { resource, displayIndex }))
@@ -444,6 +569,10 @@ export function RecentlyDeleted() {
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
+            // Chats are per-user (the archived list and restore are scoped to the
+            // viewer's own rows), so chat restore skips the workspace edit gate —
+            // mirroring that any member can delete their own chats.
+            const canRestore = resource.type === 'chat' || canEdit
 
             return (
               <SettingsResourceRow
@@ -458,23 +587,23 @@ export function RecentlyDeleted() {
                   </>
                 }
                 trailing={
-                  !canEdit ? null : isRestoring ? (
-                    <Chip variant='primary' disabled className='shrink-0'>
+                  !canRestore ? null : isRestoring ? (
+                    <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex shrink-0 items-center gap-2'>
-                      <span className='text-[var(--text-muted)] text-small'>Restored</span>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-[var(--text-muted)] text-small'>
+                        {PAUSED_AUTOMATION_TYPES.has(resource.type)
+                          ? 'Restored \u00b7 schedules and webhooks stay paused'
+                          : 'Restored'}
+                      </span>
                       <Chip variant='primary' onClick={() => handleView(resource)}>
                         View
                       </Chip>
                     </div>
                   ) : (
-                    <Chip
-                      variant='primary'
-                      onClick={() => void handleRestore(resource)}
-                      className='shrink-0'
-                    >
+                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore
                     </Chip>
                   )

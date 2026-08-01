@@ -134,14 +134,6 @@ app.kubernetes.io/component: pii
 {{- end }}
 
 {{/*
-Migrations specific labels
-*/}}
-{{- define "sim.migrations.labels" -}}
-{{ include "sim.labels" . }}
-app.kubernetes.io/component: migrations
-{{- end }}
-
-{{/*
 Copilot specific labels
 */}}
 {{- define "sim.copilot.labels" -}}
@@ -394,18 +386,6 @@ Returns the name of the secret containing PostgreSQL password
 {{- end }}
 
 {{/*
-Get the PostgreSQL password key name
-Returns the key name in the secret that contains the password
-*/}}
-{{- define "sim.postgresqlPasswordKey" -}}
-{{- if and .Values.postgresql.auth.existingSecret .Values.postgresql.auth.existingSecret.enabled -}}
-{{- .Values.postgresql.auth.existingSecret.passwordKey | default "POSTGRES_PASSWORD" -}}
-{{- else -}}
-{{- print "POSTGRES_PASSWORD" -}}
-{{- end -}}
-{{- end }}
-
-{{/*
 Get the external database secret name
 Returns the name of the secret containing external database password
 */}}
@@ -414,18 +394,6 @@ Returns the name of the secret containing external database password
 {{- .Values.externalDatabase.existingSecret.name -}}
 {{- else -}}
 {{- printf "%s-external-db-secret" (include "sim.fullname" .) -}}
-{{- end -}}
-{{- end }}
-
-{{/*
-Get the external database password key name
-Returns the key name in the secret that contains the password
-*/}}
-{{- define "sim.externalDbPasswordKey" -}}
-{{- if and .Values.externalDatabase.existingSecret .Values.externalDatabase.existingSecret.enabled -}}
-{{- .Values.externalDatabase.existingSecret.passwordKey | default "EXTERNAL_DB_PASSWORD" -}}
-{{- else -}}
-{{- print "EXTERNAL_DB_PASSWORD" -}}
 {{- end -}}
 {{- end }}
 

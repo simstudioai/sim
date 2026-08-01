@@ -1092,7 +1092,7 @@ export const CloudflareBlockMeta = {
     },
     {
       icon: CloudflareIcon,
-      title: 'Cache purge on deploy',
+      title: 'Cloudflare cache purge on deploy',
       prompt:
         'Build a workflow that fires when a Vercel deployment succeeds on production, purges the Cloudflare cache for the affected hostnames, verifies the new content is being served, and posts a confirmation message to Slack with the purged paths.',
       modules: ['agent', 'workflows'],
@@ -1102,7 +1102,7 @@ export const CloudflareBlockMeta = {
     },
     {
       icon: CloudflareIcon,
-      title: 'SSL and zone health check',
+      title: 'Cloudflare SSL and zone check',
       prompt:
         'Create a scheduled weekly workflow that inspects every Cloudflare zone for SSL certificate status, security level, and zone settings drift, logs findings to a table, and opens Linear tickets for any zones that need attention.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -1112,7 +1112,7 @@ export const CloudflareBlockMeta = {
     },
     {
       icon: CloudflareIcon,
-      title: 'DNS analytics digest',
+      title: 'Cloudflare DNS analytics digest',
       prompt:
         'Build a scheduled workflow that pulls Cloudflare DNS analytics for the top zones every Monday, identifies query spikes, anomalies, and surges in particular record types, and emails a written analysis to the platform team with traffic graphs and recommendations.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
@@ -1121,7 +1121,7 @@ export const CloudflareBlockMeta = {
     },
     {
       icon: CloudflareIcon,
-      title: 'Zone provisioning workflow',
+      title: 'Cloudflare zone provisioning',
       prompt:
         'Create a workflow that accepts a domain name from a form, creates a new Cloudflare zone, sets opinionated default DNS records and zone settings, generates the nameserver instructions, and posts the setup summary to Slack so the team can finalize delegation.',
       modules: ['agent', 'workflows'],
@@ -1131,7 +1131,7 @@ export const CloudflareBlockMeta = {
     },
     {
       icon: CloudflareIcon,
-      title: 'DNS record bulk importer',
+      title: 'Cloudflare DNS bulk importer',
       prompt:
         'Build a workflow that reads a table of DNS records — name, type, content, TTL — validates each row, creates or updates the matching record in Cloudflare, and writes results back to the table so DNS changes are versioned and reviewable.',
       modules: ['tables', 'agent', 'workflows'],
@@ -1140,7 +1140,7 @@ export const CloudflareBlockMeta = {
     },
     {
       icon: CloudflareIcon,
-      title: 'Zone settings policy enforcer',
+      title: 'Cloudflare zone policy enforcer',
       prompt:
         'Create a scheduled workflow that reads a baseline of required Cloudflare zone settings from a knowledge base, compares it against every zone weekly, automatically reverts unauthorized changes, and emails a compliance report to security leadership.',
       modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],

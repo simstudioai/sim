@@ -43,6 +43,7 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -161,16 +162,7 @@ interface WorkflowStatePayload {
 }
 
 function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefined): string {
-  switch (colType) {
-    case 'number':
-      return 'number'
-    case 'boolean':
-      return 'boolean'
-    case 'json':
-      return 'object'
-    default:
-      return 'string'
-  }
+  return columnTypeById(colType).workflowInputType
 }
 
 const TagIcon: React.FC<{
@@ -178,7 +170,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (

@@ -3,6 +3,7 @@ import {
   ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
   ATTIO_SERVICE_ACCOUNT_PROVIDER_ID,
   CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
   CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
@@ -21,6 +22,7 @@ import { validateAirtableServiceAccount } from '@/lib/credentials/token-service-
 import { validateAsanaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/asana'
 import { validateAttioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/attio'
 import { validateCalcomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/calcom'
+import { validateClaudePlatformServiceAccount } from '@/lib/credentials/token-service-accounts/validators/claude-platform'
 import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
@@ -80,6 +82,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [CALCOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateCalcomServiceAccount,
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: validateWealthboxServiceAccount,
   [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePipedriveServiceAccount,
+  [CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID]: validateClaudePlatformServiceAccount,
 }
 
 export function getTokenServiceAccountValidator(

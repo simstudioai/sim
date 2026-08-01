@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Button,
   ButtonGroup,
@@ -12,7 +12,12 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Check, Clipboard } from 'lucide-react'
+import {
+  AGENT_STREAM_PROTOCOL_HEADER_LABEL,
+  AGENT_STREAM_PROTOCOL_V1,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface WorkflowDeploymentInfo {
   isDeployed: boolean
@@ -76,6 +81,17 @@ export function ApiDeploy({
 
   const info = deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
 
+  /**
+   * Thinking and tool frames come off the block's stream sink, independent of
+   * `selectedOutputs`, so the presence of an Agent block is what decides
+   * whether these flags can do anything.
+   */
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const hasAgentBlock = useMemo(
+    () => Object.values(blocks).some((block) => block.type === 'agent'),
+    [blocks]
+  )
+
   const getBaseEndpoint = () => {
     if (!info) return ''
     return info.endpoint.replace(info.apiKey, '$SIM_API_KEY')
@@ -98,6 +114,11 @@ export function ApiDeploy({
     const payload: Record<string, unknown> = { ...getPayloadObject(), stream: true }
     if (selectedStreamingOutputs && selectedStreamingOutputs.length > 0) {
       payload.selectedOutputs = selectedStreamingOutputs
+    }
+    /** Paired with the protocol header, which the API requires alongside them. */
+    if (hasAgentBlock) {
+      payload.includeThinking = true
+      payload.includeToolCalls = true
     }
     return payload
   }
@@ -163,11 +184,19 @@ console.log(data);`
     const endpoint = getBaseEndpoint()
     const payload = getStreamPayloadObject()
     const isPublic = info.isPublicApi
+    /** Required whenever the payload asks for agent-event frames. */
+    const protocol = hasAgentBlock
+      ? {
+          curl: `  -H "${AGENT_STREAM_PROTOCOL_HEADER_LABEL}: ${AGENT_STREAM_PROTOCOL_V1}" \\\n`,
+          python: `        "${AGENT_STREAM_PROTOCOL_HEADER_LABEL}": "${AGENT_STREAM_PROTOCOL_V1}",\n`,
+          js: `    "${AGENT_STREAM_PROTOCOL_HEADER_LABEL}": "${AGENT_STREAM_PROTOCOL_V1}",\n`,
+        }
+      : { curl: '', python: '', js: '' }
 
     switch (language) {
       case 'curl':
         return `curl -X POST \\
-${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
+${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}${protocol.curl}  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
 
@@ -178,7 +207,7 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json"
+${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}${protocol.python}        "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')},
     stream=True
@@ -192,7 +221,7 @@ for line in response.iter_lines():
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}${protocol.js}    "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
@@ -210,7 +239,7 @@ while (true) {
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}${protocol.js}    "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });

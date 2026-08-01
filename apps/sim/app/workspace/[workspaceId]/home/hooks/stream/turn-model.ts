@@ -25,11 +25,18 @@ import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/copilot/tools/tool-displ
 export const MAIN_SPAN = 'main'
 
 /**
- * Terminal-bearing status for a single node. `running` is the only
- * non-terminal value; everything else is read from an explicit wire terminal
- * (tool `result`, span `end`) or propagated from the turn terminal.
+ * Terminal-bearing status for a single node. `running` and `awaiting_approval`
+ * are the non-terminal values; everything else is read from an explicit wire
+ * terminal (tool `result`, span `end`) or propagated from the turn terminal.
  */
-export type NodeStatus = 'running' | 'success' | 'error' | 'cancelled' | 'skipped' | 'rejected'
+export type NodeStatus =
+  | 'running'
+  | 'awaiting_approval'
+  | 'success'
+  | 'error'
+  | 'cancelled'
+  | 'skipped'
+  | 'rejected'
 
 /** Turn-level status. Terminal values come from the wire `complete`/`error`. */
 export type TurnStatus = 'streaming' | 'complete' | 'error' | 'cancelled'
@@ -504,6 +511,18 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           tsMs
         )
         rebindResolvedIntegrationCall(node, toolName)
+        // Sim stamps this onto the call frame for a tool it is holding behind a
+        // permission prompt. Only ever moves a live node INTO the waiting state;
+        // a node that already has a result stays terminal, so a replayed call
+        // frame cannot reopen an answered prompt.
+        const callStatus = asString(payload.status)
+        if (callStatus === 'awaiting_approval' && !isNodeTerminal(node.status) && !node.result) {
+          node.status = 'awaiting_approval'
+        } else if (callStatus === 'executing' && node.status === 'awaiting_approval') {
+          // The user allowed it; Sim re-emits the call frame so the card turns
+          // back into an ordinary running row without waiting for the result.
+          node.status = 'running'
+        }
         if (isRecord(payload.arguments)) node.args = payload.arguments
         // Only the snapshot-replay path (contentBlocksToModel) carries this
         // field — the live wire never does; it restores the rebound gateway
@@ -699,7 +718,9 @@ export function applyTurnTerminal(model: TurnModel, turn: Exclude<TurnStatus, 's
   for (const id of model.order) {
     const node = model.nodes.get(id)
     if (!node || node.kind === 'text') continue
-    if (node.status === 'running') {
+    // An unanswered permission prompt is a straggler too: the turn ended, so
+    // the card must stop offering actions rather than sit there forever.
+    if (node.status === 'running' || node.status === 'awaiting_approval') {
       node.status = nodeStatus
       // Close a straggler subagent lane (no explicit span end) so the serializer
       // emits its `subagent_end` and the group resolves — otherwise the

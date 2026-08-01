@@ -1,8 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calendar, cn, Popover, PopoverAnchor, PopoverContent, toast } from '@sim/emcn'
+import {
+  Calendar,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  toast,
+} from '@sim/emcn'
+import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
@@ -14,6 +27,7 @@ import {
   storageToDisplay,
   todayLocalCalendarDate,
 } from '../../../utils'
+import { SelectPill, selectedOptionIds } from '../../select-field'
 
 interface InlineEditorProps {
   value: unknown
@@ -229,7 +243,7 @@ function InlineDateEditor({
   )
 }
 
-/** Inline editor for `string`/`number`/`json` columns — single-line text input. Number columns use `type="number"` so the browser rejects non-numeric input. */
+/** Inline editor for `string`/`number`/`currency`/`json` columns — single-line text input. Numeric columns get a decimal keypad and reject a draft that cannot be parsed. */
 function InlineTextEditor({
   value,
   column,
@@ -278,8 +292,11 @@ function InlineTextEditor({
       rejectDraft('Invalid JSON', reason)
       return
     }
-    if (column.type === 'number' && cleaned === null && draft.trim() !== '') {
-      rejectDraft('Invalid number', reason)
+    // `cleanCellValue` nulls an unparseable draft rather than throwing; types
+    // that declare a message reject it instead of silently clearing the cell.
+    const parseError = columnTypeOf(column).parseErrorMessage
+    if (cleaned === null && draft.trim() !== '' && parseError) {
+      rejectDraft(parseError, reason)
       return
     }
     doneRef.current = true
@@ -300,13 +317,13 @@ function InlineTextEditor({
     }
   }
 
-  const isNumber = column.type === 'number'
+  const inputMode = columnTypeOf(column).inputMode
 
   return (
     <input
       ref={inputRef}
       type='text'
-      inputMode={isNumber ? 'decimal' : undefined}
+      inputMode={inputMode}
       value={draft ?? ''}
       onChange={(e) => {
         setDraft(e.target.value)
@@ -323,10 +340,105 @@ function InlineTextEditor({
   )
 }
 
-/** Dispatches to the right editor variant based on the column type. */
-export function InlineEditor(props: InlineEditorProps) {
-  if (props.column.type === 'date') {
-    return <InlineDateEditor {...props} />
+/**
+ * Inline editor for `select`/`multiselect` columns. Renders the canonical
+ * `DropdownMenu` anchored to the cell (an invisible full-cell trigger, no pill
+ * chrome) and opens it immediately. Single-select commits on pick; multiselect
+ * toggles and commits when the menu closes. Escape discards the draft, matching
+ * the text/date inline editors.
+ */
+function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorProps) {
+  const isMulti = !!column.multiple
+  const allOptions = column.options ?? []
+  const [draft, setDraft] = useState<string[]>(() => selectedOptionIds(column, value))
+  const [open, setOpen] = useState(true)
+  const latestRef = useRef(draft)
+  const doneRef = useRef(false)
+  const cancelledRef = useRef(false)
+
+  const setDraftAnd = (next: string[]) => {
+    latestRef.current = next
+    setDraft(next)
   }
-  return <InlineTextEditor {...props} />
+
+  const commit = useCallback(() => {
+    if (doneRef.current) return
+    doneRef.current = true
+    if (cancelledRef.current) {
+      onCancel()
+      return
+    }
+    const ids = latestRef.current
+    onSave(isMulti ? ids : (ids[0] ?? null), 'enter')
+  }, [isMulti, onSave, onCancel])
+
+  // Escape closes the Radix menu (firing `onOpenChange(false)`); capture it
+  // first so the close handler discards instead of committing.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelledRef.current = true
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [])
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) commit()
+  }
+
+  const handleSelectOption = (event: Event, id: string) => {
+    if (!isMulti) {
+      // Picking closes the menu → `handleOpenChange` commits the new value.
+      setDraftAnd([id])
+      return
+    }
+    // Keep the menu open across toggles; commit the set on close.
+    event.preventDefault()
+    const has = latestRef.current.includes(id)
+    const next = has ? latestRef.current.filter((v) => v !== id) : [...latestRef.current, id]
+    // A required multiselect can't be emptied — ignore removing the last option.
+    if (column.required && next.length === 0) return
+    setDraftAnd(next)
+  }
+
+  return (
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type='button'
+          aria-label={`Edit ${column.name}`}
+          className='absolute inset-0 cursor-pointer opacity-0'
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='start' sideOffset={2} className='min-w-[180px]'>
+        {!isMulti && !column.required && (
+          <DropdownMenuItem onSelect={() => setDraftAnd([])}>
+            <span className='text-[var(--text-muted)]'>None</span>
+            {draft.length === 0 && <Check className='!ml-auto' />}
+          </DropdownMenuItem>
+        )}
+        {allOptions.map((option) => (
+          <DropdownMenuItem key={option.id} onSelect={(e) => handleSelectOption(e, option.id)}>
+            <SelectPill option={option} />
+            {draft.includes(option.id) && <Check className='!ml-auto' />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** Dispatches to the editor variant the column type declares. */
+export function InlineEditor(props: InlineEditorProps) {
+  switch (columnTypeOf(props.column).editor) {
+    case 'date':
+      return <InlineDateEditor {...props} />
+    case 'select':
+      return <InlineSelectEditor {...props} />
+    // `toggle` types never open an editor — the grid flips them in place — so
+    // reaching here at all means a text draft is the sane fallback.
+    default:
+      return <InlineTextEditor {...props} />
+  }
 }

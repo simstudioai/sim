@@ -60,6 +60,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   description: 'Read, write, and update data',
   authMode: AuthMode.OAuth,
   hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'microsoft_excel_v2' },
   longDescription:
     'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',

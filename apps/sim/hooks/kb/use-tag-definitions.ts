@@ -5,11 +5,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
 import {
   type DocumentTagDefinitionInput,
-  knowledgeKeys,
   useDeleteDocumentTagDefinitions,
   useDocumentTagDefinitionsQuery,
   useSaveDocumentTagDefinitions,
 } from '@/hooks/queries/kb/knowledge'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 export interface TagDefinition {
   id: string

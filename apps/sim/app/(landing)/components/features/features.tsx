@@ -67,7 +67,7 @@ export function Features() {
           title='Build agents that solve real problems.'
           description="Wire blocks, models, and integrations into agent logic on Sim's visual builder, from one agent to many working in parallel."
           href='/workflows'
-          linkLabel='Explore the workflow builder'
+          linkLabel='Explore the AI workflow builder'
         >
           <BuildCallout />
         </FeatureCard>

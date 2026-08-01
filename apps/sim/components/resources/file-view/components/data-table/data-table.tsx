@@ -2,6 +2,7 @@
 
 import { forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import './document-table.css'
 
 interface EditConfig {
   onCellChange: (row: number, col: number, value: string) => void
@@ -20,6 +21,11 @@ export interface DataTableHandle {
 
 type EditingCell = { row: number; col: number } | null
 
+/**
+ * Tabular renderer for CSV and XLSX previews. Chrome (borders, padding, typography, header fill)
+ * comes entirely from `document-table.css`, the definition shared with markdown tables in the rich
+ * markdown editor — the only classes here are the optional edit affordances.
+ */
 const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataTable(
   { headers, rows, editConfig },
   ref
@@ -94,16 +100,15 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
     editingCell?.row === row && editingCell?.col === col
 
   return (
-    <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
-      <table className='w-full border-collapse text-[13px]'>
-        <thead className='bg-[var(--surface-2)]'>
+    <div className='document-table overflow-x-auto'>
+      <table>
+        <thead>
           <tr>
             {headers.map((header, i) => (
               <th
                 key={i}
                 className={cn(
-                  'whitespace-nowrap px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]',
-                  editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-3)]'
+                  editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-active)]'
                 )}
                 onClick={() => editConfig && startEdit(-1, i, String(header ?? ''))}
               >
@@ -114,7 +119,7 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
                     onChange={(e) => setEditValue(e.target.value)}
                     onBlur={commitEdit}
                     onKeyDown={handleKeyDown}
-                    className='w-full min-w-[60px] bg-transparent font-semibold text-[12px] text-[var(--text-primary)] outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
+                    className='w-full min-w-[60px] bg-transparent outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
                   />
                 ) : (
                   String(header ?? '')
@@ -125,13 +130,12 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className='border-[var(--border)] border-t'>
+            <tr key={ri}>
               {headers.map((_, ci) => (
                 <td
                   key={ci}
                   className={cn(
-                    'whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]',
-                    editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-2)]'
+                    editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-active)]'
                   )}
                   onClick={() => editConfig && startEdit(ri, ci, String(row[ci] ?? ''))}
                 >
@@ -142,7 +146,7 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
                       onChange={(e) => setEditValue(e.target.value)}
                       onBlur={commitEdit}
                       onKeyDown={handleKeyDown}
-                      className='w-full min-w-[60px] bg-transparent text-[13px] text-[var(--text-secondary)] outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
+                      className='w-full min-w-[60px] bg-transparent outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
                     />
                   ) : (
                     String(row[ci] ?? '')

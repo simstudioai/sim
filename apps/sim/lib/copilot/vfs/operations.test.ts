@@ -67,6 +67,30 @@ describe('grep', () => {
     expect(matches[1]).toMatchObject({ path: 'a.txt', line: 3, content: 'hello' })
   })
 
+  it('truncates oversized matched lines so a minified single-line file cannot return whole', () => {
+    const giantLine = `{"status":"error"}${'x'.repeat(50_000)}`
+    const files = vfsFromEntries([['internal/tool-results/run.json', giantLine]])
+    const matches = grep(files, 'status', undefined, { outputMode: 'content' }) as Array<{
+      content: string
+    }>
+    expect(matches).toHaveLength(1)
+    expect(matches[0].content.length).toBeLessThan(2_200)
+    expect(matches[0].content).toContain('[line truncated: 50018 chars total]')
+  })
+
+  it('truncates oversized context lines around a match', () => {
+    const files = vfsFromEntries([['a.txt', `before${'y'.repeat(10_000)}\nneedle\nafter`]])
+    const matches = grep(files, 'needle', undefined, {
+      outputMode: 'content',
+      context: 1,
+    }) as Array<{
+      content: string
+    }>
+    expect(matches).toHaveLength(3)
+    expect(matches[0].content.length).toBeLessThan(2_200)
+    expect(matches[1].content).toBe('needle')
+  })
+
   it('strips CR before end-of-line matching on CRLF content', () => {
     const files = vfsFromEntries([['x.txt', 'foo\r\n']])
     const matches = grep(files, 'foo$', undefined, { outputMode: 'content' })
@@ -136,5 +160,37 @@ describe('grep', () => {
     const files = vfsFromEntries([['a.txt', 'Hello']])
     const hits = grep(files, 'hello', undefined, { outputMode: 'content', ignoreCase: true })
     expect(hits).toHaveLength(1)
+  })
+})
+
+describe('grep regex safety', () => {
+  it('runs a catastrophic pattern in linear time', () => {
+    // `a*a*b` takes minutes on a backtracking engine against this content;
+    // both the pattern and the file content are caller-supplied.
+    const files = vfsFromEntries([['notes.md', `${'a'.repeat(10000)}!`]])
+
+    const start = Date.now()
+    grep(files, 'a*a*b')
+
+    expect(Date.now() - start).toBeLessThan(2000)
+  })
+
+  it('still interprets regex syntax', () => {
+    const files = vfsFromEntries([['log.txt', 'req finished status=503']])
+    expect(grep(files, 'status=\\d+')).toHaveLength(1)
+    expect(grep(files, 'status=\\d+', undefined, { outputMode: 'count' })).toEqual([
+      { path: 'log.txt', count: 1 },
+    ])
+  })
+
+  it('matches syntax RE2 cannot represent literally instead of not at all', () => {
+    const files = vfsFromEntries([['log.txt', 'contains (?=x) verbatim']])
+    expect(grep(files, '(?=x)')).toHaveLength(1)
+  })
+
+  it('honours ignoreCase across repeated line tests', () => {
+    const files = vfsFromEntries([['log.txt', 'Alpha\nALPHA\nalpha']])
+    expect(grep(files, 'alpha', undefined, { ignoreCase: true })).toHaveLength(3)
+    expect(grep(files, 'alpha')).toHaveLength(1)
   })
 })

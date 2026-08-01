@@ -75,6 +75,71 @@ Get details of a specific GitLab project
 | --------- | ---- | ----------- |
 | `project` | object | The GitLab project details |
 
+### `gitlab_list_groups`
+
+List GitLab groups accessible to the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `owned` | boolean | No | Limit to groups owned by the current user |
+| `search` | string | No | Search groups by name or path |
+| `topLevelOnly` | boolean | No | Limit to top-level groups, excluding subgroups |
+| `visibility` | string | No | Filter by visibility: public, internal, or private |
+| `minAccessLevel` | number | No | Only groups where the current user has at least this access level, as an integer \(e.g. 30 for Developer\). Valid values: 5, 10, 15, 20, 25, 30, 40, 50. |
+| `allAvailable` | boolean | No | Include all groups the user can access, not only groups they are a member of \(ignored when owned or a minimum access level is set\) |
+| `orderBy` | string | No | Order by field \(name, path, id, similarity\). similarity requires a search term. |
+| `sort` | string | No | Sort direction \(asc, desc\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | List of GitLab groups |
+| `total` | number | Total number of groups |
+
+### `gitlab_get_group`
+
+Get details of a specific GitLab group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `groupId` | string | Yes | Group ID or path \(e.g. mygroup or parent/subgroup\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | The GitLab group details |
+
+### `gitlab_list_user_memberships`
+
+List a user's project and group memberships. Requires an administrator access token (GET /users/:id/memberships is admin-only). For a non-admin path, iterate List Members on each project or group instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | string | Yes | The ID of the user whose memberships to list |
+| `membershipType` | string | No | Filter by source: 'Project' or 'Namespace' \(group\). Omit for all memberships. |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memberships` | array | The user's project and group memberships |
+| `total` | number | Total number of memberships |
+
 ### `gitlab_list_issues`
 
 List issues in a GitLab project
@@ -1169,6 +1234,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1236,6 +1304,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1303,6 +1374,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1370,6 +1444,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1437,6 +1514,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1504,6 +1584,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1571,6 +1654,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |
@@ -1638,6 +1724,9 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `projects` | json | List of projects |
 | `project` | json | Project details |
+| `groups` | json | List of groups |
+| `group` | json | Group details |
+| `memberships` | json | A user's project and group memberships |
 | `issues` | json | List of issues |
 | `issue` | json | Issue details |
 | `mergeRequests` | json | List of merge requests |

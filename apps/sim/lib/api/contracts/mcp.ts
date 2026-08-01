@@ -26,7 +26,12 @@ const optionalNumberFromNullableSchema = z.preprocess(
 
 const optionalConnectionStatusFromNullableSchema = z.preprocess(
   (value) => (value === null ? undefined : value),
-  z.enum(['connected', 'disconnected', 'error']).optional()
+  // `connection_status` is a free-text column; tolerate an off-enum value as undefined
+  // rather than failing the whole list's validation.
+  z
+    .enum(['connected', 'disconnected', 'error'])
+    .optional()
+    .catch(undefined)
 )
 
 const optionalHeadersFromNullableSchema = z.preprocess(
@@ -35,6 +40,16 @@ const optionalHeadersFromNullableSchema = z.preprocess(
 )
 
 export const mcpTransportSchema = z.enum(['streamable-http'])
+
+/**
+ * Transport as read back from storage. The `transport` column is free text, and
+ * rows predating the Streamable HTTP consolidation (or copied verbatim by an
+ * older fork) may still hold legacy `http`/`sse` values. Every server is operated
+ * over Streamable HTTP regardless, so any non-canonical value normalizes to the
+ * supported transport — this stops a single legacy row from failing the entire
+ * server list's response validation.
+ */
+const mcpTransportResponseSchema = mcpTransportSchema.catch('streamable-http')
 
 export const mcpAuthTypeSchema = z.enum(['none', 'headers', 'oauth'])
 
@@ -98,8 +113,10 @@ export const mcpServerSchema = z
     workspaceId: z.string(),
     name: z.string(),
     description: optionalStringFromNullableSchema,
-    transport: mcpTransportSchema,
-    authType: mcpAuthTypeSchema.optional(),
+    transport: mcpTransportResponseSchema,
+    // Response-side tolerance: `auth_type` is a free-text column, so a value outside
+    // the enum normalizes to undefined rather than failing the whole list's validation.
+    authType: mcpAuthTypeSchema.optional().catch(undefined),
     url: optionalStringFromNullableSchema,
     timeout: optionalNumberFromNullableSchema,
     retries: optionalNumberFromNullableSchema,

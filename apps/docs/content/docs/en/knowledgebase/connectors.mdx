@@ -162,6 +162,12 @@ To reverse an exclusion, switch to the **Excluded** tab and click **Restore** �
 
 On each run the connector fetches documents from the source and compares them against what's already stored. Only changed documents are reprocessed — new content is added, updated content is re-chunked and re-embedded, deleted content is removed. A connector syncing thousands of documents will only do real work when something actually changes.
 
+### Content Removed From View
+
+Content that still exists at the source but is no longer current is treated the same as deleted, and is removed from your knowledge base. This covers an archived Confluence page, a task in an archived Asana project, an archived Webflow CMS item, a retired ServiceNow knowledge article, a spreadsheet in the Google Drive trash, a message moved to Outlook's Deleted Items, and a cancelled incident.io incident.
+
+This keeps agents from citing content your team has already retired. Restoring the item at the source brings it back on the next sync as a new document.
+
 ### Connector Status
 
 | Status | Meaning |
@@ -196,7 +202,7 @@ You can add as many connectors as you need to a single knowledge base. Each mana
 
 <FAQ items={[
   { question: "How often do connectors sync?", answer: "You choose from hourly, every 6 hours, daily (default), weekly, or manual-only. Sub-hourly frequencies require a Max or Enterprise plan. Each connector has its own schedule." },
-  { question: "What happens if a source document is deleted?", answer: "On the next sync the connector detects the document is gone and removes it from your knowledge base automatically." },
+  { question: "What happens if a source document is deleted?", answer: "On the next sync the connector detects the document is gone and removes it from your knowledge base automatically. Content that is archived, retired, trashed, or otherwise removed from view at the source is treated the same way — restoring it at the source brings it back on the next sync." },
   { question: "What happens when I delete a connector?", answer: "The connector is removed and future syncs stop. You're given the option to also delete all documents that were synced by that connector. If you don't check that option, they stay in the knowledge base as-is." },
   { question: "What does the Disabled status mean?", answer: "After 10 consecutive full-sync failures, the connector is automatically disabled to stop retrying. Reconnect the OAuth account or click Resume to re-enable it." },
   { question: "Do metadata tags count against a limit?", answer: "Yes. Tag slots are shared across all documents in a knowledge base — 17 slots total. Multiple connectors draw from the same pool, so plan accordingly if several connectors each auto-populate tags." },

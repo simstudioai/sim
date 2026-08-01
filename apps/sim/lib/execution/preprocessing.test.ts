@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggingSessionMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
 const {
@@ -22,8 +22,6 @@ const {
   mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('drizzle-orm', () => ({ eq: vi.fn() }))
 vi.mock('@/lib/auth/ban', () => ({
   getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))
@@ -57,15 +55,6 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 }))
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowRecord: vi.fn().mockResolvedValue({
-    id: 'workflow-1',
-    userId: 'creator-1',
-    workspaceId: 'workspace-1',
-    isDeployed: true,
-  }),
-}))
-
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { preprocessExecution } from './preprocessing'
 
@@ -90,7 +79,17 @@ const ORGANIZATION_ATTRIBUTION = {
   workspaceId: 'workspace-1',
 }
 
+afterAll(() => {
+  workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockReset()
+})
+
 beforeEach(() => {
+  workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue({
+    id: 'workflow-1',
+    userId: 'creator-1',
+    workspaceId: 'workspace-1',
+    isDeployed: true,
+  })
   mockResolveBillingAttribution.mockImplementation(
     ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({
       ...ORGANIZATION_ATTRIBUTION,

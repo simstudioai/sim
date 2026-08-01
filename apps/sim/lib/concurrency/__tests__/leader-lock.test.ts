@@ -1,12 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { redisConfigMockFns } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
-
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 
 beforeEach(() => {

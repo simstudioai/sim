@@ -2,11 +2,17 @@ import type { Content, ToolConfig } from '@google/genai'
 import type { FunctionCallResponse, ModelPricing, TimeSegment } from '@/providers/types'
 
 /**
- * Usage metadata from Gemini responses
+ * Usage metadata from Gemini responses.
+ *
+ * `cachedContentTokenCount` is a SUBSET of `promptTokenCount`, not a sibling of
+ * it — Gemini counts implicitly cached prompt tokens inside the prompt total and
+ * only discounts their rate. Anything pricing this usage must subtract it out
+ * before charging the base input rate.
  */
 export interface GeminiUsage {
   promptTokenCount: number
   candidatesTokenCount: number
+  cachedContentTokenCount: number
   totalTokenCount: number
 }
 
@@ -23,7 +29,8 @@ interface ParsedFunctionCall {
  */
 export interface ExecutionState {
   contents: Content[]
-  tokens: { input: number; output: number; total: number }
+  /** `input` excludes `cacheRead`; `total` counts both, plus output. */
+  tokens: { input: number; output: number; cacheRead: number; total: number }
   cost: { input: number; output: number; total: number; pricing: ModelPricing }
   toolCalls: FunctionCallResponse[]
   toolResults: Record<string, unknown>[]

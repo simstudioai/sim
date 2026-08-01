@@ -1,20 +1,20 @@
 /**
  * @vitest-environment node
  */
+
 import type { ReactNode } from 'react'
+import { authMockFns } from '@sim/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBrandingProvider,
   mockGetOrgWhitelabelSettings,
-  mockGetSession,
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
   mockGetOrgWhitelabelSettings: vi.fn(),
-  mockGetSession: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
 }))
@@ -36,10 +36,6 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: () => ({ setQueryData: vi.fn() }),
 }))
@@ -59,7 +55,10 @@ vi.mock('@/ee/whitelabeling/components/branding-provider', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/impersonation-banner', () => ({
   ImpersonationBanner: () => null,
-  ImpersonationExpired: () => null,
+}))
+
+vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
+  SessionExpired: () => null,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
@@ -68,6 +67,10 @@ vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-access-denied', () => ({
   WorkspaceAccessDenied: () => <div>Workspace access denied</div>,
+}))
+
+vi.mock('@/app/workspace/[workspaceId]/providers/desktop-oauth-connect-listener', () => ({
+  DesktopOAuthConnectListener: () => null,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/custom-blocks-loader', () => ({
@@ -103,6 +106,8 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-scope-sync', () => ({
 }))
 
 import WorkspaceLayout from '@/app/workspace/[workspaceId]/layout'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const HOST_CONTEXT = {
   workspace: {

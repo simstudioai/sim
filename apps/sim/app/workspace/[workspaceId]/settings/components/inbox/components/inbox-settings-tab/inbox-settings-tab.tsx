@@ -12,6 +12,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Tooltip,
+  useCopyToClipboard,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -45,15 +46,11 @@ export function InboxSettingsTab() {
   const [editAddressError, setEditAddressError] = useState<string | null>(null)
 
   const [removeSenderError, setRemoveSenderError] = useState<string | null>(null)
-  const [copiedAddress, setCopiedAddress] = useState(false)
+  const { copied: copiedAddress, copy } = useCopyToClipboard()
 
   const handleCopyAddress = useCallback(() => {
-    if (config?.address) {
-      navigator.clipboard.writeText(config.address)
-      setCopiedAddress(true)
-      setTimeout(() => setCopiedAddress(false), 2000)
-    }
-  }, [config?.address])
+    if (config?.address) void copy(config.address)
+  }, [config?.address, copy])
 
   const handleEditAddress = useCallback(async () => {
     if (!newUsername.trim()) return
@@ -172,7 +169,7 @@ export function InboxSettingsTab() {
                     >
                       <div className='flex items-center gap-2'>
                         <span className='text-[var(--text-body)] text-sm'>{member.email}</span>
-                        <Badge variant='gray' className='text-xs'>
+                        <Badge variant='gray' size='sm'>
                           member
                         </Badge>
                       </div>

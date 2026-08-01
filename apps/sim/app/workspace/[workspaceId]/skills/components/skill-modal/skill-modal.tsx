@@ -12,10 +12,22 @@ import {
   chipFieldSurfaceClass,
   cn,
 } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
+import {
+  SKILL_CONTENT_PLACEHOLDER,
+  SKILL_DESCRIPTION_MAX_LENGTH,
+  SKILL_DESCRIPTION_PLACEHOLDER,
+  SKILL_NAME_HINT,
+  SKILL_NAME_PLACEHOLDER,
+} from '@/app/workspace/[workspaceId]/skills/components/skill-copy'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
-import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
+import {
+  isSkillNameConflictError,
+  parseSkillMarkdown,
+  validateSkillName,
+} from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
 
@@ -34,11 +46,8 @@ interface SkillModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: () => void
-  onDelete?: (skillId: string) => void
   initialValues?: SkillDefinition
 }
-
-const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 interface FieldErrors {
   name?: string
@@ -49,13 +58,12 @@ interface FieldErrors {
 
 type TabValue = 'create' | 'import'
 
-export function SkillModal({
-  open,
-  onOpenChange,
-  onSave,
-  onDelete,
-  initialValues,
-}: SkillModalProps) {
+const CREATE_TABS = [
+  { value: 'create', label: 'Create' },
+  { value: 'import', label: 'Import' },
+] as const
+
+export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -72,7 +80,6 @@ export function SkillModal({
    */
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
-  const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<TabValue>('create')
   const [prevOpen, setPrevOpen] = useState(false)
   const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
@@ -95,16 +102,13 @@ export function SkillModal({
     description !== initialValues.description ||
     content !== initialValues.content
 
+  const saving = createSkill.isPending || updateSkill.isPending
+
   const handleSave = async () => {
     const newErrors: FieldErrors = {}
 
-    if (!name.trim()) {
-      newErrors.name = 'Name is required'
-    } else if (name.length > 64) {
-      newErrors.name = 'Name must be 64 characters or less'
-    } else if (!KEBAB_CASE_REGEX.test(name)) {
-      newErrors.name = 'Name must be kebab-case (e.g. my-skill)'
-    }
+    const nameError = validateSkillName(name)
+    if (nameError) newErrors.name = nameError
 
     if (!description.trim()) {
       newErrors.description = 'Description is required'
@@ -118,8 +122,6 @@ export function SkillModal({
       setErrors(newErrors)
       return
     }
-
-    setSaving(true)
 
     try {
       if (initialValues) {
@@ -136,13 +138,11 @@ export function SkillModal({
       }
       onSave()
     } catch (error) {
-      const message =
-        error instanceof Error && error.message.includes('already exists')
-          ? error.message
-          : 'Failed to save skill. Please try again.'
-      setErrors({ general: message })
-    } finally {
-      setSaving(false)
+      if (isSkillNameConflictError(error)) {
+        setErrors({ name: getErrorMessage(error, 'This skill name is already taken.') })
+      } else {
+        setErrors({ general: 'Failed to save skill. Please try again.' })
+      }
     }
   }
 
@@ -172,8 +172,11 @@ export function SkillModal({
   }
 
   const isEditing = !!initialValues
-  const readOnly = !!initialValues?.readOnly
-  const showFooter = activeTab === 'create' || isEditing
+  const isBuiltin = !!initialValues?.readOnly
+  /** New skills are created by the actor (who becomes an editor); existing ones require editor access. */
+  const canEditSkill = !initialValues || initialValues.canEdit
+  const readOnly = isBuiltin || (isEditing && !canEditSkill)
+  const showFooter = activeTab === 'create'
 
   return (
     <ChipModal
@@ -189,10 +192,7 @@ export function SkillModal({
       <ChipModalBody>
         {!isEditing && (
           <ChipModalTabs
-            tabs={[
-              { value: 'create', label: 'Create' },
-              { value: 'import', label: 'Import' },
-            ]}
+            tabs={CREATE_TABS}
             value={activeTab}
             onChange={(value) => setActiveTab(value as TabValue)}
           />
@@ -209,10 +209,11 @@ export function SkillModal({
                 if (errors.name || errors.general)
                   setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
               }}
-              placeholder='my-skill-name'
+              placeholder={SKILL_NAME_PLACEHOLDER}
               required
               error={errors.name}
-              hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+              hint={SKILL_NAME_HINT}
+              disabled={readOnly || saving}
             />
 
             <ChipModalField
@@ -224,10 +225,11 @@ export function SkillModal({
                 if (errors.description || errors.general)
                   setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
               }}
-              placeholder='What this skill does and when to use it...'
-              maxLength={1024}
+              placeholder={SKILL_DESCRIPTION_PLACEHOLDER}
+              maxLength={SKILL_DESCRIPTION_MAX_LENGTH}
               required
               error={errors.description}
+              disabled={readOnly || saving}
             />
 
             <ChipModalField type='custom' title='Content' required error={errors.content}>
@@ -239,8 +241,9 @@ export function SkillModal({
                   if (errors.content || errors.general)
                     setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
                 }}
-                placeholder='Skill instructions in markdown...'
+                placeholder={SKILL_CONTENT_PLACEHOLDER}
                 minHeight={200}
+                maxHeight={360}
                 disabled={readOnly || saving}
                 error={!!errors.content}
                 workspaceId={workspaceId}
@@ -258,19 +261,7 @@ export function SkillModal({
       {showFooter && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
-          cancelDisabled={readOnly}
-          secondaryActions={
-            isEditing && onDelete
-              ? [
-                  {
-                    label: 'Delete',
-                    onClick: () => onDelete(initialValues.id),
-                    variant: 'destructive',
-                    disabled: readOnly,
-                  },
-                ]
-              : undefined
-          }
+          cancelDisabled={isBuiltin}
           primaryAction={{
             label: saving ? 'Saving...' : isEditing ? 'Update' : 'Create',
             onClick: handleSave,

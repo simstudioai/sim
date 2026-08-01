@@ -19,6 +19,7 @@ import {
   remapGroupColumnRefs,
 } from '@/lib/table/column-keys'
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { getTableById, withLockedTable } from '@/lib/table/service'
 import { setTableTxTimeouts } from '@/lib/table/tx'
@@ -48,6 +49,11 @@ const logger = createLogger('TableWorkflowGroupsService')
  * - Scoped to the workflow's workspace.
  * - Idempotent: running twice with the same `validBlockIds` is a no-op on the
  *   second pass. Existing row data is left alone.
+ *
+ * Deliberately does NOT assert the schema lock: this is system reconciliation
+ * triggered by a workflow deploy, not a user schema edit, and it only prunes
+ * references to blocks that no longer exist. Blocking it on a schema-locked
+ * table would leave the table pointing at dead blocks.
  */
 export async function pruneStaleWorkflowGroupOutputs({
   workflowId,
@@ -120,6 +126,7 @@ export async function addWorkflowGroup(
   requestId: string
 ): Promise<TableDefinition> {
   const updatedTable = await withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     const schema = table.schema
     const groups = schema.workflowGroups ?? []
     if (groups.some((g) => g.id === data.group.id)) {
@@ -280,6 +287,11 @@ export async function updateWorkflowGroup(
 
   const { updatedTable, added, remappedColumnIds, newOutputs, previousAutoRun } =
     await withLockedTable(data.tableId, async (table, trx) => {
+      // Any group patch edits the schema; the stronger destructive assert is
+      // applied below, only once we know this patch actually drops or remaps
+      // output columns (a rename / autoRun / mapping-only edit must not need
+      // the delete lock clear).
+      assertSchemaMutable(table)
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
 
       const schema = table.schema
@@ -394,6 +406,11 @@ export async function updateWorkflowGroup(
       }
 
       const removedColumnIds = new Set(removed.map((o) => o.columnName))
+      // Both paths strip values out of every row below, so they need the delete
+      // lock clear as well as the schema lock — same rule as a column drop.
+      if (removedColumnIds.size > 0 || remappedColumnIds.size > 0) {
+        assertColumnDestructive(table)
+      }
       let nextColumns = schema.columns
         .filter((c) => !removedColumnIds.has(getColumnId(c)))
         .map((c) => {
@@ -655,6 +672,7 @@ export async function addWorkflowGroupOutput(
   // write. The critical section holds no I/O — just the in-memory splice + the
   // schema UPDATE — so concurrent adders queue behind it quickly.
   const { updatedTable, newOutput } = await withLockedTable(data.tableId, async (table, trx) => {
+    assertSchemaMutable(table)
     const schema = table.schema
     const groups = schema.workflowGroups ?? []
     const groupIndex = groups.findIndex((g) => g.id === data.groupId)
@@ -841,6 +859,7 @@ export async function deleteWorkflowGroupOutput(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    assertColumnDestructive(table)
     const schema = table.schema
     const groups = schema.workflowGroups ?? []
     const groupIndex = groups.findIndex((g) => g.id === data.groupId)
@@ -907,6 +926,7 @@ export async function deleteWorkflowGroup(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
+    assertColumnDestructive(table)
     const schema = table.schema
     const groups = schema.workflowGroups ?? []
     const group = groups.find((g) => g.id === data.groupId)

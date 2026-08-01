@@ -53,15 +53,20 @@ export const IMPERSONATION_REFETCH_INTERVAL = 60 * 1000
  * token, startup network partition) surfaces immediately rather than retrying a
  * request that won't succeed.
  *
- * While the session is an impersonation session, the query polls and refetches
- * on focus (overriding the global `refetchOnWindowFocus: false`) so an expiry —
- * including one slept through with the laptop closed — settles the query to
- * `null` and surfaces the impersonation-expired recovery screen. Those
- * refetches also bypass Better Auth's cookie cache: it can otherwise keep
- * vouching for a session that was expired or revoked server-side, and the
- * expiry detection shouldn't depend on the cache's own TTL details.
- * Impersonation sessions are short-lived and admin-only, so none of these
- * overrides affect normal sessions.
+ * Every session refetches on focus (overriding the global
+ * `refetchOnWindowFocus: false`) so a session that expired or was revoked while
+ * the app sat mounted — the long-lived desktop window, a browser tab left open
+ * for weeks, a laptop slept through the session's 30-day lifetime — settles the
+ * query to `null` and surfaces {@link SessionExpired} instead of leaving an SPA
+ * that silently 401s every request. Returning to the window is exactly the
+ * moment that needs re-checking, and `SESSION_STALE_TIME` throttles it to at
+ * most one read per 5 minutes of focus changes.
+ *
+ * Impersonation sessions additionally poll, and bypass Better Auth's cookie
+ * cache: it can otherwise keep vouching for a session that was expired or
+ * revoked server-side, and these sessions are short-lived enough that the
+ * cache's own TTL would outlive them. Normal sessions accept that lag — a
+ * revocation surfaces once the cache expires.
  */
 export function useSessionQuery() {
   const queryClient = useQueryClient()
@@ -75,6 +80,6 @@ export function useSessionQuery() {
     retry: false,
     refetchInterval: (query) =>
       query.state.data?.session?.impersonatedBy ? IMPERSONATION_REFETCH_INTERVAL : false,
-    refetchOnWindowFocus: (query) => Boolean(query.state.data?.session?.impersonatedBy),
+    refetchOnWindowFocus: true,
   })
 }

@@ -123,9 +123,10 @@ export async function getWorkspaceWithOwner(
  */
 export async function getEffectiveWorkspacePermission(
   userId: string,
-  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>
+  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>,
+  executor: DbOrTx = db
 ): Promise<PermissionType | null> {
-  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId)
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId, executor)
 }
 
 /**
@@ -162,6 +163,21 @@ export async function checkWorkspaceAccess(
   const canAdmin = permissionSatisfies(permission, 'admin')
 
   return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws, permission }
+}
+
+/**
+ * Returns `provided` when it was resolved for this exact workspace, otherwise
+ * resolves fresh. The id match is what keeps a caller from authorizing against
+ * another workspace's cached access - every access-reuse path must go through
+ * this rather than hand-rolling the comparison.
+ */
+export async function resolveWorkspaceAccess(
+  workspaceId: string,
+  userId: string,
+  provided?: WorkspaceAccess
+): Promise<WorkspaceAccess> {
+  if (provided && provided.workspace?.id === workspaceId) return provided
+  return checkWorkspaceAccess(workspaceId, userId)
 }
 
 /**

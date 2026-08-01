@@ -5,6 +5,7 @@ import { Chip, TRIGGER_BORDER_CLASS } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import { FileView } from '@/components/resources/file-view'
 import { buildSharedByLabel } from '@/lib/public-shares/provenance'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { Navbar } from '@/app/(landing)/components/navbar'
 import { ShareLinkButton } from '@/app/(landing)/components/share-link-button'
 import { useBrandConfig } from '@/ee/whitelabeling'
@@ -59,7 +60,8 @@ export function PublicFileView({
    * (PDF/CSV/media) keep the leftover height and scroll internally.
    */
   return (
-    <div className='light flex h-dvh flex-col overflow-y-auto overscroll-y-none bg-[var(--bg)]'>
+    <div className='light desktop-title-bar-page flex h-dvh flex-col overflow-y-auto overscroll-y-none bg-[var(--bg)]'>
+      <DesktopTitleBarLane />
       <Navbar
         logoOnly
         name={name}

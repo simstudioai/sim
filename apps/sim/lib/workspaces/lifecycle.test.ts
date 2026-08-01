@@ -1,23 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { permissionsMock, permissionsMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockTransaction, mockArchiveWorkflowsForWorkspace } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockTransaction: vi.fn(),
+const { mockArchiveWorkflowsForWorkspace } = vi.hoisted(() => ({
   mockArchiveWorkflowsForWorkspace: vi.fn(),
 }))
 
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    transaction: mockTransaction,
-  },
-}))
 
 vi.mock('@/lib/workflows/lifecycle', () => ({
   archiveWorkflowsForWorkspace: (...args: unknown[]) => mockArchiveWorkflowsForWorkspace(...args),
@@ -38,6 +36,11 @@ function createUpdateChain() {
 describe('workspace lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('archives workspace and dependent resources', async () => {
@@ -48,11 +51,7 @@ describe('workspace lifecycle', () => {
       archivedAt: null,
     })
     mockArchiveWorkflowsForWorkspace.mockResolvedValue(2)
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ id: 'server-1' }]),
-      }),
-    })
+    queueTableRows(schemaMock.workflowMcpServer, [{ id: 'server-1' }])
 
     const tx = {
       select: vi.fn().mockReturnValue({
@@ -65,8 +64,8 @@ describe('workspace lifecycle', () => {
         where: vi.fn().mockResolvedValue([]),
       })),
     }
-    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
-      callback(tx)
+    dbChainMockFns.transaction.mockImplementation(
+      async (callback: (trx: typeof tx) => Promise<void>) => callback(tx)
     )
 
     const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
@@ -99,6 +98,6 @@ describe('workspace lifecycle', () => {
     expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'req-1',
     })
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 })

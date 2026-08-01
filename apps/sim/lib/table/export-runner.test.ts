@@ -47,7 +47,21 @@ const table = {
   id: 'tbl_1',
   name: 'People',
   workspaceId: 'ws_1',
-  schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
+  schema: {
+    columns: [
+      { id: 'col_name', name: 'name', type: 'string' },
+      {
+        id: 'col_tags',
+        name: 'tags',
+        type: 'select',
+        multiple: true,
+        options: [
+          { id: 'opt_a', name: 'Alpha' },
+          { id: 'opt_b', name: 'Beta' },
+        ],
+      },
+    ],
+  },
 }
 
 const payload = { jobId: 'job_1', tableId: 'tbl_1', workspaceId: 'ws_1', format: 'csv' as const }
@@ -93,7 +107,7 @@ describe('runTableExport', () => {
       return Promise.resolve(handle)
     })
     mockSelectExportRowPage.mockResolvedValue([
-      { id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' },
+      { id: 'r1', data: { col_name: 'Ada', col_tags: ['opt_a', 'opt_b'] }, orderKey: 'a0' },
     ])
   })
 
@@ -106,7 +120,8 @@ describe('runTableExport', () => {
     expect(init.context).toBe('workspace')
     expect(init.contentType).toContain('text/csv')
 
-    expect(lastHandle?.content).toBe('name\nAda\n')
+    // Select cells export as option names, comma-joined — never the stored ids.
+    expect(lastHandle?.content).toBe('name,tags\nAda,"Alpha, Beta"\n')
     expect(lastHandle?.complete).toHaveBeenCalledTimes(1)
     expect(lastHandle?.abort).not.toHaveBeenCalled()
 
@@ -118,11 +133,13 @@ describe('runTableExport', () => {
     expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
-  it('serializes JSON exports with display-name keys', async () => {
+  it('serializes JSON exports with display-name keys and option names', async () => {
     await runTableExport({ ...payload, format: 'json' })
     const init = mockCreateMultipartUpload.mock.calls[0][0]
     expect(init.key.endsWith('/People.json')).toBe(true)
-    expect(JSON.parse(lastHandle?.content ?? '')).toEqual([{ name: 'Ada' }])
+    expect(JSON.parse(lastHandle?.content ?? '')).toEqual([
+      { name: 'Ada', tags: ['Alpha', 'Beta'] },
+    ])
   })
 
   it('aborts the upload and never completes when ownership is lost (cancel)', async () => {

@@ -31,7 +31,9 @@ import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
+import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -98,7 +100,17 @@ interface ResourceContentProps {
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
+  /** Resolved server-side by the home page — the embedded table can't read
+   *  AppConfig itself, so the flag is threaded down rather than looked up. */
+  tableViewsEnabled?: boolean
   onNotFound?: (resourceId: string) => void
+  /**
+   * Whether this resource is the one on screen. Only the persistent panels
+   * (browser, terminal) read it — to stand down document-wide observers while
+   * hidden — so it defaults to visible for every other resource, which is only
+   * ever rendered when active.
+   */
+  visible?: boolean
 }
 
 /** The agent owns the file while it is streaming; nothing is edited from here. */
@@ -165,7 +177,9 @@ export const ResourceContent = memo(function ResourceContent({
   isAgentResponding,
   genericResourceData,
   previewContextKey,
+  tableViewsEnabled,
   onNotFound,
+  visible = true,
 }: ResourceContentProps) {
   const router = useRouter()
   /** The host owns the router; the file view asks for a move, never holds one. */
@@ -247,7 +261,15 @@ export const ResourceContent = memo(function ResourceContent({
 
   switch (resource.type) {
     case 'table':
-      return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
+      return (
+        <Table
+          key={resource.id}
+          workspaceId={workspaceId}
+          tableId={resource.id}
+          embedded
+          viewsEnabled={tableViewsEnabled}
+        />
+      )
 
     case 'interface':
       return (
@@ -285,9 +307,11 @@ export const ResourceContent = memo(function ResourceContent({
               content: previewSession?.fileId === resource.id ? textStreamingContent : undefined,
               isAgentEditing,
               isIncremental: streamIsIncremental,
+              operation: previewSession?.operation,
               disableAutoScroll: disableStreamingAutoScroll,
               contextKey: previewContextKey,
             }}
+            collaborative
           />
         </div>
       )
@@ -328,6 +352,12 @@ export const ResourceContent = memo(function ResourceContent({
       return (
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
       )
+
+    case 'browser':
+      return <BrowserSession key={resource.id} visible={visible} />
+
+    case 'terminal':
+      return <TerminalSession key={resource.id} visible={visible} />
 
     default:
       return null
@@ -371,6 +401,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
+    case 'browser':
+    case 'terminal':
       return null
     default:
       return null

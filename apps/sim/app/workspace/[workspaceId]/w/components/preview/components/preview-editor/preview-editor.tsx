@@ -38,6 +38,7 @@ import {
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
@@ -1171,6 +1172,9 @@ function PreviewEditorContent({
     if (effectiveTrigger && subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced')
       return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
+
+    // Configures the block as an agent tool; it has no meaning on the canvas.
+    if (isToolInputOnlySubBlock(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(
         subBlock,
@@ -1198,7 +1202,7 @@ function PreviewEditorContent({
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && (
           <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
             <IconComponent
@@ -1482,7 +1486,16 @@ function PreviewEditorContent({
                         subBlockValues={subBlockValues}
                         disabled={true}
                       />
-                      {index < visibleSubBlocks.length - 1 && <FieldDivider subblockMarker />}
+                      {index < visibleSubBlocks.length - 1 && (
+                        <FieldDivider
+                          subblockMarker
+                          className={
+                            visibleSubBlocks[index + 1]?.hideDividerBefore
+                              ? '[&>div]:invisible'
+                              : undefined
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

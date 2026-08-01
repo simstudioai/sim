@@ -17,6 +17,7 @@ import {
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
@@ -146,7 +147,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <div className='flex items-center gap-2'>
+    <div className='flex h-5 items-center gap-2'>
       <span
         className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
         title={title}
@@ -211,6 +212,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       if (subBlock.hidden) return false
       if (subBlock.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(subBlock)) return false
+
+      // Configures the block as an agent tool; it has no meaning on the canvas.
+      if (isToolInputOnlySubBlock(subBlock)) return false
 
       if (effectiveTrigger) {
         const isValidTriggerSubblock = isPureTriggerBlock
@@ -373,7 +377,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
           {!isNoteBlock && (
             <div
-              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex size-[24px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md [&_img]:size-full'
               style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
             >
               <IconComponent

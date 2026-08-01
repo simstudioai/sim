@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleSheetsConnectorMeta } from '@/connectors/google-sheets/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -105,34 +106,83 @@ async function fetchSpreadsheetMetadata(
 }
 
 /**
- * Fetches the spreadsheet's modifiedTime from the Drive API.
+ * Drive `files.get` metadata for the backing spreadsheet file.
+ *
+ * `trashed` is the Drive v3 File boolean meaning "whether the file has been
+ * trashed, either explicitly or from a trashed parent folder". Both fields are
+ * optional here because a failed Drive read yields an empty object.
  */
-async function fetchSpreadsheetModifiedTime(
+export interface DriveFileMetadata {
+  modifiedTime?: string
+  trashed?: boolean
+}
+
+/**
+ * Reports whether the spreadsheet's Drive file is in the trash.
+ *
+ * Trashing a Drive file does not make it unreadable: Drive keeps trashed files
+ * accessible by ID for 30 days before permanent deletion ("other users can
+ * still access the file in the owner's trash until it's permanently deleted"),
+ * so `spreadsheets.get` keeps succeeding and every tab keeps appearing in the
+ * listing. Since KB deletion reconciliation only purges stored documents that
+ * are absent from a full listing, a trashed spreadsheet's tabs would otherwise
+ * live in the knowledge base forever — and once the 30 days elapse the Sheets
+ * call 404s, the listing throws, and reconciliation never runs at all.
+ *
+ * Fails open: only an explicit `trashed === true` counts. A missing field or a
+ * failed Drive read (which returns `{}`) is treated as not trashed, because a
+ * wrongful exclusion would hard-delete still-current documents.
+ */
+export function isTrashedDriveFile(metadata: DriveFileMetadata): boolean {
+  return metadata.trashed === true
+}
+
+/**
+ * Narrows an untyped Drive `files.get` response body to the fields we consume.
+ */
+export function parseDriveFileMetadata(data: unknown): DriveFileMetadata {
+  if (typeof data !== 'object' || data === null) return {}
+  const record = data as Record<string, unknown>
+  return {
+    ...(typeof record.modifiedTime === 'string' ? { modifiedTime: record.modifiedTime } : {}),
+    ...(typeof record.trashed === 'boolean' ? { trashed: record.trashed } : {}),
+  }
+}
+
+/**
+ * Fetches the spreadsheet's `modifiedTime` and `trashed` state from the Drive API.
+ * Returns an empty object when the Drive read fails so callers fail open.
+ */
+async function fetchDriveFileMetadata(
   accessToken: string,
-  spreadsheetId: string
-): Promise<string | undefined> {
+  spreadsheetId: string,
+  retryOptions?: RetryOptions
+): Promise<DriveFileMetadata> {
   try {
-    const url = `${DRIVE_API_BASE}/${encodeURIComponent(spreadsheetId)}?fields=modifiedTime&supportsAllDrives=true`
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
+    const url = `${DRIVE_API_BASE}/${encodeURIComponent(spreadsheetId)}?fields=modifiedTime,trashed&supportsAllDrives=true`
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
       },
-    })
+      retryOptions
+    )
 
     if (!response.ok) {
-      logger.warn('Failed to fetch modifiedTime from Drive API', { status: response.status })
-      return undefined
+      logger.warn('Failed to fetch file metadata from Drive API', { status: response.status })
+      return {}
     }
 
-    const data = (await response.json()) as { modifiedTime?: string }
-    return data.modifiedTime
+    return parseDriveFileMetadata(await response.json())
   } catch (error) {
-    logger.warn('Error fetching modifiedTime from Drive API', {
+    logger.warn('Error fetching file metadata from Drive API', {
       error: toError(error).message,
     })
-    return undefined
+    return {}
   }
 }
 
@@ -212,10 +262,25 @@ export const googleSheetsConnector: ConnectorConfig = {
 
     logger.info('Fetching spreadsheet metadata', { spreadsheetId })
 
-    const [metadata, modifiedTime] = await Promise.all([
+    const [metadata, driveMetadata] = await Promise.all([
       fetchSpreadsheetMetadata(accessToken, spreadsheetId),
-      fetchSpreadsheetModifiedTime(accessToken, spreadsheetId),
+      fetchDriveFileMetadata(accessToken, spreadsheetId),
     ])
+
+    /**
+     * A trashed spreadsheet is no longer current content, so it drops out of the
+     * listing and stops being re-indexed. The sync engine reconciles its absence
+     * the same way it does for every connector: pending-removal on the first
+     * sync that doesn't see it, purged once a later sync confirms it's still
+     * gone. `validateConfig` reports the trashed state so the connector does not
+     * look healthy while serving tabs from a file its owner has thrown away.
+     */
+    if (isTrashedDriveFile(driveMetadata)) {
+      logger.info('Spreadsheet is in the Drive trash; listing no documents', { spreadsheetId })
+      return { documents: [], hasMore: false }
+    }
+
+    const modifiedTime = driveMetadata.modifiedTime
     const sheetFilter = (sourceConfig.sheetFilter as string) || 'all'
 
     let sheets = metadata.sheets.map((s) => s.properties)
@@ -273,11 +338,11 @@ export const googleSheetsConnector: ConnectorConfig = {
     }
 
     let metadata: SpreadsheetMetadata
-    let modifiedTime: string | undefined
+    let driveMetadata: DriveFileMetadata
     try {
-      ;[metadata, modifiedTime] = await Promise.all([
+      ;[metadata, driveMetadata] = await Promise.all([
         fetchSpreadsheetMetadata(accessToken, spreadsheetId),
-        fetchSpreadsheetModifiedTime(accessToken, spreadsheetId),
+        fetchDriveFileMetadata(accessToken, spreadsheetId),
       ])
     } catch (error) {
       const message = toError(error).message
@@ -286,6 +351,12 @@ export const googleSheetsConnector: ConnectorConfig = {
         return null
       }
       throw error
+    }
+
+    /** Mirrors the listing: a trashed spreadsheet is still readable but no longer current. */
+    if (isTrashedDriveFile(driveMetadata)) {
+      logger.info('Spreadsheet is in the Drive trash', { spreadsheetId })
+      return null
     }
 
     const sheetEntry = metadata.sheets.find((s) => s.properties.sheetId === sheetId)
@@ -300,7 +371,7 @@ export const googleSheetsConnector: ConnectorConfig = {
       spreadsheetId,
       metadata.properties.title,
       sheetEntry.properties,
-      modifiedTime
+      driveMetadata.modifiedTime
     )
     if (!doc) return null
     return { ...doc, contentDeferred: false }
@@ -345,6 +416,25 @@ export const googleSheetsConnector: ConnectorConfig = {
           }
         }
         return { valid: false, error: `Failed to access spreadsheet: ${response.status}` }
+      }
+
+      /**
+       * A trashed spreadsheet still reads back fine from the Sheets API, so without
+       * this check the connector would validate and then sync zero documents. Fails
+       * open exactly like the sync paths: only an explicit `trashed === true` blocks
+       * validation, and a failed Drive read leaves the config valid.
+       */
+      const driveMetadata = await fetchDriveFileMetadata(
+        accessToken,
+        spreadsheetId,
+        VALIDATE_RETRY_OPTIONS
+      )
+      if (isTrashedDriveFile(driveMetadata)) {
+        return {
+          valid: false,
+          error:
+            'This spreadsheet is in the Google Drive trash. Restore it in Drive, then try again.',
+        }
       }
 
       return { valid: true }

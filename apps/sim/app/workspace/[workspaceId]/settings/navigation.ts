@@ -19,6 +19,7 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'tools', title: 'Tools' },
   { key: 'subscription', title: 'Subscription' },
   { key: 'system', title: 'System' },
+  { key: 'desktop', title: 'Desktop' },
   { key: 'enterprise', title: 'Enterprise' },
   { key: 'superuser', title: 'Superuser' },
 ]

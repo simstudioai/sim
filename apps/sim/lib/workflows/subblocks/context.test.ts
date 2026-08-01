@@ -1,13 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { getAllBlocks } from '@/blocks/registry'
+import * as blocksBarrel from '@/blocks'
+import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
 import { buildSelectorContextFromBlock, SELECTOR_CONTEXT_FIELDS } from './context'
 import { buildCanonicalIndex, isCanonicalPair } from './visibility'
+
+/**
+ * Under `isolate: false` the module under test may already be cached from an
+ * earlier test file, bound to the global `@/blocks/registry` mock through the
+ * `@/blocks` barrel. `vi.unmock` alone cannot rebind that cached instance, so
+ * route the barrel's `getBlock` to the real registry via a spy on the shared
+ * barrel namespace — it patches whichever instance the cached module reads.
+ */
+const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+
+afterAll(() => {
+  getBlockSpy.mockRestore()
+})
 
 describe('buildSelectorContextFromBlock', () => {
   it('should extract knowledgeBaseId from knowledgeBaseSelector via canonical mapping', () => {

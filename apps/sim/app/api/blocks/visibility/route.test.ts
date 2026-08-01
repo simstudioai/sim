@@ -1,21 +1,17 @@
 /**
  * @vitest-environment node
  */
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockCheckWorkspaceAccess, mockIsPlatformAdmin, mockGetBlockVisibility } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
+const { mockCheckWorkspaceAccess, mockIsPlatformAdmin, mockGetBlockVisibility } = vi.hoisted(
+  () => ({
     mockCheckWorkspaceAccess: vi.fn(),
     mockIsPlatformAdmin: vi.fn(),
     mockGetBlockVisibility: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+  })
+)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
@@ -30,6 +26,8 @@ vi.mock('@/lib/core/config/block-visibility', () => ({
 }))
 
 import { GET } from '@/app/api/blocks/visibility/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 

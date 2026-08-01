@@ -1,0 +1,1 @@
+ALTER TABLE "chat" ADD COLUMN "include_tool_calls" boolean;

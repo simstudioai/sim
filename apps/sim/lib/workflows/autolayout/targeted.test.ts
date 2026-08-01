@@ -345,4 +345,117 @@ describe('applyTargetedLayout', () => {
       result.existing.position.y + existingMetrics.height
     )
   })
+
+  it('places a new sibling container below a frozen container at its rendered height', () => {
+    // The frozen container's children sit further apart than a fresh layout would
+    // place them (a stale layout from when those blocks measured taller). Its
+    // rendered height therefore exceeds the height a hypothetical re-layout
+    // predicts, and the new sibling must clear the rendered one.
+    const spacedChild = (id: string, y: number, parentId: string) =>
+      createBlock(id, {
+        position: { x: 150, y },
+        data: { parentId, extent: 'parent' },
+        layout: { measuredWidth: 250, measuredHeight: 300 },
+        height: 300,
+      })
+
+    const blocks = {
+      start: createBlock('start', {
+        type: 'start_trigger',
+        position: { x: 0, y: 0 },
+        layout: { measuredWidth: 250, measuredHeight: 100 },
+        height: 100,
+      }),
+      frozenLoop: createBlock('frozenLoop', {
+        type: 'loop',
+        position: { x: 400, y: 0 },
+        data: { width: 900, height: 1200 },
+        layout: { measuredWidth: 900, measuredHeight: 1200 },
+      }),
+      frozenTop: spacedChild('frozenTop', 100, 'frozenLoop'),
+      frozenBottom: spacedChild('frozenBottom', 750, 'frozenLoop'),
+      newLoop: createBlock('newLoop', {
+        type: 'loop',
+        position: { x: 0, y: 0 },
+        data: { width: 500, height: 300 },
+      }),
+      newChild: createBlock('newChild', {
+        position: { x: 0, y: 0 },
+        data: { parentId: 'newLoop', extent: 'parent' },
+      }),
+    }
+
+    const edges: Edge[] = [
+      { id: 'e1', source: 'start', target: 'frozenLoop' },
+      { id: 'e2', source: 'start', target: 'newLoop' },
+      { id: 'e3', source: 'frozenTop', target: 'frozenBottom' },
+    ]
+
+    const result = applyTargetedLayout(blocks, edges, {
+      changedBlockIds: ['newLoop', 'newChild'],
+    })
+
+    // Frozen children must not move, so the frozen container keeps its tall size.
+    expect(result.frozenTop.position).toEqual({ x: 150, y: 100 })
+    expect(result.frozenBottom.position).toEqual({ x: 150, y: 750 })
+
+    const containers = [result.frozenLoop, result.newLoop].sort(
+      (a, b) => a.position.y - b.position.y
+    )
+    const upperBottom = containers[0].position.y + getBlockMetrics(containers[0]).height
+    expect(containers[1].position.y).toBeGreaterThanOrEqual(upperBottom)
+  })
+
+  it('shifts downstream blocks right when a container grows from an inserted child', () => {
+    // Inserting inside a container widens it, but that resize happens during
+    // layout and so is absent from the caller's change set. Blocks after the
+    // container must still move clear of its new right edge.
+    const blocks = {
+      loop: createBlock('loop', {
+        type: 'loop',
+        position: { x: 100, y: 100 },
+        data: { width: 900, height: 400 },
+        layout: { measuredWidth: 900, measuredHeight: 400 },
+      }),
+      first: createBlock('first', {
+        position: { x: 150, y: 150 },
+        data: { parentId: 'loop', extent: 'parent' },
+        layout: { measuredWidth: 250, measuredHeight: 120 },
+        height: 120,
+      }),
+      last: createBlock('last', {
+        position: { x: 600, y: 150 },
+        data: { parentId: 'loop', extent: 'parent' },
+        layout: { measuredWidth: 250, measuredHeight: 120 },
+        height: 120,
+      }),
+      inserted: createBlock('inserted', {
+        position: { x: 0, y: 0 },
+        data: { parentId: 'loop', extent: 'parent' },
+      }),
+      after: createBlock('after', {
+        position: { x: 1100, y: 150 },
+        layout: { measuredWidth: 250, measuredHeight: 120 },
+        height: 120,
+      }),
+    }
+
+    const edges: Edge[] = [
+      { id: 'e1', source: 'first', target: 'inserted' },
+      { id: 'e2', source: 'inserted', target: 'last' },
+      { id: 'e3', source: 'loop', target: 'after', sourceHandle: 'loop-end-source' },
+    ]
+
+    const result = applyTargetedLayout(blocks, edges, {
+      changedBlockIds: ['inserted'],
+      shiftSourceBlockIds: ['inserted'],
+    })
+
+    const loopMetrics = getBlockMetrics(result.loop)
+    expect(loopMetrics.width).toBeGreaterThan(900)
+    expect(result.loop.position).toEqual({ x: 100, y: 100 })
+    expect(result.after.position.x).toBeGreaterThanOrEqual(
+      result.loop.position.x + loopMetrics.width
+    )
+  })
 })

@@ -32,6 +32,7 @@ const credentials = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(new Response(null, { status: 200 }))
 })
 

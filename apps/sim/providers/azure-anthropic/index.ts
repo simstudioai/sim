@@ -52,53 +52,40 @@ export const azureAnthropicProvider: ProviderConfig = {
       throw new Error('API key is required for Azure Anthropic.')
     }
 
-    // Strip the azure-anthropic/ prefix from the model name if present
-    const modelName = request.model.replace(/^azure-anthropic\//, '')
-
-    // Azure AI Foundry hosts Anthropic models at {endpoint}/anthropic
-    // The SDK appends /v1/messages automatically
-    const baseURL = `${azureEndpoint.replace(/\/$/, '')}/anthropic`
+    const normalizedEndpoint = azureEndpoint.replace(/\/$/, '')
+    const baseURL = normalizedEndpoint.endsWith('/anthropic')
+      ? normalizedEndpoint
+      : `${normalizedEndpoint}/anthropic`
 
     const anthropicVersion =
       request.azureApiVersion || env.AZURE_ANTHROPIC_API_VERSION || '2023-06-01'
 
-    return executeAnthropicProviderRequest(
-      {
-        ...request,
-        model: modelName,
-        apiKey,
+    return executeAnthropicProviderRequest(request, {
+      providerId: 'azure-anthropic',
+      providerLabel: 'Azure Anthropic',
+      resolveWireModel: ({ model }) => model.replace(/^azure-anthropic\//, ''),
+      createClient: (apiKey) => {
+        const cacheKey = [
+          'azure-anthropic',
+          apiKey,
+          baseURL,
+          anthropicVersion,
+          pinnedIP ?? 'no-pin',
+        ].join('::')
+        return getCachedProviderClient(
+          cacheKey,
+          () =>
+            new Anthropic({
+              baseURL,
+              apiKey,
+              ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
+              defaultHeaders: {
+                'anthropic-version': anthropicVersion,
+              },
+            })
+        )
       },
-      {
-        providerId: 'azure-anthropic',
-        providerLabel: 'Azure Anthropic',
-        createClient: (apiKey, useNativeStructuredOutputs) => {
-          const cacheKey = [
-            'azure-anthropic',
-            apiKey,
-            baseURL,
-            anthropicVersion,
-            pinnedIP ?? 'no-pin',
-            useNativeStructuredOutputs ? 'beta' : 'default',
-          ].join('::')
-          return getCachedProviderClient(
-            cacheKey,
-            () =>
-              new Anthropic({
-                baseURL,
-                apiKey,
-                ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
-                defaultHeaders: {
-                  'api-key': apiKey,
-                  'anthropic-version': anthropicVersion,
-                  ...(useNativeStructuredOutputs
-                    ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
-                    : {}),
-                },
-              })
-          )
-        },
-        logger,
-      }
-    )
+      logger,
+    })
   },
 }

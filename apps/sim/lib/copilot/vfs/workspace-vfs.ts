@@ -5,6 +5,7 @@ import {
   copilotChats,
   customTools as customToolsTable,
   document,
+  folder as folderTable,
   jobExecutionLogs,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
@@ -12,7 +13,6 @@ import {
   skill as skillTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
-  workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
   workflowSchedule,
@@ -51,8 +51,13 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
+import type {
+  DeploymentData,
+  KbTagDefinitionSummary,
+  VfsServiceAccountAuth,
+} from '@/lib/copilot/vfs/serializers'
 import {
+  describeServiceAccountForOAuthProvider,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -81,21 +86,8 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import {
-  buildWorkflowAliasLinks,
-  isWorkflowAliasBackingPath,
-  WORKFLOW_ALIAS_LINKS_NAME,
-  WORKFLOW_CHANGELOG_ALIAS_NAME,
-  WORKFLOW_PLANS_ALIAS_DIR,
-  WORKFLOW_PLANS_BACKING_FOLDER,
-  WORKSPACE_PLANS_BACKING_FOLDER,
-  workflowChangelogBackingPath,
-  workspacePlanBackingPath,
-  workspacePlansBackingFolderPath,
-} from '@/lib/copilot/vfs/workflow-aliases'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -106,6 +98,7 @@ import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/ru
 import { listInterfaces } from '@/lib/interfaces'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -247,7 +240,15 @@ function getStaticComponentFiles(): Map<string, string> {
 
   let integrationCount = 0
 
-  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
+  // `serviceAccount` marks services that also accept a shared service-account
+  // credential (connect AS AN APPLICATION, not as the user) — the same
+  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
+  // discovers all three auth modes (oauth / api_key / service account) from one
+  // uniform field instead of a separate file.
+  const oauthServices = new Map<
+    string,
+    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
+  >()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
@@ -268,7 +269,11 @@ function getStaticComponentFiles(): Map<string, string> {
       if (existing) {
         existing.operations.push(operation)
       } else {
-        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
+        oauthServices.set(service, {
+          provider: tool.oauth.provider,
+          operations: [operation],
+          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
+        })
       }
     }
   }
@@ -487,7 +492,6 @@ export class WorkspaceVFS {
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
-  private _betaEnabled = false
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
    * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
@@ -653,7 +657,6 @@ export class WorkspaceVFS {
     this.deploymentCache = new Map()
     this._customBlockTypes = null
     this._workspaceId = workspaceId
-    this._betaEnabled = await isFeatureEnabled('mothership-beta', { userId })
 
     // Per-phase wall-clock, stamped on the span so a slow materialize in a
     // trace names its bottleneck instead of showing up as unattributed dead
@@ -684,7 +687,6 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
-              taskSummary,
               jobsSummary,
               wsRow,
               members,
@@ -699,10 +701,13 @@ export class WorkspaceVFS {
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
-              timed('tasks', this.materializeTasks(workspaceId, userId)),
               timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
+              // Writes tasks/ files only — WORKSPACE.md has no Tasks section
+              // (recent chats reorder every turn and would bust the cached
+              // prompt prefix), so nothing is destructured from this one.
+              timed('tasks', this.materializeTasks(workspaceId, userId)),
             ])
 
             const workspaceMdData = {
@@ -715,7 +720,6 @@ export class WorkspaceVFS {
               files: fileSummary,
               oauthIntegrations: envSummary.oauthIntegrations,
               envVariables: envSummary.envVariables,
-              tasks: taskSummary,
               customTools: toolsSummary,
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
@@ -872,13 +876,10 @@ export class WorkspaceVFS {
     path: string,
     suffix: 'style' | 'compiled-check' | 'compiled' | 'render' | 'extract'
   ): Promise<WorkspaceFileRecord | null> {
-    if (!this._betaEnabled && isWorkflowAliasBackingPath(path)) {
-      return null
-    }
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
     if (!canonicalMatch?.[1]) return null
 
-    const files = await listWorkspaceFiles(this._workspaceId, { includeReservedSystemFiles: true })
+    const files = await listWorkspaceFiles(this._workspaceId)
     return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
   }
 
@@ -923,7 +924,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isE2BDocEnabled && (await getE2BDocFormat(record.name))) {
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -976,7 +977,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
 
@@ -1102,7 +1103,7 @@ export class WorkspaceVFS {
     }
 
     const extractMatch = /^files\/.+\/extract$/.test(path)
-    if (extractMatch && isE2BDocEnabled) {
+    if (extractMatch && isDocSandboxEnabled) {
       let record: WorkspaceFileRecord | null = null
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
@@ -1171,7 +1172,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
+        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
@@ -1259,18 +1260,12 @@ export class WorkspaceVFS {
       .replace(/\/content$/, '')
       .replace(/^\/+/, '')
 
-    if (!this._betaEnabled && isWorkflowAliasBackingPath(fileReference)) {
-      return null
-    }
     if (fileReference.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
     const scope = deletedMatch ? 'archived' : 'active'
 
     try {
-      const files = await listWorkspaceFiles(this._workspaceId, {
-        scope,
-        includeReservedSystemFiles: this._betaEnabled,
-      })
+      const files = await listWorkspaceFiles(this._workspaceId, { scope })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
       return readFileRecord(record)
@@ -1333,7 +1328,6 @@ export class WorkspaceVFS {
    * Returns a summary for WORKSPACE.md generation.
    */
   private async materializeWorkflows(workspaceId: string): Promise<WorkspaceMdData['workflows']> {
-    const workflowArtifactsEnabled = this._betaEnabled
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
       listFolders(workspaceId),
@@ -1341,16 +1335,6 @@ export class WorkspaceVFS {
 
     const folderPaths = this.buildFolderPaths(folderRows)
     const lockedFolderIds = this.computeLockedFolderIds(folderRows)
-
-    // NOTE: materialization is a pure READ. Alias backing (changelog/plan
-    // folders + files) is ensured at write time — workflow create/rename
-    // (lib/workflows/utils) and alias writes (vfs/resource-writer,
-    // tools/server/files/workspace-file) — never here. Ensuring per workflow
-    // on every materialize meant N storage/DB writes per read tool call, and
-    // concurrent materializations contending on the same rows.
-    const workspaceFiles = workflowArtifactsEnabled
-      ? await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
-      : []
 
     // Register all folders in the VFS so empty folders are discoverable.
     for (const { folderId } of folderRows) {
@@ -1368,74 +1352,6 @@ export class WorkspaceVFS {
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf, { inheritedFolderLock }))
-
-        if (workflowArtifactsEnabled) {
-          const changelog = findWorkspaceFileRecord(
-            workspaceFiles,
-            workflowChangelogBackingPath(wf.id)
-          )
-          let changelogContent = ''
-          if (changelog) {
-            try {
-              changelogContent = (await readFileRecord(changelog))?.content ?? ''
-            } catch (err) {
-              logger.warn('Failed to read workflow changelog alias backing file', {
-                workspaceId,
-                workflowId: wf.id,
-                fileId: changelog.id,
-                error: toError(err).message,
-              })
-            }
-          }
-          if (changelog) {
-            this.files.set(`${prefix}${WORKFLOW_CHANGELOG_ALIAS_NAME}`, changelogContent)
-          }
-          this.files.set(`${prefix}${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
-
-          const planFiles = workspaceFiles.filter((file) => {
-            if (!file.folderPath) return false
-            return (
-              file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}` ||
-              file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}/`)
-            )
-          })
-          for (const planFile of planFiles) {
-            const relativeFolder = planFile.folderPath
-              ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}`, '')
-              .replace(/^\/+/, '')
-            const aliasPlanPath = [
-              prefix,
-              `${WORKFLOW_PLANS_ALIAS_DIR}/`,
-              relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
-              normalizeVfsSegment(planFile.name),
-            ].join('')
-            try {
-              this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
-            } catch (err) {
-              logger.warn('Failed to read workflow plan alias backing file', {
-                workspaceId,
-                workflowId: wf.id,
-                fileId: planFile.id,
-                error: toError(err).message,
-              })
-            }
-          }
-          this.files.set(
-            `${prefix}${WORKFLOW_ALIAS_LINKS_NAME}`,
-            JSON.stringify(
-              {
-                aliases: buildWorkflowAliasLinks({
-                  workflowPath,
-                  workflowId: wf.id,
-                  changelog,
-                  planFiles,
-                }),
-              },
-              null,
-              2
-            )
-          )
-        }
 
         // Heavy per-workflow content is LAZY: a read/glob never loads the block
         // graph, runs lint, or queries executions/deployments. Only a read of the
@@ -1762,22 +1678,23 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const workflowArtifactsEnabled = this._betaEnabled
-      const folders = await listWorkspaceFileFolders(workspaceId, {
-        includeReservedSystemFolders: true,
-      })
-      const files = await listWorkspaceFiles(workspaceId, {
-        folders,
-        includeReservedSystemFiles: true,
-        throwOnError: true,
-      })
+      const folders = await listWorkspaceFileFolders(workspaceId)
+      const files = await listWorkspaceFiles(workspaceId, { folders, throwOnError: true })
+      // Batch-load public share state so each file's metadata carries an ambient
+      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
+      // Fail soft: share state is only metadata enrichment, so a lookup failure
+      // must not drop the whole file tree (the outer catch returns []) — fall back
+      // to no shares, and files still materialize with `shared: false`.
+      let shareByFileId: Awaited<ReturnType<typeof getWorkspaceShares>> = new Map()
+      try {
+        shareByFileId = await getWorkspaceShares('file', workspaceId)
+      } catch (error) {
+        logger.warn('Failed to load file share state; file metadata will show shared: false', {
+          workspaceId,
+          error: toError(error).message,
+        })
+      }
       for (const folder of folders) {
-        if (
-          !workflowArtifactsEnabled &&
-          isWorkflowAliasBackingPath(`files/${encodeVfsPathSegments(folder.path.split('/'))}`)
-        ) {
-          continue
-        }
         this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
       }
 
@@ -1786,9 +1703,8 @@ export class WorkspaceVFS {
           folderPath: file.folderPath,
           name: file.name,
         })
-        if (!workflowArtifactsEnabled && isWorkflowAliasBackingPath(filePath)) {
-          continue
-        }
+        const share = shareByFileId.get(file.id)
+        const shared = share?.isActive ?? false
         this.files.set(
           filePath,
           serializeFileMeta({
@@ -1801,90 +1717,20 @@ export class WorkspaceVFS {
             size: file.size,
             uploadedAt: file.uploadedAt,
             updatedAt: file.updatedAt,
+            shared,
+            shareAuthType: shared ? share?.authType : undefined,
+            shareUrl: shared ? share?.url : undefined,
           })
         )
       }
 
-      if (workflowArtifactsEnabled) {
-        this.files.set(`${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
-        const workspacePlanFiles = files.filter((file) => {
-          if (!file.folderPath) return false
-          return (
-            file.folderPath ===
-              `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
-            file.folderPath.startsWith(
-              `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`
-            )
-          )
-        })
-        const workspacePlanLinks = []
-        for (const planFile of workspacePlanFiles) {
-          const relativeFolder = planFile.folderPath
-            ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}`, '')
-            .replace(/^\/+/, '')
-          const aliasRelativePath = [
-            relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
-            normalizeVfsSegment(planFile.name),
-          ].join('')
-          const aliasPlanPath = `${WORKFLOW_PLANS_ALIAS_DIR}/${aliasRelativePath}`
-          const relativeSegments = aliasRelativePath.split('/').slice(0, -1)
-          for (let index = 0; index < relativeSegments.length; index++) {
-            this.files.set(
-              `${WORKFLOW_PLANS_ALIAS_DIR}/${relativeSegments.slice(0, index + 1).join('/')}/.folder`,
-              ''
-            )
-          }
-          try {
-            this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
-            workspacePlanLinks.push({
-              kind: 'plan_file',
-              scope: 'workspace',
-              aliasPath: aliasPlanPath,
-              backingPath: workspacePlanBackingPath(aliasRelativePath),
-              backingFileId: planFile.id,
-            })
-          } catch (err) {
-            logger.warn('Failed to read workspace plan alias backing file', {
-              workspaceId,
-              fileId: planFile.id,
-              error: toError(err).message,
-            })
-          }
-        }
-        this.files.set(
-          `${WORKFLOW_PLANS_ALIAS_DIR}/${WORKFLOW_ALIAS_LINKS_NAME}`,
-          JSON.stringify(
-            {
-              aliases: [
-                {
-                  kind: 'plans_dir',
-                  scope: 'workspace',
-                  aliasPath: WORKFLOW_PLANS_ALIAS_DIR,
-                  backingPath: workspacePlansBackingFolderPath(),
-                },
-                ...workspacePlanLinks,
-              ],
-            },
-            null,
-            2
-          )
-        )
-      }
-
-      return files
-        .filter(
-          (f) =>
-            !isWorkflowAliasBackingPath(
-              canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name })
-            )
-        )
-        .map((f) => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          size: f.size,
-          folderPath: f.folderPath ?? null,
-        }))
+      return files.map((f) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        folderPath: f.folderPath ?? null,
+      }))
     } catch (err) {
       logger.error('Failed to materialize files; refusing to serve an incomplete VFS', {
         workspaceId,
@@ -2147,9 +1993,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Advertise workspace skills in the VFS without eagerly loading their bodies.
-   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full content
-   * is fetched only when read (or a grep whose scope touches the path) resolves them.
+   * Advertise the workspace skills in the VFS without eagerly loading their
+   * bodies. Paths are registered as lazy so glob/WORKSPACE.md see them, but
+   * full content is fetched only when read (or a grep whose scope touches the
+   * path) resolves them. Skills are workspace-visible — everyone with
+   * workspace access sees and uses every skill.
    */
   private async materializeSkills(
     workspaceId: string
@@ -2193,13 +2041,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize mothership task chats as browsable conversation files.
-   * Returns a summary for WORKSPACE.md generation.
+   * Materialize mothership task chats as browsable conversation files under
+   * `tasks/{title}/`. Nothing is returned: the inventory deliberately has no
+   * Tasks section, so these files are reached through glob/read only.
    */
-  private async materializeTasks(
-    workspaceId: string,
-    userId: string
-  ): Promise<WorkspaceMdData['tasks']> {
+  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
     try {
       const taskRows = await db
         .select({
@@ -2240,7 +2086,8 @@ export class WorkspaceVFS {
           and(
             eq(copilotChats.workspaceId, workspaceId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            eq(copilotChats.type, 'mothership'),
+            isNull(copilotChats.deletedAt)
           )
         )
         .orderBy(desc(copilotChats.updatedAt))
@@ -2268,18 +2115,11 @@ export class WorkspaceVFS {
           this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
         }
       }
-
-      return taskRows.map((t) => ({
-        id: t.id,
-        title: t.title || 'Untitled task',
-        updatedAt: t.updatedAt,
-      }))
     } catch (err) {
       logger.warn('Failed to materialize tasks', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
     }
   }
 
@@ -2405,13 +2245,17 @@ export class WorkspaceVFS {
         listWorkflows(workspaceId, { scope: 'archived' }),
         db
           .select({
-            id: workflowFolder.id,
-            name: workflowFolder.name,
-            archivedAt: workflowFolder.archivedAt,
+            id: folderTable.id,
+            name: folderTable.name,
+            archivedAt: folderTable.deletedAt,
           })
-          .from(workflowFolder)
+          .from(folderTable)
           .where(
-            and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+            and(
+              eq(folderTable.workspaceId, workspaceId),
+              eq(folderTable.resourceType, 'workflow'),
+              isNotNull(folderTable.deletedAt)
+            )
           ),
         listTables(workspaceId, { scope: 'archived' }),
         listInterfaces(workspaceId, { scope: 'archived' }),
@@ -2573,6 +2417,7 @@ export class WorkspaceVFS {
             displayName: c.displayName,
             role: c.role,
             scope: null,
+            credentialType: c.type,
             createdAt: c.updatedAt,
           })),
         ])

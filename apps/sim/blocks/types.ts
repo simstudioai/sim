@@ -262,6 +262,29 @@ export interface SubBlockConfig {
   canonicalParamId?: string
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
+  /**
+   * Marks "nothing selected" as a real choice, so a dynamic-option control does
+   * not pre-fill itself with the first option it fetches. Without it a combobox
+   * silently writes and persists a value the user never picked.
+   */
+  emptyIsValid?: boolean
+  /**
+   * Pins a "create a new one" row above the options of a picker, so authoring a
+   * resource never means leaving the workflow for Settings.
+   *
+   * Names the resource rather than carrying a component: block configs are read
+   * by the serializer and the executor, which must not pull in React. The picker
+   * owns the modal each name maps to.
+   */
+  createAction?: 'sandbox'
+  /**
+   * Restricts where a subblock renders. `tool-input` means it configures how the
+   * block behaves *as an agent tool* and has no meaning on the canvas, so the
+   * canvas editor skips it while the agent's tool-input config still shows it.
+   *
+   * Generic on purpose: shared code branches on this flag, never on a block type.
+   */
+  context?: 'tool-input'
   required?:
     | boolean
     | {
@@ -314,7 +337,8 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
-  showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
+  hideDividerBefore?: boolean // Visually group this field with the preceding visible subblock
+  showWhenEnvSet?: string // Show this subblock only when a named NEXT_PUBLIC_ env var is truthy; comma-separated means any of them
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
@@ -367,11 +391,24 @@ export interface SubBlockConfig {
   serviceId?: string
   requiredScopes?: string[]
   /**
-   * Narrows an `oauth-input` selector to a specific credential kind. `'custom-bot'`
-   * lists only reusable custom Slack bot credentials (service-account type) and its
-   * connect row opens the custom-bot setup modal instead of the OAuth flow.
+   * Narrows an `oauth-input` selector to a specific credential kind.
+   * `'service-account'` lists only service-account credentials; its connect row
+   * opens the provider's setup modal (resolved from the service-account setup
+   * registry — a bespoke wizard when registered, the generic token-paste modal
+   * otherwise). `'any'` lists OAuth accounts and service accounts together in a
+   * grouped dropdown with a connect action for each kind.
    */
-  credentialKind?: 'custom-bot'
+  credentialKind?: 'service-account' | 'any'
+  /**
+   * Overrides the credential picker's section and connect-row copy. Unset keys
+   * fall back to generic provider-derived labels.
+   */
+  credentialLabels?: {
+    oauthGroup?: string
+    oauthConnect?: string
+    serviceAccountGroup?: string
+    serviceAccountConnect?: string
+  }
   /**
    * Opts a trigger-mode `oauth-input` selector into listing service-account
    * credentials, which are otherwise excluded in trigger mode. Set only when the
@@ -400,6 +437,15 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  /**
+   * Dropdown-specific: render option labels verbatim instead of lowercasing them.
+   *
+   * The editor lowercases dropdown labels as a typographic convention, which
+   * suits authored operation names ("Send Message"). It corrupts labels that are
+   * case-sensitive identifiers the user must reproduce elsewhere — a workspace
+   * secret shown as `stripe_key` cannot be referenced as `{{stripe_key}}`.
+   */
+  preserveLabelCase?: boolean
   // Combobox specific: Enable search input in dropdown
   searchable?: boolean
   /** Dropdown-specific: include static options as Cmd K search entries that preset this subblock. */
@@ -496,6 +542,18 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    * gated. Remove at GA.
    */
   preview?: boolean
+  /**
+   * Post-GA lifecycle state. `legacy` — superseded but still supported (amber
+   * badge, click-to-upgrade); `deprecated` — no longer supported, slated for
+   * removal (red badge). Placed instances keep executing and rendering in both
+   * states. `replacedBy` is the block `type` to migrate to — omit when no direct
+   * successor exists. Distinct from {@link hideFromToolbar} (a rendering
+   * decision) and {@link preview} (unreleased). Remove config at end-of-life.
+   */
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
   triggers?: {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports

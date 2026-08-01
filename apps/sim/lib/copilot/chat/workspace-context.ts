@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import {
+  folder as folderTable,
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
   userTableDefinitions,
   workflow,
-  workflowFolder,
   workflowSchedule,
   workspaceInterface,
 } from '@sim/db/schema'
@@ -27,11 +27,11 @@ import {
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
-  getWorkspaceWithOwner,
+  type WorkspaceAccess,
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
@@ -83,7 +83,6 @@ export interface WorkspaceMdData {
     role?: string | null
   }>
   envVariables: string[]
-  tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
   customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
@@ -352,11 +351,17 @@ export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
 // workspace is unavailable or a fetch fails.
 async function buildWorkspaceMdData(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<WorkspaceMdData | null> {
   try {
-    await assertActiveWorkspaceAccess(workspaceId, userId)
-    const wsRow = await getWorkspaceWithOwner(workspaceId)
+    // Reuse the caller's already-asserted access when provided (hot chat path);
+    // the id match keeps a mismatched cache from authorizing this workspace.
+    const workspaceAccess =
+      options?.workspaceAccess && options.workspaceAccess.workspace?.id === workspaceId
+        ? options.workspaceAccess
+        : await assertActiveWorkspaceAccess(workspaceId, userId)
+    const wsRow = workspaceAccess.hasAccess ? workspaceAccess.workspace : null
     if (!wsRow) {
       return null
     }
@@ -392,12 +397,18 @@ async function buildWorkspaceMdData(
 
       db
         .select({
-          id: workflowFolder.id,
-          name: workflowFolder.name,
-          parentId: workflowFolder.parentId,
+          id: folderTable.id,
+          name: folderTable.name,
+          parentId: folderTable.parentId,
         })
-        .from(workflowFolder)
-        .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt))),
+        .from(folderTable)
+        .where(
+          and(
+            eq(folderTable.workspaceId, workspaceId),
+            eq(folderTable.resourceType, 'workflow'),
+            isNull(folderTable.deletedAt)
+          )
+        ),
 
       db
         .select({
@@ -457,7 +468,7 @@ async function buildWorkspaceMdData(
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
-      listSkills({ workspaceId, includeBuiltins: false }),
+      listSkillsForUser({ workspaceId, userId, includeBuiltins: false, workspaceAccess }),
 
       db
         .select({
@@ -596,9 +607,10 @@ const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
  */
 export async function generateWorkspaceContext(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<string> {
-  const data = await buildWorkspaceMdData(workspaceId, userId)
+  const data = await buildWorkspaceMdData(workspaceId, userId, options)
   return data ? buildWorkspaceMd(data) : WORKSPACE_CONTEXT_UNAVAILABLE_MD
 }
 
@@ -635,7 +647,9 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     .map((j) => ({
       id: j.id,
       ...(j.title ? { title: j.title } : {}),
-      ...(j.prompt ? { prompt: j.prompt } : {}),
+      // Match WORKSPACE.md's preview truncation — full prompts are large,
+      // volatile-ish, and readable on demand at jobs/{title}/meta.json.
+      ...(j.prompt ? { prompt: j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt } : {}),
       ...(j.cronExpression ? { cronExpression: j.cronExpression } : {}),
       ...(j.status ? { status: j.status } : {}),
       ...(j.lifecycle ? { lifecycle: j.lifecycle } : {}),
@@ -691,6 +705,11 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     })),
     envVars: data.envVariables,
     customTools: (data.customTools ?? []).map((t) => ({ id: t.id, name: t.name })),
+    customBlocks: (data.customBlocks ?? []).map((b) => ({
+      type: b.type,
+      name: b.name,
+      ...(b.description ? { description: b.description } : {}),
+    })),
     mcpServers: (data.mcpServers ?? []).map((s) => ({
       id: s.id,
       name: s.name,

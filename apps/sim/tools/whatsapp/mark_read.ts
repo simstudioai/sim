@@ -1,11 +1,17 @@
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppMarkReadParams, WhatsAppMarkReadResponse } from '@/tools/whatsapp/types'
-import { buildAuthHeaders, buildMessagesUrl, isRecord } from '@/tools/whatsapp/utils'
+import {
+  buildAuthHeaders,
+  buildMessagesUrl,
+  extractWhatsAppErrorMessage,
+  parseWhatsAppResponse,
+} from '@/tools/whatsapp/utils'
 
 export const markReadTool: ToolConfig<WhatsAppMarkReadParams, WhatsAppMarkReadResponse> = {
   id: 'whatsapp_mark_read',
   name: 'WhatsApp Mark As Read',
-  description: 'Mark a received WhatsApp message as read so the sender sees blue checkmarks.',
+  description:
+    'Mark a received WhatsApp message as read so the sender sees blue checkmarks, optionally showing a typing indicator.',
   version: '1.0.0',
 
   params: {
@@ -14,6 +20,13 @@ export const markReadTool: ToolConfig<WhatsAppMarkReadParams, WhatsAppMarkReadRe
       required: true,
       visibility: 'user-or-llm',
       description: 'ID (wamid) of the incoming message to mark as read',
+    },
+    showTypingIndicator: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Show a typing indicator to the sender while a reply is composed. Dismissed once you respond or after 25 seconds, whichever comes first.',
     },
     phoneNumberId: {
       type: 'string',
@@ -37,26 +50,24 @@ export const markReadTool: ToolConfig<WhatsAppMarkReadParams, WhatsAppMarkReadRe
       if (!params.messageId) {
         throw new Error('Message ID is required but was not provided')
       }
-      return {
+
+      const body: Record<string, unknown> = {
         messaging_product: 'whatsapp',
         status: 'read',
         message_id: params.messageId.trim(),
       }
+      if (params.showTypingIndicator) {
+        body.typing_indicator = { type: 'text' }
+      }
+      return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const responseText = await response.text()
-    const parsed = responseText ? (JSON.parse(responseText) as unknown) : {}
-    const data = isRecord(parsed) ? parsed : {}
-    const error = isRecord(data.error) ? data.error : undefined
+    const data = await parseWhatsAppResponse(response)
 
     if (!response.ok) {
-      const errorMessage =
-        (typeof error?.message === 'string' ? error.message : undefined) ||
-        (typeof error?.error_user_msg === 'string' ? error.error_user_msg : undefined) ||
-        `WhatsApp API error (${response.status})`
-      throw new Error(errorMessage)
+      throw new Error(extractWhatsAppErrorMessage(data, response.status))
     }
 
     return {

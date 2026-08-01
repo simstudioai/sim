@@ -8,7 +8,8 @@
 
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
+import { fillMissingColumns, namedRowMapper } from '@/lib/table/cell-format'
+import { buildNameById } from '@/lib/table/column-keys'
 import type { RowData, TableRow, TableSchema } from '@/lib/table/types'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 
@@ -65,7 +66,9 @@ export async function fireTableTrigger(
 
     const headers = schema.columns.map((c) => c.name)
     // The webhook payload is name-keyed (the workflow author references columns
-    // by name); stored row data is id-keyed, so translate on the way out.
+    // by name) and carries option names, not stored select ids — the mapper
+    // translates both in one pass. Hoisted: reused for every row and webhook.
+    const toNamedRow = namedRowMapper(schema.columns)
     const nameById = buildNameById(schema)
 
     // Filter to webhooks watching this table with a matching event type
@@ -99,9 +102,8 @@ export async function fireTableTrigger(
 
       for (const row of rows) {
         const previousIdData = oldRows?.get(row.id) ?? null
-        // Translate id-keyed stored data → name-keyed for the external payload.
-        const rawRow = rowDataIdToName(row.data, nameById)
-        const previousRow = previousIdData ? rowDataIdToName(previousIdData, nameById) : null
+        const rawRow = toNamedRow(row.data)
+        const previousRow = previousIdData ? toNamedRow(previousIdData) : null
         const changedColumns = previousIdData
           ? detectChangedColumns(previousIdData, row.data)
               .map((id) => nameById.get(id))
@@ -114,14 +116,9 @@ export async function fireTableTrigger(
           if (!hasWatchedChange) continue
         }
 
-        // Build mapped row if includeHeaders is enabled
-        let mappedRow: Record<string, unknown> | null = null
-        if (includeHeaders && headers.length > 0) {
-          mappedRow = {}
-          for (const col of schema.columns) {
-            mappedRow[col.name] = row.data[getColumnId(col)] ?? null
-          }
-        }
+        // `row` is `rawRow` widened so its key set matches `headers` exactly.
+        const mappedRow =
+          includeHeaders && headers.length > 0 ? fillMissingColumns(rawRow, schema.columns) : null
 
         const payload: TableTriggerPayload = {
           row: mappedRow,

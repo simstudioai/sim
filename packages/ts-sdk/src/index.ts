@@ -1,5 +1,3 @@
-import fetch from 'node-fetch'
-
 export interface SimStudioConfig {
   apiKey: string
   baseUrl?: string
@@ -105,6 +103,20 @@ export interface UsageLimits {
     limitBytes: number
     percentUsed: number
   }
+}
+
+/**
+ * Native fetch reports network failures as a bare `TypeError: fetch failed` and puts the
+ * underlying reason (ECONNREFUSED, DNS, TLS) on `cause`. Fold it into the message so callers
+ * keep the diagnostic detail, and return the plain message unchanged when there is no cause.
+ */
+function describeError(error: any): string | undefined {
+  const message: string | undefined = error?.message
+  const cause: string | undefined = error?.cause?.message
+  if (message && cause && !message.includes(cause)) {
+    return `${message}: ${cause}`
+  }
+  return message
 }
 
 export class SimStudioError extends Error {
@@ -276,7 +288,10 @@ export class SimStudioClient {
         throw new SimStudioError(`Workflow execution timed out after ${timeout}ms`, 'TIMEOUT')
       }
 
-      throw new SimStudioError(error?.message || 'Failed to execute workflow', 'EXECUTION_ERROR')
+      throw new SimStudioError(
+        describeError(error) || 'Failed to execute workflow',
+        'EXECUTION_ERROR'
+      )
     }
   }
 
@@ -310,7 +325,10 @@ export class SimStudioClient {
         throw error
       }
 
-      throw new SimStudioError(error?.message || 'Failed to get workflow status', 'STATUS_ERROR')
+      throw new SimStudioError(
+        describeError(error) || 'Failed to get workflow status',
+        'STATUS_ERROR'
+      )
     }
   }
 
@@ -388,7 +406,7 @@ export class SimStudioClient {
         throw error
       }
 
-      throw new SimStudioError(error?.message || 'Failed to get job status', 'STATUS_ERROR')
+      throw new SimStudioError(describeError(error) || 'Failed to get job status', 'STATUS_ERROR')
     }
   }
 
@@ -511,7 +529,7 @@ export class SimStudioClient {
         throw error
       }
 
-      throw new SimStudioError(error?.message || 'Failed to get usage limits', 'USAGE_ERROR')
+      throw new SimStudioError(describeError(error) || 'Failed to get usage limits', 'USAGE_ERROR')
     }
   }
 }

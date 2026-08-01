@@ -1,0 +1,239 @@
+---
+title: TikTok
+description: Access TikTok profiles and videos, and upload inbox drafts
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tiktok"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Send uploaded videos to the TikTok inbox as drafts for human review and publishing, then track post status.
+
+
+
+## Actions
+
+### `tiktok_get_user`
+
+Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fields` | string | No | Comma-separated allowlisted fields to return. open_id and display_name are always included. Available: open_id, union_id, avatar_url, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count. Include avatar_url or avatar_large_url to receive avatarFile. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `openId` | string | Unique TikTok user ID for this application |
+| `unionId` | string | Unique TikTok user ID across all apps from the same developer |
+| `displayName` | string | User display name |
+| `bioDescription` | string | User bio description |
+| `profileDeepLink` | string | Deep link to user TikTok profile |
+| `isVerified` | boolean | Whether the account is verified |
+| `username` | string | TikTok username |
+| `followerCount` | number | Number of followers |
+| `followingCount` | number | Number of accounts the user follows |
+| `likesCount` | number | Total likes received across all videos |
+| `videoCount` | number | Total number of public videos |
+| `avatarFile` | file | Downloadable copy of the profile avatar image \(largest available variant\), stored as a workflow file so it can be chained into file-consuming blocks \(e.g. attached to an email\). |
+
+### `tiktok_list_videos`
+
+Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `maxCount` | number | No | Maximum number of videos to return \(1-20\) |
+| `cursor` | number | No | Cursor for pagination \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videos` | array | List of TikTok videos |
+|   ↳ `id` | string | Video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `coverImageUrl` | string | Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately. |
+|   ↳ `embedLink` | string | Embeddable video URL |
+|   ↳ `embedHtml` | string | HTML embed markup for the video |
+|   ↳ `duration` | number | Video duration in seconds |
+|   ↳ `createTime` | number | Unix timestamp when the video was created |
+|   ↳ `shareUrl` | string | Shareable video URL |
+|   ↳ `videoDescription` | string | Video description or caption |
+|   ↳ `width` | number | Video width in pixels |
+|   ↳ `height` | number | Video height in pixels |
+|   ↳ `viewCount` | number | Number of views |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `shareCount` | number | Number of shares |
+| `cursor` | number | Cursor for fetching the next page of results |
+| `hasMore` | boolean | Whether there are more videos to fetch |
+
+### `tiktok_query_videos`
+
+Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoIds` | array | Yes | Array of video IDs to query \(maximum 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videos` | array | List of queried TikTok videos |
+|   ↳ `id` | string | Video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `coverImageUrl` | string | Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately. |
+|   ↳ `embedLink` | string | Embeddable video URL |
+|   ↳ `embedHtml` | string | HTML embed markup for the video |
+|   ↳ `duration` | number | Video duration in seconds |
+|   ↳ `createTime` | number | Unix timestamp when the video was created |
+|   ↳ `shareUrl` | string | Shareable video URL |
+|   ↳ `videoDescription` | string | Video description or caption |
+|   ↳ `width` | number | Video width in pixels |
+|   ↳ `height` | number | Video height in pixels |
+|   ↳ `viewCount` | number | Number of views |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `shareCount` | number | Number of shares |
+
+### `tiktok_upload_video_draft`
+
+Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | Video file to upload from the workflow. Maximum size: 250 MB. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `publishId` | string | Unique identifier for tracking the draft status. Use this with the Get Post Status tool to check when the user has completed posting from their inbox. |
+
+### `tiktok_get_post_status`
+
+Check the status of a video draft upload. Use the publishId returned from Upload Video Draft to track progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publishId` | string | Yes | The publish ID returned from a post/upload tool. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Current status of the post. Values: PROCESSING_UPLOAD/PROCESSING_DOWNLOAD \(TikTok is processing the media\), SEND_TO_USER_INBOX \(draft delivered, awaiting user action\), PUBLISH_COMPLETE \(successfully posted\), FAILED \(check failReason\). |
+| `failReason` | string | Reason for failure if status is FAILED. Null otherwise. |
+| `publiclyAvailablePostId` | array | Array of public post IDs \(as strings\) once the content is published and publicly viewable. Can be used to construct the TikTok post URL. |
+| `uploadedBytes` | number | Number of bytes uploaded to TikTok for FILE_UPLOAD posts |
+| `downloadedBytes` | number | Number of bytes TikTok reports as downloaded |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### TikTok Authorization Removed
+
+Trigger when a user deauthorizes your TikTok app
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `reason` | number | Revocation reason \(0 unknown, 1 user disconnect, 2 account deleted, 3 age change, 4 banned, 5 developer revoke\) |
+
+
+---
+
+### TikTok Post Inbox Delivered
+
+Trigger when a draft notification is delivered to the creator inbox
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post No Longer Public
+
+Trigger when a post is no longer publicly viewable on TikTok
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post Publicly Available
+
+Trigger when a published post becomes publicly viewable on TikTok
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post Publish Complete
+
+Trigger when a TikTok Content Posting publish completes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post Publish Failed
+
+Trigger when a TikTok Content Posting publish fails
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+

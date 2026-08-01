@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMock, workflowsUtilsMock } from '@sim/testing'
+import { workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreateUserToolSchema, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
@@ -18,8 +18,6 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
     (plan: string | null) => plan === 'pro' || plan === 'team' || plan === 'enterprise'
   ),
 }))
-
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@/lib/mcp/utils', () => ({
   createMcpToolId: vi.fn(),
@@ -233,6 +231,39 @@ describe('buildCopilotRequestPayload', () => {
         workspaceContext: 'workspace inventory',
       })
     )
+  })
+
+  it('advertises desktop capabilities without adding parallel local_* tool schemas', async () => {
+    const capablePayload = await buildCopilotRequestPayload(
+      {
+        message: 'inspect my local project',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: '',
+        workspaceId: 'ws-1',
+        desktopLocalFilesystem: true,
+      },
+      { selectedModel: '' }
+    )
+    expect(capablePayload).toMatchObject({
+      desktopCapabilities: { localFilesystem: true },
+    })
+    expect(capablePayload).not.toHaveProperty('mothershipTools')
+
+    const browserPayload = await buildCopilotRequestPayload(
+      {
+        message: 'inspect my local project',
+        userId: 'user-1',
+        userMessageId: 'msg-2',
+        mode: 'agent',
+        model: '',
+        workspaceId: 'ws-1',
+      },
+      { selectedModel: '' }
+    )
+    expect(browserPayload).not.toHaveProperty('mothershipTools')
+    expect(browserPayload).not.toHaveProperty('desktopCapabilities')
   })
 
   it('passes user metadata through to the Go request payload', async () => {

@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({ idempotencyKey: {} }))
-
+import { resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertEnterpriseReconciliationLeaseHeld,
   type EnterpriseReconciliationLease,
@@ -14,6 +11,15 @@ import {
   withEnterpriseReconciliationLease,
 } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import type { DbOrTx } from '@/lib/db/types'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  resetDbChainMock()
+})
+
+afterAll(() => {
+  resetDbChainMock()
+})
 
 function inMemoryLeaseStore(): EnterpriseReconciliationLeaseStore {
   let held: EnterpriseReconciliationLease | null = null

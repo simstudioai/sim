@@ -2,8 +2,6 @@ import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
-import type { CompletionUsage } from 'openai/resources/completions'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
@@ -13,6 +11,8 @@ import {
   normalizeStringRecord,
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
+import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
+import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
@@ -21,6 +21,7 @@ import {
   resolveActiveCanonicalValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -31,6 +32,7 @@ import {
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
+  getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
   getModelsWithTemperatureRange,
   getModelsWithTemperatureSupport,
@@ -518,6 +520,60 @@ function resolveCanonicalResourceParams(
   return resolved
 }
 
+/** JSON-schema type for a workflow input field (LLM tool schema). */
+function inputFieldSchemaType(fieldType: string): string {
+  switch (fieldType) {
+    case 'number':
+      return 'number'
+    case 'boolean':
+      return 'boolean'
+    case 'object':
+      return 'object'
+    case 'array':
+      return 'array'
+    default:
+      return 'string'
+  }
+}
+
+/**
+ * Build the LLM tool schema for a custom block used as an agent tool: a single
+ * `inputMapping` object whose properties are the block's deployed input fields,
+ * keyed by the field's stable id (so it lines up with `assembleCustomBlockInputMapping`
+ * and the child's id→name remap) and marked required per the publisher's overrides.
+ * `file[]` fields are omitted — the model can't synthesize uploaded-file descriptors.
+ */
+function buildCustomBlockInputMappingSchema(
+  blockName: string,
+  inputFields: WorkflowInputField[],
+  requiredInputIds: string[]
+): ProviderToolConfig['parameters'] {
+  const requiredSet = new Set(requiredInputIds)
+  const properties: Record<string, any> = {}
+  const requiredFields: string[] = []
+  for (const field of inputFields) {
+    if (isFileFieldType(field.type)) continue
+    const key = field.id ?? field.name
+    properties[key] = {
+      type: inputFieldSchemaType(field.type),
+      description: field.description ? `${field.name} — ${field.description}` : field.name,
+    }
+    if (requiredSet.has(key)) requiredFields.push(key)
+  }
+  return {
+    type: 'object',
+    properties: {
+      inputMapping: {
+        type: 'object',
+        description: `Input values for ${blockName}`,
+        properties,
+        required: requiredFields,
+      },
+    },
+    required: requiredFields.length > 0 ? ['inputMapping'] : [],
+  }
+}
+
 /**
  * Transforms a block tool into a provider tool config with operation selection
  *
@@ -525,6 +581,45 @@ function resolveCanonicalResourceParams(
  * @param options Additional options including dependencies and selected operation
  * @returns The provider tool config or null if transform fails
  */
+/**
+ * Drops model-supplied arguments for params the tool declares off-limits to the
+ * model (`user-only` / `hidden`).
+ *
+ * Deliberately keyed on the declared visibility rather than on "absent from
+ * `parameters.properties`": an MCP or custom tool may legitimately accept keys
+ * beyond its advertised properties (`additionalProperties`), and silently
+ * dropping those would truncate its arguments. Only a param the tool itself
+ * marked as not-for-the-model is removed.
+ */
+function stripModelBlockedParams(
+  blockedParams: string[] | undefined,
+  llmArgs: Record<string, any>
+): Record<string, any> {
+  if (!blockedParams?.length) return llmArgs
+  const blocked = new Set(blockedParams)
+  const filtered: Record<string, any> = {}
+  for (const [key, value] of Object.entries(llmArgs)) {
+    if (!blocked.has(key)) filtered[key] = value
+  }
+  return filtered
+}
+
+/** Reads a multi-select value that may still be JSON-encoded from `StoredTool.params`. */
+function readMountedSecretNames(raw: unknown): string[] {
+  let value = raw
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      // A bare name rather than a list — treat it as a single entry.
+      return value ? [value as string] : []
+    }
+  }
+  return Array.isArray(value)
+    ? value.filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : []
+}
+
 export async function transformBlockTool(
   block: any,
   options: {
@@ -533,6 +628,14 @@ export async function transformBlockTool(
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
+    /**
+     * Server-only resolver for a custom (deploy-as-block) tool's binding (bound
+     * workflow + input schema), org-scoped to the consumer. Injected as a dependency
+     * — like `getAllBlocks`/`getTool` — so this client-reachable module never imports
+     * the DB-backed `operations` module. Omit for non-server callers that can't
+     * resolve authority; a custom block is then simply not offered as a tool.
+     */
+    resolveCustomBlockBinding?: (blockType: string) => Promise<CustomBlockToolBinding | null>
     /**
      * Position of this tool within its parent agent block's `tool-input` array. Canonical-mode
      * overrides are stored scoped by this index (`${toolIndex}:${canonicalId}`) rather than by
@@ -550,6 +653,59 @@ export async function transformBlockTool(
   if (!blockDef) {
     logger.warn(`Block definition not found for type: ${block.type}`)
     return null
+  }
+
+  // Custom (deploy-as-block) blocks resolve to the generic `workflow_executor`, but
+  // as an agent tool they must run through the authority boundary (owner identity,
+  // latest deployment, curated outputs) — not the plain workflow executor. Route
+  // them to the dedicated in-process `deployed_block_executor` tool, carrying the
+  // block TYPE (never a source workflow id) so authority is re-resolved server-side.
+  // Dynamic imports keep the DB/executor dependency graph out of client bundles.
+  if (isCustomBlockType(block.type)) {
+    const binding = await options.resolveCustomBlockBinding?.(block.type)
+    if (!binding) {
+      logger.warn(`Custom block tool binding not resolved for type: ${block.type}`)
+      return null
+    }
+    const customToolConfig = getTool('deployed_block_executor')
+    if (!customToolConfig) {
+      logger.warn('deployed_block_executor tool not registered')
+      return null
+    }
+    const inputMapping = assembleCustomBlockInputMapping(block.params || {})
+    // A `file[]` field is omitted from the model schema (the model can't synthesize
+    // upload descriptors). If such a field is REQUIRED and the user hasn't
+    // pre-filled it on the block, no invocation could ever satisfy the child's
+    // required-input check — so don't offer an unusable tool at all.
+    const prefilled = JSON.parse(inputMapping) as Record<string, unknown>
+    const requiredIds = new Set(binding.requiredInputIds)
+    const unfillableFileField = binding.inputFields.find((field) => {
+      const key = field.id ?? field.name
+      return isFileFieldType(field.type) && requiredIds.has(key) && !(key in prefilled)
+    })
+    if (unfillableFileField) {
+      logger.warn(
+        `Custom block ${block.type} not offered as a tool: required file input "${unfillableFileField.name}" has no preset value and cannot be supplied by the model`
+      )
+      return null
+    }
+    return {
+      // Unique per block so two custom-block tools never collide on the wire.
+      id: `deployed_block_executor_${block.type}`,
+      // Name/description come from the block itself — never the source workflow's
+      // metadata, which the consumer has no access to.
+      name: blockDef.name,
+      description: blockDef.description || customToolConfig.description,
+      params: {
+        blockType: block.type,
+        inputMapping,
+      },
+      parameters: buildCustomBlockInputMappingSchema(
+        blockDef.name,
+        binding.inputFields,
+        binding.requiredInputIds
+      ),
+    }
   }
 
   let toolId: string | null = null
@@ -598,10 +754,11 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const { schema: llmSchema, enrichedDescription } = await createLLMToolSchema(
-    toolConfig,
-    userProvidedParams
-  )
+  const {
+    schema: llmSchema,
+    enrichedDescription,
+    modelBlockedParams,
+  } = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
     ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
@@ -630,6 +787,16 @@ export async function transformBlockTool(
         toolDescription = workflowMetadata.description
       }
     }
+  } else if (toolId === 'function_execute' && resolvedResourceParams.secretScope === 'selected') {
+    // Scoping alone would leave the model guessing: the secrets are injected
+    // server-side and nothing else advertises them. Names only — values never
+    // enter the provider request, matching the copilot's workspace-context rule.
+    // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
+    // the executor's paramsTransform parses it later, but this runs before that.
+    const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
+    toolDescription = mounted.length
+      ? `${toolDescription}\n\nWorkspace secrets available to this code: ${mounted.join(', ')}. Reference one as {{NAME}} or environmentVariables['NAME']. No other secrets are readable.`
+      : `${toolDescription}\n\nThis code has no access to workspace secrets.`
   } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`
   } else if (toolId.startsWith('table_') && resolvedResourceParams.tableId) {
@@ -695,6 +862,7 @@ export async function transformBlockTool(
     description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
+    modelBlockedParams,
     paramsTransform,
   }
 }
@@ -1204,6 +1372,7 @@ export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
+export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
@@ -1222,6 +1391,11 @@ export function supportsVerbosity(model: string): boolean {
 
 export function supportsThinking(model: string): boolean {
   return MODELS_WITH_THINKING.includes(model.toLowerCase())
+}
+
+/** Whether the model accepts caller-placed prompt-cache breakpoints. */
+export function supportsPromptCaching(model: string): boolean {
+  return MODELS_WITH_PROMPT_CACHING.includes(model.toLowerCase())
 }
 
 export function isDeepResearchModel(model: string): boolean {
@@ -1285,6 +1459,7 @@ export function prepareToolExecution(
   tool: {
     params?: Record<string, any>
     parameters?: Record<string, any>
+    modelBlockedParams?: string[]
     paramsTransform?: (params: Record<string, any>) => Record<string, any>
   },
   llmArgs: Record<string, any>,
@@ -1300,12 +1475,23 @@ export function prepareToolExecution(
     isDeployedContext?: boolean
     callChain?: string[]
     billingAttribution?: BillingAttributionSnapshot
+    /** Invoking run's execution id — see `ProviderRequest.executionId`. */
+    executionId?: string
   }
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  let toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
+  // Providers are supposed to emit only declared arguments, but nothing enforces
+  // it on the parsed tool call — and `mergeToolParameters` seeds its result from
+  // the model's args, so an undeclared key survives whenever the user's value is
+  // empty. That is a privilege escalation for `user-only` params: a Function tool
+  // scoped to "Selected secrets" with an empty list is an explicit deny, and a
+  // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
+  let toolParams = mergeToolParameters(
+    tool.params || {},
+    stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
+  ) as Record<string, any>
 
   if (tool.paramsTransform) {
     try {
@@ -1328,6 +1514,7 @@ export function prepareToolExecution(
               ? { isDeployedContext: request.isDeployedContext }
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
+            ...(request.executionId ? { executionId: request.executionId } : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),
@@ -1348,63 +1535,6 @@ export function prepareToolExecution(
   }
 
   return { toolParams, executionParams }
-}
-
-/**
- * Creates a ReadableStream from an OpenAI-compatible streaming response.
- * This is a shared utility used by all OpenAI-compatible providers:
- * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
- *
- * @param stream - The async iterable stream from the provider
- * @param providerName - Name of the provider for logging purposes
- * @param onComplete - Optional callback called when stream completes with full content and usage
- * @returns A ReadableStream that can be used for streaming responses
- */
-export function createOpenAICompatibleStream(
-  stream: AsyncIterable<ChatCompletionChunk>,
-  providerName: string,
-  onComplete?: (content: string, usage: CompletionUsage) => void
-): ReadableStream<Uint8Array> {
-  const streamLogger = createLogger(`${providerName}Utils`)
-  let fullContent = ''
-  let promptTokens = 0
-  let completionTokens = 0
-  let totalTokens = 0
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          if (chunk.usage) {
-            promptTokens = chunk.usage.prompt_tokens ?? 0
-            completionTokens = chunk.usage.completion_tokens ?? 0
-            totalTokens = chunk.usage.total_tokens ?? 0
-          }
-
-          const content = chunk.choices?.[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        if (onComplete) {
-          if (promptTokens === 0 && completionTokens === 0) {
-            streamLogger.warn(`${providerName} stream completed without usage data`)
-          }
-          onComplete(fullContent, {
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: totalTokens || promptTokens + completionTokens,
-          })
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
 }
 
 /**

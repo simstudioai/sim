@@ -205,8 +205,12 @@ export function useMothershipLicenseDetails(
 }
 
 export function useGenerateLicense(environment: MothershipEnv) {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (params: { name: string; expirationDate?: string }) =>
       mothershipPost('licenses/generate', environment, params),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: mothershipKeys.licenses(environment) })
+    },
   })
 }

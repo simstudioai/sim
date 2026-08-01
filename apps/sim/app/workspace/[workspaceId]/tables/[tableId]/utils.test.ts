@@ -125,6 +125,38 @@ describe('cleanCellValue', () => {
     expect(cleanCellValue('2024', { name: 'n', type: 'number' } as const)).toBe(2024)
     expect(cleanCellValue('true', { name: 'b', type: 'boolean' } as const)).toBe(true)
   })
+
+  it('resolves select names to option ids so the optimistic cache holds ids', () => {
+    const column = {
+      name: 'status',
+      type: 'select',
+      options: [
+        { id: 'opt_a', name: 'Open' },
+        { id: 'opt_b', name: 'Closed' },
+      ],
+    } as const
+    expect(cleanCellValue('Open', column)).toBe('opt_a')
+    expect(cleanCellValue('open', column)).toBe('opt_a')
+    expect(cleanCellValue('opt_b', column)).toBe('opt_b')
+    expect(cleanCellValue('Archived', column)).toBeNull()
+    expect(cleanCellValue('', column)).toBeNull()
+  })
+
+  it('round-trips a multiselect through its comma-joined clipboard form', () => {
+    const column = {
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [
+        { id: 'opt_a', name: 'Bug' },
+        { id: 'opt_b', name: 'Docs' },
+      ],
+    } as const
+    expect(cleanCellValue('Bug, Docs', column)).toEqual(['opt_a', 'opt_b'])
+    expect(cleanCellValue(['opt_b'], column)).toEqual(['opt_b'])
+    expect(cleanCellValue('Bug, Bug', column)).toEqual(['opt_a'])
+    expect(cleanCellValue('Nope', column)).toEqual([])
+  })
 })
 
 describe('formatValueForInput', () => {

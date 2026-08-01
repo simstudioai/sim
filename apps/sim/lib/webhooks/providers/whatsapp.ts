@@ -60,11 +60,41 @@ function normalizeWhatsAppContact(contact: Record<string, unknown>) {
   }
 }
 
+/** Message types whose payload carries a downloadable media asset. */
+const WHATSAPP_MEDIA_TYPES = new Set(['image', 'audio', 'video', 'document', 'sticker'])
+
+/**
+ * Pull the media asset off a typed media message. WhatsApp nests it under a key
+ * matching the message `type` — `{ type: 'image', image: { id, mime_type, ... } }`.
+ * Note `media.id` is the media asset ID passed to Download Media, which is a
+ * different value from `message.id` (the `wamid.` message identifier).
+ */
+function extractWhatsAppMedia(message: Record<string, unknown>) {
+  const type = typeof message.type === 'string' ? message.type : undefined
+  if (!type || !WHATSAPP_MEDIA_TYPES.has(type)) {
+    return undefined
+  }
+
+  const media = isRecord(message[type]) ? (message[type] as Record<string, unknown>) : undefined
+  if (!media) {
+    return undefined
+  }
+
+  return {
+    mediaId: typeof media.id === 'string' ? media.id : undefined,
+    mediaMimeType: typeof media.mime_type === 'string' ? media.mime_type : undefined,
+    mediaSha256: typeof media.sha256 === 'string' ? media.sha256 : undefined,
+    mediaFilename: typeof media.filename === 'string' ? media.filename : undefined,
+    caption: typeof media.caption === 'string' ? media.caption : undefined,
+  }
+}
+
 function normalizeWhatsAppMessage(
   message: Record<string, unknown>,
   metadata?: Record<string, unknown>
 ) {
   const text = isRecord(message.text) ? message.text : undefined
+  const media = extractWhatsAppMedia(message)
 
   return {
     messageId: typeof message.id === 'string' ? message.id : undefined,
@@ -78,6 +108,11 @@ function normalizeWhatsAppMessage(
     text: typeof text?.body === 'string' ? text.body : undefined,
     timestamp: typeof message.timestamp === 'string' ? message.timestamp : undefined,
     messageType: typeof message.type === 'string' ? message.type : undefined,
+    mediaId: media?.mediaId,
+    mediaMimeType: media?.mediaMimeType,
+    mediaSha256: media?.mediaSha256,
+    mediaFilename: media?.mediaFilename,
+    caption: media?.caption,
     raw: message,
   }
 }
@@ -284,6 +319,11 @@ export const whatsappHandler: WebhookProviderHandler = {
       text?: string
       timestamp?: string
       messageType?: string
+      mediaId?: string
+      mediaMimeType?: string
+      mediaSha256?: string
+      mediaFilename?: string
+      caption?: string
       raw: Record<string, unknown>
     }> = []
     const statuses: Array<{
@@ -355,6 +395,9 @@ export const whatsappHandler: WebhookProviderHandler = {
         text: firstMessage?.text,
         timestamp: firstMessage?.timestamp ?? firstStatus?.timestamp,
         messageType: firstMessage?.messageType,
+        mediaId: firstMessage?.mediaId,
+        mediaMimeType: firstMessage?.mediaMimeType,
+        caption: firstMessage?.caption,
         status: firstStatus?.status,
         contact: contacts[0],
         webhookContacts: contacts,

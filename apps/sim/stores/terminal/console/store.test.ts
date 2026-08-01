@@ -137,6 +137,35 @@ describe('terminal console store', () => {
       expect(entry.isRunning).toBe(false)
     })
 
+    it('settles live agent stream chrome when canceling', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        agentStreamActive: true,
+        agentStreamThinking: 'drafting…',
+        agentStreamToolCalls: [
+          {
+            key: 'block-1:t1',
+            id: 't1',
+            name: 'http_request',
+            displayName: 'HTTP Request',
+            status: 'running',
+          },
+        ],
+      })
+
+      useTerminalConsoleStore.getState().cancelRunningEntries('wf-1', 'exec-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamToolCalls?.[0]?.status).toBe('cancelled')
+    })
+
     it('only cancels running entries for the requested execution when provided', () => {
       useTerminalConsoleStore.getState().addConsole({
         workflowId: 'wf-1',
@@ -189,6 +218,73 @@ describe('terminal console store', () => {
       expect(entry.isCanceled).toBe(false)
       expect(entry.isRunning).toBe(false)
       expect(entry.endedAt).toBeDefined()
+    })
+
+    it('settles live agent stream chrome when finishing', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        agentStreamActive: true,
+        agentStreamToolCalls: [
+          {
+            key: 'block-1:t1',
+            id: 't1',
+            name: 'http_request',
+            displayName: 'HTTP Request',
+            status: 'running',
+          },
+        ],
+      })
+
+      useTerminalConsoleStore.getState().finishRunningEntries('wf-1', 'exec-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamToolCalls?.[0]?.status).toBe('success')
+    })
+  })
+
+  describe('updateConsole agent stream chrome', () => {
+    it('settles running tools and clears agentStreamActive when a block errors', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        agentStreamActive: true,
+        agentStreamThinking: 'working…',
+        agentStreamToolCalls: [
+          {
+            key: 'block-1:t1',
+            id: 't1',
+            name: 'http_request',
+            displayName: 'HTTP Request',
+            status: 'running',
+          },
+        ],
+      })
+
+      useTerminalConsoleStore.getState().updateConsole(
+        'block-1',
+        {
+          isRunning: false,
+          success: false,
+          error: 'timeout',
+        },
+        'exec-1'
+      )
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamToolCalls?.[0]?.status).toBe('error')
     })
   })
 })

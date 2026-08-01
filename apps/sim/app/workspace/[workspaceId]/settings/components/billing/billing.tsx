@@ -7,6 +7,7 @@ import {
   Credit,
   chipVariants,
   cn,
+  Label,
   Switch,
   Tooltip,
   toast,
@@ -494,14 +495,17 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       {showOnDemand && (
         <SettingsSection label='Enable on-demand usage'>
           <div className='flex items-center justify-between'>
-            <span className='text-[var(--text-body)] text-small'>
-              Allow usage to go past included usage
-            </span>
+            <Label htmlFor='on-demand-usage'>Allow usage to go past included usage</Label>
             {onDemandLockedOn ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <span className='inline-flex'>
-                    <Switch checked disabled onCheckedChange={handleToggleOnDemand} />
+                    <Switch
+                      id='on-demand-usage'
+                      checked
+                      disabled
+                      onCheckedChange={handleToggleOnDemand}
+                    />
                   </span>
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-[260px]'>
@@ -514,6 +518,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               </Tooltip.Root>
             ) : (
               <Switch
+                id='on-demand-usage'
                 checked={isOnDemandActive}
                 disabled={isTogglingOnDemand || !canManageBilling}
                 onCheckedChange={handleToggleOnDemand}
@@ -526,10 +531,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       {!isOrganizationScope && !subscription.isFree && !subscription.isEnterprise && (
         <SettingsSection label='Usage notifications'>
           <div className='flex items-center justify-between'>
-            <span className='text-[var(--text-body)] text-small'>
-              Email me when I reach 80% usage
-            </span>
+            <Label htmlFor='usage-notifications'>Email me when I reach 80% usage</Label>
             <Switch
+              id='usage-notifications'
               checked={!!billingUsageNotificationsEnabled}
               disabled={updateGeneralSetting.isPending}
               onCheckedChange={(value: boolean) => {

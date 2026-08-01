@@ -1,21 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFilterBlacklistedModels,
   mockIsProviderBlacklisted,
   mockGetBYOKKey,
-  mockGetSession,
   mockGetUserEntityPermissions,
   mockFetch,
 } = vi.hoisted(() => ({
   mockFilterBlacklistedModels: vi.fn(),
   mockIsProviderBlacklisted: vi.fn(),
   mockGetBYOKKey: vi.fn(),
-  mockGetSession: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockFetch: vi.fn(),
 }))
@@ -29,15 +27,13 @@ vi.mock('@/lib/api-key/byok', () => ({
   getBYOKKey: mockGetBYOKKey,
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
 import { GET } from '@/app/api/providers/ollama-cloud/models/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const OLLAMA_CLOUD_TAGS_URL = 'https://ollama.com/api/tags'
 

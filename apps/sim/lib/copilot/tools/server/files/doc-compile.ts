@@ -1,10 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { executeInE2B, executeShellInE2B, type SandboxFile } from '@/lib/execution/e2b'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
+import {
+  executeInSandbox,
+  executeShellInSandbox,
+  type SandboxFile,
+} from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   fetchWorkspaceFileBuffer,
@@ -57,7 +60,7 @@ export interface E2BDocFormat {
 /**
  * Resolves the E2B doc format + engine for a filename, or null for non-docs.
  * pptx/docx → node, pdf/xlsx → python. Only meaningful when the E2B doc sandbox
- * is enabled; callers gate on isE2BDocEnabled before using this.
+ * is enabled; callers gate on isDocSandboxEnabled before using this.
  */
 export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | null> {
   const l = fileName.toLowerCase()
@@ -85,10 +88,11 @@ export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | 
       contentType: PDF_MIME,
       sourceMime: PYTHON_PDF_SOURCE_MIME,
     }
-  // xlsx is gated behind the mothership-beta feature flag (like plans/changelog): the
-  // skill + prompt are gated on the Go side, and this is the single Sim chokepoint
-  // that keeps the compile/serve/check/recalc paths off for xlsx when beta is off.
-  if (l.endsWith('.xlsx') && (await isFeatureEnabled('mothership-beta')))
+  // xlsx availability is owned entirely by mothership's xlsx-writing flag, which
+  // gates the skill and the prompt. If the model was never told xlsx exists it
+  // never asks, so a second chokepoint here only created a way for the two
+  // halves to disagree across an AppConfig-application boundary.
+  if (l.endsWith('.xlsx'))
     return {
       ext: 'xlsx',
       engine: 'python',
@@ -259,7 +263,7 @@ async function compileDocViaE2BPython(
   // unaffected. Runs only after the user's script succeeds.
   const code = fmt.ext === 'xlsx' ? `${source}\n${XLSX_RECALC_SNIPPET}` : source
 
-  const result = await executeInE2B({
+  const result = await executeInSandbox({
     code,
     language: CodeLanguage.Python,
     timeoutMs: DOC_COMPILE_TIMEOUT_MS,
@@ -342,7 +346,7 @@ ${finalize}
 })().then(() => console.log('__DOC_OK__')).catch((e) => { console.error('__DOC_ERR__' + (e && e.message ? e.message : String(e))); process.exit(1); });
 `
 
-  const result = await executeShellInE2B({
+  const result = await executeShellInSandbox({
     code: 'NODE_PATH=$(npm root -g) node /home/user/script.js',
     envs: {},
     timeoutMs: DOC_COMPILE_TIMEOUT_MS,
@@ -532,13 +536,14 @@ export async function resolveServableDocBytes(args: {
     if (stored) {
       return { buffer: stored.buffer, contentType: stored.contentType }
     }
-    if (isE2BDocEnabled && (await getE2BDocFormat(fileName))) {
+    if (isDocSandboxEnabled && (await getE2BDocFormat(fileName))) {
       throw new DocCompileUserError('Document is still being generated')
     }
   }
 
-  // Reaches here only for xlsx, which has no isolated-vm fallback.
-  if (!format) return { buffer: rawBuffer, contentType: getContentType(fileName) }
+  // Reaches here only for xlsx, which has no isolated-vm fallback. Returning these
+  // bytes would expose generation source as a spreadsheet.
+  if (!format) throw new DocCompileUserError('Document is still being generated')
 
   const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)

@@ -5,7 +5,6 @@ import {
   Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
-  DeleteWorkflow,
   DeleteWorkspaceMcpServer,
   DeployApi,
   DeployChat,
@@ -29,7 +28,6 @@ import {
   LoadDeployment,
   ManageCredential,
   ManageCustomTool,
-  ManageFolder,
   ManageMcpTool,
   ManageScheduledTask,
   ManageSkill,
@@ -43,6 +41,7 @@ import {
   Read as ReadTool,
   Redeploy,
   RestoreResource,
+  Rm as RmTool,
   RunBlock,
   RunCode,
   RunFromBlock,
@@ -93,12 +92,15 @@ import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeRunCode } from '../tools/handlers/run-code'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
-import { executeVfsCp, executeVfsMkdir, executeVfsMv } from '../tools/handlers/vfs-mutate'
+import {
+  executeVfsCp,
+  executeVfsMkdir,
+  executeVfsMv,
+  executeVfsRm,
+} from '../tools/handlers/vfs-mutate'
 import {
   executeCreateWorkflow,
-  executeDeleteWorkflow,
   executeGenerateApiKey,
-  executeManageFolder,
   executeMoveWorkflow,
   executeRenameWorkflow,
   executeRunBlock,
@@ -147,8 +149,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GetDeployedWorkflowState.id]: h(executeGetDeployedWorkflowState),
 
     [CreateWorkflow.id]: h(executeCreateWorkflow),
-    [DeleteWorkflow.id]: h(executeDeleteWorkflow),
-    [ManageFolder.id]: h(executeManageFolder),
     // rename_workflow / move_workflow were removed from the mothership catalog
     // in favor of mv; the executors stay registered under literal names so
     // in-flight checkpoints still resume. Delete after the mv release soaks.
@@ -188,6 +188,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [MvTool.id]: h(executeVfsMv),
     [CpTool.id]: h(executeVfsCp),
     [MkdirTool.id]: h(executeVfsMkdir),
+    [RmTool.id]: h(executeVfsRm),
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
     [ManageMcpTool.id]: h(executeManageMcpTool),

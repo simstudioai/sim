@@ -24,15 +24,36 @@ export const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, SubBlockValue>
 export const EMPTY_BLOCK_SUBBLOCK_VALUES: Record<string, SubBlockValue> = {}
 
 /**
- * SubBlockState stores values for all subblocks in workflows
+ * SubBlockState stores values for all subblocks in workflows.
  *
- * Important implementation notes:
- * 1. Values are stored per workflow, per block, per subblock
- * 2. When workflows are synced to the database, the mergeSubblockState function
- *    in utils.ts combines the block structure with these values
- * 3. If a subblock value exists here but not in the block structure
- *    (e.g., inputFormat in starter block), the merge function will include it
- *    in the synchronized state to ensure persistence
+ * Architecture: values deliberately live here, split from the workflow store's
+ * block structure, so per-keystroke edits do not re-render the canvas graph.
+ * The structure keeps a copy of each value from hydration time only — it goes
+ * stale as soon as a value is edited (except condition/router dynamic-handle
+ * subblocks, which dual-write the structure because edge handles derive from
+ * it). Whenever full state is needed (change detection, export, manual runs,
+ * diffs), mergeSubblockState/mergeSubblockStateWithValues joins this store
+ * onto the structure.
+ *
+ * Value semantics at that join (single source of truth for the contract):
+ * - Key present with any value, including null: this store wins. Null means
+ *   the user explicitly cleared the field — it must NOT fall back to the
+ *   structure's stale copy, or cleared fields resurrect in comparisons and
+ *   serialization while the DB (correctly) holds null.
+ * - Key absent or undefined: no value recorded; the structure's value stands.
+ * - initializeFromWorkflow seeds every structure key (nulls included) at
+ *   hydration, so post-hydration "present with null" is always meaningful.
+ *
+ * Persistence: user-authored edits flow through collaborativeSetSubblockValue,
+ * which updates this store and queues the identical value to the realtime
+ * server — the client's merged state and the DB draft stay equivalent, which
+ * is what keeps deploy-time change detection honest (deploy snapshots the DB
+ * draft). Direct setValue callers do not persist, and each is safe for a
+ * different reason: remote-broadcast application (already persisted
+ * server-side), undo/redo (persists via its own queued inverse operations),
+ * webhook management (writes trigger-runtime ids the comparison excludes), and
+ * populateTriggerFieldsFromConfig (values derived from the persisted
+ * triggerConfig aggregate, compensated via normalizeTriggerConfigValues).
  */
 
 export const useSubBlockStore = create<SubBlockStore>()(
@@ -60,16 +81,25 @@ export const useSubBlockStore = create<SubBlockStore>()(
               }
             }
 
-            if (!row.id) {
-              row.id = generateId()
+            const needsId = !row.id
+            const needsCells = !row.cells || typeof row.cells !== 'object'
+            if (!needsId && !needsCells) {
+              return row
             }
-
-            if (!row.cells || typeof row.cells !== 'object') {
+            if (needsCells) {
               logger.warn('Fixing malformed table row cells', { blockId, subBlockId, row })
-              row.cells = { Key: '', Value: '' }
             }
 
-            return row
+            /**
+             * Repair on a copy: the incoming rows are shared with the caller
+             * (component state, socket payloads), and mutating them in place
+             * corrupts state owned elsewhere. Valid rows keep their identity.
+             */
+            return {
+              ...row,
+              ...(needsId ? { id: generateId() } : {}),
+              ...(needsCells ? { cells: { Key: '', Value: '' } } : {}),
+            }
           })
         }
       }

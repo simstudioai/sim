@@ -1,20 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetWorkspaceCreditAvailability, mockGetWorkspaceHostContextForViewer } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
+const { mockGetWorkspaceCreditAvailability, mockGetWorkspaceHostContextForViewer } = vi.hoisted(
+  () => ({
     mockGetWorkspaceCreditAvailability: vi.fn(),
     mockGetWorkspaceHostContextForViewer: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+  })
+)
 
 vi.mock('@/lib/billing/core/workspace-usage-gate', () => ({
   getWorkspaceCreditAvailability: mockGetWorkspaceCreditAvailability,
@@ -25,6 +20,8 @@ vi.mock('@/lib/workspaces/host-context', () => ({
 }))
 
 import { GET } from '@/app/api/workspaces/[id]/credit-availability/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const HOST_CONTEXT = {
   workspace: {

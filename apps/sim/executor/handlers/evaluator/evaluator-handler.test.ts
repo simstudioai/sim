@@ -3,6 +3,10 @@ import '@sim/testing/mocks/executor'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const { mockResolveAutoModel } = vi.hoisted(() => ({
+  mockResolveAutoModel: vi.fn(),
+}))
+
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/credentials/access', () => ({
@@ -20,6 +24,13 @@ vi.mock('@/lib/credentials/access', () => ({
   }),
 }))
 
+vi.mock('@/lib/model-router/resolve', () => ({
+  addAutoRoutingCost: (cost: Record<string, number>, routingCost: number) =>
+    routingCost > 0 ? { ...cost, routing: routingCost, total: cost.total + routingCost } : cost,
+  resolveAutoModel: mockResolveAutoModel,
+  SIM_AUTO_SYSTEM_PREAMBLE: 'Sim auto system preamble',
+}))
+
 import { BlockType } from '@/executor/constants'
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import type { ExecutionContext } from '@/executor/types'
@@ -27,7 +38,7 @@ import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as unknown as Mock
+const mockFetch = vi.fn()
 
 describe('EvaluatorBlockHandler', () => {
   let handler: EvaluatorBlockHandler
@@ -69,6 +80,9 @@ describe('EvaluatorBlockHandler', () => {
     // Reset mocks using vi
     vi.clearAllMocks()
 
+    // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
+    vi.stubGlobal('fetch', mockFetch)
+
     // Default mock implementations
     authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'test-vertex-credential-id',
@@ -79,6 +93,12 @@ describe('EvaluatorBlockHandler', () => {
       refreshed: false,
     })
     mockGetProviderFromModel.mockReturnValue('openai')
+    mockResolveAutoModel.mockResolvedValue({
+      model: 'fireworks/glm-5.2',
+      tier: '2',
+      decidedBy: 'llm',
+      billableRoutingCost: 0.002,
+    })
 
     // Set up fetch mock to return a successful response
     mockFetch.mockImplementation(() => {
@@ -98,7 +118,10 @@ describe('EvaluatorBlockHandler', () => {
 
   it('should handle evaluator blocks', () => {
     expect(handler.canHandle(mockBlock)).toBe(true)
-    const nonEvalBlock: SerializedBlock = { ...mockBlock, metadata: { id: 'other' } }
+    const nonEvalBlock: SerializedBlock = {
+      ...mockBlock,
+      metadata: { id: 'other' },
+    }
     expect(handler.canHandle(nonEvalBlock)).toBe(false)
   })
 
@@ -106,8 +129,16 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: 'This is the content to evaluate.',
       metrics: [
-        { name: 'score1', description: 'First score', range: { min: 0, max: 10 } },
-        { name: 'score2', description: 'Second score', range: { min: 0, max: 10 } },
+        {
+          name: 'score1',
+          description: 'First score',
+          range: { min: 0, max: 10 },
+        },
+        {
+          name: 'score2',
+          description: 'Second score',
+          range: { min: 0, max: 10 },
+        },
       ],
       model: 'gpt-4o',
       apiKey: 'test-api-key',
@@ -160,11 +191,103 @@ describe('EvaluatorBlockHandler', () => {
     })
   })
 
+  it('resolves sim-auto before executing evaluator and preserves its public identity', async () => {
+    const inputs = {
+      content: 'A clear and accurate answer.',
+      metrics: [
+        {
+          name: 'quality',
+          description: 'Overall answer quality',
+          range: { min: 1, max: 5 },
+        },
+      ],
+      model: 'sim-auto',
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content: JSON.stringify({ quality: 5 }),
+          model: 'fireworks/glm-5.2',
+          tokens: { input: 80, output: 10, total: 90 },
+          cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+        }),
+    })
+
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(mockResolveAutoModel).toHaveBeenCalledWith({
+      ctx: mockContext,
+      blockId: mockBlock.id,
+      signals: expect.objectContaining({
+        lastMessage: inputs.content,
+        messageCount: 1,
+        toolNames: [],
+        mediaKind: 'none',
+        hasResponseFormat: true,
+      }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+    expect(mockGetProviderFromModel).toHaveBeenCalledWith('fireworks/glm-5.2')
+
+    const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(requestBody).toMatchObject({
+      provider: 'openai',
+      model: 'fireworks/glm-5.2',
+      systemPrompt: expect.stringMatching(/^Sim auto system preamble\n\n/),
+    })
+    expect(result).toMatchObject({
+      model: 'sim-auto',
+      quality: 5,
+      cost: {
+        input: 0.001,
+        output: 0.0005,
+        routing: 0.002,
+        total: 0.0035,
+      },
+    })
+  })
+
+  it('bills the cost the provider proxy decided rather than recomputing it', async () => {
+    // The proxy already resolved key provenance and the margin; recomputing
+    // here would re-charge a BYOK caller the proxy correctly zeroed.
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ score1: 5, score2: 8 }),
+            model: 'mock-model',
+            tokens: { input: 50, output: 10, total: 60 },
+            cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+            timing: { total: 200 },
+          }),
+      })
+    )
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      content: 'This is the content to evaluate.',
+    })
+
+    expect((result as { cost: unknown }).cost).toEqual({
+      input: 0.001,
+      output: 0.0005,
+      total: 0.0015,
+    })
+  })
+
   it('should process JSON string content correctly', async () => {
     const contentObj = { text: 'Evaluate this JSON.', value: 42 }
     const inputs = {
       content: JSON.stringify(contentObj),
-      metrics: [{ name: 'clarity', description: 'Clarity score', range: { min: 1, max: 5 } }],
+      metrics: [
+        {
+          name: 'clarity',
+          description: 'Clarity score',
+          range: { min: 1, max: 5 },
+        },
+      ],
       apiKey: 'test-api-key',
     }
 
@@ -196,7 +319,11 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: contentObj,
       metrics: [
-        { name: 'completeness', description: 'Data completeness', range: { min: 0, max: 1 } },
+        {
+          name: 'completeness',
+          description: 'Data completeness',
+          range: { min: 0, max: 1 },
+        },
       ],
       apiKey: 'test-api-key',
     }
@@ -227,7 +354,13 @@ describe('EvaluatorBlockHandler', () => {
   it('should parse valid JSON response correctly', async () => {
     const inputs = {
       content: 'Test content',
-      metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
+      metrics: [
+        {
+          name: 'quality',
+          description: 'Quality score',
+          range: { min: 1, max: 10 },
+        },
+      ],
       apiKey: 'test-api-key',
     }
 
@@ -308,7 +441,13 @@ describe('EvaluatorBlockHandler', () => {
   it('should extract metric scores ignoring case', async () => {
     const inputs = {
       content: 'Test',
-      metrics: [{ name: 'CamelCaseScore', description: 'Desc', range: { min: 0, max: 10 } }],
+      metrics: [
+        {
+          name: 'CamelCaseScore',
+          description: 'Desc',
+          range: { min: 0, max: 10 },
+        },
+      ],
       apiKey: 'test-api-key',
     }
 
@@ -335,8 +474,16 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: 'Test',
       metrics: [
-        { name: 'presentScore', description: 'Desc1', range: { min: 0, max: 5 } },
-        { name: 'missingScore', description: 'Desc2', range: { min: 0, max: 5 } },
+        {
+          name: 'presentScore',
+          description: 'Desc1',
+          range: { min: 0, max: 5 },
+        },
+        {
+          name: 'missingScore',
+          description: 'Desc2',
+          range: { min: 0, max: 5 },
+        },
       ],
       apiKey: 'test-api-key',
     }
@@ -379,7 +526,13 @@ describe('EvaluatorBlockHandler', () => {
   it('should handle Azure OpenAI models with endpoint and API version', async () => {
     const inputs = {
       content: 'Test content to evaluate',
-      metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
+      metrics: [
+        {
+          name: 'quality',
+          description: 'Quality score',
+          range: { min: 1, max: 10 },
+        },
+      ],
       model: 'gpt-4o',
       apiKey: 'test-azure-key',
       azureEndpoint: 'https://test.openai.azure.com',
@@ -419,7 +572,13 @@ describe('EvaluatorBlockHandler', () => {
   it('should handle Vertex AI models with OAuth credential', async () => {
     const inputs = {
       content: 'Test content to evaluate',
-      metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
+      metrics: [
+        {
+          name: 'quality',
+          description: 'Quality score',
+          range: { min: 1, max: 10 },
+        },
+      ],
       model: 'gemini-2.0-flash-exp',
       vertexCredential: 'test-vertex-credential-id',
       vertexProject: 'test-gcp-project',

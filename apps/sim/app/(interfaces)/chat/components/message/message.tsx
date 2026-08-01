@@ -4,6 +4,14 @@ import { memo, useState } from 'react'
 import { Button, cn, Duplicate, Tooltip } from '@sim/emcn'
 import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import {
+  AgentStreamThinkingChrome,
+  AgentStreamToolCallsChrome,
+} from '@/components/agent-stream/agent-stream-chrome'
+import type {
+  AgentStreamToolCall,
+  AgentStreamToolStatus,
+} from '@/components/agent-stream/tool-call-lifecycle'
+import {
   ChatFileDownload,
   ChatFileDownloadAll,
 } from '@/app/(interfaces)/chat/components/message/components/file-download'
@@ -27,6 +35,15 @@ export interface ChatFile {
   context?: string
 }
 
+/** Lifecycle status for a tool chip (agent-events-v1). No args/results. */
+export type ChatToolCallStatus = AgentStreamToolStatus
+
+/** Chat surface tool chip — the shared lifecycle chip plus its block id. */
+export interface ChatToolCall extends AgentStreamToolCall {
+  blockId: string
+  displayName: string
+}
+
 export interface ChatMessage {
   id: string
   content: string | Record<string, unknown>
@@ -34,6 +51,14 @@ export interface ChatMessage {
   timestamp: Date
   isInitialMessage?: boolean
   isStreaming?: boolean
+  /** Model thinking text (agent-events-v1). Chrome only when non-empty. */
+  thinking?: string
+  /** True while thinking deltas are still arriving (before first answer chunk / final). */
+  isThinkingStreaming?: boolean
+  /** Tool lifecycle chips (name + status only). Chrome only when non-empty. */
+  toolCalls?: ChatToolCall[]
+  /** True while any tool chip is still `running`. */
+  isToolStreaming?: boolean
   attachments?: ChatAttachment[]
   files?: ChatFile[]
 }
@@ -81,15 +106,21 @@ function openAttachmentPreview(name: string, dataUrl: string): void {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
 }
 
+function toolCallsFingerprint(toolCalls: ChatToolCall[] | undefined): string {
+  if (!toolCalls?.length) return ''
+  return toolCalls.map((t) => `${t.key}:${t.status}`).join('|')
+}
+
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
     const [isCopied, setIsCopied] = useState(false)
 
     const isJsonObject = typeof message.content === 'object' && message.content !== null
 
-    // Since tool calls are now handled via SSE events and stored in message.toolCalls,
-    // we can use the content directly without parsing
+    // Answer text is streamed separately from thinking / tool lifecycle events.
     const cleanTextContent = message.content
+    const hasThinking = typeof message.thinking === 'string' && message.thinking.length > 0
+    const hasToolCalls = Array.isArray(message.toolCalls) && message.toolCalls.length > 0
 
     const content =
       message.type === 'user' ? (
@@ -207,8 +238,19 @@ export const ClientChatMessage = memo(
         <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
           <div className='mx-auto max-w-3xl'>
             <div className='flex flex-col space-y-3'>
-              {/* Direct content rendering - tool calls are now handled via SSE events */}
               <div>
+                {hasThinking && (
+                  <AgentStreamThinkingChrome
+                    thinking={message.thinking!}
+                    isStreaming={message.isThinkingStreaming}
+                  />
+                )}
+                {hasToolCalls && (
+                  <AgentStreamToolCallsChrome
+                    toolCalls={message.toolCalls!}
+                    isStreaming={message.isToolStreaming}
+                  />
+                )}
                 <div className='break-words text-base'>
                   {isJsonObject ? (
                     <pre className='text-[var(--text-primary)]'>
@@ -274,7 +316,12 @@ export const ClientChatMessage = memo(
     return (
       prevProps.message.id === nextProps.message.id &&
       prevProps.message.content === nextProps.message.content &&
+      prevProps.message.thinking === nextProps.message.thinking &&
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
+      prevProps.message.isThinkingStreaming === nextProps.message.isThinkingStreaming &&
+      prevProps.message.isToolStreaming === nextProps.message.isToolStreaming &&
+      toolCallsFingerprint(prevProps.message.toolCalls) ===
+        toolCallsFingerprint(nextProps.message.toolCalls) &&
       prevProps.message.isInitialMessage === nextProps.message.isInitialMessage &&
       prevProps.message.files?.length === nextProps.message.files?.length
     )

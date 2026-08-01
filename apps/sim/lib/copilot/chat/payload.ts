@@ -1,3 +1,4 @@
+import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
@@ -14,8 +15,9 @@ import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
@@ -33,7 +35,10 @@ interface BuildPayloadParams {
   model: string
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
-  /** MCP servers explicitly tagged on this turn. Untagged servers stay unavailable. */
+  /**
+   * MCP servers enabled for this chat — every server tagged on this or any
+   * earlier turn. Servers never tagged in the chat stay unavailable.
+   */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
@@ -51,6 +56,17 @@ interface BuildPayloadParams {
     email?: string
     timezone?: string
   }
+  desktopLocalFilesystem?: boolean
+  browserCapable?: boolean
+  terminalCapable?: boolean
+  terminals?: Array<{
+    id: string
+    cwd?: string
+    running?: string
+    interactive?: boolean
+    active?: boolean
+  }>
+  browserSessions?: BrowserKnownSession[]
 }
 
 export interface ToolSchema {
@@ -343,15 +359,25 @@ export async function buildCopilotRequestPayload(
         } catch {
           encodedUploadName = displayName
         }
-        const lines = [
-          `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
-          `Read with: read("uploads/${encodedUploadName}")`,
-          `To save permanently: materialize_file(fileName: "${displayName}")`,
-        ]
-        if (displayName.endsWith('.json')) {
-          lines.push(
-            `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
-          )
+        let lines: string[]
+        if (isArchiveFileName(displayName)) {
+          // A .zip is stored in uploads/ but its contents aren't readable until
+          // the agent extracts it once into workspace files/ (explicit step).
+          lines = [
+            `Archive "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+            buildArchiveExtractGuidance(displayName),
+          ]
+        } else {
+          lines = [
+            `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+            `Read with: read("uploads/${encodedUploadName}")`,
+            `To save permanently: materialize_file(fileName: "${displayName}")`,
+          ]
+          if (displayName.endsWith('.json')) {
+            lines.push(
+              `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
+            )
+          }
         }
         uploadContexts.push({
           type: 'uploaded_file',
@@ -420,7 +446,25 @@ export async function buildCopilotRequestPayload(
       : {}),
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
-    ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
+    ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
+    ...(params.desktopLocalFilesystem || params.browserCapable || params.terminalCapable
+      ? {
+          desktopCapabilities: {
+            ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
+            ...(params.browserCapable ? { browser: true } : {}),
+            ...(params.terminalCapable ? { terminal: true } : {}),
+            ...(params.terminalCapable && params.terminals?.length
+              ? { terminals: params.terminals }
+              : {}),
+            ...(params.browserCapable && params.browserSessions?.length
+              ? { browserSessions: params.browserSessions }
+              : {}),
+          },
+        }
+      : {}),
+    // Compatibility with mothership deployments that predate the unified
+    // desktop capability object.
+    ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }
 }

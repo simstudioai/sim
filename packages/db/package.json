@@ -40,7 +40,7 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "drizzle-kit": "^0.31.4",
-    "@types/node": "^22.10.5",
+    "@types/node": "24.2.1",
     "typescript": "^7.0.2"
   }
 }

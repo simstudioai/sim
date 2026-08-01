@@ -40,10 +40,11 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { normalizeSSODomain } from '@sim/utils/sso-domain'
+import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { ssoProvider, user } from '../schema'
+import { ssoDomain, ssoProvider, user } from '../schema'
 
 interface SSOMapping {
   id: string
@@ -561,7 +562,7 @@ async function registerSSOProvider(): Promise<boolean> {
     }
 
     const existingProviders = await db
-      .select()
+      .select({ id: ssoProvider.id })
       .from(ssoProvider)
       .where(eq(ssoProvider.providerId, ssoConfig.providerId))
 
@@ -625,21 +626,69 @@ async function registerSSOProvider(): Promise<boolean> {
       providerData.samlConfig = JSON.stringify(samlConfig)
     }
 
-    if (existingProviders.length > 0) {
-      await db
-        .update(ssoProvider)
-        .set({
-          issuer: providerData.issuer,
-          domain: providerData.domain,
-          oidcConfig: providerData.oidcConfig,
-          samlConfig: providerData.samlConfig,
-          userId: providerData.userId,
-          organizationId: providerData.organizationId,
-        })
-        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
-    } else {
-      await db.insert(ssoProvider).values(providerData)
-    }
+    // Write the provider and its verified-domain ownership record atomically so
+    // a failed domain upsert (e.g. the domain is already owned by another org)
+    // can never leave a live provider without its ownership row. Both commit or
+    // neither does.
+    await db.transaction(async (tx) => {
+      // Idempotent, race-safe upsert for a providerId that has NO unique
+      // constraint (sso_provider.provider_id is a plain index, and prod already
+      // holds legitimate duplicates): delete every row for this providerId, then
+      // insert exactly one. A prior "update by id, else insert" could create a
+      // duplicate when the observed row was deregistered and replaced before the
+      // transaction — with no unique constraint the fallback insert would
+      // succeed. Delete-then-insert inside the transaction guarantees the
+      // providerId ends up as exactly this config, atomically. Deleting the
+      // ssoProvider row does not touch linked accounts (they key on the
+      // providerId string, not the row id), so existing SSO logins keep working.
+      await tx.delete(ssoProvider).where(eq(ssoProvider.providerId, ssoConfig.providerId))
+      await tx.insert(ssoProvider).values(providerData)
+
+      // Keep the verified-domains model consistent with script registration: a
+      // domain registered for org SSO here is owned by that org, so mark it
+      // verified (mirrors migration 0266's grandfathering). Without this, a
+      // domain added by the script after the migration would be missing its
+      // verified record and the UI/API would treat it as unverified. Org-scoped
+      // only — user-scoped providers have no org to attach a domain to.
+      // Canonicalize with the SAME shared normalizer the runtime gate uses, so a
+      // script-created ownership row keys on the exact value the gate looks up
+      // (no divergence for protocol/port/path/@/trailing-dot spellings).
+      const normalizedDomain = providerData.organizationId
+        ? normalizeSSODomain(ssoConfig.domain)
+        : null
+      if (providerData.organizationId && !normalizedDomain) {
+        logger.warn(
+          'Skipping verified-domain record: SSO_DOMAIN is not a valid registrable domain',
+          { domain: ssoConfig.domain }
+        )
+      }
+      if (providerData.organizationId && normalizedDomain) {
+        const existingDomain = await tx
+          .select({ id: ssoDomain.id })
+          .from(ssoDomain)
+          .where(
+            and(
+              eq(ssoDomain.organizationId, providerData.organizationId),
+              eq(ssoDomain.domain, normalizedDomain)
+            )
+          )
+        if (existingDomain.length === 0) {
+          await tx.insert(ssoDomain).values({
+            id: generateId(),
+            organizationId: providerData.organizationId,
+            domain: normalizedDomain,
+            status: 'verified',
+            verificationToken: generateId(),
+            verifiedAt: new Date(),
+          })
+        } else {
+          await tx
+            .update(ssoDomain)
+            .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
+            .where(eq(ssoDomain.id, existingDomain[0].id))
+        }
+      }
+    })
 
     logger.info('✅ SSO provider registered successfully in database!', {
       providerId: ssoConfig.providerId,

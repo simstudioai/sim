@@ -4,15 +4,16 @@
  * @vitest-environment node
  */
 import {
-  dbChainMock,
   dbChainMockFns,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
   resetDbChainMock,
+  resetEnvMock,
+  setEnv,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAssertBillingAttributionSnapshot,
@@ -54,25 +55,10 @@ function createBillingAttribution(actorUserId: string, workspaceId: string) {
   }
 }
 
-vi.mock('@sim/db', () => dbChainMock)
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  eq: vi.fn(),
-  gt: vi.fn(),
-  isNull: vi.fn(),
-  sql: vi.fn(),
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: mockGenerateInternalToken,
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'http://localhost:3000',
-  getInternalApiBaseUrl: () => 'http://localhost:3000',
 }))
 
 vi.mock('@/lib/core/execution-limits', () => ({
@@ -82,9 +68,14 @@ vi.mock('@/lib/core/execution-limits', () => ({
 import { DELETE, GET, POST } from '@/app/api/mcp/serve/[serverId]/route'
 
 describe('MCP Serve Route', () => {
+  afterAll(() => {
+    resetEnvMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     vi.stubGlobal('fetch', fetchMock)
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>

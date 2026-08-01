@@ -83,7 +83,7 @@ export function Mothership() {
         className='max-w-[1200px] text-balance text-[28px] leading-[1.2] max-sm:text-[22px]'
       >
         <span className='block text-[var(--text-primary)]'>
-          Everything your agents need, in one workspace.
+          Everything your AI agents need, in one workspace.
         </span>
         <span className='block text-[var(--text-body)]'>Build, run, and watch every agent.</span>
       </h2>

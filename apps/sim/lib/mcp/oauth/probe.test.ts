@@ -3,20 +3,30 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreatePinnedFetch, mockCreateSsrfGuardedMcpFetch, mockPinnedFetch, mockGuardedFetch } =
-  vi.hoisted(() => {
-    const mockPinnedFetch = vi.fn()
-    const mockGuardedFetch = vi.fn()
-    return {
-      mockPinnedFetch,
-      mockGuardedFetch,
-      mockCreatePinnedFetch: vi.fn(() => mockPinnedFetch),
-      mockCreateSsrfGuardedMcpFetch: vi.fn(() => mockGuardedFetch),
-    }
-  })
+const {
+  mockCreatePinnedFetchWithDispatcher,
+  mockCreateSsrfGuardedMcpFetch,
+  mockPinnedFetch,
+  mockGuardedFetch,
+  mockDestroy,
+} = vi.hoisted(() => {
+  const mockPinnedFetch = vi.fn()
+  const mockGuardedFetch = vi.fn()
+  const mockDestroy = vi.fn(() => Promise.resolve())
+  return {
+    mockPinnedFetch,
+    mockGuardedFetch,
+    mockDestroy,
+    mockCreatePinnedFetchWithDispatcher: vi.fn(() => ({
+      fetch: mockPinnedFetch,
+      dispatcher: { destroy: mockDestroy },
+    })),
+    mockCreateSsrfGuardedMcpFetch: vi.fn(() => mockGuardedFetch),
+  }
+})
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetch: mockCreatePinnedFetch,
+  createPinnedFetchWithDispatcher: mockCreatePinnedFetchWithDispatcher,
 }))
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createSsrfGuardedMcpFetch: mockCreateSsrfGuardedMcpFetch,
@@ -48,7 +58,7 @@ describe('detectMcpAuthType — connection pinning (SSRF / DNS-rebinding)', () =
     const authType = await detectMcpAuthType('https://rebind.example.com/mcp', '203.0.113.10')
 
     expect(authType).toBe('none')
-    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+    expect(mockCreatePinnedFetchWithDispatcher).toHaveBeenCalledWith('203.0.113.10')
     expect(mockCreateSsrfGuardedMcpFetch).not.toHaveBeenCalled()
     expect(mockPinnedFetch).toHaveBeenCalledTimes(1)
     // The unpinned global fetch must never be used — that was the SSRF sink.
@@ -62,7 +72,7 @@ describe('detectMcpAuthType — connection pinning (SSRF / DNS-rebinding)', () =
 
     expect(authType).toBe('none')
     expect(mockCreateSsrfGuardedMcpFetch).toHaveBeenCalledTimes(1)
-    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+    expect(mockCreatePinnedFetchWithDispatcher).not.toHaveBeenCalled()
     expect(mockGuardedFetch).toHaveBeenCalledTimes(1)
     expect(globalFetchSpy).not.toHaveBeenCalled()
   })
@@ -88,7 +98,7 @@ describe('detectMcpAuthType — connection pinning (SSRF / DNS-rebinding)', () =
     const authType = await detectMcpAuthType('http://example.com/mcp', '203.0.113.10')
 
     expect(authType).toBe('headers')
-    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+    expect(mockCreatePinnedFetchWithDispatcher).not.toHaveBeenCalled()
     expect(mockCreateSsrfGuardedMcpFetch).not.toHaveBeenCalled()
     expect(globalFetchSpy).not.toHaveBeenCalled()
   })

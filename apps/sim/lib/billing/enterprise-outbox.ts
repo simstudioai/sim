@@ -17,7 +17,6 @@ export const enterpriseProvisionRequestSchema = z.object({
   requestedByEmail: z.string().min(1),
   requestedByUserId: z.string().nullable(),
   invoiceAmountCents: z.number().int().positive(),
-  includedMonthlyCredits: nonnegativeInteger,
   usageLimitCredits: nonnegativeInteger,
   seats: z.number().int().positive(),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),
@@ -126,7 +125,6 @@ export function enterpriseOperationMatchesStripeSubscription(
     price.recurring?.interval === 'month' &&
     (price.recurring.interval_count ?? 1) === 1 &&
     stripeMetadataInteger(metadata, 'invoiceAmountCents') === request.invoiceAmountCents &&
-    stripeMetadataInteger(metadata, 'includedMonthlyCredits') === request.includedMonthlyCredits &&
     stripeMetadataInteger(metadata, 'usageLimitCredits') === request.usageLimitCredits &&
     stripeMetadataInteger(metadata, 'seats') === request.seats &&
     (request.concurrencyLimit === undefined ||
@@ -209,6 +207,12 @@ export interface EnterpriseMetadataIntentState {
   desiredMetadata: Record<string, unknown>
   hasUnappliedIntent: boolean
   effectiveSeatCapacity: number | null
+  configurationUpdate: {
+    id: string
+    status: 'pending' | 'processing' | 'failed'
+    requestedMetadata: Record<string, unknown>
+    error: string | null
+  } | null
 }
 
 /**
@@ -230,6 +234,7 @@ export async function resolveEnterpriseMetadataIntent(
       id: outboxEvent.id,
       status: outboxEvent.status,
       payload: outboxEvent.payload,
+      lastError: outboxEvent.lastError,
     })
     .from(outboxEvent)
     .where(
@@ -251,6 +256,7 @@ export async function resolveEnterpriseMetadataIntent(
       desiredMetadata: appliedMetadata,
       hasUnappliedIntent: false,
       effectiveSeatCapacity: appliedSeats,
+      configurationUpdate: null,
     }
   }
 
@@ -260,7 +266,8 @@ export async function resolveEnterpriseMetadataIntent(
   }
 
   const appliedOperationId = appliedMetadata.simConfigOperationId
-  const hasUnappliedIntent = latest.status !== 'dead_letter' && appliedOperationId !== latest.id
+  const operationApplied = appliedOperationId === latest.id
+  const hasUnappliedIntent = latest.status !== 'dead_letter' && !operationApplied
   const desiredMetadata = hasUnappliedIntent ? parsed.data.metadata : appliedMetadata
   const desiredSeats = positiveInteger(parsed.data.metadata.seats)
   const effectiveSeatCapacity = hasUnappliedIntent
@@ -276,5 +283,18 @@ export async function resolveEnterpriseMetadataIntent(
     desiredMetadata,
     hasUnappliedIntent,
     effectiveSeatCapacity,
+    configurationUpdate: operationApplied
+      ? null
+      : {
+          id: latest.id,
+          status:
+            latest.status === 'dead_letter'
+              ? 'failed'
+              : latest.status === 'processing'
+                ? 'processing'
+                : 'pending',
+          requestedMetadata: parsed.data.metadata,
+          error: latest.status === 'dead_letter' ? (latest.lastError ?? null) : null,
+        },
   }
 }

@@ -5,10 +5,10 @@ import { toError } from '@sim/utils/errors'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { syncLocalDraftFromServer } from '@/stores/workflows/sync-local-draft'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { releaseDeployAction, tryAcquireDeployAction } from './deploy-action-lock'
-import { syncLocalDraftFromServer } from './sync-local-draft'
 import type { DeployReadiness } from './use-deploy-readiness'
 
 const logger = createLogger('UseDeployment')

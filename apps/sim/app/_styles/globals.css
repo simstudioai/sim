@@ -11,6 +11,14 @@
  */
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
+  --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
+  --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
+  --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
+  --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
+  --desktop-title-bar-control-offset: 0px; /* centres a lane control; desktop overrides */
+  --desktop-title-bar-control-size: 0px; /* control seated in the lane; desktop overrides */
+  --desktop-title-bar-control-icon-size: 0px; /* its glyph; desktop overrides */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
@@ -22,25 +30,110 @@
   --auth-primary-btn-hover-border: #e0e0e0;
   --auth-primary-btn-hover-text: #000000;
 
-  /* z-index scale. Transient poppers (menus, selects, popovers, tooltips, toasts)
-     sit above --z-modal so they stay clickable over the semi-transparent overlay. */
+  /* z-index scale. The toast/notification stack is ambient: it sits above page
+     content but BELOW the modal and the transient poppers (menus, selects,
+     popovers, tooltips), so an open modal or dropdown menu is never occluded by
+     a background notification. Poppers sit above --z-modal so they stay
+     clickable over the modal's semi-transparent overlay. */
   --z-dropdown: 100;
+  --z-toast: 150;
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
-  --z-toast: 500;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.15);
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
   --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+/**
+ * Electron's `titleBarOverlay` publishes the window controls' geometry as these
+ * `titlebar-area-*` env vars, and Chromium rescales them under page zoom so the
+ * lane holds its physical size. Fallbacks are the platform's measured values, for
+ * a shell predating the overlay; the `:root` zeros cover the different case of the
+ * attribute being absent entirely, where this block never matches.
+ */
+html[data-sim-desktop-title-bar="inset"] {
+  --sidebar-collapsed-width: 0px;
+  --desktop-title-bar-height: env(titlebar-area-height, 38px);
+  --desktop-title-bar-inset-x: env(titlebar-area-x, 81px);
+  /* 0.79 = 30px of the 38px lane, and 0.53 of that = 16px. Proportions rather
+     than px because px would scale with page zoom while the OS-drawn lights
+     would not — and calc cannot divide a length by a length to get a scale.
+     `navigator.windowControlsOverlay` could, but reading it in JS would race
+     first paint for a value the blocking script needs. */
+  --desktop-title-bar-control-size: calc(var(--desktop-title-bar-height) * 0.79);
+  --desktop-title-bar-control-icon-size: calc(var(--desktop-title-bar-control-size) * 0.53);
+  --desktop-title-bar-control-offset: calc(
+    (var(--desktop-title-bar-height) - var(--desktop-title-bar-control-size)) /
+    2
+  );
+}
+
+/** The macOS desktop login shell reserves the native traffic-light lane. */
+.desktop-title-bar-page {
+  /* Reserve the lane with padding INSIDE the box, never `margin-top` + a
+     `calc(100vh - lane)` height. `body` carries `min-height: 100vh` of its own, and
+     a top margin here has nothing to collapse against (body is a block box with no
+     padding, border, or BFC), so it collapses through and displaces body itself —
+     leaving a document one full lane taller than the viewport. Global
+     `box-sizing: border-box` keeps this padding inside the 100vh. */
+  padding-top: var(--desktop-title-bar-height);
+  min-height: 100vh;
+}
+
+.desktop-window-drag-region {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.desktop-login-window-drag-region {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--desktop-title-bar-height);
+  background: inherit;
+}
+
+.desktop-workspace-window-drag-region {
+  position: absolute;
+  inset: 0 0 auto;
+  display: none;
+}
+
+html[data-sim-desktop-title-bar="inset"] .desktop-workspace-window-drag-region {
+  display: block;
+}
+
+html[data-sim-desktop-title-bar="inset"]
+  .desktop-workspace-window-frame
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    [contenteditable="true"],
+    [role="button"],
+    [role="link"],
+    [role="menuitem"],
+    [role="tab"]
+  ) {
+  -webkit-app-region: no-drag;
+}
+
 .workspace-root {
   letter-spacing: 0.02em;
+}
+
+/* The pane owns the lane whenever the sidebar is not there to own it: collapsed to
+   zero width, or slid away for a fullscreen route. */
+.workspace-content-shell[data-sidebar-collapsed],
+.workspace-content-shell[data-content-fullscreen] {
+  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 
 .workspace-root code,
@@ -61,10 +154,37 @@
  * the same cookie source as the collapsed structure — so the rail can never paint
  * at the expanded width and then snap narrow. Overrides `--sidebar-width` for the
  * shell subtree (outer, inner, and the aside cascade from it). Must equal
- * SIDEBAR_WIDTH.COLLAPSED in stores/constants.ts.
+ * `--sidebar-collapsed-width` is set once per host: the web app uses the
+ * SIDEBAR_WIDTH.COLLAPSED icon rail, while macOS desktop uses a full collapse.
  */
 .sidebar-shell-outer[data-collapsed] {
-  --sidebar-width: 51px;
+  --sidebar-width: var(--sidebar-collapsed-width);
+}
+
+/**
+ * Hover-peek: the shell floats out of flow as a card, so its subtree reads the restore
+ * width instead of the collapsed one. Re-declaring the same variable the rule above
+ * sets carries the inner shell and the aside along with no per-element overrides.
+ *
+ * Lives here rather than on the component because a Tailwind arbitrary property is one
+ * class (0,1,0) and would lose to that rule's (0,2,0) selector.
+ */
+.sidebar-shell-outer[data-collapsed][data-peek] {
+  --sidebar-width: var(--sidebar-expanded-width);
+}
+
+/* The card appears at full width, so the aside's own width transition would animate
+   0 -> expanded inside it. */
+.sidebar-shell-outer[data-peek] .sidebar-container {
+  transition: none;
+}
+
+/* The card is a flex column sized to its content, so the shell must be allowed to
+   shrink for the sidebar's own scroll region to bound itself once the card hits its
+   max height. Docked, this element is not a flex item and the rule is inert. */
+.sidebar-shell-outer[data-peek] .sidebar-shell-inner {
+  min-height: 0;
+  flex-shrink: 1;
 }
 
 .sidebar-container span,
@@ -477,7 +597,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --scrollbar-thumb-hover-color: #6a6a6a;
 
     /* Shadow scale - dark */
-    --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
   }
 }
 

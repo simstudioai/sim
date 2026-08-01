@@ -1,15 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: { TRELLO_API_KEY: undefined as string | undefined },
-}))
+beforeAll(() => {
+  setEnv({ TRELLO_API_KEY: undefined })
+})
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-}))
+afterAll(resetEnvMock)
 
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
 
@@ -31,7 +30,7 @@ describe('validateTrelloServiceAccount', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-    mockEnv.TRELLO_API_KEY = 'sim-api-key'
+    setEnv({ TRELLO_API_KEY: 'sim-api-key' })
   })
 
   afterEach(() => {
@@ -119,7 +118,7 @@ describe('validateTrelloServiceAccount', () => {
   })
 
   it('throws provider_unavailable without fetching when the API key is not configured', async () => {
-    mockEnv.TRELLO_API_KEY = undefined
+    setEnv({ TRELLO_API_KEY: undefined })
 
     await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',

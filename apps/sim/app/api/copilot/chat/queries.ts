@@ -3,7 +3,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
@@ -31,7 +31,6 @@ function transformChat(chat: {
   title: string | null
   model: string | null
   messages: unknown
-  planArtifact?: unknown
   config?: unknown
   conversationId?: string | null
   resources?: unknown
@@ -44,7 +43,6 @@ function transformChat(chat: {
     model: chat.model,
     messages: Array.isArray(chat.messages) ? chat.messages : [],
     messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
-    planArtifact: chat.planArtifact || null,
     config: chat.config || null,
     ...('conversationId' in chat ? { activeStreamId: chat.conversationId || null } : {}),
     ...('resources' in chat
@@ -189,7 +187,13 @@ export async function GET(req: NextRequest) {
         updatedAt: copilotChats.updatedAt,
       })
       .from(copilotChats)
-      .where(and(eq(copilotChats.userId, authenticatedUserId), scopeFilter))
+      .where(
+        and(
+          eq(copilotChats.userId, authenticatedUserId),
+          isNull(copilotChats.deletedAt),
+          scopeFilter
+        )
+      )
       .orderBy(desc(copilotChats.updatedAt))
 
     const scope = workflowId ? `workflow ${workflowId}` : `workspace ${workspaceId}`

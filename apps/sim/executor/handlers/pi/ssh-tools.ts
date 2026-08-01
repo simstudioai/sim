@@ -98,7 +98,7 @@ async function guard(run: () => Promise<PiToolResult>): Promise<PiToolResult> {
 
 /**
  * Best-effort working-tree snapshot of the repo over the run's SSH session, for
- * the block's `changedFiles`/`diff` outputs — Local mode edits in place rather
+ * the block's `changedFiles`/`diff` outputs — Local Dev edits in place rather
  * than opening a PR. `changedFiles` covers both tracked modifications and untracked
  * (newly created) files so files the agent created are reported; `diff` reflects
  * tracked changes against HEAD. Returns empty on any failure (not a git repo, git

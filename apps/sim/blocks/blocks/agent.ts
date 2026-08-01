@@ -13,12 +13,14 @@ import {
   getMaxTemperature,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
+  getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
   getModelsWithThinking,
   getModelsWithVerbosity,
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
+  isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -29,6 +31,7 @@ const logger = createLogger('AgentBlock')
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
+const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
@@ -308,6 +311,19 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_THINKING,
       },
     },
+    {
+      id: 'promptCaching',
+      title: 'Prompt Caching',
+      type: 'switch',
+      description:
+        'Cache the system prompt and tool definitions so repeat runs reuse them at a reduced rate. Writing the cache costs more than a normal request, so this pays off when the same prompt runs repeatedly.',
+      defaultValue: false,
+      mode: 'advanced',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_PROMPT_CACHING,
+      },
+    },
 
     ...getProviderCredentialSubBlocks(),
     {
@@ -507,7 +523,13 @@ Return ONLY the JSON array.`,
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getBaseModelProviders()[model]
+        // sim-auto resolves to a concrete pool model at execution time, where
+        // the agent handler derives the provider from the resolved model and
+        // never reads this serialized value. Serialization still needs the
+        // same provider-id shape every other model stores, so look up the
+        // runtime fallback model's provider.
+        const lookupModel = isAutoModel(model) ? 'claude-sonnet-5' : model
+        const tool = getBaseModelProviders()[lookupModel]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }
@@ -645,6 +667,10 @@ Return ONLY the JSON array.`,
     thinkingLevel: {
       type: 'string',
       description: 'Thinking level for models with extended thinking (Anthropic Claude, Gemini 3)',
+    },
+    promptCaching: {
+      type: 'boolean',
+      description: 'Cache the system prompt and tool definitions on models that support it',
     },
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },

@@ -41,7 +41,17 @@ export interface PlusMenuHandle {
   open: (anchor: { left: number; top: number }, options?: { mention?: boolean }) => void
   close: () => void
   moveActive: (delta: number) => void
-  selectActive: () => boolean
+  /**
+   * Confirms the highlighted candidate.
+   *
+   * - `selected` — a candidate was inserted.
+   * - `empty` — the lists are loaded and nothing matches, so the caller should
+   *   let the key through (Enter submits, Tab does its default).
+   * - `hydrating` — the lists are still loading, so "nothing matches" is not yet
+   *   knowable. The caller must swallow the key rather than submit a message
+   *   with the mention left as raw text.
+   */
+  selectActive: () => 'selected' | 'empty' | 'hydrating'
 }
 
 /**
@@ -99,10 +109,16 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * so adding a new resource type fails compilation here until a conversion is
  * supplied — preventing silent drift between the two taxonomies.
  */
+// A dragged `browser`/`terminal` resource is one TAB, and its `id` is that
+// tab's id — the panel itself is a singleton with nothing to point at. Both
+// become pointers the agent resolves with its own tools rather than content
+// captured here, so what it reads is the tab as it stands when it looks.
 const RESOURCE_TO_CONTEXT: Record<
   MothershipResourceType,
   (resource: MothershipResource) => ChatContext
 > = {
+  browser: (r) => ({ kind: 'browser_tab', tabId: r.id, label: r.title }),
+  terminal: (r) => ({ kind: 'terminal_tab', terminalId: r.id, label: r.title }),
   workflow: (r) => ({ kind: 'workflow', workflowId: r.id, label: r.title }),
   knowledgebase: (r) => ({ kind: 'knowledge', knowledgeId: r.id, label: r.title }),
   table: (r) => ({ kind: 'table', tableId: r.id, label: r.title }),

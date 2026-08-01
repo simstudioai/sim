@@ -782,6 +782,9 @@ function getStaticModelOptions(): { id: string; label?: string }[] {
     }
     if (provider?.models) {
       for (const model of provider.models) {
+        // Exclude retired models — the agent must not receive a model whose API
+        // calls fail (mirrors the user picker + VFS menu).
+        if (model.sunset?.status === 'deprecated') continue
         models.push({ id: model.id, label: model.id })
       }
     }

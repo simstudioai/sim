@@ -1,14 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
-}))
+beforeAll(() => {
+  urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+})
+
+afterAll(resetUrlsMock)
 
 const genericWebhookConfig = {
   type: 'generic_webhook',

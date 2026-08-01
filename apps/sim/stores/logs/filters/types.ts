@@ -32,6 +32,7 @@ export const CORE_TRIGGER_TYPES = [
   'mothership',
   'workflow',
   'form',
+  'custom_block',
 ] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]

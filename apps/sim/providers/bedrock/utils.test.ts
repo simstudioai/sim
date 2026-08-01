@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { getBedrockInferenceProfileId } from '@/providers/bedrock/utils'
+import { getBedrockInferenceProfileId, supportsToolResultStatus } from '@/providers/bedrock/utils'
 
 describe('getBedrockInferenceProfileId', () => {
   it.concurrent('prefixes geo inference profile for models that require it', () => {
@@ -42,5 +42,24 @@ describe('getBedrockInferenceProfileId', () => {
     expect(
       getBedrockInferenceProfileId('bedrock/amazon.titan-text-premier-v1:0', 'us-east-1')
     ).toBe('amazon.titan-text-premier-v1:0')
+  })
+})
+
+describe('supportsToolResultStatus', () => {
+  it.concurrent('accepts Claude and Nova through every ID form', () => {
+    expect(supportsToolResultStatus('bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(true)
+    expect(supportsToolResultStatus('us.anthropic.claude-opus-4-5-20251101-v1:0')).toBe(true)
+    expect(supportsToolResultStatus('anthropic.claude-haiku-4-5-20251001-v1:0')).toBe(true)
+    expect(supportsToolResultStatus('global.amazon.nova-2-lite-v1:0')).toBe(true)
+    expect(supportsToolResultStatus('bedrock/amazon.nova-micro-v1:0')).toBe(true)
+  })
+
+  it.concurrent('rejects every family that returns a ValidationException for it', () => {
+    expect(supportsToolResultStatus('us.meta.llama4-scout-17b-instruct-v1:0')).toBe(false)
+    expect(supportsToolResultStatus('bedrock/meta.llama3-3-70b-instruct-v1:0')).toBe(false)
+    expect(supportsToolResultStatus('mistral.mistral-large-2407-v1:0')).toBe(false)
+    expect(supportsToolResultStatus('cohere.command-r-plus-v1:0')).toBe(false)
+    // Titan shares the amazon vendor prefix but is not Nova.
+    expect(supportsToolResultStatus('bedrock/amazon.titan-text-premier-v1:0')).toBe(false)
   })
 })

@@ -1,3 +1,4 @@
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
@@ -164,12 +165,12 @@ describe('RevenueCat webhook provider', () => {
 
     beforeEach(() => {
       vi.restoreAllMocks()
-      vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://sim.example.com')
+      setEnv({ NEXT_PUBLIC_APP_URL: 'https://sim.example.com' })
     })
 
     afterEach(() => {
       vi.restoreAllMocks()
-      vi.unstubAllEnvs()
+      resetEnvMock()
     })
 
     it('creates the integration and returns externalId + generated authHeaderSecret', async () => {

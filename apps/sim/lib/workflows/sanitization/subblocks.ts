@@ -21,6 +21,17 @@ interface SanitizableBlock {
  * Repairs legacy subBlock metadata when the map key identifies a real field,
  * and drops entries that cannot be associated with a stable subBlock.
  *
+ * For keys the block registry declares, the CONFIGURED type is authoritative
+ * and overwrites a contradicting stored type. Stored types drift in two ways:
+ * fallback writers stamp a plausible-but-wrong default (`short-input`) when
+ * they synthesize a missing structure entry, and block configs evolve their
+ * declared types over time while persisted rows keep the old one. A wrong
+ * stored type silently disables type-gated logic downstream — most damaging
+ * for `condition-input`/`router-input`, where copy-time id remapping skips
+ * the conditions array while edge handles still remap, orphaning the edges.
+ * Draft loads persist this repair via `persistMigratedBlocks`, so stored
+ * state converges back to the registry.
+ *
  * Custom blocks are schema-agnostic here: their server-side config never
  * declares the per-field input sub-blocks (the execution overlay passes bare
  * wiring rows, and this may run with no overlay at all), so "not in config"
@@ -95,10 +106,11 @@ export function sanitizeMalformedSubBlocks(
       continue
     }
 
-    const type =
+    const storedType =
       typeof subBlock.type === 'string' && subBlock.type.length > 0 && subBlock.type !== 'unknown'
         ? subBlock.type
-        : typeFromConfig || DEFAULT_SUBBLOCK_TYPE
+        : null
+    const type = typeFromConfig ?? storedType ?? DEFAULT_SUBBLOCK_TYPE
     const hasValue = Object.hasOwn(subBlock, 'value')
     const value =
       options.convertEmptyStringToNull && subBlock.value === ''
@@ -111,7 +123,12 @@ export function sanitizeMalformedSubBlocks(
     const normalizedValue = hasValue && value !== subBlock.value
 
     if (repairedMetadata) {
-      logger.warn('Repairing malformed subBlock metadata', { blockId: block.id, subBlockId })
+      logger.warn('Repairing malformed subBlock metadata', {
+        blockId: block.id,
+        subBlockId,
+        storedType: subBlock.type,
+        repairedType: type,
+      })
       changed = true
     } else if (normalizedValue) {
       logger.warn('Normalizing malformed subBlock value', { blockId: block.id, subBlockId })

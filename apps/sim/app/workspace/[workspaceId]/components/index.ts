@@ -41,5 +41,6 @@ export type {
 } from './resource/resource'
 export { EMPTY_CELL_PLACEHOLDER, Resource } from './resource/resource'
 export { useBackgroundContextMenu } from './resource/use-background-context-menu'
+export { ResourceTile } from './resource-tile'
 export { ShareModal, type ShareModalProps } from './share-modal'
 export { SkillTile } from './skill-tile'

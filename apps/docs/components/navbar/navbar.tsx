@@ -3,7 +3,6 @@
 import { ChipLink } from '@sim/emcn'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimWordmark } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
@@ -53,7 +52,6 @@ export function Navbar() {
           </div>
 
           <div className='flex items-center gap-2'>
-            <LanguageDropdown />
             <ThemeToggle />
             <ChipLink href='https://sim.ai' variant='primary'>
               Get started

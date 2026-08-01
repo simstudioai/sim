@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { FileView } from '@/components/resources/file-view'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { grantsFromPermissions, workspaceSource } from '@/resources'
 
@@ -26,7 +27,8 @@ export function FullscreenFileView() {
   const navigate = useCallback((path: string) => router.push(path), [router])
 
   return (
-    <div className='fixed inset-0 z-50 flex flex-col bg-[var(--bg)]'>
+    <div className='desktop-title-bar-page fixed inset-0 z-50 flex flex-col bg-[var(--bg)]'>
+      <DesktopTitleBarLane />
       <FileView source={source} grants={grants} host='page' onNavigate={navigate} readOnly />
     </div>
   )

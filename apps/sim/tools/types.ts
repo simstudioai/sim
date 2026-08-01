@@ -76,6 +76,13 @@ export interface OutputProperty {
   }
 }
 
+export interface ToolOutputProperty extends OutputProperty {
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
 export type ParameterVisibility =
   | 'user-or-llm' // User can provide OR LLM must generate
   | 'user-only' // Only user can provide (required/optional determined by required field)
@@ -86,6 +93,13 @@ export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
+  /**
+   * HTTP status owned by SIM itself (e.g. hosted-key rate limiting or
+   * exhaustion), carried so it survives the throw → `ToolResponse` flattening
+   * and can reach the API caller. Deliberately NOT the upstream provider's
+   * status — a provider's 404 must never become the workflow API's status.
+   */
+  statusCode?: number
   resources?: MothershipResource[] // Resources to auto-open/show in UI
   largeValueKeys?: string[]
   fileKeys?: string[]
@@ -110,6 +124,22 @@ export interface ToolRetryConfig {
   retryIdempotentOnly?: boolean
 }
 
+/** JSON Schema subset supported for array item definitions in tool parameters. */
+export interface ToolParameterItemSchema {
+  readonly type?: string
+  readonly description?: string
+  readonly const?: string | number | boolean
+  readonly minimum?: number
+  readonly maximum?: number
+  readonly minLength?: number
+  readonly maxLength?: number
+  readonly pattern?: string
+  readonly additionalProperties?: boolean
+  readonly required?: readonly string[]
+  readonly properties?: Readonly<Record<string, ToolParameterItemSchema>>
+  readonly anyOf?: readonly ToolParameterItemSchema[]
+}
+
 export interface ToolConfig<P = any, R = any> {
   // Basic tool identification
   id: string
@@ -126,32 +156,11 @@ export interface ToolConfig<P = any, R = any> {
       visibility?: ParameterVisibility
       default?: any
       description?: string
-      items?: {
-        type: string
-        description?: string
-        properties?: Record<string, { type: string; description?: string }>
-      }
+      items?: ToolParameterItemSchema
     }
   >
   // Output schema - what this tool produces
-  outputs?: Record<
-    string,
-    {
-      type: OutputType
-      description?: string
-      optional?: boolean
-      fileConfig?: {
-        mimeType?: string // Expected MIME type for file outputs
-        extension?: string // Expected file extension
-      }
-      items?: {
-        type: OutputType
-        description?: string
-        properties?: Record<string, OutputProperty>
-      }
-      properties?: Record<string, OutputProperty>
-    }
-  >
+  outputs?: Record<string, ToolOutputProperty>
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig
@@ -168,6 +177,13 @@ export interface ToolConfig<P = any, R = any> {
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
     retry?: ToolRetryConfig
+    /**
+     * Drop the `Authorization` header when following a redirect. Set this on any
+     * tool whose endpoint redirects to a different origin carrying its own
+     * signed URL — GitHub's Actions log and artifact downloads are the canonical
+     * case — so the API credential is never sent to the storage host.
+     */
+    stripAuthOnRedirect?: boolean
   }
 
   // Post-processing (optional) - allows additional processing after the initial request
@@ -183,8 +199,10 @@ export interface ToolConfig<P = any, R = any> {
   /**
    * Direct execution function for tools that don't need HTTP requests.
    * If provided, this will be called instead of making an HTTP request.
+   * Receives the workflow execution's abort signal (when one is active) so
+   * long-running direct executions can propagate cancellation.
    */
-  directExecution?: (params: P) => Promise<ToolResponse>
+  directExecution?: (params: P, signal?: AbortSignal) => Promise<ToolResponse>
 
   /**
    * Optional dynamic schema enrichment for specific params.

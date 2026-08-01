@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
@@ -80,11 +80,10 @@ export const POST = withRouteHandler(
           model: copilotChats.model,
           resources: copilotChats.resources,
           previewYaml: copilotChats.previewYaml,
-          planArtifact: copilotChats.planArtifact,
           config: copilotChats.config,
         })
         .from(copilotChats)
-        .where(eq(copilotChats.id, chatId))
+        .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
         .limit(1)
 
       if (!parent || parent.userId !== userId || parent.type !== 'mothership') {
@@ -143,7 +142,6 @@ export const POST = withRouteHandler(
             model: parent.model,
             resources: parentResources,
             previewYaml: parent.previewYaml,
-            planArtifact: parent.planArtifact,
             config: parent.config,
             conversationId: null,
             updatedAt: now,

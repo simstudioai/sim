@@ -4,10 +4,12 @@ import { truncate } from '@sim/utils/string'
 import {
   AirtableIcon,
   AsanaIcon,
+  AtlassianIcon,
   AttioIcon,
   AzureIcon,
   BoxCompanyIcon,
   CalComIcon,
+  ClaudeIcon,
   ClickUpIcon,
   ConfluenceIcon,
   DocuSignIcon,
@@ -56,6 +58,7 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
+import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -65,7 +68,34 @@ import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
 
+/**
+ * Slack scopes requested only where the app is approved for them, gated by
+ * {@link isSlackExtendedScopesEnabled}. Slack rejects the entire authorization
+ * with "unapproved permissions requested" when any requested scope is not on the
+ * app's approved list, so these stay out of the default grant.
+ */
+const SLACK_APPROVAL_GATED_SCOPES = isSlackExtendedScopesEnabled
+  ? (['assistant:write', 'app_mentions:read', 'im:history'] as const)
+  : ([] as const)
+
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  'claude-platform': {
+    name: 'Claude Platform',
+    icon: ClaudeIcon,
+    services: {
+      'claude-platform': {
+        name: 'Claude Platform',
+        description: 'Run Claude Platform Managed Agents from your workflows.',
+        providerId: 'claude-platform',
+        serviceAccountProviderId: 'claude-platform-service-account',
+        icon: ClaudeIcon,
+        baseProviderIcon: ClaudeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'claude-platform',
+  },
   google: {
     name: 'Google',
     icon: GoogleIcon,
@@ -363,10 +393,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
       outlook: {
         name: 'Outlook',
-        description: 'Connect to Outlook and manage emails.',
+        description: 'Connect to Outlook and manage emails and calendar events.',
         providerId: 'outlook',
         icon: OutlookIcon,
         baseProviderIcon: MicrosoftIcon,
+        /**
+         * `Calendars.ReadWrite` backs the Outlook calendar operations. Graph documents it
+         * as the sole accepted permission for creating and updating events and for
+         * accept / tentativelyAccept / decline ("Higher: Not available"), and it is
+         * supported for both work/school and personal Microsoft accounts.
+         *
+         * Do NOT add `Calendars.ReadWrite.Shared` here. This provider is shared by work
+         * and personal Outlook accounts, and the `.Shared` calendar scopes are not
+         * confirmed supported for personal Microsoft accounts — requesting one risks
+         * failing consent for personal users, which would take mail access down with it.
+         * That is the same reasoning that kept `findMeetingTimes` out of this integration.
+         * The consequence is that calendar operations target calendars the account owns;
+         * picking a calendar shared by another user may return 403 from Graph.
+         *
+         * Microsoft only grants newly-added scopes on a fresh authorization, so users who
+         * connected Outlook before `Calendars.ReadWrite` existed must reconnect
+         * (re-consent) before the calendar operations will work.
+         *
+         * @see https://learn.microsoft.com/en-us/graph/permissions-reference
+         */
         scopes: [
           'openid',
           'profile',
@@ -375,6 +425,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Mail.ReadBasic',
           'Mail.Read',
           'Mail.Send',
+          'Calendars.ReadWrite',
           'offline_access',
         ],
       },
@@ -442,7 +493,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       tiktok: {
         name: 'TikTok',
-        description: 'Read profile info and videos, and publish content to TikTok.',
+        description: 'Read profile info and videos, and upload drafts to the TikTok inbox.',
         providerId: 'tiktok',
         icon: TikTokIcon,
         baseProviderIcon: TikTokIcon,
@@ -450,7 +501,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'user.info.basic',
           'user.info.profile',
           'user.info.stats',
-          'video.publish',
           'video.upload',
           'video.list',
         ],
@@ -460,15 +510,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   },
   atlassian: {
     name: 'Atlassian',
-    icon: JiraIcon,
+    icon: AtlassianIcon,
     services: {
       'atlassian-service-account': {
         name: 'Atlassian Service Account',
         description:
           'Authenticate as an Atlassian service account using a scoped API token from admin.atlassian.com.',
         providerId: 'atlassian-service-account',
-        icon: JiraIcon,
-        baseProviderIcon: JiraIcon,
+        icon: AtlassianIcon,
+        baseProviderIcon: AtlassianIcon,
         scopes: [],
         authType: 'service_account',
       },
@@ -765,12 +815,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
-          // TODO: Re-add once Slack app review approves these. Requesting a scope
-          // the app is not yet approved for makes Slack reject the entire
-          // authorization with "unapproved permissions requested", breaking connect.
-          // 'assistant:write',
-          // 'app_mentions:read',
-          // 'im:history',
+          ...SLACK_APPROVAL_GATED_SCOPES,
           'im:write',
           'im:read',
           'users:read',

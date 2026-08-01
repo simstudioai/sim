@@ -37,7 +37,8 @@ describe('mothership MCP tool schemas', () => {
     expect(tools).toEqual([
       expect.objectContaining({
         name: 'mcp-server-1-search',
-        defer_loading: true,
+        // Explicitly enabled by the user, so it is callable without an unlock step.
+        defer_loading: false,
         executeLocally: false,
         params: expect.objectContaining({
           mothershipToolKind: 'mcp',

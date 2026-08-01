@@ -373,7 +373,7 @@ export function Editor() {
           <div className='flex min-w-0 flex-1 items-center gap-2'>
             {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
               <div
-                className='flex size-[18px] items-center justify-center rounded-sm'
+                className='flex size-[18px] items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
                 style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
               >
                 <IconComponent
@@ -650,7 +650,16 @@ export function Editor() {
                                 : undefined
                             }
                           />
-                          {showDivider && <FieldDivider subblockMarker />}
+                          {showDivider && (
+                            <FieldDivider
+                              subblockMarker
+                              className={
+                                regularSubBlocks[index + 1]?.hideDividerBefore
+                                  ? '[&>div]:invisible'
+                                  : undefined
+                              }
+                            />
+                          )}
                         </div>
                       )
                     })}
@@ -707,7 +716,14 @@ export function Editor() {
                             }
                           />
                           {index < advancedOnlySubBlocks.length - 1 && (
-                            <FieldDivider subblockMarker />
+                            <FieldDivider
+                              subblockMarker
+                              className={
+                                advancedOnlySubBlocks[index + 1]?.hideDividerBefore
+                                  ? '[&>div]:invisible'
+                                  : undefined
+                              }
+                            />
                           )}
                         </div>
                       )

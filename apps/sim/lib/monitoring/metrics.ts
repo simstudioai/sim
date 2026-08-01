@@ -41,7 +41,8 @@ const MAX_BUFFER = 10_000 // hard cap; drop oldest beyond this if flushing stall
 
 type ThrottleReason = 'billing_actor_limit' | 'upstream_retries_exhausted'
 type QueueReason = 'actor_requests' | 'dimension' | 'queue_position'
-type FailureReason = 'rate_limited' | 'auth' | 'other'
+/** `metering` marks a provider call that succeeded but could not be priced. */
+type FailureReason = 'rate_limited' | 'auth' | 'other' | 'metering'
 
 // Deployed envs (app + trigger worker) carry static AWS creds; local dev does
 // not. No creds → no-op, so recorders stay always-safe to call (same contract

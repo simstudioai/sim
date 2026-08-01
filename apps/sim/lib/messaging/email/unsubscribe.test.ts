@@ -1,5 +1,12 @@
-import { createEnvMock, databaseMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { databaseMock, resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({ BETTER_AUTH_SECRET: 'test-secret-key' })
+})
+
+afterAll(resetEnvMock)
+
 import type { EmailType } from '@/lib/messaging/email/mailer'
 
 vi.mock('drizzle-orm', () => ({
@@ -7,8 +14,6 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 const mockDb = databaseMock.db as Record<string, ReturnType<typeof vi.fn>>
-
-vi.mock('@/lib/core/config/env', () => createEnvMock({ BETTER_AUTH_SECRET: 'test-secret-key' }))
 
 import {
   generateUnsubscribeToken,

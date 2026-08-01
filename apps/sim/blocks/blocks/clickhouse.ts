@@ -517,7 +517,7 @@ export const ClickHouseBlockMeta = {
     },
     {
       icon: Wrench,
-      title: 'Scheduled table maintenance',
+      title: 'Scheduled ClickHouse maintenance',
       prompt:
         'Create a scheduled workflow that runs OPTIMIZE TABLE on my high-write ClickHouse tables each night to merge parts, then reports the resulting part counts and storage size.',
       modules: ['scheduled', 'workflows'],
@@ -526,7 +526,7 @@ export const ClickHouseBlockMeta = {
     },
     {
       icon: TrashOutline,
-      title: 'Partition retention cleanup',
+      title: 'ClickHouse partition cleanup',
       prompt:
         'Build a scheduled workflow that enforces a retention policy on my ClickHouse events table: take an explicit cutoff date as input, list the table partitions, select only the partitions on that exact table whose range ends strictly before the cutoff, and drop just those. Never infer the cutoff and never drop a partition that is not clearly past it.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -535,7 +535,7 @@ export const ClickHouseBlockMeta = {
     },
     {
       icon: Bell,
-      title: 'Alert on long-running queries',
+      title: 'Alert on slow ClickHouse queries',
       prompt:
         'Create a scheduled workflow that lists ClickHouse running queries and posts a Slack alert for any whose elapsed time exceeds an explicit threshold I set, including the query_id, user, and elapsed time so a human can investigate and decide whether to intervene.',
       modules: ['scheduled', 'agent', 'workflows'],
@@ -554,7 +554,7 @@ export const ClickHouseBlockMeta = {
     },
     {
       icon: Server,
-      title: 'Weekly storage growth report',
+      title: 'ClickHouse storage growth report',
       prompt:
         'Create a scheduled workflow that collects ClickHouse table stats (rows and size on disk) each week, has an agent summarize the largest tables and fastest growth, and posts the report to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],

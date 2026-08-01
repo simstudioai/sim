@@ -18,6 +18,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { resolveCurrencyCode } from '@/lib/table/currency'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import {
@@ -27,6 +29,7 @@ import {
   localPartsToDateValue,
   todayLocalCalendarDate,
 } from '../../utils'
+import { SelectValueEditor } from '../select-field'
 
 const logger = createLogger('RowModal')
 
@@ -208,9 +211,16 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       )}
     </>
   )
-  const hint = `Type: ${column.type}${column.required ? '' : ' (optional)'}`
+  // Currency names its code — the modal edits the bare amount, so without it
+  // there is nothing on screen saying which currency the number is in.
+  const typeLabel =
+    column.type === 'currency'
+      ? `currency (${resolveCurrencyCode(column.currencyCode)})`
+      : column.type
+  const hint = `Type: ${typeLabel}${column.required ? '' : ' (optional)'}`
+  const definition = columnTypeOf(column)
 
-  if (column.type === 'boolean') {
+  if (definition.editor === 'toggle') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
@@ -230,6 +240,9 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
+  // The one type wanting a mono multi-line field; `editor: 'text'` covers both
+  // this and a plain input, so it stays explicit rather than inventing a field
+  // only one type would ever set.
   if (column.type === 'json') {
     return (
       <ChipModalField
@@ -246,7 +259,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (column.type === 'date') {
+  if (definition.editor === 'date') {
     const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
@@ -275,13 +288,26 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
+  if (definition.editor === 'select') {
+    return (
+      <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
+        <SelectValueEditor column={column} value={value} onChange={onChange} fullWidth />
+      </ChipModalField>
+    )
+  }
+
   return (
     <ChipModalField
       type='input'
       title={title}
       required={column.required}
       hint={hint}
-      inputType={column.type === 'number' ? 'number' : 'text'}
+      // A native number input rejects the formatted amounts this type's parser
+      // exists to accept, so those types take a text field — the same shape the
+      // grid's inline editor uses.
+      inputType={
+        definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
+      }
       value={formatValueForInput(value, column.type)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}

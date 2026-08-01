@@ -1,20 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetPerms, mockResolveImage, mockDownloadFile } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockGetPerms, mockResolveImage, mockDownloadFile } = vi.hoisted(() => ({
   mockGetPerms: vi.fn(),
   mockResolveImage: vi.fn(),
   mockDownloadFile: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ getUserEntityPermissions: mockGetPerms }))
 vi.mock('@/lib/uploads/server/inline-image', () => ({
   resolveWorkspaceInlineImage: mockResolveImage,
@@ -22,6 +18,8 @@ vi.mock('@/lib/uploads/server/inline-image', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
 
 import { GET } from '@/app/api/workspaces/[id]/files/inline/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
 const params = { params: Promise.resolve({ id: 'ws-1' }) }
@@ -40,15 +38,20 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
     mockDownloadFile.mockResolvedValue(PNG)
   })
 
-  it('serves a workspace-scoped image by fileId', async () => {
+  it('serves a workspace-scoped image by fileId, always revalidating', async () => {
     const res = await GET(req('fileId=wf_abc'), params)
     expect(res.status).toBe(200)
     expect(mockResolveImage).toHaveBeenCalledWith('ws-1', { fileId: 'wf_abc' })
+    // Authenticated content: always revalidate so a deletion/revocation is enforced on the next request.
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
   })
 
-  it('serves a workspace-scoped image by key', async () => {
+  it('serves a workspace-scoped image by key, always revalidating', async () => {
     const res = await GET(req(`key=${encodeURIComponent('workspace/ws-1/x-photo.png')}`), params)
     expect(res.status).toBe(200)
+    // Same policy as fileId: authenticated content never cached past a revalidation, so a deleted or
+    // access-revoked image drops out immediately rather than lingering in a private browser cache.
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
   })
 
   it('404s when the reference does not resolve in the workspace (cross-workspace)', async () => {

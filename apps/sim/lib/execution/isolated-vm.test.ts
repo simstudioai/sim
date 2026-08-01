@@ -2,12 +2,7 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
-import {
-  inputValidationMock,
-  inputValidationMockFns,
-  redisConfigMock,
-  redisConfigMockFns,
-} from '@sim/testing'
+import { inputValidationMock, inputValidationMockFns, redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -204,7 +199,6 @@ vi.mock('@/lib/core/utils/logging', () => ({
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
-vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,
@@ -300,6 +294,68 @@ describe('isolated-vm scheduler', () => {
     expect(result.error).toBeUndefined()
     expect(result.result).toBe('ok')
     expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('spawns workers with an allowlisted env, never the parent process.env', async () => {
+    const ALLOWED_WORKER_ENV_KEYS = new Set([
+      'PATH',
+      'NODE_ENV',
+      'IVM_MAX_STDOUT_CHARS',
+      'IVM_MAX_FETCH_OPTIONS_JSON_CHARS',
+      'TZ',
+      'LANG',
+      'LC_ALL',
+      'SYSTEMROOT',
+      'WINDIR',
+      'COMSPEC',
+      'PATHEXT',
+      'TEMP',
+      'TMP',
+    ])
+    vi.stubEnv('SIM_SANDBOX_SECRET_CANARY', 'must-not-reach-worker')
+    try {
+      const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+        spawns: [() => createReadyProc('ok')],
+      })
+
+      await executeInIsolatedVM({
+        code: 'return "ok"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-env',
+      })
+
+      expect(spawnMock).toHaveBeenCalledTimes(1)
+      const spawnOptions = spawnMock.mock.calls[0]?.[2] as
+        | { env?: Record<string, string> }
+        | undefined
+      expect(spawnOptions?.env).toBeDefined()
+      const workerEnv = spawnOptions?.env ?? {}
+
+      expect(workerEnv.SIM_SANDBOX_SECRET_CANARY).toBeUndefined()
+      for (const secretKey of [
+        'DATABASE_URL',
+        'REDIS_URL',
+        'ENCRYPTION_KEY',
+        'BETTER_AUTH_SECRET',
+        'STRIPE_SECRET_KEY',
+        'OPENAI_API_KEY',
+        'AWS_SECRET_ACCESS_KEY',
+      ]) {
+        expect(workerEnv[secretKey]).toBeUndefined()
+      }
+      for (const key of Object.keys(workerEnv)) {
+        expect(
+          ALLOWED_WORKER_ENV_KEYS.has(key),
+          `unexpected env var forwarded to sandbox worker: ${key}`
+        ).toBe(true)
+      }
+      expect(workerEnv.PATH).toBe(process.env.PATH)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('rejects new requests when the queue is full', async () => {

@@ -3,7 +3,9 @@ import type {
   Filter,
   RowData,
   Sort,
+  SortSpec,
   TableDefinition,
+  TablePredicate,
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
@@ -54,6 +56,26 @@ export interface TableRowGetParams {
   tableId: string
   rowId: string
   _context?: WorkflowToolExecutionContext
+}
+
+/** v2 query params: typed predicate/sort objects + opaque cursor (no offset). */
+export interface TableRowQueryV2Params {
+  tableId: string
+  filter?: TablePredicate
+  order?: SortSpec
+  limit?: number
+  cursor?: string
+  _context?: WorkflowToolExecutionContext
+}
+
+export interface TableQueryV2Response extends ToolResponse {
+  output: {
+    rows: TableRow[]
+    rowCount: number
+    totalCount: number | null
+    limit: number
+    nextCursor: string | null
+  }
 }
 
 export interface TableCreateResponse extends ToolResponse {

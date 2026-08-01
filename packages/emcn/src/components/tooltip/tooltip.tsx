@@ -246,6 +246,7 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
       id={id}
       role={role}
       aria-hidden={role ? undefined : 'true'}
+      data-native-surface-overlay=''
       className={cn(
         'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-caption opacity-100 shadow-sm transition-[opacity,filter,transform] duration-150 ease-out',
         'motion-reduce:transition-none',

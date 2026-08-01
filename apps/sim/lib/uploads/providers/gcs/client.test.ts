@@ -308,7 +308,9 @@ describe('GCS Client', () => {
     })
 
     it('should return null when the object is missing', async () => {
-      mockFile.getMetadata.mockRejectedValueOnce(Object.assign(new Error('Not Found'), { code: 404 }))
+      mockFile.getMetadata.mockRejectedValueOnce(
+        Object.assign(new Error('Not Found'), { code: 404 })
+      )
 
       const result = await headGcsObject('missing.txt')
 
@@ -316,7 +318,9 @@ describe('GCS Client', () => {
     })
 
     it('should rethrow non-404 errors', async () => {
-      mockFile.getMetadata.mockRejectedValueOnce(Object.assign(new Error('Forbidden'), { code: 403 }))
+      mockFile.getMetadata.mockRejectedValueOnce(
+        Object.assign(new Error('Forbidden'), { code: 403 })
+      )
 
       await expect(headGcsObject('secret.txt')).rejects.toThrow('Forbidden')
     })
@@ -359,7 +363,9 @@ describe('GCS Client', () => {
       expect(result).toEqual({ uploadId: 'upload-123', key: 'workspace/ws-1/large.csv' })
 
       const [url, init] = mockFetch.mock.calls[0]
-      expect(url).toBe('https://storage.googleapis.com/test-bucket/workspace/ws-1/large.csv?uploads')
+      expect(url).toBe(
+        'https://storage.googleapis.com/test-bucket/workspace/ws-1/large.csv?uploads'
+      )
       expect(init.method).toBe('POST')
       expect(init.headers).toEqual(
         expect.objectContaining({
@@ -400,7 +406,9 @@ describe('GCS Client', () => {
 
       expect(part).toEqual({ PartNumber: 1, ETag: '"etag-1"' })
       const [url, init] = mockFetch.mock.calls[0]
-      expect(url).toBe('https://storage.googleapis.com/test-bucket/key.csv?partNumber=1&uploadId=upload-123')
+      expect(url).toBe(
+        'https://storage.googleapis.com/test-bucket/key.csv?partNumber=1&uploadId=upload-123'
+      )
       expect(init.method).toBe('PUT')
     })
 
@@ -440,7 +448,9 @@ describe('GCS Client', () => {
       ])
 
       const [url, init] = mockFetch.mock.calls[0]
-      expect(url).toBe('https://storage.googleapis.com/test-bucket/kb/uuid-file.txt?uploadId=upload-123')
+      expect(url).toBe(
+        'https://storage.googleapis.com/test-bucket/kb/uuid-file.txt?uploadId=upload-123'
+      )
       expect(init.method).toBe('POST')
       expect(init.body).toBe(
         '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>&quot;etag-1&quot;</ETag></Part><Part><PartNumber>2</PartNumber><ETag>&quot;etag-2&quot;</ETag></Part></CompleteMultipartUpload>'
@@ -455,9 +465,7 @@ describe('GCS Client', () => {
     it('should restore quotes on ETags stripped by the browser upload client', async () => {
       mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
 
-      await completeGcsMultipartUpload('key.csv', 'upload-123', [
-        { PartNumber: 1, ETag: 'etag-1' },
-      ])
+      await completeGcsMultipartUpload('key.csv', 'upload-123', [{ PartNumber: 1, ETag: 'etag-1' }])
 
       const [, init] = mockFetch.mock.calls[0]
       expect(init.body).toBe(

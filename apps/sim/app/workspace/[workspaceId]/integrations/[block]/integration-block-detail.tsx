@@ -6,25 +6,26 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { getClientCredentialAccountDescriptor } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
   blockTypeToIconMap,
   type Integration,
+  resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
-import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
+import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
-import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import {
+  ConnectServiceAccountModal,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
-import { getBlock } from '@/blocks'
-import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
@@ -32,7 +33,6 @@ import {
   getTemplatesForBlock,
   type ScopedBlockTemplate,
 } from '@/blocks/registry'
-import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
@@ -68,39 +68,28 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
   useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
+  /**
+   * Matches on the service's own id *or* its service-account id, so a family
+   * credential lists on every product it powers. Comparing resolved
+   * `providerId`s instead hides it from all of them.
+   */
   const connectedCredentials = useMemo(() => {
     if (!oauthService) return []
     return credentials.filter(
       (c) =>
         (c.type === 'oauth' || c.type === 'service_account') &&
         c.providerId &&
-        getServiceConfigByProviderId(c.providerId)?.providerId === oauthService.providerId
+        credentialProviderMatchesService(c.providerId, oauthService)
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
-  const isSlackBot = oauthService?.serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID
-  const blockOverlayVersion = useCustomBlockOverlayVersion()
-  // Custom Slack bots ride the slack_v2 preview flag: the setup surface stays
-  // hidden until that block is revealed for this viewer.
-  const slackBotPreviewHidden = useMemo(() => {
-    if (!isSlackBot) return false
-    const v2 = getBlock('slack_v2')
-    return !v2 || isHiddenUnder(overlayVisibility(), v2)
-  }, [isSlackBot, blockOverlayVersion])
-  const hasServiceAccount =
-    Boolean(oauthService?.serviceAccountProviderId) && !slackBotPreviewHidden
-  // Vendor-accurate connect label: token-paste and client-credential
-  // providers use their own noun ("Add API key", "Add server-to-server app");
-  // only true service-account providers (Google, Atlassian) say
-  // "Add service account".
-  const nounDescriptor =
-    getTokenServiceAccountDescriptor(oauthService?.serviceAccountProviderId) ??
-    getClientCredentialAccountDescriptor(oauthService?.serviceAccountProviderId)
-  const serviceAccountConnectLabel = isSlackBot
-    ? 'Set up a custom bot'
-    : nounDescriptor
-      ? `Add ${nounDescriptor.connectNoun}`
-      : 'Add service account'
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId: oauthService?.serviceAccountProviderId,
+    serviceName: oauthService?.serviceName,
+    serviceIcon: oauthService?.serviceIcon,
+  })
+  const hasServiceAccount = Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
+  const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
@@ -131,7 +120,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         {
           value: CONNECT_MODE.serviceAccount,
           label: serviceAccountConnectLabel,
-          icon: oauthService.serviceIcon,
+          icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
         },
       ]
     : []
@@ -148,7 +137,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={PAGE_HEADER_BAR}>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>
@@ -169,11 +158,11 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 Add to Sim
               </Chip>
             )
-          ) : (
+          ) : isChatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
               Add to Sim
             </Chip>
-          )}
+          ) : null}
         </div>
       </div>
       {oauthService && (
@@ -189,14 +178,14 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      {hasServiceAccount && oauthService?.serviceAccountProviderId && (
+      {hasServiceAccount && serviceAccountTarget && (
         <ConnectServiceAccountModal
           open={serviceAccountOpen}
           onOpenChange={setServiceAccountOpen}
           workspaceId={workspaceId}
-          serviceAccountProviderId={oauthService.serviceAccountProviderId}
-          serviceName={oauthService.serviceName}
-          serviceIcon={oauthService.serviceIcon}
+          serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          serviceName={serviceAccountTarget.serviceName}
+          serviceIcon={serviceAccountTarget.serviceIcon}
         />
       )}
       <div
@@ -238,7 +227,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                       {credential.displayName}
                     </span>
                     <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                      {credential.description || oauthService?.serviceName}
+                      {credential.description || resolveCredentialDisplay(credential).subtitle}
                     </span>
                   </div>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
@@ -255,7 +244,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             />
           )}
 
-          {matchingTemplates.length > 0 && (
+          {/* Every template hands its prompt to Chat, so the section has no
+              destination without it. */}
+          {isChatEnabled && matchingTemplates.length > 0 && (
             <TemplatesSection
               integration={integration}
               templates={matchingTemplates}

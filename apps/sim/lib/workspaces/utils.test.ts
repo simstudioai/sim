@@ -1,15 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { db } from '@sim/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockChangeWorkspaceStoragePayerInTx } = vi.hoisted(() => ({
   mockChangeWorkspaceStoragePayerInTx: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: vi.fn(), transaction: vi.fn() },
 }))
 
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({
@@ -22,10 +18,9 @@ import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
 } from '@/lib/workspaces/utils'
 
-const mockDb = db as unknown as {
-  select: ReturnType<typeof vi.fn>
-  transaction: ReturnType<typeof vi.fn>
-}
+afterAll(() => {
+  resetDbChainMock()
+})
 
 function createMockChain(finalResult: unknown) {
   const chain: any = {}
@@ -68,6 +63,7 @@ function createUpdateChain(result: unknown) {
 describe('reassignBilledAccountForUser', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('routes each resolved workspace through the payer helper in its own transaction', async () => {
@@ -75,19 +71,19 @@ describe('reassignBilledAccountForUser', () => {
     const tx = {
       update: vi.fn().mockReturnValue(updateChain),
     }
-    mockDb.select.mockReturnValueOnce(
+    dbChainMockFns.select.mockReturnValueOnce(
       createMockChain([
         { id: 'workspace-personal', ownerId: 'owner-1', organizationId: null },
         { id: 'workspace-org', ownerId: 'owner-2', organizationId: 'org-1' },
       ])
     )
-    mockDb.transaction.mockImplementation(
+    dbChainMockFns.transaction.mockImplementation(
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)
     )
 
     const result = await reassignBilledAccountForUser('departing-user')
 
-    expect(mockDb.transaction).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
     expect(mockChangeWorkspaceStoragePayerInTx).toHaveBeenNthCalledWith(1, tx, {
       workspaceId: 'workspace-personal',
       organizationId: null,
@@ -122,7 +118,7 @@ describe('reassignBilledAccountForUser', () => {
     const tx = {
       update: vi.fn().mockReturnValue(updateChain),
     }
-    mockDb.select
+    dbChainMockFns.select
       .mockReturnValueOnce(
         createMockChain([
           { id: 'workspace-admin', ownerId: 'departing-user', organizationId: null },
@@ -131,7 +127,7 @@ describe('reassignBilledAccountForUser', () => {
       )
       .mockReturnValueOnce(createMockChain([{ userId: 'admin-1' }]))
       .mockReturnValueOnce(createMockChain([]))
-    mockDb.transaction.mockImplementation(
+    dbChainMockFns.transaction.mockImplementation(
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)
     )
 
@@ -156,13 +152,13 @@ describe('reassignBilledAccountForUser', () => {
     const tx = {
       update: vi.fn().mockReturnValue(updateChain),
     }
-    mockDb.select.mockReturnValueOnce(
+    dbChainMockFns.select.mockReturnValueOnce(
       createMockChain([
         { id: 'workspace-1', ownerId: 'owner-1', organizationId: null },
         { id: 'workspace-2', ownerId: 'owner-2', organizationId: null },
       ])
     )
-    mockDb.transaction.mockImplementation(
+    dbChainMockFns.transaction.mockImplementation(
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)
     )
     mockChangeWorkspaceStoragePayerInTx.mockRejectedValueOnce(new Error('payer transfer failed'))
@@ -171,7 +167,7 @@ describe('reassignBilledAccountForUser', () => {
       'payer transfer failed'
     )
 
-    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
     expect(mockChangeWorkspaceStoragePayerInTx).toHaveBeenCalledTimes(1)
     expect(tx.update).not.toHaveBeenCalled()
   })
@@ -180,6 +176,7 @@ describe('reassignBilledAccountForUser', () => {
 describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('reassigns departing member workflows to the workspace billed account', async () => {
@@ -277,12 +274,13 @@ describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
 describe('listAccessibleWorkspaceRowsForUser', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('elevates an org admin to admin on an org workspace where they hold a lower explicit grant', async () => {
     const orgWorkspace = { id: 'ws-1', name: 'Shared', ownerId: 'owner-x', organizationId: 'org-1' }
 
-    mockDb.select
+    dbChainMockFns.select
       .mockReturnValueOnce(createMockChain([{ workspace: orgWorkspace, permissionType: 'write' }]))
       .mockReturnValueOnce(createMockChain([{ organizationId: 'org-1', role: 'admin' }]))
       .mockReturnValueOnce(createMockChain([orgWorkspace]))
@@ -301,7 +299,7 @@ describe('listAccessibleWorkspaceRowsForUser', () => {
     }
     const orgWorkspace = { id: 'ws-1', name: 'Shared', ownerId: 'owner-x', organizationId: 'org-1' }
 
-    mockDb.select
+    dbChainMockFns.select
       .mockReturnValueOnce(
         createMockChain([{ workspace: externalWorkspace, permissionType: 'write' }])
       )

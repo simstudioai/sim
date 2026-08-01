@@ -1,10 +1,8 @@
 import { execSync } from 'node:child_process'
-import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createLogger } from '@sim/logger'
-import ffmpegStatic from 'ffmpeg-static'
 import ffmpeg from 'fluent-ffmpeg'
 
 const logger = createLogger('MediaFfmpeg')
@@ -12,7 +10,7 @@ const logger = createLogger('MediaFfmpeg')
 let ffmpegInitialized = false
 let ffmpegPath: string | null = null
 
-/** Lazy FFmpeg binary resolution (ffmpeg-static, then system), mirroring lib/audio/extractor.ts. */
+/** Lazy system FFmpeg binary resolution, mirroring lib/audio/extractor.ts. */
 function ensureFfmpeg(): void {
   if (ffmpegInitialized) {
     if (!ffmpegPath) {
@@ -23,17 +21,6 @@ function ensureFfmpeg(): void {
     return
   }
   ffmpegInitialized = true
-
-  if (ffmpegStatic && typeof ffmpegStatic === 'string') {
-    try {
-      fsSync.accessSync(ffmpegStatic, fsSync.constants.X_OK)
-      ffmpegPath = ffmpegStatic
-      ffmpeg.setFfmpegPath(ffmpegPath)
-      return
-    } catch {
-      // fall through to system ffmpeg
-    }
-  }
 
   try {
     const cmd = process.platform === 'win32' ? 'where ffmpeg' : 'which ffmpeg'

@@ -37,11 +37,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const queryResult = await parseRequest(listMothershipChatsContract, request, {})
     if (!queryResult.success) return queryResult.response
-    const { workspaceId } = queryResult.data.query
+    const { workspaceId, scope } = queryResult.data.query
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
-    const data = await listMothershipChats(userId, workspaceId)
+    const data = await listMothershipChats(userId, workspaceId, scope)
 
     return NextResponse.json({ success: true, data })
   } catch (error) {

@@ -189,4 +189,30 @@ describe('serializePauseSnapshot', () => {
 
     expect(serialized.metadata.billingAttribution).toEqual(billingAttribution)
   })
+
+  it('preserves independent chat event policies across pause and resume', () => {
+    const context = createContext({
+      metadata: {
+        ...createContext().metadata,
+        includeThinking: true,
+        includeToolCalls: false,
+        executionMode: 'stream',
+      },
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.includeThinking).toBe(true)
+    expect(serialized.metadata.includeToolCalls).toBe(false)
+    expect(serialized.metadata.executionMode).toBe('stream')
+  })
+
+  it('omits chat event policies when the live run did not enable them', () => {
+    const snapshot = serializePauseSnapshot(createContext(), ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.includeThinking).toBeUndefined()
+    expect(serialized.metadata.includeToolCalls).toBeUndefined()
+  })
 })

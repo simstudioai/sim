@@ -1,11 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
   batchInsertRows,
+  batchUpdateRows,
   insertRow,
   replaceTableRows,
   updateRow,
@@ -13,8 +15,6 @@ import {
 } from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { getUniqueColumns } from '@/lib/table/validation'
-
-vi.mock('@sim/db', () => dbChainMock)
 
 // Capacity is exercised in billing.test.ts; here it's a no-op so the timeout-scaling
 // suites can use large synthetic row counts without tripping the plan limit.
@@ -66,6 +66,17 @@ function findExecutedRawSql(substring: string): string | undefined {
   return undefined
 }
 
+/**
+ * The `data` payload of the last `.set(...)` row write. `updateRow` always writes a JSONB merge
+ * (`data = data || {changed}::jsonb`), so this is a `sql` fragment exposing `{ strings, values }`.
+ */
+function lastSetDataSql(): { strings?: string[]; values?: unknown[] } | undefined {
+  const payload = dbChainMockFns.set.mock.calls.at(-1)?.[0] as
+    | { data?: { strings?: string[]; values?: unknown[] } }
+    | undefined
+  return payload?.data
+}
+
 const EXISTING_ROW = {
   id: 'row-1',
   tableId: 'tbl-1',
@@ -91,6 +102,7 @@ const TABLE: TableDefinition = {
   maxRows: 1000,
   workspaceId: 'ws-1',
   createdBy: 'user-1',
+  locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
   archivedAt: null,
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01'),
@@ -110,10 +122,15 @@ describe('updateRow — partial merge', () => {
       'req-1'
     )
 
+    // The returned row is the full merge…
     expect(result.data).toEqual({ name: 'Alice', age: 31 })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { name: 'Alice', age: 31 } })
-    )
+    // …but the WRITE is a JSONB merge of only the changed cell (`data = data || {age:31}`), so the
+    // unchanged `name` column is never re-written — that's what keeps concurrent edits to different
+    // cells of the same row from clobbering each other.
+    const data = lastSetDataSql()
+    expect(data?.strings?.join('')).toContain(' || ')
+    expect(data?.values).toContain(JSON.stringify({ age: 31 }))
+    expect(data?.values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
   })
 
   it('allows updating a single column without affecting others', async () => {
@@ -124,9 +141,7 @@ describe('updateRow — partial merge', () => {
     )
 
     expect(result.data).toEqual({ name: 'Bob', age: 30 })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { name: 'Bob', age: 30 } })
-    )
+    expect(lastSetDataSql()?.values).toContain(JSON.stringify({ name: 'Bob' }))
   })
 
   it('allows explicitly nulling a field while preserving others', async () => {
@@ -137,9 +152,8 @@ describe('updateRow — partial merge', () => {
     )
 
     expect(result.data).toEqual({ name: 'Alice', age: null })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { name: 'Alice', age: null } })
-    )
+    // A cleared cell is written as present-with-null, not dropped.
+    expect(lastSetDataSql()?.values).toContain(JSON.stringify({ age: null }))
   })
 
   it('handles a full-row update correctly (idempotent merge)', async () => {
@@ -150,23 +164,6 @@ describe('updateRow — partial merge', () => {
     )
 
     expect(result.data).toEqual({ name: 'Bob', age: 25 })
-  })
-
-  it('sends only changed keys in JSONB patch mode while returning merged data', async () => {
-    const result = await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1',
-      { dataWriteMode: 'patch' }
-    )
-
-    expect(result?.data).toEqual({ name: 'Alice', age: 31 })
-    const setPayload = dbChainMockFns.set.mock.calls.at(-1)?.[0] as
-      | { data?: { strings?: string[]; values?: unknown[] } }
-      | undefined
-    expect(setPayload?.data?.strings?.join('')).toContain(' || ')
-    expect(setPayload?.data?.values).toContain(JSON.stringify({ age: 31 }))
-    expect(setPayload?.data?.values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
   })
 
   it('throws when the row does not exist', async () => {
@@ -418,5 +415,48 @@ describe('mutation paths — SET LOCAL timeouts', () => {
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
+  })
+})
+
+describe('batchUpdateRows — per-row partial merge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('writes each row as a JSONB merge of only its changed cells', async () => {
+    queueTableRows(userTableRows, [
+      { id: 'row-1', data: { name: 'Alice', age: 30 } },
+      { id: 'row-2', data: { name: 'Carol', age: 40 } },
+    ])
+    queueTableRows(tableRowExecutions, []) // loadExecutionsByRow → no sidecar rows
+
+    await batchUpdateRows(
+      {
+        tableId: 'tbl-1',
+        workspaceId: 'ws-1',
+        updates: [
+          { rowId: 'row-1', data: { age: 31 } },
+          { rowId: 'row-2', data: { name: 'Dave' } },
+        ],
+      },
+      TABLE,
+      'req-1'
+    )
+
+    // Each row write is `data || {changed}::jsonb`, carrying ONLY that row's changed cell — so a
+    // batch edit can't clobber a concurrent edit to another cell of the same row.
+    const writes = dbChainMockFns.set.mock.calls
+      .map((c) => c[0] as { data?: { strings?: string[]; values?: unknown[] } })
+      .filter((p) => Array.isArray(p?.data?.strings))
+    expect(writes.length).toBe(2)
+    for (const w of writes) {
+      expect(w.data?.strings?.join('')).toContain(' || ')
+    }
+    const values = writes.flatMap((w) => w.data?.values ?? [])
+    expect(values).toContain(JSON.stringify({ age: 31 }))
+    expect(values).toContain(JSON.stringify({ name: 'Dave' }))
+    // Never the whole row.
+    expect(values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
   })
 })

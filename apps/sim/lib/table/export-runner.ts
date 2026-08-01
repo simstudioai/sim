@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { getColumnId } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
-  formatCsvValue,
+  formatCsvCell,
   neutralizeCsvFormula,
   sanitizeExportFilename,
   toCsvRow,
@@ -59,9 +60,10 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     if (!table) throw new Error(`Export target table ${tableId} not found`)
 
     const columns = table.schema.columns
-    // Stored row data is id-keyed; CSV headers and JSON keys are display names, so translate
-    // id → name on the way out (export is a name-friendly boundary).
-    const nameById = buildNameById(table.schema)
+    // Stored row data is id-keyed and select cells hold option ids; JSON keys are display
+    // names and values are option names, so translate both on the way out (export is a
+    // name-friendly boundary). Hoisted: the mapper is reused across every streamed page.
+    const toNamedRow = namedRowMapper(columns)
 
     const fileName = `${sanitizeExportFilename(table.name)}.${format}`
     // The key is pinned up front so the streaming upload writes exactly where the download
@@ -78,7 +80,9 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
     let exported = 0
     let firstJsonRow = true
-    let after: { orderKey: string; id: string } | null = null
+    // `order_key` is nullable (rows predating the backfill), and the page query
+    // seeks NULLs explicitly — so the cursor has to carry a null too.
+    let after: { orderKey: string | null; id: string } | null = null
     while (true) {
       // Ownership gate before every page: a canceled job stops within one batch.
       const owns = await updateJobProgress(tableId, exported, jobId)
@@ -91,12 +95,12 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       for (const row of page) {
         if (format === 'csv') {
           pageChunks.push(
-            `${toCsvRow(columns.map((c) => formatCsvValue(row.data[getColumnId(c)])))}\n`
+            `${toCsvRow(columns.map((c) => formatCsvCell(c, row.data[getColumnId(c)])))}\n`
           )
         } else {
           const prefix = firstJsonRow ? '' : ','
           firstJsonRow = false
-          pageChunks.push(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
+          pageChunks.push(prefix + JSON.stringify(toNamedRow(row.data)))
         }
       }
       await handle.write(pageChunks.join(''))

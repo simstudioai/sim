@@ -1,3 +1,4 @@
+import type { AgentStreamToolCall } from '@/components/agent-stream/tool-call-lifecycle'
 import type { ParentIteration } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
@@ -32,6 +33,12 @@ export interface ConsoleEntry {
   childWorkflowName?: string
   /** Per-invocation unique ID linking this workflow block to its child block events */
   childWorkflowInstanceId?: string
+  /** Live agent thinking text (canvas stream:thinking). Not part of answer content. */
+  agentStreamThinking?: string
+  /** Live tool chips (canvas stream:tool). Name + status only. */
+  agentStreamToolCalls?: AgentStreamToolCall[]
+  /** True while thinking/tool live updates may still arrive for this entry. */
+  agentStreamActive?: boolean
 }
 
 export interface ConsoleUpdate {
@@ -58,6 +65,9 @@ export interface ConsoleUpdate {
   childWorkflowBlockId?: string
   childWorkflowName?: string
   childWorkflowInstanceId?: string
+  agentStreamThinking?: string
+  agentStreamToolCalls?: AgentStreamToolCall[]
+  agentStreamActive?: boolean
 }
 
 export interface ConsoleEntryLocation {

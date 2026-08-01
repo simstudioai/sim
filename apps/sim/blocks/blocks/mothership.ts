@@ -17,7 +17,7 @@ interface MothershipResponse extends ToolResponse {
 
 export const MothershipBlock: BlockConfig<MothershipResponse> = {
   type: 'mothership',
-  name: 'Sim',
+  name: 'Sim Chat',
   description: 'Talk to Sim',
   longDescription:
     'The Sim block sends messages to Sim, which has access to subagents, integration tools, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Sim intelligence within a workflow.',

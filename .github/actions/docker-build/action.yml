@@ -1,0 +1,59 @@
+name: Docker Build and Push
+description: Set up a buildx builder and build/push an image, using Blacksmith's builder or the upstream Docker actions on GitHub-hosted runners.
+
+inputs:
+  provider:
+    description: Empty or 'blacksmith' selects Blacksmith's builder; anything else selects the docker/* actions.
+    required: false
+    default: ''
+  context:
+    description: Build context.
+    required: false
+    default: .
+  file:
+    description: Path to the Dockerfile.
+    required: true
+  platforms:
+    description: Target platforms, e.g. linux/amd64.
+    required: true
+  tags:
+    description: Comma-separated list of tags to push.
+    required: true
+
+# Registry logins must precede this action. provenance/sbom stay off: attestation
+# manifests break `imagetools create` retagging in promote-images.
+runs:
+  using: composite
+  steps:
+    - name: Set up Blacksmith builder
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
+      uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
+
+    - name: Build and push (Blacksmith)
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
+      uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        platforms: ${{ inputs.platforms }}
+        push: true
+        tags: ${{ inputs.tags }}
+        provenance: false
+        sbom: false
+
+    - name: Set up Docker Buildx
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+    # No cache-to: type=gha — it shares the 10 GB repo quota with the cache mounts.
+    - name: Build and push (GitHub)
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        platforms: ${{ inputs.platforms }}
+        push: true
+        tags: ${{ inputs.tags }}
+        provenance: false
+        sbom: false

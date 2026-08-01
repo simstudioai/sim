@@ -1,5 +1,7 @@
 import { createMockResponse, inputValidationMock, inputValidationMockFns } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { QueryClient } from '@tanstack/react-query'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 import {
@@ -13,19 +15,28 @@ import { executeRequest } from '@/tools/utils.server'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-const { mockGetQueryData } = vi.hoisted(() => ({
-  mockGetQueryData: vi.fn(),
-}))
+const mockGetQueryData = vi.fn()
 
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
-  getQueryClient: () => ({
-    getQueryData: mockGetQueryData,
-  }),
-}))
+/**
+ * Spy on the real module namespace instead of vi.mock: under `isolate: false`
+ * `@/tools/utils` may already be cached bound to the real get-query-client
+ * module, so patching the shared namespace is the only wiring that always
+ * applies.
+ */
+const getQueryClientSpy = vi
+  .spyOn(getQueryClientModule, 'getQueryClient')
+  .mockImplementation(() => ({ getQueryData: mockGetQueryData }) as unknown as QueryClient)
+
+afterAll(() => {
+  getQueryClientSpy.mockRestore()
+})
 
 const originalWindow = global.window
 beforeEach(() => {
   global.window = {} as any
+  getQueryClientSpy.mockImplementation(
+    () => ({ getQueryData: mockGetQueryData }) as unknown as QueryClient
+  )
   mockGetQueryData.mockReturnValue({
     API_KEY: { key: 'API_KEY', value: 'mock-api-key' },
     BASE_URL: { key: 'BASE_URL', value: 'https://example.com' },
@@ -197,6 +208,17 @@ describe('formatRequestParams', () => {
     const result = formatRequestParams(mockTool, params)
 
     expect(result.body).toBe('{"prompt": "Hello"}\n{"prompt": "World"}')
+  })
+
+  it.concurrent('should pass through a non-empty proxyUrl (trimmed)', () => {
+    const result = formatRequestParams(mockTool, { proxyUrl: '  http://user:pass@host:8080  ' })
+    expect(result.proxyUrl).toBe('http://user:pass@host:8080')
+  })
+
+  it.concurrent('should omit proxyUrl when blank, whitespace, or absent', () => {
+    expect(formatRequestParams(mockTool, {}).proxyUrl).toBeUndefined()
+    expect(formatRequestParams(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
+    expect(formatRequestParams(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
   })
 })
 

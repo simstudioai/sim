@@ -15,12 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  isNull: vi.fn(),
-}))
-
 vi.mock('@sim/audit', () => auditMock)
 
 import { PUT } from './route'

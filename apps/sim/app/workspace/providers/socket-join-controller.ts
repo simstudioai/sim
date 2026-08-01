@@ -92,6 +92,19 @@ export class SocketJoinController {
   }
 
   handleWorkflowDeleted(workflowId: string): SocketJoinDeleteResult {
+    return this.evictFromWorkflow(workflowId)
+  }
+
+  /**
+   * Handles the realtime server evicting this socket because the user's access
+   * to the workflow was revoked. Identical control flow to a deletion: block
+   * re-join of that workflow and drop any current/pending membership.
+   */
+  handleAccessRevoked(workflowId: string): SocketJoinDeleteResult {
+    return this.evictFromWorkflow(workflowId)
+  }
+
+  private evictFromWorkflow(workflowId: string): SocketJoinDeleteResult {
     const commands = this.takeRetryResetCommands(
       this.retryWorkflowId === workflowId ? null : this.retryWorkflowId
     )

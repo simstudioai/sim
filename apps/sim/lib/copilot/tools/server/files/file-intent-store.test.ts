@@ -1,13 +1,10 @@
 import { generateShortId } from '@sim/utils/id'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   consumeLatestFileIntent,
   type PendingFileIntent,
   storeFileIntent,
 } from './file-intent-store'
-
-// Force the in-memory store path so the test is deterministic and Redis-free.
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
 
 function makeIntent(overrides: Partial<PendingFileIntent>): PendingFileIntent {
   return {

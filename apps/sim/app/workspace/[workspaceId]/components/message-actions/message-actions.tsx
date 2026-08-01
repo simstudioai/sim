@@ -234,7 +234,7 @@ export const MessageActions = memo(function MessageActions({
                 disabled={forkChat.isPending}
                 className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
               >
-                <Split className={ICON_CLASS} />
+                <Split className={cn(ICON_CLASS, 'rotate-90')} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Branch in new chat</Tooltip.Content>

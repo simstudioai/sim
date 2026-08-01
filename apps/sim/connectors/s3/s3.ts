@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { isLoopbackHostname } from '@sim/security/ssrf'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
@@ -123,18 +124,6 @@ function isSupportedKey(key: string, allowedExtensions: Set<string>): boolean {
 }
 
 /**
- * Returns true when the host is a loopback address for which plain `http://` is
- * tolerated (local MinIO development on a self-hosted deployment). Any other
- * host must use `https://`. This is only an early check — the SSRF boundary is
- * enforced at request time by {@link secureFetchWithRetry}, which blocks
- * loopback/private targets on hosted Sim regardless of what this parser accepts.
- */
-function isLoopbackHost(host: string): boolean {
-  const bare = host.replace(/^\[|\]$/g, '')
-  return bare === 'localhost' || bare === '127.0.0.1' || bare === '::1'
-}
-
-/**
  * Parses and validates a custom S3-compatible endpoint string.
  *
  * Accepts a full origin such as `https://accountid.r2.cloudflarestorage.com` or
@@ -173,7 +162,9 @@ function parseEndpoint(raw: string): S3Endpoint {
 
   const host = url.hostname
   if (!host) throw new Error('Endpoint is missing a host')
-  if (scheme === 'http' && !(isLoopbackHost(host) && !isHosted)) {
+  // Plain http is tolerated only for loopback on self-host (local MinIO); the
+  // real SSRF boundary is enforced at request time by secureFetchWithRetry.
+  if (scheme === 'http' && !(isLoopbackHostname(host) && !isHosted)) {
     throw new Error(
       'Plain http:// endpoints are only allowed for localhost on self-hosted deployments — use https:// otherwise'
     )

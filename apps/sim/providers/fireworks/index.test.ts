@@ -2,17 +2,20 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { StreamingExecution } from '@/executor/types'
 
 const {
   mockCreate,
   mockSupportsNativeStructuredOutputs,
   mockPrepareToolsWithUsageControl,
   mockExecuteTool,
+  mockResolveFireworksWireModel,
 } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockSupportsNativeStructuredOutputs: vi.fn(),
   mockPrepareToolsWithUsageControl: vi.fn(),
   mockExecuteTool: vi.fn(),
+  mockResolveFireworksWireModel: vi.fn(),
 }))
 
 vi.mock('openai', () => ({
@@ -40,8 +43,11 @@ vi.mock('@/providers/attachments', () => ({
 
 vi.mock('@/providers/fireworks/utils', () => ({
   supportsNativeStructuredOutputs: mockSupportsNativeStructuredOutputs,
-  createReadableStreamFromOpenAIStream: vi.fn(() => ({}) as ReadableStream),
+  createReadableStreamFromOpenAIStream: vi.fn(
+    () => new ReadableStream({ start: (controller) => controller.close() })
+  ),
   checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
+  resolveFireworksWireModel: mockResolveFireworksWireModel,
 }))
 
 vi.mock('@/providers/trace-enrichment', () => ({
@@ -66,11 +72,16 @@ const textResponse = (content: string) => ({
   usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
 })
 
-const toolCallResponse = () => ({
+const toolCallResponse = (
+  assistant: { content?: string | null; reasoning_content?: string } = {}
+) => ({
   choices: [
     {
       message: {
-        content: null,
+        content: assistant.content ?? null,
+        ...(assistant.reasoning_content !== undefined
+          ? { reasoning_content: assistant.reasoning_content }
+          : {}),
         tool_calls: [
           { id: 'call_1', type: 'function', function: { name: 'my_tool', arguments: '{"x":1}' } },
         ],
@@ -101,6 +112,7 @@ describe('fireworksProvider', () => {
       forcedTools: [],
     }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
+    mockResolveFireworksWireModel.mockImplementation((stripped: string) => stripped)
   })
 
   const baseRequest = {
@@ -123,9 +135,25 @@ describe('fireworksProvider', () => {
 
     expect(result).toMatchObject({
       content: 'hi there',
-      model: 'llama-v3p1-70b-instruct',
+      model: 'fireworks/llama-v3p1-70b-instruct',
       tokens: { input: 10, output: 5, total: 15 },
     })
+  })
+
+  it('sends the resolved wire model name while reporting the catalog id', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+    mockResolveFireworksWireModel.mockReturnValueOnce('accounts/fireworks/models/glm-5p2')
+
+    const result = await fireworksProvider.executeRequest({
+      ...baseRequest,
+      model: 'fireworks/glm-5.2',
+    })
+
+    expect(mockResolveFireworksWireModel).toHaveBeenCalledWith('glm-5.2')
+    expect(callBody(0).model).toBe('accounts/fireworks/models/glm-5p2')
+    // The catalog id is the billing/logging identity: the central cost policy,
+    // the usage ledger row, and the trace span all key on it.
+    expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
   })
 
   it('wraps API errors in a ProviderError', async () => {
@@ -218,15 +246,54 @@ describe('fireworksProvider', () => {
     )
   })
 
-  it("forces tool_choice 'none' on the final streaming call after tools run", async () => {
+  it('replays Fireworks assistant content and reasoning_content on the second request', async () => {
     mockCreate
-      .mockResolvedValueOnce(toolCallResponse())
-      .mockResolvedValueOnce(textResponse('done'))
-      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce(
+        toolCallResponse({
+          content: 'I will use the tool.',
+          reasoning_content: 'Need the tool result.',
+        })
+      )
+      .mockResolvedValueOnce(textResponse('final answer'))
 
-    await fireworksProvider.executeRequest({ ...baseRequest, stream: true, tools: [toolDef] })
+    await fireworksProvider.executeRequest({ ...baseRequest, tools: [toolDef] })
 
-    expect(mockCreate).toHaveBeenCalledTimes(3)
-    expect(lastCallBody()).toMatchObject({ tool_choice: 'none', stream: true })
+    expect(
+      callBody(1).messages.find((message: { role: string }) => message.role === 'assistant')
+    ).toEqual({
+      role: 'assistant',
+      content: 'I will use the tool.',
+      reasoning_content: 'Need the tool result.',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'my_tool', arguments: '{"x":1}' },
+        },
+      ],
+    })
+  })
+
+  it('streams the settled tool-loop answer without a duplicate provider request', async () => {
+    mockCreate.mockResolvedValueOnce(toolCallResponse()).mockResolvedValueOnce(textResponse('done'))
+
+    const result = (await fireworksProvider.executeRequest({
+      ...baseRequest,
+      stream: true,
+      tools: [toolDef],
+    })) as StreamingExecution
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(result.execution.output).toMatchObject({
+      content: 'done',
+      tokens: { input: 18, output: 9, total: 27 },
+      toolCalls: { count: 1 },
+    })
+    const reader = result.stream.getReader()
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { type: 'text_delta', text: 'done', turn: 'final' },
+    })
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
   })
 })

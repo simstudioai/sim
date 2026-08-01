@@ -1,32 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockIsOrganizationAdminOrOwner,
-  mockIsOrganizationOnEnterprisePlan,
-  mockConflictRows,
-  mockAllMembersRows,
-} = vi.hoisted(() => ({
+const { mockIsOrganizationAdminOrOwner, mockIsOrganizationOnEnterprisePlan } = vi.hoisted(() => ({
   mockIsOrganizationAdminOrOwner: vi.fn<() => Promise<boolean>>(),
   mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
-  mockConflictRows: {
-    value: [] as Array<{
-      userId: string
-      userName: string | null
-      userEmail: string | null
-      otherGroupId: string
-      otherGroupName: string
-    }>,
-  },
-  mockAllMembersRows: {
-    value: [] as Array<{
-      conflictingGroupId: string
-      conflictingGroupName: string
-      workspaceName: string
-    }>,
-  },
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -37,51 +18,18 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   isOrganizationAdminOrOwner: mockIsOrganizationAdminOrOwner,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => {
-      const chain: Record<string, unknown> = {}
-      chain.from = vi.fn(() => chain)
-      chain.innerJoin = vi.fn(() => chain)
-      chain.leftJoin = vi.fn(() => chain)
-      chain.where = vi.fn(() => chain)
-      chain.orderBy = vi.fn(() => chain)
-      // findAllMembersWorkspaceConflict ends in `.limit(1)`; findScopeConflicts
-      // awaits the builder directly after `.where()`.
-      chain.limit = vi.fn(() => Promise.resolve(mockAllMembersRows.value))
-      chain.then = (onFulfilled: (rows: unknown) => unknown) =>
-        Promise.resolve(mockConflictRows.value).then(onFulfilled)
-      return chain
-    }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  permissionGroup: {},
-  permissionGroupMember: {},
-  permissionGroupWorkspace: {},
-  user: {},
-  workspace: {},
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  eq: vi.fn(),
-  inArray: vi.fn(),
-  ne: vi.fn(),
-  sql: vi.fn(),
-}))
-
 import {
   authorizeOrgAccessControl,
   findAllMembersWorkspaceConflict,
   findScopeConflicts,
-} from './utils'
+} from '@/app/api/organizations/[id]/permission-groups/utils'
+
+afterAll(resetDbChainMock)
 
 describe('authorizeOrgAccessControl', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('returns a 403 when the user is not an organization admin/owner', async () => {
@@ -122,7 +70,7 @@ describe('authorizeOrgAccessControl', () => {
 describe('findScopeConflicts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockConflictRows.value = []
+    resetDbChainMock()
   })
 
   const baseParams = {
@@ -141,7 +89,7 @@ describe('findScopeConflicts', () => {
   })
 
   it('returns no conflicts when there are no candidate users', async () => {
-    mockConflictRows.value = [conflictRow('user-1')]
+    queueTableRows(permissionGroupMember, [conflictRow('user-1')])
 
     const conflicts = await findScopeConflicts({ ...baseParams, candidateUserIds: [] })
 
@@ -149,7 +97,7 @@ describe('findScopeConflicts', () => {
   })
 
   it('returns no conflicts when there are no target workspaces', async () => {
-    mockConflictRows.value = [conflictRow('user-1')]
+    queueTableRows(permissionGroupMember, [conflictRow('user-1')])
 
     const conflicts = await findScopeConflicts({ ...baseParams, workspaceIds: [] })
 
@@ -157,7 +105,7 @@ describe('findScopeConflicts', () => {
   })
 
   it('flags a candidate already in another group that shares a workspace', async () => {
-    mockConflictRows.value = [conflictRow('user-1')]
+    queueTableRows(permissionGroupMember, [conflictRow('user-1')])
 
     const conflicts = await findScopeConflicts(baseParams)
 
@@ -166,7 +114,10 @@ describe('findScopeConflicts', () => {
   })
 
   it('returns at most one conflict per user', async () => {
-    mockConflictRows.value = [conflictRow('user-1', 'Marketing'), conflictRow('user-1', 'Sales')]
+    queueTableRows(permissionGroupMember, [
+      conflictRow('user-1', 'Marketing'),
+      conflictRow('user-1', 'Sales'),
+    ])
 
     const conflicts = await findScopeConflicts(baseParams)
 
@@ -175,8 +126,6 @@ describe('findScopeConflicts', () => {
   })
 
   it('returns no conflicts when the query finds no overlapping memberships', async () => {
-    mockConflictRows.value = []
-
     const conflicts = await findScopeConflicts(baseParams)
 
     expect(conflicts).toEqual([])
@@ -186,7 +135,7 @@ describe('findScopeConflicts', () => {
 describe('findAllMembersWorkspaceConflict', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAllMembersRows.value = []
+    resetDbChainMock()
   })
 
   const baseParams = {
@@ -196,9 +145,9 @@ describe('findAllMembersWorkspaceConflict', () => {
   }
 
   it('returns null when there are no target workspaces', async () => {
-    mockAllMembersRows.value = [
+    queueTableRows(permissionGroup, [
       { conflictingGroupId: 'group-2', conflictingGroupName: 'Marketing', workspaceName: 'Acme' },
-    ]
+    ])
 
     const conflict = await findAllMembersWorkspaceConflict({ ...baseParams, workspaceIds: [] })
 
@@ -206,9 +155,9 @@ describe('findAllMembersWorkspaceConflict', () => {
   })
 
   it('returns the conflicting all-members group sharing a workspace', async () => {
-    mockAllMembersRows.value = [
+    queueTableRows(permissionGroup, [
       { conflictingGroupId: 'group-2', conflictingGroupName: 'Marketing', workspaceName: 'Acme' },
-    ]
+    ])
 
     const conflict = await findAllMembersWorkspaceConflict(baseParams)
 
@@ -220,8 +169,6 @@ describe('findAllMembersWorkspaceConflict', () => {
   })
 
   it('returns null when no other all-members group targets the workspaces', async () => {
-    mockAllMembersRows.value = []
-
     const conflict = await findAllMembersWorkspaceConflict(baseParams)
 
     expect(conflict).toBeNull()

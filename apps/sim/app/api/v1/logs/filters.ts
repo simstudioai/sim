@@ -32,11 +32,11 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
     const cursorDate = new Date(filters.cursor.startedAt)
     if (filters.order === 'desc') {
       conditions.push(
-        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) < (${cursorDate}, ${filters.cursor.id})`
+        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) < (${sql.param(cursorDate, workflowExecutionLogs.startedAt)}, ${filters.cursor.id})`
       )
     } else {
       conditions.push(
-        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) > (${cursorDate}, ${filters.cursor.id})`
+        sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) > (${sql.param(cursorDate, workflowExecutionLogs.startedAt)}, ${filters.cursor.id})`
       )
     }
   }

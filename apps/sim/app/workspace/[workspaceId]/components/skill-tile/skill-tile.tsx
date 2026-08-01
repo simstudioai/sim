@@ -1,4 +1,5 @@
 import { AgentSkillsIcon } from '@/components/icons'
+import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 
 /**
  * Square tile bearing the agent-skills glyph. Shared chrome for any surface
@@ -6,11 +7,5 @@ import { AgentSkillsIcon } from '@/components/icons'
  * do not drift.
  */
 export function SkillTile() {
-  return (
-    <div className='size-9 flex-shrink-0'>
-      <div className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'>
-        <AgentSkillsIcon className='size-5 text-[var(--text-icon)]' />
-      </div>
-    </div>
-  )
+  return <ResourceTile icon={AgentSkillsIcon} />
 }

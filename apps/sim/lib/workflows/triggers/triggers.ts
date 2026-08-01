@@ -356,9 +356,6 @@ export class TriggerUtils {
     // Use the block's actual name from the registry
     const block = getBlock(triggerType)
     if (block) {
-      if (triggerType === TRIGGER_TYPES.GENERIC_WEBHOOK) {
-        return 'Webhook'
-      }
       return block.name
     }
 

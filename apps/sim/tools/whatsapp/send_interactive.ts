@@ -34,39 +34,41 @@ export const sendInteractiveTool: ToolConfig<WhatsAppSendInteractiveParams, What
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Main body text of the interactive message',
+        description:
+          'Main body text of the interactive message (max 1024 characters with buttons, 4096 with a list)',
       },
       headerText: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Optional plain-text header shown above the body',
+        description: 'Optional plain-text header shown above the body (max 60 characters)',
       },
       footerText: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Optional footer text shown below the body',
+        description: 'Optional footer text shown below the body (max 60 characters)',
       },
       buttons: {
         type: 'json',
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Reply buttons array (max 3), each item: { "type": "reply", "reply": { "id": "...", "title": "..." } }. Provide buttons or sections.',
+          'Reply buttons array (max 3), each item: { "type": "reply", "reply": { "id": "...", "title": "..." } }. Button title max 20 characters, id max 256. Provide buttons or sections.',
       },
       listButtonText: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Label for the menu button that opens the list (required when sending a list)',
+        description:
+          'Label for the menu button that opens the list, max 20 characters (required when sending a list)',
       },
       sections: {
         type: 'json',
         required: false,
         visibility: 'user-or-llm',
         description:
-          'List sections array, each item: { "title": "...", "rows": [{ "id": "...", "title": "...", "description": "..." }] }. Provide sections or buttons.',
+          'List sections array (max 10 sections, 10 rows total), each item: { "title": "...", "rows": [{ "id": "...", "title": "...", "description": "..." }] }. Section and row titles max 24 characters, row description max 72. Provide sections or buttons.',
       },
       phoneNumberId: {
         type: 'string',

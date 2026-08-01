@@ -10,7 +10,8 @@ permissions:
 jobs:
   process-docs-embeddings:
     name: Process Documentation Embeddings
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Network-bound on the embeddings API: ~9% CPU and ~3% peak memory on 8 vCPU.
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     if: github.ref == 'refs/heads/main'
 
@@ -40,7 +41,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Process docs embeddings
         working-directory: ./apps/sim

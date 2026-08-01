@@ -2057,7 +2057,7 @@ export const VercelBlockMeta = {
     },
     {
       icon: VercelIcon,
-      title: 'Preview deployment reviewer',
+      title: 'Vercel preview deploy reviewer',
       prompt:
         'Build a workflow that watches GitHub pull requests, finds the matching Vercel preview deployment, captures the preview URL, runs a smoke check against critical pages, and posts a status comment on the pull request with the preview link and any issues found.',
       modules: ['agent', 'workflows'],
@@ -2067,7 +2067,7 @@ export const VercelBlockMeta = {
     },
     {
       icon: VercelIcon,
-      title: 'Environment variable auditor',
+      title: 'Vercel env variable auditor',
       prompt:
         'Create a scheduled weekly workflow that pulls environment variables from every Vercel project, compares them to a reference list in a table, flags drift, missing keys, and stale values, and emails a remediation report to the platform team.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -2076,7 +2076,7 @@ export const VercelBlockMeta = {
     },
     {
       icon: VercelIcon,
-      title: 'Domain and DNS inventory',
+      title: 'Vercel domain and DNS inventory',
       prompt:
         'Build a scheduled workflow that lists every domain and DNS record across my Vercel account weekly, logs them into a tracking table, and sends a Slack diff of any added, removed, or modified records so DNS changes never go unnoticed.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -2086,7 +2086,7 @@ export const VercelBlockMeta = {
     },
     {
       icon: VercelIcon,
-      title: 'Project pause guard',
+      title: 'Vercel project pause guard',
       prompt:
         'Build a scheduled workflow that scans Vercel projects daily for low-traffic or stale candidates flagged in a table, pauses projects that meet the criteria, and Slacks a digest of paused and unpaused projects to the platform team for review.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
@@ -2096,7 +2096,7 @@ export const VercelBlockMeta = {
     },
     {
       icon: VercelIcon,
-      title: 'Deploy log triage',
+      title: 'Vercel deploy log triage',
       prompt:
         'Create a workflow that fires after each Vercel deployment, fetches the build and runtime logs, classifies warnings and errors with an agent, groups recurring issues, and opens a Linear ticket per cluster so platform regressions get addressed early.',
       modules: ['agent', 'workflows'],
@@ -2106,7 +2106,7 @@ export const VercelBlockMeta = {
     },
     {
       icon: VercelIcon,
-      title: 'Failed deployment recovery',
+      title: 'Vercel failed deploy recovery',
       prompt:
         'Build a workflow that watches Vercel for failed production deployments, identifies the last known good production deployment, promotes it back to production for an instant rollback, and posts a Slack incident summary with the failure cause and rollback confirmation.',
       modules: ['agent', 'workflows'],

@@ -10,11 +10,16 @@ import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 
-const { mockGetEnv } = vi.hoisted(() => ({ mockGetEnv: vi.fn() }))
+/**
+ * `isSsoEnabled` is a module-level const (evaluated at import), so it is mocked
+ * behind a getter the tests can flip rather than a fixed value.
+ */
+const { ssoFlag } = vi.hoisted(() => ({ ssoFlag: { enabled: false } }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: mockGetEnv,
-  isTruthy: (value: unknown) => value === true || value === 'true' || value === '1',
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isSsoEnabled() {
+    return ssoFlag.enabled
+  },
 }))
 
 vi.mock('@/lib/messaging/email/validation', () => ({
@@ -101,7 +106,7 @@ function render(overrides: Partial<UseShareModalStateArgs> = {}): Harness {
 describe('useShareModalState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetEnv.mockReturnValue(undefined)
+    ssoFlag.enabled = false
   })
 
   describe('mode derivation', () => {
@@ -193,7 +198,7 @@ describe('useShareModalState', () => {
     })
 
     it.each(['email', 'sso'] as const)('blocks saving a %s share with no allow-list', (mode) => {
-      mockGetEnv.mockReturnValue('true')
+      ssoFlag.enabled = true
       const hook = render()
       hook.run((state) => state.setMode(mode))
       expect(hook.current.emailsMissing).toBe(true)
@@ -265,7 +270,7 @@ describe('useShareModalState', () => {
 
     it('omits sso unless the deployment enables it', () => {
       expect(render().current.availableModes).not.toContain('sso')
-      mockGetEnv.mockReturnValue('true')
+      ssoFlag.enabled = true
       expect(render().current.availableModes).toContain('sso')
     })
   })

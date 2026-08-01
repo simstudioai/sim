@@ -101,27 +101,49 @@ interface EditingPolicy {
   isNew: boolean
 }
 
+/** Day bounds the retention contract accepts (1 day … 5 years). */
+const MIN_RETENTION_DAYS = 1
+const MAX_RETENTION_DAYS = 1825
+
+/**
+ * Hours → display days, clamped to the contract's range. Sub-day values would
+ * otherwise round to `0` and be re-sent as `0`, wedging every save on the page.
+ */
+function clampDisplayDays(hours: number): string {
+  const days = Math.round(hours / 24)
+  return String(Math.min(MAX_RETENTION_DAYS, Math.max(MIN_RETENTION_DAYS, days)))
+}
+
+/** Day count → hours. Throws rather than send a value the contract rejects. */
+function toRetentionHours(days: string): number {
+  const parsed = Number(days)
+  if (!Number.isFinite(parsed) || parsed < MIN_RETENTION_DAYS) {
+    throw new Error(`Invalid retention period: ${JSON.stringify(days)}`)
+  }
+  return Math.min(MAX_RETENTION_DAYS, Math.round(parsed)) * 24
+}
+
 function hoursToDisplayDays(hours: number | null): string {
   if (hours === null) return 'never'
-  return String(Math.round(hours / 24))
+  return clampDisplayDays(hours)
 }
 
 function daysToHours(days: string): number | null {
   if (days === 'never') return null
-  return Number(days) * 24
+  return toRetentionHours(days)
 }
 
 /** Override field: `INHERIT` ⇄ undefined, `'never'` ⇄ null (forever), day count ⇄ hours. */
 function hoursToOverrideValue(hours: number | null | undefined): string {
   if (hours === undefined) return INHERIT
   if (hours === null) return 'never'
-  return String(Math.round(hours / 24))
+  return clampDisplayDays(hours)
 }
 
 function overrideValueToHours(value: string): number | null | undefined {
   if (value === INHERIT) return undefined
   if (value === 'never') return null
-  return Number(value) * 24
+  return toRetentionHours(value)
 }
 
 function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): RetentionOverride | null {

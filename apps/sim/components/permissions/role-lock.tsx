@@ -31,6 +31,15 @@ export function credentialRoleLockReason(
   return null
 }
 
+/**
+ * Explanation shown when a skill editor's access is inherited from their
+ * workspace admin role rather than an explicit grant, and so cannot be removed.
+ * Returns null for explicitly added editors.
+ */
+export function skillEditorLockReason(isWorkspaceAdmin: boolean): string | null {
+  return isWorkspaceAdmin ? 'Workspace admins are automatically skill editors' : null
+}
+
 interface RoleLockTooltipProps {
   reason: string | null
   children: ReactNode

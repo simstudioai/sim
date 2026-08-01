@@ -7,7 +7,6 @@
 
 import {
   hybridAuthMockFns,
-  workflowAuthzMock,
   workflowAuthzMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
@@ -16,7 +15,6 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 vi.mock('@/lib/api-key/service', () => ({
   authenticateApiKeyFromHeader: vi.fn(),
   updateApiKeyLastUsed: vi.fn(),

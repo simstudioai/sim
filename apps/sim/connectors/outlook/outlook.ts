@@ -65,7 +65,7 @@ interface OutlookRecipient {
   emailAddress?: OutlookEmailAddress
 }
 
-interface OutlookMessage {
+export interface OutlookMessage {
   id: string
   conversationId?: string
   subject?: string
@@ -96,10 +96,259 @@ const WELL_KNOWN_FOLDERS: Record<string, string> = {
 }
 
 /**
+ * Graph well-known name of the folder that holds messages the mailbox owner
+ * has thrown away. Well-known names resolve regardless of mailbox locale.
+ *
+ * Outlook has no "deleted" flag on a message — deleting moves it into Deleted
+ * Items — so a folder-scoped listing drops deleted messages naturally and KB
+ * deletion reconciliation purges them. The mailbox-wide endpoint used for the
+ * "All Mail" option does not: Microsoft Graph documents `GET /me/messages` as
+ * returning "the messages in the signed-in user's mailbox (including the
+ * Deleted Items and Clutter folders)". Without this exclusion a deleted
+ * conversation stays in the full listing forever and is never purged from the
+ * knowledge base.
+ *
+ * Deliberately limited to Deleted Items. Junk Email is a Microsoft spam
+ * classifier decision on a message that still exists in the mailbox, not a
+ * user deletion — excluding it would drop already-indexed conversations out of
+ * the listing and make deletion reconciliation hard-delete live content.
+ */
+export const DELETED_ITEMS_FOLDER = 'deleteditems'
+
+/**
+ * Page size for the Deleted Items child-folder walk.
+ */
+const CHILD_FOLDER_PAGE_SIZE = 100
+
+/**
+ * Upper bound on Graph requests spent walking the Deleted Items subtree,
+ * covering both the well-known folder lookup and every `childFolders` page.
+ *
+ * Residual gap: a mailbox whose Deleted Items subtree needs more requests than
+ * this budget leaves its deepest folders unresolved. Those folders are then not
+ * excluded, so messages deleted into them stay indexed until they are purged
+ * from the mailbox. That is the deliberate failure direction — under-excluding
+ * only leaves stale documents, while over-excluding would hard-delete live
+ * conversations from the knowledge base.
+ */
+const MAX_FOLDER_RESOLUTION_REQUESTS = 25
+
+/**
+ * Key under which the resolved exclusion set is memoized on the per-sync-run
+ * `syncContext`. Scoping the cache to a sync run keeps it bound to one mailbox
+ * without ever holding an OAuth access token in a process-global structure.
+ */
+const EXCLUDED_FOLDER_IDS_CONTEXT_KEY = '_outlookExcludedFolderIds'
+
+const EMPTY_FOLDER_IDS: ReadonlySet<string> = new Set<string>()
+
+/**
+ * A mail folder as returned by the folder endpoints, narrowed to the fields
+ * needed to walk the Deleted Items subtree.
+ */
+export interface OutlookMailFolder {
+  id?: string
+  childFolderCount?: number
+}
+
+/**
+ * Resolves the configured folder, defaulting to the inbox.
+ */
+export function resolveFolder(sourceConfig: Record<string, unknown>): string {
+  const folder = sourceConfig.folder
+  if (typeof folder !== 'string') return 'inbox'
+  const trimmed = folder.trim()
+  return trimmed || 'inbox'
+}
+
+/**
+ * Whether the sync targets the mailbox-wide `/me/messages` endpoint, which is
+ * the only path that can surface Deleted Items content.
+ */
+export function isAllMailSync(sourceConfig: Record<string, unknown>): boolean {
+  return resolveFolder(sourceConfig) === 'all'
+}
+
+/**
+ * Keeps a message unless its parent folder is an explicitly excluded one.
+ *
+ * Fails open: a message with no `parentFolderId` (unselected or omitted by
+ * Graph) or an unresolved exclusion set is kept, because a false exclusion
+ * would hard-delete a still-current conversation from the knowledge base.
+ */
+export function isCurrentMessage(
+  message: Pick<OutlookMessage, 'parentFolderId'>,
+  excludedFolderIds: ReadonlySet<string>
+): boolean {
+  if (excludedFolderIds.size === 0) return true
+  if (!message.parentFolderId) return true
+  return !excludedFolderIds.has(message.parentFolderId)
+}
+
+/**
+ * Narrows an untyped Graph folder-collection payload into the folders it
+ * contains plus its continuation link. Anything unrecognized yields no folders,
+ * which fails open into keeping messages.
+ */
+export function parseFolderCollection(payload: unknown): {
+  folders: OutlookMailFolder[]
+  nextLink?: string
+} {
+  if (!payload || typeof payload !== 'object') return { folders: [] }
+  const record = payload as Record<string, unknown>
+  const value = Array.isArray(record.value) ? record.value : []
+  const folders: OutlookMailFolder[] = []
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue
+    const folder = entry as Record<string, unknown>
+    if (typeof folder.id !== 'string' || !folder.id) continue
+    folders.push({
+      id: folder.id,
+      childFolderCount: typeof folder.childFolderCount === 'number' ? folder.childFolderCount : 0,
+    })
+  }
+
+  const nextLink = record['@odata.nextLink']
+  return { folders, nextLink: typeof nextLink === 'string' ? nextLink : undefined }
+}
+
+/**
+ * Performs a `GET` against Graph and returns the parsed JSON body, or `null`
+ * when the request failed for any reason. Callers treat `null` as "unresolved"
+ * and fail open.
+ */
+async function fetchFolderJson(url: string, accessToken: string): Promise<unknown | null> {
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      logger.warn('Failed to read Outlook mail folder', { url, status: response.status })
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    logger.warn('Failed to read Outlook mail folder', {
+      url,
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return null
+  }
+}
+
+/**
+ * Resolves the id of Deleted Items and of every folder nested beneath it.
+ *
+ * Graph cannot filter messages by well-known folder name and `parentFolderId`
+ * on a message points at its immediate folder, so a message a user deleted
+ * while it sat in a user-created folder carries that subfolder's id rather than
+ * the Deleted Items id. The subtree is therefore walked breadth-first, spending
+ * requests only on folders that report `childFolderCount > 0` and stopping at
+ * {@link MAX_FOLDER_RESOLUTION_REQUESTS}.
+ *
+ * Every id returned is known to sit inside Deleted Items, so a partial result
+ * from a failed or truncated walk is still safe — it under-excludes rather than
+ * over-excludes.
+ */
+async function computeExcludedFolderIds(accessToken: string): Promise<ReadonlySet<string>> {
+  const ids = new Set<string>()
+  let requests = 0
+
+  const rootPayload = await fetchFolderJson(
+    `${GRAPH_API_BASE}/mailFolders/${DELETED_ITEMS_FOLDER}?$select=id,childFolderCount`,
+    accessToken
+  )
+  requests++
+
+  if (!rootPayload || typeof rootPayload !== 'object') return EMPTY_FOLDER_IDS
+  const root = rootPayload as Record<string, unknown>
+  if (typeof root.id !== 'string' || !root.id) return EMPTY_FOLDER_IDS
+
+  ids.add(root.id)
+
+  const pending: string[] =
+    typeof root.childFolderCount === 'number' && root.childFolderCount > 0 ? [root.id] : []
+
+  while (pending.length > 0) {
+    const parentId = pending.shift()
+    if (!parentId) continue
+
+    const params = new URLSearchParams({
+      $select: 'id,childFolderCount',
+      $top: String(CHILD_FOLDER_PAGE_SIZE),
+      includeHiddenFolders: 'true',
+    })
+    let url: string | undefined =
+      `${GRAPH_API_BASE}/mailFolders/${encodeURIComponent(parentId)}/childFolders?${params.toString()}`
+
+    while (url) {
+      if (requests >= MAX_FOLDER_RESOLUTION_REQUESTS) {
+        logger.warn(
+          'Deleted Items folder walk hit its request budget; deeper folders not excluded',
+          {
+            resolvedFolders: ids.size,
+          }
+        )
+        return ids
+      }
+
+      const payload = await fetchFolderJson(url, accessToken)
+      requests++
+      if (!payload) break
+
+      const { folders, nextLink } = parseFolderCollection(payload)
+      for (const folder of folders) {
+        if (!folder.id || ids.has(folder.id)) continue
+        ids.add(folder.id)
+        if ((folder.childFolderCount ?? 0) > 0) pending.push(folder.id)
+      }
+
+      url = nextLink
+    }
+  }
+
+  return ids
+}
+
+/**
+ * Resolves the excluded folder ids for the current sync run, memoizing the
+ * in-flight lookup on `syncContext` when one is available so the concurrent
+ * `getDocument` fan-out shares a single folder walk. Without a `syncContext`
+ * the lookup is simply repeated — there is deliberately no process-global
+ * cache, and in particular none keyed by an OAuth access token.
+ */
+async function resolveExcludedFolderIds(
+  accessToken: string,
+  syncContext?: Record<string, unknown>
+): Promise<ReadonlySet<string>> {
+  if (!syncContext) return computeExcludedFolderIds(accessToken)
+
+  const cached = syncContext[EXCLUDED_FOLDER_IDS_CONTEXT_KEY]
+  if (cached instanceof Promise) return cached as Promise<ReadonlySet<string>>
+
+  const pending = computeExcludedFolderIds(accessToken).catch((error) => {
+    delete syncContext[EXCLUDED_FOLDER_IDS_CONTEXT_KEY]
+    logger.warn('Failed to resolve Outlook Deleted Items folders', {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return EMPTY_FOLDER_IDS
+  })
+  syncContext[EXCLUDED_FOLDER_IDS_CONTEXT_KEY] = pending
+  return pending
+}
+
+/**
  * Builds the initial Graph API URL for listing messages.
  */
 function buildInitialUrl(sourceConfig: Record<string, unknown>): string {
-  const folder = (sourceConfig.folder as string) || 'inbox'
+  const folder = resolveFolder(sourceConfig)
   const basePath =
     folder === 'all'
       ? `${GRAPH_API_BASE}/messages`
@@ -320,7 +569,16 @@ export const outlookConnector: ConnectorConfig = {
       const focusedOnly = sourceConfig.focusedOnly !== 'false'
       const hasSearch = Boolean((sourceConfig.query as string)?.trim())
 
+      const excludedFolderIds = isAllMailSync(sourceConfig)
+        ? await resolveExcludedFolderIds(accessToken, syncContext)
+        : EMPTY_FOLDER_IDS
+
       for (const msg of messages) {
+        /** Deleted mail must leave the listing so reconciliation can purge it */
+        if (!isCurrentMessage(msg, excludedFolderIds)) {
+          continue
+        }
+
         // Skip drafts (filtered server-side when no search, client-side otherwise)
         if (hasSearch && msg.isDraft) {
           continue
@@ -350,6 +608,13 @@ export const outlookConnector: ConnectorConfig = {
       }
 
       if (syncContext) {
+        /**
+         * Stopping at `MAX_TOTAL_MESSAGES` while Graph still offers a
+         * `@odata.nextLink` means the mailbox was not fully traversed. Flag the
+         * listing as capped so deletion reconciliation does not read the
+         * unvisited tail as deleted mail and hard-delete those documents.
+         */
+        if (nextLink) syncContext.listingCapped = true
         syncContext._fetchComplete = true
       }
     }
@@ -375,8 +640,15 @@ export const outlookConnector: ConnectorConfig = {
       return maxDateB.localeCompare(maxDateA)
     })
 
-    // Limit to maxConversations
+    /**
+     * Limit to `maxConversations`. Dropping the overflow makes the listing an
+     * incomplete view of the mailbox, so it is flagged as capped — otherwise
+     * reconciliation would hard-delete every conversation past the cap.
+     */
     const limited = conversationEntries.slice(0, maxConversations)
+    if (conversationEntries.length > limited.length && syncContext) {
+      syncContext.listingCapped = true
+    }
 
     const documents: ExternalDocument[] = []
     for (const [convId, msgs] of limited) {
@@ -409,11 +681,12 @@ export const outlookConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     try {
       // Scope to the same folder as listDocuments so contentHash stays consistent
-      const folder = (sourceConfig.folder as string) || 'inbox'
+      const folder = resolveFolder(sourceConfig)
       const basePath =
         folder === 'all'
           ? `${GRAPH_API_BASE}/messages`
@@ -447,7 +720,19 @@ export const outlookConnector: ConnectorConfig = {
       }
 
       const data = await response.json()
-      const messages = (data.value || []) as OutlookMessage[]
+      const allMessages = (data.value || []) as OutlookMessage[]
+
+      /**
+       * Mirrors the listing's exclusion so `contentHash` is computed over the
+       * same message set on both sides. Without it, deleting the newest message
+       * of a conversation would leave the listing hash (recomputed from the
+       * surviving messages) permanently disagreeing with the hash returned
+       * here, re-fetching the conversation on every sync forever.
+       */
+      const excludedFolderIds = isAllMailSync(sourceConfig)
+        ? await resolveExcludedFolderIds(accessToken, syncContext)
+        : EMPTY_FOLDER_IDS
+      const messages = allMessages.filter((msg) => isCurrentMessage(msg, excludedFolderIds))
 
       if (messages.length === 0) return null
 
@@ -495,7 +780,7 @@ export const outlookConnector: ConnectorConfig = {
 
     try {
       // Verify Graph API access
-      const folder = (sourceConfig.folder as string) || 'inbox'
+      const folder = resolveFolder(sourceConfig)
       const testUrl =
         folder === 'all'
           ? `${GRAPH_API_BASE}/messages?$top=1&$select=id`

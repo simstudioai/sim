@@ -2,23 +2,30 @@
  * @vitest-environment node
  */
 import { QueryClient } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { getQueryDataMock } = vi.hoisted(() => ({
-  getQueryDataMock: vi.fn(),
-}))
-
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
-  getQueryClient: vi.fn(() => ({
-    getQueryData: getQueryDataMock,
-  })),
-}))
-
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import {
   getWorkflowById,
   getWorkflows,
   removeWorkflowFromActiveCache,
 } from '@/hooks/queries/utils/workflow-cache'
+
+const getQueryDataMock = vi.fn()
+
+/**
+ * Spy on the real module namespace instead of vi.mock: under `isolate: false`
+ * `@/hooks/queries/utils/workflow-cache` may already be cached bound to the
+ * real get-query-client module, so patching the shared namespace is the only
+ * wiring that always applies.
+ */
+const getQueryClientSpy = vi
+  .spyOn(getQueryClientModule, 'getQueryClient')
+  .mockImplementation(() => ({ getQueryData: getQueryDataMock }) as unknown as QueryClient)
+
+afterAll(() => {
+  getQueryClientSpy.mockRestore()
+})
+
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -35,6 +42,9 @@ function workflow(id: string): WorkflowMetadata {
 describe('getWorkflows', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getQueryClientSpy.mockImplementation(
+      () => ({ getQueryData: getQueryDataMock }) as unknown as QueryClient
+    )
   })
 
   it('reads the active workflow list from the cache', () => {

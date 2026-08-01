@@ -1,0 +1,168 @@
+---
+title: Logfire
+description: Query traces, logs, and metrics in Pydantic Logfire
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="logfire"
+  color="#E520E9"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pydantic Logfire](https://pydantic.dev/logfire) is an observability platform built on OpenTelemetry. It collects the traces, logs, and metrics your services emit, stores every span in a queryable `records` table, and exposes that table through a read-only SQL API.
+
+With Logfire, you can:
+
+- **Search spans and logs**: Filter by message text, service, span name, severity, deployment environment, and whether an exception was recorded — no SQL required.
+- **Run SQL directly**: Query the `records` and `metrics` tables with PostgreSQL-compatible syntax for aggregations like error rates and latency percentiles.
+- **Reconstruct a request**: Pull every span in a trace, ordered earliest to latest, and walk the parent-child tree to see where time went and where it failed.
+- **Confirm a credential**: Resolve which organization and project a read token targets before querying it.
+
+Sim's Logfire integration lets agents read production telemetry as part of a run. Use it to triage errors against a live service, attach a root-cause summary to an incident ticket, or watch latency between deploys and page when it regresses.
+
+Authentication uses a Logfire **read token**, which you create per project under Settings → Read tokens. The region is detected from the token's prefix, so Cloud users on US and EU need no extra configuration. Self-hosted instances set the Host field to their own base URL, which must be reachable over HTTPS at a publicly resolvable domain.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Pydantic Logfire into workflows. Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.
+
+
+
+## Actions
+
+### `logfire_query`
+
+Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the records and metrics tables using PostgreSQL-compatible syntax.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Logfire read token |
+| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
+| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
+| `sql` | string | Yes | SQL SELECT query to run against the records or metrics table |
+| `minTimestamp` | string | No | ISO 8601 lower bound on start_timestamp. Defaults to 2020-01-01T00:00:00Z when omitted. |
+| `maxTimestamp` | string | No | ISO 8601 upper bound on start_timestamp |
+| `limit` | number | No | Maximum rows to return. Logfire defaults to 100 and caps at 10000. |
+| `timezone` | string | No | IANA timezone used to evaluate the query, for example Europe/Paris |
+| `environment` | string | No | Restrict results to a single deployment environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Result rows. Row fields depend on the query projection. |
+| `columns` | array | Column metadata for the result set |
+|   ↳ `name` | string | Column name |
+|   ↳ `datatype` | json | Arrow datatype of the column |
+|   ↳ `nullable` | boolean | Whether the column is nullable |
+| `rowCount` | number | Number of rows returned |
+
+### `logfire_search_records`
+
+Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Logfire read token |
+| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
+| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
+| `query` | string | No | Case-insensitive text to match within the record message |
+| `service` | string | No | Exact service name to filter on |
+| `spanName` | string | No | Exact span name to filter on |
+| `minLevel` | string | No | Minimum severity to include: trace, debug, info, notice, warn, error, or fatal |
+| `exceptionsOnly` | boolean | No | Only return records that recorded an exception |
+| `environment` | string | No | Restrict results to a single deployment environment |
+| `minTimestamp` | string | No | ISO 8601 lower bound on start_timestamp. Defaults to 2020-01-01T00:00:00Z when omitted. |
+| `maxTimestamp` | string | No | ISO 8601 upper bound on start_timestamp |
+| `limit` | number | No | Maximum records to return. Logfire defaults to 100 and caps at 10000. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Matching spans and logs, most recent first |
+|   ↳ `startTimestamp` | string | UTC time the span started |
+|   ↳ `endTimestamp` | string | UTC time the span ended |
+|   ↳ `duration` | number | Span duration in seconds. Null for logs. |
+|   ↳ `level` | string | Severity name, such as info, warn, or error |
+|   ↳ `message` | string | Human-readable message |
+|   ↳ `spanName` | string | Template label for similar records |
+|   ↳ `kind` | string | Record kind: span, log, or span_event |
+|   ↳ `serviceName` | string | Service that emitted the record |
+|   ↳ `deploymentEnvironment` | string | Deployment environment of the record |
+|   ↳ `traceId` | string | Trace this record belongs to |
+|   ↳ `spanId` | string | Identifier of this span |
+|   ↳ `parentSpanId` | string | Parent span identifier |
+|   ↳ `isException` | boolean | Whether an exception was recorded on the span |
+|   ↳ `exceptionType` | string | Fully qualified exception class name |
+|   ↳ `exceptionMessage` | string | Exception message |
+| `rowCount` | number | Number of rows returned |
+| `sql` | string | SQL query that was executed against Logfire |
+
+### `logfire_get_trace`
+
+Fetch every span and log belonging to a Logfire trace, ordered from earliest to latest, so a single request can be reconstructed end to end.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Logfire read token |
+| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
+| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
+| `traceId` | string | Yes | 32-character hexadecimal trace identifier |
+| `minTimestamp` | string | No | ISO 8601 lower bound on start_timestamp. Defaults to 2020-01-01T00:00:00Z when omitted. |
+| `maxTimestamp` | string | No | ISO 8601 upper bound on start_timestamp |
+| `limit` | number | No | Maximum spans to return. Logfire defaults to 100 and caps at 10000. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Spans and logs in the trace, earliest first |
+|   ↳ `startTimestamp` | string | UTC time the span started |
+|   ↳ `endTimestamp` | string | UTC time the span ended |
+|   ↳ `duration` | number | Span duration in seconds. Null for logs. |
+|   ↳ `level` | string | Severity name, such as info, warn, or error |
+|   ↳ `message` | string | Human-readable message |
+|   ↳ `spanName` | string | Template label for similar records |
+|   ↳ `kind` | string | Record kind: span, log, or span_event |
+|   ↳ `serviceName` | string | Service that emitted the record |
+|   ↳ `deploymentEnvironment` | string | Deployment environment of the record |
+|   ↳ `traceId` | string | Trace this record belongs to |
+|   ↳ `spanId` | string | Identifier of this span |
+|   ↳ `parentSpanId` | string | Parent span identifier |
+|   ↳ `isException` | boolean | Whether an exception was recorded on the span |
+|   ↳ `exceptionType` | string | Fully qualified exception class name |
+|   ↳ `exceptionMessage` | string | Exception message |
+| `rowCount` | number | Number of rows returned |
+| `sql` | string | SQL query that was executed against Logfire |
+
+### `logfire_get_token_info`
+
+Resolve which Logfire organization and project a read token belongs to. Useful for confirming a credential targets the expected project before querying it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Logfire read token |
+| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
+| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizationName` | string | Logfire organization the read token belongs to |
+| `projectName` | string | Logfire project the read token belongs to |
+
+

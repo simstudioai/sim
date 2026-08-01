@@ -24,7 +24,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -35,7 +35,11 @@ import {
   queryAuditLogs,
 } from '@/app/api/v1/audit-logs/query'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  v1ValidationErrorResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1AuditLogsAPI')
 
@@ -65,14 +69,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       request,
       {},
       {
-        validationErrorResponse: (error) =>
-          NextResponse.json(
-            {
-              error: getValidationErrorMessage(error, 'Invalid parameters'),
-              details: error.issues,
-            },
-            { status: 400 }
-          ),
+        validationErrorResponse: (error) => v1ValidationErrorResponse(error, 'Invalid parameters'),
       }
     )
     if (!parsed.success) return parsed.response

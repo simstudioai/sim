@@ -5,11 +5,13 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isTriggerModeSubBlock,
   resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
+import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type {
   BlockConfig as AppBlockConfig,
   SubBlockConfig as BlockSubBlockConfig,
@@ -17,7 +19,12 @@ import type {
 } from '@/blocks/types'
 import { isNonEmpty } from '@/tools/merge-params'
 import { safeAssign } from '@/tools/safe-assign'
-import type { OAuthConfig, ParameterVisibility, ToolConfig } from '@/tools/types'
+import type {
+  OAuthConfig,
+  ParameterVisibility,
+  ToolConfig,
+  ToolParameterItemSchema,
+} from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
@@ -107,8 +114,8 @@ type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
 interface SchemaProperty {
   type: string
-  description: string
-  items?: Record<string, any>
+  description?: string
+  items?: ToolParameterItemSchema
   properties?: Record<string, SchemaProperty>
   required?: string[]
 }
@@ -138,6 +145,14 @@ export interface UserToolSchemaOptions {
 export interface LLMToolSchemaResult {
   schema: ToolSchema
   enrichedDescription?: string
+  /**
+   * Params the model is never allowed to supply, because the tool declares them
+   * `user-only` or `hidden`. Omitting them from {@link schema} is not enough on
+   * its own — nothing stops a model from emitting an undeclared key, and the
+   * merge downstream seeds from the model's args — so the names travel with the
+   * schema for `prepareToolExecution` to strip.
+   */
+  modelBlockedParams?: string[]
 }
 
 export interface ValidationResult {
@@ -186,9 +201,18 @@ function getBlockConfigurations(): Record<string, ToolInputBlockConfig> {
 
 /**
  * Gets the correct tool ID for a block operation.
+ *
+ * Pass `blockOverride` (a fresh, overlay-aware config) for custom (deploy-as-block)
+ * blocks — the module `getBlockConfigurations()` cache can miss async-hydrated
+ * custom blocks, which would return `undefined` here and make "add tool" silently
+ * no-op.
  */
-export function getToolIdForOperation(blockType: string, operation?: string): string | undefined {
-  const block = getBlockConfigurations()[blockType]
+export function getToolIdForOperation(
+  blockType: string,
+  operation?: string,
+  blockOverride?: Pick<ToolInputBlockConfig, 'tools'>
+): string | undefined {
+  const block = blockOverride ?? getBlockConfigurations()[blockType]
   if (!block?.tools?.access) return undefined
 
   if (block.tools.access.length === 1) {
@@ -252,6 +276,20 @@ function resolveSubBlockForParam(
   return undefined
 }
 
+/** Map a custom-block field sub-block type to a tool-parameter type. */
+function customFieldParamType(subBlockType: string): string {
+  switch (subBlockType) {
+    case 'switch':
+      return 'boolean'
+    case 'file-upload':
+      return 'file[]'
+    case 'code':
+      return 'json'
+    default:
+      return 'string'
+  }
+}
+
 /**
  * Gets all parameters for a tool, categorized by their usage
  * Also includes UI component information from block configurations
@@ -259,7 +297,8 @@ function resolveSubBlockForParam(
 export function getToolParametersConfig(
   toolId: string,
   blockType?: string,
-  currentValues?: Record<string, unknown>
+  currentValues?: Record<string, unknown>,
+  blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): ToolWithParameters | null {
   try {
     const toolConfig = getTool(toolId)
@@ -272,6 +311,41 @@ export function getToolParametersConfig(
     if (!toolConfig.params || typeof toolConfig.params !== 'object') {
       logger.warn(`Tool ${toolId} has invalid params configuration`)
       return null
+    }
+
+    // Custom (deploy-as-block) blocks resolve to `workflow_executor`, but their
+    // editable inputs are their own per-field sub-blocks — not the generic
+    // workflowId/inputMapping. Surface those so the tool panel renders the block's
+    // real fields (and never the workflow-executor fields as "uncovered" params).
+    // MUST run before the `workflow_executor` branch below. Read subBlocks from the
+    // fresh, overlay-aware `blockConfigOverride` — the module `getBlockConfigurations`
+    // cache can miss async-hydrated custom blocks.
+    if (blockType && isCustomBlockType(blockType)) {
+      const blockConfig = blockConfigOverride ?? getBlockConfigurations()[blockType]
+      const fieldSubBlocks = (
+        (blockConfig?.subBlocks as BlockSubBlockConfig[] | undefined) ?? []
+      ).filter((sb) => !sb.hidden && !RESERVED_PARAMS.has(sb.id))
+      const parameters: ToolParameterConfig[] = fieldSubBlocks.map((sb) => ({
+        id: sb.id,
+        type: customFieldParamType(sb.type),
+        required: sb.required === true,
+        visibility: 'user-or-llm',
+        description: sb.description,
+        uiComponent: {
+          type: sb.type,
+          title: sb.title,
+          placeholder: sb.placeholder,
+          language: sb.language,
+          multiple: sb.multiple,
+        },
+      }))
+      return {
+        toolConfig,
+        allParameters: parameters,
+        userInputParameters: parameters,
+        requiredParameters: parameters.filter((param) => param.required),
+        optionalParameters: parameters.filter((param) => !param.required),
+      }
     }
 
     // Special handling for workflow_executor tool
@@ -564,6 +638,13 @@ export async function createLLMToolSchema(
     required: [],
   }
 
+  // Derived from the declarations rather than from which branch below skipped a
+  // param: the loop's `continue`s also skip params the user simply filled in,
+  // and those are not off-limits to the model.
+  const modelBlockedParams = Object.entries(toolConfig.params)
+    .filter(([, param]) => param.visibility === 'user-only' || param.visibility === 'hidden')
+    .map(([paramId]) => paramId)
+
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
 
@@ -632,19 +713,20 @@ export async function createLLMToolSchema(
         return {
           schema: enriched.parameters as ToolSchema,
           enrichedDescription: enriched.description,
+          modelBlockedParams,
         }
       }
     }
   }
 
-  return { schema }
+  return { schema, modelBlockedParams }
 }
 
 /**
  * Apply dynamic schema enrichment for workflow_executor's inputMapping parameter
  */
 async function applyDynamicSchemaForWorkflow(
-  propertySchema: any,
+  propertySchema: SchemaProperty,
   workflowId: string
 ): Promise<void> {
   try {
@@ -708,7 +790,7 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
   }
 
   Object.entries(toolConfig.params).forEach(([paramId, param]) => {
-    const propertySchema: any = {
+    const propertySchema: SchemaProperty = {
       type: param.type === 'json' ? 'object' : param.type,
       description: param.description || '',
     }
@@ -922,6 +1004,21 @@ export function getSubBlocksForToolInput(
       return null
     }
 
+    // Custom (deploy-as-block) blocks: render their own editable field sub-blocks
+    // as `user-or-llm` (the hidden workflowId/inputMapping wiring is filtered by
+    // RESERVED_PARAMS — `isSubBlockHidden` does NOT honor `hidden: true`, so the
+    // explicit reserved filter is what keeps them out).
+    if (blockType && isCustomBlockType(blockType)) {
+      const fieldSubBlocks = (blockConfig.subBlocks as BlockSubBlockConfig[])
+        .filter((sb) => !sb.hidden && !RESERVED_PARAMS.has(sb.id))
+        .map((sb) => ({ ...sb, paramVisibility: 'user-or-llm' as ParameterVisibility }))
+      return {
+        toolConfig,
+        subBlocks: fieldSubBlocks,
+        oauthConfig: toolConfig.oauth,
+      }
+    }
+
     const allSubBlocks = blockConfig.subBlocks as BlockSubBlockConfig[]
     const canonicalIndex = buildCanonicalIndex(allSubBlocks)
 
@@ -955,6 +1052,11 @@ export function getSubBlocksForToolInput(
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue
+
+      // A field the deployment has switched off is not offerable here either —
+      // the canvas already hides it, and offering it in tool-input lets an author
+      // pick a value the executor will refuse (e.g. Python with no sandbox provider).
+      if (!isSubBlockFeatureEnabled(sb)) continue
 
       // Determine the effective param ID (canonical or subblock id)
       const effectiveParamId = sb.canonicalParamId || sb.id

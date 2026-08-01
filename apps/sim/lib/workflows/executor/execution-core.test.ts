@@ -1,13 +1,14 @@
 import {
+  environmentUtilsMockFns,
+  resetEnvironmentUtilsMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  getPersonalAndWorkspaceEnvMock,
   mergeSubblockStateWithValuesMock,
   safeStartMock,
   safeCompleteMock,
@@ -23,7 +24,6 @@ const {
   executorConstructorMock,
   findStartBlockMock,
 } = vi.hoisted(() => ({
-  getPersonalAndWorkspaceEnvMock: vi.fn(),
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
   safeCompleteMock: vi.fn(),
@@ -40,14 +40,14 @@ const {
   findStartBlockMock: vi.fn(),
 }))
 
+const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+
+afterAll(resetEnvironmentUtilsMock)
+
 const loadWorkflowFromNormalizedTablesMock =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 const loadDeployedWorkflowStateMock = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
-
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: getPersonalAndWorkspaceEnvMock,
-}))
 
 vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,

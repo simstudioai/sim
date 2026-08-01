@@ -153,6 +153,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate,
     onVariableUpdate,
     onWorkflowDeleted,
+    onAccessRevoked,
     onWorkflowReverted,
     onWorkflowUpdated,
     onWorkflowDeployed,
@@ -527,6 +528,19 @@ export function useCollaborativeWorkflow() {
             }
           }
         }
+
+        /**
+         * Per-frame `update-position` broadcasts are not applied by this
+         * handler (positions land via BATCH_UPDATE_POSITIONS commits), so they
+         * must not count as applied remote state changes — a collaborator's
+         * drag would otherwise exhaust sync refetch attempts for nothing.
+         */
+        const isUnappliedPositionFrame =
+          target === OPERATION_TARGETS.BLOCK && operation === BLOCK_OPERATIONS.UPDATE_POSITION
+        const appliedWorkflowId = metadata?.workflowId || activeWorkflowId
+        if (!isUnappliedPositionFrame && appliedWorkflowId) {
+          useOperationQueueStore.getState().markRemoteApplied(appliedWorkflowId)
+        }
       } catch (error) {
         logger.error('Error applying remote operation:', error)
       } finally {
@@ -559,6 +573,11 @@ export function useCollaborativeWorkflow() {
         if (activeWorkflowId && blockType === 'function' && subblockId === 'code') {
           useCodeUndoRedoStore.getState().clear(activeWorkflowId, blockId, subblockId)
         }
+
+        const appliedWorkflowId = workflowId || activeWorkflowId
+        if (appliedWorkflowId) {
+          useOperationQueueStore.getState().markRemoteApplied(appliedWorkflowId)
+        }
       } catch (error) {
         logger.error('Error applying remote subblock update:', error)
       } finally {
@@ -585,12 +604,18 @@ export function useCollaborativeWorkflow() {
       isApplyingRemoteChange.current = true
 
       try {
+        const isKnownField = field === 'name' || field === 'value' || field === 'type'
         if (field === 'name') {
           useVariablesStore.getState().updateVariable(variableId, { name: value })
         } else if (field === 'value') {
           useVariablesStore.getState().updateVariable(variableId, { value })
         } else if (field === 'type') {
           useVariablesStore.getState().updateVariable(variableId, { type: value })
+        }
+
+        const appliedWorkflowId = workflowId || activeWorkflowId
+        if (isKnownField && appliedWorkflowId) {
+          useOperationQueueStore.getState().markRemoteApplied(appliedWorkflowId)
         }
       } catch (error) {
         logger.error('Error applying remote variable update:', error)
@@ -606,6 +631,22 @@ export function useCollaborativeWorkflow() {
       if (activeWorkflowId === workflowId) {
         logger.info(
           `Currently active workflow ${workflowId} was deleted, stopping collaborative operations`
+        )
+
+        const currentUserId = session?.user?.id || 'unknown'
+        useUndoRedoStore.getState().clear(workflowId, currentUserId)
+
+        isApplyingRemoteChange.current = false
+      }
+    }
+
+    const handleAccessRevoked = (data: any) => {
+      const { workflowId } = data
+      logger.warn(`Access to workflow ${workflowId} has been revoked`)
+
+      if (activeWorkflowId === workflowId) {
+        logger.info(
+          `Access to currently active workflow ${workflowId} was revoked, stopping collaborative operations`
         )
 
         const currentUserId = session?.user?.id || 'unknown'
@@ -889,6 +930,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate(handleSubblockUpdate)
     onVariableUpdate(handleVariableUpdate)
     onWorkflowDeleted(handleWorkflowDeleted)
+    onAccessRevoked(handleAccessRevoked)
     onWorkflowReverted(handleWorkflowReverted)
     onWorkflowUpdated(handleWorkflowUpdated)
     onWorkflowDeployed(handleWorkflowDeployed)
@@ -911,6 +953,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate,
     onVariableUpdate,
     onWorkflowDeleted,
+    onAccessRevoked,
     onWorkflowReverted,
     onWorkflowUpdated,
     onWorkflowDeployed,

@@ -12,8 +12,11 @@ import { generateId } from '@sim/utils/id'
 import type {
   ColumnDefinition,
   Filter,
+  PredicateNode,
   RowData,
   Sort,
+  SortSpec,
+  TablePredicate,
   TableSchema,
   WorkflowGroup,
 } from '@/lib/table/types'
@@ -172,16 +175,33 @@ export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>
 }
 
 /**
- * Remaps a stored row keyed by column **id** back to **name** keying for the
- * wire. Used at the name-translating boundaries on the way out. Ids with no
- * current column (e.g. a column deleted by a not-yet-finished background strip)
- * are dropped, so orphaned keys never surface.
+ * Translates a v2 predicate's leaf `field` names → column ids (recursing through
+ * `all`/`any` groups). Fields with no matching column pass through unchanged.
+ * The v2 analogue of {@link filterNamesToIds}.
  */
-export function rowDataIdToName(data: RowData, nameById: Map<string, string>): RowData {
-  const out: RowData = {}
-  for (const [id, value] of Object.entries(data)) {
-    const name = nameById.get(id)
-    if (name !== undefined) out[name] = value
+export function predicateNamesToIds(
+  predicate: TablePredicate,
+  idByName: ReadonlyMap<string, string>
+): TablePredicate {
+  const remap = (node: PredicateNode): PredicateNode => {
+    // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode.
+    if ('all' in node) return { all: node.all.map(remap) }
+    if ('any' in node) return { any: node.any.map(remap) }
+    return { ...node, field: idByName.get(node.field) ?? node.field }
   }
-  return out
+  return remap(predicate) as TablePredicate
 }
+
+/** Translates a v2 sort spec's field names → column ids. Unknown fields pass through. */
+export function sortSpecNamesToIds(
+  sort: SortSpec,
+  idByName: ReadonlyMap<string, string>
+): SortSpec {
+  return sort.map((s) => ({ field: idByName.get(s.field) ?? s.field, direction: s.direction }))
+}
+
+// The outbound direction (stored id-keyed row → name-keyed) deliberately does
+// NOT live here: a `select` cell's value also needs translating, and keeping the
+// key half separately callable is what let boundaries translate the keys and
+// forget the values. Use `namedRowMapper` from `@/lib/table/cell-format`, which
+// does both in one pass.

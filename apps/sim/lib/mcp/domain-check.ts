@@ -1,9 +1,8 @@
-import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
+import { resolveHostAddresses } from '@sim/security/dns'
+import { isIpLiteral, isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
-import * as ipaddr from 'ipaddr.js'
 import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/env-flags'
-import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpDomainCheck')
@@ -99,25 +98,13 @@ export function validateMcpDomain(url: string | undefined): void {
 }
 
 /**
- * Returns true if the IP is a loopback address (full 127.0.0.0/8 range, or ::1).
- */
-function isLoopbackIP(ip: string): boolean {
-  try {
-    if (!ipaddr.isValid(ip)) return false
-    return ipaddr.process(ip).range() === 'loopback'
-  } catch {
-    return false
-  }
-}
-
-/**
- * Returns true if the hostname is localhost or a loopback IP literal.
- * Expects IPv6 brackets to already be stripped.
+ * Returns true if the hostname is localhost or a loopback IP literal (full
+ * 127.0.0.0/8 range, or ::1). Expects IPv6 brackets to already be stripped.
  */
 function isLocalhostHostname(hostname: string): boolean {
   const clean = hostname.toLowerCase()
   if (clean === 'localhost') return true
-  return ipaddr.isValid(clean) && isLoopbackIP(clean)
+  return isLoopbackIp(clean)
 }
 
 /**
@@ -139,14 +126,17 @@ function isLocalhostHostname(hostname: string): boolean {
  * URLs with env var references in the hostname are skipped — they will be
  * validated after resolution at execution time.
  *
- * Returns the IP address to pin subsequent connections to (the resolved IP for
- * hostnames, or the literal itself for public IP-literal URLs) so the caller can
- * prevent DNS-rebinding TOCTOU attacks and stop redirects from escaping to
- * internal hosts. Pinning matters for IP literals too: without it the transport
- * uses the default fetch, which follows an attacker-controlled 3xx redirect to a
- * private/metadata address. Returns null only when pinning is unnecessary or
- * impossible: no URL, allowlist-only mode, env-var hostnames (validated later),
- * and localhost on self-hosted (no rebinding risk against a fixed loopback).
+ * Returns the resolved IP (or the literal itself for IP-literal URLs) as a
+ * non-null **policy signal**: the SSRF guard is active for this server. A public
+ * resolution selects the validate-at-connect guarded fetch — DNS-rebinding TOCTOU
+ * and redirect escapes are prevented by re-validating every socket connect and
+ * following redirects under per-hop validation (see `createSsrfGuardedMcpFetch` /
+ * `followRedirectsGuarded`), NOT by pinning to this address. The value is literally
+ * pinned only for the self-hosted private/loopback carve-out (a policy-permitted
+ * DNS alias the guarded lookup would otherwise filter). Returns null when the guard
+ * is unnecessary or impossible: no URL, allowlist-only mode, env-var hostnames
+ * (validated later), and localhost on self-hosted (no rebinding risk against a
+ * fixed loopback).
  *
  * @throws McpSsrfError if the URL resolves to a blocked IP address
  */
@@ -162,8 +152,7 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     throw new McpSsrfError('MCP server URL is not a valid URL')
   }
 
-  const cleanHostname =
-    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  const cleanHostname = unwrapIpv6Brackets(hostname)
 
   if (isLocalhostHostname(cleanHostname)) {
     if (isHosted) {
@@ -172,8 +161,8 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     return null
   }
 
-  if (ipaddr.isValid(cleanHostname)) {
-    if (isPrivateOrReservedIP(cleanHostname)) {
+  if (isIpLiteral(cleanHostname)) {
+    if (isPrivateIp(cleanHostname)) {
       throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
     }
     // Public IP literal: pin to this exact address so the caller's pinned fetch
@@ -183,10 +172,12 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     return cleanHostname
   }
 
+  let addresses: string[]
   let address: string
   try {
-    const lookup = await dns.lookup(cleanHostname, { verbatim: true })
-    address = lookup.address
+    const resolved = await resolveHostAddresses(cleanHostname)
+    addresses = resolved.addresses
+    address = resolved.preferred
   } catch (error) {
     logger.warn('DNS lookup failed for MCP server URL', {
       hostname,
@@ -195,20 +186,22 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     throw new McpDnsResolutionError(cleanHostname)
   }
 
-  if (isLoopbackIP(address)) {
-    if (isHosted) {
-      logger.warn('MCP server URL resolves to loopback address', {
+  for (const candidate of addresses) {
+    if (isLoopbackIp(candidate)) {
+      if (isHosted) {
+        logger.warn('MCP server URL resolves to loopback address', {
+          hostname,
+          resolvedIP: candidate,
+        })
+        throw new McpSsrfError('MCP server URL resolves to a loopback address')
+      }
+    } else if (isPrivateIp(candidate)) {
+      logger.warn('MCP server URL resolves to blocked IP address', {
         hostname,
-        resolvedIP: address,
+        resolvedIP: candidate,
       })
-      throw new McpSsrfError('MCP server URL resolves to a loopback address')
+      throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
     }
-  } else if (isPrivateOrReservedIP(address)) {
-    logger.warn('MCP server URL resolves to blocked IP address', {
-      hostname,
-      resolvedIP: address,
-    })
-    throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
   }
 
   return address

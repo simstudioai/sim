@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -21,7 +22,7 @@ import {
   SHARED_CREDENTIAL_TYPES,
 } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
-import { getWorkspaceMembership } from '@/lib/credentials/environment'
+import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   ServiceAccountSecretError,
@@ -509,10 +510,52 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resolvedProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID && clientCredentialId
         ? clientCredentialId
         : generateId()
-    const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds } =
-      await getWorkspaceMembership(workspaceId)
 
-    await db.transaction(async (tx) => {
+    const creationResult = await db.transaction(async (tx) => {
+      /**
+       * Discover the organization lock scope inside this transaction, then
+       * acquire the same organization → user → membership locks as org
+       * removal/transfer and re-authorize from the transaction before writing.
+       *
+       * If this insert wins, transfer sees the new source-owned personal
+       * credential and blocks. If transfer wins, its permission/member cleanup
+       * is visible to the authoritative re-read below and the insert is
+       * refused.
+       */
+      const plannedContext = await getCredentialCreationWorkspaceContext({
+        executor: tx,
+        workspaceId,
+        userId: session.user.id,
+      })
+      if (!plannedContext) {
+        return { success: false as const, status: 403 as const, error: 'Write permission required' }
+      }
+
+      await acquireOrganizationUserMutationLocks(tx, {
+        userId: session.user.id,
+        organizationIds: plannedContext.organizationId ? [plannedContext.organizationId] : [],
+      })
+
+      const currentContext = await getCredentialCreationWorkspaceContext({
+        executor: tx,
+        workspaceId,
+        userId: session.user.id,
+        forUpdate: true,
+      })
+      if (!currentContext) {
+        return { success: false as const, status: 403 as const, error: 'Write permission required' }
+      }
+      if (currentContext.organizationId !== plannedContext.organizationId) {
+        return {
+          success: false as const,
+          status: 409 as const,
+          error: 'Workspace organization changed while creating the credential. Please retry.',
+        }
+      }
+      if (!currentContext.canWrite) {
+        return { success: false as const, status: 403 as const, error: 'Write permission required' }
+      }
+
       // service_account has no DB-level unique index on (workspaceId, providerId,
       // displayName), so we re-check inside the tx. OAuth/env_* are guarded by
       // partial unique indexes and fall through to the 23505 handler below.
@@ -542,9 +585,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         updatedAt: now,
       })
 
-      if ((type === 'env_workspace' || type === 'service_account') && workspaceOwnerId) {
-        if (workspaceMemberUserIds.length > 0) {
-          for (const memberUserId of workspaceMemberUserIds) {
+      if ((type === 'env_workspace' || type === 'service_account') && currentContext.ownerId) {
+        if (currentContext.memberUserIds.length > 0) {
+          for (const memberUserId of currentContext.memberUserIds) {
             const isAdmin = memberUserId === session.user.id
             await tx.insert(credentialMember).values({
               id: generateId(),
@@ -572,7 +615,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           updatedAt: now,
         })
       }
+
+      return { success: true as const }
     })
+    if (!creationResult.success) {
+      return NextResponse.json({ error: creationResult.error }, { status: creationResult.status })
+    }
 
     const [created] = await db
       .select()

@@ -2,46 +2,38 @@
  * @vitest-environment node
  */
 import {
-  createEnvMock,
-  urlsMock,
+  dbChainMock,
+  dbChainMockFns,
+  resetDbChainMock,
+  resetEnvMock,
+  schemaMock,
+  setEnv,
   urlsMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockTransaction, mockCleanupExternalWebhook, mockWorkflowDeleted } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockTransaction: vi.fn(),
-    mockCleanupExternalWebhook: vi.fn(),
-    mockWorkflowDeleted: vi.fn(),
-  })
-)
+beforeAll(() => {
+  setEnv({ SOCKET_SERVER_URL: 'http://socket.test', INTERNAL_API_SECRET: 'secret' })
+})
+
+afterAll(resetEnvMock)
+
+const { mockCleanupExternalWebhook, mockWorkflowDeleted } = vi.hoisted(() => ({
+  mockCleanupExternalWebhook: vi.fn(),
+  mockWorkflowDeleted: vi.fn(),
+}))
 
 const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    transaction: mockTransaction,
-  },
-  workflow: { id: 'id' },
-  workflowDeploymentOperation: { workflowId: 'workflowId', status: 'status' },
-  workflowDeploymentVersion: { workflowId: 'workflowId', isActive: 'isActive' },
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: (...args: unknown[]) => mockCleanupExternalWebhook(...args),
 }))
-
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({ SOCKET_SERVER_URL: 'http://socket.test', INTERNAL_API_SECRET: 'secret' })
-)
-
-vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
@@ -51,29 +43,16 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 
-function createSelectChain<T>(result: T) {
-  const chain = {
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockResolvedValue(result),
-  }
-
-  return chain
-}
-
-function createUpdateChain() {
-  return {
-    set: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue([]),
-    }),
-  }
-}
-
 describe('workflow lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://socket.test')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   it('archives workflow and disables live surfaces', async () => {
@@ -93,25 +72,14 @@ describe('workflow lifecycle', () => {
         archivedAt: new Date(),
       })
 
-    mockSelect.mockReturnValue(createSelectChain([]))
-
-    const tx = {
-      update: vi.fn().mockImplementation(() => createUpdateChain()),
-      delete: vi.fn().mockImplementation(() => ({
-        where: vi.fn().mockResolvedValue([]),
-      })),
-    }
-    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
-      callback(tx)
-    )
-
     const result = await archiveWorkflow('workflow-1', { requestId: 'req-1' })
 
     expect(result.archived).toBe(true)
-    expect(tx.update).toHaveBeenCalledTimes(7)
-    const supersedeSet = tx.update.mock.results[0]?.value.set
-    expect(supersedeSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'superseded' }))
-    expect(tx.delete).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(7)
+    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ status: 'superseded' })
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
     expect(mockWorkflowDeleted).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
@@ -134,7 +102,7 @@ describe('workflow lifecycle', () => {
     const result = await archiveWorkflow('workflow-1', { requestId: 'req-1' })
 
     expect(result.archived).toBe(false)
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
   })
 })

@@ -4,11 +4,56 @@
 import { describe, expect, it } from 'vitest'
 import {
   convertToGeminiFormat,
+  convertUsageMetadata,
   ensureStructResponse,
   mapToThinkingBudget,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
 import type { ProviderRequest } from '@/providers/types'
+
+describe('convertUsageMetadata', () => {
+  it('carries the cached prompt subset through so callers can discount it', () => {
+    expect(
+      convertUsageMetadata({
+        promptTokenCount: 100_000,
+        cachedContentTokenCount: 80_000,
+        candidatesTokenCount: 1_000,
+        totalTokenCount: 101_000,
+      })
+    ).toEqual({
+      promptTokenCount: 100_000,
+      candidatesTokenCount: 1_000,
+      cachedContentTokenCount: 80_000,
+      totalTokenCount: 101_000,
+    })
+  })
+
+  it('reports no cache hit when the field is absent or the metadata is missing', () => {
+    expect(
+      convertUsageMetadata({
+        promptTokenCount: 10,
+        candidatesTokenCount: 5,
+        totalTokenCount: 15,
+      }).cachedContentTokenCount
+    ).toBe(0)
+    expect(convertUsageMetadata(undefined).cachedContentTokenCount).toBe(0)
+  })
+
+  it('keeps the cached count a subset of the tool-use-inclusive prompt total', () => {
+    const usage = convertUsageMetadata({
+      promptTokenCount: 8_000,
+      toolUsePromptTokenCount: 2_000,
+      cachedContentTokenCount: 6_000,
+      candidatesTokenCount: 100,
+      thoughtsTokenCount: 40,
+      totalTokenCount: 10_140,
+    })
+
+    expect(usage.promptTokenCount).toBe(10_000)
+    expect(usage.candidatesTokenCount).toBe(140)
+    expect(usage.cachedContentTokenCount).toBeLessThan(usage.promptTokenCount)
+  })
+})
 
 describe('mapToThinkingBudget', () => {
   it('maps named levels to a within-range budget for gemini-2.5-pro (128-32768, cannot disable)', () => {

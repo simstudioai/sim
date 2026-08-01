@@ -2,21 +2,7 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({
-  knowledgeBase: {},
-  knowledgeConnector: {},
-  mcpServers: {},
-  userTableDefinitions: {},
-  userTableRows: {},
-  workflow: {},
-  workflowFolder: {},
-  workflowSchedule: {},
-  workspaceInterface: {},
-}))
-
+import { describe, expect, it } from 'vitest'
 import { canonicalWorkflowVfsDir } from '@/lib/copilot/vfs/path-utils'
 import { buildVfsSnapshot, buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
 
@@ -313,11 +299,13 @@ describe('custom blocks', () => {
     expect(buildWorkspaceMd(baseData())).not.toContain('## Custom Blocks')
   })
 
-  it('never leaks custom blocks into the typed snapshot Go diffs (diff-safety)', () => {
+  it('carries custom blocks in the typed snapshot keyed by type (Go diffs the customBlocks kind)', () => {
     const withBlocks = buildVfsSnapshot(baseData({ customBlocks }))
+    expect(withBlocks.customBlocks).toEqual([
+      { type: 'custom_block_abc', name: 'Invoice Parser', description: 'Parses invoices' },
+    ])
     const without = buildVfsSnapshot(baseData())
-    expect('customBlocks' in withBlocks).toBe(false)
-    expect(JSON.stringify(withBlocks)).toBe(JSON.stringify(without))
+    expect(without.customBlocks).toEqual([])
   })
 })
 

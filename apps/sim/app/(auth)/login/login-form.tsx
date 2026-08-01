@@ -16,11 +16,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
-import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
+import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -107,6 +109,10 @@ export default function LoginPage({
   }
   const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
   const isInviteFlow = searchParams?.get('invite_flow') === 'true'
+  const signupHref = buildAuthCrossLink('/signup', {
+    callbackUrl: isValidCallbackUrl ? callbackUrl : null,
+    isInviteFlow,
+  })
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
@@ -338,7 +344,7 @@ export default function LoginPage({
     }
   }
 
-  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  const ssoEnabled = isSsoEnabled
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
@@ -431,11 +437,7 @@ export default function LoginPage({
         )}
 
         {emailEnabled && (
-          <AuthNavPrompt
-            prompt="Don't have an account?"
-            href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            linkLabel='Sign up'
-          />
+          <AuthNavPrompt prompt="Don't have an account?" href={signupHref} linkLabel='Sign up' />
         )}
 
         <AuthLegalFooter action='signing in' />

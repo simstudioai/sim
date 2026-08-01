@@ -1467,7 +1467,7 @@ export const MailchimpBlockMeta = {
   templates: [
     {
       icon: Mail,
-      title: 'Newsletter curator',
+      title: 'Mailchimp newsletter curator',
       prompt:
         'Create a scheduled weekly workflow that scrapes my favorite industry news sites and blogs, picks the top stories relevant to my audience, writes summaries for each, and drafts a ready-to-send newsletter in Mailchimp.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],

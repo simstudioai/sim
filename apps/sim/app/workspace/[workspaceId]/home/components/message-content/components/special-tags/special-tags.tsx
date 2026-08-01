@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useMemo, useState } from 'react'
+import { createElement, lazy, Suspense, useMemo, useState } from 'react'
 import {
   ArrowRight,
   Button,
@@ -10,56 +10,48 @@ import {
   ExpandableContent,
   SecretInput,
   SecretReveal,
+  SquareArrowUpRight,
   Tooltip,
   toast,
 } from '@sim/emcn'
+import { Cursor, TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ContextMentionIcon } from '@/components/chat/context-mention-icon'
 import type {
   ContentSegment,
   CredentialTagData,
-  CredentialTagType,
-  FileTagData,
   MothershipErrorTagData,
-  OptionsItemData,
   OptionsTagData,
-  ParsedSpecialContent,
-  QuestionItem,
-  QuestionOption,
-  QuestionTagData,
-  QuestionType,
-  RuntimeSpecialTagName,
   SecretInputScope,
-  UsageUpgradeAction,
   UsageUpgradeTagData,
   WorkspaceResourceTagData,
   WorkspaceResourceTagType,
 } from '@/components/chat/special-tags/parse'
-import {
-  CREDENTIAL_TAG_TYPES,
-  parseFileTag,
-  parseJsonTagBody,
-  parseLastQuestionTag,
-  parseQuestionTagBody,
-  parseSpecialTags,
-  parseTagAttributes,
-  parseTextTagBody,
-  QUESTION_TYPES,
-  SECRET_INPUT_SCOPES,
-  USAGE_UPGRADE_ACTIONS,
-  WORKSPACE_RESOURCE_TAG_TYPES,
-} from '@/components/chat/special-tags/parse'
+import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { getDesktopBridge } from '@/lib/desktop'
+import {
+  resolveOAuthServiceForSlug,
+  resolveServiceAccountIntegration,
+} from '@/lib/integrations/oauth-service'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
   ChatMessageContext,
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
+// Deep import, not the barrel: the barrel also re-exports
+// ConnectServiceAccountModal, and that edge would pull the modal into this
+// chunk and defeat the lazy() split below.
+import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -74,42 +66,6 @@ import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
-/** Re-exported so this stays the single import site for tag parsing + rendering. */
-export {
-  CREDENTIAL_TAG_TYPES,
-  QUESTION_TYPES,
-  SECRET_INPUT_SCOPES,
-  USAGE_UPGRADE_ACTIONS,
-  WORKSPACE_RESOURCE_TAG_TYPES,
-  parseFileTag,
-  parseJsonTagBody,
-  parseLastQuestionTag,
-  parseQuestionTagBody,
-  parseSpecialTags,
-  parseTagAttributes,
-  parseTextTagBody,
-}
-export type {
-  ContentSegment,
-  CredentialTagData,
-  CredentialTagType,
-  FileTagData,
-  MothershipErrorTagData,
-  OptionsItemData,
-  OptionsTagData,
-  ParsedSpecialContent,
-  QuestionItem,
-  QuestionOption,
-  QuestionTagData,
-  QuestionType,
-  RuntimeSpecialTagName,
-  SecretInputScope,
-  UsageUpgradeAction,
-  UsageUpgradeTagData,
-  WorkspaceResourceTagData,
-  WorkspaceResourceTagType,
-}
-
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
   /** Transcript-derived answers for this message's question card (renders the recap). */
@@ -123,6 +79,17 @@ interface SpecialTagsProps {
  * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, `<credential>`,
  * and `<workspace_resource>`.
  */
+/**
+ * Kept out of the chat's initial chunk — it pulls in three provider-specific
+ * setup forms and is only mounted once a message actually offers a service
+ * account.
+ */
+const ConnectServiceAccountModal = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal'
+  ).then((m) => ({ default: m.ConnectServiceAccountModal }))
+)
+
 export function SpecialTags({
   segment,
   questionAnswers,
@@ -155,6 +122,22 @@ export function SpecialTags({
     default:
       return null
   }
+}
+
+interface PendingTagIndicatorProps {
+  /** Activity phrase next to the loader; crossfades on change. */
+  label: string
+}
+
+/**
+ * Renders the turn-level activity shimmer.
+ */
+export function PendingTagIndicator({ label }: PendingTagIndicatorProps) {
+  return (
+    <div className='animate-stream-fade-in py-2'>
+      <ThinkingLoader size={20} startVariant='corners' label={label} labelRatio={0.7} />
+    </div>
+  )
 }
 
 interface OptionsDisplayProps {
@@ -452,6 +435,186 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
+/**
+ * Folder icon for the local-folder grant chip (matches the credential chip
+ * icon sizing).
+ */
+const FolderGrantIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <path
+      d='M1.5 4.5A1.5 1.5 0 0 1 3 3h3.2l1.6 1.8H13A1.5 1.5 0 0 1 14.5 6.3v5.2A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-7z'
+      stroke='currentColor'
+      strokeWidth='1.2'
+      strokeLinejoin='round'
+    />
+  </svg>
+)
+
+/**
+ * Inline grant chip rendered for
+ * `<credential>{"type":"folder_access","name":"Desktop"}</credential>`.
+ * Clicking opens the desktop app's native folder picker (read-only grant,
+ * same flow as the Desktop settings folder picker). Renders nothing outside the
+ * desktop app — there is no local filesystem bridge to grant against.
+ */
+function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
+  const [picking, setPicking] = useState(false)
+  const [grantedName, setGrantedName] = useState<string | null>(null)
+
+  const bridge = getDesktopBridge()
+  if (!bridge?.localFilesystem) return null
+
+  const hint = (data.name ?? '').trim()
+  const label = grantedName
+    ? `Access granted — ${grantedName}`
+    : hint
+      ? `Grant access to ${hint}`
+      : 'Grant access to a local folder'
+
+  const handleClick = async () => {
+    if (picking || grantedName) return
+    setPicking(true)
+    try {
+      const response = await bridge.localFilesystem({ operation: 'mount_directory' })
+      if (response.ok && 'mount' in response.data && response.data.mount) {
+        setGrantedName(response.data.mount.name)
+        toast.success(`Granted access to ${response.data.mount.name}`)
+      }
+    } catch {
+      toast.error("Couldn't open the folder picker. Please try again.")
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={() => void handleClick()}
+      disabled={picking || grantedName !== null}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        grantedName === null && !picking && 'hover-hover:bg-[var(--surface-5)]',
+        picking && 'opacity-60'
+      )}
+    >
+      <FolderGrantIcon className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>
+        {picking ? 'Choose a folder…' : label}
+      </span>
+      {grantedName === null && (
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
+    </button>
+  )
+}
+
+/**
+ * Inline hand-back chip rendered while `browser_request_takeover` waits on
+ * the user (`{"type":"browser_takeover","name":"Please sign in to LinkedIn"}`).
+ * Same chip as the other credential actions; clicking hands control of the
+ * agent browser back to Sim. Renders nothing outside the desktop app — there
+ * is no agent browser to hand back.
+ */
+function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isBrowserAgentAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Take over in the browser, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        sendBrowserPanelAction('takeover-done')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <Cursor className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
+/**
+ * Inline "set up a service account" control rendered for
+ * `<credential>{"type":"service_account","provider":"slack"}</credential>`.
+ *
+ * Opens `ConnectServiceAccountModal` over the chat rather than linking out to
+ * the integrations page — the user stays in the conversation that asked for
+ * the credential, and comes back to it with the credential in hand.
+ */
+function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { canEdit } = useUserPermissionsContext()
+  const [open, setOpen] = useState(false)
+
+  const match = useMemo(
+    () => (data.provider ? resolveServiceAccountIntegration(data.provider) : null),
+    [data.provider]
+  )
+  const service = useMemo(() => (match ? resolveOAuthServiceForSlug(match.slug) : null), [match])
+  const target = useServiceAccountConnectTarget({
+    serviceAccountProviderId: match?.serviceAccountProviderId,
+    serviceName: match?.serviceName,
+    serviceIcon: service?.serviceIcon,
+  })
+
+  // A credentialId reconnects (rotates the secret on) that existing service
+  // account in place rather than creating a new one — the modal keeps its id.
+  const reconnectCredentialId = data.credentialId
+  const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
+
+  // Creating a credential mutates the workspace — hide it from read-only
+  // members, and honour the provider's own preview gate (custom Slack bots
+  // ride the slack_v2 flag) so chat can't surface what the integrations page
+  // deliberately hides.
+  if (!target || target.hidden || !canEdit || !workspaceId) return null
+
+  const label = reconnectCredentialId
+    ? `Reconnect ${reconnectCredential?.displayName ?? target.serviceName}`
+    : `${target.label} for ${target.serviceName}`
+
+  return (
+    <>
+      <button
+        type='button'
+        onClick={() => setOpen(true)}
+        className='flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors hover-hover:bg-[var(--surface-5)]'
+      >
+        {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      </button>
+      {open && (
+        <Suspense fallback={null}>
+          <ConnectServiceAccountModal
+            open={open}
+            onOpenChange={setOpen}
+            workspaceId={workspaceId}
+            serviceAccountProviderId={target.serviceAccountProviderId}
+            serviceName={target.serviceName}
+            serviceIcon={target.serviceIcon}
+            credentialId={reconnectCredentialId}
+            credentialDisplayName={reconnectCredential?.displayName ?? undefined}
+          />
+        </Suspense>
+      )}
+    </>
+  )
+}
+
 function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const { canEdit } = useUserPermissionsContext()
 
@@ -480,11 +643,35 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
     : `Connect ${integrationName}`
+
+  /**
+   * Desktop app: OAuth cannot run in an embedded window — not in the app
+   * window (better-auth binds the flow's state to the initiating browser's
+   * cookies) and not in the Sim browser panel (its partition isn't signed in
+   * to Sim, and Google/Microsoft reject embedded user agents outright). So
+   * the chip hands the whole flow to the system browser via the connect
+   * handoff, carrying the workspace/credential scope from the authorize URL;
+   * completion returns through the app's loopback and refreshes credentials.
+   */
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const bridge = getDesktopBridge()
+    if (!bridge?.beginOAuthConnect || !data.value) return
+    event.preventDefault()
+    const url = new URL(data.value)
+    const providerId = url.searchParams.get('providerId') ?? data.provider
+    if (!providerId) return
+    void bridge.beginOAuthConnect(providerId, {
+      workspaceId: url.searchParams.get('workspaceId') ?? undefined,
+      credentialId: url.searchParams.get('credentialId') ?? undefined,
+    })
+  }
+
   return (
     <a
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
+      onClick={handleClick}
       className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'size-[16px] shrink-0' })}
@@ -494,13 +681,68 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialDisplay({ data }: { data: CredentialTagData }) {
+/**
+ * Inline hand-back chip rendered while a terminal handoff waits on the user —
+ * a command sitting on a prompt only they can answer. Without it the tool row
+ * just spins: the command is blocked in a panel the user may not even be
+ * looking at, with nothing saying it wants them. Clicking tells the waiting
+ * handoff they are done; the terminal id rides in `value` so the click reaches
+ * the right shell. Renders nothing outside the desktop app.
+ */
+function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+  const [handedBack, setHandedBack] = useState(false)
+
+  if (!isTerminalAvailable()) return null
+
+  const reason = (data.name ?? '').trim()
+  const label = handedBack
+    ? 'Handed control back to Sim'
+    : reason || 'Finish in the terminal, then hand control back'
+
+  return (
+    <button
+      type='button'
+      onClick={() => {
+        if (handedBack) return
+        setHandedBack(true)
+        finishTerminalHandoff(data.value ?? '')
+      }}
+      disabled={handedBack}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
+      )}
+    >
+      <TerminalWindow className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+    </button>
+  )
+}
+
+export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
   }
 
+  if (data.type === 'folder_access') {
+    return <FolderAccessDisplay data={data} />
+  }
+
+  if (data.type === 'browser_takeover') {
+    return <BrowserTakeoverDisplay data={data} />
+  }
+
+  if (data.type === 'terminal_handoff') {
+    return <TerminalHandoffDisplay data={data} />
+  }
+
   if (data.type === 'link') {
     return <CredentialLinkDisplay data={data} />
+  }
+
+  if (data.type === 'service_account') {
+    return <ServiceAccountConnectDisplay data={data} />
   }
 
   if (data.type === 'sim_key') {
@@ -523,9 +765,16 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { getSettingsHref } = useSettingsNavigation()
-  const settingsPath = getSettingsHref({ section: 'billing' })
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
-  const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
+
+  // Self-hosted plan and limit both live on the hosted account, so local
+  // workspace billing roles say nothing about who may change them.
+  const href = isHosted
+    ? getSettingsHref({ section: 'billing' })
+    : data.action === 'upgrade_plan'
+      ? buildHostedUpgradeUrl()
+      : HOSTED_BILLING_SETTINGS_URL
+  const canManageBilling = !isHosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
   const unavailableMessage = hostContext.hostOrganizationId
     ? 'Contact an organization admin to manage this workspace’s usage limits.'
     : 'Only the workspace owner can manage this workspace’s usage limits.'
@@ -557,11 +806,14 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       </p>
       {canManageBilling ? (
         <a
-          href={settingsPath}
+          href={href}
+          target={isHosted ? undefined : '_blank'}
+          rel={isHosted ? undefined : 'noopener noreferrer'}
+          aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
           className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
-          <ArrowRight className='size-3' />
+          {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
         <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>

@@ -1,28 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockValidateEnterpriseAuditAccess,
   mockBuildOrgScopeCondition,
   mockGetOrgWorkspaceIds,
   mockQueryAuditLogs,
   mockBuildFilterConditions,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockValidateEnterpriseAuditAccess: vi.fn(),
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
   mockQueryAuditLogs: vi.fn(),
   mockBuildFilterConditions: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({
@@ -37,6 +30,8 @@ vi.mock('@/app/api/v1/audit-logs/query', () => ({
 }))
 
 import { GET } from '@/app/api/audit-logs/export/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['admin-1']

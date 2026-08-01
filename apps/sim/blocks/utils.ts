@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { SimAutoIcon } from '@/components/icons'
 import {
   isAzureConfigured,
   isCohereConfigured,
@@ -11,11 +12,14 @@ import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/block
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
+  isAutoModel,
   orderModelIdsByReleaseDate,
+  SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
-import { isPiSupportedProvider } from '@/providers/pi-providers'
+import { isPiSupportedModel } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -74,23 +78,32 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels.map((model) => {
-    const icon = getProviderIcon(model)
-    return { label: model, id: model, ...(icon && { icon }) }
-  })
+  const options = allModels
+    .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
+    .map((model) => {
+      const icon = getProviderIcon(model)
+      return { label: model, id: model, ...(icon && { icon }) }
+    })
+
+  // Hosted-only automatic model. Deliberately LAST in the list (limited
+  // visibility for the initial release): available to anyone who scrolls or
+  // searches for it, but never the first thing the dropdown offers.
+  if (isHosted) {
+    options.push({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
+  }
+
+  return options
 }
 
 /**
- * Model options filtered to providers the Pi Coding Agent can run (see
- * {@link isPiSupportedProvider}), so the Pi block never offers a model that would
- * error at execution. Uses the same `getProviderFromModel` resolution as the Pi
- * handler, so the dropdown matches runtime behavior; unresolved/blacklisted
- * models (which `getProviderFromModel` can throw on) are excluded.
+ * Model options filtered to exact provider/model pairs in Pi's pinned catalog.
+ * Unresolved or blacklisted models (which `getProviderFromModel` can throw on)
+ * are excluded.
  */
 export function getPiModelOptions() {
   return getModelOptions().filter((option) => {
     try {
-      return isPiSupportedProvider(getProviderFromModel(option.id))
+      return isPiSupportedModel(getProviderFromModel(option.id), option.id)
     } catch {
       return false
     }
@@ -181,6 +194,11 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
 function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
+
+  // On hosted Sim the auto pseudo-model resolves server-side to a hosted pool
+  // model. On self-hosted it exists only via imported workflows and always
+  // falls back to the default Anthropic model, so the key field must show.
+  if (isAutoModel(normalizedModel)) return !isHosted
 
   if (isHosted) {
     const hostedModels = getHostedModels()

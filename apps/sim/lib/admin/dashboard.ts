@@ -12,19 +12,7 @@ import {
 } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import {
-  and,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNull,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm'
+import { and, count, countDistinct, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
@@ -64,6 +52,7 @@ import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transac
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
+import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
   search: string
@@ -154,10 +143,9 @@ interface DashboardOrganizationSummaryInput {
 }
 
 export function toDashboardProvisioning(view: EnterpriseProvisioningView) {
-  const { includedMonthlyCredits, usageLimitCredits, ...rest } = view
+  const { usageLimitCredits, ...rest } = view
   return {
     ...rest,
-    includedMonthlyDollars: creditsToDollars(includedMonthlyCredits),
     usageLimitDollars: creditsToDollars(usageLimitCredits),
   }
 }
@@ -172,11 +160,7 @@ function buildDashboardOrganizationSummary({
 }: DashboardOrganizationSummaryInput) {
   const metadata = metadataRecord(latestSubscription?.metadata)
   const teamEconomics = getTeamOrganizationEconomics(latestSubscription?.plan, memberCount)
-  const includedMonthlyDollars =
-    teamEconomics?.includedMonthlyDollars ??
-    creditsToDollars(
-      Math.max(0, Math.round(metadataNumber(metadata, 'includedMonthlyCredits') ?? 0))
-    )
+  const planAllowanceDollars = teamEconomics?.planAllowanceDollars ?? null
   const invoiceAmountCents = metadataNumber(metadata, 'invoiceAmountCents')
   const monthlyPrice = metadataNumber(metadata, 'monthlyPrice')
   const effectiveUsageLimitDollars = Number(org.orgUsageLimit ?? 0)
@@ -212,7 +196,7 @@ function buildDashboardOrganizationSummary({
     externalCollaboratorCount,
     seats,
     concurrencyLimit,
-    includedMonthlyDollars,
+    planAllowanceDollars,
     usageLimitDollars,
     effectiveUsageLimitDollars,
     prepaidBalanceDollars: Number(org.creditBalance ?? 0),
@@ -224,6 +208,27 @@ function buildDashboardOrganizationSummary({
         : (teamEconomics?.monthlyInvoiceAmountUsd ?? null),
     provisioning: provisioning ? toDashboardProvisioning(provisioning) : null,
     subscription: latestSubscription,
+  }
+}
+
+export function toDashboardConfigurationUpdate(
+  intent: Awaited<ReturnType<typeof resolveEnterpriseMetadataIntent>> | null
+) {
+  const update = intent?.configurationUpdate
+  if (!update) return null
+  const metadata = update.requestedMetadata
+  const usageLimitCredits = metadataNumber(metadata, 'usageLimitCredits')
+  const seats = metadataNumber(metadata, 'seats')
+  const concurrencyLimit = metadataNumber(metadata, 'concurrencyLimit')
+
+  return {
+    id: update.id,
+    status: update.status,
+    requestedUsageLimitDollars:
+      usageLimitCredits === null ? null : creditsToDollars(usageLimitCredits),
+    requestedSeats: seats === null ? null : Math.round(seats),
+    requestedConcurrencyLimit: concurrencyLimit === null ? null : Math.round(concurrencyLimit),
+    error: update.error,
   }
 }
 
@@ -301,7 +306,7 @@ async function getDashboardOrganizationSummary(organizationId: string) {
           member,
           and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
         )
-        .where(and(isNull(member.id), isNull(workspace.archivedAt))),
+        .where(isNull(member.id)),
       getLatestSubscription(organizationId),
       getLatestEnterpriseProvisionings([organizationId]),
     ])
@@ -382,13 +387,7 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
           eq(member.organizationId, workspace.organizationId)
         )
       )
-      .where(
-        and(
-          inArray(workspace.organizationId, organizationIds),
-          isNull(member.id),
-          isNull(workspace.archivedAt)
-        )
-      )
+      .where(and(inArray(workspace.organizationId, organizationIds), isNull(member.id)))
       .groupBy(workspace.organizationId),
     db
       .selectDistinctOn([subscription.referenceId])
@@ -444,60 +443,65 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
 export async function getDashboardOrganization(organizationId: string) {
   const summary = await getDashboardOrganizationSummary(organizationId)
   if (!summary) return null
-  const [memberRows, externalRows, workspaceRows, limitRows] = await Promise.all([
-    db
-      .select({
-        id: member.id,
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        role: member.role,
-      })
-      .from(member)
-      .innerJoin(user, eq(user.id, member.userId))
-      .where(eq(member.organizationId, organizationId))
-      .orderBy(user.name),
-    db
-      .select({
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        workspaceCount: countDistinct(workspace.id),
-      })
-      .from(permissions)
-      .innerJoin(user, eq(user.id, permissions.userId))
-      .innerJoin(
-        workspace,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspace.id),
-          eq(workspace.organizationId, organizationId)
-        )
-      )
-      .leftJoin(
-        member,
-        and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
-      )
-      .where(and(isNull(member.id), isNull(workspace.archivedAt)))
-      .groupBy(user.id, user.name, user.email)
-      .orderBy(user.name),
-    db
-      .select({ id: workspace.id, name: workspace.name })
-      .from(workspace)
-      .where(eq(workspace.organizationId, organizationId))
-      .orderBy(workspace.name),
-    db
-      .select({
-        userId: organizationMemberUsageLimit.userId,
-        limit: organizationMemberUsageLimit.usageLimit,
-      })
-      .from(organizationMemberUsageLimit)
-      .where(eq(organizationMemberUsageLimit.organizationId, organizationId)),
-  ])
-  const limits = new Map(limitRows.map((row) => [row.userId, Number(row.limit)]))
   const { subscription: subscriptionRow, ...base } = summary
+  const [memberRows, externalRows, workspaceRows, limitRows, configurationIntent] =
+    await Promise.all([
+      db
+        .select({
+          id: member.id,
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          role: member.role,
+        })
+        .from(member)
+        .innerJoin(user, eq(user.id, member.userId))
+        .where(eq(member.organizationId, organizationId))
+        .orderBy(user.name),
+      db
+        .select({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          workspaceCount: countDistinct(workspace.id),
+        })
+        .from(permissions)
+        .innerJoin(user, eq(user.id, permissions.userId))
+        .innerJoin(
+          workspace,
+          and(
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workspace.id),
+            eq(workspace.organizationId, organizationId)
+          )
+        )
+        .leftJoin(
+          member,
+          and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
+        )
+        .where(isNull(member.id))
+        .groupBy(user.id, user.name, user.email)
+        .orderBy(user.name),
+      db
+        .select({ id: workspace.id, name: workspace.name })
+        .from(workspace)
+        .where(eq(workspace.organizationId, organizationId))
+        .orderBy(workspace.name),
+      db
+        .select({
+          userId: organizationMemberUsageLimit.userId,
+          limit: organizationMemberUsageLimit.usageLimit,
+        })
+        .from(organizationMemberUsageLimit)
+        .where(eq(organizationMemberUsageLimit.organizationId, organizationId)),
+      subscriptionRow?.plan === 'enterprise'
+        ? resolveEnterpriseMetadataIntent(db, subscriptionRow.id, subscriptionRow.metadata)
+        : Promise.resolve(null),
+    ])
+  const limits = new Map(limitRows.map((row) => [row.userId, Number(row.limit)]))
   return {
     ...base,
+    configurationUpdate: toDashboardConfigurationUpdate(configurationIntent),
     members: memberRows.map((row) => ({
       ...row,
       usageLimitDollars: limits.get(row.userId) ?? null,
@@ -570,7 +574,6 @@ export async function updateDashboardEnterpriseSeats(
 export async function updateDashboardOrganizationLimits(
   organizationId: string,
   values: {
-    includedMonthlyDollars?: number
     usageLimitDollars?: number
     concurrencyLimit?: number | null
   },
@@ -597,9 +600,6 @@ export async function updateDashboardOrganizationLimits(
       .for('update')
       .limit(1)
     const metadata = metadataRecord(subscriptionRow?.metadata)
-    if (values.includedMonthlyDollars !== undefined && subscriptionRow?.plan !== 'enterprise') {
-      throw new Error('Included allowance is editable only for Enterprise organizations')
-    }
     if (values.concurrencyLimit !== undefined && subscriptionRow?.plan !== 'enterprise') {
       throw new Error('Concurrency is editable only for Enterprise organizations')
     }
@@ -612,10 +612,6 @@ export async function updateDashboardOrganizationLimits(
         subscriptionId: subscriptionRow.id,
         appliedMetadata: subscriptionRow.metadata,
         buildDesiredMetadata: (current) => {
-          const included =
-            values.includedMonthlyDollars === undefined
-              ? Math.round(metadataNumber(current, 'includedMonthlyCredits') ?? 0)
-              : dollarsToCredits(values.includedMonthlyDollars)
           const configuredUsageLimit =
             values.usageLimitDollars === undefined
               ? Math.round(
@@ -625,7 +621,6 @@ export async function updateDashboardOrganizationLimits(
               : dollarsToCredits(values.usageLimitDollars)
           return {
             ...current,
-            includedMonthlyCredits: included,
             usageLimitCredits: configuredUsageLimit,
             ...(values.concurrencyLimit !== undefined
               ? { concurrencyLimit: values.concurrencyLimit }
@@ -644,18 +639,14 @@ export async function updateDashboardOrganizationLimits(
       subscriptionRow?.plan,
       memberCountRow?.value ?? 0
     )
-    const included =
-      values.includedMonthlyDollars ??
-      (teamEconomics
-        ? teamEconomics.includedMonthlyDollars
-        : creditsToDollars(Math.round(metadataNumber(metadata, 'includedMonthlyCredits') ?? 0)))
+    const planAllowance = teamEconomics?.planAllowanceDollars ?? 0
     const prepaid = Number(org.creditBalance)
     const configuredUsageLimit =
       values.usageLimitDollars ??
       (metadataNumber(metadata, 'usageLimitCredits') === null
         ? Number(org.orgUsageLimit ?? 0)
         : creditsToDollars(metadataNumber(metadata, 'usageLimitCredits') ?? 0))
-    const effective = Math.max(configuredUsageLimit, included + prepaid)
+    const effective = Math.max(configuredUsageLimit, planAllowance + prepaid)
     await tx
       .update(organization)
       .set({ orgUsageLimit: effective.toString(), updatedAt: new Date() })
@@ -666,9 +657,6 @@ export async function updateDashboardOrganizationLimits(
         .set({
           metadata: {
             ...metadata,
-            ...(subscriptionRow.plan === 'enterprise'
-              ? { includedMonthlyCredits: dollarsToCredits(included) }
-              : {}),
             usageLimitCredits: dollarsToCredits(configuredUsageLimit),
           },
         })
@@ -731,16 +719,7 @@ export async function grantDashboardOrganizationBalance(
           subscriptionRow?.plan,
           memberCountRow?.value ?? 0
         )
-        const includedDollars = teamEconomics
-          ? teamEconomics.includedMonthlyDollars
-          : creditsToDollars(
-              Math.round(
-                metadataNumber(
-                  metadataRecord(subscriptionRow?.metadata),
-                  'includedMonthlyCredits'
-                ) ?? 0
-              )
-            )
+        const planAllowanceDollars = teamEconomics?.planAllowanceDollars ?? 0
         const subscriptionMetadata = metadataRecord(subscriptionRow?.metadata)
         const configuredUsageLimitCredits = metadataNumber(
           subscriptionMetadata,
@@ -753,7 +732,7 @@ export async function grantDashboardOrganizationBalance(
         const grantDollarDelta = toDecimal(amountDollars).toString()
         const usageLimitFallback = getOrganizationUsageLimitFallbackDollars({
           creditBalanceDollarsBeforeGrant: org.creditBalance,
-          includedDollars,
+          planAllowanceDollars,
           configuredUsageLimitDollars,
         })
         const [updated] = await tx
@@ -941,15 +920,9 @@ export async function getDashboardMemberTransferPreflight(
       .where(eq(user.id, userId))
       .limit(1),
     db
-      .select({ id: workspace.id, name: workspace.name })
+      .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
       .from(workspace)
-      .where(
-        and(
-          eq(workspace.ownerId, userId),
-          isNull(workspace.archivedAt),
-          ne(workspace.workspaceMode, 'organization')
-        )
-      )
+      .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
       .orderBy(workspace.name, workspace.id),
   ])
   if (!destination) throw new Error('Destination organization not found')
@@ -973,7 +946,11 @@ export async function getDashboardMemberTransferPreflight(
       target.organizationId && target.organizationName
         ? { id: target.organizationId, name: target.organizationName, role: target.role }
         : null,
-    personalWorkspaces,
+    personalWorkspaces: personalWorkspaces.map((row) => ({
+      id: row.id,
+      name: row.name,
+      archived: row.archivedAt !== null,
+    })),
     credentialDependencies,
     canAdd: reason === null,
     reason,
@@ -997,10 +974,8 @@ export async function addDashboardOrganizationMember(
       .from(workspace)
       .where(
         and(
-          inArray(workspace.id, selectedWorkspaceIds),
-          eq(workspace.ownerId, values.userId),
-          isNull(workspace.archivedAt),
-          ne(workspace.workspaceMode, 'organization')
+          ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }),
+          inArray(workspace.id, selectedWorkspaceIds)
         )
       )
     if (selectable.length !== selectedWorkspaceIds.length) {
@@ -1102,6 +1077,7 @@ export async function addDashboardOrganizationMember(
         workspaceId,
         destinationOrganizationId: organizationId,
         adminEmail: actor.email ?? 'admin-api',
+        expectedOwnerId: values.userId,
       })
       workspaceMoves.push({ workspaceId, success: true })
     } catch (error) {

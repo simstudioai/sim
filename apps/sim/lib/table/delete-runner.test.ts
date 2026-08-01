@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 
 const {
   mockGetTableById,
@@ -11,7 +12,9 @@ const {
   mockUpdateJobProgress,
   mockMarkJobReady,
   mockMarkJobFailed,
+  mockMarkJobCanceled,
   mockAppendTableEvent,
+  mockSignalTableRowsChanged,
   mockBuildFilterClause,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
@@ -21,7 +24,9 @@ const {
   mockUpdateJobProgress: vi.fn(),
   mockMarkJobReady: vi.fn(),
   mockMarkJobFailed: vi.fn(),
+  mockMarkJobCanceled: vi.fn(),
   mockAppendTableEvent: vi.fn(),
+  mockSignalTableRowsChanged: vi.fn(),
   mockBuildFilterClause: vi.fn(),
 }))
 
@@ -33,12 +38,16 @@ vi.mock('@/lib/table/jobs/service', () => ({
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
   markJobFailed: mockMarkJobFailed,
+  markJobCanceled: mockMarkJobCanceled,
 }))
 vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowIdPage: mockSelectRowIdPage,
   deletePageByIds: mockDeletePageByIds,
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
+vi.mock('@/lib/table/events', () => ({
+  appendTableEvent: mockAppendTableEvent,
+  signalTableRowsChanged: mockSignalTableRowsChanged,
+}))
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
 vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { DELETE_PAGE_SIZE: 2 },
@@ -47,7 +56,13 @@ vi.mock('@/lib/table/constants', () => ({
 
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 
-const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] } }
+const UNLOCKED = {
+  schemaLocked: false,
+  insertLocked: false,
+  updateLocked: false,
+  deleteLocked: false,
+}
+const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] }, locks: UNLOCKED }
 const cutoff = new Date('2026-06-05T00:00:00Z')
 
 function basePayload(overrides = {}) {
@@ -66,6 +81,61 @@ describe('runTableDelete', () => {
     mockBuildFilterClause.mockReturnValue({})
   })
 
+  it('cancels without deleting when the table was delete-locked before the run started', async () => {
+    // The lock is asserted at enqueue, but a queued or retried job can start
+    // after an admin locks the table — nothing is written yet, so honor it.
+    mockGetTableById.mockResolvedValue({ ...table, locks: { ...UNLOCKED, deleteLocked: true } })
+    mockSelectRowIdPage.mockResolvedValue(['a', 'b'])
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockDeletePageByIds).not.toHaveBeenCalled()
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'job', type: 'delete', status: 'canceled' })
+    )
+    // Nothing was deleted, so the grid must NOT be needlessly refetched.
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('stops mid-run when the delete lock is enabled between pages', async () => {
+    mockGetTableById
+      .mockResolvedValueOnce(table)
+      .mockResolvedValueOnce(table)
+      .mockResolvedValue({ ...table, locks: { ...UNLOCKED, deleteLocked: true } })
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b'])
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    // First page committed before the lock landed; the second never runs.
+    expect(mockDeletePageByIds).toHaveBeenCalledTimes(1)
+    expect(mockDeletePageByIds).toHaveBeenCalledWith(
+      'tbl_1',
+      'ws_1',
+      ['a', 'b'],
+      expect.anything(),
+      expect.any(Function)
+    )
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    // Even though the run was cancelled before completion, the first page WAS deleted — the `finally`
+    // must still refetch the grid so open editors don't keep showing those deleted rows.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
+  })
+
+  it('signals a grid refetch when a page throws a mid-page lock after committing rows', async () => {
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b'])
+    // `deletePageByIds` commits in internal batches, so a lock landing mid-page can persist earlier
+    // batches and THEN throw — it returns no count. The grid must still be refetched.
+    mockDeletePageByIds.mockRejectedValueOnce(new TableLockedError('delete'))
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
+  })
+
   it('deletes every matching page then marks the job ready', async () => {
     mockSelectRowIdPage
       .mockResolvedValueOnce(['a', 'b'])
@@ -74,12 +144,29 @@ describe('runTableDelete', () => {
 
     await runTableDelete(basePayload({ filter: { status: 'old' } }))
 
-    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(1, 'tbl_1', 'ws_1', ['a', 'b'])
-    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(2, 'tbl_1', 'ws_1', ['c'])
+    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(
+      1,
+      'tbl_1',
+      'ws_1',
+      ['a', 'b'],
+      expect.anything(),
+      expect.any(Function)
+    )
+    expect(mockDeletePageByIds).toHaveBeenNthCalledWith(
+      2,
+      'tbl_1',
+      'ws_1',
+      ['c'],
+      expect.anything(),
+      expect.any(Function)
+    )
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'ready', progress: 3 })
     )
+    // The live grid must be told rows changed so deleted rows drop out of every open editor —
+    // the `job` progress event only drives the delete meter, not the rows query.
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
   })
 
   it('stops once maxRows is reached and caps the final page fetch to the remaining budget', async () => {
@@ -104,7 +191,13 @@ describe('runTableDelete', () => {
     await runTableDelete(basePayload({ excludeRowIds: ['keep'] }))
 
     expect(mockDeletePageByIds).toHaveBeenCalledTimes(1)
-    expect(mockDeletePageByIds).toHaveBeenCalledWith('tbl_1', 'ws_1', ['x'])
+    expect(mockDeletePageByIds).toHaveBeenCalledWith(
+      'tbl_1',
+      'ws_1',
+      ['x'],
+      expect.anything(),
+      expect.any(Function)
+    )
     // Second page is queried after the last id of the first page (cursor advanced past 'keep').
     expect(mockSelectRowIdPage).toHaveBeenNthCalledWith(
       2,

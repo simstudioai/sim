@@ -41,7 +41,7 @@ spec:
   {{- end }}
 {{- end }}
 
-{{- if and .Values.autoscaling.enabled .Values.realtime.enabled }}
+{{- if and .Values.autoscaling.enabled .Values.realtime.enabled .Values.autoscaling.realtime.enabled }}
 ---
 # HorizontalPodAutoscaler for realtime service
 apiVersion: autoscaling/v2

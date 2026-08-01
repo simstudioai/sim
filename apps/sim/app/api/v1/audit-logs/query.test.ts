@@ -5,11 +5,8 @@
  * mock returns structured operator objects, so these tests assert directly on
  * the predicate tree.
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
-
 import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
 
 const ORG_ID = 'org-1'

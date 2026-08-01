@@ -40,7 +40,9 @@
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@sim/db": "workspace:*",
@@ -53,6 +55,7 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.2.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
   }
 }

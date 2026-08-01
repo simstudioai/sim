@@ -22,6 +22,26 @@ interface WebflowItem {
   lastPublished?: string
   lastUpdated?: string
   createdOn?: string
+  isArchived?: boolean
+  isDraft?: boolean
+}
+
+/**
+ * Keeps only CMS items that are still current in Webflow. The staged
+ * `GET /collections/{id}/items` endpoint returns every item regardless of
+ * state — it exposes `isArchived`/`isDraft` on each item but offers no query
+ * parameter to filter by them — and archiving only unpublishes an item from the
+ * live site while keeping it in the CMS. Without this guard archived items stay
+ * in every full-sync listing forever and are never purged by deletion
+ * reconciliation (which removes only stored documents absent from the listing).
+ *
+ * Only an explicit `isArchived === true` excludes an item: a missing or
+ * malformed flag keeps the item, since wrongly excluding a live item would
+ * hard-delete it from the knowledge base. Drafts are intentionally kept — a
+ * draft is unpublished, not removed, and it still exists in the CMS.
+ */
+export function isCurrentItem(item: { isArchived?: boolean }): boolean {
+  return item.isArchived !== true
 }
 
 interface WebflowPagination {
@@ -151,7 +171,13 @@ export const webflowConnector: ConnectorConfig = {
       pagination: WebflowPagination
     }
 
-    const items = data.items || []
+    /**
+     * Archived items are filtered out before mapping so they leave the listing
+     * and get purged by deletion reconciliation. Pagination stays driven by the
+     * raw `pagination.limit`/`pagination.total` from the API, never by the
+     * filtered count, so cursor math is unaffected.
+     */
+    const items = (data.items || []).filter(isCurrentItem)
     const pageDocuments: ExternalDocument[] = items.map((item) =>
       itemToDocument(item, currentCollectionId, collectionName)
     )
@@ -243,6 +269,12 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     const item = (await response.json()) as WebflowItem
+
+    /**
+     * Mirrors the listing filter: an archived item must not be resurrected by an
+     * incremental refresh after reconciliation removed it.
+     */
+    if (!isCurrentItem(item)) return null
 
     const collectionName = await fetchCollectionNameDirect(accessToken, docCollectionId)
     return itemToDocument(item, docCollectionId, collectionName)

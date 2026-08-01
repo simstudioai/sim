@@ -1,17 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFeatureFlags, mockGetOrganizationSubscription, mockHasInflightOutboxEvent } =
-  vi.hoisted(() => ({
-    mockFeatureFlags: { isBillingEnabled: false },
-    mockGetOrganizationSubscription: vi.fn(),
-    mockHasInflightOutboxEvent: vi.fn(),
-  }))
-
-vi.mock('@sim/db', () => dbChainMock)
+const { mockGetOrganizationSubscription, mockHasInflightOutboxEvent } = vi.hoisted(() => ({
+  mockGetOrganizationSubscription: vi.fn(),
+  mockHasInflightOutboxEvent: vi.fn(),
+}))
 
 vi.mock('@/lib/core/outbox/service', () => ({
   hasInflightOutboxEvent: mockHasInflightOutboxEvent,
@@ -37,17 +33,12 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   getEffectiveSeats: vi.fn().mockReturnValue(10),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isBillingEnabled() {
-    return mockFeatureFlags.isBillingEnabled
-  },
-}))
-
 vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: vi.fn((email: string) => ({ isValid: email.includes('@') })),
 }))
 
 import {
+  countPendingSeatInvitations,
   getOrganizationSeatInfo,
   syncSeatsFromStripeQuantity,
   validateSeatAvailability,
@@ -73,11 +64,13 @@ function queueSelectResponses(responses: unknown[][]) {
   })
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('getOrganizationSeatInfo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFeatureFlags.isBillingEnabled = false
+    setEnvFlags({ isBillingEnabled: false })
     mockGetOrganizationSubscription.mockResolvedValue(null)
   })
 
@@ -103,7 +96,7 @@ describe('validateSeatAvailability', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockFeatureFlags.isBillingEnabled = true
+    setEnvFlags({ isBillingEnabled: true })
     mockGetOrganizationSubscription.mockResolvedValue({
       id: 'sub-1',
       plan: 'team',
@@ -123,6 +116,32 @@ describe('validateSeatAvailability', () => {
       maxSeats: 10,
       availableSeats: 7,
     })
+  })
+})
+
+describe('countPendingSeatInvitations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('excludes invitees who already belong to any organization by normalized email', async () => {
+    queueSelectResponses([[{ count: 1 }]])
+
+    await expect(countPendingSeatInvitations('org-1')).resolves.toBe(1)
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      conditions?: Array<{ toSQL?: () => { sql: string; params: unknown[] } }>
+    }
+    const existingMemberGuard = predicate.conditions?.find(
+      (condition) => typeof condition?.toSQL === 'function'
+    )
+    const rendered = existingMemberGuard?.toSQL?.()
+    expect(rendered?.sql.toLowerCase()).toContain('not exists')
+    expect(rendered?.sql.toLowerCase()).toContain('btrim')
+    // The member exclusion is deliberately cross-org, so its own SQL fragment
+    // must not carry the destination organization as a parameter.
+    expect(rendered?.params?.filter((param) => param === 'org-1')).toHaveLength(0)
   })
 })
 

@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react'
-import { blockTypeToIconMap, INTEGRATIONS } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { blockTypeToIconMap, INTEGRATIONS, resolveCredentialDisplay } from '@/lib/integrations'
 import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
@@ -10,12 +9,6 @@ import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 
 /** Fallback brand color for credentials whose integration metadata cannot be resolved. */
 const FALLBACK_BG_COLOR = '#6B7280'
-
-/**
- * Module-level lookup of integration metadata by OAuth service display name
- * (case-insensitive). Mirrors the same map in `integrations.tsx`.
- */
-const INTEGRATION_BY_LOWER_NAME = new Map(INTEGRATIONS.map((i) => [i.name.toLowerCase(), i]))
 
 /**
  * Module-level base array of resolvable integrations (entries without a
@@ -76,19 +69,16 @@ export function buildConnectedAccountSearchItems(
 ): IntegrationSearchItem[] {
   return credentials.flatMap((credential) => {
     if (credential.type !== 'oauth' && credential.type !== 'service_account') return []
-    if (!credential.providerId) return []
 
-    const service = getServiceConfigByProviderId(credential.providerId)
-    if (!service) return []
-
-    const integration = INTEGRATION_BY_LOWER_NAME.get(service.name.toLowerCase())
+    const display = resolveCredentialDisplay(credential)
+    if (!display.service || !display.icon) return []
 
     return [
       {
         id: credential.id,
         name: credential.displayName,
-        icon: service.icon as ComponentType<{ className?: string }>,
-        bgColor: integration?.bgColor ?? FALLBACK_BG_COLOR,
+        icon: display.icon,
+        bgColor: display.integration?.bgColor ?? FALLBACK_BG_COLOR,
         href: `/workspace/${workspaceId}/integrations/connected/${credential.id}`,
       },
     ]

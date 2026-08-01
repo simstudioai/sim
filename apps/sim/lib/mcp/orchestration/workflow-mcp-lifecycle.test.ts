@@ -21,7 +21,6 @@ vi.mock('@sim/db', () => ({
   workflowMcpServer: schemaMock.workflowMcpServer,
   workflowMcpTool: schemaMock.workflowMcpTool,
 }))
-vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   asc: vi.fn(),

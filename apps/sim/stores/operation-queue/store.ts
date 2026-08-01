@@ -118,8 +118,18 @@ function dropOperationForMissingTarget(operation: QueuedOperation): boolean {
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
   operations: [],
   workflowOperationVersions: {},
+  remoteApplyVersions: {},
   isProcessing: false,
   hasOperationError: false,
+
+  markRemoteApplied: (workflowId) => {
+    set((state) => ({
+      remoteApplyVersions: {
+        ...state.remoteApplyVersions,
+        [workflowId]: (state.remoteApplyVersions[workflowId] ?? 0) + 1,
+      },
+    }))
+  },
 
   addToQueue: (operation) => {
     set((state) => ({

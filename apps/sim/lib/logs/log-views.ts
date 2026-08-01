@@ -1,3 +1,4 @@
+import { compileLinearRegex, isPlainText, literalRegex } from '@/lib/core/security/linear-regex'
 import {
   materializeLargeArrayManifest,
   readLargeArrayManifestSlice,
@@ -22,6 +23,27 @@ const ARRAY_SLICE_BATCH = 200
 const DEFAULT_MAX_MATCHES = 50
 const DEFAULT_MAX_SNIPPET_CHARS = 500
 const DEFAULT_MAX_SLICES_SCANNED = 200
+
+/**
+ * Cumulative time the pattern itself may spend matching, across all spans/fields.
+ *
+ * Deliberately counts only time spent matching, not the grep's wall clock: the
+ * scan awaits blob-store reads (array slices, large-value refs) between matches,
+ * and charging that I/O to the budget would truncate slow-but-legitimate greps
+ * under load. Matching is the only part that occupies the event loop, so it is
+ * the only part worth bounding.
+ *
+ * RE2JS trades throughput for its linear-time guarantee — roughly 100x slower
+ * than the built-in engine, ~25ms per megabyte — so on a very large trace this
+ * budget is what actually caps the scan rather than a formality.
+ */
+const DEFAULT_MATCH_TIME_BUDGET_MS = 5_000
+/**
+ * Total characters a single grep may run the pattern over. Bounds the work one
+ * request can demand across every span and slice; set well above any realistic
+ * trace so normal greps never trip it.
+ */
+const DEFAULT_MAX_SCANNED_CHARS = 64 * 1024 * 1024
 
 // ---------------------------------------------------------------------------
 // Overview (Level 2): block tree with timing + cost, NO input/output.
@@ -171,40 +193,86 @@ export interface GrepSpanMatch {
 
 export interface GrepSpansResult {
   matches: GrepSpanMatch[]
+  /**
+   * Whether the scan stopped early — because a budget was exhausted, the slice
+   * cap was hit, or `maxMatches` was reached. It is a "there may be more" flag,
+   * not proof that trace was left unread: reaching `maxMatches` on the final
+   * match sets it even when nothing remained. Treat it as a prompt to narrow
+   * the pattern, never as a count.
+   */
   truncated: boolean
+  /**
+   * Present only when the pattern used syntax RE2 does not implement and was
+   * therefore matched literally. The tool catalog cannot warn up front — it is
+   * generated from a contract in another repository — so the caller is told
+   * here rather than reading zero matches as "not present in the trace".
+   */
+  patternNotice?: string
 }
 
 export interface GrepSpansOptions {
   maxMatches?: number
   maxSnippetChars?: number
   maxSlicesScanned?: number
+  maxScannedChars?: number
+  matchTimeBudgetMs?: number
 }
 
 interface GrepState {
   matches: GrepSpanMatch[]
   slicesScanned: number
+  scannedChars: number
+  matchTimeMs: number
   truncated: boolean
   maxMatches: number
   maxSnippetChars: number
   maxSlicesScanned: number
-  regex: RegExp
+  maxScannedChars: number
+  matchTimeBudgetMs: number
+  find: FindMatch
 }
 
-function escapeRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
+/** Index of the first case-insensitive match in `text`, or -1. */
+type FindMatch = (text: string) => number
 
-function buildRegex(pattern: string): RegExp {
-  try {
-    return new RegExp(pattern, 'i')
-  } catch {
-    return new RegExp(escapeRegExp(pattern), 'i')
+/**
+ * Compile a caller-supplied grep pattern into a matcher that cannot backtrack.
+ *
+ * Trace text is attacker-influenced — a workflow can emit arbitrarily long
+ * uniform runs into its own block outputs — and matching runs synchronously on
+ * the shared event loop, so a backtracking engine lets one request stall every
+ * other request on the instance. See `@/lib/core/security/linear-regex` for why
+ * the engine changed rather than the pattern being screened.
+ *
+ * A pattern with no metacharacter takes the built-in engine, which is ~100x
+ * quicker and identical in meaning when there is nothing to interpret. Syntax
+ * RE2 cannot represent degrades to a literal with a notice, so the caller knows
+ * its regex was not applied instead of reading zero matches as "not present".
+ */
+function compilePattern(pattern: string): { find: FindMatch; notice?: string } {
+  if (isPlainText(pattern)) return { find: literalRegex(pattern, { ignoreCase: true }).find }
+
+  const compiled = compileLinearRegex(pattern, { ignoreCase: true })
+  if (compiled) return { find: compiled.find }
+
+  return {
+    find: literalRegex(pattern, { ignoreCase: true }).find,
+    notice:
+      'Pattern is not valid RE2 syntax (lookahead, lookbehind and backreferences are unsupported), so it was matched as a literal string. Rewrite it without those constructs to search by regex.',
   }
 }
 
-function snippetAround(text: string, regex: RegExp, maxChars: number): string {
-  const m = regex.exec(text)
-  const index = m ? m.index : 0
+function findTimed(text: string, state: GrepState): number {
+  const started = performance.now()
+  try {
+    return state.find(text)
+  } finally {
+    state.matchTimeMs += performance.now() - started
+  }
+}
+
+function snippetAround(text: string, index: number, state: GrepState): string {
+  const maxChars = state.maxSnippetChars
   const half = Math.floor(maxChars / 2)
   const start = Math.max(0, index - half)
   const end = Math.min(text.length, start + maxChars)
@@ -214,7 +282,12 @@ function snippetAround(text: string, regex: RegExp, maxChars: number): string {
 }
 
 function done(state: GrepState): boolean {
-  return state.truncated || state.matches.length >= state.maxMatches
+  if (state.truncated || state.matches.length >= state.maxMatches) return true
+  if (state.matchTimeMs >= state.matchTimeBudgetMs) {
+    state.truncated = true
+    return true
+  }
+  return false
 }
 
 function recordIfMatch(
@@ -224,15 +297,19 @@ function recordIfMatch(
   state: GrepState
 ): void {
   if (done(state)) return
-  state.regex.lastIndex = 0
-  if (!state.regex.test(text)) return
-  state.regex.lastIndex = 0
+  if (state.scannedChars + text.length > state.maxScannedChars) {
+    state.truncated = true
+    return
+  }
+  state.scannedChars += text.length
+  const index = findTimed(text, state)
+  if (index < 0) return
   state.matches.push({
     spanId: span.id,
     blockId: span.blockId,
     name: span.name,
     field,
-    snippet: snippetAround(text, state.regex, state.maxSnippetChars),
+    snippet: snippetAround(text, index, state),
   })
   if (state.matches.length >= state.maxMatches) state.truncated = true
 }
@@ -305,6 +382,12 @@ function safeStringify(value: unknown): string {
  * directly; large-array I/O is streamed slice-by-slice (each released before the
  * next); single large refs are materialized under a byte cap (falling back to
  * the ref preview). Only bounded match snippets are accumulated.
+ *
+ * `pattern` is matched by a non-backtracking engine — see `compilePattern` — so
+ * no pattern can blow up on any input. Two budgets bound total work on top of
+ * that: a character budget and a cumulative match-time budget. Neither counts
+ * the blob-store I/O this scan awaits, so a slow-but-legitimate grep is not
+ * truncated merely for being slow.
  */
 export async function grepSpans(
   spans: TraceSpan[],
@@ -312,14 +395,19 @@ export async function grepSpans(
   ctx: LogViewContext,
   opts?: GrepSpansOptions
 ): Promise<GrepSpansResult> {
+  const compiled = compilePattern(pattern)
   const state: GrepState = {
     matches: [],
     slicesScanned: 0,
+    scannedChars: 0,
+    matchTimeMs: 0,
     truncated: false,
     maxMatches: opts?.maxMatches ?? DEFAULT_MAX_MATCHES,
     maxSnippetChars: opts?.maxSnippetChars ?? DEFAULT_MAX_SNIPPET_CHARS,
     maxSlicesScanned: opts?.maxSlicesScanned ?? DEFAULT_MAX_SLICES_SCANNED,
-    regex: buildRegex(pattern),
+    maxScannedChars: opts?.maxScannedChars ?? DEFAULT_MAX_SCANNED_CHARS,
+    matchTimeBudgetMs: opts?.matchTimeBudgetMs ?? DEFAULT_MATCH_TIME_BUDGET_MS,
+    find: compiled.find,
   }
 
   const walk = async (list: TraceSpan[]): Promise<void> => {
@@ -335,5 +423,9 @@ export async function grepSpans(
   }
 
   await walk(spans)
-  return { matches: state.matches, truncated: state.truncated }
+  return {
+    matches: state.matches,
+    truncated: state.truncated,
+    ...(compiled.notice ? { patternNotice: compiled.notice } : {}),
+  }
 }

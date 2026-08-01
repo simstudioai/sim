@@ -1,19 +1,34 @@
 'use client'
 
-import { DropdownMenuItem, DropdownMenuSeparator, Upload } from '@sim/emcn'
-import { Database, Download, Duplicate, Pencil, Trash } from '@sim/emcn/icons'
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  Upload,
+} from '@sim/emcn'
+import { Database, Download, Duplicate, FolderInput, Pencil, Pin, Trash } from '@sim/emcn/icons'
 import { AnchoredContextMenu } from '@/components/anchored-context-menu'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
 interface TableContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
   onCopyId?: () => void
+  onTogglePin?: () => void
+  /** Pin state of the right-clicked table, driving the Pin/Unpin label. */
+  pinned?: boolean
   onDelete?: () => void
   onViewSchema?: () => void
   onRename?: () => void
   onImportCsv?: () => void
   onExportCsv?: () => void
+  /** Files the table under another folder; the value is a folder id or the root sentinel. */
+  onMove?: (optionValue: string) => void
+  moveOptions?: MoveOptionNode[]
   disableDelete?: boolean
   disableRename?: boolean
   disableImport?: boolean
@@ -26,23 +41,25 @@ export function TableContextMenu({
   position,
   onClose,
   onCopyId,
+  onTogglePin,
+  pinned = false,
   onDelete,
   onViewSchema,
   onRename,
   onImportCsv,
   onExportCsv,
+  onMove,
+  moveOptions,
   disableDelete = false,
   disableRename = false,
   disableImport = false,
   disableExport = false,
 }: TableContextMenuProps) {
   /**
-   * Canonical resource-menu structure: navigation (View Schema) above a single
-   * separator, then the item actions in the shared order — Rename, Import,
-   * Export, utilities, Delete.
+   * Canonical resource-menu structure: navigation (View Schema) first, then the
+   * item actions in the shared order — Rename, Import, Export, Move — and finally
+   * the utilities (Pin, Copy ID) and Delete, each separated from the last.
    */
-  const hasActionsSection = !!onRename || !!onImportCsv || !!onExportCsv || !!onCopyId || !!onDelete
-
   return (
     <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
       {onViewSchema && (
@@ -51,7 +68,6 @@ export function TableContextMenu({
           View Schema
         </DropdownMenuItem>
       )}
-      {onViewSchema && hasActionsSection && <DropdownMenuSeparator />}
       {onRename && (
         <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
           <Pencil />
@@ -70,12 +86,30 @@ export function TableContextMenu({
           Export CSV
         </DropdownMenuItem>
       )}
+      {onMove && moveOptions && moveOptions.length > 0 && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <FolderInput />
+            Move to
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>{renderMoveOptions(moveOptions, onMove)}</DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
+      {(onViewSchema || onRename || onImportCsv || onExportCsv || onMove) &&
+        (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
+      {onTogglePin && (
+        <DropdownMenuItem onSelect={onTogglePin}>
+          <Pin />
+          {pinned ? 'Unpin' : 'Pin'}
+        </DropdownMenuItem>
+      )}
       {onCopyId && (
         <DropdownMenuItem onSelect={onCopyId}>
           <Duplicate />
           Copy ID
         </DropdownMenuItem>
       )}
+      {(onCopyId || onTogglePin) && onDelete && <DropdownMenuSeparator />}
       {onDelete && (
         <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
           <Trash />

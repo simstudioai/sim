@@ -3,8 +3,6 @@ import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   CreateFile,
-  DeleteFile,
-  DeleteFileFolder,
   DownloadToWorkspaceFile,
   Ffmpeg,
   GenerateAudio,
@@ -29,18 +27,17 @@ import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/ge
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { enrichmentRunServerTool } from '@/lib/copilot/tools/server/enrichment/enrichment-run'
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
-import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
 import {
   createFileFolderServerTool,
-  deleteFileFolderServerTool,
   listFileFoldersServerTool,
   moveFileFolderServerTool,
   moveFileServerTool,
   renameFileFolderServerTool,
 } from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
+import { shareFileServerTool } from '@/lib/copilot/tools/server/files/share-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
@@ -134,12 +131,11 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
   rename_file: ['*'],
-  [DeleteFile.id]: ['*'],
+  [shareFileServerTool.name]: ['*'],
   move_file: ['*'],
   create_file_folder: ['*'],
   rename_file_folder: ['*'],
   move_file_folder: ['*'],
-  [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
   [GenerateVideo.id]: ['generate'],
@@ -182,13 +178,12 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
-  [deleteFileServerTool.name]: deleteFileServerTool,
+  [shareFileServerTool.name]: shareFileServerTool,
   [moveFileServerTool.name]: moveFileServerTool,
   [listFileFoldersServerTool.name]: listFileFoldersServerTool,
   [createFileFolderServerTool.name]: createFileFolderServerTool,
   [renameFileFolderServerTool.name]: renameFileFolderServerTool,
   [moveFileFolderServerTool.name]: moveFileFolderServerTool,
-  [deleteFileFolderServerTool.name]: deleteFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,

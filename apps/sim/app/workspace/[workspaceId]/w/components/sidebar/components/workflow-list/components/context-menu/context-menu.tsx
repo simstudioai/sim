@@ -22,6 +22,8 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
+  Workflow,
+  X,
 } from '@sim/emcn/icons'
 import { Pin, PinOff } from 'lucide-react'
 
@@ -31,6 +33,7 @@ interface ContextMenuProps {
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onOpenInNewTab?: () => void
+  onFindReferences?: () => void
   onMarkAsRead?: () => void
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
@@ -52,7 +55,14 @@ interface ContextMenuProps {
   onDuplicate?: () => void
   onExport?: () => void
   onDelete: () => void
+  /**
+   * Closes the item rather than deleting it — for tabs, where the destructive
+   * action is "close this one", not "delete it forever". Named for the item so
+   * it cannot be confused with `onClose`, which dismisses this menu.
+   */
+  onCloseTab?: () => void
   showOpenInNewTab?: boolean
+  showFindReferences?: boolean
   showMarkAsRead?: boolean
   showMarkAsUnread?: boolean
   showPin?: boolean
@@ -78,6 +88,7 @@ interface ContextMenuProps {
   disableLock?: boolean
   isLocked?: boolean
   showDelete?: boolean
+  showCloseTab?: boolean
   onUploadLogo?: () => void
   showUploadLogo?: boolean
   disableUploadLogo?: boolean
@@ -93,6 +104,7 @@ export function ContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onFindReferences,
   onMarkAsRead,
   onMarkAsUnread,
   onTogglePin,
@@ -103,7 +115,9 @@ export function ContextMenu({
   onDuplicate,
   onExport,
   onDelete,
+  onCloseTab,
   showOpenInNewTab = false,
+  showFindReferences = false,
   showMarkAsRead = false,
   showMarkAsUnread = false,
   showPin = false,
@@ -129,11 +143,13 @@ export function ContextMenu({
   disableLock = false,
   isLocked = false,
   showDelete = true,
+  showCloseTab = false,
   onUploadLogo,
   showUploadLogo = false,
   disableUploadLogo = false,
 }: ContextMenuProps) {
-  const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
+  const hasNavigationSection =
+    (showOpenInNewTab && onOpenInNewTab) || (showFindReferences && onFindReferences)
   const hasStatusSection =
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
@@ -193,6 +209,17 @@ export function ContextMenu({
           >
             <SquareArrowUpRight />
             Open in new tab
+          </DropdownMenuItem>
+        )}
+        {showFindReferences && onFindReferences && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onFindReferences()
+              onClose()
+            }}
+          >
+            <Workflow />
+            Show references
           </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (
@@ -325,7 +352,7 @@ export function ContextMenu({
         )}
 
         {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
-          (showLeave || showDelete) && <DropdownMenuSeparator />}
+          (showLeave || showDelete || (showCloseTab && onCloseTab)) && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem
             disabled={disableLeave}
@@ -348,6 +375,17 @@ export function ContextMenu({
           >
             <Trash />
             Delete
+          </DropdownMenuItem>
+        )}
+        {showCloseTab && onCloseTab && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onCloseTab()
+              onClose()
+            }}
+          >
+            <X />
+            Close
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

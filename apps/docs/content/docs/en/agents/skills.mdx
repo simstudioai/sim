@@ -18,13 +18,11 @@ Skills use **progressive disclosure** to keep agent context lean:
 
 ## Creating Skills
 
-Skills live on the **Integrations** page: click **Integrations** in the workspace sidebar, then switch to the **Skills** tab. It lists every skill in the workspace, searchable by name.
+Skills live on the **Integrations** page: click **Integrations** in the workspace sidebar, then switch to the **Skills** tab. It lists every skill in the workspace, searchable by name. Click a skill to open its detail page, where you edit, share, and delete it.
 
 ![The Skills tab on the Integrations page](/static/skills/skills-tab.png)
 
-Click **+ Add to Sim** to open the **Add Skill** dialog. The **Create** tab takes three fields:
-
-![The Add Skill dialog, Create tab](/static/skills/add-skill-create.png)
+Click **+ Add to Sim** to open the skill create page, which takes three fields:
 
 | Field | Description |
 |-------|-------------|
@@ -38,13 +36,10 @@ Click **+ Add to Sim** to open the **Add Skill** dialog. The **Create** tab take
 
 ### Importing skills
 
-The **Import** tab brings in an existing skill in the open [SKILL.md](https://agentskills.io/specification) format, three ways:
+Bring in an existing skill in the open [SKILL.md](https://agentskills.io/specification) format two ways:
 
-![The Add Skill dialog, Import tab](/static/skills/add-skill-import.png)
-
-- **Upload a file** — a `.md` file with YAML frontmatter, or a `.zip` containing a `SKILL.md`.
-- **Import from GitHub** — paste a GitHub URL to a `SKILL.md` and click **Fetch**.
-- **Paste content** — paste the `SKILL.md` directly. The frontmatter carries the `name` and `description`; the markdown body is the content.
+- **Import** — the **Import** action on the create page takes a `.md` file with YAML frontmatter, or a `.zip` containing a `SKILL.md`.
+- **Paste content** — paste the `SKILL.md` straight into **Content**. The frontmatter carries the `name` and `description`; the markdown body is the content.
 
 Integration pages suggest **curated skills** for their service — open one (HubSpot, for example) and add a suggested skill with one click.
 
@@ -76,6 +71,24 @@ Use when the user asks you to write, optimize, or debug SQL queries.
 - **Edge Cases** — Gotchas and special considerations
 
 Keep skills focused and under 500 lines. If a skill grows too large, split it into multiple specialized skills.
+
+## Skill Editors
+
+Everyone in the workspace sees and uses every skill — including members who join later. Nobody needs to be added to a skill to use it.
+
+Each skill has an explicit **editors** list. Editors can edit the skill, delete it, and manage the editors list. Workspace admins can always do this too — they are editors of every skill automatically and cannot be removed from the list. Whoever creates a skill becomes an editor.
+
+Open a skill from the Skills tab to manage it. The detail page has the editable fields, a **Share** action for adding editors from your workspace members, and the **Skill Editors** list at the bottom.
+
+<Callout type="info">
+  The editors list controls who can edit a skill — it never affects who can see, use, or run it. A workflow that references a skill always executes it, no matter who runs the workflow. Treat skill content as shared team instructions, not as a secret.
+</Callout>
+
+## Using Skills in Chat
+
+Skills work in Chat too. Type `/` in the message box to open the skills menu, then pick a skill — or keep typing to filter by name. The skill appears in your message as a tag, e.g. `/format-markdown`.
+
+Tagging a skill loads its full instructions into the conversation, so Sim follows them for that request — no waiting for Sim to decide the skill is relevant on its own.
 
 ## Adding Skills to an Agent
 
@@ -156,5 +169,7 @@ import { FAQ } from '@/components/ui/faq'
   { question: "When should I use skills vs. agent instructions?", answer: "Use skills for knowledge that applies across multiple workflows or changes frequently. Skills are reusable packages that can be attached to any agent. Use agent instructions for task-specific context that is unique to a single agent and workflow. If you find yourself copying the same instructions into multiple agents, that content should be a skill instead." },
   { question: "Can permission groups disable skills for certain users?", answer: "Yes. On Enterprise-entitled workspaces, any workspace admin can create a permission group with the disableSkills option enabled. When a user is assigned to such a group in a workspace, the skills dropdown in agent blocks is disabled and they cannot add or use skills in workflows belonging to that workspace." },
   { question: "What is the recommended maximum length for skill content?", answer: "Keep skills focused and under 500 lines. If a skill grows too large, split it into multiple specialized skills. Shorter, focused skills are more effective because the agent can load exactly what it needs. A broad skill with too much content can overwhelm the agent and reduce the quality of its responses." },
-  { question: "Where do I create and manage skills?", answer: "Click Integrations in the workspace sidebar and switch to the Skills tab. Add Skill creates one from a name (kebab-case, max 64 characters), description (max 1024 characters), and markdown content — or imports an existing SKILL.md from a file, a GitHub URL, or pasted content. Existing skills are edited and deleted from the same tab." },
+  { question: "Where do I create and manage skills?", answer: "Click Integrations in the workspace sidebar and switch to the Skills tab. Add to Sim opens a create page taking a name (kebab-case, max 64 characters), description (max 1024 characters), and markdown content — or imports an existing SKILL.md from a file or pasted content. Click any existing skill to open its detail page, where you edit, share, and delete it." },
+  { question: "Who can edit a skill, and who can use it?", answer: "Everyone in the workspace — including people who join later — sees and uses every skill without being added to anything. Each skill has an editors list: editors and workspace admins (who are always editors, automatically) can edit, delete, and share the skill, and whoever creates a skill becomes an editor. The editors list never affects who can use or run a skill: a workflow that references a skill always executes it." },
+  { question: "Can I use skills in Chat?", answer: "Yes. Type / in the Chat message box to open the skills menu and pick a skill — for example /format-markdown. The tag loads the skill's full instructions into the conversation, so Sim follows them for that request without having to decide on its own to load the skill." },
 ]} />

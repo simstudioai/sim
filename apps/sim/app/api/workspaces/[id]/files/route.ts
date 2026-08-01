@@ -16,7 +16,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getSharesForResources } from '@/lib/public-shares/share-manager'
+import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
   FileConflictError,
   listWorkspaceFiles,
@@ -74,10 +74,7 @@ export const GET = withRouteHandler(
 
       const files = await listWorkspaceFiles(workspaceId, { scope })
 
-      const shares = await getSharesForResources(
-        'file',
-        files.map((file) => file.id)
-      )
+      const shares = await getWorkspaceShares('file', workspaceId)
       const filesWithShares = files.map((file) => ({
         ...file,
         share: shares.get(file.id) ?? null,

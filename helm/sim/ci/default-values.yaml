@@ -1,0 +1,12 @@
+# CI-only values: the minimum required secrets so `helm lint`/`helm template`
+# render the DEFAULT configuration. Dummy values — never use in a deployment.
+app:
+  env:
+    BETTER_AUTH_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    ENCRYPTION_KEY: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    INTERNAL_API_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+    CRON_SECRET: "cicicicicicicicicicicicicicicicicicicicicicicicicicicicicicicici"
+
+postgresql:
+  auth:
+    password: "ci-dummy-password"

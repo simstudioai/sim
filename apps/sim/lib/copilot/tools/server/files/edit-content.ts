@@ -5,7 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
@@ -71,7 +71,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
     try {
       const { operation, fileRecord } = intent
       const docInfo = getDocumentFormatInfo(fileRecord.name)
-      const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileRecord.name) : null
+      const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(fileRecord.name) : null
 
       let finalContent: string
       switch (operation) {
@@ -233,6 +233,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       const fileBuffer = Buffer.from(finalContent, 'utf-8')
       assertServerToolNotAborted(context)
+      // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
+      // CRDT merge (gated to markdown, best-effort) — the shared chokepoint every external write path
+      // goes through — so a copilot edit shows up live instead of the file changing under the reader.
       await updateWorkspaceFileContent(
         workspaceId,
         intent.fileId,

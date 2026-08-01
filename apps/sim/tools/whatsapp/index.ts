@@ -1,3 +1,4 @@
+export { getMediaTool as whatsappGetMediaTool } from '@/tools/whatsapp/get_media'
 export { markReadTool as whatsappMarkReadTool } from '@/tools/whatsapp/mark_read'
 export { sendInteractiveTool as whatsappSendInteractiveTool } from '@/tools/whatsapp/send_interactive'
 export { sendMediaTool as whatsappSendMediaTool } from '@/tools/whatsapp/send_media'
@@ -5,3 +6,4 @@ export { sendMessageTool as whatsappSendMessageTool } from '@/tools/whatsapp/sen
 export { sendReactionTool as whatsappSendReactionTool } from '@/tools/whatsapp/send_reaction'
 export { sendTemplateTool as whatsappSendTemplateTool } from '@/tools/whatsapp/send_template'
 export * from '@/tools/whatsapp/types'
+export { uploadMediaTool as whatsappUploadMediaTool } from '@/tools/whatsapp/upload_media'

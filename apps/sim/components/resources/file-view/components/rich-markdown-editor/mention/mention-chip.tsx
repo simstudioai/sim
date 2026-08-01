@@ -4,7 +4,7 @@ import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { resolveFileCategory } from '@/components/resources/file-view/utils/file-category'
 import { useOptionalResourceOfKind } from '@/components/resources/resource-provider'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import { mentionIcon } from './mention-icon'
 import { MarkdownMention, type MentionAttrs } from './mention-node'
 import { simLinkPath } from './sim-link'
@@ -50,8 +50,8 @@ const CHIP_CLASS =
 export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const resource = useOptionalResourceOfKind('file')
   const { kind, id, label } = node.attrs as MentionAttrs
-  const Icon = mentionIcon(kind, id) as StyleableIcon
-  const iconStyle = getBareIconStyle(Icon)
+  const Icon = mentionIcon(kind, id, label) as StyleableIcon | undefined
+  const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
   const navigable = editor.storage.mention?.navigable === true
   /**
    * The destination comes from the file this mention is written in, never from
@@ -117,7 +117,7 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
       onClick={path ? handleClick : undefined}
       title={label}
     >
-      <Icon style={iconStyle} />
+      {Icon && <Icon style={iconStyle} />}
       <span>{label}</span>
     </NodeViewWrapper>
   )

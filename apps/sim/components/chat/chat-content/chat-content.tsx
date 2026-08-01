@@ -23,7 +23,6 @@ import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } 
 import { sanitizeChatDisplayContent } from '@/components/chat/chat-content/chat-sanitize'
 import { ExternalLink, externalLinkHostname } from '@/components/chat/chat-content/external-link'
 import { ContextMentionIcon } from '@/components/chat/context-mention-icon'
-import { PendingTagIndicator } from '@/components/chat/pending-tag-indicator'
 import { type ContentSegment, parseSpecialTags } from '@/components/chat/special-tags/parse'
 import type { ChatContextKind } from '@/components/chat/types'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
@@ -420,7 +419,7 @@ interface ChatContentProps {
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
-  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  /** Reports whether this segment is actively painting text. */
   onStreamActivityChange?: (active: boolean) => void
   /**
    * Draws the special-tag cards this renderer parses but deliberately does not
@@ -438,6 +437,11 @@ interface ChatContentProps {
    * workflow, which emits markdown, never these tags.
    */
   renderSpecialTags?: ComponentType<SpecialTagRendererProps>
+  /**
+   * Reports whether a special tag is mid-stream — bytes arriving but rendering
+   * nothing (tags are suppressed until complete). A wait from the user's POV.
+   */
+  onPendingTagChange?: (pending: boolean) => void
 }
 
 function ChatContentInner({
@@ -450,6 +454,7 @@ function ChatContentInner({
   onRevealStateChange,
   onStreamActivityChange,
   renderSpecialTags: SpecialTags,
+  onPendingTagChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -571,12 +576,17 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
-  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
 
   useEffect(() => {
-    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    onStreamActivityChange?.(hasRevealBacklog)
     return () => onStreamActivityChange?.(false)
-  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
+  }, [hasRevealBacklog, onStreamActivityChange])
+
+  const hasPendingTag = parsed.hasPendingTag && isRevealing
+  useEffect(() => {
+    onPendingTagChange?.(hasPendingTag)
+    return () => onPendingTagChange?.(false)
+  }, [hasPendingTag, onPendingTagChange])
 
   type RenderGroup =
     | { kind: 'inline'; markdown: string }
@@ -662,7 +672,6 @@ function ChatContentInner({
           />
         )
       })}
-      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }

@@ -3,9 +3,9 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, createEnvMock } from '@sim/testing'
+import { authMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockGetMothershipBaseURL } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
@@ -22,8 +22,6 @@ vi.mock('@/lib/copilot/constants', () => ({
 vi.mock('@/lib/copilot/server/agent-url', () => ({
   getMothershipBaseURL: mockGetMothershipBaseURL,
 }))
-
-vi.mock('@/lib/core/config/env', () => createEnvMock({ COPILOT_API_KEY: 'test-api-key' }))
 
 import { DELETE, GET } from '@/app/api/copilot/api-keys/route'
 
@@ -46,8 +44,13 @@ function buildMockResponse(init: {
 describe('Copilot API Keys API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ COPILOT_API_KEY: 'test-api-key' })
     mockGetMothershipBaseURL.mockResolvedValue('https://agent.sim.example.com')
     global.fetch = mockFetch
+  })
+
+  afterAll(() => {
+    resetEnvMock()
   })
 
   describe('GET', () => {

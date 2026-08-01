@@ -33,6 +33,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,
@@ -91,7 +92,6 @@ import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
   formatDate,
-  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
@@ -302,7 +302,9 @@ export default function Logs() {
     (query: { state: { data?: WorkflowLogDetail } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
-      return status === 'running' || status === 'pending' ? ACTIVE_RUN_DETAIL_REFRESH_MS : false
+      return status === 'running' || status === 'pending' || status === 'redacting'
+        ? ACTIVE_RUN_DETAIL_REFRESH_MS
+        : false
     },
     [isLive]
   )

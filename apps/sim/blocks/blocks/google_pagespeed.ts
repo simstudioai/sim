@@ -181,7 +181,7 @@ export const GooglePagespeedBlockMeta = {
     },
     {
       icon: GooglePagespeedIcon,
-      title: 'Core Web Vitals release gate',
+      title: 'PageSpeed CWV release gate',
       prompt:
         'Create a workflow triggered after a marketing-site deploy that runs Google PageSpeed Insights on the key landing pages for both mobile and desktop, compares Core Web Vitals against the prior baseline, and posts a pass/fail summary to Slack with the specific metrics that regressed.',
       modules: ['agent', 'workflows'],

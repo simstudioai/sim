@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -70,33 +71,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'FIRECRAWL_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'firecrawl',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        if (output.creditsUsed == null) {
-          throw new Error('Firecrawl response missing creditsUsed field')
-        }
-
-        const creditsUsed = Number(output.creditsUsed)
-        if (Number.isNaN(creditsUsed)) {
-          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
-        }
-
-        return {
-          cost: creditsUsed * 0.001,
-          metadata: { creditsUsed },
-        }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
-    },
-  },
+  hosting: firecrawlHosting(),
 
   request: {
     url: 'https://api.firecrawl.dev/v2/crawl',
@@ -181,7 +156,10 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
           result.output = {
             pages: crawlData.data || [],
             total: crawlData.total || 0,
-            creditsUsed: crawlData.creditsUsed || 0,
+            // Forwarded as-is: defaulting a missing count to 0 would look like
+            // a free crawl to the hosted-key pricing helper instead of the
+            // metering failure it is.
+            creditsUsed: crawlData.creditsUsed,
           }
           return result
         }

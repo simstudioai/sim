@@ -39,7 +39,19 @@ export function mergeSubBlockValues(
 
 /**
  * Merges workflow block states with explicit subblock values while maintaining block structure.
- * Values that are null or undefined do not override existing subblock values.
+ *
+ * A value that is present in the map overrides the structure's value — including `null`,
+ * which represents an explicitly cleared field. The block structure's own copy of a value
+ * can be stale (it is only rewritten on hydration, while edits land in the values map), so
+ * skipping nulls here would resurrect the pre-clear value and make the merged state diverge
+ * from what is actually persisted.
+ *
+ * Two softening rules keep sparse maps safe:
+ * - `undefined` is treated as "no value recorded" and never overrides the structure.
+ * - `null` never creates an entry for a subblock missing from the structure; only non-null
+ *   structure-less values (e.g. runtime ids like `webhookId`/`triggerPath`) are added, with
+ *   a minimal default shape, so they survive serialization.
+ *
  * @param blocks - Block configurations from workflow state
  * @param subBlockValues - Subblock values keyed by blockId -> subBlockId -> value
  * @param blockId - Optional specific block ID to merge (merges all if not provided)
@@ -59,12 +71,14 @@ export function mergeSubblockStateWithValues(
       }
 
       const blockSubBlocks = block.subBlocks || {}
-      const blockValues = subBlockValues[id] || {}
-      const filteredValues = Object.fromEntries(
-        Object.entries(filterUndefined(blockValues)).filter(([, value]) => value !== null)
+      const definedValues = filterUndefined(subBlockValues[id] || {})
+      const mergeableValues = Object.fromEntries(
+        Object.entries(definedValues).filter(
+          ([subBlockId, value]) => value !== null || Object.hasOwn(blockSubBlocks, subBlockId)
+        )
       )
 
-      const mergedSubBlocks = mergeSubBlockValues(blockSubBlocks, filteredValues) as Record<
+      const mergedSubBlocks = mergeSubBlockValues(blockSubBlocks, mergeableValues) as Record<
         string,
         SubBlockState
       >

@@ -605,6 +605,7 @@ const PopoverContent = React.forwardRef<
         onOpenAutoFocus={handleOpenAutoFocus}
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
+        data-native-surface-overlay=''
         className={cn(
           'z-[var(--z-popover)] flex flex-col outline-none',
           showArrow ? 'overflow-visible' : 'overflow-auto',
@@ -1015,6 +1016,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
           typeof document !== 'undefined' &&
           createPortal(
             <DismissableLayerBranch
+              data-native-surface-overlay=''
               className={cn(
                 'fixed z-[calc(var(--z-popover)+1)] min-w-[120px]',
                 STYLES.content,

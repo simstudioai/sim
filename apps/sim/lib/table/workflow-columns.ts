@@ -618,6 +618,8 @@ export async function cancelWorkflowGroupRuns(
   // re-enqueueing what we just cancelled.
   await Promise.allSettled(
     mutations.map((m) =>
+      // Only touches execution state — `data: {}` is a no-op on the row's cells (updateRow merges
+      // the empty patch), so this cancel can't revert a user's concurrent edit to the same row.
       updateRow(
         {
           tableId,

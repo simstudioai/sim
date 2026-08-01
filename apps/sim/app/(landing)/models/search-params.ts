@@ -6,8 +6,8 @@ import { createSearchParamsCache, parseAsString } from 'nuqs/server'
  * so the filtered view is server-rendered for shareable, crawlable `?provider=`/`?q=`
  * URLs — the same SSR pattern the blog index uses.
  *
- * - `q` is the search filter; its URL write is debounced on the setter, never
- *   written per keystroke.
+ * - `q` is the search filter; its URL write is debounced via
+ *   `useDebouncedSearchSetter`, never written per keystroke.
  * - `provider` filters by provider id (`''` = all).
  */
 export const modelsParsers = {

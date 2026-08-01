@@ -112,7 +112,7 @@ export function ChatModule({ module, mode, canRun = true, onConfigChange }: Chat
         ? `/api/interfaces/public/${source.token}/modules/${module.id}/chat`
         : undefined,
   })
-  const { ref: scrollRef } = useAutoScroll(isRunning, { scrollOnMount: true })
+  const { ref: scrollRef } = useAutoScroll(isRunning)
 
   /**
    * Only the workspace arm can tell an unwired module from a wired one by its

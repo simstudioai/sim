@@ -569,7 +569,7 @@ export const PersonaBlockMeta = {
   templates: [
     {
       icon: PersonaIcon,
-      title: 'Customer onboarding identity verification',
+      title: 'Persona onboarding verification',
       prompt:
         'Build a workflow triggered when a new customer signs up that creates a Persona inquiry from our KYC template with their name and email pre-filled, generates a one-time verification link, and emails it to the customer.',
       modules: ['workflows', 'agent'],
@@ -579,7 +579,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Verification decision router',
+      title: 'Persona decision router',
       prompt:
         'Build a workflow that takes an inquiry ID, fetches the inquiry from Persona, and routes on its status: approved customers get a welcome email, needs-review inquiries post to a compliance Slack channel with a summary, and declined inquiries update our CRM.',
       modules: ['workflows', 'agent'],
@@ -589,7 +589,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Daily pending-review digest',
+      title: 'Persona pending-review digest',
       prompt:
         'Build a scheduled workflow that runs every morning, lists Persona inquiries with needs_review status from the last 24 hours, summarizes each one, and posts a digest to the compliance team in Slack.',
       modules: ['scheduled', 'workflows', 'agent'],
@@ -599,7 +599,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Watchlist screening on signup',
+      title: 'Persona watchlist screening',
       prompt:
         "Build a workflow that takes a new user's name and birthdate, runs a Persona watchlist report against them, polls until the report is ready, and creates a case in our tracking table if the report has a match.",
       modules: ['workflows', 'tables', 'agent'],
@@ -608,7 +608,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Bulk account import from CRM export',
+      title: 'Persona bulk account import',
       prompt:
         'Build a workflow that takes an uploaded CSV export of customers, imports them into Persona as accounts using the account importer, polls the importer status, and reports how many rows succeeded, errored, or were duplicates.',
       modules: ['files', 'workflows', 'agent'],
@@ -617,7 +617,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Compliance audit PDF archive',
+      title: 'Persona audit PDF archive',
       prompt:
         'Build a workflow that takes an approved inquiry ID, downloads the inquiry summary PDF from Persona, and uploads it to a compliance archive folder in Google Drive named by customer reference ID.',
       modules: ['workflows', 'files', 'agent'],
@@ -627,7 +627,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Manual review case triage agent',
+      title: 'Persona case triage agent',
       prompt:
         'Build an agent that lists open Persona cases, fetches the linked inquiry and verification details for each, drafts a recommended approve/decline decision with reasoning, and posts the triage summary to Slack for a human reviewer.',
       modules: ['agent', 'workflows'],
@@ -637,7 +637,7 @@ export const PersonaBlockMeta = {
     },
     {
       icon: PersonaIcon,
-      title: 'Re-verification campaign for stale accounts',
+      title: 'Persona re-verification campaign',
       prompt:
         'Build a scheduled workflow that lists Persona accounts, finds ones whose latest approved inquiry is older than a year, creates a new inquiry for each from our re-verification template, and emails customers a one-time verification link.',
       modules: ['scheduled', 'workflows', 'agent'],

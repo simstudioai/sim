@@ -255,6 +255,7 @@ export async function readResponseToBufferWithLimit(
   }
   if (
     !options.allowNoBodyFallback &&
+    !options.preferTextFallback &&
     !response.body &&
     contentLength === null &&
     (response.arrayBuffer || response.text)

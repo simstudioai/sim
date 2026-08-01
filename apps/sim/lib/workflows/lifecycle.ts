@@ -2,17 +2,16 @@ import { db } from '@sim/db'
 import {
   apiKey,
   chat,
+  folder as folderTable,
   webhook,
   workflow,
   workflowDeploymentVersion,
-  workflowFolder,
   workflowMcpTool,
   workflowSchedule,
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { cleanupWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -177,22 +176,6 @@ export async function archiveWorkflow(
     await notifyWorkflowArchived(workflowId, options.requestId)
   }
 
-  if (existingWorkflow.workspaceId) {
-    try {
-      await cleanupWorkflowAliasBacking({
-        workspaceId: existingWorkflow.workspaceId,
-        workflowId,
-        deletedAt: now,
-      })
-    } catch (error) {
-      logger.warn(`[${options.requestId}] Failed to clean up workflow alias backing`, {
-        workflowId,
-        workspaceId: existingWorkflow.workspaceId,
-        error,
-      })
-    }
-  }
-
   await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
 
   if (existingWorkflow.workspaceId && mcpPubSub && affectedWorkflowMcpServers.length > 0) {
@@ -240,9 +223,11 @@ export async function restoreWorkflow(
   let clearFolderId = false
   if (existingWorkflow.folderId) {
     const [folder] = await db
-      .select({ archivedAt: workflowFolder.archivedAt })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, existingWorkflow.folderId))
+      .select({ archivedAt: folderTable.deletedAt })
+      .from(folderTable)
+      .where(
+        and(eq(folderTable.id, existingWorkflow.folderId), eq(folderTable.resourceType, 'workflow'))
+      )
 
     if (!folder || folder.archivedAt) {
       clearFolderId = true
@@ -250,6 +235,18 @@ export async function restoreWorkflow(
   }
 
   const now = new Date()
+
+  /**
+   * `archiveWorkflow` stamps the workflow and its dependents with ONE timestamp, and only
+   * touches dependents that were still active. So the workflow's own `archivedAt` identifies
+   * exactly the rows this archive took down.
+   *
+   * Restoring by `workflowId` alone instead resurrects a webhook or chat the user had archived
+   * independently, days earlier — it was never part of this archive and the user never asked
+   * for it back. Matching the stamp is the same rule the folder cascade uses, and it is what
+   * the restore semantics documented for this feature actually promise.
+   */
+  const archivedAt = existingWorkflow.archivedAt
 
   await db.transaction(async (tx) => {
     await tx
@@ -264,22 +261,29 @@ export async function restoreWorkflow(
     await tx
       .update(workflowSchedule)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(workflowSchedule.workflowId, workflowId))
+      .where(
+        and(
+          eq(workflowSchedule.workflowId, workflowId),
+          eq(workflowSchedule.archivedAt, archivedAt)
+        )
+      )
 
     await tx
       .update(webhook)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(webhook.workflowId, workflowId))
+      .where(and(eq(webhook.workflowId, workflowId), eq(webhook.archivedAt, archivedAt)))
 
     await tx
       .update(chat)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(chat.workflowId, workflowId))
+      .where(and(eq(chat.workflowId, workflowId), eq(chat.archivedAt, archivedAt)))
 
     await tx
       .update(workflowMcpTool)
       .set({ archivedAt: null, updatedAt: now })
-      .where(eq(workflowMcpTool.workflowId, workflowId))
+      .where(
+        and(eq(workflowMcpTool.workflowId, workflowId), eq(workflowMcpTool.archivedAt, archivedAt))
+      )
   })
 
   logger.info(`[${options.requestId}] Restored workflow ${workflowId}`)

@@ -21,6 +21,12 @@ export interface FileViewRecord {
   size: number
   updatedAt: Date
   folderId?: string | null
+  /**
+   * Where the bytes live when not the default `workspace` store (e.g. chat
+   * mothership uploads). Collaborative editing is workspace-only, so the editor
+   * reads this to stay solo for anything else.
+   */
+  storageContext?: 'workspace' | 'mothership'
 }
 
 export interface FileContentUrlOptions {

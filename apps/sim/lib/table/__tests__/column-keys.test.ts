@@ -11,6 +11,7 @@ vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
 }))
 
+import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
   buildNameById,
@@ -18,7 +19,6 @@ import {
   generateColumnId,
   getColumnId,
   remapGroupColumnRefs,
-  rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
   withGeneratedColumnIds,
@@ -71,18 +71,19 @@ describe('row data translation', () => {
     ],
   }
   const idByName = buildIdByName(schema)
-  const nameById = buildNameById(schema)
+  // The outbound half lives in `cell-format` (it also translates select values).
+  const toNamedRow = namedRowMapper(schema.columns)
 
   it('round-trips name → id → name', () => {
     const wire = { email: 'a@b.c', age: 30 }
     const stored = rowDataNameToId(wire, idByName)
     expect(stored).toEqual({ col_1: 'a@b.c', age: 30 })
-    expect(rowDataIdToName(stored, nameById)).toEqual(wire)
+    expect(toNamedRow(stored)).toEqual(wire)
   })
 
   it('drops keys with no matching column (orphans / unknowns)', () => {
     expect(rowDataNameToId({ email: 'x', ghost: 1 }, idByName)).toEqual({ col_1: 'x' })
-    expect(rowDataIdToName({ col_1: 'x', col_gone: 9 }, nameById)).toEqual({ email: 'x' })
+    expect(toNamedRow({ col_1: 'x', col_gone: 9 })).toEqual({ email: 'x' })
   })
 })
 

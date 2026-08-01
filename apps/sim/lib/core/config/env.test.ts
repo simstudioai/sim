@@ -1,8 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { envNumber } from '@/lib/core/config/env'
+
+vi.unmock('@/lib/core/config/env')
 
 describe('envNumber', () => {
   it('can require integer env values for count-like settings', () => {

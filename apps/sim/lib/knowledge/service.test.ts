@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  permissionsMock,
-  permissionsMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { dbChainMockFns, permissionsMock, permissionsMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -24,7 +18,6 @@ const {
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/billing/storage', () => ({
   applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,

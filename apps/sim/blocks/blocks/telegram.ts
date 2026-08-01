@@ -1,9 +1,37 @@
 import { TelegramIcon } from '@/components/icons'
+import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { TelegramResponse } from '@/tools/telegram/types'
 import { getTrigger } from '@/triggers'
+
+/**
+ * Telegram media params take a single string — a `file_id`, an HTTP URL Telegram fetches
+ * itself, or a multipart upload. These tools post JSON, so an uploaded file is sent as its
+ * https URL rather than as an object, which Telegram would reject.
+ *
+ * `direct` also accepts a file reference for workflows built before the upload pair existed,
+ * when that field held either shape. `normalizeFileInput` parses it rather than guessing.
+ */
+function resolveTelegramMedia(fileSource: unknown, direct: unknown, label: string): string {
+  const file = normalizeFileInput(fileSource ?? direct, { single: true })
+  if (file) {
+    const url = resolveHttpsUrlFromFileInput(file)
+    if (!url) {
+      throw new Error(
+        `${label} must be reachable at an https URL for Telegram to fetch. Configure cloud storage, or pass a file_id or public URL instead.`
+      )
+    }
+    return url
+  }
+
+  const value = typeof direct === 'string' ? direct.trim() : ''
+  if (!value) {
+    throw new Error(`${label} is required.`)
+  }
+  return value
+}
 
 export const TelegramBlock: BlockConfig<TelegramResponse> = {
   type: 'telegram',
@@ -83,88 +111,136 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       id: 'photoFile',
       title: 'Photo',
       type: 'file-upload',
-      canonicalParamId: 'photo',
+      canonicalParamId: 'photoSource',
       placeholder: 'Upload photo',
       mode: 'basic',
       multiple: false,
-      required: true,
+      required: false,
+      requiresCloudStorage: true,
+      maxSize: 5,
       acceptedTypes: '.jpg,.jpeg,.png,.gif,.webp',
       condition: { field: 'operation', value: 'telegram_send_photo' },
     },
     {
-      id: 'photo',
+      id: 'photoRef',
       title: 'Photo',
       type: 'short-input',
-      canonicalParamId: 'photo',
-      placeholder: 'Reference photo from previous blocks or enter URL/file_id',
+      canonicalParamId: 'photoSource',
+      placeholder: 'Reference a file from a previous block',
       mode: 'advanced',
-      required: true,
+      required: false,
+      condition: { field: 'operation', value: 'telegram_send_photo' },
+    },
+    {
+      id: 'photo',
+      title: 'Photo ID or URL',
+      type: 'short-input',
+      placeholder: 'Telegram file_id or public HTTP URL',
+      description: 'Alternative to Photo. Telegram resolves this string itself.',
+      mode: 'advanced',
+      required: false,
       condition: { field: 'operation', value: 'telegram_send_photo' },
     },
     {
       id: 'videoFile',
       title: 'Video',
       type: 'file-upload',
-      canonicalParamId: 'video',
+      canonicalParamId: 'videoSource',
       placeholder: 'Upload video',
       mode: 'basic',
       multiple: false,
-      required: true,
+      required: false,
+      requiresCloudStorage: true,
+      maxSize: 20,
       acceptedTypes: '.mp4,.mov,.avi,.mkv,.webm',
       condition: { field: 'operation', value: 'telegram_send_video' },
     },
     {
-      id: 'video',
+      id: 'videoRef',
       title: 'Video',
       type: 'short-input',
-      canonicalParamId: 'video',
-      placeholder: 'Reference video from previous blocks or enter URL/file_id',
+      canonicalParamId: 'videoSource',
+      placeholder: 'Reference a file from a previous block',
       mode: 'advanced',
-      required: true,
+      required: false,
+      condition: { field: 'operation', value: 'telegram_send_video' },
+    },
+    {
+      id: 'video',
+      title: 'Video ID or URL',
+      type: 'short-input',
+      placeholder: 'Telegram file_id or public HTTP URL',
+      description: 'Alternative to Video. Telegram resolves this string itself.',
+      mode: 'advanced',
+      required: false,
       condition: { field: 'operation', value: 'telegram_send_video' },
     },
     {
       id: 'audioFile',
       title: 'Audio',
       type: 'file-upload',
-      canonicalParamId: 'audio',
+      canonicalParamId: 'audioSource',
       placeholder: 'Upload audio',
       mode: 'basic',
       multiple: false,
-      required: true,
+      required: false,
+      requiresCloudStorage: true,
+      maxSize: 20,
       acceptedTypes: '.mp3,.m4a,.wav,.ogg,.flac',
       condition: { field: 'operation', value: 'telegram_send_audio' },
     },
     {
-      id: 'audio',
+      id: 'audioRef',
       title: 'Audio',
       type: 'short-input',
-      canonicalParamId: 'audio',
-      placeholder: 'Reference audio from previous blocks or enter URL/file_id',
+      canonicalParamId: 'audioSource',
+      placeholder: 'Reference a file from a previous block',
       mode: 'advanced',
-      required: true,
+      required: false,
+      condition: { field: 'operation', value: 'telegram_send_audio' },
+    },
+    {
+      id: 'audio',
+      title: 'Audio ID or URL',
+      type: 'short-input',
+      placeholder: 'Telegram file_id or public HTTP URL',
+      description: 'Alternative to Audio. Telegram resolves this string itself.',
+      mode: 'advanced',
+      required: false,
       condition: { field: 'operation', value: 'telegram_send_audio' },
     },
     {
       id: 'animationFile',
       title: 'Animation',
       type: 'file-upload',
-      canonicalParamId: 'animation',
+      canonicalParamId: 'animationSource',
       placeholder: 'Upload animation (GIF)',
       mode: 'basic',
       multiple: false,
-      required: true,
+      required: false,
+      requiresCloudStorage: true,
+      maxSize: 20,
       acceptedTypes: '.gif,.mp4',
       condition: { field: 'operation', value: 'telegram_send_animation' },
     },
     {
-      id: 'animation',
+      id: 'animationRef',
       title: 'Animation',
       type: 'short-input',
-      canonicalParamId: 'animation',
-      placeholder: 'Reference animation from previous blocks or enter URL/file_id',
+      canonicalParamId: 'animationSource',
+      placeholder: 'Reference a file from a previous block',
       mode: 'advanced',
-      required: true,
+      required: false,
+      condition: { field: 'operation', value: 'telegram_send_animation' },
+    },
+    {
+      id: 'animation',
+      title: 'Animation ID or URL',
+      type: 'short-input',
+      placeholder: 'Telegram file_id or public HTTP URL',
+      description: 'Alternative to Animation. Telegram resolves this string itself.',
+      mode: 'advanced',
+      required: false,
       condition: { field: 'operation', value: 'telegram_send_animation' },
     },
     // File upload (basic mode) for Send Document
@@ -467,58 +543,34 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               messageId: requireNumber(params.messageId, 'Message ID'),
             }
           case 'telegram_send_photo': {
-            // photo is the canonical param for both basic (photoFile) and advanced modes
-            const photoSource = normalizeFileInput(params.photo, {
-              single: true,
-            })
-            if (!photoSource) {
-              throw new Error('Photo is required.')
-            }
             return {
               ...commonParams,
-              photo: photoSource,
+              photo: resolveTelegramMedia(params.photoSource, params.photo, 'Photo'),
               caption: params.caption,
             }
           }
           case 'telegram_send_video': {
-            // video is the canonical param for both basic (videoFile) and advanced modes
-            const videoSource = normalizeFileInput(params.video, {
-              single: true,
-            })
-            if (!videoSource) {
-              throw new Error('Video is required.')
-            }
             return {
               ...commonParams,
-              video: videoSource,
+              video: resolveTelegramMedia(params.videoSource, params.video, 'Video'),
               caption: params.caption,
             }
           }
           case 'telegram_send_audio': {
-            // audio is the canonical param for both basic (audioFile) and advanced modes
-            const audioSource = normalizeFileInput(params.audio, {
-              single: true,
-            })
-            if (!audioSource) {
-              throw new Error('Audio is required.')
-            }
             return {
               ...commonParams,
-              audio: audioSource,
+              audio: resolveTelegramMedia(params.audioSource, params.audio, 'Audio'),
               caption: params.caption,
             }
           }
           case 'telegram_send_animation': {
-            // animation is the canonical param for both basic (animationFile) and advanced modes
-            const animationSource = normalizeFileInput(params.animation, {
-              single: true,
-            })
-            if (!animationSource) {
-              throw new Error('Animation is required.')
-            }
             return {
               ...commonParams,
-              animation: animationSource,
+              animation: resolveTelegramMedia(
+                params.animationSource,
+                params.animation,
+                'Animation'
+              ),
               caption: params.caption,
             }
           }
@@ -653,10 +705,17 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     botToken: { type: 'string', description: 'Telegram bot token' },
     chatId: { type: 'string', description: 'Chat identifier' },
     text: { type: 'string', description: 'Message text' },
-    photo: { type: 'json', description: 'Photo (UserFile or URL/file_id)' },
-    video: { type: 'json', description: 'Video (UserFile or URL/file_id)' },
-    audio: { type: 'json', description: 'Audio (UserFile or URL/file_id)' },
-    animation: { type: 'json', description: 'Animation (UserFile or URL/file_id)' },
+    photoSource: { type: 'json', description: 'Photo file to send' },
+    photo: { type: 'string', description: 'Telegram file_id or public HTTP URL for the photo' },
+    videoSource: { type: 'json', description: 'Video file to send' },
+    video: { type: 'string', description: 'Telegram file_id or public HTTP URL for the video' },
+    audioSource: { type: 'json', description: 'Audio file to send' },
+    audio: { type: 'string', description: 'Telegram file_id or public HTTP URL for the audio' },
+    animationSource: { type: 'json', description: 'Animation file to send' },
+    animation: {
+      type: 'string',
+      description: 'Telegram file_id or public HTTP URL for the animation',
+    },
     files: { type: 'array', description: 'Files to attach (UserFile array)' },
     caption: { type: 'string', description: 'Caption for media' },
     messageId: { type: 'string', description: 'Target message ID' },

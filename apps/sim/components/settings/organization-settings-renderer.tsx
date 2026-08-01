@@ -23,6 +23,11 @@ const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((module) => module.AuditLogs)
 )
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((module) => module.SSO))
+const SessionPolicySettings = dynamic(() =>
+  import('@/ee/session-policy/components/session-policy-settings').then(
+    (module) => module.SessionPolicySettings
+  )
+)
 const DataRetentionSettings = dynamic(() =>
   import('@/ee/data-retention/components/data-retention-settings').then(
     (module) => module.DataRetentionSettings
@@ -63,6 +68,9 @@ export function OrganizationSettingsRenderer({
   }
   if (section === 'audit-logs') return <AuditLogs organizationId={organizationId} />
   if (section === 'sso') return <SSO organizationId={organizationId} />
+  if (section === 'sessions') {
+    return <SessionPolicySettings key={organizationId} organizationId={organizationId} />
+  }
   if (section === 'data-retention') {
     return <DataRetentionSettings organizationId={organizationId} />
   }

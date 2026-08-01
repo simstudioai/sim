@@ -2,9 +2,10 @@ import { z } from 'zod'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 
 /**
- * Auth modes a public share can use; admins may restrict the allowed subset.
- * Shared verbatim by the file and interface allow-lists — the four modes are
- * identical, so the name is historical rather than file-specific.
+ * Auth modes a public share can use — a public file share, a chat deployment, or
+ * an interface; admins may restrict the allowed subset. Shared verbatim by every
+ * one of those allow-lists, since the four modes are identical, so the name is
+ * historical rather than file-specific.
  */
 export const FILE_SHARE_AUTH_TYPES = ['public', 'password', 'email', 'sso'] as const
 
@@ -47,7 +48,7 @@ export const permissionGroupConfigSchema = z.object({
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployChatbot: z.boolean().optional(),
-  hideDeployTemplate: z.boolean().optional(),
+  allowedChatDeployAuthTypes: z.array(z.enum(FILE_SHARE_AUTH_TYPES)).nullable().optional(),
 })
 
 export interface PermissionGroupConfig {
@@ -94,7 +95,8 @@ export interface PermissionGroupConfig {
   hideDeployApi: boolean
   hideDeployMcp: boolean
   hideDeployChatbot: boolean
-  hideDeployTemplate: boolean
+  /** Allowed chat-deployment auth modes; `null` means all are allowed. */
+  allowedChatDeployAuthTypes: ShareAuthType[] | null
 }
 
 export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
@@ -123,7 +125,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   hideDeployApi: false,
   hideDeployMcp: false,
   hideDeployChatbot: false,
-  hideDeployTemplate: false,
+  allowedChatDeployAuthTypes: null,
 }
 
 export function parsePermissionGroupConfig(config: unknown): PermissionGroupConfig {
@@ -176,6 +178,10 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     hideDeployApi: typeof c.hideDeployApi === 'boolean' ? c.hideDeployApi : false,
     hideDeployMcp: typeof c.hideDeployMcp === 'boolean' ? c.hideDeployMcp : false,
     hideDeployChatbot: typeof c.hideDeployChatbot === 'boolean' ? c.hideDeployChatbot : false,
-    hideDeployTemplate: typeof c.hideDeployTemplate === 'boolean' ? c.hideDeployTemplate : false,
+    allowedChatDeployAuthTypes: Array.isArray(c.allowedChatDeployAuthTypes)
+      ? c.allowedChatDeployAuthTypes.filter((t): t is ShareAuthType =>
+          (FILE_SHARE_AUTH_TYPES as readonly string[]).includes(t as string)
+        )
+      : null,
   }
 }

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { type ModelCost, resolveProxiedModelCost } from '@/providers/cost-policy'
 import { getProviderFromModel } from '@/providers/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -34,6 +35,7 @@ interface LLMChatResponse extends ToolResponse {
       completion?: number
       total?: number
     }
+    cost?: ModelCost
   }
 }
 
@@ -175,6 +177,10 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
         content: data.content,
         model: data.model,
         tokens: data.tokens,
+        // The provider proxy already applied the billing policy. Dropping its
+        // cost here would leave blocks built on this tool reporting tokens
+        // with no charge.
+        cost: resolveProxiedModelCost(data.cost),
       },
     }
   },
@@ -183,5 +189,6 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
     content: { type: 'string', description: 'The generated response content' },
     model: { type: 'string', description: 'The model used for generation' },
     tokens: { type: 'object', description: 'Token usage information' },
+    cost: { type: 'object', description: 'Model cost for this call in dollars' },
   },
 }

@@ -1,10 +1,8 @@
 import { execSync } from 'node:child_process'
-import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createLogger } from '@sim/logger'
-import ffmpegStatic from 'ffmpeg-static'
 import ffmpeg from 'fluent-ffmpeg'
 import type {
   AudioExtractionOptions,
@@ -31,19 +29,6 @@ function ensureFfmpeg(): void {
   }
 
   ffmpegInitialized = true
-
-  // Try ffmpeg-static binary
-  if (ffmpegStatic && typeof ffmpegStatic === 'string') {
-    try {
-      fsSync.accessSync(ffmpegStatic, fsSync.constants.X_OK)
-      ffmpegPath = ffmpegStatic
-      ffmpeg.setFfmpegPath(ffmpegPath)
-      logger.info('[FFmpeg] Using ffmpeg-static:', ffmpegPath)
-      return
-    } catch {
-      // Binary doesn't exist or not executable
-    }
-  }
 
   // Try system ffmpeg (cross-platform)
   try {

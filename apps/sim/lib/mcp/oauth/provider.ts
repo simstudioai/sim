@@ -77,7 +77,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
 
   async state(): Promise<string> {
     const state = generateId()
-    await saveState(this.row.id, state)
+    await saveState(this.row.id, state, 'provider.state')
     return state
   }
 
@@ -140,7 +140,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
     }
     if (scope === 'all' || scope === 'verifier') {
       await clearVerifier(this.row.id)
-      await clearState(this.row.id)
+      await clearState(this.row.id, `invalidateCredentials:${scope}`)
       this.row.codeVerifier = null
     }
   }

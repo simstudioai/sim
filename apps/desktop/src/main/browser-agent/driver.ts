@@ -1,0 +1,913 @@
+/**
+ * Browser-agent driver: executes the copilot's `browser_*` tools against the
+ * agent browser (session.ts) and keeps the renderer's panel header fed with
+ * live page state.
+ *
+ * Perception drives through injected page functions (element registry with a
+ * structural outline). Keyboard actuation (press_key, type) goes through
+ * TRUSTED CDP input events — synthetic DOM KeyboardEvents never trigger
+ * default editing actions (select-all, deletion, character insertion) and are
+ * ignored by code editors, so they exist only as a fallback. Clicks still use
+ * injected functions (element-targeted, no coordinate math). The user needs
+ * no input translation at all — the real page is embedded in the Sim window,
+ * so their clicks and typing are native. Tool calls serialize through a
+ * queue — one real browser can only do one thing at a time — and every call
+ * is bounded by a watchdog so the Sim side always gets a response instead of
+ * waiting out its own timeout against silence.
+ */
+import {
+  BROWSER_DATA_KINDS,
+  type BrowserDataKind,
+  type BrowserKnownSessionsState,
+  type BrowserPageState,
+  type BrowserPanelAction,
+  type BrowserTabsState,
+  type BrowserToolName,
+} from '@sim/browser-protocol'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
+import type { BrowserWindow, WebContents } from 'electron'
+import * as cdp from '@/main/browser-agent/cdp'
+import { ToolError } from '@/main/browser-agent/errors'
+import {
+  comboInsertsText,
+  comboTouchesClipboard,
+  dispatchKeyCombo,
+  parseKeyCombo,
+} from '@/main/browser-agent/keyboard'
+import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
+import {
+  activeElementSecrecy,
+  clickElement,
+  collectSnapshot,
+  focusElementForTyping,
+  getViewportInfo,
+  hoverElement,
+  pageContainsText,
+  pressKeyOnPage,
+  readActiveElementState,
+  readPageText,
+  scrollPage,
+  selectOptionInElement,
+  typeIntoElement,
+} from '@/main/browser-agent/page-functions'
+import * as session from '@/main/browser-agent/session'
+import { checkAgentUrl } from '@/main/browser-agent/url-guard'
+import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
+import type { ConfigStore } from '@/main/config'
+
+const logger = createLogger('BrowserAgentDriver')
+
+const NAVIGATION_TIMEOUT_MS = 25_000
+const NAVIGATION_SETTLE_MS = 400
+const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
+const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
+const TAKEOVER_POLL_MS = 1_500
+const TAKEOVER_MAX_MS = 12 * 60 * 60 * 1000
+/**
+ * Hard ceiling on any single tool execution (takeover excepted): whatever
+ * goes wrong, the Sim side always gets a response. Sits above the longest
+ * legitimate tool (browser_wait_for caps at 120s).
+ */
+const DEFAULT_TOOL_WATCHDOG_MS = 20_000
+const NAVIGATION_TOOL_WATCHDOG_MS = 30_000
+const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
+
+export interface DriverCallbacks {
+  onPageState: (state: BrowserPageState) => void
+  onTabsState: (state: BrowserTabsState) => void
+  onSessionStatus: (alive: boolean) => void
+  /** Whether the active tab shows a login form Sim holds a credential for. */
+  onFillAvailability: (available: boolean) => void
+}
+
+let driverCallbacks: DriverCallbacks | null = null
+let knownSessions: BrowserKnownSessionRegistry | null = null
+/** Kept so teardown can force its erasures past the settings write debounce. */
+let configStore: ConfigStore | null = null
+
+/**
+ * Page states auto-handled since the last tool result (dismissed dialogs,
+ * suppressed file choosers, blocked downloads). Attached to the next tool
+ * result so the model reacts to what actually happened on the page.
+ */
+let pendingNotices: string[] = []
+
+function recordNotice(notice: string): void {
+  if (pendingNotices.length < 10) pendingNotices.push(notice)
+}
+
+/**
+ * True while browser_request_takeover waits on the user. The Done chip on the
+ * chat's takeover tool row completes it via the `takeover-done` panel action;
+ * the state lives here (session-level, not in the page) so it survives
+ * navigations and tab switches.
+ */
+let takeoverActive = false
+let takeoverDone = false
+
+function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
+  return {
+    tabId,
+    url: contents.getURL(),
+    title: contents.getTitle(),
+    loading: contents.isLoading(),
+    canGoBack: contents.navigationHistory.canGoBack(),
+    canGoForward: contents.navigationHistory.canGoForward(),
+  }
+}
+
+function pushPageState(contents: WebContents): void {
+  if (contents.isDestroyed()) return
+  const active = session.activeTab()
+  if (active?.view.webContents !== contents) return
+  driverCallbacks?.onPageState(pageStateFor(contents, active.id))
+}
+
+let lastTabsStateFingerprint: string | null = null
+
+/**
+ * Pushes the tab list to the renderer, skipping a push identical to the last.
+ *
+ * Every tab's load and title events call this, background tabs included, and a
+ * site that rewrites its title on a timer fires them continuously — each an
+ * unconditional broadcast that rebuilt the whole strip. The fingerprint drops
+ * the repeats, matching what the terminal side already does with emitTabs.
+ */
+function pushTabsState(): void {
+  const state = session.getTabsState()
+  const fingerprint = JSON.stringify(state)
+  if (fingerprint === lastTabsStateFingerprint) return
+  lastTabsStateFingerprint = fingerprint
+  driverCallbacks?.onTabsState(state)
+}
+
+/** Instruments a fresh tab: CDP dialog/chooser handling + page-state pushes. */
+function instrumentTab(contents: WebContents): void {
+  void cdp
+    .ensureInstrumented(contents, {
+      onDialog: (dialog) => {
+        recordNotice(
+          `The page showed a ${dialog.type} dialog ("${dialog.message}") which was auto-dismissed.`
+        )
+      },
+      onFileChooser: () => {
+        recordNotice(
+          'The page opened a file picker; native file uploads are not driven by the agent — ' +
+            'the user can complete the upload directly in the browser panel if needed.'
+        )
+      },
+    })
+    .then(() => cdp.setColorScheme(contents, session.getBrowserTheme()))
+    .catch((error) => {
+      logger.warn('CDP instrumentation failed', {
+        error: getErrorMessage(error),
+      })
+    })
+  contents.on('did-navigate', () => {
+    knownSessions?.noteTopLevelNavigation(contents.getURL())
+    pushPageState(contents)
+    pushTabsState()
+  })
+  for (const event of [
+    'did-navigate-in-page',
+    'page-title-updated',
+    'did-start-loading',
+    'did-stop-loading',
+  ] as const) {
+    contents.on(event as 'did-navigate', () => {
+      pushPageState(contents)
+      pushTabsState()
+    })
+  }
+  driverCallbacks?.onSessionStatus(true)
+}
+
+export function initDriver(
+  callbacks: DriverCallbacks,
+  getMainWindow: () => BrowserWindow | null,
+  config?: ConfigStore
+): void {
+  driverCallbacks = callbacks
+  knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
+  configStore = config ?? null
+  // The rest of this module's state is per-session too. Left behind, a new
+  // session inherits the previous one's pending notices, a takeover still
+  // waiting on a user who is gone, and a fingerprint that suppresses its very
+  // first tab push as a duplicate.
+  pendingNotices = []
+  takeoverActive = false
+  takeoverDone = false
+  lastTabsStateFingerprint = null
+  // The serialization chain, too. A takeover from the previous session can sit
+  // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
+  // leaving the old chain head in place would queue the new session's first
+  // tool call behind a promise nothing can ever settle.
+  toolQueue = Promise.resolve()
+  initFillCoordinator({
+    getActiveContents: () => session.activeTab()?.view.webContents ?? null,
+    onAvailabilityChanged: (available) => callbacks.onFillAvailability(available),
+  })
+  session.initSession(
+    {
+      onSessionClosed: () => {
+        driverCallbacks?.onSessionStatus(false)
+      },
+      onTabCreated: instrumentTab,
+      onTabNavigated: (contents) => fillCoordinator()?.noteNavigation(contents),
+      onTabClosed: (contents) => fillCoordinator()?.forget(contents),
+      onActiveTabChanged: (contents) => {
+        pushPageState(contents)
+        // The fill affordance belongs to whichever page is in front.
+        void fillCoordinator()?.refreshAvailability()
+      },
+      onTabsChanged: pushTabsState,
+      onTabThemeChanged: (contents, theme) => {
+        void cdp.setColorScheme(contents, theme).catch((error) => {
+          logger.warn('Could not update browser tab theme', {
+            error: getErrorMessage(error),
+          })
+        })
+      },
+      onDownloadBlocked: (filename) => {
+        recordNotice(
+          `The page tried to download "${filename}"; downloads are not supported in the agent browser, so it was blocked.`
+        )
+      },
+    },
+    getMainWindow,
+    config
+      ? {
+          load: () => config.get('browserPinnedTabUrls'),
+          save: (urls) => config.set('browserPinnedTabUrls', urls),
+        }
+      : undefined
+  )
+}
+
+export async function getKnownSessions(): Promise<BrowserKnownSessionsState> {
+  if (!knownSessions) return { sessions: [] }
+  const cookieSignals = await session.listAgentCookieSignals()
+  return knownSessions.list(cookieSignals)
+}
+
+/**
+ * Cookies, site storage, cache, and the remembered browsing trail.
+ *
+ * Saved passwords are deliberately NOT touched. "Clear browsing data" is about
+ * signing out of websites, and a user who wanted to erase their password vault
+ * would have to say so separately — silently taking their credentials with it
+ * would be a destructive surprise.
+ */
+export async function clearBrowsingData(
+  kinds: readonly BrowserDataKind[] = BROWSER_DATA_KINDS
+): Promise<void> {
+  // The remembered browsing trail is the local mirror of the cookie jar, so it
+  // goes when cookies do and stays when they do not.
+  if (kinds.includes('cookies')) knownSessions?.clear()
+  await session.clearAgentData(kinds)
+}
+
+/**
+ * Everything the embedded browser holds for the signed-in user, including the
+ * credential vault. This is the Sim sign-out path: a different account signing
+ * in on the same machine must not inherit the previous user's sessions or
+ * passwords.
+ */
+export async function clearBrowserProfile(): Promise<void> {
+  knownSessions?.clear()
+  await session.clearProfileStorage()
+  await clearCredentials()
+  // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
+  // Settings writes coalesce, and an erasure that is still sitting in that
+  // window when the process dies leaves the previous account's data on disk
+  // after sign-out already told the user it was gone.
+  configStore?.flush()
+}
+
+function str(params: Record<string, unknown>, key: string): string | undefined {
+  const value = params[key]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function num(params: Record<string, unknown>, key: string): number | undefined {
+  const value = params[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+/**
+ * Native execution must time out before the renderer gives up (30s default,
+ * 45s navigation, requested wait + 15s). Otherwise the abandoned native
+ * promise keeps owning the serialized queue and every later browser action
+ * times out behind it.
+ */
+export function browserToolWatchdogMs(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): number | null {
+  if (tool === 'browser_request_takeover') return null
+  if (
+    tool === 'browser_navigate' ||
+    tool === 'browser_open_url' ||
+    tool === 'browser_go_back' ||
+    tool === 'browser_go_forward' ||
+    tool === 'browser_open_tab'
+  ) {
+    return NAVIGATION_TOOL_WATCHDOG_MS
+  }
+  if (tool === 'browser_wait_for') {
+    const requested = Math.min(
+      num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
+      MAX_WAIT_FOR_TIMEOUT_MS
+    )
+    return requested + WAIT_FOR_TOOL_WATCHDOG_GRACE_MS
+  }
+  return DEFAULT_TOOL_WATCHDOG_MS
+}
+
+function requireStr(params: Record<string, unknown>, key: string): string {
+  const value = str(params, key)
+  if (value === undefined) throw new ToolError(`Missing required parameter "${key}"`)
+  return value
+}
+
+function requireNum(params: Record<string, unknown>, key: string): number {
+  const value = num(params, key)
+  if (value === undefined) throw new ToolError(`Missing required numeric parameter "${key}"`)
+  return value
+}
+
+/**
+ * Serializes a self-contained page function and executes it in the page's
+ * main world with JSON-encoded arguments (Electron's executeJavaScript has no
+ * function+args transport like chrome.scripting).
+ */
+async function execInPage<Args extends unknown[], Result>(
+  contents: WebContents,
+  fn: (...args: Args) => Result,
+  args: Args
+): Promise<Result> {
+  const url = contents.getURL()
+  if (url === '' || url === 'about:blank') {
+    throw new ToolError(
+      'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
+    )
+  }
+  const expression = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
+  try {
+    return (await contents.executeJavaScript(expression, true)) as Result
+  } catch (error) {
+    const message = getErrorMessage(error)
+    throw new ToolError(
+      `Cannot act on this page (${message}). Browser-internal pages cannot be automated — ` +
+        'navigate to a regular website first.'
+    )
+  }
+}
+
+/**
+ * Covers focusing, clicking, and typing: the agent has no legitimate reason to
+ * reach a credential field, and takeover is the sanctioned path when a task
+ * needs one.
+ */
+const PASSWORD_REFUSAL =
+  'Refusing to act on a password field. Call browser_request_takeover so the user ' +
+  'can enter their credentials themselves.'
+
+/** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
+function unwrapPageResult(result: unknown): unknown {
+  if (isRecordLike(result) && 'error' in result) {
+    const code = (result as { error: string }).error
+    if (code === 'stale') {
+      throw new ToolError(
+        'That element id is stale (the page changed since the last snapshot). ' +
+          'Call browser_snapshot again and use a fresh id.'
+      )
+    }
+    if (code === 'password') {
+      throw new ToolError(PASSWORD_REFUSAL)
+    }
+    if (code === 'not-editable') {
+      throw new ToolError('That element is not a text input — pick an editable element.')
+    }
+    if (code === 'not-select') {
+      throw new ToolError('That element is not a <select> dropdown.')
+    }
+    if (code === 'no-option') {
+      const options = (result as { options?: string[] }).options ?? []
+      throw new ToolError(
+        `No option matched that label or value. Available options: ${options.join(', ')}`
+      )
+    }
+  }
+  return result
+}
+
+function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      contents.removeListener('did-stop-loading', finish)
+      contents.removeListener('destroyed', finish)
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(finish, timeoutMs)
+    contents.on('did-stop-loading', finish)
+    contents.on('destroyed', finish)
+    if (!contents.isLoading()) finish()
+  })
+}
+
+async function navigationResult(contents: WebContents): Promise<Record<string, unknown>> {
+  await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
+  await sleep(NAVIGATION_SETTLE_MS)
+  if (contents.isDestroyed()) throw new ToolError('The tab was closed during navigation.')
+  return { url: contents.getURL(), title: contents.getTitle() }
+}
+
+/**
+ * Bounds a tool call, always clearing the timer once the race settles.
+ *
+ * Not `sleep()` — that timer cannot be cancelled, so racing against it leaves
+ * one pending for the full watchdog window (up to two minutes) after the tool
+ * has already finished, dozens at a time over an agent run.
+ */
+function raceAgainstWatchdog<T>(execution: Promise<T>, watchdogMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const expiry = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new ToolError(
+            'The browser did not finish this action in time. Take a browser_snapshot to see the current page state.'
+          )
+        ),
+      watchdogMs
+    )
+  })
+  return Promise.race([execution, expiry]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * Post-action readback so the model sees the real effect (selection size,
+ * value length) instead of assuming the key "worked".
+ */
+async function activeElementState(contents: WebContents): Promise<Record<string, unknown>> {
+  const state = await execInPage(contents, readActiveElementState, []).catch(() => null)
+  return isRecordLike(state) ? state : {}
+}
+
+/**
+ * Hands control to the user: the page is already natively interactive in the
+ * panel, and the chat's takeover tool row shows the reason with a Done chip.
+ * The tool resolves when that chip sends the `takeover-done` panel action.
+ * Nothing is injected into the page, so nothing covers page content and the
+ * pending state survives navigations.
+ */
+async function runTakeover(purpose: string | undefined): Promise<unknown> {
+  const tab = session.ensureTab()
+  const contents = tab.view.webContents
+  takeoverActive = true
+  takeoverDone = false
+
+  const startedAt = Date.now()
+  try {
+    while (Date.now() - startedAt < TAKEOVER_MAX_MS) {
+      await sleep(TAKEOVER_POLL_MS)
+      if (!session.hasSession() || contents.isDestroyed()) {
+        throw new ToolError(
+          'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
+        )
+      }
+      if (takeoverDone) {
+        if (purpose === 'sign_in') {
+          const activeContents = session.activeTab()?.view.webContents
+          if (activeContents && !activeContents.isDestroyed()) {
+            knownSessions?.noteSignInCompleted(activeContents.getURL())
+          }
+        }
+        return { completed: true, elapsedMs: Date.now() - startedAt }
+      }
+    }
+    throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
+  } finally {
+    takeoverActive = false
+    takeoverDone = false
+  }
+}
+
+async function executeToolInner(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): Promise<unknown> {
+  switch (tool) {
+    case 'browser_navigate': {
+      const url = requireStr(params, 'url')
+      // Up-front SSRF check for a clean model-facing error. The partition's
+      // onBeforeRequest is the actual enforcement seam (it also catches
+      // page-initiated navigations); this pre-check exists because loadURL's
+      // rejection is swallowed below, so a blocked nav would otherwise surface
+      // as a blank page with no error.
+      const guard = await checkAgentUrl(url)
+      if (!guard.ok) {
+        throw new ToolError(guard.error ?? 'That address was blocked.')
+      }
+      const tab = session.ensureTab()
+      const contents = tab.view.webContents
+      // loadURL rejects on aborts/redirect races that are routine on real
+      // sites; the settled URL/title below is the truth worth reporting.
+      void contents.loadURL(url).catch(() => {})
+      return await navigationResult(contents)
+    }
+
+    case 'browser_open_url': {
+      // Composite navigate + snapshot: one round trip for the copilot's
+      // direct "open this page and look at it" tool, instead of two
+      // checkpoint/resume cycles for browser_navigate then browser_snapshot.
+      const url = requireStr(params, 'url')
+      const guard = await checkAgentUrl(url)
+      if (!guard.ok) {
+        throw new ToolError(guard.error ?? 'That address was blocked.')
+      }
+      const tab = session.ensureTab()
+      const contents = tab.view.webContents
+      void contents.loadURL(url).catch(() => {})
+      const nav = await navigationResult(contents)
+      // A failed snapshot (browser-internal page, injection error) should not
+      // fail the open itself — the page is on screen either way.
+      const snapshot = await execInPage(contents, collectSnapshot, []).catch(() => null)
+      return snapshot === null
+        ? { ...nav, note: 'The page loaded but a snapshot could not be captured.' }
+        : { ...nav, snapshot }
+    }
+
+    case 'browser_go_back':
+    case 'browser_go_forward': {
+      const contents = session.requireTab().view.webContents
+      const history = contents.navigationHistory
+      if (tool === 'browser_go_back') {
+        if (!history.canGoBack()) throw new ToolError('Cannot go back — no earlier history entry.')
+        history.goBack()
+      } else {
+        if (!history.canGoForward()) {
+          throw new ToolError('Cannot go forward — no later history entry.')
+        }
+        history.goForward()
+      }
+      return await navigationResult(contents)
+    }
+
+    case 'browser_open_tab': {
+      const url = str(params, 'url')
+      if (url) {
+        const guard = await checkAgentUrl(url)
+        if (!guard.ok) {
+          throw new ToolError(guard.error ?? 'That address was blocked.')
+        }
+      }
+      const tab = session.addTab()
+      const contents = tab.view.webContents
+      if (url) {
+        void contents.loadURL(url).catch(() => {})
+        const result = await navigationResult(contents)
+        return { tabId: tab.id, ...result }
+      }
+      return { tabId: tab.id, url: '', title: '' }
+    }
+
+    case 'browser_switch_tab': {
+      const tab = session.switchTab(requireStr(params, 'tabId'))
+      const contents = tab.view.webContents
+      return { tabId: tab.id, url: contents.getURL(), title: contents.getTitle() }
+    }
+
+    case 'browser_close_tab': {
+      const tabId = requireStr(params, 'tabId')
+      session.closeTab(tabId)
+      return { closed: tabId }
+    }
+
+    case 'browser_list_tabs': {
+      return session.getTabsState()
+    }
+
+    case 'browser_list_sessions': {
+      return await getKnownSessions()
+    }
+
+    case 'browser_wait_for': {
+      const text = str(params, 'text')
+      const timeoutMs = Math.min(
+        num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
+        MAX_WAIT_FOR_TIMEOUT_MS
+      )
+      const startedAt = Date.now()
+      if (!text) {
+        await sleep(timeoutMs)
+        return { waitedMs: timeoutMs }
+      }
+      const contents = session.requireTab().view.webContents
+      while (Date.now() - startedAt < timeoutMs) {
+        const found = await execInPage(contents, pageContainsText, [text]).catch(() => false)
+        if (found) return { found: true, elapsedMs: Date.now() - startedAt }
+        await sleep(300)
+      }
+      return {
+        found: false,
+        elapsedMs: Date.now() - startedAt,
+        note: 'Text did not appear before the timeout. Take a browser_snapshot to see the current page state.',
+      }
+    }
+
+    case 'browser_snapshot': {
+      const contents = session.requireTab().view.webContents
+      return await execInPage(contents, collectSnapshot, [])
+    }
+
+    case 'browser_read_text': {
+      const contents = session.requireTab().view.webContents
+      return unwrapPageResult(await execInPage(contents, readPageText, [num(params, 'elementId')]))
+    }
+
+    case 'browser_screenshot': {
+      const contents = session.requireTab().view.webContents
+      const dataUrl = await cdp.captureScreenshot(contents).catch(() => null)
+      if (dataUrl === null) {
+        throw new ToolError(
+          'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
+        )
+      }
+      const viewport = await execInPage(contents, getViewportInfo, []).catch(() => null)
+      return { dataUrl, viewport }
+    }
+
+    case 'browser_extract': {
+      const instruction = requireStr(params, 'instruction')
+      const contents = session.requireTab().view.webContents
+      const page = await execInPage(contents, readPageText, [undefined])
+      return { instruction, page }
+    }
+
+    case 'browser_click': {
+      const contents = session.requireTab().view.webContents
+      return unwrapPageResult(
+        await execInPage(contents, clickElement, [requireNum(params, 'elementId')])
+      )
+    }
+
+    case 'browser_type': {
+      const elementId = requireNum(params, 'elementId')
+      const text = requireStr(params, 'text')
+      const submit = params.submit === true
+      const contents = session.requireTab().view.webContents
+
+      // Native path: focus + select current content, then insert through the
+      // IME pipeline so the text REPLACES what's there — the only write path
+      // code editors (CodeMirror/Monaco) honor. The DOM selection set by the
+      // page function covers plain fields; the real select-all keystroke
+      // right after covers editors that track selection in their own model
+      // (their keymaps handle it synchronously, where DOM-selection sync is
+      // async and can lose a race with the insert). Falls back to the
+      // synthetic value-setter when CDP is unavailable.
+      unwrapPageResult(await execInPage(contents, focusElementForTyping, [elementId]))
+      try {
+        await dispatchKeyCombo(
+          contents,
+          parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
+        )
+        // The guard above vetted the element we asked to focus, but the insert
+        // below goes wherever focus actually is now, a round trip later. Login
+        // forms that auto-advance from username to password move it in exactly
+        // that window, so re-check the real target before sending text.
+        // Deliberately after the select-all rather than before it: this needs
+        // to sit as close to the write as possible. The cost is that a field
+        // which stole focus may end up with its contents selected — it is
+        // never read, and nothing is inserted into it.
+        if ((await execInPage(contents, activeElementSecrecy, []).catch(() => 'safe')) !== 'safe') {
+          throw new ToolError(PASSWORD_REFUSAL)
+        }
+        await cdp.insertText(contents, text)
+      } catch (error) {
+        // A refusal is a decision, not a CDP failure — it must not be retried
+        // through the synthetic path.
+        if (error instanceof ToolError) throw error
+        return unwrapPageResult(
+          await execInPage(contents, typeIntoElement, [elementId, text, submit])
+        )
+      }
+      if (submit) {
+        await dispatchKeyCombo(contents, parseKeyCombo('Enter')).catch(() => {})
+      }
+      const state = await activeElementState(contents)
+      return { typed: true, replacedExisting: true, submitted: submit, ...state }
+    }
+
+    case 'browser_press_key': {
+      const combo = parseKeyCombo(requireStr(params, 'key'))
+      const contents = session.requireTab().view.webContents
+      // Pasting would move the user's clipboard into the page, where the next
+      // snapshot reports it as an ordinary field value — clipboards routinely
+      // hold a password copied out of a password manager. Copy and cut would
+      // overwrite whatever the user had there.
+      if (comboTouchesClipboard(combo)) {
+        throw new ToolError(
+          'Refusing to use a clipboard shortcut. The clipboard belongs to the user and may ' +
+            'hold credentials. Use browser_type to enter text.'
+        )
+      }
+      // Trusted CDP key events never enter the page, so they cannot be vetted
+      // from inside it — a focused credential field has to be ruled out here,
+      // before dispatch. Probe failures (blank or uninjectable page) fall
+      // through as safe: such a page has no field to protect.
+      const secrecy = await execInPage(contents, activeElementSecrecy, []).catch(() => 'safe')
+      if (secrecy === 'secret') {
+        throw new ToolError(PASSWORD_REFUSAL)
+      }
+      if (secrecy === 'opaque' && comboInsertsText(combo)) {
+        throw new ToolError(
+          'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
+            'keystroke could land in a password field. Call browser_request_takeover if the ' +
+            'user needs to type here.'
+        )
+      }
+      try {
+        await dispatchKeyCombo(contents, combo)
+      } catch {
+        // CDP unavailable (debugger detached): synthetic DOM fallback. It
+        // cannot trigger default editing actions, so say so in the result.
+        const fallback = await execInPage(contents, pressKeyOnPage, [
+          combo.key,
+          combo.code,
+          combo.keyCode,
+          combo.ctrl,
+          combo.meta,
+          combo.shift,
+          combo.alt,
+        ])
+        return {
+          ...(isRecordLike(fallback) ? fallback : {}),
+          note: 'Delivered as a synthetic page event; editing shortcuts may not take effect.',
+        }
+      }
+      const state = await activeElementState(contents)
+      return { pressed: requireStr(params, 'key'), ...state }
+    }
+
+    case 'browser_scroll': {
+      const contents = session.requireTab().view.webContents
+      return await execInPage(contents, scrollPage, [
+        requireStr(params, 'direction'),
+        num(params, 'amount'),
+      ])
+    }
+
+    case 'browser_select_option': {
+      const contents = session.requireTab().view.webContents
+      return unwrapPageResult(
+        await execInPage(contents, selectOptionInElement, [
+          requireNum(params, 'elementId'),
+          requireStr(params, 'value'),
+        ])
+      )
+    }
+
+    case 'browser_hover': {
+      const contents = session.requireTab().view.webContents
+      return unwrapPageResult(
+        await execInPage(contents, hoverElement, [requireNum(params, 'elementId')])
+      )
+    }
+
+    case 'browser_request_takeover': {
+      // The reason renders in the chat's tool row, not here — but require it
+      // so the model always tells the user why control was handed over.
+      requireStr(params, 'reason')
+      return await runTakeover(str(params, 'purpose'))
+    }
+
+    default: {
+      const exhaustive: never = tool
+      throw new ToolError(`Unknown tool: ${String(exhaustive)}`)
+    }
+  }
+}
+
+/**
+ * Attaches auto-handled page-state notices (dismissed dialogs, suppressed
+ * file choosers, blocked downloads) to the outgoing result so the model
+ * learns what happened without a dedicated tool.
+ */
+function withNotices(result: unknown): unknown {
+  if (pendingNotices.length === 0) return result
+  const notices = pendingNotices
+  pendingNotices = []
+  if (isRecordLike(result)) {
+    return { ...(result as Record<string, unknown>), notices }
+  }
+  return { value: result, notices }
+}
+
+/** One real browser can only do one thing at a time — serialize tool calls. */
+let toolQueue: Promise<unknown> = Promise.resolve()
+
+export async function executeTool(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+  const run = async () => {
+    logger.info('Executing browser tool', { tool })
+    const keepHiddenPageActive = tool !== 'browser_request_takeover'
+    if (keepHiddenPageActive) {
+      session.setAutomationActive(true)
+    }
+    try {
+      const execution = executeToolInner(tool, params)
+      const watchdogMs = browserToolWatchdogMs(tool, params)
+      return withNotices(
+        await (watchdogMs === null ? execution : raceAgainstWatchdog(execution, watchdogMs))
+      )
+    } finally {
+      if (keepHiddenPageActive) {
+        session.setAutomationActive(false)
+      }
+    }
+  }
+
+  const settled = toolQueue.then(run, run)
+  toolQueue = settled.catch(() => {})
+  try {
+    return { ok: true, result: await settled }
+  } catch (error) {
+    const message = getErrorMessage(error)
+    logger.warn('Browser tool failed', { tool, error: message })
+    return { ok: false, error: message }
+  }
+}
+
+/** Browser-chrome commands from the panel header; fire-and-forget. */
+export async function handlePanelAction(action: BrowserPanelAction): Promise<void> {
+  // The Done chip on the chat's takeover tool row: hands control back to the
+  // agent. Meaningful only while a takeover is actually waiting.
+  if (action.action === 'takeover-done') {
+    if (takeoverActive) takeoverDone = true
+    return
+  }
+  // Navigate bootstraps the session: the user can open the panel manually
+  // (before the agent ever touched the browser) and drive it from the URL
+  // bar. The other chrome actions need an existing page.
+  if (action.action === 'navigate') {
+    if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
+      const contents = session.ensureTab().view.webContents
+      void contents.loadURL(action.url).catch(() => {})
+    }
+    return
+  }
+  if (action.action === 'new-tab') {
+    session.addTab()
+    return
+  }
+  if (action.action === 'duplicate-tab') {
+    if (typeof action.tabId === 'string') {
+      session.duplicateTab(action.tabId)
+    }
+    return
+  }
+  if (action.action === 'switch-tab') {
+    if (typeof action.tabId === 'string') {
+      session.switchTab(action.tabId)
+    }
+    return
+  }
+  if (action.action === 'close-tab') {
+    if (typeof action.tabId === 'string') {
+      session.closeTab(action.tabId)
+    }
+    return
+  }
+  const tab = session.activeTab()
+  if (!tab) return
+  const contents = tab.view.webContents
+  switch (action.action) {
+    case 'reload':
+      contents.reload()
+      return
+    case 'back':
+      if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack()
+      return
+    case 'forward':
+      if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
+      return
+    default:
+      return
+  }
+}

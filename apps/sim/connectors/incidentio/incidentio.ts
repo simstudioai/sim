@@ -139,6 +139,59 @@ interface IncidentioUpdatesListResponse {
 }
 
 /**
+ * Sentinel `statusCategory` value meaning "sync every category, excluding
+ * nothing". It is a UI-only value and is never sent to incident.io.
+ *
+ * This exists so the dropdown keeps an escape hatch: leaving the field untouched
+ * applies the implicit canceled exclusion, while explicitly choosing this option
+ * opts back into a truly unfiltered listing.
+ */
+export const SYNC_ALL_STATUS_CATEGORIES = 'all'
+
+/**
+ * Status categories excluded from the listing when the user has not chosen one.
+ *
+ * Only `canceled` qualifies. incident.io has no incident delete endpoint and its
+ * docs name cancelling as the sole removal mechanism: "we don't currently
+ * support deleting incidents ... if you want to 'hide' an incident, you can
+ * simply cancel it".
+ *
+ * `declined` and `merged` are deliberately NOT excluded. Both are ordinary
+ * triage outcomes for incidents that still exist and remain readable, and a
+ * declined incident can be moved back to triage later — excluding them would
+ * make the sync engine hard-delete live customer content.
+ */
+export const DEFAULT_EXCLUDED_STATUS_CATEGORIES = ['canceled'] as const
+
+/**
+ * Builds the `status_category` query params for a listing request.
+ *
+ * `GET /v2/incidents` applies no default `status_category` filter, so canceled
+ * incidents stay in the full listing forever. Because the sync engine purges
+ * stale KB documents only via deletion reconciliation — documents absent from a
+ * full listing are removed — a canceled incident would otherwise be re-upserted
+ * indefinitely with no way to ever drop it.
+ *
+ * Resolution order:
+ * - `all` → no `status_category` param at all, so every category syncs.
+ * - any other non-empty value → honoured verbatim as `status_category[one_of]`,
+ *   including deliberately selecting `canceled`.
+ * - empty / whitespace / unset → the default exclusion above.
+ *
+ * Values are emitted as repeated `status_category[not_in]` params, the documented
+ * syntax for the list operand, so callers must `append` (never `set`) each pair.
+ */
+export function buildStatusCategoryParams(statusCategory: string): Array<[string, string]> {
+  const explicit = statusCategory.trim()
+  if (explicit === SYNC_ALL_STATUS_CATEGORIES) return []
+  if (explicit) return [['status_category[one_of]', explicit]]
+  return DEFAULT_EXCLUDED_STATUS_CATEGORIES.map((category): [string, string] => [
+    'status_category[not_in]',
+    category,
+  ])
+}
+
+/**
  * Builds the metadata-based content hash for an incident.
  *
  * Uses only the incident `updated_at` timestamp, which incident.io bumps whenever any
@@ -374,7 +427,9 @@ export const incidentioConnector: ConnectorConfig = {
     url.searchParams.set('sort_by', 'created_at_oldest_first')
     if (cursor) url.searchParams.set('after', cursor)
     if (lastSyncAt) url.searchParams.set('updated_at[gte]', lastSyncAt.toISOString())
-    if (statusCategory) url.searchParams.set('status_category[one_of]', statusCategory)
+    for (const [key, value] of buildStatusCategoryParams(statusCategory)) {
+      url.searchParams.append(key, value)
+    }
     if (mode) url.searchParams.set('mode[one_of]', mode)
 
     logger.info('Listing incident.io incidents', {

@@ -244,8 +244,9 @@ export function generateWorkflowDiffSummary(
         continue
       }
 
-      const currentValue = normalizeSubBlockValue(subId, currentSub.value)
-      const previousValue = normalizeSubBlockValue(subId, previousSub.value)
+      const subType = currentSub.type ?? previousSub.type
+      const currentValue = normalizeSubBlockValue(subId, currentSub.value, subType)
+      const previousValue = normalizeSubBlockValue(subId, previousSub.value, subType)
 
       if (typeof currentValue === 'string' && typeof previousValue === 'string') {
         if (currentValue !== previousValue) {

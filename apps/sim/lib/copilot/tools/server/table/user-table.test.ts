@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
 const {
+  mockUpdateColumnType,
+  mockUpdateColumnOptions,
   mockResolveWorkspaceFileReference,
   mockDownloadWorkspaceFile,
   mockGetTableById,
@@ -25,6 +27,8 @@ const {
   mockRunTableUpdate,
   fakeEnrichment,
 } = vi.hoisted(() => ({
+  mockUpdateColumnType: vi.fn(),
+  mockUpdateColumnOptions: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
@@ -92,7 +96,8 @@ vi.mock('@/lib/table/columns/service', () => ({
   deleteColumns: vi.fn(),
   renameColumn: vi.fn(),
   updateColumnConstraints: vi.fn(),
-  updateColumnType: vi.fn(),
+  updateColumnType: mockUpdateColumnType,
+  updateColumnOptions: mockUpdateColumnOptions,
 }))
 
 vi.mock('@/lib/table/rows/service', () => ({
@@ -132,7 +137,11 @@ vi.mock('@/lib/table/billing', () => ({
   getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
 }))
 
-import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
+import {
+  normalizeSelectOptionsInput,
+  userTableServerTool,
+} from '@/lib/copilot/tools/server/table/user-table'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -162,6 +171,60 @@ async function flushDetached(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
 }
+
+describe('normalizeSelectOptionsInput', () => {
+  it('generates a stable id for a bare-name string option', () => {
+    const [opt] = normalizeSelectOptionsInput(['Open']) ?? []
+    expect(opt.name).toBe('Open')
+    expect(typeof opt.id).toBe('string')
+    expect(opt.id.length).toBeGreaterThan(0)
+  })
+
+  it('generates an id for an object option without one', () => {
+    const [opt] = normalizeSelectOptionsInput([{ name: 'Closed' }]) ?? []
+    expect(opt.name).toBe('Closed')
+    expect(opt.id.length).toBeGreaterThan(0)
+  })
+
+  it('preserves an explicitly supplied id', () => {
+    const result = normalizeSelectOptionsInput([{ id: 'opt_keep', name: 'Open' }])
+    expect(result).toEqual([{ id: 'opt_keep', name: 'Open' }])
+  })
+
+  it('reuses the id of an existing option with the same name', () => {
+    // The agent re-sends options as bare names on every edit. Minting fresh ids
+    // would orphan every cell holding them — silently clearing the column.
+    const existing = [
+      { id: 'opt_low', name: 'Low' },
+      { id: 'opt_high', name: 'High' },
+    ]
+    const result = normalizeSelectOptionsInput(['Low', 'Medium', 'High'], existing) ?? []
+
+    expect(result[0]).toEqual({ id: 'opt_low', name: 'Low' })
+    expect(result[2]).toEqual({ id: 'opt_high', name: 'High' })
+    // Only the genuinely new option gets a fresh id.
+    expect(result[1].name).toBe('Medium')
+    expect(result[1].id).not.toBe('opt_low')
+    expect(result[1].id).not.toBe('opt_high')
+  })
+
+  it('matches an existing option name case-insensitively', () => {
+    const result = normalizeSelectOptionsInput(['open'], [{ id: 'opt_open', name: 'Open' }]) ?? []
+    expect(result[0].id).toBe('opt_open')
+    expect(result[0].name).toBe('open')
+  })
+
+  it('mints a fresh id when there is no existing column to match against', () => {
+    const result = normalizeSelectOptionsInput(['Open']) ?? []
+    expect(result[0].id.length).toBeGreaterThan(0)
+    expect(result[0].name).toBe('Open')
+  })
+
+  it('returns undefined for a non-array (validation rejects it downstream)', () => {
+    expect(normalizeSelectOptionsInput(undefined)).toBeUndefined()
+    expect(normalizeSelectOptionsInput('Open')).toBeUndefined()
+  })
+})
 
 describe('userTableServerTool.import_file', () => {
   beforeEach(() => {
@@ -355,6 +418,37 @@ describe('userTableServerTool.import_file', () => {
       mode: 'replace',
       deleteSourceFile: false,
     })
+  })
+
+  it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'import_file',
+        args: { tableId: 'tbl_1', fileId: 'uploads/people.csv' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/materialize_file/)
+    expect(result.message).not.toMatch(/glob\("files/)
+  })
+
+  it('still tells the agent to glob files\\/ for a genuine workspace-file miss', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'import_file',
+        args: { tableId: 'tbl_1', fileId: 'files/typo.csv' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/File not found: "files\/typo\.csv"/)
   })
 
   it('rejects a background import while another job holds the table slot', async () => {
@@ -690,7 +784,7 @@ describe('userTableServerTool.query_rows', () => {
     })
   })
 
-  it('clamps an over-large query limit to MAX_QUERY_LIMIT instead of rejecting', async () => {
+  it('passes an explicit limit through unchanged (no row cap)', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -698,20 +792,75 @@ describe('userTableServerTool.query_rows', () => {
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
-    expect(options.limit).toBe(1000)
+    expect(options.limit).toBe(100000)
   })
 
-  it('queries without execution metadata and passes limit/offset through', async () => {
+  it('omits the limit so queryRows returns every matching row', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, offset: 10 } },
+      { operation: 'query_rows', args: { tableId: 'tbl_1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.limit).toBeUndefined()
+  })
+
+  it('decodes an opaque cursor into after/offset and skips the count', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row_9', orderKey: 'a9' },
+      keysetValid: true,
+      nextOffset: 20,
+    })
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, cursor } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
     expect(options.withExecutions).toBe(false)
-    expect(options.offset).toBe(10)
-    expect(result.data?.nextCursor).toBeUndefined()
+    expect(options.after).toEqual({ orderKey: 'a9', id: 'row_9' })
+    // A cursor page never re-counts.
+    expect(options.includeTotal).toBe(false)
+  })
+
+  it('surfaces the opaque nextCursor (not an offset) in the "more available" message', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [queryRow(1), queryRow(2)],
+      rowCount: 2,
+      totalCount: 10,
+      limit: 2,
+      offset: 0,
+      nextCursor: 'CURSOR_TOKEN_ABC',
+    })
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2 } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.message).toContain('more available')
+    expect(result.message).toContain('cursor=CURSOR_TOKEN_ABC')
+    expect(result.message).not.toContain('offset=')
+  })
+
+  it('rejects a keyset cursor combined with a custom sort', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row_9', orderKey: 'a9' },
+      keysetValid: true,
+      nextOffset: 20,
+    })
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', cursor, order: [{ field: 'name', direction: 'desc' }] },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/not valid for a sorted query/i)
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 })
 
@@ -742,7 +891,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -763,7 +916,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
 
   it('deletes inline when the unbounded match count is within the cap', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -781,7 +937,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -801,7 +961,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     })
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     await flushDetached()
@@ -836,7 +999,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     mockMarkTableJobRunning.mockResolvedValueOnce(false)
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -850,7 +1016,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -881,7 +1051,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -901,7 +1076,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -922,7 +1101,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -958,7 +1141,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { email: 'x' }, data: { email: 'y' } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'email', op: 'eq', value: 'x' }] },
+          data: { email: 'y' },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -980,7 +1167,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -994,12 +1185,90 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     expect(result.success).toBe(true)
     expect(mockQueryRows).not.toHaveBeenCalled()
     expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('userTableServerTool.update_column — select routing', () => {
+  const selectTable = buildTable({
+    schema: {
+      columns: [
+        {
+          id: 'col_status',
+          name: 'status',
+          type: 'select',
+          options: [{ id: 'opt_open', name: 'Open' }],
+        },
+      ],
+    },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(selectTable)
+    mockUpdateColumnOptions.mockResolvedValue(selectTable)
+    mockUpdateColumnType.mockResolvedValue(selectTable)
+  })
+
+  it('routes an unchanged type with options to updateColumnOptions', async () => {
+    // `updateColumnType` early-returns when the type is unchanged, so routing
+    // there would silently drop the new option set and still report success.
+    await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: {
+          tableId: 'tbl_1',
+          columnName: 'status',
+          newType: 'select',
+          options: ['Open', 'Closed'],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+    )
+
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
+    expect(mockUpdateColumnOptions).toHaveBeenCalledTimes(1)
+    expect(
+      mockUpdateColumnOptions.mock.calls[0][0].options.map((o: { name: string }) => o.name)
+    ).toEqual(['Open', 'Closed'])
+  })
+
+  it('routes a genuine type change to updateColumnType', async () => {
+    await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: { tableId: 'tbl_1', columnName: 'status', newType: 'string' },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+    )
+
+    expect(mockUpdateColumnType).toHaveBeenCalledTimes(1)
+    expect(mockUpdateColumnOptions).not.toHaveBeenCalled()
+  })
+
+  it('accepts a multiple-only toggle by reusing the current options', async () => {
+    await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: { tableId: 'tbl_1', columnName: 'status', multiple: true },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+    )
+
+    expect(mockUpdateColumnOptions).toHaveBeenCalledTimes(1)
+    const arg = mockUpdateColumnOptions.mock.calls[0][0]
+    expect(arg.multiple).toBe(true)
+    expect(arg.options).toEqual([{ id: 'opt_open', name: 'Open' }])
   })
 })

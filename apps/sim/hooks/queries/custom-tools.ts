@@ -172,7 +172,7 @@ export function useCustomTools(workspaceId: string) {
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: CUSTOM_TOOL_LIST_STALE_TIME, // 1 minute - tools don't change frequently
+    staleTime: CUSTOM_TOOL_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

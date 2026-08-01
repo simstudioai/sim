@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   RowExecutionMetadata,
   TableDefinition,
@@ -31,10 +32,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: vi.fn((value) => value),
   resolveBillingAttribution: mockResolveBillingAttribution,
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isTriggerDevEnabled: true,
 }))
 
 import {
@@ -103,6 +100,12 @@ function makeRow(
 function queuedMarker(workflowId: string): RowExecutionMetadata {
   return { status: 'pending', executionId: null, jobId: null, workflowId, error: null }
 }
+
+beforeAll(() => {
+  setEnvFlags({ isTriggerDevEnabled: true })
+})
+
+afterAll(resetEnvFlagsMock)
 
 describe('pickNextEligibleGroupForRow — queued-marker handoff', () => {
   it('runs an autoRun:false group that carries a queued marker (explicit request)', () => {

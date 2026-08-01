@@ -17,11 +17,13 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
+import { env } from '@/lib/core/config/env'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 import {
   SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
   SCHEDULE_EXECUTION_QUEUE_NAME,
@@ -31,7 +33,7 @@ import {
 } from '@/lib/workflows/schedules/execution-limits'
 import { calculateScheduleInfraRetryDelayMs } from '@/lib/workflows/schedules/retry'
 import {
-  buildScheduleFailureUpdate,
+  applyScheduleFailureUpdate,
   executeJobInline,
   executeScheduleJob,
   releaseScheduleLock,
@@ -43,6 +45,12 @@ export const maxDuration = 3600
 
 const logger = createLogger('ScheduledExecuteAPI')
 const WORKFLOW_CHUNK_SIZE = 100
+/**
+ * Recovery sweeps a batch of up to `STALE_SCHEDULE_RECOVERY_BATCH_SIZE` schedules,
+ * each fanning out to every workspace admin. Cap the mail so one tick can't turn
+ * into hundreds of inline sends; the remainder is logged.
+ */
+const STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT = 25
 const JOB_CHUNK_SIZE = 100
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getMaxExecutionTimeout()
@@ -394,20 +402,22 @@ async function markClaimedScheduleFailed(
   context: string
 ): Promise<void> {
   const now = new Date()
-  await db
-    .update(workflowSchedule)
-    .set(buildScheduleFailureUpdate(now, getScheduleNextRunAt(schedule, now)))
-    .where(
-      and(
-        eq(workflowSchedule.id, schedule.id),
-        isNull(workflowSchedule.archivedAt),
-        eq(workflowSchedule.lastQueuedAt, expectedLastQueuedAt)
-      )
-    )
-    .catch((error) => {
-      logger.error(`[${requestId}] ${context}`, error)
-      throw error
+  const { disabled } = await applyScheduleFailureUpdate({
+    scheduleId: schedule.id,
+    now,
+    nextRunAt: getScheduleNextRunAt(schedule, now),
+    expectedLastQueuedAt,
+    requestId,
+    context,
+  })
+
+  if (disabled) {
+    await notifyScheduleAutoDisabled({
+      scheduleId: schedule.id,
+      reason: 'consecutive_failures',
+      requestId,
     })
+  }
 }
 
 async function deferClaimedScheduleAfterQueueFailure(
@@ -491,6 +501,13 @@ async function handleClaimedScheduleSetupFailure(
 async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
   const staleStartedBefore = getStaleScheduleExecutionCutoff(now)
 
+  /**
+   * Collected inside the transaction, flushed after it commits. Emailing inside
+   * would both notify about writes a rollback discards and issue pooled-client
+   * reads while the transaction still holds row locks under the advisory lock.
+   */
+  const disabledScheduleIds: string[] = []
+
   await db.transaction(async (tx) => {
     const [lock] = await tx.execute<{ acquired: boolean }>(
       sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${SCHEDULE_EXECUTION_QUEUE_NAME}, 0)) AS acquired`
@@ -539,16 +556,17 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
       const claimedAt = getSchedulePayloadClaimedAt(payload)
       if (!payload || !claimedAt) continue
 
-      await tx
-        .update(workflowSchedule)
-        .set(buildScheduleFailureUpdate(now, getScheduleNextRunAt(payload, now)))
-        .where(
-          and(
-            eq(workflowSchedule.id, payload.scheduleId),
-            isNull(workflowSchedule.archivedAt),
-            eq(workflowSchedule.lastQueuedAt, claimedAt)
-          )
-        )
+      const { disabled } = await applyScheduleFailureUpdate({
+        scheduleId: payload.scheduleId,
+        now,
+        nextRunAt: getScheduleNextRunAt(payload, now),
+        expectedLastQueuedAt: claimedAt,
+        requestId: 'stale-schedule-recovery',
+        context: `Error updating schedule ${payload.scheduleId} after stale lease recovery`,
+        executor: tx,
+      })
+
+      if (disabled) disabledScheduleIds.push(payload.scheduleId)
     }
 
     if (retryableRows.length > 0) {
@@ -568,6 +586,22 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
         )
     }
   })
+
+  const notifiable = disabledScheduleIds.slice(0, STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT)
+  if (disabledScheduleIds.length > notifiable.length) {
+    logger.warn('Capped schedule auto-disable notifications for stale recovery batch', {
+      disabled: disabledScheduleIds.length,
+      notified: notifiable.length,
+    })
+  }
+
+  for (const scheduleId of notifiable) {
+    await notifyScheduleAutoDisabled({
+      scheduleId,
+      reason: 'consecutive_failures',
+      requestId: 'stale-schedule-recovery',
+    })
+  }
 }
 
 function isStaleDatabaseScheduleJob(job: { status: string; startedAt?: Date }): boolean {
@@ -1212,7 +1246,18 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
   let iterations = 0
   let remainingWorkflowBudget = SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
   let schedulesExhausted = false
-  let jobsExhausted = false
+  /**
+   * Prompt jobs run through the mothership, so without a key every claim ends in
+   * a 401. Skipping the claim entirely leaves the rows `active` and resumable;
+   * claiming them would burn each one through `MAX_CONSECUTIVE_FAILURES` and
+   * permanently disable a schedule the user can no longer see, let alone stop.
+   * Keyed on the credential rather than `CHAT_ENABLED` so jobs keep running for
+   * a deployment that only hid the UI.
+   */
+  let jobsExhausted = !env.COPILOT_API_KEY
+  if (jobsExhausted) {
+    logger.info(`[${requestId}] COPILOT_API_KEY not set, skipping prompt job claims`)
+  }
 
   while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
     if (schedulesExhausted && jobsExhausted) break

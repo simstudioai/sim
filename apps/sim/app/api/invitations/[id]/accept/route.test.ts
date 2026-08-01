@@ -1,16 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcceptInvitation, mockGetSession } = vi.hoisted(() => ({
+const { mockAcceptInvitation } = vi.hoisted(() => ({
   mockAcceptInvitation: vi.fn(),
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/invitations/core', () => ({
@@ -18,6 +13,8 @@ vi.mock('@/lib/invitations/core', () => ({
 }))
 
 import { POST } from '@/app/api/invitations/[id]/accept/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 function createInvitationRequest() {
   return createMockRequest(

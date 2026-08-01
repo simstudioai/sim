@@ -4,7 +4,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   areGroupDepsSatisfied,
+  areOutputsFilled,
   getUnmetGroupDeps,
+  isEmptyCellValue,
   isExecCancelled,
   isExecCancelledAfter,
   optimisticallyScheduleNewlyEligibleGroups,
@@ -112,5 +114,43 @@ describe('isExecCancelledAfter — dispatcher tombstone', () => {
 
   it('is false without a cancelledAt timestamp', () => {
     expect(isExecCancelledAfter({ status: 'cancelled' } as RowExecutionMetadata, since)).toBe(false)
+  })
+})
+
+describe('isEmptyCellValue — multiselect', () => {
+  it('treats an emptied multiselect as empty', () => {
+    // `[]` is truthy, so a naive null/undefined/'' check reads it as filled —
+    // which would make dependents eligible off a cleared selection.
+    expect(isEmptyCellValue([])).toBe(true)
+  })
+
+  it('treats a multiselect holding options as filled', () => {
+    expect(isEmptyCellValue(['opt_a'])).toBe(false)
+  })
+
+  it('still treats null, undefined and empty string as empty', () => {
+    expect(isEmptyCellValue(null)).toBe(true)
+    expect(isEmptyCellValue(undefined)).toBe(true)
+    expect(isEmptyCellValue('')).toBe(true)
+  })
+
+  it('treats other scalars as filled, including false and 0', () => {
+    expect(isEmptyCellValue(false)).toBe(false)
+    expect(isEmptyCellValue(0)).toBe(false)
+    expect(isEmptyCellValue('Open')).toBe(false)
+  })
+})
+
+describe('areOutputsFilled — multiselect output', () => {
+  const group = makeGroup({ id: 'g1' })
+
+  it('reports an emptied multiselect output as unfilled', () => {
+    const row = { id: 'r1', data: { g1_out: [] } } as unknown as TableRow
+    expect(areOutputsFilled(group, row)).toBe(false)
+  })
+
+  it('reports a populated multiselect output as filled', () => {
+    const row = { id: 'r1', data: { g1_out: ['opt_a'] } } as unknown as TableRow
+    expect(areOutputsFilled(group, row)).toBe(true)
   })
 })

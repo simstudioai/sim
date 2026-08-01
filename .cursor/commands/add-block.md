@@ -138,6 +138,25 @@ export const {ServiceName}Block: BlockConfig = {
 
 **Scope descriptions:** When adding a new OAuth provider, also add human-readable descriptions for all scopes in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`.
 
+**Service accounts (shared, app-level credentials):** A plain `oauth-input` already lets users *select* an existing service account — those credentials fold into the picker automatically (a Google service account created for any Google service appears in every Google block's picker). You only set `credentialKind` when you want to change the *connect* action:
+
+```typescript
+{
+  id: 'credential',
+  title: 'Account',
+  type: 'oauth-input',
+  serviceId: '{service}',
+  requiredScopes: getScopesForService('{service}'),
+  credentialKind: 'any',   // omit | 'service-account' | 'any'
+}
+```
+
+- **omit (default):** lists OAuth accounts + any existing service accounts; the only connect action is "Connect account" (OAuth). Use this for the common "let users pick a service account someone set up elsewhere, but don't offer inline setup" case — no config needed.
+- **`'service-account'`:** service-account credentials *only*, plus an inline setup action that opens the provider's connect modal. Use when a block accepts *only* an app credential.
+- **`'any'`:** merged picker — OAuth accounts *and* service accounts in one grouped dropdown, with a connect action for each. Use when a block supports both (e.g. Slack: a personal account *or* a custom bot).
+
+Optional companions: `credentialLabels` (override the picker's section/connect-row copy) and `allowServiceAccounts: true` (trigger-mode only — list service accounts, which triggers otherwise exclude; set only when the trigger's polling path can resolve a service-account token). The connect modal, provider families (Google JSON key, Atlassian token, token-paste, client-credential, Slack bot), and the preview gate are all resolved from `serviceAccountProviderId` — you don't wire them per block.
+
 ### Selectors (with dynamic options)
 ```typescript
 // Channel selector (Slack, Discord, etc.)
@@ -232,13 +251,43 @@ When your block accepts file uploads, use the basic/advanced mode pattern with `
 },
 ```
 
+**Keep the pair to one logical thing.** Basic is the file upload, advanced is *only* a reference to
+a file from a previous block. Gmail attachments are the reference implementation
+(`apps/sim/blocks/blocks/gmail.ts` — `attachmentFiles` / `attachments`).
+
+Do not overload the advanced side with alternate identifiers (a remote URL, a provider asset ID, a
+path). A subblock whose meaning changes based on what the string looks like is impossible to reason
+about, forces the params function to sniff the value, and makes the field's type meaningless. Give
+each alternative its own subblock outside the pair:
+
+```typescript
+// ✓ Good — the pair is "a file"; other sources are their own fields
+{ id: 'mediaFile',    type: 'file-upload', canonicalParamId: 'media', mode: 'basic' },
+{ id: 'mediaFileRef', type: 'short-input', canonicalParamId: 'media', mode: 'advanced' },
+{ id: 'mediaId',      type: 'short-input', mode: 'advanced' },  // separate concept
+{ id: 'mediaLink',    type: 'short-input', mode: 'advanced' },  // separate concept
+
+// ✗ Bad — one field meaning three things, resolved by guessing
+{ id: 'mediaRef', type: 'short-input', canonicalParamId: 'media', mode: 'advanced',
+  placeholder: 'File reference, media ID, or public URL' },
+```
+
+When several fields are mutually exclusive alternatives, mark them all `required: false` and enforce
+"exactly one" at execution — a conditionally-required canonical pair rejects the workflow before the
+other paths ever get a chance to supply the value.
+
 **Critical constraints:**
 - `canonicalParamId` must NOT match any subblock's `id` in the same block
-- Values are stored under subblock `id`, not `canonicalParamId`
+- A canonical group is **block-wide**, not per-operation: `buildCanonicalIndex` keys groups by
+  `canonicalParamId` across every subblock, and a group has exactly one `basicId`. Two operations
+  that each need a file pair need two distinct `canonicalParamId` values.
+- All members of a group must share the same `required` status
 
 ### Normalizing File Input in tools.config
 
-Use `normalizeFileInput` to handle all input variants:
+Put the normalization in `tools.config.params`, never in `tools.config.tool` — `tool` runs at
+serialization, before variable resolution, so a `<block.output>` file reference is not yet a value
+there.
 
 ```typescript
 import { normalizeFileInput } from '@/blocks/utils'
@@ -246,34 +295,50 @@ import { normalizeFileInput } from '@/blocks/utils'
 tools: {
   access: ['service_upload'],
   config: {
-    tool: (params) => {
-      // Check all field IDs: uploadFile (basic), fileRef (advanced), fileContent (legacy)
-      const normalizedFile = normalizeFileInput(
-        params.uploadFile || params.fileRef || params.fileContent,
-        { single: true }
-      )
-      if (normalizedFile) {
-        params.file = normalizedFile
+    tool: (params) => `service_${params.operation}`,
+    params: (params) => {
+      // Read the CANONICAL id, not the subblock ids
+      const { file: fileParam, ...rest } = params
+      const file = normalizeFileInput(fileParam, { single: true })
+      return {
+        ...rest,
+        ...(file ? { file } : {}),
       }
-      return `service_${params.operation}`
     },
   },
 }
 ```
 
-**Why this pattern?**
-- Values come through as `params.uploadFile` or `params.fileRef` (the subblock IDs)
-- `canonicalParamId` only controls UI/schema mapping, not runtime values
-- `normalizeFileInput` handles JSON strings from advanced mode template resolution
+**Where the value actually lives at runtime.** The subblock `id` is where the UI *stores* the value,
+but it is not what the params function receives. `extractBlockParams`
+(`apps/sim/serializer/index.ts`) collapses each canonical group at serialization time:
+
+```typescript
+const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean)
+sourceIds.forEach((id) => delete params[id])   // subblock ids are deleted
+if (chosen !== undefined) params[group.canonicalId] = chosen
+```
+
+So by the time `tools.config.params(inputs)` runs (`executor/handlers/generic/generic-handler.ts`),
+`params.uploadFile` and `params.fileRef` are **gone** and the value is under `params.file`. Reading a
+subblock id there yields `undefined` and silently sends no file.
+
+Only the active mode's value survives — `getCanonicalValues` returns the basic value in basic mode
+and the first non-empty advanced value in advanced mode, so a stale value in the dormant mode can
+never leak. `normalizeFileInput` then handles the JSON string that advanced-mode template resolution
+produces.
+
+Note that `generic-handler` merges rather than replaces (`{ ...inputs, ...transformedParams }`), so
+omitting a key from the returned object does not strip it from what the tool receives. Tools simply
+ignore params they do not declare.
 
 ### File Input Types in `inputs`
 
-Use `type: 'json'` for file inputs:
+Declare the **canonical** id with `type: 'json'` — the subblock ids never reach `inputs`:
 
 ```typescript
 inputs: {
-  uploadFile: { type: 'json', description: 'Uploaded file (UserFile)' },
-  fileRef: { type: 'json', description: 'File reference from previous block' },
+  file: { type: 'json', description: 'File to upload (UserFile or reference)' },
   // Legacy field for backwards compatibility
   fileContent: { type: 'string', description: 'Legacy: base64 encoded content' },
 }

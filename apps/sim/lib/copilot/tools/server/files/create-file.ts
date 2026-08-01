@@ -6,7 +6,6 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
-import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { inferContentType } from './workspace-file'
 
 const logger = createLogger('CreateFileServerTool')
@@ -27,7 +26,6 @@ interface CreateFileResult {
     name: string
     contentType: string
     vfsPath: string
-    backingVfsPath?: string
   }
 }
 
@@ -52,13 +50,6 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
-    if (isPlanAliasPath(outputPath)) {
-      return {
-        success: false,
-        message:
-          'create_file does not initialize plan aliases; changelog.md is created automatically per workflow.',
-      }
-    }
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
     const emptyBuffer = Buffer.from('', 'utf-8')
 
@@ -73,6 +64,9 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       },
       buffer: emptyBuffer,
       inferredMimeType: contentType,
+      // This writes only an empty shell; the real content arrives via a later edit_content write (which
+      // does merge). Merging this empty write would briefly blank an already-open editor on overwrite.
+      syncLiveDoc: false,
     })
 
     logger.info('File created via create_file', {
@@ -90,7 +84,6 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
         name: result.name,
         contentType,
         vfsPath: result.vfsPath,
-        backingVfsPath: result.backingVfsPath,
       },
     }
   },

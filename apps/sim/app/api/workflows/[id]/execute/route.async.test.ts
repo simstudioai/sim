@@ -4,7 +4,6 @@
 
 import {
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
@@ -12,6 +11,8 @@ import {
   loggingSessionMock,
   requestUtilsMockFns,
   resetDbChainMock,
+  resetEnvMock,
+  setEnv,
   workflowAuthzMockFns,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -19,7 +20,7 @@ import {
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 
 const {
@@ -54,8 +55,6 @@ const {
   mockRequireBillingAttributionHeader: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
@@ -119,11 +118,6 @@ vi.mock('@/lib/core/async-jobs', () => ({
     markJobFailed: vi.fn(),
   }),
   shouldExecuteInline: vi.fn().mockReturnValue(false),
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: vi.fn().mockReturnValue('http://localhost:3000'),
-  getOllamaUrl: vi.fn().mockReturnValue('http://localhost:11434'),
 }))
 
 vi.mock('@/lib/execution/call-chain', () => ({
@@ -280,9 +274,14 @@ function createCallerExecutionRequest(
 }
 
 describe('workflow execute async route', () => {
+  afterAll(() => {
+    resetEnvMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     mockGenerateId.mockReset().mockReturnValue('execution-123')
     mockClaimExecutionId.mockImplementation(async (executionId: string) => ({
       key: `workflow-execution-id:${executionId}`,

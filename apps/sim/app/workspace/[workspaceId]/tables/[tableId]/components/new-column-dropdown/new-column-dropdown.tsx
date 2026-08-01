@@ -28,6 +28,14 @@ interface NewColumnDropdownProps {
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
+  /**
+   * When true, the trigger stays visible and clickable but opens nothing — it
+   * calls {@link onBlocked} instead. Used when the table is schema-locked:
+   * hiding the control leaves the user guessing, so it stays and explains.
+   * Paired required so `blocked` can never be set without a handler.
+   */
+  blocked: boolean
+  onBlocked: () => void
 }
 
 /**
@@ -41,33 +49,50 @@ export function NewColumnDropdown({
   onPickType,
   onPickWorkflow,
   onPickEnrichment,
+  blocked,
+  onBlocked,
 }: NewColumnDropdownProps) {
+  const triggerButton =
+    trigger === 'header' ? (
+      /** Primary CTA of the table header — inverse chip, so icon/label/chevron ride `currentColor`. */
+      <button
+        type='button'
+        className={chipVariants({ variant: 'primary' })}
+        disabled={disabled}
+        onClick={blocked ? onBlocked : undefined}
+      >
+        <Plus className={cn(chipContentIconClass, 'text-current')} />
+        <span className={cn(chipContentLabelClass, 'text-current')}>New column</span>
+        <ChipChevronDown className='text-current' />
+      </button>
+    ) : (
+      <button
+        type='button'
+        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+        disabled={disabled}
+        onClick={blocked ? onBlocked : undefined}
+      >
+        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+      </button>
+    )
+
+  if (blocked) {
+    return trigger === 'inline-header' ? (
+      <th className={CELL_HEADER}>{triggerButton}</th>
+    ) : (
+      triggerButton
+    )
+  }
+
   const menu = (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {trigger === 'header' ? (
-          /** Primary CTA of the table header — inverse chip, so icon/label/chevron ride `currentColor`. */
-          <button
-            type='button'
-            className={chipVariants({ variant: 'primary' })}
-            disabled={disabled}
-          >
-            <Plus className={cn(chipContentIconClass, 'text-current')} />
-            <span className={cn(chipContentLabelClass, 'text-current')}>New column</span>
-            <ChipChevronDown className='text-current' />
-          </button>
-        ) : (
-          <button
-            type='button'
-            className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
-            disabled={disabled}
-          >
-            <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-          </button>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+      <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+      {/* Taller than the 240px shared default: the full type list is 9 items
+          (295px with its separator and padding), so the default cut the last
+          two off behind a scrollbar. Sized here rather than in the shared
+          component, which every other dropdown in the app relies on. */}
+      <DropdownMenuContent align='start' side='bottom' sideOffset={4} className='max-h-[320px]'>
         <>
           <DropdownMenuItem onSelect={onPickEnrichment}>
             <Sparkles className='size-[14px] text-[var(--text-icon)]' />

@@ -9,6 +9,8 @@ const VALID_TYPES = new Set([
   'knowledgebase',
   'folder',
   'file_folder',
+  'knowledge_folder',
+  'table_folder',
 ])
 
 export async function executeRestoreResource(

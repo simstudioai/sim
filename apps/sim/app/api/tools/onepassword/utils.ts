@@ -1,4 +1,3 @@
-import dns from 'dns/promises'
 import type {
   FileAttributes,
   Item,
@@ -12,14 +11,13 @@ import type {
   Website,
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
+import { resolveHostAddresses } from '@sim/security/dns'
+import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
-import {
-  isPrivateOrReservedIP,
-  secureFetchWithPinnedIP,
-} from '@/lib/core/security/input-validation.server'
+import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -274,7 +272,7 @@ const connectLogger = createLogger('OnePasswordConnect')
  */
 function assertConnectIpAllowed(ip: string, hostname: string): void {
   if (isHosted) {
-    if (isPrivateOrReservedIP(ip)) {
+    if (isPrivateIp(ip)) {
       connectLogger.warn('1Password Connect server URL resolves to a private or reserved IP', {
         hostname,
         resolvedIP: ip,
@@ -307,17 +305,19 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
     throw new Error('1Password server URL is not a valid URL')
   }
 
-  const clean =
-    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  const clean = unwrapIpv6Brackets(hostname)
 
   if (ipaddr.isValid(clean)) {
     assertConnectIpAllowed(clean, clean)
     return clean
   }
 
+  let addresses: string[]
   let address: string
   try {
-    ;({ address } = await dns.lookup(clean, { verbatim: true }))
+    const resolved = await resolveHostAddresses(clean)
+    addresses = resolved.addresses
+    address = resolved.preferred
   } catch (error) {
     connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
       hostname: clean,
@@ -326,7 +326,9 @@ export async function validateConnectServerUrl(serverUrl: string): Promise<strin
     throw new Error('1Password server URL hostname could not be resolved')
   }
 
-  assertConnectIpAllowed(address, clean)
+  for (const candidate of addresses) {
+    assertConnectIpAllowed(candidate, clean)
+  }
   return address
 }
 

@@ -419,10 +419,34 @@ describe('interface service', () => {
    * entry points must record zero calls for the entire write.
    */
   describe('transaction executor discipline', () => {
+    /**
+     * A transaction handle distinct from the global `db`. The shared chain spies
+     * only RECORD a step (they return a sentinel, not a chain), so the links are
+     * rebuilt here — each step reports to its shared spy, and the terminals
+     * (`limit`/`returning`) hand back whatever the test queued on them.
+     */
     function makeTxHandle() {
+      const settle = (result: unknown) =>
+        result && typeof (result as { then?: unknown }).then === 'function' ? result : []
+      const step: Record<string, (...args: unknown[]) => unknown> = {
+        from: (...args) => {
+          dbChainMockFns.from(...args)
+          return step
+        },
+        where: (...args) => {
+          dbChainMockFns.where(...args)
+          return step
+        },
+        set: (...args) => {
+          dbChainMockFns.set(...args)
+          return step
+        },
+        limit: (...args) => settle(dbChainMockFns.limit(...args)),
+        returning: (...args) => settle(dbChainMockFns.returning(...args)),
+      }
       return {
-        select: vi.fn(() => ({ from: dbChainMockFns.from })),
-        update: vi.fn(() => ({ set: dbChainMockFns.set })),
+        select: vi.fn(() => step),
+        update: vi.fn(() => step),
         execute: vi.fn(async () => []),
       }
     }

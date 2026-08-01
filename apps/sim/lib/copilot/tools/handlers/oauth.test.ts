@@ -207,3 +207,65 @@ describe('executeOAuthGetAuthLink', () => {
     })
   })
 })
+
+describe('executeOAuthGetAuthLink service account rejection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.NEXT_PUBLIC_APP_URL = BASE_URL
+    mockEnsureWorkspaceAccess.mockResolvedValue(WORKSPACE_ACCESS)
+  })
+
+  /**
+   * Regression: a user asked for a "new custom bot", the agent correctly
+   * resolved that to `slack-custom-bot` and passed it here, and the fuzzy
+   * substring pass matched it to the Slack OAuth service — `slack-custom-bot`
+   * contains `slack`. The tool returned a personal-OAuth authorize URL and
+   * reported success, so the user connected their own account instead of a
+   * shared bot. Failing loudly is the point: a wrong link that looks right is
+   * worse than an error the agent can recover from.
+   */
+  it('rejects a service account id with a coherent recovery message, not a workspace link', async () => {
+    const result = await executeOAuthGetAuthLink({ providerName: 'slack-custom-bot' }, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('service account')
+    expect(result.error).toContain('service_account credential tag')
+    const output = result.output as { setup_url?: string; oauth_url?: string; message: string }
+    // The rejection must not fall into the generic catch, which would attach a
+    // contradicting workspace oauth_url and a "connect manually" message — the
+    // agent would then surface a workspace link instead of the tag.
+    expect(output.setup_url).toBeUndefined()
+    expect(output.oauth_url).toBeUndefined()
+    expect(output.message).toContain('service_account credential tag')
+    expect(output.message).not.toContain('Connect manually')
+  })
+
+  it.each([
+    'notion-service-account',
+    'salesforce-service-account',
+    'google-service-account',
+    'atlassian-service-account',
+    'SLACK-CUSTOM-BOT',
+    // Readable forms must be normalized (spaces/underscores → hyphens) so they
+    // are caught too, not passed to the fuzzy OAuth resolver.
+    'slack custom bot',
+    'google service account',
+    'notion_service_account',
+  ])('rejects %s', async (providerName) => {
+    const result = await executeOAuthGetAuthLink({ providerName }, context)
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('service_account credential tag')
+  })
+
+  it('still resolves ordinary OAuth providers for integrations that also offer a service account', async () => {
+    // `slack` and `notion` must keep working — the guard keys off the id being
+    // a service-account id, not off the integration having a service-account flow.
+    for (const providerName of ['slack', 'google-email']) {
+      const result = await executeOAuthGetAuthLink({ providerName }, context)
+      expect(result.success).toBe(true)
+      expect((result.output as { oauth_url: string }).oauth_url).toContain(
+        '/api/auth/oauth2/authorize'
+      )
+    }
+  })
+})

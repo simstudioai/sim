@@ -1,8 +1,26 @@
 /**
  * @vitest-environment node
  */
-import { createEnvMock, workflowAuthzMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMock,
+  requestUtilsMockFns,
+  resetEnvMock,
+  schemaMock,
+  setEnv,
+  workflowAuthzMockFns,
+} from '@sim/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeAll(() => {
+  setEnv({ INTERNAL_API_SECRET: 'secret', SOCKET_SERVER_URL: 'http://socket.test' })
+  requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
+})
+
+afterAll(() => {
+  resetEnvMock()
+  requestUtilsMockFns.mockGenerateRequestId.mockReset()
+})
+
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
@@ -44,10 +62,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: recordAuditMock,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {},
-  workflow: {},
-}))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/api-key/orchestration', () => ({
   performCreateWorkspaceApiKey: vi.fn(),
@@ -62,16 +77,6 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: releaseExecutionSlotMock,
   reserveExecutionSlot: reserveExecutionSlotMock,
   UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {},
-}))
-
-vi.mock('@/lib/core/config/env', () => createEnvMock({ INTERNAL_API_SECRET: 'secret' }))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: () => 'request-1',
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getSocketServerUrl: () => 'http://socket.test',
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({

@@ -1,15 +1,16 @@
 'use client'
-import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { credentialRoleLockReason, RoleLockTooltip } from '@/components/permissions'
-import { getUserColor } from '@/lib/workspaces/colors'
+import {
+  credentialRoleLockReason,
+  MEMBER_ROLE_OPTIONS,
+  type MemberRole,
+  MemberRow,
+} from '@/components/permissions'
 import {
   useRemoveWorkspaceCredentialMember,
   useUpsertWorkspaceCredentialMember,
   useWorkspaceCredentialMembers,
-  type WorkspaceCredentialRole,
 } from '@/hooks/queries/credentials'
-import { ROLE_OPTIONS } from '../roles'
 import { DetailSection } from './detail-section'
 
 const logger = createLogger('CredentialMembersSection')
@@ -35,7 +36,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
     (member) => member.role === 'admin' && member.roleSource !== 'workspace-admin'
   ).length
 
-  const handleChangeMemberRole = async (userId: string, role: WorkspaceCredentialRole) => {
+  const handleChangeMemberRole = async (userId: string, role: MemberRole) => {
     const current = activeMembers.find((member) => member.userId === userId)
     if (current?.role === role) return
     try {
@@ -63,58 +64,18 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
               member.role === 'admin' &&
               member.roleSource !== 'workspace-admin' &&
               explicitAdminCount <= 1
-            const roleDisabled = !isAdmin || roleLocked || lockReason !== null
-            const removeDisabled = roleLocked || lockReason !== null
             return (
-              <div
+              <MemberRow
                 key={member.id}
-                className={cn(
-                  'grid items-center gap-2',
-                  isAdmin ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
-                )}
-              >
-                <div className='flex min-w-0 items-center gap-2.5'>
-                  <Avatar className='size-9 flex-shrink-0'>
-                    <AvatarFallback
-                      style={{
-                        background: getUserColor(member.userId || member.userEmail || ''),
-                      }}
-                      className='border border-[var(--border-1)] text-small text-white'
-                    >
-                      {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className='flex min-w-0 flex-col'>
-                    <span className='truncate text-[14px] text-[var(--text-body)]'>
-                      {member.userName || member.userEmail || member.userId}
-                    </span>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                      {member.userEmail || member.userId}
-                    </span>
-                  </div>
-                </div>
-                <RoleLockTooltip reason={lockReason}>
-                  <ChipDropdown
-                    options={ROLE_OPTIONS}
-                    value={member.role}
-                    placeholder='Role'
-                    disabled={roleDisabled}
-                    onChange={(role) =>
-                      handleChangeMemberRole(member.userId, role as WorkspaceCredentialRole)
-                    }
-                  />
-                </RoleLockTooltip>
-                {isAdmin && (
-                  <Chip
-                    onClick={() => handleRemoveMember(member.userId)}
-                    disabled={removeDisabled}
-                    flush
-                    className='justify-self-end'
-                  >
-                    Remove
-                  </Chip>
-                )}
-              </div>
+                member={member}
+                roleOptions={MEMBER_ROLE_OPTIONS}
+                lockReason={lockReason}
+                canManage={isAdmin}
+                roleDisabled={!isAdmin || roleLocked || lockReason !== null}
+                removeDisabled={roleLocked || lockReason !== null}
+                onRoleChange={(role) => handleChangeMemberRole(member.userId, role)}
+                onRemove={() => handleRemoveMember(member.userId)}
+              />
             )
           })}
         </div>

@@ -17,7 +17,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram/constants'
 import {
   parseInstagramLongLivedToken,
   parseInstagramProfile,
@@ -25,6 +24,7 @@ import {
 } from '@/lib/oauth/instagram'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
+import { INSTAGRAM_GRAPH_BASE } from '@/tools/instagram/constants'
 
 const logger = createLogger('InstagramCallback')
 

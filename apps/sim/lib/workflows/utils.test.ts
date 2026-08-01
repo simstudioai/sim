@@ -13,19 +13,15 @@ import {
   createWorkflowRecord,
   expectWorkflowAccessDenied,
   expectWorkflowAccessGranted,
+  workflowAuthzMockFns,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorizeWorkflow } = vi.hoisted(() => ({
-  mockAuthorizeWorkflow: vi.fn(),
-}))
+const { mockAuthorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow } = workflowAuthzMockFns
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
-  getActiveWorkflowContext: vi.fn(),
-  getActiveWorkflowRecord: vi.fn(),
-  assertActiveWorkflowContext: vi.fn(),
-}))
+afterAll(() => {
+  mockAuthorizeWorkflow.mockReset()
+})
 
 import { createHttpResponseFromBlock, validateWorkflowPermissions } from '@/lib/workflows/utils'
 

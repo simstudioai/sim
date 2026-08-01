@@ -106,6 +106,13 @@ export class PublicInterfaceSharingNotAllowedError extends Error {
   }
 }
 
+export class ChatDeployAuthNotAllowedError extends Error {
+  constructor() {
+    super('This chat authentication mode is not allowed based on your permission group settings')
+    this.name = 'ChatDeployAuthNotAllowedError'
+  }
+}
+
 /**
  * Merges the env allowlist into a permission config.
  * If `config` is null and no env allowlist is set, returns null.
@@ -350,6 +357,35 @@ export async function validatePublicInterfaceSharing(
   authType?: ShareAuthType
 ): Promise<void> {
   return validatePublicSharing(userId, workspaceId, authType, INTERFACE_SHARING_POLICY)
+}
+
+/**
+ * Throws {@link ChatDeployAuthNotAllowedError} if the user's effective permission
+ * group for the workspace doesn't allow the chat deployment's `authType` (i.e. it
+ * isn't in the group's `allowedChatDeployAuthTypes` allow-list; `null` allows all).
+ * No-op when access control doesn't apply (non-enterprise / disabled), so
+ * non-governed orgs are unaffected.
+ */
+export async function validateChatDeployAuth(
+  userId: string,
+  workspaceId: string,
+  authType: ShareAuthType
+): Promise<void> {
+  const config = await getUserPermissionConfig(userId, workspaceId)
+  if (!config) {
+    return
+  }
+  if (
+    config.allowedChatDeployAuthTypes !== null &&
+    !config.allowedChatDeployAuthTypes.includes(authType)
+  ) {
+    logger.warn('Chat deploy auth type blocked by permission group', {
+      userId,
+      workspaceId,
+      authType,
+    })
+    throw new ChatDeployAuthNotAllowedError()
+  }
 }
 
 /**

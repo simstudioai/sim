@@ -224,7 +224,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     [deployedLoaded, availableFields, overrideById, inputs]
   )
 
-  const [expandedInputs, setExpandedInputs] = useState<ReadonlySet<string>>(new Set())
+  const [expandedInputs, setExpandedInputs] = useState<ReadonlySet<string>>(() => new Set())
   const toggleInput = (id: string) =>
     setExpandedInputs((prev) => {
       const next = new Set(prev)
@@ -537,7 +537,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                   size='sm'
                   onClick={iconUpload.handleThumbnailClick}
                   disabled={iconUpload.isUploading || !canManageBlock}
-                  className='text-[13px]'
+                  className='text-small'
                 >
                   {iconUrl ? 'Change' : 'Upload'}
                 </Button>
@@ -547,8 +547,9 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                     variant='ghost'
                     size='sm'
                     onClick={iconUpload.handleRemove}
+                    aria-label='Remove icon'
                     disabled={iconUpload.isUploading || !canManageBlock}
-                    className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
                     <X className='size-[14px]' />
                   </Button>

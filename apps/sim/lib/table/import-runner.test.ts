@@ -98,6 +98,28 @@ describe('runTableImport source-file cleanup', () => {
     mockDeleteFile.mockResolvedValue(undefined)
   })
 
+  it('fails an insert-locked replace before anything is deleted', async () => {
+    // `deleteAllTableRows` only asserts the delete lock, so without an up-front
+    // insert assert a replace on an insert-locked table would wipe every row
+    // and then fail on the first insert, leaving the table empty.
+    mockGetTableById.mockResolvedValue({
+      ...table,
+      locks: { schemaLocked: false, insertLocked: true, updateLocked: false, deleteLocked: false },
+    })
+
+    mockMarkJobFailed.mockResolvedValue(undefined)
+
+    await runTableImport(buildPayload({ mode: 'replace' }))
+
+    expect(mockMarkJobFailed).toHaveBeenCalledWith(
+      'tbl_1',
+      'job_1',
+      expect.stringMatching(/insert-locked/i)
+    )
+    // Bailed before the file was even read, so the delete could never run.
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
+  })
+
   it('deletes the single-use source object by default', async () => {
     await runTableImport(buildPayload())
 

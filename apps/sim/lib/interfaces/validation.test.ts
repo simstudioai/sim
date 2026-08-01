@@ -561,8 +561,26 @@ describe('validateLayout — same-workspace references', () => {
  * instead checks out a second connection behind an open transaction.
  */
 describe('validateLayout — executor threading', () => {
+  /**
+   * An executor distinct from the global `db`. The shared chain spies only
+   * RECORD a step (they return a sentinel, not a chain), so the links are
+   * rebuilt here and `limit` hands back whatever the test queued on it.
+   */
   function fakeExecutor() {
-    return { select: vi.fn(() => ({ from: dbChainMockFns.from })) }
+    const settle = (result: unknown) =>
+      result && typeof (result as { then?: unknown }).then === 'function' ? result : []
+    const step: Record<string, (...args: unknown[]) => unknown> = {
+      from: (...args) => {
+        dbChainMockFns.from(...args)
+        return step
+      },
+      where: (...args) => {
+        dbChainMockFns.where(...args)
+        return step
+      },
+      limit: (...args) => settle(dbChainMockFns.limit(...args)),
+    }
+    return { select: vi.fn(() => step) }
   }
 
   beforeEach(() => {

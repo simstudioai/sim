@@ -3,9 +3,18 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, requestUtilsMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  requestUtilsMockFns,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
+  setEnvFlags,
+} from '@sim/testing'
 import { type NextRequest, NextResponse } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const orderByLimitMock = vi.fn()
 
@@ -14,7 +23,6 @@ const {
   mockExecuteScheduleJob,
   mockExecuteJobInline,
   mockReleaseScheduleLock,
-  mockFeatureFlags,
   mockEnqueue,
   mockGetJob,
   mockStartJob,
@@ -24,17 +32,13 @@ const {
   mockShouldExecuteInline,
   mockResolveSystemBillingAttribution,
   mockAssertBillingAttributionSnapshot,
+  mockApplyScheduleFailureUpdate,
+  mockNotifyScheduleAutoDisabled,
 } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
   mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
   mockReleaseScheduleLock: vi.fn().mockResolvedValue(undefined),
-  mockFeatureFlags: {
-    isTriggerDevEnabled: false,
-    isHosted: false,
-    isProd: false,
-    isDev: true,
-  },
   mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
   mockGetJob: vi.fn().mockResolvedValue(null),
   mockStartJob: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +48,8 @@ const {
   mockShouldExecuteInline: vi.fn().mockReturnValue(false),
   mockResolveSystemBillingAttribution: vi.fn(),
   mockAssertBillingAttributionSnapshot: vi.fn(),
+  mockApplyScheduleFailureUpdate: vi.fn().mockResolvedValue({ updated: true, disabled: false }),
+  mockNotifyScheduleAutoDisabled: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -59,18 +65,12 @@ vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
   executeJobInline: mockExecuteJobInline,
   releaseScheduleLock: mockReleaseScheduleLock,
-  buildScheduleFailureUpdate: (now: Date, nextRunAt: Date | null) => ({
-    updatedAt: now,
-    lastQueuedAt: null,
-    nextRunAt,
-    failedCount: { type: 'sql' },
-    lastFailedAt: now,
-    status: { type: 'sql' },
-    infraRetryCount: 0,
-  }),
+  applyScheduleFailureUpdate: mockApplyScheduleFailureUpdate,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => mockFeatureFlags)
+vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
+  notifyScheduleAutoDisabled: mockNotifyScheduleAutoDisabled,
+}))
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
@@ -277,6 +277,11 @@ function createMockRequest(): NextRequest {
   } as NextRequest
 }
 
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
+
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -289,10 +294,10 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.orderBy.mockReturnValue({ limit: orderByLimitMock } as never)
     dbChainMockFns.execute.mockResolvedValue([{ acquired: true }] as never)
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
-    mockFeatureFlags.isTriggerDevEnabled = false
-    mockFeatureFlags.isHosted = false
-    mockFeatureFlags.isProd = false
-    mockFeatureFlags.isDev = true
+    setEnvFlags({ isTriggerDevEnabled: false, isHosted: false, isProd: false, isDev: true })
+    // Prompt-job claims are skipped without the mothership credential; pin it so
+    // these cases do not depend on whether the runner happens to have a .env.
+    setEnv({ COPILOT_API_KEY: 'test-api-key' })
     mockShouldExecuteInline.mockReturnValue(false)
     mockEnqueue.mockReset()
     mockEnqueue.mockResolvedValue('job-id-1')
@@ -337,7 +342,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
-    mockFeatureFlags.isTriggerDevEnabled = true
+    setEnvFlags({ isTriggerDevEnabled: true })
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])
@@ -733,11 +738,11 @@ describe('Scheduled Workflow Execution API Route', () => {
         error: expect.stringContaining('exhausted retry attempts'),
       })
     )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastQueuedAt: null,
-        lastFailedAt: expect.any(Date),
-        nextRunAt: expect.any(Date),
+        scheduleId: 'schedule-1',
+        expectedLastQueuedAt: claimedAt,
+        executor: expect.anything(),
       })
     )
   })
@@ -782,12 +787,11 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastQueuedAt: null,
-        lastFailedAt: expect.any(Date),
+        scheduleId: schedule.id,
+        expectedLastQueuedAt: claimedAt,
         nextRunAt: expect.any(Date),
-        infraRetryCount: 0,
       })
     )
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
@@ -795,6 +799,44 @@ describe('Scheduled Workflow Execution API Route', () => {
         infraRetryCount: 1,
       })
     )
+  })
+
+  it('emails the schedule owners when a non-retryable setup failure disables the schedule', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: true })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockNotifyScheduleAutoDisabled).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: schedule.id, reason: 'consecutive_failures' })
+    )
+  })
+
+  it('does not email when the failure update leaves the schedule active', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: false })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockNotifyScheduleAutoDisabled).not.toHaveBeenCalled()
   })
 
   it('uses one backend mode decision for slot accounting and schedule processing', async () => {

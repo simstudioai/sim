@@ -12,12 +12,20 @@ describe('getServerToolsLabel', () => {
     expect(getServerToolsLabel([], 'error', null)).toBe('Unable to connect')
   })
 
-  it('shows a disconnected state when OAuth was not completed', () => {
-    expect(getServerToolsLabel([], 'disconnected', null)).toBe('Not Connected')
+  it('shows that OAuth authorization is required when OAuth was not completed', () => {
+    expect(getServerToolsLabel([], 'disconnected', null, 'oauth')).toBe(
+      'OAuth authorization required'
+    )
+  })
+
+  it('keeps the generic disconnected state for non-OAuth servers', () => {
+    expect(getServerToolsLabel([], 'disconnected', null, 'headers')).toBe('Not connected')
   })
 
   it('shows the persisted error for disconnected connections', () => {
-    expect(getServerToolsLabel([], 'disconnected', 'Request timed out')).toBe('Request timed out')
+    expect(getServerToolsLabel([], 'disconnected', 'Request timed out', 'oauth')).toBe(
+      'Request timed out'
+    )
   })
 
   it('continues showing discovered tools for healthy connections', () => {

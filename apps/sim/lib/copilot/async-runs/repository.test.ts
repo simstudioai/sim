@@ -2,13 +2,11 @@
  * @vitest-environment node
  */
 
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => dbChainMock)
-
 import {
   claimCompletedAsyncToolCall,
+  claimPendingAsyncToolCall,
   completeAsyncToolCall,
   markAsyncToolDelivered,
 } from './repository'
@@ -77,6 +75,31 @@ describe('async tool repository single-row semantics', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         claimedBy: 'worker-1',
+      })
+    )
+  })
+
+  it('atomically marks one pending native tool claim as running', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'browser-tool',
+        status: 'running',
+        claimedBy: 'desktop-browser',
+      },
+    ])
+
+    const result = await claimPendingAsyncToolCall('browser-tool', 'desktop-browser')
+
+    expect(result).toMatchObject({
+      toolCallId: 'browser-tool',
+      status: 'running',
+      claimedBy: 'desktop-browser',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'running',
+        claimedBy: 'desktop-browser',
+        claimedAt: expect.any(Date),
       })
     )
   })

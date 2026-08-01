@@ -6,7 +6,9 @@ import {
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   mcpServers,
+  permissions,
   skill,
+  skillMember,
   userTableDefinitions,
   userTableRows,
   workflowMcpServer,
@@ -25,6 +27,7 @@ import {
 } from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
+import { nKeysBetween } from '@/lib/table/order-key'
 import type { TableSchema } from '@/lib/table/types'
 import {
   deleteFile,
@@ -335,6 +338,7 @@ export async function copyForkResourceContainers(
       .from(skill)
       .where(and(inArray(skill.id, selection.skills), eq(skill.workspaceId, sourceWorkspaceId)))
     const inserts: SkillSkeletonInsert[] = []
+    const childSkillIdBySource = new Map<string, string>()
     for (const row of rows) {
       const childId = generateId()
       inserts.push({
@@ -348,11 +352,52 @@ export async function copyForkResourceContainers(
         createdAt: now,
         updatedAt: now,
       })
+      childSkillIdBySource.set(row.id, childId)
       record('skill', row.id, childId)
       contentPlan.skills.push({ childId })
       names.skills.push(row.name)
     }
-    if (inserts.length > 0) await tx.insert(skill).values(inserts)
+    if (inserts.length > 0) {
+      await tx.insert(skill).values(inserts)
+
+      // Copy editor grants for users who are members of the child workspace.
+      // Workspace admins need no rows — they are derived editors in the child
+      // too (mirrors credential member propagation otherwise).
+      const memberRows = await tx
+        .select({
+          skillId: skillMember.skillId,
+          userId: skillMember.userId,
+        })
+        .from(skillMember)
+        .innerJoin(
+          permissions,
+          and(
+            eq(permissions.userId, skillMember.userId),
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, childWorkspaceId)
+          )
+        )
+        .where(inArray(skillMember.skillId, Array.from(childSkillIdBySource.keys())))
+      const memberInserts = memberRows.flatMap((member) => {
+        const childSkillId = childSkillIdBySource.get(member.skillId)
+        if (!childSkillId) return []
+        return [
+          {
+            id: generateId(),
+            skillId: childSkillId,
+            userId: member.userId,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      })
+      if (memberInserts.length > 0) {
+        await tx
+          .insert(skillMember)
+          .values(memberInserts)
+          .onConflictDoNothing({ target: [skillMember.skillId, skillMember.userId] })
+      }
+    }
   }
 
   if (selection.mcpServers.length > 0) {
@@ -395,6 +440,9 @@ export async function copyForkResourceContainers(
         createdBy: userId,
         url: typeof row.url === 'string' ? rewriteEnv(row.url) : row.url,
         headers,
+        // Normalize legacy `http`/`sse` transports to the only supported value so a
+        // forked row never carries a transport the API contract would reject.
+        transport: 'streamable-http',
         connectionStatus: 'disconnected',
         lastConnected: null,
         lastError: null,
@@ -470,12 +518,28 @@ export async function copyForkResourceContainers(
         ...definition,
         id: childTableId,
         workspaceId: childWorkspaceId,
+        /**
+         * Folders never transit a fork edge. `folder_id` is a global id with no workspace in
+         * it, so the spread above would leave the child's table pointing at a folder owned by
+         * the SOURCE workspace — invisible in the fork, and mutated from under it if the
+         * source later deletes that folder (`ON DELETE SET NULL`). Forked tables land at the
+         * root, like forked files already do.
+         */
+        folderId: null,
         schema: remappedSchema,
         createdBy: userId,
         rowsVersion: 0,
         // Start at 0 - the post-commit content copy raises it to the rows actually
         // copied, so a failed/partial copy never advertises the source's count.
         rowCount: 0,
+        // Locks are workspace-local governance and never transit a fork edge —
+        // mirrors `copy-workflows.ts` writing `locked: false`. Inheriting them
+        // would hand the fork owner a frozen workspace they may lack admin to
+        // unlock. Reset explicitly since the spread above copies every column.
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
         archivedAt: null,
         createdAt: now,
         updatedAt: now,
@@ -506,6 +570,8 @@ export async function copyForkResourceContainers(
         ...base,
         id: childKbId,
         workspaceId: childWorkspaceId,
+        /** Same reasoning as the table copy above: folders do not transit a fork edge. */
+        folderId: null,
         userId,
         deletedAt: null,
         createdAt: now,
@@ -775,6 +841,21 @@ export async function copyForkResourceContent(params: {
     try {
       let copied = 0
       let afterId: string | null = null
+      // `order_key` is nullable, and spreading `...row` would inherit NULLs into a
+      // brand-new tableId that the one-shot backfill script-migration never revisits
+      // (it snapshots the pending set up front) — leaving rows the keyset pager has to
+      // special-case forever. Mint keys for the unkeyed ones instead. They sort last in
+      // the source (NULLS LAST, id tiebreak) and this loop pages by id, so consuming a
+      // pre-generated run appended after the source's max key preserves visual order.
+      const [{ maxKey = null, unkeyed = 0 } = {}] = await db
+        .select({
+          maxKey: sql<string | null>`max(${userTableRows.orderKey})`,
+          unkeyed: sql<number>`count(*) filter (where ${userTableRows.orderKey} is null)`,
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, table.sourceId))
+      const mintedKeys = unkeyed > 0 ? nKeysBetween(maxKey, null, Number(unkeyed)) : []
+      let mintedIdx = 0
       for (;;) {
         const where: SQL<unknown> | undefined =
           afterId === null
@@ -793,6 +874,7 @@ export async function copyForkResourceContent(params: {
             id: generateId(),
             tableId: table.childId,
             workspaceId: childWorkspaceId,
+            orderKey: row.orderKey ?? mintedKeys[mintedIdx++] ?? null,
             // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
             data: contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
           }))

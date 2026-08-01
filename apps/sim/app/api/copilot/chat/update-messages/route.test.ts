@@ -3,49 +3,22 @@
  *
  * @vitest-environment node
  */
-import { authMockFns } from '@sim/testing'
+import {
+  authMockFns,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockFrom,
-  mockWhere,
-  mockLimit,
-  mockUpdate,
-  mockSet,
-  mockUpdateWhere,
-  mockReturning,
-  mockReplaceCopilotChatMessages,
-} = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhere: vi.fn(),
-  mockLimit: vi.fn(),
-  mockUpdate: vi.fn(),
-  mockSet: vi.fn(),
-  mockUpdateWhere: vi.fn(),
-  mockReturning: vi.fn(),
+const { mockReplaceCopilotChatMessages } = vi.hoisted(() => ({
   mockReplaceCopilotChatMessages: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    update: mockUpdate,
-    transaction: async (
-      cb: (tx: { update: typeof mockUpdate; select: typeof mockSelect }) => unknown
-    ) => cb({ update: mockUpdate, select: mockSelect }),
-  },
 }))
 
 vi.mock('@/lib/copilot/chat/messages-store', () => ({
   replaceCopilotChatMessages: mockReplaceCopilotChatMessages,
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
 import { POST } from '@/app/api/copilot/chat/update-messages/route'
@@ -61,21 +34,15 @@ function createMockRequest(method: string, body: Record<string, unknown>): NextR
 describe('Copilot Chat Update Messages API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
 
     authMockFns.mockGetSession.mockResolvedValue(null)
 
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({ limit: mockLimit })
-    mockLimit.mockResolvedValue([])
-    mockUpdate.mockReturnValue({ set: mockSet })
-    mockSet.mockReturnValue({ where: mockUpdateWhere })
-    mockUpdateWhere.mockReturnValue({ returning: mockReturning })
-    mockReturning.mockResolvedValue([{ model: 'gpt-4' }])
+    dbChainMockFns.returning.mockResolvedValue([{ model: 'gpt-4' }])
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  afterAll(() => {
+    resetDbChainMock()
   })
 
   describe('POST', () => {
@@ -180,7 +147,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     it('should return 404 when chat is not found', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockLimit.mockResolvedValueOnce([])
+      queueTableRows(schemaMock.copilotChats, [])
 
       const req = createMockRequest('POST', {
         chatId: 'non-existent-chat',
@@ -204,7 +171,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     it('should return 404 when chat belongs to different user', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockLimit.mockResolvedValueOnce([])
+      queueTableRows(schemaMock.copilotChats, [])
 
       const req = createMockRequest('POST', {
         chatId: 'other-user-chat',
@@ -233,7 +200,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         userId: 'user-123',
         messages: [],
       }
-      mockLimit.mockResolvedValueOnce([existingChat])
+      queueTableRows(schemaMock.copilotChats, [existingChat])
 
       const messages = [
         {
@@ -264,9 +231,9 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 2,
       })
 
-      expect(mockSelect).toHaveBeenCalled()
-      expect(mockUpdate).toHaveBeenCalled()
-      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(dbChainMockFns.select).toHaveBeenCalled()
+      expect(dbChainMockFns.update).toHaveBeenCalled()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
       expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
         'chat-123',
         messages,
@@ -283,7 +250,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         userId: 'user-123',
         messages: [],
       }
-      mockLimit.mockResolvedValueOnce([existingChat])
+      queueTableRows(schemaMock.copilotChats, [existingChat])
 
       const messages = [
         {
@@ -327,7 +294,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 2,
       })
 
-      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
       expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
         'chat-456',
         [
@@ -372,7 +339,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         userId: 'user-123',
         messages: [],
       }
-      mockLimit.mockResolvedValueOnce([existingChat])
+      queueTableRows(schemaMock.copilotChats, [existingChat])
 
       const req = createMockRequest('POST', {
         chatId: 'chat-789',
@@ -388,7 +355,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 0,
       })
 
-      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
       expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
         'chat-789',
         [],
@@ -400,7 +367,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     it('should handle database errors during chat lookup', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockLimit.mockRejectedValueOnce(new Error('Database connection failed'))
+      dbChainMockFns.limit.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const req = createMockRequest('POST', {
         chatId: 'chat-123',
@@ -429,11 +396,9 @@ describe('Copilot Chat Update Messages API Route', () => {
         userId: 'user-123',
         messages: [],
       }
-      mockLimit.mockResolvedValueOnce([existingChat])
+      queueTableRows(schemaMock.copilotChats, [existingChat])
 
-      mockSet.mockReturnValueOnce({
-        where: vi.fn().mockRejectedValue(new Error('Update operation failed')),
-      })
+      dbChainMockFns.returning.mockRejectedValueOnce(new Error('Update operation failed'))
 
       const req = createMockRequest('POST', {
         chatId: 'chat-123',
@@ -480,7 +445,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         userId: 'user-123',
         messages: [],
       }
-      mockLimit.mockResolvedValueOnce([existingChat])
+      queueTableRows(schemaMock.copilotChats, [existingChat])
 
       const messages = Array.from({ length: 100 }, (_, i) => ({
         id: `msg-${i + 1}`,
@@ -503,7 +468,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 100,
       })
 
-      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
       expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
         'chat-large',
         messages,
@@ -520,7 +485,7 @@ describe('Copilot Chat Update Messages API Route', () => {
         userId: 'user-123',
         messages: [],
       }
-      mockLimit.mockResolvedValueOnce([existingChat])
+      queueTableRows(schemaMock.copilotChats, [existingChat])
 
       const messages = [
         {
