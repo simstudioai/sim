@@ -153,6 +153,9 @@ jobs:
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 
+      - name: Verify generated tool metadata is in sync
+        run: bun run tool-metadata:check
+
       - name: Verify skill projections are in sync
         run: bun run skills:check
 
