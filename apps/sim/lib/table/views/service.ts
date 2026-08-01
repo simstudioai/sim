@@ -16,6 +16,7 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
 import { NAME_PATTERN } from '@/lib/table/constants'
+import { signalTableViewsChanged } from '@/lib/table/events'
 import { filterRulesToPredicate, filterToRules } from '@/lib/table/query-builder/converters'
 import type {
   ColumnDefinition,
@@ -181,6 +182,8 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
     .returning()
 
   logger.info('Created table view', { tableId: data.tableId, viewId: row.id })
+  // Views are table-wide shared state, so every open reader refetches the list live.
+  signalTableViewsChanged(data.tableId)
   return toTableView(row, data.columns)
 }
 
@@ -252,6 +255,8 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
   // route maps it to 404 the same way `deleteTableView`'s `false` does.
   if (!row) return null
 
+  // Only signal a real update — a no-op PATCH on a missing view (row === null) changed nothing.
+  signalTableViewsChanged(data.tableId)
   return toTableView(row, data.columns)
 }
 
@@ -262,6 +267,10 @@ export async function deleteTableView(viewId: string, tableId: string): Promise<
     .where(and(eq(tableViews.id, viewId), eq(tableViews.tableId, tableId)))
     .returning({ id: tableViews.id })
 
-  if (deleted.length > 0) logger.info('Deleted table view', { tableId, viewId })
+  if (deleted.length > 0) {
+    logger.info('Deleted table view', { tableId, viewId })
+    // Only signal a real deletion — a missing view (nothing deleted) changed nothing.
+    signalTableViewsChanged(tableId)
+  }
   return deleted.length > 0
 }
