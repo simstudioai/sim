@@ -59,6 +59,13 @@ vi.mock('@/tools/metadata', () => toolsMetadataMock) // params / outputs / name
 ```
 
 Both are backed by the same `mockToolConfigs`, so mocking both gives one consistent tool universe. If you are unsure whether a mock is load-bearing, change a fixture value to a sentinel and confirm the test fails.
+## The guard
+
+`bun run check:tool-registry-boundary` (CI: "Tool registry client-boundary audit") walks the module graph from each workspace route and fails if `@/tools/registry` is reachable, printing the exact import chain that reintroduced it.
+
+If it fails, do not add the entry to an allowlist — there isn't one. Find the symbol the offending file actually needs and move it to a registry-free module, exactly as `mergeToolParameters` and `formatParameterLabel` were.
+
+Run it with `--verbose` to print per-route module counts, which is also the quickest way to see whether a change moved the graph.
 
 ## How to verify an edge actually got cut
 
