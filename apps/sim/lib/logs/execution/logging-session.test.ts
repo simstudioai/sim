@@ -9,6 +9,7 @@ const dbMocks = vi.hoisted(() => ({
 
 const {
   completeWorkflowExecutionMock,
+  loadTraceSpansForProjectionMock,
   prepareTraceSpansForProjectionMock,
   startWorkflowExecutionMock,
   loadWorkflowStateForExecutionMock,
@@ -17,12 +18,18 @@ const {
   workflowExecutedMock,
 } = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
+  loadTraceSpansForProjectionMock: vi.fn(),
   prepareTraceSpansForProjectionMock: vi.fn(),
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
   releaseExecutionSlotMock: vi.fn(),
   createOTelSpansMock: vi.fn(),
   workflowExecutedMock: vi.fn(),
+}))
+
+const { materializeLargeValueRefMock, storeLargeValueMock } = vi.hoisted(() => ({
+  materializeLargeValueRefMock: vi.fn(),
+  storeLargeValueMock: vi.fn(),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -35,6 +42,7 @@ vi.mock('@/lib/logs/execution/logger', () => ({
   executionLogger: {
     startWorkflowExecution: startWorkflowExecutionMock,
     completeWorkflowExecution: completeWorkflowExecutionMock,
+    loadTraceSpansForProjection: loadTraceSpansForProjectionMock,
     prepareTraceSpansForProjection: prepareTraceSpansForProjectionMock,
   },
 }))
@@ -46,6 +54,11 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
 vi.mock('@/lib/core/telemetry', () => ({
   createOTelSpansForWorkflowExecution: createOTelSpansMock,
   PlatformEvents: { workflowExecuted: workflowExecutedMock },
+}))
+
+vi.mock('@/lib/execution/payloads/store', () => ({
+  materializeLargeValueRef: materializeLargeValueRefMock,
+  storeLargeValue: storeLargeValueMock,
 }))
 
 const {
@@ -141,6 +154,9 @@ describe('LoggingSession terminal provenance', () => {
 })
 
 beforeEach(() => {
+  loadTraceSpansForProjectionMock.mockImplementation(
+    async ({ traceSpans }: { traceSpans: unknown[] }) => traceSpans
+  )
   prepareTraceSpansForProjectionMock.mockImplementation(
     async ({ traceSpans }: { traceSpans: unknown[] }) => traceSpans
   )
@@ -398,6 +414,132 @@ describe('LoggingSession completion retries', () => {
       expect.objectContaining({ traceSpans: persistedSpans })
     )
     expect(createOTelSpansMock.mock.calls[0]?.[0].traceSpans).toBe(persistedSpans)
+  })
+
+  it('projects secrets before display filters can truncate a long active literal', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-long-secret', 'api', 'req-1')
+    const secret = `secret-${'x'.repeat(16_000)}`
+    const sourceTraceSpans = [
+      {
+        id: 'span-long-secret',
+        name: 'Function',
+        type: 'function',
+        duration: 1,
+        startTime: '2026-07-01T00:00:00.000Z',
+        endTime: '2026-07-01T00:00:00.001Z',
+        output: { result: secret },
+      },
+    ]
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: secret, replacement: '{{LONG_SECRET}}' }])
+    )
+    prepareTraceSpansForProjectionMock.mockImplementationOnce(
+      async ({ traceSpans }: { traceSpans: Array<{ output?: { result?: string } }> }) => {
+        expect(traceSpans[0]?.output?.result).toBe('{{LONG_SECRET}}')
+        return traceSpans
+      }
+    )
+
+    await session.safeComplete({ traceSpans: sourceTraceSpans as any })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traceSpans: [expect.objectContaining({ output: { result: '{{LONG_SECRET}}' } })],
+      })
+    )
+    expect(sourceTraceSpans[0].output.result).toBe(secret)
+  })
+
+  it('fails closed when generic log transforms reintroduce a secret literal for persistence and OTel', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-invariant', 'api', 'req-1')
+    const sourceTraceSpans = [
+      {
+        id: 'span-invariant',
+        name: 'Function',
+        type: 'function',
+        duration: 1,
+        startTime: '2026-07-01T00:00:00.000Z',
+        endTime: '2026-07-01T00:00:00.001Z',
+        status: 'success',
+        output: { apiKey: 'ordinary-value' },
+      },
+    ]
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'E', replacement: '{{X}}' }])
+    )
+    prepareTraceSpansForProjectionMock.mockImplementationOnce(
+      async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>
+        traceSpans.map((span) => ({ ...span, output: { apiKey: '[REDACTED]' } }))
+    )
+
+    await session.safeComplete({ traceSpans: sourceTraceSpans as any })
+
+    const persistedSpans = completeWorkflowExecutionMock.mock.calls[0]?.[0].traceSpans
+    expect(persistedSpans).toEqual([
+      expect.objectContaining({
+        id: 'span-invariant',
+        status: 'success',
+      }),
+    ])
+    expect(persistedSpans[0]).not.toHaveProperty('output')
+    expect(createOTelSpansMock).toHaveBeenCalledWith(
+      expect.objectContaining({ traceSpans: persistedSpans })
+    )
+    expect(createOTelSpansMock.mock.calls[0]?.[0].traceSpans).toBe(persistedSpans)
+    expect(sourceTraceSpans[0].output).toEqual({ apiKey: 'ordinary-value' })
+  })
+
+  it('hydrates post-transform refs before sharing structural-only spans with persistence and OTel', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-ref-invariant', 'api', 'req-1')
+    const sourceTraceSpans = [
+      {
+        id: 'span-ref-invariant',
+        name: 'Function',
+        type: 'function',
+        duration: 1,
+        startTime: '2026-07-01T00:00:00.000Z',
+        endTime: '2026-07-01T00:00:00.001Z',
+        status: 'success',
+        output: { apiKey: 'ordinary-value' },
+      },
+    ]
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_bbbbbbbbbbbb',
+      kind: 'string',
+      size: 32,
+      preview: '{{X}}',
+    } as const
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'E', replacement: '{{X}}' }])
+    )
+    prepareTraceSpansForProjectionMock.mockImplementationOnce(
+      async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>
+        traceSpans.map((span) => ({ ...span, output: { payload: ref } }))
+    )
+    materializeLargeValueRefMock.mockResolvedValue({ value: 'hidden-E' })
+
+    await session.safeComplete({ traceSpans: sourceTraceSpans as any })
+
+    const persistedSpans = completeWorkflowExecutionMock.mock.calls[0]?.[0].traceSpans
+    expect(materializeLargeValueRefMock).toHaveBeenCalledWith(
+      ref,
+      expect.objectContaining({
+        executionId: 'execution-ref-invariant',
+        trackReference: false,
+      })
+    )
+    expect(storeLargeValueMock).not.toHaveBeenCalled()
+    expect(persistedSpans).toEqual([
+      expect.objectContaining({
+        id: 'span-ref-invariant',
+        status: 'success',
+      }),
+    ])
+    expect(persistedSpans[0]).not.toHaveProperty('output')
+    expect(createOTelSpansMock.mock.calls[0]?.[0].traceSpans).toBe(persistedSpans)
+    expect(sourceTraceSpans[0].output).toEqual({ apiKey: 'ordinary-value' })
   })
 
   it('projects synthetic error spans without copying the raw error into OTel metadata', async () => {

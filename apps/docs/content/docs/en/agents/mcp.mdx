@@ -72,6 +72,8 @@ Authorization: Bearer {{MCP_API_TOKEN}}
 
 When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
 
+When a saved secret is successfully substituted this way, exact occurrences of its value are masked in stored MCP tool-call traces. The real URL or header value still reaches the MCP server unchanged. See [Execution log protection](/platform/credentials#execution-log-protection) for the exact scope and limitations.
+
 ### Testing and Validation
 
 Click **Test Connection** before saving to verify the server is reachable and discover available tools. The test response shows the number of tools found and the protocol version.

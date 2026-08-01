@@ -810,6 +810,58 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
+  it('does not charge private provenance against the functional response limit', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'parent-user',
+      workspaceId: 'workspace-456',
+    })
+    const functionalValue = 'f'.repeat(9 * 1024 * 1024)
+    const encryptedValue = 'e'.repeat(2 * 1024 * 1024)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'secret-value' })
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            workflowId: 'child-workflow',
+            workflowName: 'Child Workflow',
+            output: { value: functionalValue },
+            metadata: { duration: 17 },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [{ name: 'TOKEN', encryptedValue }],
+              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow', inputMapping: {} },
+      {
+        executionContext: createToolExecutionContext({ userId: 'parent-user' }),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect((result.output as { value: string }).value).toHaveLength(functionalValue.length)
+    expect(result).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(result.output).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(true)
+  })
+
   it('strips private metadata even when an internal endpoint returns the wrong marker', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     global.fetch = Object.assign(

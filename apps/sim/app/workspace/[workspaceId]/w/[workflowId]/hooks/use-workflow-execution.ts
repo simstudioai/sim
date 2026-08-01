@@ -2037,7 +2037,8 @@ export function useWorkflowExecution() {
         await executionStream.executeFromBlock({
           workflowId,
           startBlockId: blockId,
-          ...(sourceExecutionId ? { sourceExecutionId } : { sourceSnapshot: effectiveSnapshot }),
+          sourceSnapshot: effectiveSnapshot,
+          ...(sourceExecutionId ? { sourceExecutionId } : {}),
           input: workflowInput,
           onExecutionId: (id) => {
             if (runFromBlockOwnerRef.current !== runOwnerId) return

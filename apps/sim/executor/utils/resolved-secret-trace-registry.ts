@@ -5,13 +5,16 @@ import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = '[REDACTED_SECRET]'
 
 const MAX_PROVENANCE_ENTRIES = 10_000
-const MAX_PROVENANCE_BYTES = 8 * 1024 * 1024
+const MAX_SERIALIZED_PROVENANCE_BYTES = 8 * 1024 * 1024
 const MAX_TRACE_CATALOG_ENTRIES = MAX_PROVENANCE_ENTRIES
-const MAX_TRACE_CATALOG_BYTES = MAX_PROVENANCE_BYTES
+const MAX_TRACE_CATALOG_BYTES = 8 * 1024 * 1024
 const MAX_PROVENANCE_FILTER_NODES = 50_000
 const MAX_PROVENANCE_FILTER_CHARACTERS = 16 * 1024 * 1024
 const MAX_PROVENANCE_FILTER_COMPARISONS = 1_000_000
 const ERROR_CONTENT_PROPERTY_NAMES = ['name', 'message', 'stack', 'cause', 'errors'] as const
+const PROVENANCE_PROPERTY_NAMES = new Set(['version', 'complete', 'entries', 'scope'])
+const PROVENANCE_ENTRY_PROPERTY_NAMES = new Set(['encryptedValue', 'name'])
+const PROVENANCE_SCOPE_PROPERTY_NAMES = new Set(['userId', 'workspaceId'])
 
 export interface ResolvedSecretTraceCatalogEntry {
   name: string
@@ -72,8 +75,144 @@ function compareStrings(left: string, right: string): number {
   return 0
 }
 
+function cloneProvenanceScope(scope: ResolvedSecretTraceScopeV1): ResolvedSecretTraceScopeV1 {
+  return {
+    userId: scope.userId,
+    ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+  }
+}
+
+function serializedJsonStringByteSize(value: string): number {
+  let byteSize = 2
+  for (let index = 0; index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index)
+    if (codeUnit === 0x22 || codeUnit === 0x5c) {
+      byteSize += 2
+    } else if (
+      codeUnit === 0x08 ||
+      codeUnit === 0x09 ||
+      codeUnit === 0x0a ||
+      codeUnit === 0x0c ||
+      codeUnit === 0x0d
+    ) {
+      byteSize += 2
+    } else if (codeUnit <= 0x1f) {
+      byteSize += 6
+    } else if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const nextCodeUnit = value.charCodeAt(index + 1)
+      if (nextCodeUnit >= 0xdc00 && nextCodeUnit <= 0xdfff) {
+        byteSize += 4
+        index++
+      } else {
+        byteSize += 6
+      }
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      byteSize += 6
+    } else if (codeUnit <= 0x7f) {
+      byteSize++
+    } else if (codeUnit <= 0x7ff) {
+      byteSize += 2
+    } else {
+      byteSize += 3
+    }
+  }
+  return byteSize
+}
+
+function serializedProvenanceEntryByteSize(entry: ResolvedSecretTraceProvenanceEntryV1): number {
+  let byteSize =
+    Buffer.byteLength('{"encryptedValue":', 'utf8') +
+    serializedJsonStringByteSize(entry.encryptedValue)
+  if (entry.name !== undefined) {
+    byteSize += Buffer.byteLength(',"name":', 'utf8') + serializedJsonStringByteSize(entry.name)
+  }
+  return byteSize + 1
+}
+
+function serializedProvenanceEnvelopeByteSize(
+  complete: boolean,
+  scope: ResolvedSecretTraceScopeV1 | undefined
+): number {
+  let byteSize = Buffer.byteLength(
+    `{"version":1,"complete":${complete ? 'true' : 'false'},"entries":[]`,
+    'utf8'
+  )
+  if (scope) {
+    byteSize +=
+      Buffer.byteLength(',"scope":{"userId":', 'utf8') + serializedJsonStringByteSize(scope.userId)
+    if (scope.workspaceId !== undefined) {
+      byteSize +=
+        Buffer.byteLength(',"workspaceId":', 'utf8') +
+        serializedJsonStringByteSize(scope.workspaceId)
+    }
+    byteSize++
+  }
+  return byteSize + 1
+}
+
+function isSerializedProvenanceWithinLimit(
+  complete: boolean,
+  entries: readonly ResolvedSecretTraceProvenanceEntryV1[],
+  scope: ResolvedSecretTraceScopeV1 | undefined
+): boolean {
+  let byteSize = serializedProvenanceEnvelopeByteSize(complete, scope)
+  for (let index = 0; index < entries.length; index++) {
+    byteSize += serializedProvenanceEntryByteSize(entries[index]) + (index === 0 ? 0 : 1)
+    if (byteSize > MAX_SERIALIZED_PROVENANCE_BYTES) return false
+  }
+  return byteSize <= MAX_SERIALIZED_PROVENANCE_BYTES
+}
+
+function toProvenanceEntry(entry: ActiveSecretEntry): ResolvedSecretTraceProvenanceEntryV1 {
+  return {
+    encryptedValue: entry.encryptedValue,
+    ...(!entry.anonymous && entry.name ? { name: entry.name } : {}),
+  }
+}
+
 function hasOwn(record: Record<string, string>, name: string): boolean {
   return Object.hasOwn(record, name)
+}
+
+function isExactPlainDataRecord(
+  value: unknown,
+  allowedProperties: ReadonlySet<string>,
+  requiredProperties: readonly string[]
+): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+
+  try {
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) return false
+
+    const properties = Reflect.ownKeys(value)
+    for (const property of properties) {
+      if (typeof property !== 'string' || !allowedProperties.has(property)) return false
+      const descriptor = Object.getOwnPropertyDescriptor(value, property)
+      if (!descriptor?.enumerable || !('value' in descriptor)) return false
+    }
+    return requiredProperties.every((property) => Object.hasOwn(value, property))
+  } catch {
+    return false
+  }
+}
+
+function isExactProvenanceEntriesArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value)) return false
+
+  try {
+    if (Object.getPrototypeOf(value) !== Array.prototype) return false
+    const properties = Reflect.ownKeys(value)
+    if (properties.length !== value.length + 1 || !properties.includes('length')) return false
+
+    for (let index = 0; index < value.length; index++) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index))
+      if (!descriptor?.enumerable || !('value' in descriptor)) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 function catalogEntryByteSize(entry: ResolvedSecretTraceCatalogEntry): number {
@@ -127,8 +266,10 @@ function* iterateEffectiveCatalogEntries(
 }
 
 function isProvenanceEntry(value: unknown): value is ResolvedSecretTraceProvenanceEntryV1 {
-  if (value === null || typeof value !== 'object') return false
-  const entry = value as Record<string, unknown>
+  if (!isExactPlainDataRecord(value, PROVENANCE_ENTRY_PROPERTY_NAMES, ['encryptedValue'])) {
+    return false
+  }
+  const entry = value
   return (
     typeof entry.encryptedValue === 'string' &&
     entry.encryptedValue.length > 0 &&
@@ -137,8 +278,8 @@ function isProvenanceEntry(value: unknown): value is ResolvedSecretTraceProvenan
 }
 
 function isProvenanceScope(value: unknown): value is ResolvedSecretTraceScopeV1 {
-  if (value === null || typeof value !== 'object') return false
-  const scope = value as Record<string, unknown>
+  if (!isExactPlainDataRecord(value, PROVENANCE_SCOPE_PROPERTY_NAMES, ['userId'])) return false
+  const scope = value
   return (
     typeof scope.userId === 'string' &&
     scope.userId.length > 0 &&
@@ -163,32 +304,29 @@ function scopesMatch(
 export function isResolvedSecretTraceProvenanceV1(
   value: unknown
 ): value is ResolvedSecretTraceProvenanceV1 {
-  if (value === null || typeof value !== 'object') return false
-  const provenance = value as Record<string, unknown>
+  if (
+    !isExactPlainDataRecord(value, PROVENANCE_PROPERTY_NAMES, ['version', 'complete', 'entries'])
+  ) {
+    return false
+  }
+  const provenance = value
   if (
     provenance.version !== 1 ||
     typeof provenance.complete !== 'boolean' ||
-    !Array.isArray(provenance.entries) ||
+    !isExactProvenanceEntriesArray(provenance.entries) ||
     provenance.entries.length > MAX_PROVENANCE_ENTRIES ||
     !provenance.entries.every(isProvenanceEntry) ||
+    (!provenance.complete && provenance.entries.length > 0) ||
     (provenance.scope !== undefined && !isProvenanceScope(provenance.scope))
   ) {
     return false
   }
 
-  let byteSize = 0
-  for (const entry of provenance.entries) {
-    byteSize += Buffer.byteLength(entry.encryptedValue, 'utf8')
-    if (entry.name) byteSize += Buffer.byteLength(entry.name, 'utf8')
-    if (byteSize > MAX_PROVENANCE_BYTES) return false
-  }
-  if (provenance.scope) {
-    byteSize += Buffer.byteLength(provenance.scope.userId, 'utf8')
-    if (provenance.scope.workspaceId) {
-      byteSize += Buffer.byteLength(provenance.scope.workspaceId, 'utf8')
-    }
-  }
-  return byteSize <= MAX_PROVENANCE_BYTES
+  return isSerializedProvenanceWithinLimit(
+    provenance.complete,
+    provenance.entries,
+    provenance.scope
+  )
 }
 
 /**
@@ -201,7 +339,7 @@ export class ResolvedSecretTraceProvenanceAccumulator {
   private provenance: ResolvedSecretTraceProvenanceV1
 
   constructor(scope?: ResolvedSecretTraceScopeV1) {
-    this.scope = scope ? { ...scope } : undefined
+    this.scope = scope ? cloneProvenanceScope(scope) : undefined
     this.provenance = this.emptyProvenance(true)
   }
 
@@ -213,6 +351,12 @@ export class ResolvedSecretTraceProvenanceAccumulator {
     }
 
     const sameScope = scopesMatch(provenance.scope, this.scope)
+    const complete = this.provenance.complete && provenance.complete && sameScope
+    if (!complete) {
+      this.provenance = this.emptyProvenance(false)
+      return true
+    }
+
     const entries = new Map(
       this.provenance.entries.map((entry) => [
         `${entry.name ?? ''}\u0000${entry.encryptedValue}`,
@@ -220,15 +364,18 @@ export class ResolvedSecretTraceProvenanceAccumulator {
       ])
     )
     for (const entry of provenance.entries) {
-      const scopedEntry = sameScope ? entry : { encryptedValue: entry.encryptedValue }
+      const scopedEntry: ResolvedSecretTraceProvenanceEntryV1 = {
+        encryptedValue: entry.encryptedValue,
+        ...(entry.name ? { name: entry.name } : {}),
+      }
       entries.set(`${scopedEntry.name ?? ''}\u0000${scopedEntry.encryptedValue}`, scopedEntry)
     }
 
     const merged: ResolvedSecretTraceProvenanceV1 = {
       version: 1,
-      complete: this.provenance.complete && provenance.complete && sameScope,
+      complete: true,
       entries: [...entries.values()],
-      ...(this.scope ? { scope: { ...this.scope } } : {}),
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
     if (!isResolvedSecretTraceProvenanceV1(merged)) {
       this.provenance = this.emptyProvenance(false)
@@ -239,13 +386,9 @@ export class ResolvedSecretTraceProvenanceAccumulator {
     return true
   }
 
-  /** Marks the invocation incomplete, optionally discarding entries on a fail-closed boundary. */
-  markIncomplete(options: { discardEntries?: boolean } = {}): void {
-    this.provenance = {
-      ...this.provenance,
-      complete: false,
-      ...(options.discardEntries ? { entries: [] } : {}),
-    }
+  /** Marks the invocation incomplete and discards entries that can no longer be trusted. */
+  markIncomplete(): void {
+    this.provenance = this.emptyProvenance(false)
   }
 
   exportProvenance(): ResolvedSecretTraceProvenanceV1 {
@@ -257,7 +400,7 @@ export class ResolvedSecretTraceProvenanceAccumulator {
       version: 1,
       complete,
       entries: [],
-      ...(this.scope ? { scope: { ...this.scope } } : {}),
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
   }
 }
@@ -270,15 +413,20 @@ export class ResolvedSecretTraceRegistry {
   private readonly catalog = new Map<string, ResolvedSecretTraceCatalogEntry>()
   private catalogBytes = 0
   private readonly activeEntries = new Map<string, ActiveSecretEntry>()
-  private activeProvenanceBytes = 0
+  private activeProvenanceEntryBytes = 0
   private complete = true
   private readonly scope?: ResolvedSecretTraceScopeV1
+  private readonly completeProvenanceEnvelopeBytes: number
 
   constructor(
     catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
     scope?: ResolvedSecretTraceScopeV1
   ) {
-    this.scope = scope ? { ...scope } : undefined
+    this.scope = scope ? cloneProvenanceScope(scope) : undefined
+    this.completeProvenanceEnvelopeBytes = serializedProvenanceEnvelopeByteSize(true, this.scope)
+    if (this.completeProvenanceEnvelopeBytes > MAX_SERIALIZED_PROVENANCE_BYTES) {
+      this.markIncomplete()
+    }
     let catalogEntriesSeen = 0
     for (const entry of catalogEntries) {
       catalogEntriesSeen++
@@ -295,6 +443,7 @@ export class ResolvedSecretTraceRegistry {
     if (resolvedValue.length === 0) return false
     const catalogEntry = this.catalog.get(name)
     if (!catalogEntry || catalogEntry.plaintext !== resolvedValue) {
+      this.markIncomplete()
       return false
     }
 
@@ -408,7 +557,7 @@ export class ResolvedSecretTraceRegistry {
       version: 1,
       complete: this.complete,
       entries,
-      ...(this.scope ? { scope: { ...this.scope } } : {}),
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
   }
 
@@ -535,12 +684,15 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
-    const entries = this.buildProvenanceEntries([...matchedEntries.values()], options.anonymous)
+    const complete = this.complete && scanComplete
+    const entries = complete
+      ? this.buildProvenanceEntries([...matchedEntries.values()], options.anonymous)
+      : []
     return {
       version: 1,
-      complete: this.complete && scanComplete,
+      complete,
       entries,
-      ...(this.scope ? { scope: { ...this.scope } } : {}),
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
   }
 
@@ -551,17 +703,21 @@ export class ResolvedSecretTraceRegistry {
       return
     }
 
-    const entryBytes =
-      Buffer.byteLength(entry.encryptedValue, 'utf8') + Buffer.byteLength(entry.name, 'utf8')
+    const entryBytes = serializedProvenanceEntryByteSize(toProvenanceEntry(entry))
+    const separatorBytes = this.activeEntries.size === 0 ? 0 : 1
     if (
       this.activeEntries.size >= MAX_PROVENANCE_ENTRIES ||
-      this.activeProvenanceBytes + entryBytes > MAX_PROVENANCE_BYTES
+      this.completeProvenanceEnvelopeBytes +
+        this.activeProvenanceEntryBytes +
+        separatorBytes +
+        entryBytes >
+        MAX_SERIALIZED_PROVENANCE_BYTES
     ) {
       this.markIncomplete()
       return
     }
     this.activeEntries.set(key, entry)
-    this.activeProvenanceBytes += entryBytes
+    this.activeProvenanceEntryBytes += separatorBytes + entryBytes
   }
 
   private addCatalogEntry(entry: ResolvedSecretTraceCatalogEntry): boolean {
@@ -592,8 +748,7 @@ export class ResolvedSecretTraceRegistry {
           compareStrings(left.encryptedValue, right.encryptedValue)
       )
       .map((entry) => ({
-        encryptedValue: entry.encryptedValue,
-        ...(!forceAnonymous && !entry.anonymous && entry.name ? { name: entry.name } : {}),
+        ...toProvenanceEntry({ ...entry, anonymous: forceAnonymous || entry.anonymous }),
       }))
   }
 }
@@ -616,5 +771,14 @@ export async function createResolvedSecretTraceRegistry(
     registry.markIncomplete()
   }
 
+  return registry
+}
+
+/** Creates a scoped fail-closed registry when trusted catalog provenance is unavailable. */
+export function createIncompleteResolvedSecretTraceRegistry(
+  scope?: ResolvedSecretTraceScopeV1
+): ResolvedSecretTraceRegistry {
+  const registry = new ResolvedSecretTraceRegistry([], scope)
+  registry.markIncomplete()
   return registry
 }

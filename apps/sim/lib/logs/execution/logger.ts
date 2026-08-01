@@ -801,11 +801,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
       : redactedState
   }
 
-  async prepareTraceSpansForProjection(params: {
+  async loadTraceSpansForProjection(params: {
     executionId: string
     workflowId: string
     workspaceId: string | null
-    userId?: string | null
     traceSpans: TraceSpan[]
     isResume?: boolean
   }): Promise<TraceSpan[]> {
@@ -829,7 +828,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
       }
     }
 
-    const filtered = filterForDisplay(sourceSpans)
+    return sourceSpans
+  }
+
+  async prepareTraceSpansForProjection(params: {
+    workflowId: string
+    executionId: string
+    workspaceId: string | null
+    userId?: string | null
+    traceSpans: TraceSpan[]
+  }): Promise<TraceSpan[]> {
+    const filtered = filterForDisplay(params.traceSpans)
     const redacted = redactApiKeys(filtered)
     const pii = await this.applyPiiRedaction(
       params.workspaceId,

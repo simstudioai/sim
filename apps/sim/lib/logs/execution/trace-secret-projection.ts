@@ -36,6 +36,34 @@ const MAX_LARGE_VALUE_CHAIN_DEPTH = 32
 const MAX_LARGE_MANIFEST_CHUNKS = MAX_LARGE_VALUES
 const MAX_LARGE_MANIFEST_ITEMS = MAX_CONTENT_NODES
 const OMIT = Symbol('omit-trace-content')
+const LARGE_VALUE_REF_KEYS = new Set([
+  LARGE_VALUE_REF_MARKER,
+  'version',
+  'id',
+  'kind',
+  'size',
+  'key',
+  'executionId',
+  'preview',
+])
+const LARGE_VALUE_REF_REQUIRED_KEYS = new Set([
+  LARGE_VALUE_REF_MARKER,
+  'version',
+  'id',
+  'kind',
+  'size',
+])
+const LARGE_ARRAY_MANIFEST_KEYS = new Set([
+  LARGE_ARRAY_MANIFEST_MARKER,
+  'version',
+  'kind',
+  'totalCount',
+  'chunkCount',
+  'byteSize',
+  'chunks',
+  'preview',
+])
+const LARGE_ARRAY_MANIFEST_CHUNK_KEYS = new Set(['ref', 'count', 'byteSize'])
 
 interface SecretReplacement {
   plaintext: string
@@ -61,7 +89,7 @@ interface ProjectionContext {
   safeLargeValues: WeakSet<object>
   oversizedGate: OversizedHydrationGate
   refIoSemaphore: AsyncSemaphore
-  seenLargeValues: Set<string>
+  sourceLargeValueSizes: Map<string, number>
   largeValueCache: Map<string, Promise<unknown>>
   manifestIds: WeakMap<object, string>
   nextManifestId: number
@@ -88,6 +116,24 @@ interface TraversalState {
 interface SanitizationTraversalState extends TraversalState {
   outputBytes: number
   maxBytes: number
+}
+
+interface PlaintextInvariantContext {
+  matcher: SecretMatcher
+  safeLargeValues: WeakSet<object>
+  /** Valid refs are trusted only after the full projector has already rewritten them. */
+  allowVerifiedLargeValues?: boolean
+  /** Full post-transform verification hydrates refs instead of trusting their previews. */
+  inspectLargeValuePreviews?: boolean
+}
+
+interface PostTransformInvariantContext {
+  projection: ProjectionContext
+  plaintext: PlaintextInvariantContext
+  contentState: TraversalState
+  collectionState: TraversalState
+  collectionSeen: WeakSet<object>
+  verificationCache: Map<string, Promise<unknown>>
 }
 
 export interface ProjectTraceSpansForSecretsOptions {
@@ -189,6 +235,29 @@ function createSecretMatcher(replacements: readonly SecretReplacement[]): Secret
   }
 
   return { root, maxPatternLength }
+}
+
+function createProjectionContext(
+  matcher: SecretMatcher,
+  store: LargeValueStoreContext,
+  allowLargeValueWrites: boolean
+): ProjectionContext {
+  return {
+    matcher,
+    store,
+    allowLargeValueWrites,
+    safeLargeValues: new WeakSet<object>(),
+    oversizedGate: { chain: Promise.resolve() },
+    refIoSemaphore: { active: 0, waiters: [] },
+    sourceLargeValueSizes: new Map<string, number>(),
+    largeValueCache: new Map<string, Promise<unknown>>(),
+    manifestIds: new WeakMap<object, string>(),
+    nextManifestId: 0,
+    largeValueCount: 0,
+    sourceLargeValueBytes: 0,
+    storedLargeValueBytes: 0,
+    storedLargeValueCount: 0,
+  }
 }
 
 function advanceMatcher(
@@ -309,8 +378,25 @@ function assertArrayFitsTraversal(value: readonly unknown[], state: TraversalSta
   }
 }
 
+function readArrayLength(value: readonly unknown[]): number {
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length')
+  if (
+    !lengthDescriptor ||
+    !('value' in lengthDescriptor) ||
+    lengthDescriptor.enumerable ||
+    typeof lengthDescriptor.value !== 'number' ||
+    !Number.isSafeInteger(lengthDescriptor.value) ||
+    lengthDescriptor.value < 0
+  ) {
+    throw new TraceSecretProjectionError('Trace array length metadata is invalid')
+  }
+  return lengthDescriptor.value
+}
+
 function* arrayDataEntries(value: readonly unknown[]): Generator<[number, unknown]> {
-  for (let index = 0; index < value.length; index += 1) {
+  const length = readArrayLength(value)
+
+  for (let index = 0; index < length; index += 1) {
     const descriptor = Object.getOwnPropertyDescriptor(value, index)
     if (!descriptor) continue
     if (!('value' in descriptor)) {
@@ -318,6 +404,41 @@ function* arrayDataEntries(value: readonly unknown[]): Generator<[number, unknow
     }
     yield [index, descriptor.value]
   }
+}
+
+function readCanonicalDataArray(value: unknown, label: string): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new TraceSecretProjectionError(`${label} must be an array`)
+  }
+
+  const length = readArrayLength(value)
+  const entries: unknown[] = new Array<unknown>(length)
+  let entryCount = 0
+
+  for (const key of Reflect.ownKeys(value)) {
+    if (key === 'length') continue
+    if (typeof key !== 'string') {
+      throw new TraceSecretProjectionError('Trace arrays cannot contain symbol properties')
+    }
+    const index = Number(key)
+    if (!Number.isInteger(index) || index < 0 || index >= length || String(index) !== key) {
+      throw new TraceSecretProjectionError('Trace arrays cannot contain custom properties')
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    if (!descriptor?.enumerable || !('value' in descriptor)) {
+      throw new TraceSecretProjectionError('Trace array entries must be enumerable data properties')
+    }
+    entries[index] = descriptor.value
+    entryCount += 1
+  }
+
+  if (entryCount !== length) {
+    throw new TraceSecretProjectionError(`${label} cannot contain sparse entries`)
+  }
+  if (Object.getPrototypeOf(value) !== Array.prototype) {
+    throw new TraceSecretProjectionError(`${label} must use the canonical array prototype`)
+  }
+  return entries
 }
 
 function enterObject(value: object, state: TraversalState): void {
@@ -332,11 +453,12 @@ function leaveObject(value: object, state: TraversalState): void {
 }
 
 function* enumerableDataEntries(value: object): Generator<[string, unknown]> {
-  for (const key in value) {
-    if (!Object.hasOwn(value, key)) continue
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') {
+      throw new TraceSecretProjectionError('Trace objects cannot contain symbol properties')
+    }
     const descriptor = Object.getOwnPropertyDescriptor(value, key)
-    if (!descriptor?.enumerable) continue
-    if (!('value' in descriptor)) {
+    if (!descriptor?.enumerable || !('value' in descriptor)) {
       throw new TraceSecretProjectionError('Trace content accessors are not supported')
     }
     yield [key, descriptor.value]
@@ -354,6 +476,47 @@ function readOwnDataProperty(value: object, key: string): unknown {
   return descriptor.value
 }
 
+function assertExactPlainDataRecord(
+  value: object,
+  allowedKeys: ReadonlySet<string>,
+  requiredKeys: ReadonlySet<string>,
+  label: string
+): void {
+  const presentKeys = new Set<string>()
+  for (const [key] of enumerableDataEntries(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new TraceSecretProjectionError(`${label} contains unsupported metadata`)
+    }
+    presentKeys.add(key)
+  }
+  for (const key of requiredKeys) {
+    if (!presentKeys.has(key)) {
+      throw new TraceSecretProjectionError(`${label} is missing required metadata`)
+    }
+  }
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TraceSecretProjectionError(`${label} must be a plain object`)
+  }
+}
+
+function readCanonicalLargeValueRef(value: object, marker: unknown): LargeValueRef {
+  const canonicalRef = {
+    [LARGE_VALUE_REF_MARKER]: marker,
+    version: readOwnDataProperty(value, 'version'),
+    id: readOwnDataProperty(value, 'id'),
+    kind: readOwnDataProperty(value, 'kind'),
+    size: readOwnDataProperty(value, 'size'),
+    key: readOwnDataProperty(value, 'key'),
+    executionId: readOwnDataProperty(value, 'executionId'),
+    preview: readOwnDataProperty(value, 'preview'),
+  }
+  if (!isLargeValueRef(canonicalRef) || canonicalRef.size > MAX_DURABLE_LARGE_VALUE_BYTES) {
+    throw new TraceSecretProjectionError('Trace content has invalid large-value metadata')
+  }
+  return canonicalRef
+}
+
 function getLargeValueCandidate(value: unknown): LargeValueCandidate | undefined {
   if (!value || typeof value !== 'object') return undefined
 
@@ -363,30 +526,69 @@ function getLargeValueCandidate(value: unknown): LargeValueCandidate | undefined
     throw new TraceSecretProjectionError('Trace content has ambiguous large-value metadata')
   }
   if (largeValueMarker === true) {
-    if (!isLargeValueRef(value) || value.size > MAX_DURABLE_LARGE_VALUE_BYTES) {
-      throw new TraceSecretProjectionError('Trace content has invalid large-value metadata')
-    }
-    return value
+    assertExactPlainDataRecord(
+      value,
+      LARGE_VALUE_REF_KEYS,
+      LARGE_VALUE_REF_REQUIRED_KEYS,
+      'Trace large-value ref'
+    )
+    readCanonicalLargeValueRef(value, largeValueMarker)
+    return value as LargeValueRef
   }
   if (manifestMarker !== true) return undefined
 
+  assertExactPlainDataRecord(
+    value,
+    LARGE_ARRAY_MANIFEST_KEYS,
+    LARGE_ARRAY_MANIFEST_KEYS,
+    'Trace large-array manifest'
+  )
+
   const chunks = readOwnDataProperty(value, 'chunks')
-  const chunkCount = readOwnDataProperty(value, 'chunkCount')
-  const totalCount = readOwnDataProperty(value, 'totalCount')
-  const byteSize = readOwnDataProperty(value, 'byteSize')
+  const preview = readOwnDataProperty(value, 'preview')
+  const chunkValues = readCanonicalDataArray(chunks, 'Trace manifest chunks')
+  const previewValues = readCanonicalDataArray(preview, 'Trace manifest preview')
+  const canonicalChunks: Array<{ ref: LargeValueRef; count: unknown; byteSize: unknown }> = []
+  for (const chunk of chunkValues) {
+    if (!chunk || typeof chunk !== 'object') {
+      throw new TraceSecretProjectionError('Trace manifest chunk metadata is invalid')
+    }
+    assertExactPlainDataRecord(
+      chunk,
+      LARGE_ARRAY_MANIFEST_CHUNK_KEYS,
+      LARGE_ARRAY_MANIFEST_CHUNK_KEYS,
+      'Trace manifest chunk'
+    )
+    const chunkRef = getLargeValueCandidate(readOwnDataProperty(chunk, 'ref'))
+    if (!chunkRef || readOwnDataProperty(chunkRef, LARGE_VALUE_REF_MARKER) !== true) {
+      throw new TraceSecretProjectionError('Trace manifest chunk ref is invalid')
+    }
+    canonicalChunks.push({
+      ref: readCanonicalLargeValueRef(chunkRef, true),
+      count: readOwnDataProperty(chunk, 'count'),
+      byteSize: readOwnDataProperty(chunk, 'byteSize'),
+    })
+  }
+
+  const canonicalManifest = {
+    [LARGE_ARRAY_MANIFEST_MARKER]: manifestMarker,
+    version: readOwnDataProperty(value, 'version'),
+    kind: readOwnDataProperty(value, 'kind'),
+    totalCount: readOwnDataProperty(value, 'totalCount'),
+    chunkCount: readOwnDataProperty(value, 'chunkCount'),
+    byteSize: readOwnDataProperty(value, 'byteSize'),
+    chunks: canonicalChunks,
+    preview: previewValues,
+  }
   if (
-    !Array.isArray(chunks) ||
-    chunks.length > MAX_LARGE_MANIFEST_CHUNKS ||
-    chunkCount !== chunks.length ||
-    typeof totalCount !== 'number' ||
-    totalCount > MAX_LARGE_MANIFEST_ITEMS ||
-    typeof byteSize !== 'number' ||
-    byteSize > MAX_DURABLE_LARGE_VALUE_BYTES ||
-    !isLargeArrayManifest(value)
+    !isLargeArrayManifest(canonicalManifest) ||
+    canonicalManifest.chunks.length > MAX_LARGE_MANIFEST_CHUNKS ||
+    canonicalManifest.totalCount > MAX_LARGE_MANIFEST_ITEMS ||
+    canonicalManifest.byteSize > MAX_DURABLE_LARGE_VALUE_BYTES
   ) {
     throw new TraceSecretProjectionError('Trace content has invalid large-array metadata')
   }
-  return value
+  return value as LargeArrayManifest
 }
 
 function sanitizeInlineValue(
@@ -578,18 +780,23 @@ function getLargeValueKey(value: LargeValueCandidate, context: ProjectionContext
 function registerSourceLargeValue(
   value: LargeValueCandidate,
   key: string,
-  context: ProjectionContext,
-  countBytes = true
+  context: ProjectionContext
 ): void {
-  if (context.seenLargeValues.has(key)) return
-  const size = countBytes ? (isLargeValueRef(value) ? value.size : value.byteSize) : 0
+  const size = isLargeValueRef(value) ? value.size : 0
+  const registeredSize = context.sourceLargeValueSizes.get(key)
+  if (registeredSize !== undefined) {
+    if (registeredSize !== size) {
+      throw new TraceSecretProjectionError('Trace large-value metadata is inconsistent')
+    }
+    return
+  }
   if (
     context.largeValueCount + 1 > MAX_LARGE_VALUES ||
     context.sourceLargeValueBytes + size > MAX_DURABLE_LARGE_VALUE_BYTES
   ) {
     throw new TraceSecretProjectionError('Trace large-value projection budget exceeded')
   }
-  context.seenLargeValues.add(key)
+  context.sourceLargeValueSizes.set(key, size)
   context.largeValueCount += 1
   context.sourceLargeValueBytes += size
 }
@@ -726,7 +933,7 @@ async function replaceLargeArrayManifest(
   for (const chunk of manifest.chunks) {
     const chunkKey = getLargeValueKey(chunk.ref, context)
     const chunkPath = extendLargeValuePath(path, chunkKey)
-    registerSourceLargeValue(chunk.ref, chunkKey, context, false)
+    registerSourceLargeValue(chunk.ref, chunkKey, context)
     const materialized = await materializeSourceRef(chunk.ref, context)
     if (!Array.isArray(materialized) || materialized.length !== chunk.count) {
       throw new TraceSecretProjectionError('Large trace manifest chunk is invalid')
@@ -782,10 +989,10 @@ async function replaceLargeValue(
   }
   const key = getLargeValueKey(value, context)
   const nextPath = extendLargeValuePath(path, key)
+  registerSourceLargeValue(value, key, context)
   const cached = context.largeValueCache.get(key)
   if (cached) return cached
 
-  registerSourceLargeValue(value, key, context)
   const replacement = isLargeValueRef(value)
     ? replaceLargeValueRef(value, context, nextPath)
     : replaceLargeArrayManifest(value, context, nextPath)
@@ -1260,7 +1467,7 @@ function cloneTraceSpansForProjection(traceSpans: TraceSpan[]): TraceSpan[] {
 
 function assertNoPlaintext(
   value: unknown,
-  context: ProjectionContext,
+  context: PlaintextInvariantContext,
   state: TraversalState,
   depth = 0
 ): void {
@@ -1277,9 +1484,23 @@ function assertNoPlaintext(
     }
     return
   }
-  if (getLargeValueCandidate(value)) {
-    if (!context.safeLargeValues.has(value as object)) {
+  const largeValue = getLargeValueCandidate(value)
+  if (largeValue) {
+    if (!context.safeLargeValues.has(value as object) && !context.allowVerifiedLargeValues) {
       throw new TraceSecretProjectionError('Sanitized trace content contains an unverified ref')
+    }
+    if (context.inspectLargeValuePreviews !== false) {
+      if (isLargeValueRef(largeValue)) {
+        const preview = readOwnDataProperty(largeValue, 'preview')
+        if (preview !== undefined) {
+          assertNoPlaintext(preview, context, state, depth + 1)
+        }
+      } else {
+        assertNoPlaintext(largeValue.preview, context, state, depth + 1)
+        for (const chunk of largeValue.chunks) {
+          assertNoPlaintext(chunk.ref, context, state, depth + 1)
+        }
+      }
     }
     return
   }
@@ -1308,39 +1529,278 @@ function assertNoPlaintext(
   }
 }
 
-function assertTraceSpanContentIsSafe(span: TraceSpan, context: ProjectionContext): void {
-  const assertField = (value: unknown): void => {
-    if (value === undefined) return
-    assertNoPlaintext(value, context, { nodes: 0, ancestors: new WeakSet<object>() })
+type TraceContentVisitor = (value: unknown) => void
+
+function visitTraceSpanContent(
+  span: TraceSpan,
+  visit: TraceContentVisitor,
+  structureState: BoundedTraceStructureState,
+  depth = 0
+): void {
+  if (!takeTraceStructureNode(structureState, depth)) {
+    throw new TraceSecretProjectionError('Trace invariant structure limit exceeded')
   }
 
-  assertField(span.input)
-  assertField(span.output)
-  assertField(span.thinking)
-  assertField(span.errorMessage)
+  const visitField = (value: unknown): void => {
+    if (value !== undefined) visit(value)
+  }
+
+  visitField(span.input)
+  visitField(span.output)
+  visitField(span.thinking)
+  visitField(span.errorMessage)
   if (span.modelToolCalls) {
+    assertTraceStructureArrayFits(span.modelToolCalls, structureState)
     for (const call of span.modelToolCalls) {
-      if (Object.hasOwn(call, 'arguments')) assertField(call.arguments)
+      if (!takeTraceStructureNode(structureState, depth + 1)) {
+        throw new TraceSecretProjectionError('Trace invariant tool-call limit exceeded')
+      }
+      if (Object.hasOwn(call, 'arguments')) visitField(call.arguments)
     }
   }
   if (span.toolCalls) {
+    assertTraceStructureArrayFits(span.toolCalls, structureState)
     for (const call of span.toolCalls) {
-      assertField(call.input)
-      assertField(call.output)
-      assertField(call.error)
+      if (!takeTraceStructureNode(structureState, depth + 1)) {
+        throw new TraceSecretProjectionError('Trace invariant legacy tool-call limit exceeded')
+      }
+      visitField(call.input)
+      visitField(call.output)
+      visitField(call.error)
     }
   }
   if (span.providerTiming) {
+    assertTraceStructureArrayFits(span.providerTiming.segments, structureState)
     for (const segment of span.providerTiming.segments) {
-      assertField(segment.assistantContent)
-      assertField(segment.thinkingContent)
-      assertField(segment.errorMessage)
+      if (!takeTraceStructureNode(structureState, depth + 1)) {
+        throw new TraceSecretProjectionError('Trace invariant provider-segment limit exceeded')
+      }
+      visitField(segment.assistantContent)
+      visitField(segment.thinkingContent)
+      visitField(segment.errorMessage)
+      assertTraceStructureArrayFits(segment.toolCalls ?? [], structureState)
       for (const call of segment.toolCalls ?? []) {
-        if (Object.hasOwn(call, 'arguments')) assertField(call.arguments)
+        if (!takeTraceStructureNode(structureState, depth + 2)) {
+          throw new TraceSecretProjectionError('Trace invariant provider tool-call limit exceeded')
+        }
+        if (Object.hasOwn(call, 'arguments')) visitField(call.arguments)
       }
     }
   }
-  for (const child of span.children ?? []) assertTraceSpanContentIsSafe(child, context)
+  assertTraceStructureArrayFits(span.children ?? [], structureState)
+  for (const child of span.children ?? []) {
+    visitTraceSpanContent(child, visit, structureState, depth + 1)
+  }
+}
+
+function visitTraceSpansContent(traceSpans: TraceSpan[], visit: TraceContentVisitor): void {
+  const structureState: BoundedTraceStructureState = { nodes: 0, truncated: false }
+  assertTraceStructureArrayFits(traceSpans, structureState)
+  for (const span of traceSpans) {
+    visitTraceSpanContent(span, visit, structureState)
+  }
+}
+
+function assertTraceSpansContentIsSafe(
+  traceSpans: TraceSpan[],
+  context: PlaintextInvariantContext
+): void {
+  const contentState: TraversalState = { nodes: 0, ancestors: new WeakSet<object>() }
+  visitTraceSpansContent(traceSpans, (value) => assertNoPlaintext(value, context, contentState))
+}
+
+function collectPostTransformLargeValues(
+  value: unknown,
+  context: PostTransformInvariantContext,
+  refs: object[],
+  depth = 0
+): void {
+  if (depth === 0) {
+    assertNoPlaintext(value, context.plaintext, context.contentState)
+  }
+
+  visitNode(context.collectionState, depth)
+  const largeValue = getLargeValueCandidate(value)
+  if (largeValue) {
+    const objectValue = value as object
+    if (context.collectionSeen.has(objectValue)) return
+    context.collectionSeen.add(objectValue)
+    refs.push(objectValue)
+
+    if (isLargeValueRef(largeValue)) {
+      const preview = readOwnDataProperty(largeValue, 'preview')
+      if (preview !== undefined) {
+        collectPostTransformLargeValues(preview, context, refs, depth + 1)
+      }
+    } else {
+      collectPostTransformLargeValues(largeValue.preview, context, refs, depth + 1)
+      for (const chunk of largeValue.chunks) {
+        collectPostTransformLargeValues(chunk.ref, context, refs, depth + 1)
+      }
+    }
+    return
+  }
+
+  if (value === null || typeof value !== 'object') return
+  if (!Array.isArray(value) && !isPlainRecord(value)) {
+    throw new TraceSecretProjectionError('Trace invariant contains an unsupported object')
+  }
+  if (context.collectionSeen.has(value)) return
+  context.collectionSeen.add(value)
+
+  enterObject(value, context.collectionState)
+  try {
+    if (Array.isArray(value)) {
+      assertArrayFitsTraversal(value, context.collectionState)
+      for (const [, item] of arrayDataEntries(value)) {
+        collectPostTransformLargeValues(item, context, refs, depth + 1)
+      }
+      return
+    }
+    for (const [, item] of enumerableDataEntries(value)) {
+      collectPostTransformLargeValues(item, context, refs, depth + 1)
+    }
+  } finally {
+    leaveObject(value, context.collectionState)
+  }
+}
+
+async function verifyPostTransformValue(
+  value: unknown,
+  context: PostTransformInvariantContext,
+  path: ReadonlySet<string>
+): Promise<void> {
+  const refs: object[] = []
+  collectPostTransformLargeValues(value, context, refs)
+  await verifyPostTransformLargeValues(refs, context, path)
+}
+
+async function verifyPostTransformLargeValue(
+  value: LargeValueCandidate,
+  context: PostTransformInvariantContext,
+  path: ReadonlySet<string>
+): Promise<unknown> {
+  const key = getLargeValueKey(value, context.projection)
+  const nextPath = extendLargeValuePath(path, key)
+  registerSourceLargeValue(value, key, context.projection)
+  const cached = context.verificationCache.get(key)
+  if (cached) return cached
+
+  const verification = (async (): Promise<unknown> => {
+    if (isLargeValueRef(value)) {
+      const preview = readOwnDataProperty(value, 'preview')
+      if (preview !== undefined) {
+        await verifyPostTransformValue(preview, context, nextPath)
+      }
+      const materialized = await materializeSourceRef(value, context.projection)
+      await verifyPostTransformValue(materialized, context, nextPath)
+      return materialized
+    }
+
+    await verifyPostTransformValue(value.preview, context, nextPath)
+    for (const chunk of value.chunks) {
+      const materialized = await verifyPostTransformLargeValue(chunk.ref, context, nextPath)
+      if (!Array.isArray(materialized) || materialized.length !== chunk.count) {
+        throw new TraceSecretProjectionError('Trace invariant manifest chunk is invalid')
+      }
+    }
+    return value
+  })()
+  context.verificationCache.set(key, verification)
+  return verification
+}
+
+async function verifyPostTransformLargeValues(
+  refs: object[],
+  context: PostTransformInvariantContext,
+  path: ReadonlySet<string>
+): Promise<void> {
+  const candidates = new Map<string, LargeValueCandidate>()
+  for (const ref of refs) {
+    const candidate = getLargeValueCandidate(ref)
+    if (!candidate) {
+      throw new TraceSecretProjectionError('Trace invariant large-value metadata changed')
+    }
+    const key = getLargeValueKey(candidate, context.projection)
+    const current = candidates.get(key)
+    if (
+      current &&
+      isLargeValueRef(current) &&
+      isLargeValueRef(candidate) &&
+      current.size !== candidate.size
+    ) {
+      throw new TraceSecretProjectionError('Trace invariant ref metadata is inconsistent')
+    }
+    if (!current) candidates.set(key, candidate)
+    if (candidates.size > MAX_LARGE_VALUES) {
+      throw new TraceSecretProjectionError('Trace invariant large-value count exceeded')
+    }
+  }
+
+  await Promise.all(
+    [...candidates.values()].map((candidate) =>
+      verifyPostTransformLargeValue(candidate, context, path)
+    )
+  )
+}
+
+async function assertPostTransformTraceSpansAreSafe(
+  traceSpans: TraceSpan[],
+  matcher: SecretMatcher,
+  store: LargeValueStoreContext
+): Promise<void> {
+  const projection = createProjectionContext(matcher, store, false)
+  const context: PostTransformInvariantContext = {
+    projection,
+    plaintext: {
+      matcher,
+      safeLargeValues: new WeakSet<object>(),
+      allowVerifiedLargeValues: true,
+      inspectLargeValuePreviews: true,
+    },
+    contentState: { nodes: 0, ancestors: new WeakSet<object>() },
+    collectionState: { nodes: 0, ancestors: new WeakSet<object>() },
+    collectionSeen: new WeakSet<object>(),
+    verificationCache: new Map<string, Promise<unknown>>(),
+  }
+  const refs: object[] = []
+  visitTraceSpansContent(traceSpans, (value) =>
+    collectPostTransformLargeValues(value, context, refs)
+  )
+  await verifyPostTransformLargeValues(refs, context, new Set<string>())
+}
+
+export interface EnforceTraceSpanSecretInvariantOptions {
+  registry?: ResolvedSecretTraceRegistry
+  store: LargeValueStoreContext
+}
+
+/**
+ * Re-checks an already-projected TraceSpan tree after generic log transforms.
+ * Inline content and hydrated trace-owned refs are inspected without performing
+ * replacement or storage work. The caller must pass the output of
+ * {@link projectTraceSpansForSecrets} through directly.
+ */
+export async function enforceTraceSpanSecretInvariant(
+  traceSpans: TraceSpan[],
+  options: EnforceTraceSpanSecretInvariantOptions
+): Promise<TraceSpan[]> {
+  try {
+    if (!options.registry?.isComplete()) return structuralOnlyTraceSpans(traceSpans)
+
+    const replacements = normalizeReplacements(options.registry.getActiveMatches())
+    if (replacements.length === 0) return traceSpans
+
+    await assertPostTransformTraceSpansAreSafe(
+      traceSpans,
+      createSecretMatcher(replacements),
+      options.store
+    )
+    return traceSpans
+  } catch {
+    logger.warn('Trace secret invariant failed; retaining structural spans only')
+    return structuralOnlyTraceSpans(traceSpans)
+  }
 }
 
 /**
@@ -1359,22 +1819,11 @@ export async function projectTraceSpansForSecrets(
     const replacements = normalizeReplacements(options.registry.getActiveMatches())
     if (replacements.length === 0) return cloneTraceSpansForProjection(traceSpans)
 
-    const context: ProjectionContext = {
-      matcher: createSecretMatcher(replacements),
-      store: options.store,
-      allowLargeValueWrites: options.allowLargeValueWrites !== false,
-      safeLargeValues: new WeakSet<object>(),
-      oversizedGate: { chain: Promise.resolve() },
-      refIoSemaphore: { active: 0, waiters: [] },
-      seenLargeValues: new Set<string>(),
-      largeValueCache: new Map<string, Promise<unknown>>(),
-      manifestIds: new WeakMap<object, string>(),
-      nextManifestId: 0,
-      largeValueCount: 0,
-      sourceLargeValueBytes: 0,
-      storedLargeValueBytes: 0,
-      storedLargeValueCount: 0,
-    }
+    const context = createProjectionContext(
+      createSecretMatcher(replacements),
+      options.store,
+      options.allowLargeValueWrites !== false
+    )
 
     const projected: TraceSpan[] = []
     const state: BoundedTraceStructureState = { nodes: 0, truncated: false }
@@ -1382,7 +1831,7 @@ export async function projectTraceSpansForSecrets(
     for (const span of traceSpans) {
       projected.push(await sanitizeTraceSpan(span, context, 0, state))
     }
-    for (const span of projected) assertTraceSpanContentIsSafe(span, context)
+    assertTraceSpansContentIsSafe(projected, context)
     return projected
   } catch {
     logger.warn('Trace secret projection failed; retaining structural spans only')

@@ -923,6 +923,56 @@ describe('workflow execute async route', () => {
     )
   })
 
+  it('falls back to an untrusted client snapshot while stored run-from-block state is pending', async () => {
+    const sourceSnapshot = {
+      blockStates: { previous: { output: { value: 'cached' } } },
+      executedBlocks: ['previous'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+      resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'untrusted-ciphertext' }],
+      },
+    }
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+    const request = createMockRequest(
+      'POST',
+      {
+        input: { hello: 'world' },
+        runFromBlock: {
+          startBlockId: 'start-block',
+          executionId: 'source-execution',
+          sourceSnapshot,
+        },
+      },
+      {
+        'Content-Type': 'application/json',
+        Cookie: 'session=value',
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runFromBlock: {
+          startBlockId: 'start-block',
+          sourceSnapshot: expect.objectContaining({
+            blockStates: sourceSnapshot.blockStates,
+            executedBlocks: sourceSnapshot.executedBlocks,
+          }),
+        },
+      })
+    )
+    const runFromBlock = mockExecuteWorkflowCore.mock.calls[0]?.[0]?.runFromBlock
+    expect(runFromBlock).not.toHaveProperty('sourceExecutionId')
+    expect(runFromBlock?.sourceSnapshot).not.toHaveProperty('resolvedSecretTraceProvenance')
+  })
+
   it('returns encrypted resolution provenance only to an authenticated internal tool caller', async () => {
     const caller = EXECUTION_CALLERS[4]
     configureExecutionCaller(caller)

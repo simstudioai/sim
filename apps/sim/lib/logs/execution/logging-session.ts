@@ -23,7 +23,10 @@ import {
   setLastCompletedBlock,
   setLastStartedBlock,
 } from '@/lib/logs/execution/progress-markers'
-import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
+import {
+  enforceTraceSpanSecretInvariant,
+  projectTraceSpansForSecrets,
+} from '@/lib/logs/execution/trace-secret-projection'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type {
   ExecutionEnvironment,
@@ -374,15 +377,26 @@ export class LoggingSession {
   }
 
   private async projectTraceSpans(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
+    const sourceTraceSpans = await executionLogger.loadTraceSpansForProjection({
+      executionId: this.executionId,
+      workflowId: this.workflowId,
+      workspaceId: this.environment?.workspaceId ?? null,
+      traceSpans,
+      isResume: this.isResume,
+    })
+    const secretSafeTraceSpans = await this.projectRawTraceSpans(sourceTraceSpans)
     const preparedTraceSpans = await executionLogger.prepareTraceSpansForProjection({
       executionId: this.executionId,
       workflowId: this.workflowId,
       workspaceId: this.environment?.workspaceId ?? null,
       userId: this.actorUserId ?? this.environment?.userId,
-      traceSpans,
-      isResume: this.isResume,
+      traceSpans: secretSafeTraceSpans,
     })
-    return this.projectRawTraceSpans(preparedTraceSpans)
+    const invariantSafeTraceSpans = await enforceTraceSpanSecretInvariant(preparedTraceSpans, {
+      registry: this.resolvedSecretTraceRegistry,
+      store: this.getSecretProjectionStore(),
+    })
+    return invariantSafeTraceSpans
   }
 
   async onBlockStart(

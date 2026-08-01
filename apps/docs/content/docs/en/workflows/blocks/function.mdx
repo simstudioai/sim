@@ -138,14 +138,19 @@ number reported. A sandbox may declare up to 50 packages.
 
 When a Function block is used as an Agent tool, its code can read every workspace
 secret by default — both `{{MY_SECRET}}` and `environmentVariables['MY_SECRET']`.
+Use `{{MY_SECRET}}` when the value may appear in execution logs: a successful
+double-brace substitution activates [execution-trace masking](/platform/credentials#execution-log-protection),
+while direct `environmentVariables['MY_SECRET']` access alone does not activate
+it by itself.
 
 To narrow that, set **Secret access** to *Selected secrets* in the block's
 tool configuration and pick the names the code may read. Two things change:
 
 - Only those secrets are injected. `{{OTHER_SECRET}}` no longer resolves either.
 - The selected **names** are added to the tool's description, so the model knows
-  what it can reference. Values are never sent to the model — they are injected
-  server-side at execution.
+  what it can reference. Values are injected server-side when the Function runs.
+  If the Function returns a secret, the raw result is still sent to the Agent;
+  masking affects only the trace and display copy.
 
 Leaving the default (*All secrets*) resolves the list at run time, so a secret
 added next month is included automatically.

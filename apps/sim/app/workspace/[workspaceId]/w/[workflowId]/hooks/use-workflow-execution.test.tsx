@@ -10,6 +10,7 @@ const {
   DirectUploadErrorMock,
   executionStoreState,
   mockExecute,
+  mockExecuteFromBlock,
   mockFetch,
   mockResolveStartCandidates,
   mockRunUploadStrategy,
@@ -90,6 +91,7 @@ const {
     DirectUploadErrorMock,
     executionStoreState,
     mockExecute: vi.fn(),
+    mockExecuteFromBlock: vi.fn(),
     mockFetch: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockRunUploadStrategy: vi.fn(),
@@ -210,7 +212,7 @@ vi.mock('@/hooks/use-execution-stream', () => {
     SSEStreamInterruptedError,
     useExecutionStream: () => ({
       execute: mockExecute,
-      executeFromBlock: vi.fn(),
+      executeFromBlock: mockExecuteFromBlock,
       reconnect: vi.fn(),
       cancel: vi.fn(),
       cancelExecute: vi.fn(),
@@ -362,6 +364,8 @@ describe('useWorkflowExecution attachment uploads', () => {
       })
     )
     mockExecute.mockResolvedValue(undefined)
+    mockExecuteFromBlock.mockResolvedValue(undefined)
+    workflowStoreState.edges.length = 0
   })
 
   afterEach(() => {
@@ -612,6 +616,37 @@ describe('useWorkflowExecution attachment uploads', () => {
     expect(executionStoreState.setLastExecutionSnapshot).toHaveBeenCalledWith(
       'workflow-1',
       expect.objectContaining({ sourceExecutionId: executionId })
+    )
+
+    unmount()
+  })
+
+  it('sends the snapshot as a fallback with a trusted run-from-block execution ID', async () => {
+    const sourceSnapshot = {
+      blockStates: { start: { output: { value: 'ready' } } },
+      executedBlocks: ['start'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['start'],
+      sourceExecutionId: 'source-execution-1',
+    }
+    executionStoreState.getLastExecutionSnapshot.mockReturnValueOnce(sourceSnapshot)
+    workflowStoreState.edges.push({ source: 'start', target: 'function-1' } as never)
+
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    await act(async () => {
+      await result().handleRunFromBlock('function-1', 'workflow-1')
+    })
+
+    expect(mockExecuteFromBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        startBlockId: 'function-1',
+        sourceExecutionId: 'source-execution-1',
+        sourceSnapshot,
+      })
     )
 
     unmount()

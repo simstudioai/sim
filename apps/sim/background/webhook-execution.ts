@@ -14,7 +14,10 @@ import {
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import {
+  type EnvironmentResolutionSnapshot,
+  getEffectiveEnvironmentSnapshot,
+} from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -43,7 +46,10 @@ import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
-import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  createIncompleteResolvedSecretTraceRegistry,
+  createResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -321,12 +327,31 @@ export async function resolveWebhookExecutionProviderConfig<
   provider: string,
   userId: string,
   workspaceId?: string,
-  options?: WebhookEnvResolutionOptions
+  options?: WebhookEnvResolutionOptions & {
+    onEnvironmentSnapshot?: (snapshot: EnvironmentResolutionSnapshot) => void | Promise<void>
+  }
 ): Promise<T & { providerConfig: Record<string, unknown> }> {
   try {
-    return options
-      ? await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId, options)
-      : await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
+    if (!options) {
+      return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
+    }
+
+    const { onEnvironmentSnapshot, ...resolutionOptions } = options
+    if (onEnvironmentSnapshot && resolutionOptions.envVars === undefined) {
+      const snapshot = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+      await onEnvironmentSnapshot(snapshot)
+      resolutionOptions.envVars = {
+        ...snapshot.personalDecrypted,
+        ...snapshot.workspaceDecrypted,
+      }
+    }
+
+    return await resolveWebhookRecordProviderConfig(
+      webhookRecord,
+      userId,
+      workspaceId,
+      resolutionOptions
+    )
   } catch (error) {
     const errorMessage = toError(error).message
     throw new Error(
@@ -496,28 +521,35 @@ async function executeWebhookJobInternal(
       throw new Error(`Webhook record not found: ${payload.webhookId}`)
     }
 
-    const secretEnvironment = await getPersonalAndWorkspaceEnv(workflowRecord.userId, workspaceId)
-    const resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
-      personalEncrypted: secretEnvironment.personalEncrypted,
-      workspaceEncrypted: secretEnvironment.workspaceEncrypted,
-      personalDecrypted: secretEnvironment.personalDecrypted,
-      workspaceDecrypted: secretEnvironment.workspaceDecrypted,
-      decryptionFailures: secretEnvironment.decryptionFailures,
-      scope: { userId: workflowRecord.userId, workspaceId },
-    })
-    loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
-    const secretEnvVars = {
-      ...secretEnvironment.personalDecrypted,
-      ...secretEnvironment.workspaceDecrypted,
-    }
+    const secretScope = { userId: workflowRecord.userId, workspaceId }
+    let resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
     const resolvedWebhookRecord = await resolveWebhookExecutionProviderConfig(
       webhookRecord,
       payload.provider,
       workflowRecord.userId,
       workspaceId,
       {
-        envVars: secretEnvVars,
-        onResolved: (name, value) => resolvedSecretTraceRegistry.recordResolved(name, value),
+        onEnvironmentSnapshot: async (secretEnvironment) => {
+          try {
+            resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+              personalEncrypted: secretEnvironment.personalEncrypted,
+              workspaceEncrypted: secretEnvironment.workspaceEncrypted,
+              personalDecrypted: secretEnvironment.personalDecrypted,
+              workspaceDecrypted: secretEnvironment.workspaceDecrypted,
+              decryptionFailures: secretEnvironment.decryptionFailures,
+              scope: secretScope,
+            })
+          } catch (error) {
+            logger.warn(`[${requestId}] Failed to build webhook trace secret catalog`, {
+              error: toError(error).message,
+            })
+            resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
+          }
+          loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
+        },
+        onResolved: (name, value) => {
+          resolvedSecretTraceRegistry.recordResolved(name, value)
+        },
       }
     )
 

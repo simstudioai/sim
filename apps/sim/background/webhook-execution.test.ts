@@ -42,7 +42,8 @@ const {
   ),
 }))
 
-const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+const mockGetEffectiveEnvironmentSnapshot =
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -237,7 +238,7 @@ describe('executeWebhookJob fault vs error handling', () => {
       executionTimeout: { async: 120_000 },
     })
     mockResolveWebhookRecordProviderConfig.mockImplementation(async (record) => record)
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: {},
       personalDecrypted: {},
@@ -308,7 +309,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('passes encrypted webhook resolution provenance into workflow execution', async () => {
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: { WEBHOOK_SECRET: 'personal-value' },
@@ -364,7 +365,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   it('installs provenance before a post-resolution webhook setup failure', async () => {
     const rawMessage = 'Webhook handler exposed activated-secret-value'
     const rawError = new Error(rawMessage)
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: {},

@@ -3,12 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPersonalAndWorkspaceEnv } = vi.hoisted(() => ({
-  mockGetPersonalAndWorkspaceEnv: vi.fn(),
+const { mockGetEffectiveEnvironmentSnapshot } = vi.hoisted(() => ({
+  mockGetEffectiveEnvironmentSnapshot: vi.fn(),
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
+  getEffectiveEnvironmentSnapshot: mockGetEffectiveEnvironmentSnapshot,
 }))
 
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
@@ -27,7 +27,7 @@ const BASE_CONFIG = {
 describe('resolveMcpConfigEnvVars secret provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {
         MCP_HOST: 'personal-host-encrypted',
         MCP_TOKEN: 'personal-token-encrypted',
@@ -67,7 +67,7 @@ describe('resolveMcpConfigEnvVars secret provenance', () => {
   })
 
   it('marks provenance incomplete when a resolved value has no encrypted catalog entry', async () => {
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: {},
       personalDecrypted: { MCP_HOST: 'api.example.com', MCP_TOKEN: 'token' },
@@ -87,7 +87,7 @@ describe('resolveMcpConfigEnvVars secret provenance', () => {
   })
 
   it('does not let an unused configured-secret failure affect invocation provenance', async () => {
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {
         MCP_HOST: 'host-encrypted',
         MCP_TOKEN: 'token-encrypted',
@@ -139,7 +139,7 @@ describe('resolveMcpConfigEnvVars secret provenance', () => {
 
   it('reports incomplete provenance when the Secrets catalog cannot be loaded', async () => {
     const onProvenance = vi.fn()
-    mockGetPersonalAndWorkspaceEnv.mockRejectedValueOnce(new Error('database unavailable'))
+    mockGetEffectiveEnvironmentSnapshot.mockRejectedValueOnce(new Error('database unavailable'))
 
     const result = await resolveMcpConfigEnvVars(BASE_CONFIG, 'user-1', 'workspace-1', {
       onResolvedSecretTraceProvenance: onProvenance,
@@ -154,5 +154,29 @@ describe('resolveMcpConfigEnvVars secret provenance', () => {
     expect(result.resolvedSecretTraceProvenance).toEqual(expected)
     expect(onProvenance).toHaveBeenCalledWith(expected)
     expect(result.config).toEqual(BASE_CONFIG)
+  })
+
+  it('uses one atomic cached snapshot for runtime values and encrypted provenance', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: { MCP_HOST: 'old-host-ciphertext', MCP_TOKEN: 'old-token-ciphertext' },
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_HOST: 'old.example.com', MCP_TOKEN: 'old-token' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+
+    const result = await resolveMcpConfigEnvVars(BASE_CONFIG, 'user-1', 'workspace-1')
+
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledOnce()
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-1', 'workspace-1')
+    expect(result.config).toMatchObject({
+      url: 'https://old.example.com/mcp',
+      headers: expect.objectContaining({ Authorization: 'Bearer old-token' }),
+    })
+    expect(result.resolvedSecretTraceProvenance.entries).toEqual([
+      { name: 'MCP_HOST', encryptedValue: 'old-host-ciphertext' },
+      { name: 'MCP_TOKEN', encryptedValue: 'old-token-ciphertext' },
+    ])
   })
 })

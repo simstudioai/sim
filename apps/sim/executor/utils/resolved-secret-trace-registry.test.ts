@@ -11,6 +11,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   createResolvedSecretTraceRegistry,
+  isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -19,13 +20,13 @@ import {
 describe('ResolvedSecretTraceProvenanceAccumulator', () => {
   const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
 
-  it('unions cold, warm, and retry reports while keeping completeness sticky', () => {
+  it('unions cold, warm, and retry reports while complete', () => {
     const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
 
     expect(
       accumulator.record({
         version: 1,
-        complete: false,
+        complete: true,
         entries: [{ name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' }],
         scope,
       })
@@ -47,7 +48,7 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
 
     expect(accumulator.exportProvenance()).toEqual({
       version: 1,
-      complete: false,
+      complete: true,
       entries: [
         { name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' },
         { name: 'NEW_TOKEN', encryptedValue: 'encrypted-v2' },
@@ -56,7 +57,41 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
     })
   })
 
-  it('anonymizes mismatched-scope reports and marks them incomplete', () => {
+  it('discards accumulated and future entries once completeness is lost', () => {
+    const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+
+    accumulator.record({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' }],
+      scope,
+    })
+    expect(
+      accumulator.record({
+        version: 1,
+        complete: false,
+        entries: [],
+        scope,
+      })
+    ).toBe(true)
+    expect(
+      accumulator.record({
+        version: 1,
+        complete: true,
+        entries: [{ name: 'NEW_TOKEN', encryptedValue: 'encrypted-v2' }],
+        scope,
+      })
+    ).toBe(true)
+
+    expect(accumulator.exportProvenance()).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+      scope,
+    })
+  })
+
+  it('discards mismatched-scope reports and marks them incomplete', () => {
     const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
 
     expect(
@@ -71,12 +106,12 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
     expect(accumulator.exportProvenance()).toEqual({
       version: 1,
       complete: false,
-      entries: [{ encryptedValue: 'encrypted-value' }],
+      entries: [],
       scope,
     })
   })
 
-  it('fails closed for malformed reports and supports terminal entry discard', () => {
+  it('fails closed for malformed reports and terminal incompleteness', () => {
     const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
     accumulator.record({
       version: 1,
@@ -99,7 +134,7 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
       entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-value' }],
       scope,
     })
-    accumulator.markIncomplete({ discardEntries: true })
+    accumulator.markIncomplete()
     expect(accumulator.exportProvenance().entries).toEqual([])
   })
 })
@@ -121,6 +156,7 @@ describe('ResolvedSecretTraceRegistry', () => {
     expect(registry.recordResolved('API_KEY', 'wrong-value')).toBe(false)
     expect(registry.recordResolved('MISSING', 'secret-value')).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.isComplete()).toBe(false)
 
     expect(registry.recordResolved('API_KEY', 'secret-value')).toBe(true)
     expect(registry.getActiveMatches()).toEqual([
@@ -136,7 +172,6 @@ describe('ResolvedSecretTraceRegistry', () => {
       workspaceDecrypted: { SHARED: 'workspace-secret' },
     })
 
-    expect(registry.recordResolved('SHARED', 'personal-secret')).toBe(false)
     expect(registry.recordResolved('SHARED', 'workspace-secret')).toBe(true)
     expect(registry.exportProvenance()).toEqual({
       version: 1,
@@ -145,7 +180,7 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
   })
 
-  it('does not make current decryption failures or decrypted-only keys globally incomplete', async () => {
+  it('ignores empty decryption failures but fails closed for a resolved value outside the catalog', async () => {
     const registry = await createResolvedSecretTraceRegistry({
       personalEncrypted: { FAILED: 'failed-ciphertext' },
       workspaceEncrypted: {},
@@ -156,7 +191,9 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(registry.isComplete()).toBe(true)
     expect(registry.recordResolved('FAILED', '')).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(registry.recordResolved('DECRYPTED_ONLY', 'not-catalogued')).toBe(false)
+    expect(registry.isComplete()).toBe(false)
   })
 
   it('keeps a successful workspace override when the shadowed personal value failed', async () => {
@@ -512,6 +549,73 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(registry.isComplete()).toBe(false)
     expect(registry.exportProvenance().entries).toEqual([])
+  })
+
+  it('bounds provenance by serialized JSON bytes including control-character escapes', () => {
+    const encryptedValue = '\u0000'.repeat(1_400_000)
+    const provenance: ResolvedSecretTraceProvenanceV1 = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue }],
+    }
+
+    expect(Buffer.byteLength(encryptedValue, 'utf8')).toBeLessThan(8 * 1024 * 1024)
+    expect(Buffer.byteLength(JSON.stringify(provenance), 'utf8')).toBeGreaterThan(8 * 1024 * 1024)
+    expect(isResolvedSecretTraceProvenanceV1(provenance)).toBe(false)
+
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret', encryptedValue },
+    ])
+    expect(registry.recordResolved('TOKEN', 'secret')).toBe(true)
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.exportProvenance().entries).toEqual([])
+  })
+
+  it('rejects incomplete provenance that still carries entries', () => {
+    expect(
+      isResolvedSecretTraceProvenanceV1({
+        version: 1,
+        complete: false,
+        entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+      })
+    ).toBe(false)
+  })
+
+  it('rejects non-canonical provenance fields before applying the serialized-size bound', () => {
+    const entry = { name: 'TOKEN', encryptedValue: 'ciphertext' }
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+    expect(
+      isResolvedSecretTraceProvenanceV1({
+        version: 1,
+        complete: true,
+        entries: [entry],
+        scope,
+        extra: 'not-transported',
+      })
+    ).toBe(false)
+    expect(
+      isResolvedSecretTraceProvenanceV1({
+        version: 1,
+        complete: true,
+        entries: [{ ...entry, extra: 'not-transported' }],
+        scope,
+      })
+    ).toBe(false)
+    expect(
+      isResolvedSecretTraceProvenanceV1({
+        version: 1,
+        complete: true,
+        entries: [entry],
+        scope: { ...scope, extra: 'not-transported' },
+      })
+    ).toBe(false)
+
+    const entries = [entry]
+    Object.assign(entries, { extra: 'not-transported' })
+    expect(isResolvedSecretTraceProvenanceV1({ version: 1, complete: true, entries, scope })).toBe(
+      false
+    )
   })
 
   it('stops consuming a dormant catalog when its entry cap is exceeded', () => {

@@ -812,6 +812,7 @@ import { normalizeToolId } from '@/tools/normalize'
  */
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
+const MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
  * User-friendly error message for body size limit exceeded
@@ -925,11 +926,12 @@ async function readToolResponseBody(
     requestId: string
     toolId: string
     signal?: AbortSignal
+    maxBytes?: number
   }
 ): Promise<Buffer> {
   try {
     return await readResponseToBufferWithLimit(response, {
-      maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+      maxBytes: options.maxBytes ?? MAX_TOOL_RESPONSE_BODY_BYTES,
       label: `${options.toolId} response body`,
       signal: options.signal,
       allowNoBodyFallback: true,
@@ -2076,6 +2078,12 @@ async function executeToolRequest(
                 requestId,
                 toolId,
                 signal: controller.signal,
+                ...(privateToolMetadataType
+                  ? {
+                      maxBytes:
+                        MAX_TOOL_RESPONSE_BODY_BYTES + MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES,
+                    }
+                  : {}),
               })
               response = new Response(new Uint8Array(bodyBuffer), {
                 status: internalResponse.status,
@@ -2221,6 +2229,19 @@ async function executeToolRequest(
     )
     response = privateMetadata.response
     privateMetadataConsumed = privateMetadata.consumed
+
+    if (privateToolMetadataType) {
+      const functionalBody = await readToolResponseBody(response, {
+        requestId,
+        toolId,
+        signal,
+      })
+      response = new Response(new Uint8Array(functionalBody), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: cloneResponseHeaders(response.headers),
+      })
+    }
 
     if (!response.ok) {
       let errorData: any

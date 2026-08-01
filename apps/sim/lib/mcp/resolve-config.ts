@@ -5,13 +5,18 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  type EnvironmentResolutionSnapshot,
+  getEffectiveEnvironmentSnapshot,
+} from '@/lib/environment/utils'
 import type { McpServerConfig } from '@/lib/mcp/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
+  createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
   type ResolvedSecretTraceProvenanceV1,
-  ResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpResolveConfig')
@@ -46,11 +51,24 @@ export async function resolveMcpConfigEnvVars(
   const allMissingVars: string[] = []
   const scope = { userId, ...(workspaceId ? { workspaceId } : {}) }
 
-  let envVars: Record<string, string> = {}
+  let env: EnvironmentResolutionSnapshot
+  try {
+    env = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+  } catch (error) {
+    logger.error('Failed to fetch environment variables for MCP config:', error)
+    const resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
+    const provenance = resolvedSecretTraceRegistry.exportProvenance()
+    options.onResolvedSecretTraceProvenance?.(provenance)
+    return {
+      config,
+      missingVars: [],
+      resolvedSecretTraceProvenance: provenance,
+    }
+  }
+  const envVars = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
   try {
-    const env = await getPersonalAndWorkspaceEnv(userId, workspaceId)
-    envVars = { ...env.personalDecrypted, ...env.workspaceDecrypted }
     resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
       personalEncrypted: env.personalEncrypted,
       workspaceEncrypted: env.workspaceEncrypted,
@@ -60,16 +78,10 @@ export async function resolveMcpConfigEnvVars(
       scope,
     })
   } catch (error) {
-    logger.error('Failed to fetch environment variables for MCP config:', error)
-    resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([], scope)
-    resolvedSecretTraceRegistry.markIncomplete()
-    const provenance = resolvedSecretTraceRegistry.exportProvenance()
-    options.onResolvedSecretTraceProvenance?.(provenance)
-    return {
-      config,
-      missingVars: [],
-      resolvedSecretTraceProvenance: provenance,
-    }
+    logger.warn('Failed to build MCP trace secret catalog; provenance will be incomplete', {
+      error: getErrorMessage(error),
+    })
+    resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
   }
 
   const resolveValue = (value: string): string => {
@@ -77,12 +89,7 @@ export async function resolveMcpConfigEnvVars(
     const resolved = resolveEnvVarReferences(value, envVars, {
       missingKeys: missingVars,
       onResolved: (name, resolvedValue) => {
-        if (
-          resolvedValue.length > 0 &&
-          !resolvedSecretTraceRegistry.recordResolved(name, resolvedValue)
-        ) {
-          resolvedSecretTraceRegistry.markIncomplete()
-        }
+        resolvedSecretTraceRegistry.recordResolved(name, resolvedValue)
       },
     }) as string
     allMissingVars.push(...missingVars)

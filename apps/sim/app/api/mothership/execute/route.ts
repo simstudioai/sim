@@ -32,6 +32,7 @@ import {
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import {
+  createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceRegistry,
@@ -185,23 +186,39 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       actorUserId: userId,
       workspaceId,
     })
-    const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId)
-    resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
-      personalEncrypted: environment.personalEncrypted,
-      workspaceEncrypted: environment.workspaceEncrypted,
-      personalDecrypted: environment.personalDecrypted,
-      workspaceDecrypted: environment.workspaceDecrypted,
-      decryptionFailures: environment.decryptionFailures,
-      scope: { userId, workspaceId },
-    })
+    if (includePrivateProvenance) {
+      const scope = { userId, workspaceId }
+      try {
+        const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId, {
+          workspaceAccess,
+        })
+        resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+          personalEncrypted: environment.personalEncrypted,
+          workspaceEncrypted: environment.workspaceEncrypted,
+          personalDecrypted: environment.personalDecrypted,
+          workspaceDecrypted: environment.workspaceDecrypted,
+          decryptionFailures: environment.decryptionFailures,
+          scope,
+        })
+      } catch (error) {
+        logger.warn('Failed to build Mothership trace secret catalog', {
+          error: getErrorMessage(error),
+          userId,
+          workspaceId,
+        })
+        resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
+      }
+    }
     const activeResolvedSecretTraceRegistry = resolvedSecretTraceRegistry
     const mcpDiscoveryProvenance = new ResolvedSecretTraceProvenanceAccumulator({
       userId,
       workspaceId,
     })
-    const recordMcpDiscoveryProvenance = (provenance: unknown): void => {
-      mcpDiscoveryProvenance.record(provenance)
-    }
+    const recordMcpDiscoveryProvenance = includePrivateProvenance
+      ? (provenance: unknown): void => {
+          mcpDiscoveryProvenance.record(provenance)
+        }
+      : undefined
 
     const effectiveChatId = chatId || generateId()
     messageId = providedMessageId || generateId()
@@ -234,10 +251,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         recordMcpDiscoveryProvenance
       ),
     ]).then(async (results) => {
-      await activeResolvedSecretTraceRegistry.importProvenance(
-        mcpDiscoveryProvenance.exportProvenance(),
-        { trusted: true }
-      )
+      if (activeResolvedSecretTraceRegistry) {
+        await activeResolvedSecretTraceRegistry.importProvenance(
+          mcpDiscoveryProvenance.exportProvenance(),
+          { trusted: true }
+        )
+      }
       const groups = results.map((result) => {
         if (result.status === 'rejected') throw result.reason
         return result.value

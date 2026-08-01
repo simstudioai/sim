@@ -215,6 +215,78 @@ describe('mothership private trace provenance transport', () => {
     expect(response.headers.get('x-sim-private-tool-metadata')).toBeNull()
     expect(body.content).toBe('secret-value')
     expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ resolvedSecretTraceRegistry: undefined })
+    )
+  })
+
+  it('keeps execution functional and fails trace provenance closed when catalog setup fails', async () => {
+    mockGetPersonalAndWorkspaceEnv.mockRejectedValueOnce(new Error('catalog unavailable'))
+    mockRunHeadlessCopilotLifecycle.mockImplementation(
+      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(options.resolvedSecretTraceRegistry?.isComplete()).toBe(false)
+        return successResult()
+      }
+    )
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        requestBody,
+        {
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+          'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+        },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.content).toBe('secret-value')
+    expect(body.__resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
+  it('fails provenance closed without changing a runtime value that rotated after catalog load', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(
+      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(
+          options.resolvedSecretTraceRegistry?.recordResolved('API_KEY', 'rotated-secret-value')
+        ).toBe(false)
+        return { ...successResult(), content: 'rotated-secret-value' }
+      }
+    )
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        requestBody,
+        {
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+          'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+        },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.content).toBe('rotated-secret-value')
+    expect(body.__resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
   })
 
   it('returns encrypted provenance on a marker-gated successful request', async () => {

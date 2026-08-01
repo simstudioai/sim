@@ -4,9 +4,16 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDiscoverServerTools, mockExecuteTool } = vi.hoisted(() => ({
-  mockDiscoverServerTools: vi.fn(),
-  mockExecuteTool: vi.fn(),
+const { mockDiscoverServerTools, mockExecuteTool, mockReadResponseToBufferWithLimit } = vi.hoisted(
+  () => ({
+    mockDiscoverServerTools: vi.fn(),
+    mockExecuteTool: vi.fn(),
+    mockReadResponseToBufferWithLimit: vi.fn(),
+  })
+)
+
+vi.mock('@/lib/core/utils/stream-limits', () => ({
+  readResponseToBufferWithLimit: mockReadResponseToBufferWithLimit,
 }))
 
 vi.mock('@/lib/mcp/middleware', () => ({
@@ -88,9 +95,12 @@ describe('MCP tool execution private secret provenance', () => {
     vi.clearAllMocks()
     mockDiscoverServerTools.mockResolvedValue([{ name: 'example_tool', inputSchema: {} }])
     mockExecuteTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    mockReadResponseToBufferWithLimit.mockImplementation(async (response: Response) =>
+      Buffer.from(await response.arrayBuffer())
+    )
   })
 
-  it('returns scoped encrypted provenance only to an authenticated internal caller', async () => {
+  it('returns fail-closed scoped provenance only to an authenticated internal caller', async () => {
     mockDiscoverServerTools.mockImplementationOnce(
       async (
         _userId: string,
@@ -102,7 +112,7 @@ describe('MCP tool execution private secret provenance', () => {
         report({
           version: 1,
           complete: false,
-          entries: [{ name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' }],
+          entries: [],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         })
         return [{ name: 'example_tool', inputSchema: {} }]
@@ -139,10 +149,7 @@ describe('MCP tool execution private secret provenance', () => {
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: false,
-      entries: [
-        { name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' },
-        { name: 'NEW_TOKEN', encryptedValue: 'encrypted-v2' },
-      ],
+      entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
   })
@@ -158,11 +165,14 @@ describe('MCP tool execution private secret provenance', () => {
 
     expect(response.headers.has('x-sim-private-tool-metadata')).toBe(false)
     expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(mockDiscoverServerTools.mock.calls[0]?.[4]).toBeUndefined()
+    expect(mockExecuteTool.mock.calls[0]?.[5]).toBeUndefined()
   })
 
-  it('fails closed when attaching provenance would exceed the response budget', async () => {
+  it('preserves the functional response when private provenance cannot be attached', async () => {
+    mockReadResponseToBufferWithLimit.mockRejectedValueOnce(new Error('Response exceeds limit'))
     mockExecuteTool.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'x'.repeat(10 * 1024 * 1024) }],
+      content: [{ type: 'text', text: 'unchanged' }],
     })
     const request = createRequest({
       'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
@@ -171,17 +181,19 @@ describe('MCP tool execution private secret provenance', () => {
     const response = await POST(request, {})
     const body = (await response.json()) as Record<string, unknown>
 
-    expect(response.status).toBe(500)
-    expect(response.ok).toBe(false)
-    expect(body).toEqual({
-      success: false,
-      error: 'Internal MCP response could not be verified',
-      __resolvedSecretTraceProvenance: {
-        version: 1,
-        complete: false,
-        entries: [],
-        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    expect(response.status).toBe(200)
+    expect(response.ok).toBe(true)
+    expect(response.headers.has('x-sim-private-tool-metadata')).toBe(false)
+    expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(body).toMatchObject({
+      success: true,
+      data: {
+        success: true,
+        output: { content: [{ type: 'text' }] },
       },
     })
+    expect(
+      (body.data as { output: { content: Array<{ text?: unknown }> } }).output.content[0]?.text
+    ).toBe('unchanged')
   })
 })
