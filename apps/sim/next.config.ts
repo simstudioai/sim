@@ -9,34 +9,6 @@ import {
 } from './lib/core/security/csp'
 
 /**
- * Dev-only escape hatch: when `SIM_DEV_MINIMAL_REGISTRY=1` (`bun run dev:minimal`),
- * swap the heavy block and tool registries for tiny curated variants via a
- * Turbopack/webpack resolve alias.
- *
- * The tool registry (4,351 entries across 261 service dirs) pulls ~5,907 modules
- * and is 68-78% of every workspace route's module graph; aliasing it away takes
- * `app/workspace/layout.tsx` from 5,916 modules to 1,255. Blocks are NOT a
- * co-equal cost - `blocks/registry-maps` alone accounts for ~349 modules and
- * mostly rides in behind the tool registry.
- *
- * It is reached through ONE choke point (`tools/utils.ts` → `@/tools/registry`)
- * fed by four redundant client-reachable edges: providers/utils → tools/params,
- * lib/workflows/blocks/block-outputs, lib/workflows/sanitization/validation, and
- * serializer/index. All four must be severed for any of them to matter, which is
- * why cutting only the providers/utils edge buys a single module.
- *
- * Only the curated core blocks/tools work in this mode. Never enabled in
- * production - the minimal variants genuinely drop ~250 services and ~280 blocks.
- */
-const useMinimalRegistry = isDev && process.env.SIM_DEV_MINIMAL_REGISTRY === '1'
-const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
-  ? {
-      '@/tools/registry': './tools/registry.minimal.ts',
-      '@/blocks/registry-maps': './blocks/registry-maps.minimal.ts',
-    }
-  : {}
-
-/**
  * Marketing routes (`app/(landing)/**`, plus the root) exempted from COEP.
  *
  * COEP is a *document* header and is inherited across client-side `<Link>`
@@ -77,20 +49,6 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: true,
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
-    resolveAlias: minimalRegistryAlias,
-  },
-  webpack: (config) => {
-    if (useMinimalRegistry) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@/tools/registry$': path.resolve(import.meta.dirname, 'tools/registry.minimal.ts'),
-        '@/blocks/registry-maps$': path.resolve(
-          import.meta.dirname,
-          'blocks/registry-maps.minimal.ts'
-        ),
-      }
-    }
-    return config
   },
   images: {
     formats: ['image/avif', 'image/webp'],
