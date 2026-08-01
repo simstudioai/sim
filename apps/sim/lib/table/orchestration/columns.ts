@@ -262,6 +262,15 @@ export async function performUpdateTableColumn(
   }
 
   if (!updated) {
+    // A payload whose only content is the type the column already has names a
+    // change and asks for nothing. Say which, the way `updateColumnType` does
+    // when it loses the same race, rather than claiming the request was empty.
+    if (updates.type !== undefined) {
+      return fail(
+        `Column "${currentColumn.name}" is already type "${currentColumn.type}"; re-issue the request without a type change.`,
+        'validation'
+      )
+    }
     return fail('No updates specified', 'validation')
   }
 

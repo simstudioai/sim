@@ -1677,15 +1677,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               ...(currencyCode !== undefined ? { currencyCode } : {}),
             },
           })
-          if (!outcome.success) {
+          if (!outcome.success || !outcome.table) {
             return { success: false, message: outcome.error ?? 'Failed to update column' }
           }
           return {
             success: true,
             message: `Updated column "${colName}"`,
-            // A payload that only restates the current type is a no-op; still
-            // report the live schema rather than an undefined one.
-            data: { schema: (outcome.table ?? tableForUpdate).schema },
+            data: { schema: outcome.table.schema },
           }
         }
         case 'rename': {

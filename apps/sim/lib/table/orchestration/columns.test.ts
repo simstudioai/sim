@@ -164,7 +164,16 @@ describe('performUpdateTableColumn', () => {
     const result = await run({})
 
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.error).toBe('No updates specified')
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it("names the type when a payload only restates the column's current type", async () => {
+    const result = await run({ type: 'select' })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.error).toContain('is already type "select"')
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
   })
 
   it('classifies a table lock as locked and does not audit', async () => {
