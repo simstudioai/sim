@@ -1,4 +1,9 @@
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
+import {
+  buildTableSelectionLabel,
+  MAX_TABLE_SELECTION_COLUMNS,
+  MAX_TABLE_SELECTION_ROWS,
+} from '@/lib/copilot/chat/selection-context'
 import type {
   ColumnDefinition,
   RowExecutionMetadata,
@@ -7,7 +12,9 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
+import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
 
@@ -350,4 +357,73 @@ export function collectRowSnapshots(rows: Iterable<TableRowType>): DeletedRowSna
     })
   }
   return snapshots
+}
+
+/** Column ids spanned by a normalized selection's column range. */
+export function selectedColumnIds(
+  columns: DisplayColumn[],
+  selection: { startCol: number; endCol: number }
+): string[] {
+  const ids: string[] = []
+  for (let c = selection.startCol; c <= selection.endCol && c < columns.length; c++) {
+    ids.push(getColumnId(columns[c]))
+  }
+  return ids
+}
+
+/**
+ * Materializes a `table_selection` chat context from a grid selection, applying
+ * the shared row/column caps. `columnIds` narrows the context to a cell range; a
+ * range covering every column is equivalent to whole rows, so it collapses to an
+ * open scope (the server then includes all columns, and stays correct if the
+ * schema changes). Returns null before the table name has loaded or when nothing
+ * is selected.
+ */
+export function buildTableSelectionContext(opts: {
+  tableId: string
+  tableName: string | undefined
+  totalColumnCount: number
+  rowIds: string[]
+  columnIds?: string[]
+}): ChatContext | null {
+  const { tableId, tableName, totalColumnCount, columnIds } = opts
+  if (!tableName || opts.rowIds.length === 0) return null
+  const rowIds = opts.rowIds.slice(0, MAX_TABLE_SELECTION_ROWS)
+  const scopedColumnIds =
+    columnIds && columnIds.length > 0 && columnIds.length < totalColumnCount
+      ? columnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS)
+      : undefined
+  return {
+    kind: 'table_selection',
+    tableId,
+    tableName,
+    label: buildTableSelectionLabel(tableName, rowIds.length, scopedColumnIds?.length),
+    rowIds,
+    ...(scopedColumnIds ? { columnIds: scopedColumnIds } : {}),
+  }
+}
+
+/**
+ * Whether a copy can be written synchronously on the event — the only way a
+ * chat-selection chip survives, since the paged path's async Clipboard API write
+ * replaces the whole clipboard and cannot carry a custom MIME type.
+ *
+ * Bounded by the TEXT limit, not the chip's row cap: a context slices its own
+ * `rowIds` to {@link MAX_TABLE_SELECTION_ROWS}, so a larger selection should
+ * still copy in full here and carry a chip for as many rows as a chip can
+ * reference — matching what Add to Chat does with the same selection. Gating on
+ * the chip cap instead drops the chip entirely. Past `MAX_COPY_ROWS` the paged
+ * path must take over, because it owns truncation and its user-facing notice.
+ *
+ * @param complete - Whether the caller's rows are everything the copy should
+ * contain. False when the paged path would load rows the caller cannot see yet,
+ * so deferring to it copies strictly more.
+ */
+export function canWriteRowsWithChip(opts: {
+  rowCount: number
+  complete: boolean
+  hasContext: boolean
+}): boolean {
+  if (!opts.hasContext || !opts.complete) return false
+  return opts.rowCount > 0 && opts.rowCount <= TABLE_LIMITS.MAX_COPY_ROWS
 }

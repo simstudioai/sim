@@ -12,11 +12,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
-import {
-  buildTableSelectionLabel,
-  MAX_TABLE_SELECTION_COLUMNS,
-  MAX_TABLE_SELECTION_ROWS,
-} from '@/lib/copilot/chat/selection-context'
+import { MAX_TABLE_SELECTION_ROWS } from '@/lib/copilot/chat/selection-context'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -69,7 +65,9 @@ import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitiv
 import type { DisplayColumn } from './types'
 import {
   buildHeaderGroups,
+  buildTableSelectionContext,
   type CellCoord,
+  canWriteRowsWithChip,
   checkboxColLayout,
   classifyExecStatusMix,
   collectRowSnapshots,
@@ -85,6 +83,7 @@ import {
   rowSelectionIncludes,
   rowSelectionIsEmpty,
   rowSelectionMaterialize,
+  selectedColumnIds,
 } from './utils'
 
 const logger = createLogger('TableView')
@@ -314,63 +313,11 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
-/** Column ids spanned by a normalized selection's column range. */
-function selectedColumnIds(
-  columns: DisplayColumn[],
-  selection: { startCol: number; endCol: number }
-): string[] {
-  const ids: string[] = []
-  for (let c = selection.startCol; c <= selection.endCol && c < columns.length; c++) {
-    ids.push(getColumnId(columns[c]))
-  }
-  return ids
-}
-
-/**
- * Materializes a `table_selection` chat context from a grid selection, applying
- * the shared row/column caps. `columnIds` narrows the context to a cell range; a
- * range covering every column is equivalent to whole rows, so it collapses to an
- * open scope (the server then includes all columns, and stays correct if the
- * schema changes). Returns null before the table name has loaded or when nothing
- * is selected.
- */
-function buildTableSelectionContext(opts: {
-  tableId: string
-  tableName: string | undefined
-  totalColumnCount: number
-  rowIds: string[]
-  columnIds?: string[]
-}): ChatContext | null {
-  const { tableId, tableName, totalColumnCount, columnIds } = opts
-  if (!tableName || opts.rowIds.length === 0) return null
-  const rowIds = opts.rowIds.slice(0, MAX_TABLE_SELECTION_ROWS)
-  const scopedColumnIds =
-    columnIds && columnIds.length > 0 && columnIds.length < totalColumnCount
-      ? columnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS)
-      : undefined
-  return {
-    kind: 'table_selection',
-    tableId,
-    tableName,
-    label: buildTableSelectionLabel(tableName, rowIds.length, scopedColumnIds?.length),
-    rowIds,
-    ...(scopedColumnIds ? { columnIds: scopedColumnIds } : {}),
-  }
-}
-
 /**
  * Copies `rows` synchronously on the copy event so a chat-selection chip can
- * ride alongside the tab-separated text. The paged `writeSelectionToClipboard`
- * cannot do this: its async Clipboard API write replaces the whole clipboard and
- * so cannot carry a custom MIME type.
+ * ride alongside the tab-separated text. Eligibility lives in
+ * {@link canWriteRowsWithChip}; this owns only the clipboard and toast effects.
  *
- * Taking this path requires a chip to carry, `rows` being the complete copy, and
- * a set within the chip cap; otherwise the canonical paged path handles the
- * copy, including its row loading and truncation notice.
- *
- * @param complete - Whether `rows` is everything this copy should contain. False
- * when the paged path would load rows this caller cannot see yet, so deferring
- * to it copies strictly more.
  * @returns True when it handled the copy, false to fall through to the paged path.
  */
 function writeLoadedRowsWithChip(opts: {
@@ -381,15 +328,16 @@ function writeLoadedRowsWithChip(opts: {
   context: ChatContext | null
 }): boolean {
   const { rows, context } = opts
-  // Bounded by the TEXT limit, not the chip's row cap: `context` already slices
-  // itself to MAX_TABLE_SELECTION_ROWS, so a larger selection still copies in
-  // full here and carries a chip for as many rows as a chip can reference —
-  // matching what Add to Chat does with the same selection. Gating on the chip
-  // cap instead would drop the chip entirely on the async fall-through, which
-  // cannot carry a custom MIME. Past MAX_COPY_ROWS the paged path must take
-  // over, since it owns truncation and the notice that goes with it.
-  if (!context || !opts.complete || rows.length === 0) return false
-  if (rows.length > TABLE_LIMITS.MAX_COPY_ROWS) return false
+  if (
+    !canWriteRowsWithChip({
+      rowCount: rows.length,
+      complete: opts.complete,
+      hasContext: Boolean(context),
+    }) ||
+    !context
+  ) {
+    return false
+  }
   opts.clipboardData?.setData(
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
