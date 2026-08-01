@@ -82,6 +82,7 @@ import {
   isInEditableElement,
   isPositionalTriggerBlock,
   resolveSelectionConflicts,
+  SUBFLOW_DROP_TARGET_CLASS,
   shouldHighlightContainerDropTarget,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
@@ -508,19 +509,14 @@ const WorkflowContent = React.memo(
     )
 
     /** Applies highlight styling to a container node during drag operations. */
-    const highlightContainerNode = useCallback(
-      (containerId: string, containerKind: 'loop' | 'parallel') => {
-        clearDragHighlights()
-        const containerElement = document.querySelector(`[data-id="${containerId}"]`)
-        if (containerElement) {
-          containerElement.classList.add(
-            containerKind === 'loop' ? 'loop-node-drag-over' : 'parallel-node-drag-over'
-          )
-          document.body.style.cursor = 'copy'
-        }
-      },
-      []
-    )
+    const highlightContainerNode = useCallback((containerId: string) => {
+      clearDragHighlights()
+      const containerElement = document.querySelector(`[data-id="${containerId}"]`)
+      if (containerElement) {
+        containerElement.classList.add(SUBFLOW_DROP_TARGET_CLASS)
+        document.body.style.cursor = 'copy'
+      }
+    }, [])
 
     const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null, {
       embedded,
@@ -2382,7 +2378,7 @@ const WorkflowContent = React.memo(
             if (containerNode?.type === 'subflowNode') {
               const kind = (containerNode.data as SubflowNodeData)?.kind
               if (kind === 'loop' || kind === 'parallel') {
-                highlightContainerNode(containerInfo.loopId, kind)
+                highlightContainerNode(containerInfo.loopId)
               }
             }
           } else {
@@ -3510,7 +3506,7 @@ const WorkflowContent = React.memo(
             } else {
               const kind = (bestContainerMatch.container.data as SubflowNodeData)?.kind
               if (kind === 'loop' || kind === 'parallel') {
-                highlightContainerNode(bestContainerMatch.container.id, kind)
+                highlightContainerNode(bestContainerMatch.container.id)
               }
             }
           } else {
@@ -3981,7 +3977,7 @@ const WorkflowContent = React.memo(
             if (shouldHighlightContainer) {
               const kind = (bestMatch.container.data as SubflowNodeData)?.kind
               if (kind === 'loop' || kind === 'parallel') {
-                highlightContainerNode(bestMatch.container.id, kind)
+                highlightContainerNode(bestMatch.container.id)
               }
             }
           }

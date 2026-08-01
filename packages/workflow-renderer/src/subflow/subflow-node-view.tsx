@@ -409,6 +409,12 @@ export function SubflowNodeView({
         data-nesting-level={nestingLevel}
         data-subflow-selected={isNodeSelected}
       >
+        <div
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0 z-40 rounded-2xl opacity-0 ring-[1.5px] ring-[var(--text-secondary)] transition-opacity duration-100 [.subflow-node-drop-target_&]:opacity-100'
+          data-subflow-drop-target-outline=''
+        />
+
         <WorkflowBlockBorder
           nodeId={id}
           getConnectionNodeId={getConnectionNodeId}
