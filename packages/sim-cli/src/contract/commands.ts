@@ -122,6 +122,9 @@ export const CLI_CONTRACT: CliContract = {
     columns: [
       { header: 'id' },
       { header: 'name' },
+      // Now that files live in folders, which one is the difference between two
+      // identically-named rows.
+      { header: 'folder', path: 'folderPath' },
       { header: 'size', format: 'bytes' },
       { header: 'type' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
@@ -198,6 +201,43 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'action' },
       { header: 'resource', path: 'resourceName' },
     ],
+  },
+
+  // ─── The expanded files surface ───────────────────────────────────────────
+  // Every one of these derives badly. `/files/move` and `/files/bulk-archive`
+  // are verbs sitting where the deriver expects a sub-resource, so it made them
+  // groups holding a lone `create`; and `GET /files/[id]/share` fetches one
+  // share, which the deriver read as a collection and named `list`.
+  bulkArchiveFileItems: {
+    // `batch-` for the bulk form, matching `tables rows batch-delete`.
+    command: 'files batch-archive',
+    describe: 'Archive several files and folders at once',
+    confirm: 'This archives every listed file and folder, and everything inside those folders.',
+  },
+  moveFileItems: {
+    command: 'files move',
+    describe: 'Move files and folders into another folder',
+  },
+  renameFile: {
+    // Derived to `files update`, which contradicted its own summary.
+    command: 'files rename',
+    describe: 'Rename a file',
+  },
+  restoreFile: {
+    command: 'files restore',
+    describe: 'Restore an archived file',
+  },
+  updateFileContent: {
+    command: 'files set-content',
+    describe: 'Replace a file’s contents',
+  },
+  getFileShare: {
+    command: 'files share get',
+    describe: 'Show a file’s share settings',
+  },
+  upsertFileShare: {
+    command: 'files share set',
+    describe: 'Enable or disable sharing for a file',
   },
 
   // ─── Documents, not records ───────────────────────────────────────────────

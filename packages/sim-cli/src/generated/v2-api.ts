@@ -52,6 +52,22 @@ export type AddTableColumnResponse = {
   }
 }
 
+/** `POST /api/v2/files/bulk-archive` */
+export type BulkArchiveFileItemsBody = {
+  workspaceId: string
+  fileIds?: Array<string>
+  folderIds?: Array<string>
+}
+
+export type BulkArchiveFileItemsResponse = {
+  data: {
+    deletedItems: {
+      files: number
+      folders: number
+    }
+  }
+}
+
 /** `POST /api/v2/workflows/[id]/executions/[executionId]/cancel` */
 export type CancelWorkflowExecutionParams = {
   id: string
@@ -920,6 +936,31 @@ export type GetExecutionResponse = {
   }
 }
 
+/** `GET /api/v2/files/[fileId]/share` */
+export type GetFileShareParams = {
+  fileId: string
+}
+
+export type GetFileShareQuery = {
+  workspaceId: string
+}
+
+export type GetFileShareResponse = {
+  data: {
+    share: {
+      id: string
+      token: string
+      url: string
+      isActive: boolean
+      resourceType: 'file' | 'folder'
+      resourceId: string
+      authType: 'public' | 'password' | 'email' | 'sso'
+      hasPassword: boolean
+      allowedEmails: Array<string>
+    } | null
+  }
+}
+
 /** `GET /api/v2/folders/[id]` */
 export type GetFolderParams = {
   id: string
@@ -1378,6 +1419,7 @@ export type ListCustomToolsResponse = {
 /** `GET /api/v2/files` */
 export type ListFilesQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   limit?: number
   cursor?: string
 }
@@ -1389,8 +1431,11 @@ export type ListFilesResponse = {
     size: number
     type: string
     key: string
+    folderId: string | null
+    folderPath: string | null
     uploadedBy: string
     uploadedAt: string
+    updatedAt: string
   }>
   nextCursor: string | null
 }
@@ -1708,6 +1753,23 @@ export type ListWorkflowsResponse = {
   nextCursor: string | null
 }
 
+/** `POST /api/v2/files/move` */
+export type MoveFileItemsBody = {
+  workspaceId: string
+  fileIds?: Array<string>
+  folderIds?: Array<string>
+  targetFolderId?: string | null
+}
+
+export type MoveFileItemsResponse = {
+  data: {
+    movedItems: {
+      files: number
+      folders: number
+    }
+  }
+}
+
 /** `POST /api/v2/tables/[tableId]/query` */
 export type QueryRowsParams = {
   tableId: string
@@ -1732,6 +1794,47 @@ export type QueryRowsResponse = {
     updatedAt: string
   }>
   nextCursor: string | null
+}
+
+/** `PATCH /api/v2/files/[fileId]` */
+export type RenameFileParams = {
+  fileId: string
+}
+
+export type RenameFileBody = {
+  workspaceId: string
+  name: string
+}
+
+export type RenameFileResponse = {
+  data: {
+    id: string
+    name: string
+    size: number
+    type: string
+    key: string
+    folderId: string | null
+    folderPath: string | null
+    uploadedBy: string
+    uploadedAt: string
+    updatedAt: string
+  }
+}
+
+/** `POST /api/v2/files/[fileId]/restore` */
+export type RestoreFileParams = {
+  fileId: string
+}
+
+export type RestoreFileBody = {
+  workspaceId: string
+}
+
+export type RestoreFileResponse = {
+  data: {
+    id: string
+    restored: true
+  }
 }
 
 /** `POST /api/v2/workflows/[id]/rollback` */
@@ -1926,6 +2029,32 @@ export type UpdateCustomToolResponse = {
       createdAt: string
       updatedAt: string
     }
+  }
+}
+
+/** `PUT /api/v2/files/[fileId]/content` */
+export type UpdateFileContentParams = {
+  fileId: string
+}
+
+export type UpdateFileContentBody = {
+  workspaceId: string
+  content: string
+  encoding?: 'utf-8' | 'base64'
+}
+
+export type UpdateFileContentResponse = {
+  data: {
+    id: string
+    name: string
+    size: number
+    type: string
+    key: string
+    folderId: string | null
+    folderPath: string | null
+    uploadedBy: string
+    uploadedAt: string
+    updatedAt: string
   }
 }
 
@@ -2162,6 +2291,7 @@ export type UpdateTableRowResponse = {
 /** `POST /api/v2/files` */
 export type UploadFileQuery = {
   workspaceId: string
+  folderId?: string
 }
 
 export type UploadFileResponse = {
@@ -2171,8 +2301,11 @@ export type UploadFileResponse = {
     size: number
     type: string
     key: string
+    folderId: string | null
+    folderPath: string | null
     uploadedBy: string
     uploadedAt: string
+    updatedAt: string
   }
 }
 
@@ -2199,6 +2332,35 @@ export type UploadKnowledgeDocumentResponse = {
       characterCount: number
       enabled: boolean
       createdAt: string | null
+    }
+  }
+}
+
+/** `PUT /api/v2/files/[fileId]/share` */
+export type UpsertFileShareParams = {
+  fileId: string
+}
+
+export type UpsertFileShareBody = {
+  workspaceId: string
+  isActive: boolean
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+}
+
+export type UpsertFileShareResponse = {
+  data: {
+    share: {
+      id: string
+      token: string
+      url: string
+      isActive: boolean
+      resourceType: 'file' | 'folder'
+      resourceId: string
+      authType: 'public' | 'password' | 'email' | 'sso'
+      hasPassword: boolean
+      allowedEmails: Array<string>
     }
   }
 }
@@ -2248,6 +2410,18 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       column: { kind: 'object', required: true },
+    },
+  },
+  bulkArchiveFileItems: {
+    method: 'POST',
+    path: '/api/v2/files/bulk-archive',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Archive Files and Folders',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      fileIds: { kind: 'array', default: [] },
+      folderIds: { kind: 'array', default: [] },
     },
   },
   cancelWorkflowExecution: {
@@ -2587,6 +2761,16 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Execution',
   },
+  getFileShare: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/share',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Get File Share',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   getFolder: {
     method: 'GET',
     path: '/api/v2/folders/[id]',
@@ -2763,6 +2947,7 @@ export const V2_OPERATIONS = {
     summary: 'List Files',
     query: {
       workspaceId: { kind: 'string', required: true },
+      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
       limit: { kind: 'number', default: 100 },
       cursor: { kind: 'string' },
     },
@@ -2942,6 +3127,19 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
+  moveFileItems: {
+    method: 'POST',
+    path: '/api/v2/files/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Files and Folders',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      fileIds: { kind: 'array', default: [] },
+      folderIds: { kind: 'array', default: [] },
+      targetFolderId: { kind: 'string' },
+    },
+  },
   queryRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
@@ -2954,6 +3152,27 @@ export const V2_OPERATIONS = {
       sort: { kind: 'array' },
       limit: { kind: 'integer' },
       cursor: { kind: 'string' },
+    },
+  },
+  renameFile: {
+    method: 'PATCH',
+    path: '/api/v2/files/[fileId]',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Rename File',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+    },
+  },
+  restoreFile: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/restore',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Restore File',
+    body: {
+      workspaceId: { kind: 'string', required: true },
     },
   },
   rollbackWorkflow: {
@@ -3016,6 +3235,18 @@ export const V2_OPERATIONS = {
       title: { kind: 'string' },
       schema: { kind: 'object' },
       code: { kind: 'string' },
+    },
+  },
+  updateFileContent: {
+    method: 'PUT',
+    path: '/api/v2/files/[fileId]/content',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Replace File Content',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      content: { kind: 'string', required: true },
+      encoding: { kind: 'enum', values: ['utf-8', 'base64'] as const, default: 'utf-8' },
     },
   },
   updateFolder: {
@@ -3128,6 +3359,7 @@ export const V2_OPERATIONS = {
     summary: 'Upload File',
     query: {
       workspaceId: { kind: 'string', required: true },
+      folderId: { kind: 'string' },
     },
   },
   uploadKnowledgeDocument: {
@@ -3138,6 +3370,20 @@ export const V2_OPERATIONS = {
     summary: 'Upload Document',
     query: {
       workspaceId: { kind: 'string', required: true },
+    },
+  },
+  upsertFileShare: {
+    method: 'PUT',
+    path: '/api/v2/files/[fileId]/share',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Enable or Disable File Share',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      isActive: { kind: 'boolean', required: true },
+      authType: { kind: 'enum', values: ['public', 'password', 'email', 'sso'] as const },
+      password: { kind: 'string' },
+      allowedEmails: { kind: 'array' },
     },
   },
   upsertTableRow: {
