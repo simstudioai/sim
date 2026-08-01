@@ -2,8 +2,9 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { getToolIds, getToolMetadata, getToolParams, hasToolMetadata } from '@/tools/metadata'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
+import { getToolIds, hasToolId, resolveToolId } from '@/tools/tool-ids'
 
 /**
  * Guards the properties the generated artifacts are relied on for. The
@@ -22,7 +23,7 @@ describe('generated tool metadata', () => {
   })
 
   it('reports unknown tools as absent without throwing', () => {
-    expect(hasToolMetadata('definitely_not_a_tool')).toBe(false)
+    expect(hasToolId('definitely_not_a_tool')).toBe(false)
     expect(getToolMetadata('definitely_not_a_tool')).toBeUndefined()
     expect(getToolParams('definitely_not_a_tool')).toBeUndefined()
     expect(getToolOutputsMetadata('definitely_not_a_tool')).toBeUndefined()
@@ -43,9 +44,43 @@ describe('generated tool metadata', () => {
       expect(getToolMetadata(key)).toBeUndefined()
       expect(getToolParams(key)).toBeUndefined()
       expect(getToolOutputsMetadata(key)).toBeUndefined()
-      expect(hasToolMetadata(key)).toBe(false)
+      expect(hasToolId(key)).toBe(false)
     }
   )
+
+  /**
+   * `getTool` resolves an unversioned name onto the newest version, and callers
+   * migrated off it depend on that. A plain key lookup would silently report
+   * versioned tools as missing.
+   */
+  describe('version resolution', () => {
+    /**
+     * Only a versioned id whose base name is *not* itself registered exercises
+     * resolution — where both exist, the base name resolves to itself.
+     */
+    const versionedId = getToolIds().find(
+      (id) => /_v[2-9]\d*$/.test(id) && !getToolIds().includes(id.replace(/_v\d+$/, ''))
+    )
+
+    it('has at least one versioned tool to exercise', () => {
+      expect(versionedId).toBeDefined()
+    })
+
+    it('maps an unversioned name onto the newest version', () => {
+      const baseName = (versionedId as string).replace(/_v\d+$/, '')
+      expect(getToolIds()).not.toContain(baseName)
+      expect(resolveToolId(baseName)).toBe(versionedId)
+      expect(hasToolId(baseName)).toBe(true)
+      expect(getToolMetadata(baseName)?.id).toBe(getToolMetadata(versionedId as string)?.id)
+      expect(getToolOutputsMetadata(baseName)).toEqual(
+        getToolOutputsMetadata(versionedId as string)
+      )
+    })
+
+    it('returns an unknown name unchanged', () => {
+      expect(resolveToolId('definitely_not_a_tool')).toBe('definitely_not_a_tool')
+    })
+  })
 
   /**
    * The registry contains a null param entry (`stt_deepgram_v2`), which crashes

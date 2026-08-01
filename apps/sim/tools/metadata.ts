@@ -1,4 +1,5 @@
 import rawMetadata from '@/tools/generated/tool-metadata'
+import { resolveToolId } from '@/tools/tool-ids'
 import type { OAuthConfig, ToolConfig } from '@/tools/types'
 
 /**
@@ -15,7 +16,10 @@ import type { OAuthConfig, ToolConfig } from '@/tools/types'
  *
  * Outputs live in `@/tools/metadata-outputs`, not here: they are the larger half
  * of the data and have a single consumer, so keeping them in a separate module
- * means callers that only need params don't pay for them.
+ * means callers that only need params don't pay for them. Callers that need
+ * neither should use `@/tools/tool-ids`, which is ~40x smaller again.
+ *
+ * Lookups resolve unversioned names the same way `getTool` does.
  */
 export interface ToolMetadata {
   id: string
@@ -33,16 +37,6 @@ export interface ToolMetadata {
  */
 const metadata: Record<string, ToolMetadata> = rawMetadata as Record<string, ToolMetadata>
 
-/** Every registered tool id, including versioned variants. */
-export function getToolIds(): string[] {
-  return Object.keys(metadata)
-}
-
-/** Whether `toolId` names a built-in tool. Cheaper than resolving its metadata. */
-export function hasToolMetadata(toolId: string): boolean {
-  return Object.hasOwn(metadata, toolId)
-}
-
 /**
  * Serializable metadata for a built-in tool, or `undefined` if unknown.
  *
@@ -52,7 +46,8 @@ export function hasToolMetadata(toolId: string): boolean {
  * metadata.
  */
 export function getToolMetadata(toolId: string): ToolMetadata | undefined {
-  return Object.hasOwn(metadata, toolId) ? metadata[toolId] : undefined
+  const resolved = resolveToolId(toolId)
+  return Object.hasOwn(metadata, resolved) ? metadata[resolved] : undefined
 }
 
 /** Declared parameters for a built-in tool, or `undefined` if unknown. */

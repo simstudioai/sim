@@ -21,7 +21,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { getTool } from '@/tools/utils'
+import { getToolParams } from '@/tools/metadata'
 
 const logger = createLogger('Serializer')
 
@@ -637,13 +637,13 @@ export function collectBlockFieldIssues(
   // Get the tool configuration to check parameter visibility
   const toolAccess = blockConfig.tools?.access
   const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
-  const currentTool = currentToolId ? getTool(currentToolId) : null
+  const currentToolParams = currentToolId ? getToolParams(currentToolId) : undefined
 
   // Validate tool parameters (for blocks with tools).
   // Lookup contract: a tool param's value lives under its own paramId in `params`.
   // Block subBlocks align via either `id === paramId` or `canonicalParamId === paramId`.
-  if (currentTool) {
-    Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]: [string, any]) => {
+  if (currentToolParams) {
+    Object.entries(currentToolParams).forEach(([paramId, paramConfig]: [string, any]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
         const matchingConfigs =
           blockConfig.subBlocks?.filter(
@@ -699,7 +699,7 @@ export function collectBlockFieldIssues(
   }
 
   // Validate required subBlocks not covered by tool params (e.g., blocks with empty tools.access)
-  const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
+  const validatedByTool = new Set(currentToolParams ? Object.keys(currentToolParams) : [])
 
   blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
     if (validatedByTool.has(subBlockConfig.id)) {

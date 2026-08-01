@@ -14,17 +14,20 @@ You keep the 4,300-tool executable registry out of module graphs that don't exec
 
 | you need | import | notes |
 | --- | --- | --- |
-| whether a tool id exists | `hasToolMetadata` from `@/tools/metadata` | |
-| a tool's params | `getToolParams` / `getToolMetadata` from `@/tools/metadata` | |
-| a tool's declared outputs | `getToolOutputsMetadata` from `@/tools/metadata-outputs` | separate module on purpose — see below |
-| every tool id | `getToolIds` from `@/tools/metadata` | |
+| whether a tool id exists | `hasToolId` from `@/tools/tool-ids` | ~110 KB — the cheapest module |
+| to resolve an unversioned name | `resolveToolId` from `@/tools/tool-ids` | |
+| every tool id | `getToolIds` from `@/tools/tool-ids` | |
+| a tool's params | `getToolParams` / `getToolMetadata` from `@/tools/metadata` | ~4 MB |
+| a tool's declared outputs | `getToolOutputsMetadata` from `@/tools/metadata-outputs` | ~4 MB, separate on purpose |
 | to **execute** a tool | `getTool` from `@/tools/utils`, or `@/tools/utils.server` | server paths only |
 
-Outputs live in their own module because they are roughly two thirds of the generated data and have a single consumer. Importing `@/tools/metadata` must never pull them — do not "helpfully" re-export one from the other.
+Three modules, cheapest first. Ids are their own artifact because resolution and existence checks need only the key set; outputs are their own because they are the larger half of the data with a single consumer. `@/tools/metadata` and `@/tools/metadata-outputs` both resolve ids through `@/tools/tool-ids`, which is what keeps them independent of each other — do not "helpfully" re-export one from another, or every caller pays for all three.
+
+All lookups guard with `Object.hasOwn`. `JSON.parse` yields an object with the normal prototype, so a bare bracket lookup returns inherited members: `getToolMetadata('constructor')` returned a *function* typed as tool metadata before that was fixed.
 
 ## The generated artifacts
 
-`apps/sim/tools/generated/tool-metadata.ts` and `tool-outputs.ts` are produced by `scripts/sync-tool-metadata.ts`:
+`apps/sim/tools/generated/tool-ids.ts`, `tool-metadata.ts` and `tool-outputs.ts` are produced by `scripts/sync-tool-metadata.ts`:
 
 ```bash
 bun run tool-metadata:generate   # after adding/changing a tool
@@ -38,6 +41,20 @@ Three non-obvious properties, each of which was measured and is easy to undo by 
 - **The data is a JSON string parsed at runtime, not an imported `.json` and not an object literal.** With `resolveJsonModule` (which this repo enables), a `.json` import makes TypeScript infer a literal type for all 4,300+ entries and takes `tsc --noEmit` from **12.6s to 8m07s** — a 38x regression. An ambient `declare module` does *not* short-circuit it, and an object literal costs the same. A single string literal is one cheap token for both the compiler and the bundler, and `JSON.parse` beats evaluating the equivalent literal at runtime. Do not "clean this up" into a `.json` import.
 - **The generator refuses to emit function values.** If you add a field to `METADATA_FIELDS` that contains a closure, generation fails loudly rather than shipping executable config to the client. `hosting` and `schemaEnrichment` are excluded for exactly this reason (`hosting.enabled`, `pricing`, and `enrichSchema` are functions) — they are server-only.
 - **Empty param entries are stripped.** The registry contains one (`stt_deepgram_v2`), which crashes callers that read `param.type` while iterating.
+- **Lookups resolve versions.** `getTool` maps an unversioned name onto the newest version, and 246 tools are versioned. A plain key lookup would silently report them missing — a quiet correctness bug, not a crash. `resolveToolId` reproduces that against the id set and is differentially tested against the original.
+
+## Testing code that reads tool metadata
+
+Mock the module the code under test actually reads. `vi.mock('@/tools/utils', () => toolsUtilsMock)` only controls `getTool`; code that reads `params`/`outputs`/`name` goes through `@/tools/metadata`, so mocking `tools/utils` there is a **no-op that still passes** — because the real generated artifacts happen to agree with the mock fixtures. The test looks green while controlling nothing.
+
+```ts
+import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
+
+vi.mock('@/tools/utils', () => toolsUtilsMock)      // executable lookup
+vi.mock('@/tools/metadata', () => toolsMetadataMock) // params / outputs / name
+```
+
+Both are backed by the same `mockToolConfigs`, so mocking both gives one consistent tool universe. If you are unsure whether a mock is load-bearing, change a fixture value to a sentinel and confirm the test fails.
 
 ## How to verify an edge actually got cut
 
@@ -54,9 +71,9 @@ Reference points measured on this repo:
 | `tools/registry.ts` reachable | ~4,900 |
 | `tools/merge-params.ts` (leaf) | 2 |
 | `providers/utils.ts` after cutting its `params` edge | 22 |
-| `app/workspace/[workspaceId]/w/page.tsx` (canvas) | 6,591, of which 4,689 are the registry |
+| `app/workspace/[workspaceId]/w/page.tsx` (canvas) | 6,592 before, 1,908 after |
 
-The canvas route reaches the registry through **four** redundant edges — `providers/utils` (via `tools/params`), `lib/workflows/blocks/block-outputs`, `lib/workflows/sanitization/validation`, and `serializer/index`. Cutting any one alone moves the module count by ~1. They must all be cut before anything improves; measure the route, not the file you edited.
+The canvas route reached the registry through **four** redundant edges — `providers/utils` (via `tools/params`), `lib/workflows/blocks/block-outputs`, `lib/workflows/sanitization/validation`, and `serializer/index`. Cutting any one alone moved the module count by ~1. They all had to go before anything improved; measure the route, not the file you edited.
 
 ## When adding a new caller
 
