@@ -6,11 +6,11 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import {
   buildZohoDeskHeaders,
   deriveAttachmentName,
   getZohoDeskApiBase,
-  isZohoHost,
   resolveZohoAttachmentUrl,
 } from '@/tools/zoho_desk/utils'
 

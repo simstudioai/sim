@@ -5,7 +5,8 @@ import { zohoDeskListOrganizationsContract } from '@/lib/api/contracts/tools/zoh
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertZohoUrl, getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
+import { assertZohoUrl } from '@/tools/zoho_desk/host-allowlist'
+import { getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
 
 export const dynamic = 'force-dynamic'
 

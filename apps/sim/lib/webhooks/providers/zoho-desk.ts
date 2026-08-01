@@ -379,7 +379,12 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     }
     const event = body[0]
     if (!event || typeof event !== 'object') {
-      return { input: body }
+      // Empty or malformed array (e.g. Zoho posts `[]`): emit the normalized
+      // trigger shape with null fields so downstream steps still see
+      // eventType/payload/etc. rather than a raw array leaking through.
+      return {
+        input: { eventType: null, eventTime: null, orgId: null, payload: null, prevState: null },
+      }
     }
     const record = event as Record<string, unknown>
     // Comment / thread event payloads carry a raw `content` + `contentType`

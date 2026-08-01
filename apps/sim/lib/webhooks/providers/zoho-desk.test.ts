@@ -149,6 +149,23 @@ describe('zohoDeskHandler', () => {
       expect(result?.input).toBe(body)
     })
 
+    it('emits a normalized null shape for an empty array instead of leaking []', async () => {
+      const result = await zohoDeskHandler.formatInput?.({
+        webhook: {},
+        workflow: { id: 'wf', userId: 'user' },
+        body: [],
+        headers: {},
+        requestId: 'test',
+      })
+      expect(result?.input).toEqual({
+        eventType: null,
+        eventTime: null,
+        orgId: null,
+        payload: null,
+        prevState: null,
+      })
+    })
+
     it('derives a plain-text contentText for html comment/thread payloads', async () => {
       const result = await zohoDeskHandler.formatInput?.({
         webhook: {},

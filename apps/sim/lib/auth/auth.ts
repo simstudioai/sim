@@ -109,6 +109,7 @@ import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
+import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('Auth')
 
@@ -171,14 +172,14 @@ function deriveZohoDeskBaseFromApiDomain(apiDomain?: string): string {
   if (!apiDomain) return fallback
   try {
     const host = new URL(apiDomain).host.toLowerCase()
-    // Already a data-center Desk host (e.g. desk.zoho.eu) - preserve it so we
-    // never misroute a valid regional domain back to the US (.com) data center.
-    if (/(^|\.)desk\.zoho\.[a-z.]+$/.test(host)) return `https://${host}`
-    // Otherwise map the data-center TLD from the API host (www.zohoapis.<tld> or
-    // any zoho.<tld>) onto the Desk REST host in the same data center.
+    // Gate on the strict Zoho apex allowlist before trusting the host: a loose
+    // `desk.zoho.*` pattern would accept a lookalike like `desk.zoho.com.attacker.com`
+    // and persist it as the credential's REST base, later leaking the OAuth token.
+    if (!isZohoHost(host)) return fallback
+    // Map the data-center TLD from the (now trusted) host onto the Desk REST host
+    // in the same data center - works for both www.zohoapis.<tld> and desk.zoho.<tld>.
     const match = host.match(/zoho(?:apis)?\.([a-z.]+)$/)
-    if (match?.[1]) return `https://desk.zoho.${match[1]}`
-    return fallback
+    return match?.[1] ? `https://desk.zoho.${match[1]}` : fallback
   } catch {
     return fallback
   }

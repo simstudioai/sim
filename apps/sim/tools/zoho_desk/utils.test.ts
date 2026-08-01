@@ -2,15 +2,14 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { assertZohoUrl, isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import {
-  assertZohoUrl,
   buildZohoDeskHeaders,
   convertZohoHtmlToText,
   deriveAttachmentName,
   deriveZohoContentText,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
-  isZohoHost,
   resolveZohoAttachmentUrl,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'

@@ -5,54 +5,6 @@ import type { ZohoDeskBaseParams } from '@/tools/zoho_desk/types'
 const DEFAULT_ZOHO_DESK_BASE = 'https://desk.zoho.com'
 
 /**
- * Zoho-owned apex domains across data centers. `apiDomain` and attachment `href`
- * values are user/LLM-influenced, so any outbound request that carries the OAuth
- * token must anchor its host to one of these with a strict suffix match - a naive
- * `contains "zoho."` check would accept an attacker domain like
- * `zoho.attacker.com` or `desk.zoho.com.attacker.com` and leak the token to it.
- */
-const ZOHO_ALLOWED_APEX_DOMAINS = [
-  'zoho.com',
-  'zoho.eu',
-  'zoho.in',
-  'zoho.com.au',
-  'zoho.jp',
-  'zoho.ca',
-  'zoho.sa',
-  'zoho.com.cn',
-  'zoho.uk',
-  'zohoapis.com',
-  'zohoapis.eu',
-  'zohoapis.in',
-  'zohoapis.com.au',
-  'zohoapis.jp',
-  'zohoapis.ca',
-  'zohoapis.sa',
-  'zohoapis.com.cn',
-  'zohoapis.uk',
-]
-
-/** True only when the hostname is exactly a Zoho apex or a subdomain of one. */
-export function isZohoHost(hostname: string): boolean {
-  const host = hostname.toLowerCase()
-  return ZOHO_ALLOWED_APEX_DOMAINS.some((apex) => host === apex || host.endsWith(`.${apex}`))
-}
-
-/**
- * Assert that a URL is a token-safe Zoho target: it must be `https:` and its host
- * must be a Zoho apex or subdomain. Returns the parsed URL, or throws (the caller
- * maps that to a 400) - used by every route that sends the OAuth token to a host
- * derived from user/LLM-influenced input.
- */
-export function assertZohoUrl(rawUrl: string): URL {
-  const url = new URL(rawUrl)
-  if (url.protocol !== 'https:' || !isZohoHost(url.hostname)) {
-    throw new Error('URL must be an https Zoho host')
-  }
-  return url
-}
-
-/**
  * Convert Zoho Desk rich-text HTML (comment / thread / ticket bodies) to
  * readable plain text. Mirrors the per-integration `html-to-text` configuration
  * used elsewhere in the codebase (Outlook, Gmail, Confluence): anchors collapse
