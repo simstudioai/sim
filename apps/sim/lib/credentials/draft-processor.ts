@@ -18,14 +18,12 @@ interface ProcessCredentialDraftParams {
 /**
  * Looks up a pending credential draft for the given user/provider and processes it.
  * Creates a new credential or reconnects an existing one depending on the draft state.
- * If more than one workspace has a matching draft, fail closed: an uncorrelated
- * OAuth callback cannot safely determine which workspace initiated the connection.
  * Used by Better Auth's `account.create.after` hook and custom OAuth flows (Shopify, Trello).
  */
 export async function processCredentialDraft(params: ProcessCredentialDraftParams): Promise<void> {
   const { userId, providerId, accountId } = params
 
-  const drafts = await db
+  const [draft] = await db
     .select()
     .from(schema.pendingCredentialDraft)
     .where(
@@ -35,18 +33,9 @@ export async function processCredentialDraft(params: ProcessCredentialDraftParam
         sql`${schema.pendingCredentialDraft.expiresAt} > NOW()`
       )
     )
-    .limit(2)
+    .limit(1)
 
-  const [draft] = drafts
   if (!draft) return
-  if (drafts.length > 1) {
-    logger.error('Refusing to process ambiguous credential drafts', {
-      userId,
-      providerId,
-      draftCount: drafts.length,
-    })
-    return
-  }
 
   const now = new Date()
 
