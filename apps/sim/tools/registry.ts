@@ -2477,7 +2477,19 @@ import {
   mailgunListMessagesTool,
   mailgunSendMessageTool,
 } from '@/tools/mailgun'
-import { managedAgentRunSessionTool } from '@/tools/managed_agent'
+import {
+  managedAgentArchiveSessionTool,
+  managedAgentCreateSessionTool,
+  managedAgentDeleteSessionTool,
+  managedAgentGetSessionTool,
+  managedAgentInterruptSessionTool,
+  managedAgentListEventsTool,
+  managedAgentRespondCustomToolTool,
+  managedAgentRespondToolConfirmationTool,
+  managedAgentRunSessionTool,
+  managedAgentSendMessageTool,
+  managedAgentUpdateSessionTool,
+} from '@/tools/managed_agent'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -5517,7 +5529,17 @@ export const tools: Record<string, ToolConfig> = {
   mailgun_add_list_member: mailgunAddListMemberTool,
   mailgun_list_domains: mailgunListDomainsTool,
   mailgun_get_domain: mailgunGetDomainTool,
+  managed_agent_archive_session: managedAgentArchiveSessionTool,
+  managed_agent_create_session: managedAgentCreateSessionTool,
+  managed_agent_delete_session: managedAgentDeleteSessionTool,
+  managed_agent_get_session: managedAgentGetSessionTool,
+  managed_agent_interrupt_session: managedAgentInterruptSessionTool,
+  managed_agent_list_events: managedAgentListEventsTool,
+  managed_agent_respond_custom_tool: managedAgentRespondCustomToolTool,
+  managed_agent_respond_tool_confirmation: managedAgentRespondToolConfirmationTool,
   managed_agent_run_session: managedAgentRunSessionTool,
+  managed_agent_send_message: managedAgentSendMessageTool,
+  managed_agent_update_session: managedAgentUpdateSessionTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,

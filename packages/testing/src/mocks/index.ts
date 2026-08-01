@@ -33,6 +33,7 @@ export {
   createMockGetTool,
   mockBlockConfigs,
   mockToolConfigs,
+  toolsMetadataMock,
   toolsUtilsMock,
 } from './blocks.mock'
 // Copilot HTTP mocks (for @/lib/copilot/request/http)

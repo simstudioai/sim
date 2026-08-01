@@ -10,6 +10,7 @@ import {
   ExpandableContent,
   SecretInput,
   SecretReveal,
+  SquareArrowUpRight,
   Tooltip,
   toast,
 } from '@sim/emcn'
@@ -17,9 +18,11 @@ import { Cursor, TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
@@ -440,12 +443,13 @@ export function parseTextTagBody(body: string): string | null {
 /**
  * Whether `body` is syntactically valid JSON, regardless of its shape.
  *
- * Separates "the agent formed a payload that failed its shape guard" from "this
- * was never JSON" — the line that decides whether a failed body may be dropped
- * or must be shown (see {@link classifyBody}). Costs a second parse of a body
- * that already failed one, which is the rare path; the common cases never reach
- * it, since a valid payload returns earlier and prose is rejected by the cheaper
- * viability rule before this runs.
+ * Separates "the agent formed a well-formed payload that failed its shape
+ * guard" (`wrong-shape`) from "this body will not parse"; for the latter,
+ * {@link wasAttemptedPayload} then decides whether it may be dropped or must be
+ * shown (see {@link classifyBody}). Costs a second parse of a body that already
+ * failed one, which is the rare path; the common cases never reach it, since a
+ * valid payload returns earlier and prose is rejected by the cheaper viability
+ * rule before this runs.
  */
 function isParseableJson(body: string): boolean {
   try {
@@ -608,8 +612,8 @@ const LONGEST_TAG_MARKER = Math.max(...SPECIAL_TAG_NAMES.map((name) => `</${name
  */
 function blankJsonStringLiterals(body: string): string {
   // With no quote there is no string literal, so the loop below would copy the
-  // body to itself character by character. Both callers reach here on bodies
-  // that are usually plain prose, and this runs per opener per streamed chunk.
+  // body to itself character by character. Callers reach here on bodies that
+  // are usually plain prose, and this runs per opener per streamed chunk.
   if (!body.includes('"')) return body
 
   let out = ''
@@ -636,6 +640,33 @@ function blankJsonStringLiterals(body: string): string {
   }
 
   return out
+}
+
+/**
+ * Whether `body` ends inside a JSON string literal, under the same quote and
+ * escape rules as {@link blankJsonStringLiterals}.
+ *
+ * True means the body's quotes are mispaired, so blanking assigned at least one
+ * region to the wrong side of a string boundary — the one condition under which
+ * a marker missing from the blanked copy may still be real. With balanced
+ * quotes the blanked scan already saw every marker outside a string, so a
+ * marker visible only in the raw text really was quoted content (see
+ * {@link classifyBody}).
+ */
+function endsInsideJsonString(body: string): boolean {
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < body.length; i++) {
+    const char = body[i]
+    if (escaped) {
+      escaped = false
+    } else if (char === '\\' && inString) {
+      escaped = true
+    } else if (char === '"') {
+      inString = !inString
+    }
+  }
+  return inString
 }
 
 /**
@@ -673,6 +704,33 @@ function isViableJsonPrefixOf(scannable: string): boolean {
 
   return true
 }
+
+/**
+ * Index just past the close of `scannable`'s top-level JSON value, or -1 while
+ * the value is still open. Same depth rules as {@link isViableJsonPrefixOf},
+ * and takes the same blanked form, so braces inside JSON strings do not count.
+ */
+function jsonValueEndIn(scannable: string): number {
+  let depth = 0
+  for (let i = 0; i < scannable.length; i++) {
+    const char = scannable[i]
+    if (char === '{' || char === '[') {
+      depth++
+    } else if (char === '}' || char === ']') {
+      depth--
+      if (depth <= 0) return i + 1
+    }
+  }
+  return -1
+}
+
+/**
+ * Nothing but JSON punctuation and whitespace — what a fumbled payload's tail
+ * looks like on the BLANKED body, where string contents are already spaces. A
+ * letter or digit here means the model moved on to prose instead (see
+ * {@link resolveTagAt}).
+ */
+const JSON_DEBRIS_ONLY = /^[\s[\]{}",:]*$/
 
 /**
  * Whether `text` contains a marker for one of the tags this parser knows.
@@ -770,18 +828,20 @@ type TagResolution =
   | { outcome: 'segment'; segment: ContentSegment; resumeAt: number }
   /** Provably not a tag; render the span verbatim and resume after it. */
   | { outcome: 'literal'; resumeAt: number }
-  /** A well-formed payload that failed its shape guard — dropped deliberately. */
+  /** A payload the agent attempted and botched — dropped deliberately. */
   | { outcome: 'discard'; resumeAt: number }
   /** Still streaming and a close remains plausible; suppress the remainder. */
   | { outcome: 'pending' }
 
 /**
- * Why a failed body was never an attempted payload — so the markers were literal
- * text and the span must be shown rather than swallowed. `null` means the body
- * really was a payload that failed its shape guard.
+ * Mechanical evidence about a failed body — named for what was OBSERVED, never
+ * for what it means. The semantic conclusion (attempted payload vs prose) is
+ * drawn in {@link classifyBody}, which refines `not-viable-json` through
+ * {@link wasAttemptedPayload}. `null` means the body parsed as JSON and simply
+ * failed its shape guard.
  *
- * The two reasons resume differently, which is why they are distinguished
- * rather than collapsed into a boolean (see {@link resumeForClass}).
+ * The two reasons lead to different resumes, which is why they are
+ * distinguished rather than collapsed into a boolean (see {@link resumeForClass}).
  */
 type LiteralTextVerdict =
   /**
@@ -789,8 +849,8 @@ type LiteralTextVerdict =
    * the close we matched belongs to a different opener.
    */
   | { reason: 'foreign-markers'; markerOffset: number }
-  /** The tag wrapped prose that was never JSON to begin with. */
-  | { reason: 'never-a-payload' }
+  /** The body is not a viable JSON prefix (first char or bracket depth). */
+  | { reason: 'not-viable-json' }
 
 function literalTextReason(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
@@ -805,7 +865,7 @@ function literalTextReason(
   const scannable = isJsonBodied ? blankJsonStringLiterals(body) : body
   const marker = TAG_SHAPED_MARKER.exec(scannable)
   if (marker) return { reason: 'foreign-markers', markerOffset: marker.index }
-  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return { reason: 'never-a-payload' }
+  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return { reason: 'not-viable-json' }
   return null
 }
 
@@ -906,10 +966,48 @@ type BodyClass =
   | { kind: 'prose-nested-marker' }
   /** Only a prefix was read, and it settled nothing. Says nothing about the rest. */
   | { kind: 'unexamined' }
-  /** Not a payload at all — never JSON, or JSON that will not parse. */
-  | { kind: 'never-json' }
-  /** Parsed as JSON, then failed its shape guard. The only droppable class. */
-  | { kind: 'broken-payload' }
+  /**
+   * Never an attempted payload — prose, prose-in-braces, a bare scalar, an
+   * unquoted-key slip. The model's own words: showing them is mandatory,
+   * dropping them deletes text the reader was meant to see.
+   */
+  | { kind: 'not-a-payload' }
+  /**
+   * An attempted payload that will not parse — opens like JSON (see
+   * {@link wasAttemptedPayload}) but carries a syntax error. Droppable: the
+   * reader was never meant to see the JSON, and rendering it raw is the
+   * failure this parser exists to prevent.
+   */
+  | { kind: 'not-parsable' }
+  /** Parsed as JSON, then failed its shape guard. Droppable, like `not-parsable`. */
+  | { kind: 'wrong-shape' }
+
+/**
+ * Whether a body that will not parse was nonetheless an ATTEMPT at this tag's
+ * JSON payload — the line between `not-parsable` (droppable) and
+ * `not-a-payload` (must render).
+ *
+ * Two pieces of evidence, both required, both structural: the opener pair and
+ * a key-value colon. Every payload these tags carry is built from objects of
+ * quoted keys, so an attempt opens `{"`, `[{`, or `["` AND carries a `:`
+ * outside its string literals. Prose fails one or the other by construction —
+ * `{the Q4 report}` opens `{t`, `{type: "file"}` opens `{t`, `{'type':'file'}`
+ * opens `{'`, a bare scalar opens with its own first character, and a
+ * brace-wrapped quoted phrase (`{"the Q4 report"}`) has no colon outside its
+ * quotes — so every wrapped-prose shape stays rendered while a payload one
+ * typo away from valid (`{"type":"multi_select",options": …`) is recognized as
+ * the broken emission it is. Deleting text is the harm here, so the predicate
+ * fails toward rendering. Named for the question it answers, not the checks it performs:
+ * the class names assert meaning, and this predicate is what earns the
+ * assertion. Blanks on the rare path only, like {@link isParseableJson} — the
+ * common cases never reach it.
+ */
+function wasAttemptedPayload(body: string): boolean {
+  const opener = /^\s*([{[])\s*(["{])/.exec(body)
+  if (!opener) return false
+  if (opener[1] === '{' && opener[2] !== '"') return false
+  return blankJsonStringLiterals(body).includes(':')
+}
 
 /**
  * Classify a complete body. Pure: no positions, no outcome, no resume.
@@ -943,29 +1041,39 @@ function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string)
   }
   if (inspected.truncated) return { kind: 'unexamined' }
 
-  // Dropping text is only defensible for a payload the agent actually FORMED.
-  // `{the Q4 report}` is prose in braces and `{type: "file"}` is an ordinary
-  // model slip; bracket depth cannot tell either from a real payload, only a
-  // parse can. Both routes to that answer are funnelled through one place so the
-  // rescan below cannot be added to one and forgotten on the other.
-  const neverJson =
-    verdict?.reason === 'never-a-payload' || (isJsonBodied && !isParseableJson(body))
+  // Dropping text is only defensible for a payload the agent actually
+  // ATTEMPTED. A parse settles the well-formed case (`wrong-shape`); for a body
+  // that will not parse, the opener decides via wasAttemptedPayload below.
+  // Bracket depth can tell neither prose-in-braces nor a typo'd payload from a
+  // real one, so both routes to "unparseable" are funnelled through one place
+  // and the rescan below cannot be added to one and forgotten on the other.
+  const unparseable =
+    verdict?.reason === 'not-viable-json' || (isJsonBodied && !isParseableJson(body))
 
-  if (neverJson) {
+  if (unparseable) {
     // literalTextReason blanked this body's quoted regions on the assumption it
-    // was JSON. It never was, so that assumption is void — and a body with an
-    // odd number of `"` blanks the WRONG regions, which can hide a real marker
-    // and turn what should be `nested-marker` into `never-json`. The difference
-    // is not academic: `never-json` resumes past the close, flattening a genuine
-    // tag inside the span, so a card already on screen un-renders when the close
-    // finally arrives. With the JSON premise gone, the raw text is the honest
-    // evidence, and a marker in it means the close we matched belongs elsewhere.
-    const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
-    if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
-    return { kind: 'never-json' }
+    // was valid JSON. It is not — but the blanked offsets only LIE when the
+    // body's quotes are mispaired: an odd `"` blanks the wrong regions, which
+    // can hide a real marker and misread a mispaired span as this tag's own
+    // body. The difference is not academic: both failure classes below resume
+    // past the close, flattening or discarding a genuine tag inside the span,
+    // so a card already on screen un-renders when the close finally arrives.
+    // With mispaired quotes the raw text is the honest evidence, and a marker
+    // in it means the close we matched belongs elsewhere. With BALANCED quotes
+    // the blanked scan above already saw every marker outside a string, so a
+    // marker visible only in the raw text is quoted content — rescanning would
+    // classify a broken payload whose strings legitimately mention tag syntax
+    // as nested markers and render it as raw JSON, the exact failure `discard`
+    // exists to prevent. Only after the marker question settles may the opener
+    // test decide the remaining two classes.
+    if (endsInsideJsonString(inspected.text)) {
+      const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
+      if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
+    }
+    return wasAttemptedPayload(body) ? { kind: 'not-parsable' } : { kind: 'not-a-payload' }
   }
 
-  return { kind: 'broken-payload' }
+  return { kind: 'wrong-shape' }
 }
 
 /**
@@ -978,8 +1086,9 @@ function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string)
 function resumeForClass(cls: BodyClass, bodyStart: number, pastClose: number): number {
   switch (cls.kind) {
     case 'payload':
-    case 'broken-payload':
-    case 'never-json':
+    case 'wrong-shape':
+    case 'not-parsable':
+    case 'not-a-payload':
       // The whole span was read and accounted for; continue after it.
       return pastClose
     case 'nested-marker':
@@ -1021,14 +1130,14 @@ function resolveMatchedPair(
   switch (cls.kind) {
     case 'payload':
       return { outcome: 'segment', segment: cls.segment, resumeAt }
-    case 'broken-payload':
-      // Well-formed but the wrong shape — a broken emission. Showing the reader
-      // raw JSON is worse than showing nothing.
+    case 'wrong-shape':
+    case 'not-parsable':
+      // Showing the reader raw JSON is worse than showing nothing.
       return { outcome: 'discard', resumeAt }
     case 'nested-marker':
     case 'prose-nested-marker':
     case 'unexamined':
-    case 'never-json':
+    case 'not-a-payload':
       return { outcome: 'literal', resumeAt }
   }
 }
@@ -1047,8 +1156,33 @@ function resolveTagAt(
 
   if (closeIdx === -1) {
     const inspected = inspectWithin(content, bodyStart)
-    if (isStreaming && !unclosedTagCannotResolve(tagName, inspected.text)) {
-      return { outcome: 'pending' }
+    if (isStreaming) {
+      if (!unclosedTagCannotResolve(tagName, inspected.text)) return { outcome: 'pending' }
+      // The body can no longer resolve, but it reads as a payload the model is
+      // still fumbling: it opens like an attempted payload and everything past
+      // its top-level value is JSON debris (a stray `}` or `]}`) — exactly the
+      // shapes the matched-pair path DISCARDS the moment a close arrives.
+      // Releasing such a body now paints raw JSON on screen only for the close
+      // to retract it, so keep suppressing while the stream runs; the settled
+      // parse still shows it if the close never comes. Two kinds of
+      // counter-evidence release immediately, because each means the model
+      // moved on and holding the remainder back would blank the rest of the
+      // message for the whole stream — the failure unclosedTagCannotResolve
+      // exists to prevent: a tag-shaped marker outside the payload's strings
+      // (a misspelled close, a new tag), or prose after the value closed (a
+      // mention flowing on, pinned by the trace 220cc02d and trace afbeefd0
+      // tests).
+      if (JSON_BODY_TAG_NAMES.has(tagName)) {
+        const pending = dropArrivingClose(inspected.text, closeTag)
+        const blanked = blankJsonStringLiterals(pending)
+        if (
+          wasAttemptedPayload(pending) &&
+          !TAG_SHAPED_MARKER.test(blanked) &&
+          JSON_DEBRIS_ONLY.test(blanked.slice(Math.max(0, jsonValueEndIn(blanked))))
+        ) {
+          return { outcome: 'pending' }
+        }
+      }
     }
     // Nothing can close it, so only the opener itself is literal. Resuming just
     // past it (rather than abandoning the message) keeps a genuinely valid tag
@@ -1846,9 +1980,16 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { getSettingsHref } = useSettingsNavigation()
-  const settingsPath = getSettingsHref({ section: 'billing' })
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
-  const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
+
+  // Self-hosted plan and limit both live on the hosted account, so local
+  // workspace billing roles say nothing about who may change them.
+  const href = isHosted
+    ? getSettingsHref({ section: 'billing' })
+    : data.action === 'upgrade_plan'
+      ? buildHostedUpgradeUrl()
+      : HOSTED_BILLING_SETTINGS_URL
+  const canManageBilling = !isHosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
   const unavailableMessage = hostContext.hostOrganizationId
     ? 'Contact an organization admin to manage this workspace’s usage limits.'
     : 'Only the workspace owner can manage this workspace’s usage limits.'
@@ -1880,11 +2021,14 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       </p>
       {canManageBilling ? (
         <a
-          href={settingsPath}
+          href={href}
+          target={isHosted ? undefined : '_blank'}
+          rel={isHosted ? undefined : 'noopener noreferrer'}
+          aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
           className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
-          <ArrowRight className='size-3' />
+          {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
         <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>

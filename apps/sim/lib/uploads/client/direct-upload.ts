@@ -292,7 +292,12 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
     })
 
     xhr.open('PUT', presignedUrl)
-    xhr.setRequestHeader('Content-Type', getFileContentType(file))
+    const providesContentType =
+      uploadHeaders &&
+      Object.keys(uploadHeaders).some((key) => key.toLowerCase() === 'content-type')
+    if (!providesContentType) {
+      xhr.setRequestHeader('Content-Type', getFileContentType(file))
+    }
     if (uploadHeaders) {
       for (const [key, value] of Object.entries(uploadHeaders)) {
         xhr.setRequestHeader(key, value)

@@ -5,11 +5,16 @@ import { vi } from 'vitest'
  * Mimics drizzle-orm's sql tagged template.
  */
 export function createMockSql() {
-  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => ({
-    strings,
-    values,
-    toSQL: () => ({ sql: strings.join('?'), params: values }),
-  })
+  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
+    const fragment = {
+      strings,
+      values,
+      toSQL: () => ({ sql: strings.join('?'), params: values }),
+      /** Mirrors drizzle's `sql``…`.as(alias)` for aliased select expressions. */
+      as: (alias: string) => ({ ...fragment, alias }),
+    }
+    return fragment
+  }
 
   sqlFn.raw = (rawSql: string) => ({
     rawSql,

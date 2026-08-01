@@ -21,10 +21,10 @@ import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryStates } from 'nuqs'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
-import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
   ActivityLog,
   type ActivityLogEntry,

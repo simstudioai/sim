@@ -89,6 +89,18 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'search' },
     },
     {
+      id: 'searchMode',
+      title: 'Retrieval Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Vector only', id: 'vector' },
+        { label: 'Hybrid (full-text + vector)', id: 'hybrid' },
+      ],
+      value: () => 'vector',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
       id: 'rerankerEnabled',
       title: 'Rerank Results',
       type: 'switch',
@@ -440,6 +452,10 @@ export const KnowledgeBlock: BlockConfig = {
     limit: { type: 'number', description: 'Max items to return' },
     offset: { type: 'number', description: 'Pagination offset' },
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
+    searchMode: {
+      type: 'string',
+      description: 'Retrieval mode: vector only (default) or hybrid (full-text + vector)',
+    },
     rerankerEnabled: { type: 'boolean', description: 'Apply Cohere reranking to search results' },
     rerankerModel: { type: 'string', description: 'Cohere rerank model identifier' },
     rerankerInputCount: {

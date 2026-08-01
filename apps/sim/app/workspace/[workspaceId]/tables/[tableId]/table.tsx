@@ -28,6 +28,7 @@ import {
   Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
+import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
@@ -72,7 +73,7 @@ import {
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { columnTypeIcon } from './components/table-grid/headers'
-import { useTable, useTableEventStream } from './hooks'
+import { useTable, useTableEventStream, useTableRoom } from './hooks'
 import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
   ALL_VIEW_PARAM,
@@ -229,6 +230,12 @@ export function Table({
     })
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
+
+  // Live table presence (cell-selection carets + avatars). Runs in both modes so the
+  // mothership chat panel shows collaborators' live selections too. The avatar stack lives
+  // only in the `!embedded` Resource.Header, so the embedded panel gets carets without avatars
+  // for free — matching the panel's own-chrome layout.
+  const { otherUsers: presenceUsers, remoteSelections, emitCellSelection } = useTableRoom(tableId)
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
@@ -1329,6 +1336,9 @@ export function Table({
           breadcrumbs={breadcrumbs}
           aside={
             <div className='flex items-center gap-1.5'>
+              {presenceUsers.length > 0 && (
+                <PresenceAvatars users={presenceUsers} className='mr-1' />
+              )}
               <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
@@ -1407,6 +1417,8 @@ export function Table({
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
+        remoteSelections={remoteSelections}
+        emitCellSelection={emitCellSelection}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenEnrichments={onOpenEnrichments}

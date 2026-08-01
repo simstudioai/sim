@@ -11,6 +11,8 @@ import {
   renderPasswordResetEmail,
   renderPaymentFailedEmail,
   renderPlanWelcomeEmail,
+  renderScheduleDisabledEmail,
+  renderUsageLimitReachedEmail,
   renderUsageThresholdEmail,
   renderWelcomeEmail,
   renderWorkspaceInvitationEmail,
@@ -93,6 +95,43 @@ const emailTemplates = {
       billingPortalUrl: 'https://sim.ai/settings/billing',
       failureReason: 'Card declined',
     }),
+  'usage-limit-reached': () =>
+    renderUsageLimitReachedEmail({
+      userName: 'John',
+      planName: 'Pro',
+      scope: 'user',
+      currentUsage: 20,
+      limit: 20,
+      ctaLink: 'https://sim.ai/settings/billing',
+    }),
+  'usage-limit-reached-org': () =>
+    renderUsageLimitReachedEmail({
+      userName: 'John',
+      planName: 'Team',
+      scope: 'organization',
+      currentUsage: 500,
+      limit: 500,
+      ctaLink: 'https://sim.ai/organization/org_123/settings/billing',
+    }),
+
+  // Operational notification emails
+  'schedule-disabled': () =>
+    renderScheduleDisabledEmail({
+      recipientName: 'John',
+      kind: 'workflow',
+      resourceName: 'Daily digest',
+      reason: 'consecutive_failures',
+      failedCount: 100,
+      manageLink: 'https://sim.ai/workspace/ws_123/w/wf_456',
+    }),
+  'schedule-disabled-auth': () =>
+    renderScheduleDisabledEmail({
+      recipientName: 'John',
+      kind: 'job',
+      resourceName: 'Weekly report',
+      reason: 'authentication_error',
+      manageLink: 'https://sim.ai/workspace/ws_123/scheduled-tasks',
+    }),
 } as const
 
 type EmailTemplate = keyof typeof emailTemplates
@@ -122,7 +161,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'plan-welcome-team',
         'credit-purchase',
         'payment-failed',
+        'usage-limit-reached',
+        'usage-limit-reached-org',
       ],
+      Notifications: ['schedule-disabled', 'schedule-disabled-auth'],
     }
 
     const categoryHtml = Object.entries(categories)

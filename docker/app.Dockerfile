@@ -1,14 +1,17 @@
 # ========================================
-# Base Stage: Debian-based Bun with Node.js 22
+# Base Stage: Debian-based Bun with Node.js 24
 # ========================================
 FROM oven/bun:1.3.13-slim AS base
 
-# Install Node.js 22 and common dependencies once in base stage
+# Install Node.js 24 (Active LTS) and common dependencies once in base stage.
+# Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);
+# the version is kept in lockstep with the `isolated-vm` pin in
+# apps/sim/package.json — Node 24 (ABI 137) requires isolated-vm 6.x.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv make g++ curl ca-certificates bash ffmpeg \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs
 
 # ========================================
@@ -95,7 +98,7 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
-# Node.js 22, Python, ffmpeg, etc. are already installed in base stage
+# Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
 # Create non-root user and group
@@ -116,6 +119,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/conte
 
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
+
+# The collab-doc seed/merge/persist routes run the converter (markdown <-> Yjs) server-side. `yjs` is a
+# serverExternalPackage, and the Next standalone tracer copies it only partially — it misses ESM subpath
+# files that `yjs/dist/yjs.mjs` imports through `lib0`'s exports map (e.g. `lib0/logging`), so the seed
+# 500s ("Cannot find module 'lib0/logging'") and every collaborative doc is stuck read-only. Overwrite
+# the partial trace with the complete packages from the full install (outputFileTracingIncludes can't:
+# its globs resolve against apps/sim, but these deps hoist to the monorepo-root node_modules).
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/lib0 ./node_modules/lib0
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/yjs ./node_modules/yjs
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modules/y-protocols
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs

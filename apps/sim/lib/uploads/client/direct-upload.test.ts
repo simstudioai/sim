@@ -82,6 +82,47 @@ describe('runUploadStrategy', () => {
     expect(MockXHR.instances[0].open).toHaveBeenCalledWith('PUT', 'https://s3/presigned')
   })
 
+  it('sets Content-Type exactly once when uploadHeaders already carry it (GCS signed uploads)', async () => {
+    const file = makeFile(1024)
+
+    await runUploadStrategy({
+      file,
+      workspaceId: 'ws-1',
+      context: 'workspace',
+      presignedOverride: presigned({
+        uploadHeaders: {
+          'Content-Type': 'application/octet-stream',
+          'x-goog-meta-workspaceid': 'ws-1',
+        },
+      }),
+    })
+
+    const calls = MockXHR.instances[0].setRequestHeader.mock.calls
+    const contentTypeCalls = calls.filter(
+      ([k]: [string, string]) => k.toLowerCase() === 'content-type'
+    )
+    expect(contentTypeCalls).toHaveLength(1)
+    expect(contentTypeCalls[0][1]).toBe('application/octet-stream')
+    expect(calls.some(([k]: [string, string]) => k === 'x-goog-meta-workspaceid')).toBe(true)
+  })
+
+  it('falls back to the file content type when uploadHeaders omit Content-Type', async () => {
+    const file = makeFile(1024)
+
+    await runUploadStrategy({
+      file,
+      workspaceId: 'ws-1',
+      context: 'workspace',
+      presignedOverride: presigned({ uploadHeaders: { 'x-ms-blob-type': 'BlockBlob' } }),
+    })
+
+    const calls = MockXHR.instances[0].setRequestHeader.mock.calls
+    const contentTypeCalls = calls.filter(
+      ([k]: [string, string]) => k.toLowerCase() === 'content-type'
+    )
+    expect(contentTypeCalls).toHaveLength(1)
+  })
+
   it('throws FALLBACK_REQUIRED when server signals no cloud storage', async () => {
     const file = makeFile(ONE_MB)
 

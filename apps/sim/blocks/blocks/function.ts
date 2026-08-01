@@ -138,6 +138,9 @@ try {
       paramVisibility: 'user-only',
       multiSelect: true,
       searchable: true,
+      // Secret names are case-sensitive: the code references the exact name via
+      // `{{NAME}}`, so the picker must not lowercase what it shows.
+      preserveLabelCase: true,
       options: [],
       condition: { field: 'secretScope', value: 'selected' },
       placeholder: 'Select secrets this tool can read',

@@ -9,6 +9,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
@@ -226,7 +227,12 @@ export function RecentlyDeleted() {
   const tableFoldersQuery = useFolders(workspaceId, { scope: 'archived', resourceType: 'table' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
   const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
-  const chatsQuery = useMothershipChats(workspaceId, { scope: 'archived' })
+  // Restoring a chat navigates to a route that 404s with Chat off, and this
+  // query's loading/error state feeds the whole panel's.
+  const chatsQuery = useMothershipChats(workspaceId, {
+    scope: 'archived',
+    enabled: isChatEnabled,
+  })
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()

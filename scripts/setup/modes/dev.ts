@@ -9,6 +9,7 @@ import { pgProbe } from '../probes.ts'
 import * as p from '../prompter.ts'
 import { ensureRedis, resolveRedis } from '../redis.ts'
 import {
+  chatFlagValues,
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
@@ -124,6 +125,7 @@ export async function runDevMode(
   Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(simAfter.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
+  Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
 
   // Redis is set up in every mode, quick included. Storage falls back to
@@ -161,17 +163,17 @@ export async function runDevMode(
       message: `Low RAM detected (${detection.specs.hostMemGb}GB) — which dev server?`,
       options: [
         {
-          value: 'dev:full:minimal-registry',
-          label: 'Minimal block registry (recommended)',
-          hint: 'much lower memory — loads fewer integration blocks in dev',
+          value: 'dev:full:capped',
+          label: 'Capped heap (recommended)',
+          hint: 'caps Node at 4GB — every integration still available',
         },
         {
           value: 'dev:full',
-          label: 'Full registry',
-          hint: 'every block available — can use 4-5GB+ on its own',
+          label: 'Uncapped',
+          hint: 'lets the dev server take what it needs (~4GB typical)',
         },
       ],
-      initialValue: 'dev:full:minimal-registry',
+      initialValue: 'dev:full:capped',
     })
   }
   return {

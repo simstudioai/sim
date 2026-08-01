@@ -5,12 +5,13 @@
  * (collectBlockFieldIssues / extractBlockParams) — the single source of truth
  * shared by the serializer's required-field validation and the copilot lint.
  */
-import { blocksMock, toolsUtilsMock } from '@sim/testing/mocks'
+import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
 
 const { svcConfig } = vi.hoisted(() => ({ svcConfig: { value: null as any } }))
 
 vi.mock('@/tools/utils', () => toolsUtilsMock)
+vi.mock('@/tools/metadata', () => toolsMetadataMock)
 vi.mock('@/blocks', () => ({
   ...blocksMock,
   getBlock: (type: string) => (type === 'svc' ? svcConfig.value : blocksMock.getBlock(type)),
