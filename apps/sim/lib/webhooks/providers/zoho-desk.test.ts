@@ -41,6 +41,10 @@ describe('zohoDeskHandler', () => {
   })
 
   describe('verifyAuth', () => {
+    afterEach(() => {
+      vi.mocked(getCredentialOwner).mockReset()
+    })
+
     it('rejects requests without the X-ZDesk-JWT header', async () => {
       const result = await zohoDeskHandler.verifyAuth?.(
         // biome-ignore lint/suspicious/noExplicitAny: minimal context for the header-only path
@@ -48,6 +52,33 @@ describe('zohoDeskHandler', () => {
       )
       expect(result).not.toBeNull()
       expect(result?.status).toBe(401)
+    })
+
+    it('falls back to the credential Desk domain when the webhook row has no apiDomain', async () => {
+      vi.mocked(getCredentialOwner).mockResolvedValue({
+        accountId: 'acct-1',
+        userId: 'u1',
+        // biome-ignore lint/suspicious/noExplicitAny: partial owner shape is enough for this path
+      } as any)
+      await zohoDeskHandler.verifyAuth?.(
+        makeAuthContext(
+          { 'x-zdesk-jwt': 'not-a-real-jwt' },
+          { orgId: '1', externalId: '2', credentialId: 'cred-1' }
+          // biome-ignore lint/suspicious/noExplicitAny: minimal context for the fallback path
+        ) as any
+      )
+      expect(getCredentialOwner).toHaveBeenCalledWith('cred-1', 'test')
+    })
+
+    it('uses the persisted apiDomain without a credential lookup (fast path)', async () => {
+      await zohoDeskHandler.verifyAuth?.(
+        makeAuthContext(
+          { 'x-zdesk-jwt': 'not-a-real-jwt' },
+          { orgId: '1', externalId: '2', credentialId: 'cred-1', apiDomain: 'https://desk.zoho.eu' }
+          // biome-ignore lint/suspicious/noExplicitAny: minimal context for the fast path
+        ) as any
+      )
+      expect(getCredentialOwner).not.toHaveBeenCalled()
     })
   })
 

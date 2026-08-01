@@ -313,10 +313,22 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - webhook not fully provisioned', { status: 401 })
     }
 
-    const apiDomain =
-      typeof providerConfig.apiDomain === 'string'
+    // Prefer the apiDomain persisted on the webhook row (fast path, no DB hit on
+    // the 5s-deadline verification path). Only when it is absent - older rows, or
+    // a config that never captured it - fall back to the Desk base stored on the
+    // OAuth credential (`__zoho_domain__` scope marker), mirroring
+    // deleteSubscription, so a non-US org verifies against its own JWKS rather
+    // than defaulting to the US host and rejecting legitimate events.
+    let apiDomain =
+      typeof providerConfig.apiDomain === 'string' && providerConfig.apiDomain
         ? providerConfig.apiDomain
-        : DEFAULT_ZOHO_DESK_BASE
+        : ''
+    if (!apiDomain) {
+      const credentialId =
+        typeof providerConfig.credentialId === 'string' ? providerConfig.credentialId : undefined
+      const owner = credentialId ? await getCredentialOwner(credentialId, requestId) : null
+      apiDomain = owner ? await resolveZohoDeskApiDomain(owner.accountId) : DEFAULT_ZOHO_DESK_BASE
+    }
 
     let deskHost: string
     try {
