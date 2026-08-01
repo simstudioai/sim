@@ -32,6 +32,8 @@ import {
   isKnownWorkflowTriggerBlock,
   isWorkflowAnnotationOnlyBlockType,
   isWorkflowBlockProtected,
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -57,11 +59,19 @@ function toEdgeHandles(edge: PersistedEdgeRecord) {
 }
 
 interface EdgeAddCandidate {
-  id?: string
+  id: string
   source: string
   target: string
   sourceHandle?: string | null
   targetHandle?: string | null
+}
+
+function canonicalizeEdgeAddCandidate(edge: EdgeAddCandidate): EdgeAddCandidate {
+  return {
+    ...edge,
+    sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle),
+    targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
+  }
 }
 
 interface FilterEdgesForPersistResult<T> {
@@ -283,8 +293,8 @@ async function insertAutoConnectEdge(
     workflowId,
     sourceBlockId: autoConnectEdge.source,
     targetBlockId: autoConnectEdge.target,
-    sourceHandle: autoConnectEdge.sourceHandle || null,
-    targetHandle: autoConnectEdge.targetHandle || null,
+    sourceHandle: normalizeWorkflowEdgeSourceHandle(autoConnectEdge.sourceHandle),
+    targetHandle: normalizeWorkflowEdgeTargetHandle(autoConnectEdge.targetHandle),
   })
   logger.debug(
     `Added auto-connect edge ${autoConnectEdge.id}: ${autoConnectEdge.source} -> ${autoConnectEdge.target}`
@@ -1051,8 +1061,8 @@ async function handleBlocksOperationTx(
         // blocksById lookup (a plain `tx.select` from `workflowBlocks`) also
         // sees the blocks this same batch just inserted — reads observe a
         // transaction's own prior writes.
-        const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map(
-          (e) => ({
+        const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map((e) =>
+          canonicalizeEdgeAddCandidate({
             id: e.id as string,
             source: e.source as string,
             target: e.target as string,
@@ -1078,8 +1088,8 @@ async function handleBlocksOperationTx(
             workflowId,
             sourceBlockId: edge.source,
             targetBlockId: edge.target,
-            sourceHandle: edge.sourceHandle || null,
-            targetHandle: edge.targetHandle || null,
+            sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle),
+            targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
           }))
 
           await tx
@@ -1536,18 +1546,17 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing required fields for add edge operation')
       }
 
+      const candidate = canonicalizeEdgeAddCandidate({
+        id: payload.id,
+        source: payload.source,
+        target: payload.target,
+        sourceHandle: payload.sourceHandle ?? null,
+        targetHandle: payload.targetHandle ?? null,
+      })
       const { safeEdges, droppedCounts, droppedDuplicates } = await filterEdgesForPersist(
         tx,
         workflowId,
-        [
-          {
-            id: payload.id,
-            source: payload.source,
-            target: payload.target,
-            sourceHandle: payload.sourceHandle ?? null,
-            targetHandle: payload.targetHandle ?? null,
-          },
-        ]
+        [candidate]
       )
 
       if (safeEdges.length === 0) {
@@ -1561,13 +1570,14 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         break
       }
 
+      const [safeEdge] = safeEdges
       await tx.insert(workflowEdges).values({
-        id: payload.id,
+        id: safeEdge.id,
         workflowId,
-        sourceBlockId: payload.source,
-        targetBlockId: payload.target,
-        sourceHandle: payload.sourceHandle || null,
-        targetHandle: payload.targetHandle || null,
+        sourceBlockId: safeEdge.source,
+        targetBlockId: safeEdge.target,
+        sourceHandle: normalizeWorkflowEdgeSourceHandle(safeEdge.sourceHandle),
+        targetHandle: normalizeWorkflowEdgeTargetHandle(safeEdge.targetHandle),
       })
 
       logger.debug(`Added edge ${payload.id}: ${payload.source} -> ${payload.target}`)
@@ -1782,13 +1792,15 @@ async function handleEdgesOperationTx(
 
       logger.info(`Batch adding ${edges.length} edges to workflow ${workflowId}`)
 
-      const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map((e) => ({
-        id: e.id as string,
-        source: e.source as string,
-        target: e.target as string,
-        sourceHandle: (e.sourceHandle as string | null) ?? null,
-        targetHandle: (e.targetHandle as string | null) ?? null,
-      }))
+      const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map((e) =>
+        canonicalizeEdgeAddCandidate({
+          id: e.id as string,
+          source: e.source as string,
+          target: e.target as string,
+          sourceHandle: (e.sourceHandle as string | null) ?? null,
+          targetHandle: (e.targetHandle as string | null) ?? null,
+        })
+      )
 
       const { safeEdges, droppedCounts, droppedDuplicates, droppedCyclic } =
         await filterEdgesForPersist(tx, workflowId, candidates)
@@ -1811,8 +1823,8 @@ async function handleEdgesOperationTx(
         workflowId,
         sourceBlockId: edge.source,
         targetBlockId: edge.target,
-        sourceHandle: edge.sourceHandle || null,
-        targetHandle: edge.targetHandle || null,
+        sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle),
+        targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
       }))
 
       await tx
@@ -2179,16 +2191,34 @@ async function handleWorkflowOperationTx(
 
       // Insert all edges from the new state
       if (edges && edges.length > 0) {
-        const edgeValues = edges.map((edge: any) => ({
+        const canonicalEdges = (edges as Array<Record<string, unknown>>).map((edge) =>
+          canonicalizeEdgeAddCandidate({
+            id: edge.id as string,
+            source: edge.source as string,
+            target: edge.target as string,
+            sourceHandle: (edge.sourceHandle as string | null) ?? null,
+            targetHandle: (edge.targetHandle as string | null) ?? null,
+          })
+        )
+        const uniqueEdges = filterUniqueWorkflowEdges(canonicalEdges, [])
+        const edgeValues = uniqueEdges.map((edge) => ({
           id: edge.id,
           workflowId,
           sourceBlockId: edge.source,
           targetBlockId: edge.target,
-          sourceHandle: edge.sourceHandle || null,
-          targetHandle: edge.targetHandle || null,
+          sourceHandle: edge.sourceHandle ?? null,
+          targetHandle: edge.targetHandle ?? null,
         }))
 
-        await tx.insert(workflowEdges).values(edgeValues)
+        if (uniqueEdges.length < edges.length) {
+          logger.info(`Dropped ${edges.length - uniqueEdges.length} duplicate edge(s)`, {
+            operation: WORKFLOW_OPERATIONS.REPLACE_STATE,
+          })
+        }
+
+        if (edgeValues.length > 0) {
+          await tx.insert(workflowEdges).values(edgeValues)
+        }
       }
 
       // Insert all loops from the new state

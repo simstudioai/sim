@@ -309,14 +309,28 @@ export function getHorizontalWorkflowHandleSide(
   return pointerX < cardWidth / 2 ? 'left' : 'right'
 }
 
-// Falsy-coalesce (not nullish-coalesce): persistence normalizes a missing
-// handle to `null` via `edge.sourceHandle || null` (see
-// apps/realtime/src/database/operations.ts), which also maps `''` to
-// `null`. Comparing with `??` would treat `''` and `null` as distinct
-// handles pre-insert while both are written as the same `null` value,
-// letting a `sourceHandle: ''` edge slip past the duplicate check.
-function normalizeWorkflowEdgeHandle(handle: string | null | undefined): string | null {
-  return handle || null
+/**
+ * Returns the canonical persisted source handle used for edge identity.
+ *
+ * Falsy-coalescing mirrors persistence, where an empty handle is stored as
+ * `null`, while positioned legacy outputs collapse onto the right-side port.
+ */
+export function normalizeWorkflowEdgeSourceHandle(
+  handle: string | null | undefined
+): string | null {
+  return normalizePositionedSourceHandleId(handle || null)
+}
+
+/**
+ * Returns the canonical persisted target handle used for edge identity.
+ *
+ * Falsy-coalescing mirrors persistence, where an empty handle is stored as
+ * `null`, while legacy vertical inputs collapse onto the left-side port.
+ */
+export function normalizeWorkflowEdgeTargetHandle(
+  handle: string | null | undefined
+): string | null {
+  return normalizePositionedTargetHandleId(handle || null)
 }
 
 function isDuplicateWorkflowEdge(
@@ -325,11 +339,11 @@ function isDuplicateWorkflowEdge(
 ): boolean {
   return (
     edge.source === existing.source &&
-    normalizeWorkflowEdgeHandle(edge.sourceHandle) ===
-      normalizeWorkflowEdgeHandle(existing.sourceHandle) &&
+    normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ===
+      normalizeWorkflowEdgeSourceHandle(existing.sourceHandle) &&
     edge.target === existing.target &&
-    normalizeWorkflowEdgeHandle(edge.targetHandle) ===
-      normalizeWorkflowEdgeHandle(existing.targetHandle)
+    normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ===
+      normalizeWorkflowEdgeTargetHandle(existing.targetHandle)
   )
 }
 
