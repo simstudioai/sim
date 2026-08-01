@@ -341,19 +341,6 @@ export function commitRoomPermission(
 }
 
 /**
- * Records a decision as the newest word, taking its read ticket at write time.
- * For callers that have just observed the authoritative state with no query of
- * their own to order against.
- */
-export function recordRoomPermission(
-  userId: string,
-  room: RoomRef,
-  permission: PermissionType | null
-): void {
-  recordRoleDecision(roleCacheKey(userId, room), permission, beginRoomPermissionRead())
-}
-
-/**
  * Live permission gate for mutating socket operations. Re-validates the user's workspace
  * role against the database (cached per pod for {@link ROLE_REVALIDATION_TTL_MS}) so that
  * revoked or downgraded collaborators lose write access on an open connection without

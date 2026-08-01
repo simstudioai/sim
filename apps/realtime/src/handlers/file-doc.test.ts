@@ -39,7 +39,7 @@ import {
   flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
-import { recordRoomPermission } from '@/middleware/permissions'
+import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
 type Handler = (payload?: unknown) => Promise<void> | void
 
@@ -255,7 +255,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     mockAuthorizeRoom.mockImplementation(async () => {
       // Simulate the revocation landing between this join's authorize and its commit,
       // exactly as the sweep would record it.
-      recordRoomPermission('user-race', { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' }, null)
+      commitRoomPermission(
+        'user-race',
+        { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' },
+        null,
+        beginRoomPermissionRead()
+      )
       return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
     })
 

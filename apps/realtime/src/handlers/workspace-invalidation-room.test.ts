@@ -19,7 +19,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 }))
 
 import { setupWorkspaceInvalidationRoom } from '@/handlers/workspace-invalidation-room'
-import { recordRoomPermission } from '@/middleware/permissions'
+import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
 type Payload = { workspaceId?: string }
 
@@ -169,7 +169,12 @@ describe.each([ROOM_TYPES.WORKSPACE_FILES, ROOM_TYPES.WORKSPACE_TABLES] as const
       )
 
       mockAuthorizeRoom.mockImplementation(async () => {
-        recordRoomPermission('user-race', { type: roomType, id: 'ws-race' }, null)
+        commitRoomPermission(
+          'user-race',
+          { type: roomType, id: 'ws-race' },
+          null,
+          beginRoomPermissionRead()
+        )
         return { allowed: true, status: 200, workspaceId: 'ws-race', workspacePermission: 'admin' }
       })
 

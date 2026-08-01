@@ -20,7 +20,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({
 }))
 
 import { setupTablesHandlers } from '@/handlers/tables'
-import { recordRoomPermission } from '@/middleware/permissions'
+import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
 const TABLE_ROOM = { type: ROOM_TYPES.TABLE, id: 'table-1' }
 
@@ -183,7 +183,12 @@ describe('setupTablesHandlers', () => {
     setupTablesHandlers(socket as unknown as SetupArg, roomManager)
 
     mockAuthorizeRoom.mockImplementation(async () => {
-      recordRoomPermission('user-race', { type: ROOM_TYPES.TABLE, id: 'table-race' }, null)
+      commitRoomPermission(
+        'user-race',
+        { type: ROOM_TYPES.TABLE, id: 'table-race' },
+        null,
+        beginRoomPermissionRead()
+      )
       return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' }
     })
 
