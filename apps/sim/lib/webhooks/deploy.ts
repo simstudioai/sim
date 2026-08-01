@@ -683,7 +683,10 @@ export async function prepareStableTriggerWebhooksForDeploy({
       success: false,
       error: {
         message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
-        status: 500,
+        // Propagate a provider-attached status (e.g. Zoho's 4xx edition/validation
+        // failures) so the deploy outbox fails terminally instead of retrying,
+        // matching the legacy save path's status-aware mapping below.
+        status: (error as { status?: number })?.status ?? 500,
       },
     }
   }
