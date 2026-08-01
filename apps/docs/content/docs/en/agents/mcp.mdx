@@ -72,6 +72,19 @@ Authorization: Bearer {{MCP_API_TOKEN}}
 
 When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
 
+### Starter Configurations
+
+The add modal includes starter templates for common MCP servers.
+
+For [Unstructured Transform](https://docs.unstructured.io/transform/quickstart), first add a workspace environment variable named `UNSTRUCTURED_API_KEY`, then choose the Unstructured Transform template. Unstructured Transform converts documents (PDF, DOCX, PPTX, HTML, and images, including scanned or image-only pages via OCR) into clean markdown, JSON, HTML, or text. It also supports RAG preprocessing with chunking, enrichment, and embedding. The template pre-fills:
+
+```
+URL: https://mcp.transform.unstructured.io
+Authorization: Bearer {{UNSTRUCTURED_API_KEY}}
+```
+
+If your self-hosted deployment sets `ALLOWED_MCP_DOMAINS`, include `mcp.transform.unstructured.io` before saving the server.
+
 ### Testing and Validation
 
 Click **Test Connection** before saving to verify the server is reachable and discover available tools. The test response shows the number of tools found and the protocol version.
