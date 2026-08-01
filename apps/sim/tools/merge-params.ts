@@ -24,8 +24,11 @@ export function isNonEmpty(value: unknown): boolean {
 /**
  * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
  * User-provided non-empty values take precedence.
+ *
+ * Module-private: only {@link mergeToolParameters} needs it. It was exported from
+ * `@/tools/params` but never imported anywhere.
  */
-export function deepMergeInputMapping(
+function deepMergeInputMapping(
   llmInputMapping: Record<string, unknown> | undefined,
   userInputMapping: Record<string, unknown> | string | undefined
 ): Record<string, unknown> {
