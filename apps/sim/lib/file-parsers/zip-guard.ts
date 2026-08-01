@@ -217,6 +217,13 @@ function readCentralDirectoryEntry(
  * `null` when the buffer is not a parseable ZIP archive (e.g. legacy binary
  * `.xls`/`.doc`, or a misidentified plaintext file) so the caller can defer to
  * the downstream parser. Stops early once the running total exceeds the limit.
+ *
+ * Like {@link readZipCentralDirectoryStats}, this charges the CONTIGUOUS run of
+ * records rather than the EOCD's declared count. JSZip's `readCentralDir` loops
+ * on the record signature and keeps every entry it finds — a count mismatch is
+ * explicitly not an error there — so an archive that under-reports its count
+ * would otherwise hide honestly-large entries from this cap while the parser
+ * still expanded them.
  */
 function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): number | null {
   if (buffer.length < EOCD_MIN_SIZE) {
@@ -234,15 +241,12 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
   }
 
   let total = 0
+  let counted = 0
   let cursor = location.offset
-  for (let entry = 0; entry < location.entryCount; entry++) {
-    if (cursor + CENTRAL_DIRECTORY_HEADER_MIN_SIZE > buffer.length) {
-      return null
-    }
-    if (buffer.readUInt32LE(cursor) !== CENTRAL_DIRECTORY_HEADER_SIGNATURE) {
-      return null
-    }
-
+  while (
+    cursor + CENTRAL_DIRECTORY_HEADER_MIN_SIZE <= buffer.length &&
+    buffer.readUInt32LE(cursor) === CENTRAL_DIRECTORY_HEADER_SIGNATURE
+  ) {
     const fileNameLength = buffer.readUInt16LE(cursor + 28)
     const extraFieldLength = buffer.readUInt16LE(cursor + 30)
     const commentLength = buffer.readUInt16LE(cursor + 32)
@@ -257,7 +261,14 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
       return total
     }
 
+    counted += 1
     cursor += CENTRAL_DIRECTORY_HEADER_MIN_SIZE + fileNameLength + extraFieldLength + commentLength
+  }
+
+  // Fewer records than the archive claims means the directory is malformed;
+  // fail closed rather than charging a partial total against the cap.
+  if (counted < location.entryCount) {
+    return null
   }
 
   return total

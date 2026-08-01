@@ -231,6 +231,29 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     )
   })
 
+  it('charges entries hidden behind an under-reported EOCD count against the cap', async () => {
+    // JSZip's readCentralDir loops on the record signature and keeps every
+    // entry it finds — a count mismatch is explicitly not an error there — so
+    // entries past the declared count must still be charged against the cap.
+    const buffer = await buildZip({
+      'a.xml': 'A'.repeat(60_000),
+      'b.xml': 'B'.repeat(60_000),
+      'c.xml': 'C'.repeat(60_000),
+    })
+    const eocdOffset = buffer.length - 22
+    expect(buffer.readUInt32LE(eocdOffset)).toBe(0x06054b50)
+    buffer.writeUInt16LE(1, eocdOffset + 8) // entries on this disk
+    buffer.writeUInt16LE(1, eocdOffset + 10) // total entries
+
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(buffer, {
+        maxTotalUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(/exceeds the maximum allowed/)
+  })
+
   it('accepts a multi-entry archive whose entries all inflate to what they declare', async () => {
     const buffer = await buildZip({
       '[Content_Types].xml': '<?xml version="1.0"?><Types/>',
