@@ -5,6 +5,7 @@ import { jupyterProxyContract } from '@/lib/api/contracts/tools/jupyter'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
+  MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -77,6 +78,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body: hasBody ? JSON.stringify(data.body) : undefined,
       allowHttp: true,
       maxRedirects: 0,
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     })
 
     const text = await upstream.text()
