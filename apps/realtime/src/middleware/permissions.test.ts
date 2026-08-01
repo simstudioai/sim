@@ -519,6 +519,43 @@ describe('verifyWorkflowAccess role-cache refresh', () => {
     expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
   })
 
+  it('does not let a stale join-time allow bury a sweep denial that started later', async () => {
+    const userId = 'vw-user-3'
+    const workflowId = 'vw-wf-3'
+
+    // Hand out a controllable promise per authorization call, so the two reads can be
+    // started in one order and settled in the other.
+    const settle: Array<(value: { allowed: boolean; workspacePermission: string | null }) => void> =
+      []
+    mockAuthorize.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle.push(resolve)
+        })
+    )
+
+    // A join-style verify starts FIRST (against pre-revocation state) and stalls.
+    const staleJoin = verifyWorkflowAccess(userId, workflowId)
+    for (let i = 0; i < 10 && settle.length < 1; i++) await Promise.resolve()
+    expect(settle).toHaveLength(1)
+
+    // The sweep's authorization starts AFTER it, and stalls too.
+    const sweep = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+    for (let i = 0; i < 10 && settle.length < 2; i++) await Promise.resolve()
+    expect(settle).toHaveLength(2)
+
+    // The sweep's denial lands first, then the older join's allow. Ordering by WRITE
+    // time would let the join bury the denial and hand the socket another full TTL of
+    // access; ordering by read start keeps the denial in force.
+    settle[1]({ allowed: false, workspacePermission: null })
+    expect(await sweep).toBeNull()
+    settle[0]({ allowed: true, workspacePermission: 'write' })
+    await staleJoin
+
+    mockAuthorize.mockRejectedValue(new Error('must not re-query'))
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBeNull()
+  })
+
   it('does not let a stale in-flight resolution overwrite a fresher verify decision', async () => {
     const userId = 'vw-user-2'
     const workflowId = 'vw-wf-2'

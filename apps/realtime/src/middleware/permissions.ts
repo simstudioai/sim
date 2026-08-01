@@ -102,7 +102,32 @@ const MAX_ROLE_CACHE_ENTRIES = 5_000
 interface CachedRole {
   /** Authoritative workspace role, or `null` when the user has no access. */
   role: string | null
+  /**
+   * The {@link beginRoomPermissionRead} ticket of the query this decision came
+   * from — i.e. when its DB read STARTED, not when it was written.
+   */
+  readSeq: number
   expiresAt: number
+}
+
+/**
+ * Monotonic ticket counter establishing a total order over authorization READS.
+ *
+ * Ordering by write time is not sufficient: two readers can start their queries in
+ * one order and finish in the other, so the decision written last can be derived
+ * from the older read. A join that authorized before a revocation but returned
+ * after the sweep's denial would then win — leaving a revoked user with another
+ * full TTL of access. Every writer therefore takes a ticket before it queries and
+ * a decision only yields to one from a strictly later-started read.
+ */
+let roleReadSeqCounter = 0
+
+/**
+ * Takes a read ticket. Call immediately BEFORE issuing an authorization query, and
+ * pass the result to {@link commitRoomPermission} once it returns.
+ */
+export function beginRoomPermissionRead(): number {
+  return ++roleReadSeqCounter
 }
 
 /**
@@ -142,19 +167,31 @@ function purgeExpiredRoles(now: number): void {
   }
 }
 
-/**
- * Records a freshly-read authoritative decision into the role cache. Every
- * successful DB read of a user's workspace role goes through this — including
- * the join-time {@link verifyWorkflowAccess} — so a stale cached revocation
- * never outlives a newer authoritative read (e.g. a re-granted user re-joining
- * within the TTL of the sweep's recorded `null`).
- */
-function recordRoleDecision(key: string, role: string | null): void {
+function recordRoleDecision(key: string, role: string | null, readSeq: number): void {
   const now = Date.now()
   if (roleCache.size >= MAX_ROLE_CACHE_ENTRIES) {
     purgeExpiredRoles(now)
   }
-  roleCache.set(key, { role, expiresAt: now + ROLE_REVALIDATION_TTL_MS })
+  roleCache.set(key, { role, readSeq, expiresAt: now + ROLE_REVALIDATION_TTL_MS })
+}
+
+/**
+ * Commits a freshly-read authoritative decision, unless a decision from a
+ * strictly later-started read is already cached — in which case that one stands
+ * and is returned instead.
+ *
+ * Every successful DB read of a user's workspace role goes through this: the
+ * cached resolver, the join-time {@link verifyWorkflowAccess}, and the room join
+ * authorizer. That is what keeps a stale cached revocation from outliving a newer
+ * authoritative read (a re-granted user re-joining inside the sweep's recorded
+ * `null` TTL) while equally keeping a stale ALLOW from burying the sweep's fresher
+ * denial. Returns the decision that ends up in force.
+ */
+function commitRoleDecision(key: string, role: string | null, readSeq: number): string | null {
+  const existing = roleCache.get(key)
+  if (existing !== undefined && existing.readSeq > readSeq) return existing.role
+  recordRoleDecision(key, role, readSeq)
+  return role
 }
 
 /**
@@ -195,19 +232,13 @@ async function resolveRoleUncached(
   room: RoomRef,
   fallbackRole: string
 ): Promise<string | null> {
-  const entryBeforeQuery = roleCache.get(key)
+  const readSeq = beginRoomPermissionRead()
   try {
     const role = await readAuthoritativeRoomPermission(userId, room)
-    // A fresh authoritative read (e.g. a join-time verifyWorkflowAccess) may
-    // have recorded a decision while this query was in flight. That write is
-    // newer than this query's read snapshot, so prefer it instead of
-    // overwriting it with a potentially stale result.
-    const entryAfterQuery = roleCache.get(key)
-    if (entryAfterQuery !== undefined && entryAfterQuery !== entryBeforeQuery) {
-      return entryAfterQuery.role
-    }
-    recordRoleDecision(key, role)
-    return role
+    // Yields only to a decision from a later-STARTED read (see commitRoleDecision).
+    // Comparing write order instead would let a join whose authorize began before
+    // this one — but returned after it — bury this result.
+    return commitRoleDecision(key, role, readSeq)
   } catch (error) {
     logger.warn(
       `Failed to re-validate role for user ${userId} on ${roomName(room)}; using last known role`,
@@ -291,50 +322,35 @@ export function peekRoomPermission(userId: string, room: RoomRef): string | null
 }
 
 /**
- * Records an authoritative decision read outside this module (the room join
+ * Commits an authoritative decision read outside this module (the room join
  * authorizer) into the shared cache, so the sweep and the per-frame gates start
- * warm and a re-granted user is never held out by a stale cached revocation.
+ * warm on the room a socket just joined.
  *
- * Unconditional: the caller's read is taken as the newest word. Use
- * {@link recordRoomPermissionIfUnchanged} when the read was slow enough that a
- * newer decision could have landed meanwhile.
+ * `readSeq` must come from a {@link beginRoomPermissionRead} taken BEFORE the
+ * caller's query: the decision is discarded if a later-started read already
+ * committed one, so neither a stale ALLOW can bury the sweep's fresher denial nor
+ * a stale revocation outlive a re-grant.
+ */
+export function commitRoomPermission(
+  userId: string,
+  room: RoomRef,
+  permission: PermissionType | null,
+  readSeq: number
+): void {
+  commitRoleDecision(roleCacheKey(userId, room), permission, readSeq)
+}
+
+/**
+ * Records a decision as the newest word, taking its read ticket at write time.
+ * For callers that have just observed the authoritative state with no query of
+ * their own to order against.
  */
 export function recordRoomPermission(
   userId: string,
   room: RoomRef,
   permission: PermissionType | null
 ): void {
-  recordRoleDecision(roleCacheKey(userId, room), permission)
-}
-
-/** Opaque token identifying the cache entry a caller observed before its query. */
-export type RoomPermissionSnapshot = object | undefined
-
-/** Captures the current cache entry for a (user, room), for {@link recordRoomPermissionIfUnchanged}. */
-export function snapshotRoomPermission(userId: string, room: RoomRef): RoomPermissionSnapshot {
-  return roleCache.get(roleCacheKey(userId, room))
-}
-
-/**
- * Records an authoritative decision only if no other decision landed since
- * `snapshot` was taken.
- *
- * Without this, a join whose authorization query started before a revocation but
- * returned after the sweep recorded that revocation would overwrite it with its own
- * stale "allowed", handing the socket another full TTL of access. Entry identity
- * (not a timestamp) is the comparison, mirroring the in-flight ordering guard the
- * cached resolver already applies to its own queries — so it is exact regardless of
- * how many writes land inside one millisecond.
- */
-export function recordRoomPermissionIfUnchanged(
-  userId: string,
-  room: RoomRef,
-  permission: PermissionType | null,
-  snapshot: RoomPermissionSnapshot
-): void {
-  const key = roleCacheKey(userId, room)
-  if (roleCache.get(key) !== snapshot) return
-  recordRoleDecision(key, permission)
+  recordRoleDecision(roleCacheKey(userId, room), permission, beginRoomPermissionRead())
 }
 
 /**
@@ -376,6 +392,9 @@ export async function verifyWorkflowAccess(
   userId: string,
   workflowId: string
 ): Promise<{ hasAccess: boolean; role?: string; workspaceId?: string }> {
+  // Taken before the reads below, so this decision yields to any authorization
+  // that started later (e.g. the sweep's denial) instead of by write order.
+  const readSeq = beginRoomPermissionRead()
   try {
     const workflowData = await db
       .select({
@@ -398,9 +417,10 @@ export async function verifyWorkflowAccess(
       action: 'read',
     })
 
-    recordRoleDecision(
+    commitRoleDecision(
       roleCacheKey(userId, { type: ROOM_TYPES.WORKFLOW, id: workflowId }),
-      authorization.allowed ? (authorization.workspacePermission ?? null) : null
+      authorization.allowed ? (authorization.workspacePermission ?? null) : null,
+      readSeq
     )
 
     if (!authorization.allowed || !authorization.workspacePermission) {
