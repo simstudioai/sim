@@ -1091,24 +1091,26 @@ export function setupWorkspaceFileDocHandlers(
       // awareness). Resolved here so the generation guard below also covers this await.
       const avatarUrl = await resolveAvatarUrl(socket, userId)
 
-      // Abort a JOIN superseded during authorization/identity resolution: the socket
-      // disconnected, or a newer JOIN (a document switch) bumped the generation. Registering
-      // here would leak a dead socket's room or bind the socket to the wrong document.
-      if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
-
-      // Re-check the cached decision immediately before registering: the access
-      // re-validation sweep records a revocation BEFORE it evicts, so a join that
-      // authorized just before the revocation cannot complete afterwards and re-bind
-      // the socket to the document. `undefined` (nothing cached) is "unknown", never a
-      // denial — the authorize above is then the freshest word we have.
-      const recheck = peekRoomPermission(userId, room)
-      if (
-        recheck !== undefined &&
-        !satisfiesRoomMembership(recheck, ROOM_TYPES.WORKSPACE_FILE_DOC)
-      ) {
+      // Re-check access immediately before registering, mirroring the workflow join: the
+      // access re-validation sweep records a revocation BEFORE it evicts, so a join that
+      // authorized just before the revocation must not complete afterwards and re-bind
+      // the socket to the document. This RE-RESOLVES rather than peeking the cache — a
+      // peek treats an expired entry as unknown and fails open, which a join stalled
+      // longer than the cache TTL would slip straight through. Normally a cache hit (this
+      // join's own authorize just warmed it), so it costs no extra query.
+      const currentPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
+      if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
+        logger.warn(`User ${userId} lost write access to file ${fileId} before the join completed`)
         emitJoinError(socket, fileId, 'Access denied to file', 'ACCESS_DENIED', false)
         return
       }
+
+      // Abort a JOIN superseded during authorization/identity resolution: the socket
+      // disconnected, or a newer JOIN (a document switch) bumped the generation. Registering
+      // here would leak a dead socket's room or bind the socket to the wrong document.
+      // Last await before the commit, so nothing can interleave between the access
+      // re-check above and the registration below.
+      if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       const entry = getOrCreateRoom(io, room)
 

@@ -260,12 +260,14 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // awaits above bumped the generation, or the socket disconnected. Abort before registering.
       if (superseded()) return
 
-      // Re-check the cached decision too: the access re-validation sweep records a
-      // revocation BEFORE it evicts, so a join that authorized just before the
-      // revocation cannot complete afterwards and put the socket back in the room.
-      // `undefined` (nothing cached) is "unknown", never a denial.
-      const recheck = peekRoomPermission(userId, room)
-      if (recheck !== undefined && !satisfiesRoomMembership(recheck, ROOM_TYPES.TABLE)) {
+      // Re-check access too: the access re-validation sweep records a revocation BEFORE
+      // it evicts, so a join that authorized just before the revocation must not
+      // complete afterwards and put the socket back in the room. RE-RESOLVES rather
+      // than peeking — a peek treats an expired entry as unknown and fails open, which
+      // a join stalled longer than the cache TTL would slip through. Normally a cache
+      // hit (this join's own authorize just warmed it).
+      const currentPermission = await resolveCurrentRoomPermission(userId, room, TABLE_ACTION)
+      if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.TABLE)) {
         socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
           tableId,
           error: 'Access denied to table',

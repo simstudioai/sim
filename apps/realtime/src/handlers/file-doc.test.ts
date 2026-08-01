@@ -275,6 +275,43 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(joinSuccessFileId(socket)).toBeUndefined()
   })
 
+  it('re-reads access when the cached decision expired mid-join, instead of failing open', async () => {
+    // A join stalled longer than the cache TTL: the sweep's denial is recorded with a
+    // later read ticket (so this join's own allow is correctly dropped) but has since
+    // expired. Peeking the cache would read that as "unknown" and let the socket back
+    // into the document, so the join must re-resolve against the database.
+    vi.useFakeTimers()
+    try {
+      const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-stale' }
+      const { io } = createIo()
+      const { socket, handlers } = setup('socket-stale', io, { userId: 'user-stale' })
+
+      mockAuthorizeRoom.mockImplementation(async ({ action }: { action: string }) => {
+        // The authoritative current answer: access is gone.
+        if (action !== 'write')
+          return { allowed: false, status: 403, workspaceId: 'ws-1', workspacePermission: null }
+        // This join's own authorize saw the pre-revocation state, and the sweep records
+        // the revocation (later read ticket) while it is still in flight.
+        commitRoomPermission('user-stale', room, null, beginRoomPermissionRead())
+        await new Promise((resolve) => setTimeout(resolve, 31_000))
+        return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
+      })
+
+      const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-stale', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(31_000)
+      await joining
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_ERROR,
+        expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+      )
+      expect(socket.join).not.toHaveBeenCalled()
+      expect(joinSuccessFileId(socket)).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('requires write permission and reports 404 as NOT_FOUND', async () => {
     mockAuthorizeRoom.mockResolvedValue({ allowed: false, status: 404, workspacePermission: null })
     const { io } = createIo()

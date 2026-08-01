@@ -3,7 +3,7 @@ import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-
 import { type RoomRef, type RoomType, roomName } from '@sim/realtime-protocol/rooms'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { peekRoomPermission } from '@/middleware/permissions'
+import { resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('WorkspaceInvalidationRoom')
@@ -108,13 +108,19 @@ export function setupWorkspaceInvalidationRoom(
       // stale join can't leave the room the client has since switched to.
       if (joinGeneration !== joinAttempt || socket.disconnected) return
 
-      // Re-check the cached decision before committing: the access re-validation sweep
-      // records a revocation BEFORE it evicts, so a join that authorized just before the
+      // Re-check access before committing: the access re-validation sweep records a
+      // revocation BEFORE it evicts, so a join that authorized just before the
       // revocation must not complete afterwards and put the socket back in the room.
-      // `undefined` (nothing cached) is "unknown", never a denial — the authorize above
-      // is then the freshest word we have. Mirrors the file-doc and table joins.
-      const recheck = peekRoomPermission(socket.userId, ref)
-      if (recheck !== undefined && !satisfiesRoomMembership(recheck, roomType)) {
+      // RE-RESOLVES rather than peeking — a peek treats an expired entry as unknown and
+      // fails open, which a join stalled longer than the cache TTL would slip through.
+      // Normally a cache hit (this join's own authorize just warmed it). Mirrors the
+      // file-doc and table joins.
+      const currentPermission = await resolveCurrentRoomPermission(
+        socket.userId,
+        ref,
+        ROOM_MEMBERSHIP_ACTIONS[roomType]
+      )
+      if (!satisfiesRoomMembership(currentPermission, roomType)) {
         socket.emit(errorEvent, {
           workspaceId,
           error: 'Access denied to workspace',
