@@ -18,6 +18,23 @@ const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 15 * 60 * 1000
 
+/**
+ * Poll statuses that leave the approval still redeemable, so the login should
+ * keep waiting rather than making the user restart the browser handoff.
+ *
+ * The poll route releases its mint reservation on any mint failure — its own
+ * comment says "a later poll can retry" — so giving up on those threw away an
+ * approval the user had already granted. A transient 5xx or a same-second name
+ * conflict (409) is exactly that case.
+ *
+ * 429 is the poll cadence hitting the per-IP bucket, not a refusal.
+ *
+ * Everything else stays terminal: 400 means a malformed request id or verifier,
+ * and 401/403/404 mean the server is refusing on purpose. Retrying those just
+ * spins until the 15-minute timeout.
+ */
+const RETRYABLE_POLL_STATUSES = new Set([409, 429, 500, 502, 503, 504])
+
 export type CliAuthScope = 'copilot' | 'platform'
 
 export interface AuthRequest {
@@ -122,9 +139,7 @@ export async function pollForKey(
       const raw = await response.text()
 
       if (!response.ok) {
-        // 429 is the poll cadence bumping the per-IP bucket, not a refusal —
-        // back off and keep the login alive instead of making the user restart.
-        if (response.status !== 429) {
+        if (!RETRYABLE_POLL_STATUSES.has(response.status)) {
           let message = `Login failed with status ${response.status}`
           try {
             const body = JSON.parse(raw) as { error?: unknown }

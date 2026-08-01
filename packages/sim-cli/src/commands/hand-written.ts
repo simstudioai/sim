@@ -27,7 +27,10 @@ type Row = QueryRowsResponse['data'][number]
  * are structurally incompatible under this TS config, and bridging them needs a
  * cast that would erase exactly the typing this keeps honest.
  */
-async function streamToFile(body: ReadableStream<Uint8Array>, file: WriteStream): Promise<void> {
+export async function streamToFile(
+  body: ReadableStream<Uint8Array>,
+  file: WriteStream
+): Promise<void> {
   // Registered before the first write, not after the loop. `createWriteStream`
   // opens lazily, so an EEXIST/EACCES/ENOSPC can surface at any point — with no
   // listener attached it is an unhandled 'error' event that takes down the
@@ -50,7 +53,13 @@ async function streamToFile(body: ReadableStream<Uint8Array>, file: WriteStream)
       reader.releaseLock()
     }
 
-    await new Promise<void>((resolve) => file.end(resolve))
+    // `end`'s callback receives the error from a failed final flush (ENOSPC is
+    // the common one, since the bytes may not hit disk until here). Passing
+    // `resolve` directly made that error the resolution *value*, so the pump
+    // fulfilled and the command printed "Saved" for a truncated file.
+    await new Promise<void>((resolve, reject) => {
+      file.end((error?: Error | null) => (error ? reject(error) : resolve()))
+    })
   })()
 
   try {
