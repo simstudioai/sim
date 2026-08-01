@@ -120,6 +120,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/conte
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
 
+# The collab-doc seed/merge/persist routes run the converter (markdown <-> Yjs) server-side. `yjs` is a
+# serverExternalPackage, and the Next standalone tracer copies it only partially — it misses ESM subpath
+# files that `yjs/dist/yjs.mjs` imports through `lib0`'s exports map (e.g. `lib0/logging`), so the seed
+# 500s ("Cannot find module 'lib0/logging'") and every collaborative doc is stuck read-only. Overwrite
+# the partial trace with the complete packages from the full install (outputFileTracingIncludes can't:
+# its globs resolve against apps/sim, but these deps hoist to the monorepo-root node_modules).
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/lib0 ./node_modules/lib0
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/yjs ./node_modules/yjs
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modules/y-protocols
+
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 

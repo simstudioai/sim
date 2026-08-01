@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   bulkArchiveWorkspaceFileItems,
   createWorkspaceFileFolder,
@@ -202,6 +203,7 @@ export async function performDeleteWorkspaceFileItems(
       })
     }
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, deletedItems }
   } catch (error) {
     logger.error('Failed to delete workspace file items', { error })
@@ -262,6 +264,7 @@ export async function performMoveWorkspaceFileItems(
       })
     }
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, movedItems }
   } catch (error) {
     logger.error('Failed to move workspace file items', { error })
@@ -306,6 +309,7 @@ export async function performRenameWorkspaceFile(
       description: `Renamed file to "${file.name}"`,
     })
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, file }
   } catch (error) {
     logger.error('Failed to rename workspace file', { error })
@@ -369,6 +373,7 @@ export async function performMoveRenameWorkspaceFile(
       })
     }
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, file }
   } catch (error) {
     logger.error('Failed to move/rename workspace file', { error })
@@ -402,6 +407,7 @@ export async function performRestoreWorkspaceFile(
       description: `Restored workspace file ${fileId}`,
     })
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true }
   } catch (error) {
     logger.error('Failed to restore workspace file', { error })
@@ -432,6 +438,7 @@ export async function performCreateWorkspaceFileFolder(
       description: `Created file folder "${folder.name}"`,
     })
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, folder }
   } catch (error) {
     logger.error('Failed to create workspace file folder', { error })
@@ -471,6 +478,7 @@ export async function performUpdateWorkspaceFileFolder(
       description: `Updated file folder "${folder.name}"`,
     })
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, folder }
   } catch (error) {
     logger.error('Failed to update workspace file folder', { error })
@@ -517,6 +525,7 @@ export async function performRestoreWorkspaceFileFolder(
       },
     })
 
+    await notifyWorkspaceFilesChanged(workspaceId)
     return { success: true, folder, restoredItems }
   } catch (error) {
     logger.error('Failed to restore workspace file folder', { error })

@@ -11,6 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getTableById, TableConflictError, type TableSchema } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   performDeleteTable,
   performMoveTableToFolder,
@@ -236,6 +237,9 @@ export const PATCH = withRouteHandler(
           )
         }
       }
+
+      // Live-collab: tell open viewers the definition changed so they refetch.
+      signalTableSchemaChanged(tableId)
 
       // Re-read so the response reflects both a rename and a lock change.
       const updated = await getTableById(tableId)

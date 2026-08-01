@@ -15,6 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { updateRow } from '@/lib/table'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { performDeleteTableRow } from '@/lib/table/orchestration'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import {
@@ -145,6 +146,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       table,
       requestId
     )
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChanged(tableId)
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
@@ -216,6 +220,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
         { status: statusForOrchestrationError(outcome.errorCode) }
       )
     }
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,

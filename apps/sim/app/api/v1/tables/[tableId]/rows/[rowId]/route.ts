@@ -16,6 +16,7 @@ import type { RowData, TableSchema } from '@/lib/table'
 import { updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { performDeleteTableRow } from '@/lib/table/orchestration'
 import {
   accessError,
@@ -160,6 +161,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       table,
       requestId
     )
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChanged(tableId)
     // No `cancellationGuard` is passed here, so `updateRow` can't return null
     // from this caller. Defensive narrowing for TypeScript.
     if (!updatedRow) {
@@ -238,6 +242,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
         { status: statusForOrchestrationError(outcome.errorCode) }
       )
     }
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,

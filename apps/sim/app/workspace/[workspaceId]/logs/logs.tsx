@@ -33,6 +33,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,
@@ -91,7 +92,6 @@ import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
   formatDate,
-  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,

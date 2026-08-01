@@ -8,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
@@ -54,6 +55,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
