@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -617,10 +617,15 @@ type ClaimableChatUploadRow = { kind: 'update'; id: string } | { kind: 'insert' 
  * Soft-deleted rows count: the active-key unique index is partial on
  * `deleted_at IS NULL`, so inserting over an archived row would succeed and
  * hand the caller read access to the archived file's bytes.
+ *
+ * An upload also binds to exactly one chat: a row already linked to a different
+ * chat is not claimable, matching the 409 the sibling `local-files/stage` route
+ * returns for the same case. Re-sending the key within its own chat still works.
  */
 async function resolveClaimableChatUploadRow(
   workspaceId: string,
   userId: string,
+  chatId: string,
   s3Key: string
 ): Promise<ClaimableChatUploadRow> {
   const rows = await db
@@ -629,6 +634,7 @@ async function resolveClaimableChatUploadRow(
       userId: workspaceFiles.userId,
       workspaceId: workspaceFiles.workspaceId,
       context: workspaceFiles.context,
+      chatId: workspaceFiles.chatId,
       deletedAt: workspaceFiles.deletedAt,
     })
     .from(workspaceFiles)
@@ -643,7 +649,8 @@ async function resolveClaimableChatUploadRow(
       row.userId === userId &&
       row.workspaceId === workspaceId &&
       row.context === 'mothership' &&
-      row.deletedAt === null
+      row.deletedAt === null &&
+      (row.chatId === null || row.chatId === chatId)
   )
 
   if (!owned) {
@@ -686,7 +693,7 @@ export async function trackChatUpload(
     throw new WorkspaceFileKeyOwnershipError(s3Key)
   }
 
-  const claimable = await resolveClaimableChatUploadRow(workspaceId, userId, s3Key)
+  const claimable = await resolveClaimableChatUploadRow(workspaceId, userId, chatId, s3Key)
 
   if (claimable.kind === 'insert' && hasCloudStorage()) {
     // Hygiene only — the format and no-prior-record guards above already carry
@@ -727,7 +734,13 @@ export async function trackChatUpload(
               eq(workspaceFiles.userId, userId),
               eq(workspaceFiles.workspaceId, workspaceId),
               eq(workspaceFiles.context, 'mothership'),
-              isNull(workspaceFiles.deletedAt)
+              isNull(workspaceFiles.deletedAt),
+              // Compare-and-swap on the chat binding: an upload belongs to one
+              // chat. Two overlapping requests both observe `chat_id IS NULL`,
+              // but only the first satisfies this predicate — the loser matches
+              // zero rows and fails closed instead of stealing the binding and
+              // its delete-cascade lifecycle.
+              or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
             )
           )
           .returning({ id: workspaceFiles.id })

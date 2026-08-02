@@ -52,6 +52,7 @@ function existingRow(overrides: Record<string, unknown> = {}) {
     userId: USER_ID,
     workspaceId: WORKSPACE_ID,
     context: 'mothership',
+    chatId: null,
     deletedAt: null,
     ...overrides,
   }
@@ -397,8 +398,47 @@ describe('trackChatUpload', () => {
           { type: 'eq', left: 'workspaceId', right: WORKSPACE_ID },
           { type: 'eq', left: 'context', right: 'mothership' },
           { type: 'isNull', column: 'deletedAt' },
+          {
+            type: 'or',
+            conditions: [
+              { type: 'isNull', column: 'chatId' },
+              { type: 'eq', left: 'chatId', right: CHAT_ID },
+            ],
+          },
         ],
       })
+    })
+
+    /**
+     * An upload binds to exactly one chat. Matches the 409 the sibling
+     * `local-files/stage` route already returns for this case.
+     */
+    it('refuses to relink an upload already bound to a different chat', async () => {
+      queueOwnershipLookup([existingRow({ chatId: 'other-chat-id' })])
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    it('still re-links an upload already bound to this same chat', async () => {
+      queueOwnershipLookup([existingRow({ chatId: CHAT_ID })])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
+
+      const result = await trackChatUpload(
+        WORKSPACE_ID,
+        USER_ID,
+        CHAT_ID,
+        S3_KEY,
+        'image.png',
+        'image/png',
+        1024
+      )
+
+      expect(result).toEqual({ displayName: 'image.png' })
     })
 
     it('requires the object to exist in storage before minting a new binding', async () => {
