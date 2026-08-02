@@ -27,7 +27,7 @@ import {
   dispatchAfterBatchInsert,
   generateColumnId,
   getMaxRowsPerTable,
-  inferColumnType,
+  inferredColumnDefinition,
   markTableJobRunning,
   releaseJobClaim,
   sanitizeName,
@@ -230,15 +230,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           suffix++
         }
         usedNames.add(columnName.toLowerCase())
-        const inferredType = inferColumnType(rows.map((r) => r[header]))
+        // Same helper the create-from-CSV path uses, so the two cannot answer
+        // differently. Inlining just the TYPE here persisted an appended date
+        // column as date-only while its rows were coerced with their times.
+        const inferred = inferredColumnDefinition(
+          columnName,
+          rows.map((r) => r[header])
+        )
         // Pre-assign the id so the prospective schema (used to coerce rows) and
         // the persisted column (created in importAppendRows) share the same key.
         const id = generateColumnId()
-        additions.push({ id, name: columnName, type: inferredType })
+        additions.push({ ...inferred, id })
         newColumns.push({
+          ...inferred,
           id,
-          name: columnName,
-          type: inferredType as TableSchema['columns'][number]['type'],
+          type: inferred.type as TableSchema['columns'][number]['type'],
           required: false,
           unique: false,
         })

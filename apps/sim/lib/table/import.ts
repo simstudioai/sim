@@ -292,6 +292,32 @@ export async function parseCsvBuffer(
  * column would also have to guess an ISO code from a symbol, and guessing wrong
  * mislabels every amount in the column.
  */
+/**
+ * The column definition an import creates for a header, from its sampled values.
+ *
+ * The single place that turns an inferred type into a persisted column, because
+ * the type alone is not the whole answer. Both import entry points call it —
+ * creating a table from a CSV, and appending a CSV that introduces new headers
+ * — and when the second had its own inline copy, an appended date column was
+ * persisted date-only while its rows were coerced WITH their times.
+ */
+export function inferredColumnDefinition(name: string, values: unknown[]): ColumnDefinition {
+  const type = inferColumnType(values)
+  return {
+    name,
+    type,
+    // An inferred date column keeps its times. The pattern that infers `date`
+    // accepts `2024-01-15T14:30`, so the file may genuinely contain them, and
+    // stamping the sidebar's date-only default would truncate every one of them
+    // on write. Set explicitly rather than left absent, so a fresh column is
+    // never in the "predates the key" state.
+    //
+    // Deliberately different from creating a Date column by hand: there the
+    // user sees the toggle and there is no data to lose yet.
+    ...(type === 'date' ? { includeTime: true } : {}),
+  }
+}
+
 export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
@@ -372,20 +398,10 @@ export function inferSchemaFromCsv(
     seen.add(colName.toLowerCase())
     headerToColumn.set(header, colName)
 
-    const type = inferColumnType(sample.map((r) => r[header]))
-    return {
-      name: colName,
-      type,
-      // An inferred date column keeps its times. The pattern that infers `date`
-      // accepts `2024-01-15T14:30`, so the file may genuinely contain them —
-      // and stamping the sidebar's date-only default here would truncate every
-      // one of them on write. Set explicitly rather than left absent so a fresh
-      // column is never in the "predates the key" state.
-      //
-      // Deliberately different from creating a Date column by hand: there the
-      // user sees the toggle and there is no data to lose yet.
-      ...(type === 'date' ? { includeTime: true } : {}),
-    } satisfies ColumnDefinition
+    return inferredColumnDefinition(
+      colName,
+      sample.map((r) => r[header])
+    )
   })
 
   return { columns, headerToColumn }

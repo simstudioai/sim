@@ -19,8 +19,13 @@ import { describe, expect, it } from 'vitest'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { TableRequestError, tableNotFound } from '@/lib/table/errors'
-import { coerceValue, inferColumnType } from '@/lib/table/import'
-import { buildAddedColumns } from '@/lib/table/service'
+import {
+  coerceValue,
+  inferColumnType,
+  inferredColumnDefinition,
+  inferSchemaFromCsv,
+} from '@/lib/table/import'
+import { buildAddedColumn, buildAddedColumns } from '@/lib/table/service'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, Filter, JsonValue, Sort } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
@@ -300,5 +305,46 @@ describe('caller-fixable failures are typed, not string-matched', () => {
     expect(notFound.message).toBe('Table not found')
     expect(notFound.status).toBe(404)
     expect(new TableRequestError('anything').status).toBe(400)
+  })
+})
+
+describe('every import path builds an inferred column identically', () => {
+  const withTimes = [{ when: '2024-01-15T14:30' }, { when: '2024-02-20T09:00' }]
+
+  it('gives an inferred date column includeTime through the shared helper', () => {
+    const column = inferredColumnDefinition(
+      'when',
+      withTimes.map((r) => r.when)
+    )
+    expect(column.type).toBe('date')
+    expect(column.includeTime).toBe(true)
+  })
+
+  it('agrees with inferSchemaFromCsv, which is the other entry point', () => {
+    // Three call sites built this inline and drifted: the append route and the
+    // import runner persisted an appended date column as date-only while its
+    // rows were coerced WITH their times.
+    const viaSchema = inferSchemaFromCsv(['when'], withTimes).columns[0]
+    const viaHelper = inferredColumnDefinition(
+      'when',
+      withTimes.map((r) => r.when)
+    )
+    expect(viaSchema).toEqual(viaHelper)
+  })
+
+  it('survives persistence, so the stored column matches how rows were coerced', () => {
+    const inferred = inferredColumnDefinition(
+      'when',
+      withTimes.map((r) => r.when)
+    )
+    const stored = buildAddedColumn(inferred, 'col_1')
+    expect(stored.includeTime).toBe(true)
+    // And a value with a time round-trips rather than being truncated.
+    expect(String(coerceValue('2024-01-15T14:30', 'date', { column: stored }))).toContain('14:30')
+  })
+
+  it('adds no date metadata to a non-date inferred column', () => {
+    expect(inferredColumnDefinition('n', ['1', '2']).includeTime).toBeUndefined()
+    expect(inferredColumnDefinition('s', ['a', 'b']).type).toBe('string')
   })
 })
