@@ -23,6 +23,7 @@ import { metadataMigrationFor } from '@/lib/table/column-types/registry.server'
 import { buildConvertedColumn } from '@/lib/table/columns/service'
 import { coerceValue, inferSchemaFromCsv } from '@/lib/table/import'
 import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
+import { buildAddedColumn } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
 import type { ColumnDefinition } from '@/lib/table/types'
 
@@ -602,6 +603,25 @@ describe('imported column metadata', () => {
     // And the value survives the write path unchanged.
     const coerced = coerceValue('2024-01-15T14:30', 'date', { column: columns[0] })
     expect(String(coerced)).toContain('14:30')
+  })
+
+  it('PERSISTS the inferred includeTime instead of re-defaulting over it', () => {
+    // The gap that let a bug through: the test above only checked what
+    // inference RETURNS. `defaultMetadata` runs last when the column is built
+    // for storage, so handed a bare `{ name, type }` it re-answered from
+    // nothing and overwrote the inferred `true` with `false` — rows coerced
+    // with times, column saved as date-only.
+    const { columns } = inferSchemaFromCsv(['when'], [{ when: '2024-01-15T14:30' }])
+    const stored = buildAddedColumn(columns[0], 'col_1')
+    expect(stored.type).toBe('date')
+    expect(stored.includeTime).toBe(true)
+  })
+
+  it('still applies a type default the caller did not supply', () => {
+    const stored = buildAddedColumn({ name: 'd', type: 'date' }, 'col_2')
+    expect(stored.includeTime).toBe(false)
+    const money = buildAddedColumn({ name: 'm', type: 'currency' }, 'col_3')
+    expect(money.currencyCode).toBeDefined()
   })
 
   it('leaves a non-date inferred column without date metadata', () => {

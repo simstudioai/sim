@@ -469,6 +469,47 @@ export async function createTable(
  * Use this when composing a column addition with other writes (e.g., row
  * inserts) that must succeed or roll back together.
  */
+/**
+ * The column definition a bulk add persists.
+ *
+ * Extracted and exported so the metadata carry-through is testable without a
+ * transaction — the same reason `buildConvertedColumn` is exported from the
+ * column service.
+ */
+export function buildAddedColumn(
+  column: ColumnTypeMetadata & {
+    id?: string
+    name: string
+    type: string
+    required?: boolean
+    unique?: boolean
+  },
+  id: string
+): TableSchema['columns'][number] {
+  const type = column.type as TableSchema['columns'][number]['type']
+  // A create has nothing to clear, so resolve any nulls away first.
+  const supplied = metadataWithoutClears(pickMetadata(column, ownedKeysOf(type)))
+  return {
+    id,
+    name: column.name,
+    type,
+    required: column.required ?? false,
+    unique: column.unique ?? false,
+    // Carry the type's own metadata, mirroring `addTableColumn`. Building the
+    // column from the five fields above alone dropped everything else the
+    // caller supplied — an imported date column lost its `includeTime` and
+    // landed in the "predates the key" state, where the grid and coercion treat
+    // a column created moments ago as a legacy instant column.
+    ...supplied,
+    // `defaultMetadata` must SEE what the caller supplied. Handed a bare
+    // `{ name, type }` it re-answers from nothing and, spread last, overwrites
+    // the very values above — an imported date column's `includeTime: true`
+    // became `false`, so its rows were coerced WITH times while the column
+    // claimed to be date-only.
+    ...columnTypeById(type).defaultMetadata?.({ ...supplied, name: column.name, type }),
+  }
+}
+
 export async function addTableColumnsWithTx(
   trx: DbTransaction,
   table: TableDefinition,
@@ -514,22 +555,7 @@ export async function addTableColumnsWithTx(
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
     // and persistence agree); otherwise mint one.
     const id = column.id ?? generateColumnId()
-    const type = column.type as TableSchema['columns'][number]['type']
-    additions.push({
-      id,
-      name: column.name,
-      type,
-      required: column.required ?? false,
-      unique: column.unique ?? false,
-      // Carry the type's own metadata, mirroring `addTableColumn`. Building the
-      // column from these five fields alone dropped everything else the caller
-      // supplied — an imported date column lost its `includeTime` and landed in
-      // the "predates the key" state, where the grid and coercion treat it as a
-      // legacy instant column rather than as what the import decided.
-      // A create has nothing to clear, so resolve any nulls away.
-      ...metadataWithoutClears(pickMetadata(column, ownedKeysOf(type))),
-      ...columnTypeById(type).defaultMetadata?.({ name: column.name, type }),
-    })
+    additions.push(buildAddedColumn(column, id))
   }
 
   if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
