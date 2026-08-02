@@ -1029,11 +1029,16 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_update_refund_receipt',
           ...PAYMENT_OPERATIONS,
           'quickbooks_create_deposit',
+          'quickbooks_update_deposit',
         ],
       },
       required: {
         field: 'operation',
-        value: ['quickbooks_create_refund_receipt', 'quickbooks_create_deposit'],
+        value: [
+          'quickbooks_create_refund_receipt',
+          'quickbooks_create_deposit',
+          'quickbooks_update_deposit',
+        ],
       },
     },
     {
@@ -1385,8 +1390,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             confirmPosting: isJournalEntry
               ? parseConfirmation(params.confirmPosting, 'confirmPosting')
               : undefined,
-            depositAccountId:
-              isCreate && !isJournalEntry ? optionalValue(params.depositAccountId) : undefined,
+            depositAccountId: !isJournalEntry ? optionalValue(params.depositAccountId) : undefined,
             transactionDate: optionalValue(params.transactionDate),
             documentNumber: isJournalEntry ? optionalValue(params.documentNumber) : undefined,
             privateNote: optionalValue(params.privateNote),

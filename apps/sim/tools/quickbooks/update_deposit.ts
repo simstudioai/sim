@@ -23,7 +23,8 @@ export const quickbooksUpdateDepositTool: ToolConfig<
 > = {
   id: 'quickbooks_update_deposit',
   name: 'QuickBooks Update Deposit',
-  description: 'Sparse-update deposit header fields using the current sync token',
+  description:
+    'Sparse-update deposit header fields using the current sync token and destination account',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -49,6 +50,12 @@ export const quickbooksUpdateDepositTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description: 'Current deposit sync token',
+    },
+    depositAccountId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Current QuickBooks account receiving the deposit',
     },
     transactionDate: {
       type: 'string',

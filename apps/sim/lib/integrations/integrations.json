@@ -14724,7 +14724,7 @@
         },
         {
           "name": "Update Deposit",
-          "description": "Sparse-update deposit header fields using the current sync token"
+          "description": "Sparse-update deposit header fields using the current sync token and destination account"
         }
       ],
       "operationCount": 39,

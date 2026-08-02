@@ -2290,7 +2290,7 @@ Create a deposit with bounded account lines
 
 ### `quickbooks_update_deposit`
 
-Sparse-update deposit header fields using the current sync token
+Sparse-update deposit header fields using the current sync token and destination account
 
 #### Input
 
@@ -2298,6 +2298,7 @@ Sparse-update deposit header fields using the current sync token
 | --------- | ---- | -------- | ----------- |
 | `depositId` | string | Yes | Deposit ID to update |
 | `syncToken` | string | Yes | Current deposit sync token |
+| `depositAccountId` | string | Yes | Current QuickBooks account receiving the deposit |
 | `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
 | `privateNote` | string | No | Replacement internal note |
 

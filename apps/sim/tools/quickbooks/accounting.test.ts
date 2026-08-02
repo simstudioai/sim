@@ -257,16 +257,25 @@ describe('QuickBooks accounting mutations', () => {
         ...authParams,
         depositId: '13',
         syncToken: '2',
+        depositAccountId: '35',
         transactionDate: '2026-08-01',
       })
-    ).toEqual({ Id: '13', SyncToken: '2', sparse: true, TxnDate: '2026-08-01' })
+    ).toEqual({
+      Id: '13',
+      SyncToken: '2',
+      sparse: true,
+      DepositToAccountRef: { value: '35' },
+      TxnDate: '2026-08-01',
+    })
     expect(() =>
       buildQuickBooksUpdateDepositBody({
         ...authParams,
         depositId: '13',
         syncToken: '2',
+        depositAccountId: '35',
       })
     ).toThrow('at least one field')
+    expect(quickbooksUpdateDepositTool.params.depositAccountId).toMatchObject({ required: true })
   })
 
   it.each([
@@ -324,6 +333,22 @@ describe('QuickBooks accounting block', () => {
       depositAccountId: '35',
       lines: depositLines,
     })
+    expect(
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_update_deposit',
+        oauthCredential: 'credential-id',
+        transactionId: '204',
+        syncToken: '0',
+        depositAccountId: '35',
+        privateNote: 'Updated through Sim',
+      })
+    ).toMatchObject({
+      credential: 'credential-id',
+      depositId: '204',
+      syncToken: '0',
+      depositAccountId: '35',
+      privateNote: 'Updated through Sim',
+    })
   })
 
   it('exposes exactly 39 operations with tool/access parity', () => {
@@ -344,6 +369,7 @@ describe('QuickBooks accounting block', () => {
         oauthCredential: 'credential-id',
         transactionId: '12',
         syncToken: '1',
+        depositAccountId: '35',
         confirmPosting: 'yes',
         privateNote: 'Updated',
         journalLines: JSON.stringify(journalLines),

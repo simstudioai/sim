@@ -341,6 +341,7 @@ export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateDepositParams extends QuickBooksAuthParams {
   depositId: string
   syncToken: string
+  depositAccountId: string
   transactionDate?: string
   privateNote?: string
 }

@@ -295,8 +295,9 @@ export function buildQuickBooksUpdateDepositBody(
     Id: requiredQuickBooksString(params.depositId, 'depositId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
+    DepositToAccountRef: quickBooksReference(params.depositAccountId, 'depositAccountId'),
     ...transactionHeader(params),
   }
-  assertQuickBooksSparseUpdate(body)
+  assertQuickBooksSparseUpdate(body, 4)
   return body
 }
