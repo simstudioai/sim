@@ -53,6 +53,7 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   clientId?: string
   clientSecret?: string
   orgId?: string
+  dataCenter?: string
 }
 
 export interface PerformCredentialResult {
@@ -133,7 +134,8 @@ export async function performUpdateCredential(
       params.domain !== undefined ||
       params.clientId !== undefined ||
       params.clientSecret !== undefined ||
-      params.orgId !== undefined
+      params.orgId !== undefined ||
+      params.dataCenter !== undefined
     let rotatedSlackBotUserId: string | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
       try {
@@ -147,6 +149,7 @@ export async function performUpdateCredential(
             clientId: params.clientId,
             clientSecret: params.clientSecret,
             orgId: params.orgId,
+            dataCenter: params.dataCenter,
           }
         )
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey

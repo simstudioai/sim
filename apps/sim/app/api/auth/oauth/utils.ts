@@ -525,6 +525,7 @@ async function resolveClientCredentialAccountToken(
           clientId: blob.clientId,
           clientSecret: blob.clientSecret,
           orgId: blob.orgId,
+          dataCenter: blob.dataCenter,
         },
         { skipIdentity: true }
       )

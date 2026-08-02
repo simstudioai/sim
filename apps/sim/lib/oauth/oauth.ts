@@ -1106,7 +1106,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       'zoho-desk': {
         name: 'Zoho Desk',
         description:
-          'Manage Zoho Desk tickets, comments, threads, and contacts. Requires a Zoho account in the US data center.',
+          'Manage Zoho Desk tickets, comments, threads, and contacts. Connecting with OAuth requires a Zoho account in the US data center; a Self Client also supports the EU, IN, and AU data centers.',
         providerId: 'zoho-desk',
         serviceAccountProviderId: 'zoho-desk-service-account',
         icon: ZohoDeskIcon,

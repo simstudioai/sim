@@ -3,17 +3,65 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCanonicalScopesForProvider } = vi.hoisted(() => ({
+const { mockGetCanonicalScopesForProvider, mockLoggerWarn } = vi.hoisted(() => ({
   mockGetCanonicalScopesForProvider: vi.fn(),
+  mockLoggerWarn: vi.fn(),
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
   getCanonicalScopesForProvider: mockGetCanonicalScopesForProvider,
 }))
 
+/**
+ * Overrides the global `@sim/logger` mock (which hands out a fresh logger per
+ * `createLogger` call) with one whose `warn` is a shared spy, so the
+ * api_domain/region mismatch warning can be asserted.
+ */
+vi.mock('@sim/logger', () => {
+  const createLogger = () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: mockLoggerWarn,
+    error: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn(() => createLogger()),
+    withMetadata: vi.fn(() => createLogger()),
+  })
+  return {
+    createLogger: vi.fn(createLogger),
+    logger: createLogger(),
+    runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
+    getRequestContext: vi.fn(() => undefined),
+  }
+})
+
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 
 const TOKEN_URL = 'https://accounts.zoho.com/oauth/v2/token'
+
+/**
+ * The four supported data centers, each with the accounts server the mint must
+ * POST to and the Desk REST base the result must carry.
+ */
+const DATA_CENTERS = [
+  { id: 'us', tokenUrl: TOKEN_URL, deskBase: 'https://desk.zoho.com' },
+  {
+    id: 'eu',
+    tokenUrl: 'https://accounts.zoho.eu/oauth/v2/token',
+    deskBase: 'https://desk.zoho.eu',
+  },
+  {
+    id: 'in',
+    tokenUrl: 'https://accounts.zoho.in/oauth/v2/token',
+    deskBase: 'https://desk.zoho.in',
+  },
+  {
+    id: 'au',
+    tokenUrl: 'https://accounts.zoho.com.au/oauth/v2/token',
+    deskBase: 'https://desk.zoho.com.au',
+  },
+] as const
 
 const SCOPES = ['Desk.tickets.READ', 'Desk.contacts.READ', 'aaaserver.profile.READ']
 
@@ -43,9 +91,9 @@ function htmlResponse(status: number, body: string): Response {
 
 const mockFetch = vi.fn()
 
-function mintBody(): URLSearchParams {
+function mintBody(expectedUrl: string = TOKEN_URL): URLSearchParams {
   const [url, init] = mockFetch.mock.calls[0]
-  expect(url).toBe(TOKEN_URL)
+  expect(url).toBe(expectedUrl)
   expect(init.method).toBe('POST')
   expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
   return new URLSearchParams(init.body as string)
@@ -89,6 +137,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
         storedMetadata: {
           soid: 'ZohoDesk.600123456',
           apiDomain: 'https://desk.zoho.com',
+          dataCenter: 'us',
           grantedScopes: 'Desk.tickets.READ Desk.contacts.READ',
         },
       },
@@ -144,6 +193,118 @@ describe('mintZohoDeskServiceAccountToken', () => {
     expect(result.apiDomain).toBe('https://desk.zoho.com')
   })
 
+  describe.each(DATA_CENTERS)('data center $id', ({ id, tokenUrl, deskBase }) => {
+    it('posts to the region accounts server and returns the region Desk base', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+
+      const result = await mintZohoDeskServiceAccountToken(
+        { ...FIELDS, dataCenter: id },
+        { skipIdentity: true }
+      )
+
+      expect(mintBody(tokenUrl).get('soid')).toBe('ZohoDesk.600123456')
+      expect(result.apiDomain).toBe(deskBase)
+      expect(mockLoggerWarn).not.toHaveBeenCalled()
+    })
+
+    it('accepts the region code with surrounding whitespace and mixed case', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+
+      const result = await mintZohoDeskServiceAccountToken(
+        { ...FIELDS, dataCenter: `  ${id.toUpperCase()} ` },
+        { skipIdentity: true }
+      )
+
+      mintBody(tokenUrl)
+      expect(result.apiDomain).toBe(deskBase)
+    })
+  })
+
+  it.each([undefined, '', '   '])(
+    'defaults to the US data center when dataCenter is %j',
+    async (dataCenter) => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+
+      const result = await mintZohoDeskServiceAccountToken(
+        { ...FIELDS, dataCenter },
+        { skipIdentity: true }
+      )
+
+      mintBody(TOKEN_URL)
+      expect(result.apiDomain).toBe('https://desk.zoho.com')
+    }
+  )
+
+  it('falls back to the US data center for an unrecognized value instead of erroring', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+
+    const result = await mintZohoDeskServiceAccountToken(
+      { ...FIELDS, dataCenter: 'jp' },
+      { skipIdentity: true }
+    )
+
+    mintBody(TOKEN_URL)
+    expect(result.apiDomain).toBe('https://desk.zoho.com')
+  })
+
+  it('records the resolved data center in the stored metadata', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+
+    const result = await mintZohoDeskServiceAccountToken({ ...FIELDS, dataCenter: 'eu' })
+
+    expect(result.identity?.storedMetadata).toMatchObject({
+      dataCenter: 'eu',
+      apiDomain: 'https://desk.zoho.eu',
+    })
+  })
+
+  it('prefers api_domain over the selected region and warns when the two disagree', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, { access_token: 'zoho-access', api_domain: 'https://www.zohoapis.in' })
+    )
+
+    const result = await mintZohoDeskServiceAccountToken(
+      { ...FIELDS, dataCenter: 'eu' },
+      { skipIdentity: true }
+    )
+
+    mintBody('https://accounts.zoho.eu/oauth/v2/token')
+    expect(result.apiDomain).toBe('https://desk.zoho.in')
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Zoho api_domain disagrees with the selected data center',
+      expect.objectContaining({
+        selectedDataCenter: 'eu',
+        selectedDeskBase: 'https://desk.zoho.eu',
+        reportedDeskBase: 'https://desk.zoho.in',
+      })
+    )
+  })
+
+  it('keeps the selected region when api_domain is not an allowlisted Zoho host', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, { access_token: 'zoho-access', api_domain: 'https://zoho.attacker.com' })
+    )
+
+    const result = await mintZohoDeskServiceAccountToken(
+      { ...FIELDS, dataCenter: 'eu' },
+      { skipIdentity: true }
+    )
+
+    expect(result.apiDomain).toBe('https://desk.zoho.eu')
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('names the data center in the failure detail so a wrong region is diagnosable', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { error: 'invalid_client' }))
+
+    await expect(
+      mintZohoDeskServiceAccountToken({ ...FIELDS, dataCenter: 'au' })
+    ).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      logDetail: expect.objectContaining({ dataCenter: 'au' }),
+    })
+  })
+
   it('rejects a non-numeric organization ID before any network call', async () => {
     await expect(
       mintZohoDeskServiceAccountToken({ ...FIELDS, orgId: 'my-org' })
@@ -166,7 +327,10 @@ describe('mintZohoDeskServiceAccountToken', () => {
       logDetail: expect.objectContaining({
         zohoError: 'invalid_client',
         soid: 'ZohoDesk.600123456',
-        hint: 'invalid client_id or client_secret, or the client is not a Self Client',
+        // Matched loosely: the hint's exact wording is operator-facing copy, but
+        // it must keep naming the data center, since a wrong region is a leading
+        // cause of invalid_client on reconnect.
+        hint: expect.stringContaining('data center'),
       }),
     })
   })

@@ -21,6 +21,12 @@ export interface ClientCredentialAccountFields {
    * Salesforce My Domain host, Zoho Desk organization ID).
    */
   orgId: string
+  /**
+   * Optional provider region selector. Only Zoho Desk uses it (the Self Client
+   * mints against a per-data-center accounts server); every other provider
+   * ignores it, and a blank value keeps the provider's default region.
+   */
+  dataCenter?: string
 }
 
 /** Identity derived from a successful mint, used at connect time. */
@@ -107,6 +113,8 @@ export interface ClientCredentialAccountSecretBlob {
   clientId: string
   clientSecret: string
   orgId: string
+  /** Optional region selector; absent on every credential created before it existed. */
+  dataCenter?: string
   metadata?: Record<string, string>
 }
 

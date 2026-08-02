@@ -50,24 +50,45 @@ export function isZohoHost(hostname: string): boolean {
  * credential, and by the client-credentials service-account minter, which
  * returns it alongside the minted token - the two must not drift.
  *
- * @returns the derived Desk base, or {@link DEFAULT_ZOHO_DESK_BASE} when
- * `apiDomain` is absent, unparseable, or not a Zoho host.
+ * @returns the derived Desk base, or `undefined` when `apiDomain` is absent,
+ * unparseable, or not a Zoho host. Callers that must distinguish "Zoho told us
+ * a data center" from "we fell back" use this instead of
+ * {@link deriveZohoDeskBaseFromApiDomain}, so an untrusted `api_domain` can
+ * never masquerade as an authoritative US answer.
  */
-export function deriveZohoDeskBaseFromApiDomain(apiDomain?: string): string {
-  if (!apiDomain) return DEFAULT_ZOHO_DESK_BASE
+export function tryDeriveZohoDeskBaseFromApiDomain(apiDomain?: string): string | undefined {
+  if (!apiDomain) return undefined
   try {
     const host = new URL(apiDomain).host.toLowerCase()
     // Gate on the strict Zoho apex allowlist before trusting the host: a loose
     // `desk.zoho.*` pattern would accept a lookalike like `desk.zoho.com.attacker.com`
     // and persist it as the credential's REST base, later leaking the OAuth token.
-    if (!isZohoHost(host)) return DEFAULT_ZOHO_DESK_BASE
+    if (!isZohoHost(host)) return undefined
     // Map the data-center TLD from the (now trusted) host onto the Desk REST host
     // in the same data center - works for both www.zohoapis.<tld> and desk.zoho.<tld>.
     const match = host.match(/zoho(?:apis)?\.([a-z.]+)$/)
-    return match?.[1] ? `https://desk.zoho.${match[1]}` : DEFAULT_ZOHO_DESK_BASE
+    return match?.[1] ? `https://desk.zoho.${match[1]}` : undefined
   } catch {
-    return DEFAULT_ZOHO_DESK_BASE
+    return undefined
   }
+}
+
+/**
+ * Derive the Zoho Desk REST base URL from a token response `api_domain`
+ * (e.g. `https://www.zohoapis.eu` -> `https://desk.zoho.eu`). Zoho returns the
+ * data-center-scoped `api_domain` on the `www.zohoapis.*` host, but the Desk
+ * REST API lives on `desk.zoho.*` in the same data center. Deriving the Desk
+ * base (instead of assuming `desk.zoho.com`) honors data residency.
+ *
+ * Shared by the OAuth token exchange, which persists the result on the
+ * credential, and by the client-credentials service-account minter, which
+ * returns it alongside the minted token - the two must not drift.
+ *
+ * @returns the derived Desk base, or {@link DEFAULT_ZOHO_DESK_BASE} when
+ * `apiDomain` is absent, unparseable, or not a Zoho host.
+ */
+export function deriveZohoDeskBaseFromApiDomain(apiDomain?: string): string {
+  return tryDeriveZohoDeskBaseFromApiDomain(apiDomain) ?? DEFAULT_ZOHO_DESK_BASE
 }
 
 /**

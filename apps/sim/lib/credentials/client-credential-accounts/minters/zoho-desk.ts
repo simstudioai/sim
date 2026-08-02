@@ -1,5 +1,7 @@
+import { createLogger } from '@sim/logger'
 import {
   normalizeZohoDeskSoid,
+  resolveZohoDeskDataCenter,
   ZOHO_DESK_SOID_REGEX,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type {
@@ -15,16 +17,9 @@ import {
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
-import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
+import { tryDeriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
-/**
- * Zoho's accounts server is per data center, but this integration is pinned to
- * the US accounts host throughout (the OAuth authorize/token URLs in
- * `lib/auth/auth.ts` use the same host) — a documented limitation of the Zoho
- * Desk integration, not an oversight. Non-US orgs must authenticate against
- * their own accounts server and are not supported here.
- */
-const ZOHO_TOKEN_URL = 'https://accounts.zoho.com/oauth/v2/token'
+const logger = createLogger('ZohoDeskServiceAccountMinter')
 
 const STEP = 'zoho_desk_token_mint'
 
@@ -49,7 +44,11 @@ interface ZohoTokenResponse {
 function zohoErrorHint(error: string): string | undefined {
   const normalized = error.toLowerCase()
   if (normalized === 'invalid_client') {
-    return 'invalid client_id or client_secret, or the client is not a Self Client'
+    // Also the symptom of a wrong data center: a Self Client only exists on its
+    // own region's accounts server, so an EU client presented to accounts.zoho.com
+    // reads as an unknown client. Reconnect re-mints from the submitted fields, so
+    // an admin who re-enters the secrets but leaves the region blank lands here.
+    return 'invalid client_id or client_secret, the client is not a Self Client, or the wrong data center was selected for it'
   }
   if (normalized === 'invalid_scope' || normalized === 'invalid_scopes') {
     return 'the Self Client was not granted the Zoho Desk scopes Sim requests'
@@ -81,12 +80,14 @@ function zohoBodyError(body: string): string | undefined {
 
 /**
  * Builds the `invalid_credentials` failure for a rejected mint, naming the
- * `soid` that was sent so a wrong organization ID is diagnosable from the
- * server log without echoing the client secret.
+ * `soid` and the data center that were used so a wrong organization ID or a
+ * wrong region is diagnosable from the server log without echoing the client
+ * secret.
  */
 function invalidCredentials(
   status: number,
   soid: string,
+  dataCenterId: string,
   body: string,
   error?: string
 ): TokenServiceAccountValidationError {
@@ -94,6 +95,7 @@ function invalidCredentials(
   return new TokenServiceAccountValidationError('invalid_credentials', status, {
     step: STEP,
     soid,
+    dataCenter: dataCenterId,
     body,
     ...(error ? { zohoError: error } : {}),
     ...(hint ? { hint } : {}),
@@ -102,10 +104,17 @@ function invalidCredentials(
 
 /**
  * Mints a Zoho Desk access token via the Self Client `client_credentials`
- * grant: POST https://accounts.zoho.com/oauth/v2/token with `client_id`,
+ * grant: POST `<accountsBase>/oauth/v2/token` with `client_id`,
  * `client_secret`, `scope`, and `soid` in the form body. Tokens live one hour
  * and there is no refresh token — re-mint instead of refreshing (same shape as
  * Zoom Server-to-Server).
+ *
+ * Zoho's accounts server is per data center. Unlike the interactive OAuth flow
+ * (whose authorize/token URLs are static per provider and therefore US-only),
+ * this path owns its token URL, so `fields.dataCenter` selects the region's
+ * accounts server and the matching Desk REST host deterministically. A blank or
+ * unrecognized value resolves to US, so credentials created before the field
+ * existed behave exactly as before.
  *
  * Two Zoho-specific behaviors drive the error handling:
  *
@@ -135,12 +144,14 @@ export async function mintZohoDeskServiceAccountToken(
     })
   }
 
+  const dataCenter = resolveZohoDeskDataCenter(fields.dataCenter)
+
   // Zoho requires a comma-separated scope list on this endpoint; a
   // space-separated list is rejected as an invalid scope.
   const scope = getCanonicalScopesForProvider('zoho-desk').join(',')
 
   const res = await fetchProvider(
-    ZOHO_TOKEN_URL,
+    `${dataCenter.accountsBase}/oauth/v2/token`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -158,11 +169,12 @@ export async function mintZohoDeskServiceAccountToken(
   if (!res.ok) {
     const body = await readProviderErrorSnippet(res)
     if (res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)) {
-      throw invalidCredentials(res.status, soid, body, zohoBodyError(body))
+      throw invalidCredentials(res.status, soid, dataCenter.id, body, zohoBodyError(body))
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
       step: STEP,
       soid,
+      dataCenter: dataCenter.id,
       body,
     })
   }
@@ -172,20 +184,42 @@ export async function mintZohoDeskServiceAccountToken(
   // Zoho signals OAuth failures in the body, usually with HTTP 200 — classify
   // on the body before trusting the status.
   if (typeof payload.error === 'string' && payload.error) {
-    throw invalidCredentials(res.status, soid, JSON.stringify(payload), payload.error)
+    throw invalidCredentials(
+      res.status,
+      soid,
+      dataCenter.id,
+      JSON.stringify(payload),
+      payload.error
+    )
   }
 
   if (typeof payload.access_token !== 'string' || !payload.access_token) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: STEP,
       soid,
+      dataCenter: dataCenter.id,
       reason: 'token response missing access_token',
     })
   }
 
   // The Desk REST host for the token's data center, allowlist-anchored. Tools
-  // receive this as `apiDomain` so calls never assume desk.zoho.com.
-  const apiDomain = deriveZohoDeskBaseFromApiDomain(payload.api_domain)
+  // receive this as `apiDomain` so calls never assume desk.zoho.com. The
+  // selected region's Desk host is the deterministic answer; Zoho documents
+  // `api_domain` for CRM but not for Desk, so it is only an override. When it
+  // IS present and disagrees, it wins — it is authoritative about where the
+  // token actually works — but the mismatch is logged so a wrong region
+  // selection is diagnosable. An `api_domain` that is absent or fails the Zoho
+  // apex allowlist yields `undefined` here and never overrides the region.
+  const reportedDeskBase = tryDeriveZohoDeskBaseFromApiDomain(payload.api_domain)
+  const apiDomain = reportedDeskBase ?? dataCenter.deskBase
+  if (reportedDeskBase && reportedDeskBase !== dataCenter.deskBase) {
+    logger.warn('Zoho api_domain disagrees with the selected data center', {
+      soid,
+      selectedDataCenter: dataCenter.id,
+      selectedDeskBase: dataCenter.deskBase,
+      reportedDeskBase,
+    })
+  }
   const expiresInSeconds =
     typeof payload.expires_in === 'number' && payload.expires_in > 0
       ? payload.expires_in
@@ -197,7 +231,7 @@ export async function mintZohoDeskServiceAccountToken(
     return { accessToken: payload.access_token, expiresInSeconds, apiDomain, grantedScopes }
   }
 
-  const storedMetadata: Record<string, string> = { soid, apiDomain }
+  const storedMetadata: Record<string, string> = { soid, apiDomain, dataCenter: dataCenter.id }
   if (grantedScopes?.length) {
     storedMetadata.grantedScopes = grantedScopes.join(' ')
   }

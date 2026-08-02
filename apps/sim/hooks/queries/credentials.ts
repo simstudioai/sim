@@ -147,6 +147,7 @@ export function useUpdateWorkspaceCredential() {
           clientId: payload.clientId,
           clientSecret: payload.clientSecret,
           orgId: payload.orgId,
+          dataCenter: payload.dataCenter,
         },
       })
     },

@@ -15,7 +15,7 @@
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
 /** Contract field ids a client-credential connect modal collects. */
-export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId'
+export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId' | 'dataCenter'
 
 export interface ClientCredentialAccountField {
   id: ClientCredentialAccountFieldId
@@ -23,6 +23,12 @@ export interface ClientCredentialAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /**
+   * Field the connect modal may submit empty; excluded from
+   * {@link CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS} so create/reconnect
+   * validation never demands it. Omitted (default) means required.
+   */
+  optional?: boolean
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -115,6 +121,66 @@ export function normalizeZohoDeskSoid(rawOrgId: string): string {
 
 /** A normalized `soid`: a service-name prefix plus a numeric Zoho org id. */
 export const ZOHO_DESK_SOID_REGEX = /^[A-Za-z]+\.\d+$/
+
+/**
+ * Zoho data centers the Self Client (client-credentials) flow supports. Each
+ * entry pairs the accounts server that mints the token with the Desk REST host
+ * in the same region, so the minter never has to guess either one.
+ *
+ * Only regions where BOTH hosts are confirmed are listed. CA, SA, JP, CN, and
+ * UK are deliberately absent: Zoho's accounts documentation and Zoho's own Desk
+ * SDK disagree on Canada (`accounts.zohocloud.ca` vs `accounts.zoho.ca`), and
+ * the Desk hosts for the others are not confirmed. More regions can be added
+ * once both the accounts server and the Desk host are confirmed for them.
+ *
+ * This applies to the service account only — the interactive OAuth flow's
+ * authorize/token URLs are static per provider and remain US-only.
+ */
+export const ZOHO_DESK_DATA_CENTERS = {
+  us: { accountsBase: 'https://accounts.zoho.com', deskBase: 'https://desk.zoho.com' },
+  eu: { accountsBase: 'https://accounts.zoho.eu', deskBase: 'https://desk.zoho.eu' },
+  in: { accountsBase: 'https://accounts.zoho.in', deskBase: 'https://desk.zoho.in' },
+  au: { accountsBase: 'https://accounts.zoho.com.au', deskBase: 'https://desk.zoho.com.au' },
+} as const satisfies Record<string, { accountsBase: string; deskBase: string }>
+
+export type ZohoDeskDataCenterId = keyof typeof ZOHO_DESK_DATA_CENTERS
+
+/** Region used when the admin leaves the field blank, so existing credentials are unaffected. */
+export const DEFAULT_ZOHO_DESK_DATA_CENTER: ZohoDeskDataCenterId = 'us'
+
+export const ZOHO_DESK_DATA_CENTER_IDS = Object.keys(
+  ZOHO_DESK_DATA_CENTERS
+) as ZohoDeskDataCenterId[]
+
+/** Accepts exactly the supported region codes, case-insensitively after normalization. */
+export const ZOHO_DESK_DATA_CENTER_REGEX = new RegExp(`^(${ZOHO_DESK_DATA_CENTER_IDS.join('|')})$`)
+
+/**
+ * Normalizes a pasted data-center value to its lowercase region code. Shared by
+ * the connect modal's format hint and the server-side minter so both judge the
+ * same normalized value.
+ */
+export function normalizeZohoDeskDataCenter(rawDataCenter: string): string {
+  return rawDataCenter.trim().toLowerCase()
+}
+
+/**
+ * Resolves a stored data-center value to its accounts/Desk host pair. A blank,
+ * absent, or unrecognized value falls back to {@link DEFAULT_ZOHO_DESK_DATA_CENTER}
+ * so credentials created before this field existed keep minting against the US
+ * accounts server exactly as they did.
+ */
+export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
+  id: ZohoDeskDataCenterId
+  accountsBase: string
+  deskBase: string
+} {
+  const normalized = normalizeZohoDeskDataCenter(rawDataCenter ?? '')
+  const id: ZohoDeskDataCenterId = Object.hasOwn(ZOHO_DESK_DATA_CENTERS, normalized)
+    ? (normalized as ZohoDeskDataCenterId)
+    : DEFAULT_ZOHO_DESK_DATA_CENTER
+  return { id, ...ZOHO_DESK_DATA_CENTERS[id] }
+}
 
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
@@ -237,17 +303,28 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         hintMessage:
           'Paste the numeric Zoho Desk organization ID from Setup → Developer Space → API, or the full ZohoDesk.<orgId> value.',
       },
+      {
+        id: 'dataCenter',
+        label: 'Data center',
+        placeholder: 'us',
+        secret: false,
+        optional: true,
+        hintPattern: ZOHO_DESK_DATA_CENTER_REGEX,
+        hintNormalize: normalizeZohoDeskDataCenter,
+        hintMessage: `Enter one of ${ZOHO_DESK_DATA_CENTER_IDS.join(', ')}. Leave blank for us (accounts.zoho.com).`,
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
     helpText:
-      'Create the Self Client in the Zoho API Console, add the Zoho Desk scopes, and use the organization ID from Setup → Developer Space → API. Only Zoho accounts in the US data center (accounts.zoho.com) are supported, and Zoho Desk triggers still require an OAuth connection.',
+      'Create the Self Client in the Zoho API Console, add the Zoho Desk scopes, and use the organization ID from Setup → Developer Space → API. Self Clients work with the US, EU, IN, and AU data centers — leave the data center blank for US. Zoho Desk triggers still require an OAuth connection, which is US-only.',
   },
 }
 
 /**
  * Required contract fields per client-credential provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list.
+ * missing field. Derived from each descriptor's field list, minus the fields
+ * marked `optional`.
  */
 export const CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: Record<
   string,
@@ -255,7 +332,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: Record<
 > = Object.fromEntries(
   Object.values(CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS).map((descriptor) => [
     descriptor.providerId,
-    descriptor.fields.map((field) => field.id),
+    descriptor.fields.filter((field) => !field.optional).map((field) => field.id),
   ])
 )
 

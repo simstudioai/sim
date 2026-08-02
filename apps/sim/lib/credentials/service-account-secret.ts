@@ -43,6 +43,7 @@ export interface ServiceAccountSecretFields {
   clientId?: string
   clientSecret?: string
   orgId?: string
+  dataCenter?: string
 }
 
 export interface ServiceAccountSecretResult {
@@ -234,19 +235,24 @@ async function buildClientCredentialAccountSecret(
   const clientId = fields.clientId?.trim()
   const clientSecret = fields.clientSecret?.trim()
   const orgId = fields.orgId?.trim()
+  const dataCenter = fields.dataCenter?.trim()
   if (!clientId || !clientSecret || !orgId) {
-    const required = descriptor.fields.map((field) => field.id).join(', ')
+    const required = descriptor.fields
+      .filter((field) => !field.optional)
+      .map((field) => field.id)
+      .join(', ')
     throw new ServiceAccountSecretError(
       `${required} are required for ${descriptor.serviceLabel} service account credentials`
     )
   }
-  const mint = await minter({ clientId, clientSecret, orgId })
+  const mint = await minter({ clientId, clientSecret, orgId, dataCenter })
   const blob: ClientCredentialAccountSecretBlob = {
     type: CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
     providerId,
     clientId,
     clientSecret,
     orgId,
+    ...(dataCenter ? { dataCenter } : {}),
     ...(mint.identity?.storedMetadata ? { metadata: mint.identity.storedMetadata } : {}),
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
