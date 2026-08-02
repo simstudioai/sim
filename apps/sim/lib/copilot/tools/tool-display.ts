@@ -536,6 +536,7 @@ const TOOL_TITLES: Record<string, string> = {
   research: 'Research Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   file: 'File Agent',
   media: 'Media Agent',
   browser: 'Browser Agent',

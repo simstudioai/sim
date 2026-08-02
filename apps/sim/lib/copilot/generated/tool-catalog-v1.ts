@@ -85,6 +85,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'platform'
     | 'promote_to_live'
     | 'query_logs'
     | 'query_user_table'
@@ -205,6 +206,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'platform'
     | 'promote_to_live'
     | 'query_logs'
     | 'query_user_table'
@@ -257,6 +259,7 @@ export interface ToolCatalogEntry {
     | 'file'
     | 'knowledge'
     | 'media'
+    | 'platform'
     | 'run'
     | 'search'
     | 'table'
@@ -3867,6 +3870,25 @@ export const OpenResource: ToolCatalogEntry = {
   },
 }
 
+export const Platform: ToolCatalogEntry = {
+  id: 'platform',
+  name: 'platform',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      task: {
+        description: 'A task for the Platform agent.',
+        type: 'string',
+      },
+    },
+    required: ['task'],
+    type: 'object',
+  },
+  subagentId: 'platform',
+  internal: true,
+}
+
 export const PromoteToLive: ToolCatalogEntry = {
   id: 'promote_to_live',
   name: 'promote_to_live',
@@ -6574,6 +6596,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
+  [Platform.id]: Platform,
   [PromoteToLive.id]: PromoteToLive,
   [QueryLogs.id]: QueryLogs,
   [QueryUserTable.id]: QueryUserTable,
