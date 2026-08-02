@@ -1,5 +1,6 @@
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -338,10 +339,10 @@ export async function buildCopilotRequestPayload(
   // upload routes that issue these keys already require — reaching the chat
   // endpoint with `read` must not confer a file-write capability.
   const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
-  // `PermissionType` is exactly read | write | admin, so this covers the whole
-  // write-or-better half of the ordering.
+  // `userPermission` is typed `string` for legacy reasons, so narrow it before
+  // comparing — an unrecognized value must fail the gate, not rank below it.
   const canWriteWorkspaceFiles =
-    params.userPermission === 'write' || params.userPermission === 'admin'
+    isPermissionType(params.userPermission) && permissionSatisfies(params.userPermission, 'write')
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
     if (!canWriteWorkspaceFiles) {
       logger.warn('Dropping chat file attachments without workspace write access', {
