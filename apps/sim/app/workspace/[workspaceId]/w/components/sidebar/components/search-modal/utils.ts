@@ -244,9 +244,16 @@ const NAME_MATCH_TIER = 1_000_000
 
 /**
  * Ranks an item by its name first, falling back to secondary text (ids, aliases,
- * option labels) only when the name doesn't match — a name match always wins, so
- * an exact name hit isn't diluted by a long secondary string ("Agent" beats
- * "Pi Coding Agent" for the query "agent").
+ * option labels, folder paths) only when the name doesn't match — a name match
+ * always wins, so an exact name hit isn't diluted by a long secondary string
+ * ("Agent" beats "Pi Coding Agent" for the query "agent").
+ *
+ * When neither field matches alone the two are matched joined, so a query that
+ * spans both ("leads emea" for a `Leads` table in `EMEA`) still finds the row.
+ * That is last on purpose: matching the joined text would otherwise let a
+ * secondary hit masquerade as a name hit. Positions from the joined match do not
+ * index into either field, which is safe only because `filterAndSort` scores
+ * with them and discards them — never pass them to a highlighter.
  */
 function scoreItem(name: string, extra: string | undefined, search: string): FuzzyResult {
   const byName = fuzzyMatch(name, search)
@@ -255,7 +262,8 @@ function scoreItem(name: string, extra: string | undefined, search: string): Fuz
     return { matched: true, score: byName.score + NAME_MATCH_TIER, positions: byName.positions }
   }
   const byExtra = fuzzyMatch(extra, search)
-  return byExtra.matched ? byExtra : NO_MATCH
+  if (byExtra.matched) return byExtra
+  return fuzzyMatch(`${name} ${extra}`, search)
 }
 
 /**

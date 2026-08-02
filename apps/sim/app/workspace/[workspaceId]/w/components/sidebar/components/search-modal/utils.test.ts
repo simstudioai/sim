@@ -315,3 +315,34 @@ describe('filterAndCap', () => {
     expect(capped).toEqual(filterAndSort(items, id, 'item').slice(0, MAX_RESULTS_PER_GROUP))
   })
 })
+
+describe('filterAndSort — name vs. secondary text', () => {
+  const rows = [
+    { name: 'Leads', folder: 'Sales / EMEA' },
+    { name: 'Contacts', folder: 'Sales / AMER' },
+    { name: 'EMEA', folder: 'Archive' },
+  ]
+  const run = (search: string) =>
+    filterAndSort(
+      rows,
+      (r) => r.name,
+      search,
+      (r) => r.folder
+    ).map((r) => r.name)
+
+  it('matches a query spanning the name and the secondary text', () => {
+    expect(run('leads emea')).toEqual(['Leads'])
+  })
+
+  it('ranks a name match above a secondary-text match', () => {
+    expect(run('emea')).toEqual(['EMEA', 'Leads'])
+  })
+
+  it('still matches on secondary text alone', () => {
+    expect(run('amer')).toEqual(['Contacts'])
+  })
+
+  it('drops rows that match neither field nor the two joined', () => {
+    expect(run('zzz')).toEqual([])
+  })
+})
