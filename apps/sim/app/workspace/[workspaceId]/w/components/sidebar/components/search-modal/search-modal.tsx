@@ -621,21 +621,44 @@ export function SearchModal({
   }, [isOnWorkflowPage, docs, deferredSearch])
 
   const filteredTables = useMemo(
-    () => filterAndCap(tables, (t) => t.name, deferredSearch),
+    () =>
+      filterAndCap(
+        tables,
+        (t) => t.name,
+        deferredSearch,
+        (t) => t.folderPath?.join(' ')
+      ),
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndCap(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
+    () =>
+      filterAndCap(
+        files,
+        (f) => f.name,
+        deferredSearch,
+        (f) => f.folderPath?.join(' ')
+      ),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(
-    () => filterAndCap(knowledgeBases, (kb) => kb.name, deferredSearch),
+    () =>
+      filterAndCap(
+        knowledgeBases,
+        (kb) => kb.name,
+        deferredSearch,
+        (kb) => kb.folderPath?.join(' ')
+      ),
     [knowledgeBases, deferredSearch]
   )
 
   const filteredWorkflows = useMemo(
     () =>
-      filterAndCap(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
+      filterAndCap(
+        workflows,
+        (w) => w.name,
+        deferredSearch,
+        (w) => w.folderPath?.join(' ')
+      ),
     [workflows, deferredSearch]
   )
   const filteredChats = useMemo(
