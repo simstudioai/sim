@@ -35,16 +35,6 @@ const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s,]+)/
 const jwksCache = new Map<string, ReturnType<typeof jose.createRemoteJWKSet>>()
 
 /**
- * Bound on distinct Desk hosts held in {@link jwksCache}. The host is derived
- * from `providerConfig.apiDomain`, which `SYSTEM_MANAGED_FIELDS` protects from
- * *diffing* but not from being written by a workspace member. `safeZohoDeskBase`
- * already clamps it to a Zoho apex so no key material is ever fetched off-Zoho,
- * but any `*.zoho.com` label still passes - so without a cap, repeated writes
- * plus webhook hits could grow one JWKS instance (and its key cache) per label.
- * Zoho has a handful of data centers; anything beyond this is not legitimate
- * traffic, so evicting oldest-first is safe.
- */
-/**
  * Events whose subscription filter accepts `departmentIds`. Zoho documents the
  * rest as taking no filter at all.
  */
@@ -58,6 +48,31 @@ const DEPARTMENT_FILTERABLE_EVENTS = new Set([
   'Task_Update',
 ])
 
+/**
+ * Events whose filter accepts `includePrevState`. Enumerated rather than derived
+ * from an `_Update` suffix: Zoho documents the attribute on Ticket/Contact/Agent/
+ * Task/Article update events but NOT on `Ticket_Comment_Update`, which lists only
+ * `departmentIds`. Sending an undocumented filter key on a live create is the
+ * same class of risk as an undocumented query param.
+ */
+const PREV_STATE_EVENTS = new Set([
+  'Ticket_Update',
+  'Contact_Update',
+  'Agent_Update',
+  'Task_Update',
+  'Article_Update',
+])
+
+/**
+ * Bound on distinct Desk hosts held in {@link jwksCache}. The host is derived
+ * from `providerConfig.apiDomain`, which `SYSTEM_MANAGED_FIELDS` protects from
+ * *diffing* but not from being written by a workspace member. `safeZohoDeskBase`
+ * already clamps it to a Zoho apex so no key material is ever fetched off-Zoho,
+ * but any `*.zoho.com` label still passes - so without a cap, repeated writes
+ * plus webhook hits could grow one JWKS instance (and its key cache) per label.
+ * Zoho has a handful of data centers; anything beyond this is not legitimate
+ * traffic, so evicting oldest-first is safe.
+ */
 const JWKS_CACHE_MAX_ENTRIES = 16
 
 function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
@@ -73,7 +88,6 @@ function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
   // jose's default timeoutDuration is 5000ms, exactly the deadline.
   const created = jose.createRemoteJWKSet(new URL(`https://${deskHost}/.well-known/jwks.json`), {
     timeoutDuration: 1500,
-    cooldownDuration: 30_000,
   })
   jwksCache.set(deskHost, created)
   return created
@@ -281,11 +295,10 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       const departmentIds = splitCsv(config.triggerDepartmentIds)
       if (departmentIds.length > 0) filter.departmentIds = departmentIds
     }
-    // `includePrevState` defaults to false and is supported on EVERY *_Update
-    // event, not just tickets - without it Zoho never sends `prevState`, so the
-    // trigger's declared prevState output would be permanently null for contact,
-    // agent, task and article updates.
-    if (eventType.endsWith('_Update')) {
+    // `includePrevState` defaults to false, so without it Zoho never sends
+    // `prevState` and the trigger's declared output is permanently null for the
+    // update events that do support it.
+    if (PREV_STATE_EVENTS.has(eventType)) {
       filter.includePrevState = true
     }
     if (eventType === 'Ticket_Update') {

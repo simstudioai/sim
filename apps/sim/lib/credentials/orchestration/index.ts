@@ -8,6 +8,7 @@ import type { NextRequest } from 'next/server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
+import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import {
   deleteWorkspaceEnvCredentials,
@@ -168,8 +169,12 @@ export async function performUpdateCredential(
       // like the Zoho data center would be silently dropped, moving an EU/IN/AU
       // credential back to the US accounts server. Carry the stored value forward
       // when the caller did not supply one.
+      // Scoped to the providers that actually have a dataCenter field, so no
+      // other service-account reconnect (Slack, Atlassian, every token-paste
+      // provider) pays for a DB read plus a decrypt it can never use.
       const carriedDataCenter =
-        params.dataCenter === undefined
+        params.dataCenter === undefined &&
+        isClientCredentialAccountProviderId(access.credential.providerId ?? '')
           ? await readStoredDataCenter(access.credential.id)
           : params.dataCenter
 

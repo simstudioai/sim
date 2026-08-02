@@ -289,6 +289,28 @@ describe('zoho desk tool utils', () => {
       }
     })
 
+    // A bare angle-bracket pair is not markup. These are realistic support-ticket
+    // bodies, and running them through html-to-text deletes everything between
+    // the brackets ("if x<y then z>0" became "if x0").
+    it('preserves plain text containing angle-bracket pairs', () => {
+      const cases = [
+        'if x<y then z>0',
+        'replace <username> with the real name',
+        'SELECT * FROM t WHERE a<b AND c>d',
+      ]
+      for (const description of cases) {
+        const result = withDerivedContentText({ description }) as Record<string, unknown>
+        expect(result.descriptionText).toBe(description)
+      }
+    })
+
+    it('strips hex-entity encoded bodies too', () => {
+      const result = withDerivedContentText({
+        description: 'Sam&#x27;s order failed',
+      }) as Record<string, unknown>
+      expect(result.descriptionText).toBe("Sam's order failed")
+    })
+
     it('still strips a genuinely HTML description', () => {
       const result = withDerivedContentText({
         description: '<div>order is <b>late</b></div>',

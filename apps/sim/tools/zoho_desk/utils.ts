@@ -51,7 +51,17 @@ export function deriveZohoContentText(content: unknown, contentType: unknown): s
  * entities and delete tag-shaped text that was never markup).
  */
 function looksLikeHtml(value: string): boolean {
-  return /<[a-z!/][^>]*>/i.test(value) || /&(?:[a-z]+|#\d+);/i.test(value)
+  // Requires a real element - a paired <tag>...</tag>, a self-closing <tag/>, or
+  // an HTML comment/doctype. A bare `<`...`>` pair is NOT enough: plain support
+  // text like "if x<y then z>0" or "replace <username> with the real name" would
+  // otherwise be run through html-to-text and silently lose everything between
+  // the brackets. Entity form covers named, decimal and hex references.
+  return (
+    /<([a-z][a-z0-9]*)\b[^>]*>[\s\S]*<\/\1\s*>/i.test(value) ||
+    /<[a-z][a-z0-9]*\b[^>]*\/>/i.test(value) ||
+    /<!(?:--|doctype)/i.test(value) ||
+    /&(?:[a-z]+|#\d+|#x[0-9a-f]+);/i.test(value)
+  )
 }
 
 /**

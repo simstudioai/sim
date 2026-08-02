@@ -483,10 +483,21 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // stale (or half-typed) JSON left behind after switching away from
         // Update Ticket would otherwise fail every unrelated operation with
         // "Invalid JSON provided for custom fields" - on runs that never send it.
-        // Both tools take `status` / `priority`; pick the field belonging to the
-        // selected operation so a stale value from the other one can never leak.
-        const activeStatus = params.operation === 'list_tickets' ? rawStatusFilter : rawStatus
-        const activePriority = params.operation === 'list_tickets' ? rawPriorityFilter : rawPriority
+        // Only list_tickets and update_ticket declare status/priority. The other
+        // eight operations must receive neither - a ternary with a bare `else`
+        // would forward a stale Update Ticket value into e.g. get_ticket.
+        const activeStatus =
+          params.operation === 'list_tickets'
+            ? rawStatusFilter
+            : params.operation === 'update_ticket'
+              ? rawStatus
+              : undefined
+        const activePriority =
+          params.operation === 'list_tickets'
+            ? rawPriorityFilter
+            : params.operation === 'update_ticket'
+              ? rawPriority
+              : undefined
         if (activeStatus !== undefined && activeStatus !== null && activeStatus !== '') {
           result.status = activeStatus
         }
