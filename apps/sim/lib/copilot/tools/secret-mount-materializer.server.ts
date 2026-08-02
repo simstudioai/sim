@@ -83,7 +83,7 @@ function requestedVariables(column: AnyPgColumn, names: readonly string[]) {
   return sql<Record<string, string>>`coalesce(
     (
       select jsonb_object_agg(entry.key, entry.value)
-      from jsonb_each_text(coalesce(${column}, '{}'::jsonb)) as entry(key, value)
+      from jsonb_each_text(coalesce(${column}::jsonb, '{}'::jsonb)) as entry(key, value)
       where entry.key in (${keys})
         and octet_length(entry.value) <= ${MAX_SECRET_MOUNT_ENCRYPTED_BYTES}
     ),
@@ -99,7 +99,7 @@ function requestedOverLimitNames(column: AnyPgColumn, names: readonly string[]) 
   return sql<string[]>`coalesce(
     (
       select jsonb_agg(entry.key order by entry.key)
-      from jsonb_each_text(coalesce(${column}, '{}'::jsonb)) as entry(key, value)
+      from jsonb_each_text(coalesce(${column}::jsonb, '{}'::jsonb)) as entry(key, value)
       where entry.key in (${keys})
         and octet_length(entry.value) > ${MAX_SECRET_MOUNT_ENCRYPTED_BYTES}
     ),
@@ -195,7 +195,7 @@ export async function materializeCopilotCodeSecrets(params: {
           eq(credentialMember.status, 'active'),
           or(
             eq(credential.type, 'env_workspace'),
-            sql<boolean>`coalesce(${environment.variables}, '{}'::jsonb) ? ${credential.envKey}`
+            sql<boolean>`coalesce(${environment.variables}::jsonb, '{}'::jsonb) ? ${credential.envKey}`
           )
         )
       )

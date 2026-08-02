@@ -126,7 +126,6 @@ describe('sse-handlers tool lifecycle', () => {
       errors: [],
       toolPermissions: {
         enabled: false,
-        promptSurfaceAvailable: false,
         autoAllowed: new Set(),
       },
     }
@@ -179,7 +178,6 @@ describe('sse-handlers tool lifecycle', () => {
     context.runId = 'run-1'
     context.toolPermissions = {
       enabled: true,
-      promptSurfaceAvailable: true,
       autoAllowed: new Set(),
     }
 
@@ -209,38 +207,6 @@ describe('sse-handlers tool lifecycle', () => {
     expect(event.payload.status).toBe('awaiting_approval')
   })
 
-  it('keeps one-call secret approval available when broad tool permissions are off', async () => {
-    context.runId = 'run-1'
-    context.toolPermissions = {
-      enabled: false,
-      promptSurfaceAvailable: true,
-      autoAllowed: new Set(),
-    }
-
-    const event = {
-      type: MothershipStreamV1EventType.tool,
-      payload: {
-        toolCallId: 'function-secret-1',
-        toolName: FunctionExecute.id,
-        arguments: { language: 'javascript', code: 'return {{API_KEY}}' },
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.call,
-      },
-    } satisfies StreamEvent
-
-    await prePersistClientExecutableToolCall(event, context, {})
-
-    expect(event.payload.status).toBe('awaiting_approval')
-    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
-      runId: 'run-1',
-      toolCallId: 'function-secret-1',
-      toolName: FunctionExecute.id,
-      args: { language: 'javascript', code: 'return {{API_KEY}}' },
-      status: MothershipStreamV1AsyncToolRecordStatus.pending,
-    })
-  })
-
   it('clears a Go-stamped approval frame when the gate is off', async () => {
     // Go stamps integration calls regardless of Sim's feature flag. Forwarding
     // that stamp with nothing gating behind it would draw a card whose buttons
@@ -249,7 +215,6 @@ describe('sse-handlers tool lifecycle', () => {
     context.runId = 'run-1'
     context.toolPermissions = {
       enabled: false,
-      promptSurfaceAvailable: true,
       autoAllowed: new Set(),
     }
 
@@ -277,7 +242,6 @@ describe('sse-handlers tool lifecycle', () => {
     context.runId = 'run-1'
     context.toolPermissions = {
       enabled: true,
-      promptSurfaceAvailable: true,
       autoAllowed: new Set(),
     }
 
@@ -307,7 +271,6 @@ describe('sse-handlers tool lifecycle', () => {
     context.runId = 'run-1'
     context.toolPermissions = {
       enabled: true,
-      promptSurfaceAvailable: true,
       autoAllowed: new Set(['deploy_api']),
     }
 

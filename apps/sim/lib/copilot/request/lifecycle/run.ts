@@ -111,23 +111,24 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
 /**
  * Seed the per-request tool permission state.
  *
- * The broad feature flag controls ordinary tool approvals and saved auto-allow
- * preferences. `promptSurfaceAvailable` separately records whether this run has
- * a visible interactive row that can collect the mandatory one-call approval
- * for a secret mount.
+ * This is the feature's single on-switch: everything downstream — stamping the
+ * wire frame, holding the tool, drawing the card, persisting a decision — keys
+ * off `enabled`, so a disabled request behaves exactly as it did before the
+ * feature existed and never touches the preference tables.
+ *
+ * Beyond the flag, gating is limited to interactive mothership chats: that is
+ * the only surface with a UI that can answer a prompt, so enabling it anywhere
+ * else would hang the turn until the orchestration timeout with nothing to click.
  */
 async function resolveToolPermissions(
   options: CopilotLifecycleOptions
 ): Promise<StreamingContext['toolPermissions']> {
-  const promptSurfaceAvailable =
-    options.interactive !== false && (options.goRoute ?? '').startsWith('/api/mothership')
-  const enabled = isCopilotToolPermissionsEnabled && promptSurfaceAvailable
-  if (!enabled) return { enabled: false, promptSurfaceAvailable, autoAllowed: new Set() }
-  return {
-    enabled: true,
-    promptSurfaceAvailable,
-    autoAllowed: await getAutoAllowedTools(options.userId, options.chatId),
-  }
+  const enabled =
+    isCopilotToolPermissionsEnabled &&
+    options.interactive !== false &&
+    (options.goRoute ?? '').startsWith('/api/mothership')
+  if (!enabled) return { enabled: false, autoAllowed: new Set() }
+  return { enabled: true, autoAllowed: await getAutoAllowedTools(options.userId, options.chatId) }
 }
 
 export async function runCopilotLifecycle(

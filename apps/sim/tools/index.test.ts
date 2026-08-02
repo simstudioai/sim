@@ -1864,6 +1864,53 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
   })
 
+  it('fails concurrent projection closed while a user-only secret reference is resolving', async () => {
+    const secret = 'sntrys_real_token'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'SENTRY_AUTH_TOKEN',
+        plaintext: secret,
+        encryptedValue: 'encrypted-token',
+      },
+    ])
+    let resolveEnvironment!: (variables: Record<string, string>) => void
+    let markResolutionStarted!: () => void
+    const resolutionStarted = new Promise<void>((resolve) => {
+      markResolutionStarted = resolve
+    })
+    mockGetEffectiveDecryptedEnv.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, string>>((resolve) => {
+          resolveEnvironment = resolve
+          markResolutionStarted()
+        })
+    )
+    mockJsonFetch()
+
+    const execution = executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      {
+        executionContext: copilotContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await resolutionStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveEnvironment({ SENTRY_AUTH_TOKEN: secret })
+    await expect(execution).resolves.toMatchObject({ success: true })
+
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).toMatchObject({ output: { result: '{{SENTRY_AUTH_TOKEN}}' } })
+  })
+
   it('trims whitespace inside the braces like the executor resolver', async () => {
     const fetchMock = mockJsonFetch()
 

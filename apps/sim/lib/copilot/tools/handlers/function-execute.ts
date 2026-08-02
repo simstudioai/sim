@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
-import { extractCodeSecretNames } from '@/lib/copilot/tools/secret-mount'
 import {
   CopilotCodeSecretAccessError,
   type MaterializedCopilotCodeSecrets,
@@ -31,6 +30,7 @@ import {
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeAppTool } from '@/tools'
 

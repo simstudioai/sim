@@ -243,28 +243,33 @@ async function resolveCopilotEnvReferences(
     )
   }
 
-  const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
-  const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
+  const completePendingActivation = resolvedSecretTraceRegistry?.beginPendingActivation()
+  try {
+    const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
+    const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
 
-  for (const { paramId, value } of pending) {
-    const missingKeys: string[] = []
-    const resolved = resolveEnvVarReferences(value, envVars, {
-      allowEmbedded: false,
-      missingKeys,
-      onResolved: (name, resolvedValue) => {
-        resolvedSecretTraceRegistry?.recordResolved(name, resolvedValue)
-      },
-    })
-    if (missingKeys.length > 0) {
-      const scopeHint = scope.workspaceId
-        ? ''
-        : ' (no workspace context — only personal variables are available here)'
-      throw new Error(
-        `Environment variable "${missingKeys[0]}" referenced by parameter "${paramId}" was not found${scopeHint}. ` +
-          `Check environment/variables.json for available variable names.`
-      )
+    for (const { paramId, value } of pending) {
+      const missingKeys: string[] = []
+      const resolved = resolveEnvVarReferences(value, envVars, {
+        allowEmbedded: false,
+        missingKeys,
+        onResolved: (name, resolvedValue) => {
+          resolvedSecretTraceRegistry?.recordResolved(name, resolvedValue)
+        },
+      })
+      if (missingKeys.length > 0) {
+        const scopeHint = scope.workspaceId
+          ? ''
+          : ' (no workspace context — only personal variables are available here)'
+        throw new Error(
+          `Environment variable "${missingKeys[0]}" referenced by parameter "${paramId}" was not found${scopeHint}. ` +
+            `Check environment/variables.json for available variable names.`
+        )
+      }
+      params[paramId] = resolved as string
     }
-    params[paramId] = resolved as string
+  } finally {
+    completePendingActivation?.()
   }
 }
 

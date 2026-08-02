@@ -716,7 +716,7 @@ async function dispatchToolExecution(
         context,
         options,
         startExecution,
-        !hiddenInUi && context.toolPermissions.promptSurfaceAvailable
+        !hiddenInUi
       )
     )
     return

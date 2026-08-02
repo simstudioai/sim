@@ -111,7 +111,6 @@ function createStreamingContext(): StreamingContext {
     trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
-      promptSurfaceAvailable: false,
       autoAllowed: new Set(),
     },
   }

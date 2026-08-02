@@ -179,7 +179,6 @@ export interface StreamingContext {
    */
   toolPermissions: {
     enabled: boolean
-    promptSurfaceAvailable: boolean
     autoAllowed: Set<string>
   }
 }

@@ -206,7 +206,7 @@ describe('runCopilotLifecycle', () => {
         }
       )
 
-    it('keeps only the one-call prompt surface available while the broad flag is off', async () => {
+    it('stays entirely inert while the flag is off', async () => {
       let captured: StreamingContext | undefined
       mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
         captured = context
@@ -215,7 +215,6 @@ describe('runCopilotLifecycle', () => {
       await runMothershipTurn()
 
       expect(captured?.toolPermissions.enabled).toBe(false)
-      expect(captured?.toolPermissions.promptSurfaceAvailable).toBe(true)
       // Never even reads the preference tables when disabled.
       expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
     })
@@ -231,7 +230,6 @@ describe('runCopilotLifecycle', () => {
       await runMothershipTurn()
 
       expect(captured?.toolPermissions.enabled).toBe(true)
-      expect(captured?.toolPermissions.promptSurfaceAvailable).toBe(true)
       expect(captured?.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
       expect(mockGetAutoAllowedTools).toHaveBeenCalledWith('user-1', 'chat-1')
     })
@@ -262,7 +260,6 @@ describe('runCopilotLifecycle', () => {
       )
 
       expect(captured?.toolPermissions.enabled).toBe(false)
-      expect(captured?.toolPermissions.promptSurfaceAvailable).toBe(false)
       expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
     })
   })

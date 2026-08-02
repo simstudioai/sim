@@ -9,6 +9,7 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckWorkspaceAccess } = vi.hoisted(() => ({
@@ -68,6 +69,17 @@ function credentialRow(
   }
 }
 
+function mockSqlText(value: unknown): string {
+  if (typeof value !== 'object' || value === null || !('toSQL' in value)) {
+    throw new Error('Expected a mock SQL fragment')
+  }
+  const toSQL = value.toSQL
+  if (typeof toSQL !== 'function') throw new Error('Expected a mock SQL renderer')
+  const rendered = toSQL.call(value) as { sql?: unknown }
+  if (typeof rendered.sql !== 'string') throw new Error('Expected rendered SQL text')
+  return rendered.sql
+}
+
 describe('materializeCopilotCodeSecrets', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -98,6 +110,27 @@ describe('materializeCopilotCodeSecrets', () => {
         { name: 'API_KEY', plaintext: 'plain:personal-cipher', encryptedValue: 'personal-cipher' },
       ],
     })
+  })
+
+  it('casts stored JSON values before using JSONB operators', async () => {
+    queueSources({ personal: { API_KEY: 'personal-cipher' } })
+
+    await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    for (const [selection] of dbChainMockFns.select.mock.calls.slice(0, 2)) {
+      const fields = selection as Record<string, unknown>
+      expect(mockSqlText(fields.variables)).toContain("coalesce(?::jsonb, '{}'::jsonb)")
+      expect(mockSqlText(fields.overLimitNames)).toContain("coalesce(?::jsonb, '{}'::jsonb)")
+    }
+
+    const personalCredentialPredicate = vi.mocked(or).mock.calls[0]?.[1]
+    expect(mockSqlText(personalCredentialPredicate)).toContain(
+      "coalesce(?::jsonb, '{}'::jsonb) ? ?"
+    )
   })
 
   it('lets a workspace admin mount workspace secrets with workspace precedence', async () => {

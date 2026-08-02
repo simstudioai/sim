@@ -1900,14 +1900,7 @@ export const FunctionExecute: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   requiresApproval: true,
-  capabilities: [
-    'file_input',
-    'directory_input',
-    'file_output',
-    'table_input',
-    'table_output',
-    'secret_mount',
-  ],
+  capabilities: ['file_input', 'directory_input', 'file_output', 'table_input', 'table_output'],
 }
 
 export const GenerateApiKey: ToolCatalogEntry = {
@@ -3496,21 +3489,27 @@ export const QueryUserTable: ToolCatalogEntry = {
         type: 'object',
         description: 'Arguments for the operation',
         properties: {
-          filter: { type: 'object', description: 'MongoDB-style filter for query_rows' },
-          limit: {
-            type: 'number',
-            description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+          cursor: {
+            type: 'string',
+            description:
+              'Opaque pagination cursor for query_rows (optional). Omit for the first page; to fetch the next page, pass back the nextCursor from the previous result verbatim. Cannot be combined with a fresh order — the cursor already encodes the paging position.',
           },
-          offset: {
-            type: 'number',
-            description: 'Number of rows to skip (optional for query_rows, default 0)',
-          },
-          rowId: { type: 'string', description: 'Row ID (required for get_row)' },
-          sort: {
+          filter: {
             type: 'object',
             description:
-              "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+              'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
           },
+          limit: {
+            type: 'number',
+            description:
+              'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a non-null nextCursor in the result means more rows exist (continue with cursor).',
+          },
+          order: {
+            type: 'array',
+            description:
+              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
+          },
+          rowId: { type: 'string', description: 'Row ID (required for get_row)' },
           tableId: { type: 'string', description: 'Table ID (required for all operations)' },
         },
       },
@@ -3853,7 +3852,7 @@ export const RunCode: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   requiresApproval: true,
-  capabilities: ['file_input', 'directory_input', 'table_input', 'secret_mount'],
+  capabilities: ['file_input', 'directory_input', 'table_input'],
 }
 
 export const RunFromBlock: ToolCatalogEntry = {
@@ -4749,16 +4748,16 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
           },
-          order: {
-            type: 'array',
-            description:
-              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
-          },
           options: {
             type: 'array',
             description:
               'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
             items: { type: 'string' },
+          },
+          order: {
+            type: 'array',
+            description:
+              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
           },
           outputColumnNames: {
             type: 'object',

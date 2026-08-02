@@ -16,7 +16,6 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import {
   decisionAllowsExecution,
   decisionSuppressesFuturePrompts,
-  TOOL_PERMISSION_DECISION,
   waitForToolPermissionDecision,
 } from '@/lib/copilot/persistence/tool-permission'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
@@ -28,7 +27,6 @@ import type {
   ToolCallState,
 } from '@/lib/copilot/request/types'
 import { getToolEntry, toolRequiresApproval } from '@/lib/copilot/tool-executor'
-import { getToolSecretMountNames } from '@/lib/copilot/tools/secret-mount'
 
 const logger = createLogger('CopilotToolPermissionGate')
 
@@ -73,11 +71,8 @@ export function toolCallNeedsApproval(
   /** The call's arguments, for a tool whose gate depends on what it is doing. */
   args?: Record<string, unknown>
 ): boolean {
-  if (options.interactive === false) return false
-
-  const mountsSecrets = getToolSecretMountNames(toolName, args).length > 0
-  if (mountsSecrets) return true
   if (!context.toolPermissions.enabled) return false
+  if (options.interactive === false) return false
 
   if (!frameRequestsApproval) {
     if (!toolRequiresApproval(toolName)) return false
@@ -110,14 +105,6 @@ function noPromptOutput(toolName: string) {
     skipped: true,
     reason: 'no_prompt_surface',
     message: `${toolName} requires the user's permission, but it has no visible row to ask on, so it was not run.`,
-  }
-}
-
-function persistentSecretPermissionOutput(toolName: string) {
-  return {
-    skipped: true,
-    reason: 'secret_permission_requires_one_time_allow',
-    message: `${toolName} requested secrets and requires a one-time Allow decision. Nothing was executed.`,
   }
 }
 
@@ -285,30 +272,7 @@ export function runGatedToolExecution(
 
       span.setAttribute(TraceAttr.CopilotAsyncToolPermissionDecision, decision.decision)
 
-      const mountsSecrets = getToolSecretMountNames(toolName, args).length > 0
-      if (
-        mountsSecrets &&
-        (decision.decision === TOOL_PERMISSION_DECISION.allow_chat ||
-          decision.decision === TOOL_PERMISSION_DECISION.always_allow)
-      ) {
-        const output = persistentSecretPermissionOutput(toolName)
-        setTerminalToolCallState(toolCall, {
-          status: MothershipStreamV1ToolOutcome.skipped,
-          output,
-        })
-        markToolResultSeen(toolCallId)
-        await emitGateResult(
-          toolCallId,
-          toolName,
-          executor,
-          MothershipStreamV1ToolOutcome.skipped,
-          output,
-          options
-        )
-        return { status: MothershipStreamV1ToolOutcome.success, message: output.message }
-      }
-
-      if (decisionSuppressesFuturePrompts(decision.decision) && !mountsSecrets) {
+      if (decisionSuppressesFuturePrompts(decision.decision)) {
         // Same-turn effect: a second call to this tool later in the turn must
         // not re-prompt. The durable write (chat row or user settings) happens
         // in the endpoint.

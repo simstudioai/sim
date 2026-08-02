@@ -2,12 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { FunctionExecute, Read, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
-import {
-  extractCodeSecretNames,
-  getToolSecretMountNames,
-  toolHasSecretMountCapability,
-} from '@/lib/copilot/tools/secret-mount'
+import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
 
 describe('Copilot code secret declarations', () => {
   it.each(['javascript', 'python'])(
@@ -38,13 +33,5 @@ describe('Copilot code secret declarations', () => {
         'javascript'
       )
     ).toEqual([])
-  })
-
-  it('uses the generated capability as the sole tool classifier', () => {
-    expect(toolHasSecretMountCapability(FunctionExecute.id)).toBe(true)
-    expect(toolHasSecretMountCapability(RunCode.id)).toBe(true)
-    expect(toolHasSecretMountCapability(Read.id)).toBe(false)
-    expect(getToolSecretMountNames(Read.id, { code: 'return {{SECRET}}' })).toEqual([])
-    expect(getToolSecretMountNames(RunCode.id, { code: 'return {{SECRET}}' })).toEqual(['SECRET'])
   })
 })
