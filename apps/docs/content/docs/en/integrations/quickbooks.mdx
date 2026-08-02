@@ -1,6 +1,6 @@
 ---
 title: QuickBooks
-description: Manage QuickBooks Online company, sales, purchasing, and payables
+description: Manage QuickBooks Online company, sales, purchasing, payables, and accounting
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -25,7 +25,7 @@ Reports and attachments are not exposed by this version of the block, so report 
 
 ## Usage Instructions
 
-Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, and payables workflows.
+Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.
 
 
 
@@ -2081,6 +2081,252 @@ Sparse-update purchase header fields without changing lines or payment accounts
 |   ↳ `TotalAmt` | number | Transaction total amount |
 |   ↳ `Balance` | number | Remaining transaction balance |
 |   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_read_accounting_transactions`
+
+List or read one journal entry, deposit, or transfer
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Accounting transaction type to read |
+| `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
+| `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
+| `startPosition` | number | No | One-based position of the first list record to return |
+| `maxResults` | number | No | Number of list records to request \(1–100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionType` | string | Accounting transaction type returned |
+| `item` | json | Single native QuickBooks accounting transaction |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `items` | array | Native QuickBooks accounting transactions |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_create_journal_entry`
+
+Post a balanced journal entry after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lines` | json | Yes | Two to 100 balanced debit and credit lines |
+| `confirmPosting` | boolean | Yes | Explicit confirmation that this journal entry should be posted |
+| `transactionDate` | string | No | Journal-entry date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional journal-entry number |
+| `privateNote` | string | No | Internal journal-entry note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks JournalEntry |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_update_journal_entry`
+
+Sparse-update journal-entry header fields after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `journalEntryId` | string | Yes | Journal Entry ID to update |
+| `syncToken` | string | Yes | Current journal-entry sync token |
+| `confirmPosting` | boolean | Yes | Explicit confirmation that this journal-entry update should be posted |
+| `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement journal-entry number |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks JournalEntry |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_create_deposit`
+
+Create a deposit with bounded account lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `depositAccountId` | string | Yes | Bank or asset account receiving the deposit |
+| `lines` | json | Yes | One to 100 account-based deposit lines |
+| `transactionDate` | string | No | Deposit date in YYYY-MM-DD format |
+| `privateNote` | string | No | Internal deposit note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks Deposit |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_update_deposit`
+
+Sparse-update deposit header fields using the current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `depositId` | string | Yes | Deposit ID to update |
+| `syncToken` | string | Yes | Current deposit sync token |
+| `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Deposit |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |

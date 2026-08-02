@@ -14564,8 +14564,8 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Manage QuickBooks Online company, sales, purchasing, and payables",
-      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, and payables workflows.",
+      "description": "Manage QuickBooks Online company, sales, purchasing, payables, and accounting",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
@@ -14705,9 +14705,29 @@
         {
           "name": "Update Purchase or Expense",
           "description": "Sparse-update purchase header fields without changing lines or payment accounts"
+        },
+        {
+          "name": "Read Accounting Transactions",
+          "description": "List or read one journal entry, deposit, or transfer"
+        },
+        {
+          "name": "Create Journal Entry",
+          "description": "Post a balanced journal entry after explicit confirmation"
+        },
+        {
+          "name": "Update Journal Entry",
+          "description": "Sparse-update journal-entry header fields after explicit confirmation"
+        },
+        {
+          "name": "Create Deposit",
+          "description": "Create a deposit with bounded account lines"
+        },
+        {
+          "name": "Update Deposit",
+          "description": "Sparse-update deposit header fields using the current sync token"
         }
       ],
-      "operationCount": 34,
+      "operationCount": 39,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
