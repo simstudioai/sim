@@ -1,21 +1,47 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
+  getWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
-import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  checkWorkspaceAccess,
+  getUserEntityPermissions,
+  type WorkspaceAccess,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
+const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
 const EFFECTIVE_ENVIRONMENT_CACHE_TTL_MS = 2_000
 const EFFECTIVE_ENVIRONMENT_CACHE_MAX_ENTRIES = 1_000
+
+type WorkspaceEnvDenialReason = 'not-secret-admin' | 'write-access-required'
+
+/** Mirrors the messages the workspace environment route returns for the same denials. */
+const WORKSPACE_ENV_DENIAL_MESSAGES: Record<WorkspaceEnvDenialReason, string> = {
+  'not-secret-admin': 'You must be an admin of these secrets to edit them',
+  'write-access-required': 'Write access is required to add new secrets',
+}
+
+/** Thrown when the acting user may not write one of the requested env keys. */
+export class WorkspaceEnvAccessError extends Error {
+  constructor(
+    readonly reason: WorkspaceEnvDenialReason,
+    readonly keys: string[]
+  ) {
+    super(WORKSPACE_ENV_DENIAL_MESSAGES[reason])
+    this.name = 'WorkspaceEnvAccessError'
+  }
+}
 
 export interface EnvironmentResolutionSnapshot {
   personalEncrypted: Record<string, string>
@@ -328,42 +354,99 @@ export async function upsertWorkspaceEnvVars(
   newVars: Record<string, string>,
   actingUserId: string
 ): Promise<string[]> {
-  const updatedKeys: string[] = []
-  if (Object.keys(newVars).length === 0) return updatedKeys
+  const updatedKeys = Object.keys(newVars)
+  if (updatedKeys.length === 0) return []
 
-  const wsRows = await db
-    .select()
-    .from(workspaceEnvironment)
-    .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-    .limit(1)
-  const existingWsEncrypted = (wsRows[0]?.variables as Record<string, string>) || {}
+  const permission = await getUserEntityPermissions(actingUserId, 'workspace', workspaceId)
+  const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: updatedKeys,
+    userId: actingUserId,
+  })
+
+  // Overwriting an existing secret needs secret-admin on that specific key;
+  // workspace `write` alone only covers adding new ones.
+  const forbidden = updatedKeys.filter(
+    (key) => knownKeys.has(key) && permission !== 'admin' && !adminKeys.has(key)
+  )
+  if (forbidden.length > 0) {
+    logger.warn('Workspace env update denied', {
+      workspaceId,
+      userId: actingUserId,
+      reason: 'not-secret-admin',
+      keys: forbidden,
+    })
+    throw new WorkspaceEnvAccessError('not-secret-admin', forbidden)
+  }
+  const addingNew = updatedKeys.some((key) => !knownKeys.has(key))
+  if (addingNew && permission !== 'admin' && permission !== 'write') {
+    logger.warn('Workspace env update denied', {
+      workspaceId,
+      userId: actingUserId,
+      reason: 'write-access-required',
+      keys: updatedKeys.filter((key) => !knownKeys.has(key)),
+    })
+    throw new WorkspaceEnvAccessError(
+      'write-access-required',
+      updatedKeys.filter((key) => !knownKeys.has(key))
+    )
+  }
 
   const newlyEncrypted: Record<string, string> = {}
   for (const [key, val] of Object.entries(newVars)) {
     const { encrypted } = await encryptSecret(val)
     newlyEncrypted[key] = encrypted
-    updatedKeys.push(key)
   }
 
-  const merged = { ...existingWsEncrypted, ...newlyEncrypted }
+  // Read-modify-write on a single jsonb column, so serialize against the
+  // route's identically-locked transaction or concurrent writers lose keys.
+  const existingEncrypted = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
+    )
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
 
-  await db
-    .insert(workspaceEnvironment)
-    .values({
-      id: generateId(),
-      workspaceId,
-      variables: merged,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [workspaceEnvironment.workspaceId],
-      set: { variables: merged, updatedAt: new Date() },
-    })
+    const [existingRow] = await tx
+      .select()
+      .from(workspaceEnvironment)
+      .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+      .limit(1)
+    const existing = (existingRow?.variables as Record<string, string>) || {}
+    const merged = { ...existing, ...newlyEncrypted }
+
+    await tx
+      .insert(workspaceEnvironment)
+      .values({
+        id: generateId(),
+        workspaceId,
+        variables: merged,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [workspaceEnvironment.workspaceId],
+        set: { variables: merged, updatedAt: new Date() },
+      })
+
+    return existing
+  })
 
   invalidateEffectiveDecryptedEnvCache({ workspaceId })
-  const newKeys = Object.keys(newVars).filter((k) => !(k in existingWsEncrypted))
+  // Derived from the stored variables, not from the credential rows: a legacy
+  // secret present in the jsonb map without a credential row is NOT new, and
+  // minting an ACL for it would make the caller its secret-admin.
+  const newKeys = updatedKeys.filter((key) => !(key in existingEncrypted))
   await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
+
+  recordAudit({
+    workspaceId,
+    actorId: actingUserId,
+    action: AuditAction.ENVIRONMENT_UPDATED,
+    resourceType: AuditResourceType.ENVIRONMENT,
+    resourceId: workspaceId,
+    description: `Updated ${updatedKeys.length} workspace environment variable(s)`,
+    metadata: { variableCount: updatedKeys.length, updatedKeys },
+  })
 
   return updatedKeys
 }

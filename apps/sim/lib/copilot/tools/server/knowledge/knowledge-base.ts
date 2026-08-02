@@ -349,6 +349,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const kbWorkspaceId: string = targetKb.workspaceId
           const billingAttribution = requireKnowledgeBillingAttribution(context, kbWorkspaceId)
+
+          // Gate the payer before accepting indexing work, same as the upload routes.
+          const usage = await checkAttributedUsageLimits(billingAttribution)
+          if (usage.isExceeded) {
+            return {
+              success: false,
+              message:
+                usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            }
+          }
+
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 

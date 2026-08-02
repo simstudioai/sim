@@ -28,6 +28,10 @@ const {
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
+vi.mock('@/lib/copilot/tools/handlers/access', () => ({
+  ensureWorkspaceAccess: vi.fn(),
+}))
+
 vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
 }))
@@ -127,6 +131,36 @@ const mothershipRow = {
   uploadedAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
 }
+
+describe('executeMaterializeFile - workspace write gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it.each(['save', 'import', 'extract'])(
+    'refuses %s without workspace write access and touches no upload',
+    async (operation) => {
+      const { ensureWorkspaceAccess } = await import('@/lib/copilot/tools/handlers/access')
+      vi.mocked(ensureWorkspaceAccess).mockRejectedValueOnce(
+        new Error('Write access required for this workspace')
+      )
+
+      const result = await executeMaterializeFile({ fileNames: ['a.json'], operation }, context)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Write access required')
+      expect(mockFindUpload).not.toHaveBeenCalled()
+    }
+  )
+
+  it('requires write, not merely read, access', async () => {
+    const { ensureWorkspaceAccess } = await import('@/lib/copilot/tools/handlers/access')
+    await executeMaterializeFile({ fileNames: ['a.json'], operation: 'save' }, context)
+
+    expect(ensureWorkspaceAccess).toHaveBeenCalledWith(context.workspaceId, context.userId, 'write')
+  })
+})
 
 describe('executeMaterializeFile - unsupported operation', () => {
   beforeEach(() => {
