@@ -2,9 +2,10 @@ import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@
 import { createLogger } from '@sim/logger'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import {
-  normalizePositionedSourceHandleId,
-  normalizePositionedTargetHandleId,
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
   SUBFLOW_TYPES,
+  withPersistedErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
@@ -103,8 +104,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       id: edge.id,
       source: edge.sourceBlockId,
       target: edge.targetBlockId,
-      sourceHandle: normalizePositionedSourceHandleId(edge.sourceHandle ?? undefined),
-      targetHandle: normalizePositionedTargetHandleId(edge.targetHandle ?? undefined),
+      sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined,
+      targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? undefined,
       type: 'default',
       data: {},
     }))
@@ -243,7 +244,7 @@ export async function persistMigratedBlocks(
           .update(workflowBlocks)
           .set({
             subBlocks: block.subBlocks,
-            data: block.data,
+            data: withPersistedErrorEnabled(block.data, block.errorEnabled),
             updatedAt: new Date(),
           })
           .where(whereClause)

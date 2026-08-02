@@ -1,7 +1,6 @@
 import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
-import { isPositionedSourceHandle, isPositionedTargetHandle } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import {
   ArrowLeftRight,
@@ -31,6 +30,11 @@ import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureEvent } from '@/lib/posthog/client'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
+import {
+  showsCanvasDefaultHandles,
+  showsCanvasErrorRow,
+  splitCanvasChipBlocks,
+} from '@/lib/workflows/blocks/canvas-rows'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -91,7 +95,7 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { getModelSunsetStatus } from '@/providers/models'
-import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import { useIsBlockActive } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -106,28 +110,6 @@ const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /** Stable empty map for rows that never resolve MCP tool names */
 const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
-
-/**
- * Selector subblock types whose hydrated value names the block's primary
- * target (table, channel, knowledge base, …) — promoted to a chip.
- */
-const CHIP_TARGET_SELECTOR_TYPES = new Set<string>([
-  'table-selector',
-  'knowledge-base-selector',
-  'workflow-selector',
-  'mcp-server-selector',
-  'mcp-tool-selector',
-  'channel-selector',
-  'user-selector',
-  'file-selector',
-  'sheet-selector',
-  'folder-selector',
-  'project-selector',
-  'document-selector',
-])
-
-/** Maximum fragments in the statement line; remaining candidates fall back to rows. */
-const MAX_CHIPS = 2
 
 type MetaIcon = ComponentType<{ className?: string }>
 
@@ -316,18 +298,6 @@ function estimateSentenceLines(
     }
   }
   return Math.max(1, Math.ceil(widthPx / SENTENCE_WRAP_WIDTH_PX))
-}
-
-/**
- * Priority for promoting a visible subblock into the chips row: the
- * operation first, then the primary target selector, then the model.
- * Returns null for subblocks that stay as label/value rows.
- */
-function chipPriority(subBlock: SubBlockConfig): number | null {
-  if (subBlock.id === 'operation') return 0
-  if (CHIP_TARGET_SELECTOR_TYPES.has(subBlock.type)) return 1
-  if (subBlock.id === 'model') return 2
-  return null
 }
 
 /**
@@ -788,7 +758,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
-  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  /*
+   * Per-block, not workflow-wide. This drives the activity swell, the
+   * selected-looking border, and the action row's progress bar — all of which
+   * describe *this* block's execution. Keyed off the workflow it would light
+   * up every card on the canvas and hide every action row for the whole run,
+   * with no other entry point to disable/lock/duplicate a block.
+   */
+  const isBlockRunning = useIsBlockActive(id)
   const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -909,43 +886,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     () => new Set(highlightedHandleKey ? highlightedHandleKey.split('|') : []),
     [highlightedHandleKey]
   )
-  const connectedSourceHandleKey = useReactFlowStore(
-    useCallback(
-      (state) => {
-        const handles = new Set<string>()
-        for (const edge of state.edges) {
-          if (edge.source === id && isPositionedSourceHandle(edge.sourceHandle)) {
-            handles.add(edge.sourceHandle)
-          }
-        }
-        return Array.from(handles).sort().join('|')
-      },
-      [id]
-    )
-  )
-  const connectedSourceHandles = useMemo(
-    () => new Set(connectedSourceHandleKey ? connectedSourceHandleKey.split('|') : []),
-    [connectedSourceHandleKey]
-  )
-  const connectedTargetHandleKey = useReactFlowStore(
-    useCallback(
-      (state) => {
-        const handles = new Set<string>()
-        for (const edge of state.edges) {
-          if (edge.target === id && isPositionedTargetHandle(edge.targetHandle)) {
-            handles.add(edge.targetHandle)
-          }
-        }
-        return Array.from(handles).sort().join('|')
-      },
-      [id]
-    )
-  )
-  const connectedTargetHandles = useMemo(
-    () => new Set(connectedTargetHandleKey ? connectedTargetHandleKey.split('|') : []),
-    [connectedTargetHandleKey]
-  )
-
   const errorOutputEnabled = Boolean(currentBlock?.errorEnabled || hasErrorConnection)
   const handleToggleErrorOutput = useCallback(
     (next: boolean) => {
@@ -1076,16 +1016,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       return hasDisplayableRowValue(block, rawValues[block.id])
     })
 
-    const chipBlocks = visibleSubBlocks
-      .filter(
-        (block) =>
-          canvasPresentation.usesDefaultTitle || block.id !== canvasPresentation.operationSubBlockId
-      )
-      .filter((block) => chipPriority(block) !== null)
-      .sort((a, b) => (chipPriority(a) ?? 0) - (chipPriority(b) ?? 0))
-      .slice(0, MAX_CHIPS)
-    const chipIds = new Set(chipBlocks.map((block) => block.id))
-    const rowSubBlocks = visibleSubBlocks.filter((block) => !chipIds.has(block.id))
+    const { chipBlocks, rowSubBlocks } = splitCanvasChipBlocks(visibleSubBlocks, {
+      usesDefaultTitle: canvasPresentation.usesDefaultTitle,
+      operationSubBlockId: canvasPresentation.operationSubBlockId,
+    })
 
     rowSubBlocks.forEach((block) => {
       if (currentRowWidth + blockWidth > 1) {
@@ -1145,8 +1079,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
   }, [subBlockState, displayAdvancedMode, config.subBlocks, canonicalIndex, canEditWorkflow])
 
-  const shouldShowDefaultHandles =
-    config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
+  const shouldShowDefaultHandles = showsCanvasDefaultHandles(config, type, displayTriggerMode)
 
   /**
    * Compute per-condition rows (title/value/id) for condition blocks so we can render
@@ -1177,7 +1110,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    * Whether anything renders below the header — subblock rows, chips, or the
    * condition/router branch rows.
    */
-  const showsErrorRow = shouldShowDefaultHandles && type !== 'response'
+  const showsErrorRow = showsCanvasErrorRow(config, type, displayTriggerMode)
   const hasContentBelowHeader =
     subBlockRows.length > 0 ||
     chipBlocks.length > 0 ||
@@ -1236,8 +1169,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     calculateDimensions: () => {
       return calculateWorkflowBlockDimensions({
         blockType: type,
-        category: config.category,
-        displayTriggerMode,
         visibleSubBlockCount: sentenceData ? 0 : totalRenderedRowCount,
         conditionRowCount: conditionRows.length,
         routerRowCount: routerRows.length,
@@ -1402,7 +1333,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       hasRing={hasRing}
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
-      isRunning={isWorkflowRunning}
+      isRunning={isBlockRunning}
       Icon={config.icon}
       iconBgColor={config.bgColor}
       isIntegration={config.category === 'tools'}
@@ -1457,7 +1388,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             blockType={type}
             disabled={!canEditWorkflow}
             variant='swell'
-            isRunning={isWorkflowRunning}
+            /* Per-block, not workflow-wide: the action row is replaced by a
+               progress bar and made non-interactive while it is suppressed, and
+               disable/lock/duplicate/remove-from-subflow have no other entry
+               point — so keying this off the workflow would lock the user out
+               of editing every block on the canvas for the whole run. */
+            isRunning={isBlockRunning}
           />
         ) : undefined
       }
@@ -1471,8 +1407,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         canEditWorkflow && data.onSetErrorOutputEnabled ? handleToggleErrorOutput : undefined
       }
       highlightedHandles={highlightedHandles}
-      connectedSourceHandles={connectedSourceHandles}
-      connectedTargetHandles={connectedTargetHandles}
     />
   )
 }, shouldSkipBlockRender)

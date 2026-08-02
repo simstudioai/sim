@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { TraceSpan } from '@/lib/logs/types'
 import type {
   BlockChildWorkflowStartedData,
@@ -60,9 +60,10 @@ export function updateActiveBlockRefCount(
  * Exclude sentinel handles here
  */
 function shouldActivateEdgeClient(
-  handle: string | null | undefined,
+  rawHandle: string | null | undefined,
   output: Record<string, any> | undefined
 ): boolean {
+  const handle = normalizeWorkflowEdgeSourceHandle(rawHandle)
   if (!handle) return true
 
   if (handle.startsWith('condition-')) {
@@ -71,10 +72,6 @@ function shouldActivateEdgeClient(
 
   if (handle.startsWith('router-')) {
     return output?.selectedRoute === handle.substring('router-'.length)
-  }
-
-  if (isPositionedSourceHandle(handle)) {
-    return !output?.error
   }
 
   switch (handle) {

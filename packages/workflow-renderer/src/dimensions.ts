@@ -30,20 +30,37 @@ export const BLOCK_DIMENSIONS = {
   WORKFLOW_CHIPS_ROW_HEIGHT: 20,
   /** Natural-language summary line height (text-sm with inline value chips). */
   WORKFLOW_SENTENCE_LINE_HEIGHT: 24,
-  /** Footer divider above the error row: 1px border + 6px padding */
-  WORKFLOW_FOOTER_DIVIDER_HEIGHT: 7,
   /** Total vertical padding around the note's content viewport (`p-2`). */
   NOTE_CONTENT_PADDING: 16,
+  /**
+   * The content wrapper's own `py-2`, inside the viewport's `p-2`. Only the
+   * empty note is sized by its content, so this is the one case where it adds
+   * to the card; a filled note is pinned by NOTE_CONTENT_VIEWPORT_HEIGHT.
+   */
+  NOTE_INNER_CONTENT_PADDING: 16,
   NOTE_MIN_CONTENT_HEIGHT: 20,
   /** Bounded canvas preview, including its `p-2`; full content stays in the editor. */
   NOTE_CONTENT_VIEWPORT_HEIGHT: 176,
+  /** Inset of the subflow Start card from the top of the container body. */
+  SUBFLOW_START_TOP_OFFSET: 12,
+  /** The subflow Start card itself. */
+  SUBFLOW_START_HEIGHT: 34,
+  SUBFLOW_START_WIDTH: 58,
 } as const
 
-/** Keeps note DOM, React Flow bounds, and auto-layout on the same height. */
+/**
+ * Keeps note DOM, React Flow bounds, and auto-layout on the same height.
+ *
+ * Every term here has to appear in the rendered DOM or the border SVG — which
+ * is sized from the host but builds its viewBox from this number under
+ * `preserveAspectRatio='none'` — paints the card's outline stretched.
+ */
 export const getNoteBlockHeight = (isEmpty: boolean) =>
   BLOCK_DIMENSIONS.HEADER_HEIGHT +
   (isEmpty
-    ? BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+    ? BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
+      BLOCK_DIMENSIONS.NOTE_INNER_CONTENT_PADDING +
+      BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
     : BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT)
 
 export const CONTAINER_DIMENSIONS = {
@@ -63,10 +80,6 @@ export const CONTAINER_DIMENSIONS = {
  * sub-block-row-view.tsx, and subflow-node.tsx
  */
 export const HANDLE_POSITIONS = {
-  /** Default Y offset from block top for source/target handles */
-  DEFAULT_Y_OFFSET: 20,
-  /** Error handle offset from block bottom */
-  ERROR_BOTTOM_OFFSET: 17,
   /** Error knob center inset from the card's right edge. */
   ERROR_RIGHT_OFFSET: 30,
   /**
@@ -76,6 +89,15 @@ export const HANDLE_POSITIONS = {
   CONDITION_START_Y: 59,
   /** Row pitch: 20px row height (h-5) + 8px flex gap (gap-2) */
   CONDITION_ROW_HEIGHT: 28,
-  /** Subflow start handle Y offset (header 50px + pill offset 16px + pill center 14px) */
-  SUBFLOW_START_Y_OFFSET: 80,
+  /**
+   * Y of every port on a loop/parallel container — its own input and output as
+   * well as the inset Start card's output, which all line up with the centre of
+   * that card. Derived, not spelled out: auto-layout positions edges against
+   * this number while the renderer paints handles at it, so a literal here
+   * silently tilts every container edge the moment the Start card moves.
+   */
+  SUBFLOW_CONNECTION_Y:
+    BLOCK_DIMENSIONS.HEADER_HEIGHT +
+    BLOCK_DIMENSIONS.SUBFLOW_START_TOP_OFFSET +
+    BLOCK_DIMENSIONS.SUBFLOW_START_HEIGHT / 2,
 } as const

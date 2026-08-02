@@ -2,12 +2,7 @@
 
 import { type CSSProperties, memo, useMemo } from 'react'
 import { HANDLE_POSITIONS, humanizeBlockName, WorkflowTypeTag } from '@sim/workflow-renderer'
-import {
-  getPositionedSourceHandleId,
-  getPositionedTargetHandleId,
-  POSITIONED_SOURCE_HANDLE_SIDES,
-  type PositionedSourceHandleSide,
-} from '@sim/workflow-types/workflow'
+import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
@@ -60,19 +55,6 @@ const ERROR_HANDLE_STYLE: CSSProperties = {
   left: 'calc(100% - 30px)',
   transform: 'translateX(-50%)',
 }
-
-const getReactFlowPosition = (side: PositionedSourceHandleSide) =>
-  side === 'left' ? Position.Left : Position.Right
-
-const getCenteredSideHandleStyle = (side: PositionedSourceHandleSide): CSSProperties => ({
-  right: 'auto',
-  bottom: 'auto',
-  width: 1,
-  height: 1,
-  top: '50%',
-  left: side === 'left' ? 0 : '100%',
-  transform: 'translate(-50%, -50%)',
-})
 
 interface WorkflowPreviewBlockData {
   type: string
@@ -363,12 +345,20 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
   const shouldShowDefaultHandles = !isStarterOrTrigger && !isNoteBlock
   const hasSubBlocks = visibleSubBlocks.length > 0
+  /*
+   * Gated on rows the preview actually renders. The error row that used to be
+   * the guaranteed content for every non-trigger block is gone, so keeping
+   * `shouldShowDefaultHandles` in this test painted an empty padded band under
+   * the header of any unconfigured block — content the editor canvas, which
+   * derives this from its real sections, never shows.
+   */
   const hasContentBelowHeader =
     type === 'condition'
-      ? conditionRows.length > 0 || shouldShowDefaultHandles
+      ? conditionRows.length > 0
       : type === 'router_v2'
-        ? routerRows.length > 0 || shouldShowDefaultHandles
-        : hasSubBlocks || shouldShowDefaultHandles
+        ? /* The Context row renders whether or not any routes are defined. */
+          true
+        : hasSubBlocks
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
@@ -393,7 +383,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <Handle
           type='target'
           position={Position.Left}
-          id='target'
+          id={WORKFLOW_TARGET_HANDLE_ID}
           className={HANDLE_STYLES.horizontal}
           style={{ left: '-7px', top: '50%', transform: 'translateY(-50%)' }}
         />
@@ -521,42 +511,14 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
       {/* Source and error handles for non-condition/router/note blocks */}
       {type !== 'condition' && type !== 'router_v2' && type !== 'response' && !isNoteBlock && (
-        <>
-          <Handle
-            type='source'
-            position={Position.Right}
-            id='source'
-            className={HANDLE_STYLES.right}
-            style={{ right: '-7px', top: '50%', transform: 'translateY(-50%)' }}
-          />
-          {POSITIONED_SOURCE_HANDLE_SIDES.map((side) => (
-            <Handle
-              key={getPositionedSourceHandleId(side)}
-              type='source'
-              position={getReactFlowPosition(side)}
-              id={getPositionedSourceHandleId(side)}
-              className='!pointer-events-none !z-0 !border-none !bg-transparent !opacity-0'
-              style={getCenteredSideHandleStyle(side)}
-              isConnectable={false}
-              aria-hidden='true'
-            />
-          ))}
-        </>
+        <Handle
+          type='source'
+          position={Position.Right}
+          id={WORKFLOW_SOURCE_HANDLE_ID}
+          className={HANDLE_STYLES.right}
+          style={{ right: '-7px', top: '50%', transform: 'translateY(-50%)' }}
+        />
       )}
-
-      {shouldShowDefaultHandles &&
-        POSITIONED_SOURCE_HANDLE_SIDES.map((side) => (
-          <Handle
-            key={getPositionedTargetHandleId(side)}
-            type='target'
-            position={getReactFlowPosition(side)}
-            id={getPositionedTargetHandleId(side)}
-            className='!pointer-events-none !z-0 !border-none !bg-transparent !opacity-0'
-            style={getCenteredSideHandleStyle(side)}
-            isConnectable={false}
-            aria-hidden='true'
-          />
-        ))}
 
       {shouldShowDefaultHandles && type !== 'response' && (
         <Handle

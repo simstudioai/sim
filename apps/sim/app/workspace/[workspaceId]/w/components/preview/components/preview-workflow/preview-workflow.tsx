@@ -16,6 +16,7 @@ import 'reactflow/dist/style.css'
 import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
@@ -529,7 +530,14 @@ export function PreviewWorkflow({
       }
     }
 
-    return (workflowState.edges || []).map((edge) => {
+    /*
+     * Deployment versions and run snapshots are raw jsonb blobs that never
+     * pass through `loadWorkflowFromNormalizedTables`, so unlike the editor
+     * canvas their handles arrive un-canonicalized. React Flow drops an edge
+     * whose handle matches no mounted handle, so without this the preview
+     * renders the cards with no lines between them.
+     */
+    return normalizeWorkflowEdgeHandles(workflowState.edges).map((edge) => {
       const status = getEdgeExecutionStatus(edge)
       const isErrorEdge = edge.sourceHandle === 'error'
       return {

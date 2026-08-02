@@ -5,7 +5,7 @@ import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import { useIsBlockActive } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -34,7 +34,14 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const isFocused = currentBlockId === id
 
-  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  /*
+   * Per-block, not workflow-wide. This drives the activity swell, the
+   * selected-looking border, and the action row's progress bar — all of which
+   * describe *this* container's execution. Keyed off the workflow it would
+   * light up every node on the canvas and hide every action row for the whole
+   * run, with no other entry point to disable/lock/duplicate.
+   */
+  const isBlockRunning = useIsBlockActive(id)
 
   /**
    * Nesting depth, walking the parent chain so the view can apply nested
@@ -62,7 +69,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isEnabled={isEnabled}
       isLocked={isLocked}
       isFocused={isFocused}
-      isRunning={isWorkflowRunning}
+      isRunning={isBlockRunning}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
@@ -73,7 +80,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           blockType={data.kind}
           disabled={!canEditWorkflow}
           variant='swell'
-          isRunning={isWorkflowRunning}
+          isRunning={isBlockRunning}
         />
       }
     />

@@ -30,6 +30,7 @@ export {
   ERROR_SOURCE_HANDLE_POSITION,
   getErrorBorderPort,
   getErrorSourceHandleStyle,
+  getMappedWorkflowTypeAccent,
   getNearestBranchCursorHandleId,
   getWorkflowTypeAccent,
   WorkflowBlockView,

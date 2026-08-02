@@ -140,6 +140,18 @@ export function useActionMenuSwell({
       }, ACTION_MENU_HOVER_LEAVE_DELAY_MS)
     }
 
+    /*
+     * A stationary pointer fires no `pointerenter`, so re-subscribing while it
+     * already rests on the card (the listeners are torn down for the duration
+     * of a run) would otherwise leave the menu collapsed until the user moved
+     * off the node and back on.
+     *
+     * Nested nodes need no special case: React Flow renders every node as a
+     * flat sibling under `.react-flow__nodes`, so a container is never a DOM
+     * ancestor of the blocks inside it and `:hover` cannot leak upward.
+     */
+    if (nodeElement.matches(':hover')) openHover()
+
     nodeElement.addEventListener('pointerenter', openHover)
     nodeElement.addEventListener('pointerleave', scheduleHoverLeave)
     if (suppressNestedNodeHover) {
@@ -155,6 +167,8 @@ export function useActionMenuSwell({
   }, [enabled, suppressNestedNodeHover, suspendInteraction])
 
   useLayoutEffect(() => {
+    if (!enabled) return
+
     const actionMenu = hostRef.current?.querySelector<HTMLElement>(
       '[data-workflow-action-bar-swell]'
     )

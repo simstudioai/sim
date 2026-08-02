@@ -1,9 +1,17 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { showsCanvasErrorRow } from '@/lib/workflows/blocks/canvas-rows'
+import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getBlock } from '@/blocks/registry'
 
 /**
- * Estimates block dimensions based on block type.
- * Uses subblock count to estimate height for blocks that haven't been measured yet.
+ * Estimates block dimensions for a block that has not been measured yet, from
+ * its type alone — the caller has no subblock values to work from, so the row
+ * count is a guess bounded to a plausible range.
+ *
+ * Routed through {@link calculateWorkflowBlockDimensions} rather than summing
+ * rows locally: that function owns the section gaps, the error-row height, and
+ * the painted floor, and a second copy of the arithmetic here drifted from it
+ * the moment any of those changed.
  *
  * @param blockType - The type of block (e.g., 'condition', 'agent')
  * @returns Estimated width and height for the block
@@ -12,17 +20,14 @@ export function estimateBlockDimensions(blockType: string): { width: number; hei
   const blockConfig = getBlock(blockType)
   const subBlockCount = blockConfig?.subBlocks?.length ?? 3
   const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 7))
-  const hasErrorRow = blockType !== 'starter' && blockType !== 'response' ? 1 : 0
 
-  const height =
-    BLOCK_DIMENSIONS.HEADER_HEIGHT +
-    BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
-    (estimatedRows + hasErrorRow) * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
-
-  return {
-    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-    height: Math.max(height, BLOCK_DIMENSIONS.MIN_HEIGHT),
-  }
+  return calculateWorkflowBlockDimensions({
+    blockType,
+    visibleSubBlockCount: estimatedRows,
+    hasErrorRow: blockConfig
+      ? showsCanvasErrorRow(blockConfig, blockType, false)
+      : blockType !== 'starter' && blockType !== 'response',
+  })
 }
 
 /**

@@ -1,5 +1,5 @@
 import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
-import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
@@ -493,9 +493,7 @@ function extractConnectionsForBlock(
 
   // Group by source handle (converting to simple format)
   for (const edge of outgoingEdges) {
-    let handle = isPositionedSourceHandle(edge.sourceHandle)
-      ? 'source'
-      : edge.sourceHandle || 'source'
+    let handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) || 'source'
 
     // Convert internal UUID handles to simple format (if, else-if-0, route-0, etc.)
     handle = convertToSimpleHandle(handle, blockId, block)

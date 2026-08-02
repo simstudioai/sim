@@ -34,6 +34,7 @@ import {
   isWorkflowBlockProtected,
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
+  withPersistedErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -959,7 +960,10 @@ async function handleBlocksOperationTx(
             name: block.name as string,
             positionX: (block.position as { x: number; y: number }).x,
             positionY: (block.position as { x: number; y: number }).y,
-            data: (block.data as Record<string, unknown>) || {},
+            data: withPersistedErrorEnabled(
+              block.data as Record<string, unknown> | undefined,
+              block.errorEnabled as boolean | undefined
+            ),
             subBlocks: mergedSubBlocks,
             outputs: (block.outputs as Record<string, unknown>) || {},
             enabled: (block.enabled as boolean) ?? true,
@@ -2175,7 +2179,7 @@ async function handleWorkflowOperationTx(
           name: block.name,
           positionX: block.position.x,
           positionY: block.position.y,
-          data: block.data || {},
+          data: withPersistedErrorEnabled(block.data, block.errorEnabled),
           subBlocks: block.subBlocks || {},
           outputs: block.outputs || {},
           enabled: block.enabled ?? true,

@@ -1,10 +1,7 @@
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
-import type { BlockConfig } from '@/blocks/types'
 
 interface WorkflowBlockDimensionsInput {
   blockType: string
-  category: BlockConfig['category']
-  displayTriggerMode: boolean
   visibleSubBlockCount: number
   conditionRowCount?: number
   routerRowCount?: number

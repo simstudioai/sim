@@ -116,14 +116,24 @@ describe('filterNewEdges', () => {
     targetHandle,
   })
 
-  it('treats legacy positioned handles as the same logical connection', () => {
-    const currentEdges = [makeEdge('legacy', 'source-left', 'target-top')]
+  it('treats every side-anchored handle as the same logical connection', () => {
+    const currentEdges = [makeEdge('canonical', 'source', 'target')]
     const candidates = [
-      makeEdge('current', 'source-right', 'target-left'),
-      makeEdge('legacy-vertical', 'source-bottom', 'target-bottom'),
+      makeEdge('side-anchored', 'source-right', 'target-left'),
+      makeEdge('other-side', 'source-left', 'target-right'),
+      makeEdge('legacy-vertical', 'source-bottom', 'target-top'),
     ]
 
     expect(filterNewEdges(candidates, currentEdges)).toEqual([])
+  })
+
+  it('collapses side-anchored candidates against each other within one batch', () => {
+    const candidates = [
+      makeEdge('first', 'source-right', 'target-left'),
+      makeEdge('second', 'source', 'target'),
+    ]
+
+    expect(filterNewEdges(candidates, [])).toEqual([candidates[0]])
   })
 
   it('keeps semantic routing handles distinct', () => {

@@ -10,6 +10,7 @@ import {
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
 import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows/autolayout/types'
+import { showsCanvasErrorRow } from '@/lib/workflows/blocks/canvas-rows'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -24,6 +25,7 @@ import {
   isTriggerModeSubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
+import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -136,6 +138,10 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
   return {
     width: containerWidth,
     height: containerHeight,
+    /* A container is sized by its stored width/height, so what it paints and
+       what it reserves are the same number. Its ports do not depend on either
+       — they sit a fixed inset below the header, on the Start card's centre. */
+    portHeight: containerHeight,
     minWidth: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
     minHeight: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
     paddingTop: BLOCK_DIMENSIONS.HEADER_HEIGHT,
@@ -146,13 +152,23 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 }
 
 /**
- * Counts visible preview subblocks using the same visibility rules as the
- * workflow block preview when no DOM measurements are available.
+ * Resolves the subblocks a collapsed card renders, using the same visibility
+ * rules as the canvas block, for use when no DOM measurement exists yet.
+ *
+ * `fallbackCount` covers the block types with no registry config, where the
+ * only signal available is how many subblock values the block carries.
  */
-function getVisiblePreviewSubBlockCount(block: BlockState): number {
+function getVisiblePreviewSubBlocks(block: BlockState): {
+  visibleSubBlocks: SubBlockConfig[]
+  fallbackCount: number
+} {
   const blockConfig = getBlock(block.type)
   if (!blockConfig?.subBlocks?.length) {
-    return Object.values(block.subBlocks || {}).filter((subBlock) => subBlock != null).length
+    return {
+      visibleSubBlocks: [],
+      fallbackCount: Object.values(block.subBlocks || {}).filter((subBlock) => subBlock != null)
+        .length,
+    }
   }
 
   const rawValues = buildSubBlockValues(block.subBlocks || {})
@@ -170,7 +186,7 @@ function getVisiblePreviewSubBlockCount(block: BlockState): number {
   const effectiveTrigger = Boolean(block.triggerMode)
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
 
-  return blockConfig.subBlocks.filter((subBlock) => {
+  const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     // Never rendered on the canvas, so it must not contribute to node height —
@@ -205,16 +221,29 @@ function getVisiblePreviewSubBlockCount(block: BlockState): number {
 
     if (!subBlock.condition) return true
     return evaluateSubBlockCondition(subBlock.condition, rawValues)
-  }).length
+  })
+
+  return { visibleSubBlocks, fallbackCount: visibleSubBlocks.length }
 }
 
 /**
- * Estimates workflow block dimensions using the same deterministic row-based
- * formula used by the canvas block renderer.
+ * Estimates a block's card height for auto-layout.
+ *
+ * Only reached for a block that has never mounted — copilot output, an import,
+ * or a server-side layout run. Anything the user has seen publishes its exact
+ * height instead, and `getRegularBlockMetrics` takes the larger of the two.
+ *
+ * Deliberately biased to over-estimate. Two card layouts cannot be reproduced
+ * from block state alone: the natural-language summary that replaces every
+ * field row, and `mcp-dynamic-args`, which expands into one row per argument.
+ * Counting every config-visible field — including the empty ones the card
+ * omits — is the slack that keeps those two from landing short. An
+ * over-estimate opens a gap under a card; an under-estimate overlaps it with
+ * the next one, so the bias only ever errs the cosmetic way.
  */
 function estimateWorkflowBlockDimensions(block: BlockState): { width: number; height: number } {
   const blockConfig = getBlock(block.type)
-  const visibleCount = getVisiblePreviewSubBlockCount(block)
+  const { visibleSubBlocks, fallbackCount } = getVisiblePreviewSubBlocks(block)
 
   if (!blockConfig) {
     return {
@@ -222,17 +251,19 @@ function estimateWorkflowBlockDimensions(block: BlockState): { width: number; he
       height: Math.max(
         BLOCK_DIMENSIONS.HEADER_HEIGHT +
           BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
-          visibleCount * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT,
-        BLOCK_DIMENSIONS.MIN_HEIGHT
+          fallbackCount * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT,
+        BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT
       ),
     }
   }
 
   return calculateWorkflowBlockDimensions({
     blockType: block.type,
-    category: blockConfig.category,
-    displayTriggerMode: Boolean(block.triggerMode),
-    visibleSubBlockCount: visibleCount,
+    visibleSubBlockCount: visibleSubBlocks.length,
+    /* The one input the branch left out. Every block that can emit an error
+       carries the row permanently, so omitting it under-counted 32px on
+       almost every card — the one direction that causes overlaps. */
+    hasErrorRow: showsCanvasErrorRow(blockConfig, block.type, Boolean(block.triggerMode)),
     conditionRowCount:
       block.type === 'condition'
         ? getConditionRows(block.id, block.subBlocks?.conditions?.value).length
@@ -251,19 +282,37 @@ function estimateWorkflowBlockDimensions(block: BlockState): { width: number; he
  */
 function getRegularBlockMetrics(block: BlockState): BlockMetrics {
   const minWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
-  const minHeight = BLOCK_DIMENSIONS.MIN_HEIGHT
+  const minHeight = BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth
   const estimatedDimensions = estimateWorkflowBlockDimensions(block)
-  const estimatedHeight = estimatedDimensions.height
 
+  /*
+   * Spacing height keeps the max of both signals: a stored measurement can be
+   * stale (the block's content changed and it has not re-rendered — the
+   * `resizedBlockIds` path exists for exactly that), while the estimate is all
+   * there is for a block that has never mounted. Biasing tall is deliberate —
+   * an over-estimate leaves a gap, an under-estimate overlaps two cards.
+   *
+   * Port height takes the measurement alone whenever there is one, because it
+   * is exactly what the card paints and ports are centred on it. Feeding the
+   * padded spacing height into that centring would tilt every edge by half the
+   * padding.
+   */
   const hasMeasurement = typeof measuredH === 'number' && measuredH > 0
-  const height = hasMeasurement ? Math.max(measuredH, estimatedHeight, minHeight) : estimatedHeight
+  const height = hasMeasurement
+    ? Math.max(measuredH, estimatedDimensions.height, minHeight)
+    : Math.max(estimatedDimensions.height, minHeight)
+  const portHeight = Math.max(
+    hasMeasurement ? measuredH : estimatedDimensions.height,
+    BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT
+  )
   const width = Math.max(measuredW ?? estimatedDimensions.width, minWidth)
 
   return {
     width,
     height,
+    portHeight,
     minWidth,
     minHeight,
     paddingTop: BLOCK_DIMENSIONS.HEADER_HEIGHT,
@@ -332,7 +381,24 @@ function getNoteDimensions(block: BlockState): { width: number; height: number }
     BLOCK_DIMENSIONS.FIXED_WIDTH
   )
 
-  const defaultHeight = getNoteBlockHeight(false)
+  /*
+   * The empty note is a fraction of a filled one, so hard-coding the filled
+   * height as the floor made every empty note claim ~140px it does not paint
+   * and pushed the rest of its layer down. Mirrors `note-block.tsx`'s own
+   * `content.trim().length === 0`.
+   */
+  /* Accepts both shapes `note-block.tsx`'s own reader handles: a raw string
+     and a `{ value }` wrapper. Reading only one would size a filled note as
+     empty, which under-estimates by 140px and overlaps whatever sits below. */
+  const rawContent = block.subBlocks?.content?.value
+  const content =
+    typeof rawContent === 'string'
+      ? rawContent
+      : rawContent && typeof rawContent === 'object' && 'value' in rawContent
+        ? (rawContent as { value?: unknown }).value
+        : undefined
+  const isEmpty = typeof content !== 'string' || content.trim().length === 0
+  const defaultHeight = getNoteBlockHeight(isEmpty)
 
   const height = Math.max(
     resolveNumeric(block.data?.height, 0),
@@ -552,7 +618,7 @@ export function transferBlockHeights(
   for (const block of Object.values(sourceBlocks)) {
     const key = `${block.type}:${block.name}`
     heightMap.set(key, {
-      height: block.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+      height: block.height || BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT,
       width: block.layout?.measuredWidth || BLOCK_DIMENSIONS.FIXED_WIDTH,
     })
   }

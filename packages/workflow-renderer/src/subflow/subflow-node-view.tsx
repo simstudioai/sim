@@ -8,7 +8,7 @@ import {
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
-import { BLOCK_DIMENSIONS } from '../dimensions'
+import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
 import {
@@ -74,16 +74,17 @@ export interface SubflowNodeViewProps {
 }
 
 const SUBFLOW_CORNER_RADIUS_PX = 16
-const START_WIDTH_PX = 58
-const START_HEIGHT_PX = 34
-const START_TOP_OFFSET_PX = 12
+/* Compile-time pin: the Start card's `top-3 h-[34px] w-[58px]` classes below
+   are what HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y is derived from, and Tailwind
+   only scans literal class strings — so these annotations fail the build if the
+   constants and the CSS ever drift apart. */
+const START_WIDTH_PX: 58 = BLOCK_DIMENSIONS.SUBFLOW_START_WIDTH
+const START_HEIGHT_PX: 34 = BLOCK_DIMENSIONS.SUBFLOW_START_HEIGHT
 const START_CORNER_RADIUS_PX = 8
 const START_CURSOR_SIDES = ['right'] as const
 /** Aligns the outer input/output ports with the centre of the inset Start card. */
-const SUBFLOW_CONNECTION_Y_PX =
-  BLOCK_DIMENSIONS.HEADER_HEIGHT + START_TOP_OFFSET_PX + START_HEIGHT_PX / 2
 const HANDLE_STYLE = {
-  top: `${SUBFLOW_CONNECTION_Y_PX}px`,
+  top: `${HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y}px`,
   transform: 'translateY(-50%)',
 } as const
 const ACTION_MENU_RIGHT_INSET_PX = 24
@@ -346,13 +347,13 @@ export function SubflowNodeView({
       {
         id: 'target',
         side: 'left',
-        position: SUBFLOW_CONNECTION_Y_PX,
+        position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
       },
       {
         id: endHandleId,
         side: 'right',
-        position: SUBFLOW_CONNECTION_Y_PX,
+        position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
       },
     ]

@@ -4,7 +4,7 @@ import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
-import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
+import { getMappedWorkflowTypeAccent } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
@@ -20,7 +20,7 @@ export const MemoizedCommandItem = memo(
     workflowType,
     label,
   }: CommandItemProps) {
-    const workflowAccent = workflowType ? getWorkflowTypeAccent(workflowType) : null
+    const workflowAccent = workflowType ? getMappedWorkflowTypeAccent(workflowType) : null
 
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>

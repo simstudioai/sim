@@ -17,6 +17,7 @@ import {
 import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } from '@sim/workflow-persistence/save'
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
+import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
@@ -166,7 +167,14 @@ async function materializeDeploymentState(
   )
   const deployedState: DeployedWorkflowData = {
     blocks: migratedBlocks,
-    edges: state.edges || [],
+    /*
+     * Read straight out of the version's jsonb blob, so unlike every path that
+     * goes through `loadWorkflowFromNormalizedTables` these handles were never
+     * canonicalized. Change detection diffs this against a normalized live
+     * state, so a snapshot holding a side-anchored id would report every edge
+     * as added-and-removed and pin the workflow to "needs redeploy" forever.
+     */
+    edges: normalizeWorkflowEdgeHandles(state.edges),
     loops: state.loops || {},
     parallels: state.parallels || {},
     variables: state.variables || {},

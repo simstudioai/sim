@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
-import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -670,11 +669,7 @@ export function validateSourceHandleForBlock(
     }
 
     case 'router':
-      if (
-        sourceHandle === 'source' ||
-        isPositionedSourceHandle(sourceHandle) ||
-        sourceHandle.startsWith(EDGE.ROUTER_PREFIX)
-      ) {
+      if (sourceHandle === 'source' || sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
         return { valid: true }
       }
       return {
@@ -697,7 +692,7 @@ export function validateSourceHandleForBlock(
     }
 
     default:
-      if (sourceHandle === 'source' || isPositionedSourceHandle(sourceHandle)) {
+      if (sourceHandle === 'source') {
         return { valid: true }
       }
       return {

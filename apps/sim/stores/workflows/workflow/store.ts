@@ -147,6 +147,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           enabled: boolean
           horizontalHandles?: boolean
           advancedMode?: boolean
+          errorEnabled?: boolean
           triggerMode?: boolean
           height?: number
           data?: Record<string, any>
@@ -172,6 +173,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             enabled: block.enabled ?? true,
             horizontalHandles: block.horizontalHandles ?? true,
             advancedMode: block.advancedMode ?? false,
+            errorEnabled: block.errorEnabled ?? block.data?.errorEnabled === true,
             triggerMode: block.triggerMode ?? false,
             height: block.height ?? 0,
             data: block.data,

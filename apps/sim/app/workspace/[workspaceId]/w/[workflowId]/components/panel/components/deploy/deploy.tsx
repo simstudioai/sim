@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, Tooltip } from '@sim/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -75,6 +75,34 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     }
   }
 
+  const getTooltipText = () => {
+    if (isEmpty) {
+      return 'Cannot deploy an empty workflow'
+    }
+    if (!canDeploy) {
+      return 'Admin permissions required'
+    }
+    if (disabled) {
+      return 'Workflow is locked'
+    }
+    if (isDeploying) {
+      return 'Deploying...'
+    }
+    if (isChangeDetectionSettling) {
+      return 'Syncing deployment state...'
+    }
+    if (deployReadiness.isBlocked && !isDeployed) {
+      return deployReadiness.tooltip
+    }
+    if (changeDetected) {
+      return 'Update deployment'
+    }
+    if (isDeployed) {
+      return 'Active deployment'
+    }
+    return 'Deploy workflow'
+  }
+
   const getButtonLabel = () => {
     if (changeDetected) {
       return 'Update'
@@ -87,14 +115,21 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
 
   return (
     <>
-      <Chip
-        variant='border'
-        flush
-        onClick={onDeployClick}
-        disabled={isRegistryLoading || isDisabled}
-      >
-        {getButtonLabel()}
-      </Chip>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <span className='inline-flex'>
+            <Chip
+              variant='border'
+              flush
+              onClick={onDeployClick}
+              disabled={isRegistryLoading || isDisabled}
+            >
+              {getButtonLabel()}
+            </Chip>
+          </span>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+      </Tooltip.Root>
 
       <DeployModal
         open={isModalOpen}

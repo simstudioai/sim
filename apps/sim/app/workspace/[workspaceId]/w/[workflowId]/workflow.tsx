@@ -24,11 +24,9 @@ import {
   normalizeCursorSourceHandleId,
 } from '@sim/workflow-renderer'
 import {
-  getHorizontalWorkflowHandleSide,
-  getPositionedTargetHandleId,
-  normalizePositionedSourceHandleId,
-  normalizePositionedTargetHandleId,
-  type PositionedSourceHandleSide,
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+  WORKFLOW_TARGET_HANDLE_ID,
 } from '@sim/workflow-types/workflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
@@ -638,9 +636,16 @@ const WorkflowContent = React.memo(
 
       return edgesToFilter
         .map((edge) => {
-          const sourceHandle = normalizePositionedSourceHandleId(edge.sourceHandle)
-          const targetHandle = normalizePositionedTargetHandleId(edge.targetHandle)
-          if (sourceHandle === edge.sourceHandle && targetHandle === edge.targetHandle) return edge
+          /* Heals an edge still carrying a side-anchored handle id from an
+             older snapshot so it renders against a handle that exists. */
+          const sourceHandle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined
+          const targetHandle = normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? undefined
+          if (
+            sourceHandle === (edge.sourceHandle ?? undefined) &&
+            targetHandle === (edge.targetHandle ?? undefined)
+          ) {
+            return edge
+          }
           return { ...edge, sourceHandle, targetHandle }
         })
         .filter((edge) => {
@@ -819,11 +824,6 @@ const WorkflowContent = React.memo(
      * the id and the effect below performs the camera move.
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
-    /**
-     * Mirrors displayNodes for the run-follow subscription, which must read
-     * current node positions without re-subscribing on every node change.
-     */
-    const displayNodesRef = useRef<Node[]>([])
 
     const addBlock = useCallback(
       (
@@ -2718,7 +2718,6 @@ const WorkflowContent = React.memo(
 
     // Local state for nodes - allows smooth drag without store updates on every frame
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
-    displayNodesRef.current = displayNodes
     const [lastInteractedNodeId, setLastInteractedNodeId] = useState<string | null>(null)
 
     const selectedNodeIds = useMemo(
@@ -3195,13 +3194,11 @@ const WorkflowContent = React.memo(
         if (connection.source && connection.target) {
           const normalizedConnection = {
             ...connection,
-            sourceHandle: normalizePositionedSourceHandleId(
-              normalizeCursorSourceHandleId(
-                connection.sourceHandle,
-                blocks[connection.source]?.type
-              )
+            sourceHandle: normalizeCursorSourceHandleId(
+              connection.sourceHandle,
+              blocks[connection.source]?.type
             ),
-            targetHandle: normalizePositionedTargetHandleId(connection.targetHandle),
+            targetHandle: connection.targetHandle,
           }
           // Check if connecting nodes across container boundaries
           const sourceNode = getNodes().find((n) => n.id === connection.source)
@@ -3315,32 +3312,20 @@ const WorkflowContent = React.memo(
         // Create connection if valid target found (handle-to-body case)
         if (targetNode && targetNode.id !== source.nodeId) {
           /*
-           * Connections are horizontal-only. A body drop resolves by card
-           * half, so even a top/bottom drop terminates at the nearest left or
-           * right anchor without reintroducing a vertical edge endpoint.
+           * Always source→target, and always onto the block's one input. Which
+           * half of the card the drop landed on is not encoded in the handle
+           * id: a second id for the same port would split edge identity, so
+           * two drops on the same pair would persist as two overlapping edges
+           * and neither the executor nor the copilot edit pipeline would
+           * recognize the variant. Inputs never originate a drag either — the
+           * `target` handle sets `isConnectableStart={false}`, so React Flow
+           * only ever reports an output handle here.
            */
-          const nodeEl = document.querySelector(
-            `.react-flow__node[data-id="${targetNode.id}"]`
-          ) as HTMLElement | null
-          let dropSide: PositionedSourceHandleSide | null = null
-          if (nodeEl) {
-            const rect = nodeEl.getBoundingClientRect()
-            dropSide = getHorizontalWorkflowHandleSide(clientPos.clientX - rect.left, rect.width)
-          }
-          /*
-           * Always source→target. Inputs never originate a drag: the `target`
-           * handle sets `isConnectableStart={false}` and the positioned side
-           * anchors are `isConnectable={false}`, so React Flow only ever
-           * reports an output handle here. Dragging over an input knob starts
-           * from the cursor swell's temporary source handle instead.
-           */
-          const targetHandle =
-            !dropSide || dropSide === 'left' ? 'target' : getPositionedTargetHandleId(dropSide)
           onConnect({
             source: source.nodeId,
             sourceHandle,
             target: targetNode.id,
-            targetHandle,
+            targetHandle: WORKFLOW_TARGET_HANDLE_ID,
           })
         } else if (!targetNode) {
           const canvasBounds = canvasContainerRef.current?.getBoundingClientRect()
@@ -4434,6 +4419,9 @@ const WorkflowContent = React.memo(
     /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
     const edgesWithSelection = useMemo(() => {
       const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
+      /* Indexed once: this memo re-runs on every drag frame, and scanning the
+         selection array twice per edge is O(edges x selection) per frame. */
+      const selectedNodeIdSet = new Set(selectedNodeIds)
 
       return edgesForDisplay.map((edge) => {
         const sourceNode = nodeMap.get(edge.source)
@@ -4454,7 +4442,7 @@ const WorkflowContent = React.memo(
         const containerNode = parentLoopId ? nodeMap.get(parentLoopId) : null
         const baseZIndex = containerNode ? (containerNode.zIndex ?? 0) + 1 : 0
         const isConnectedToSelection =
-          selectedNodeIds.includes(edge.source) || selectedNodeIds.includes(edge.target)
+          selectedNodeIdSet.has(edge.source) || selectedNodeIdSet.has(edge.target)
 
         return {
           ...edge,

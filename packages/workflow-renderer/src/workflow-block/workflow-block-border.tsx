@@ -1,11 +1,21 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import {
-  getHorizontalWorkflowHandleSide,
-  isPositionedSourceHandle,
-  type PositionedSourceHandleSide,
+  WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
   type WorkflowCardSide,
+  type WorkflowConnectionSide,
 } from '@sim/workflow-types/workflow'
 import { BLOCK_DIMENSIONS } from '../dimensions'
+
+/**
+ * Resolves a point on the card's top or bottom edge into the connection half
+ * it belongs to. Presentation only — it picks which side the swell grows from
+ * and is deliberately not encoded into any persisted handle id.
+ */
+const getConnectionSideForPoint = (pointerX: number, cardWidth: number): WorkflowConnectionSide => {
+  if (!Number.isFinite(pointerX) || !Number.isFinite(cardWidth) || cardWidth <= 0) return 'right'
+  return pointerX < cardWidth / 2 ? 'left' : 'right'
+}
 
 const BORDER_PADDING_PX = 36
 const SAMPLE_SPACING_PX = 1
@@ -126,7 +136,7 @@ export interface WorkflowBorderPort {
 }
 
 export interface WorkflowBorderCursorHandle {
-  side: PositionedSourceHandleSide
+  side: WorkflowConnectionSide
   edgeSide: WorkflowCardSide
   x: number
   y: number
@@ -216,7 +226,7 @@ interface ActiveInterval {
 }
 
 const isPrimaryConnectionPort = (portId: string) =>
-  portId === 'source' || portId === 'target' || isPositionedSourceHandle(portId)
+  portId === WORKFLOW_SOURCE_HANDLE_ID || portId === WORKFLOW_TARGET_HANDLE_ID
 
 /**
  * Every connection knob is the same swell, scaled by its own tab length —
@@ -1121,7 +1131,7 @@ export function WorkflowBlockBorder({
         const side =
           edgeSide === 'left' || edgeSide === 'right'
             ? edgeSide
-            : getHorizontalWorkflowHandleSide(point.x, sizeRef.current.width)
+            : getConnectionSideForPoint(point.x, sizeRef.current.width)
         onCursorHandleChangeRef.current?.({
           side,
           edgeSide,

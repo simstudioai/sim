@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VERTICAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { getBlockMetrics, resolveNoteOverlaps } from '@/lib/workflows/autolayout/utils'
@@ -313,5 +314,54 @@ describe('getBlockMetrics preview row estimation', () => {
     const advanced = getBlockMetrics(createTableBlock('advanced'))
 
     expect(advanced.height).toBe(basic.height)
+  })
+
+  it('counts a canonical pair once even when a trigger spread duplicates it', () => {
+    /*
+     * The duplicate `tableSelector`/`manualTableId` entries carry trigger-only
+     * modes, so exactly one member of the pair is ever visible. Counting the
+     * spread copies too would reserve a phantom row of height.
+     */
+    const withoutTriggerSpread = {
+      ...tableLikeConfig,
+      subBlocks: (
+        tableLikeConfig as unknown as { subBlocks: { mode?: string }[] }
+      ).subBlocks.filter(
+        (subBlock) => subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced'
+      ),
+    } as unknown as ReturnType<typeof getBlock>
+
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+    const spread = getBlockMetrics(createTableBlock('basic'))
+
+    mockGetBlock.mockReturnValue(withoutTriggerSpread)
+    const plain = getBlockMetrics(createTableBlock('basic'))
+
+    expect(spread.height).toBe(plain.height)
+  })
+
+  it('never estimates a card shorter than the rows it can actually paint', () => {
+    /*
+     * The estimate only runs for a block that has never mounted, and it cannot
+     * model the natural-language summary or `mcp-dynamic-args` row expansion.
+     * Erring high opens a gap; erring low overlaps the next card — so a
+     * partially-configured block must still reserve room for every visible
+     * field plus the permanent error row.
+     */
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+
+    const { height } = getBlockMetrics({
+      ...createTableBlock('basic'),
+      height: undefined,
+      layout: undefined,
+    } as unknown as BlockState)
+
+    const visibleRows = 3
+    expect(height).toBeGreaterThanOrEqual(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        visibleRows * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
+    )
   })
 })

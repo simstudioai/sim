@@ -358,28 +358,49 @@ describe('useWorkflowExecution cancellation', () => {
     executionStoreState.getCurrentExecutionId.mockReturnValue(null)
   })
 
-  it('stops the local execution state immediately while cancelling the server execution', () => {
+  it('leaves the run intact until the server confirms, when there is one to cancel', () => {
+    /*
+     * The server's terminal event owns teardown. Tearing down here instead
+     * would (a) show the run as stopped even when the cancel request fails,
+     * while it keeps executing and billing server-side, with the execution id
+     * already discarded so it cannot be retried, and (b) abort the stream
+     * before `onExecutionCancelled` can settle the agent-stream chrome, so a
+     * pending thinking-flush revives a console entry nothing will settle again.
+     */
     const { result, unmount } = renderWorkflowExecutionHook()
 
     act(() => {
       result().handleCancelExecution()
     })
 
-    expect(mockCancel).toHaveBeenCalledWith('workflow-1')
-    expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
-    expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
-    expect(executionStoreState.setIsDebugging).toHaveBeenCalledWith('workflow-1', false)
-    expect(executionStoreState.setActiveBlocks).toHaveBeenCalledWith('workflow-1', expect.any(Set))
-    expect(mockHandleExecutionCancelledConsole.mock.calls[0]?.[1]).toEqual({
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-    })
     expect(mockRequestJson).toHaveBeenCalledWith(
       {},
       expect.objectContaining({
         params: { id: 'workflow-1', executionId: 'execution-1' },
       })
     )
+    expect(mockCancel).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(executionStoreState.setIsExecuting).not.toHaveBeenCalled()
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
+    expect(mockHandleExecutionCancelledConsole).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('tears down locally when there is no server execution to cancel', () => {
+    executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    act(() => {
+      result().handleCancelExecution()
+    })
+
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    expect(mockCancel).toHaveBeenCalledWith('workflow-1')
+    expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setIsDebugging).toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setActiveBlocks).toHaveBeenCalledWith('workflow-1', expect.any(Set))
 
     unmount()
   })

@@ -12,10 +12,9 @@ import {
 } from 'react'
 import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
 import {
-  getPositionedSourceHandleId,
-  getPositionedTargetHandleId,
-  POSITIONED_SOURCE_HANDLE_SIDES,
-  type PositionedSourceHandleSide,
+  WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
+  type WorkflowConnectionSide,
 } from '@sim/workflow-types/workflow'
 import { CircleOff, Lock } from 'lucide-react'
 import {
@@ -115,6 +114,16 @@ const DEFAULT_WORKFLOW_TYPE_ACCENT = { variant: 'workflow', tone: 'neutral' } as
 
 export const getWorkflowTypeAccent = (type: string) =>
   WORKFLOW_TYPE_ACCENTS[type as keyof typeof WORKFLOW_TYPE_ACCENTS] ?? DEFAULT_WORKFLOW_TYPE_ACCENT
+
+/**
+ * Returns the mapped accent for a block type, or `null` when the type has no
+ * entry in {@link WORKFLOW_TYPE_ACCENTS}. Callers that must distinguish an
+ * unmapped type (e.g. integration blocks, which paint their own brand tile)
+ * use this instead of {@link getWorkflowTypeAccent}, which always falls back to
+ * the neutral accent.
+ */
+export const getMappedWorkflowTypeAccent = (type: string) =>
+  WORKFLOW_TYPE_ACCENTS[type as keyof typeof WORKFLOW_TYPE_ACCENTS] ?? null
 
 export interface WorkflowTypeTagProps {
   type: string
@@ -236,23 +245,6 @@ const invisibleHandleSize = (
   return side === 'top' || side === 'bottom'
     ? { width: span, height: HANDLE_HIT_CROSS_PX }
     : { width: HANDLE_HIT_CROSS_PX, height: span }
-}
-
-const getReactFlowPosition = (side: PositionedSourceHandleSide) => {
-  return side === 'left' ? Position.Left : Position.Right
-}
-
-const getCenteredSideHandleStyle = (side: PositionedSourceHandleSide): CSSProperties => {
-  const style: CSSProperties = {
-    right: 'auto',
-    bottom: 'auto',
-    width: 1,
-    height: 1,
-  }
-  if (side === 'right') {
-    return { ...style, top: '50%', left: '100%', transform: 'translate(-50%, -50%)' }
-  }
-  return { ...style, top: '50%', left: 0, transform: 'translate(-50%, -50%)' }
 }
 
 /** Error is the only persisted source that leaves from a vertical card edge. */
@@ -400,10 +392,6 @@ export interface WorkflowBlockViewProps {
    * line and its port read as one piece.
    */
   highlightedHandles?: ReadonlySet<string>
-  /** Side-specific source handles currently used by persisted edges. */
-  connectedSourceHandles?: ReadonlySet<string>
-  /** Side-specific target handles currently used by persisted edges. */
-  connectedTargetHandles?: ReadonlySet<string>
 }
 
 /**
@@ -465,8 +453,6 @@ export function WorkflowBlockView({
   errorOutputEnabled = false,
   onToggleErrorOutput,
   highlightedHandles,
-  connectedSourceHandles,
-  connectedTargetHandles,
 }: WorkflowBlockViewProps) {
   const updateNodeInternals = useUpdateNodeInternals()
   const reactFlowStore = useReactFlowStoreApi()
@@ -474,8 +460,6 @@ export function WorkflowBlockView({
     () => reactFlowStore.getState().connectionNodeId,
     [reactFlowStore]
   )
-  const supportsPositionedHandles =
-    type !== 'condition' && type !== 'router_v2' && type !== 'response'
   const supportsCursorHandle = type !== 'response'
   const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
   const cursorSourceHandleKeyRef = useRef<string | null>(null)
@@ -630,20 +614,17 @@ export function WorkflowBlockView({
   const rowTabLength = clampTabLength(
     branchRowCount <= 2 ? TAB_LENGTH_SMALL_PX : TAB_LENGTH_SMALL_PX - (branchRowCount - 2) * 2
   )
-  const defaultTargetSide: PositionedSourceHandleSide = 'left'
-  const defaultSourceSide: PositionedSourceHandleSide = 'right'
+  const defaultTargetSide: WorkflowConnectionSide = 'left'
+  const defaultSourceSide: WorkflowConnectionSide = 'right'
   const borderPorts = useMemo<WorkflowBorderPort[]>(() => {
     const ports: WorkflowBorderPort[] = []
     if (shouldShowDefaultHandles) {
       ports.push({
-        id: 'target',
+        id: WORKFLOW_TARGET_HANDLE_ID,
         side: defaultTargetSide,
         position: 'center',
         plateau: mainTabLength(defaultTargetSide),
-        color:
-          tabFill('target') ??
-          tabFill(getPositionedSourceHandleId(defaultTargetSide)) ??
-          tabFill(getPositionedTargetHandleId(defaultTargetSide)),
+        color: tabFill(WORKFLOW_TARGET_HANDLE_ID),
       })
     }
     if (type === 'condition') {
@@ -671,44 +652,11 @@ export function WorkflowBlockView({
       })
     } else if (type !== 'response') {
       ports.push({
-        id: 'source',
+        id: WORKFLOW_SOURCE_HANDLE_ID,
         side: defaultSourceSide,
         position: 'center',
         plateau: mainTabLength(defaultSourceSide),
-        color:
-          tabFill('source') ??
-          tabFill(getPositionedSourceHandleId(defaultSourceSide)) ??
-          tabFill(getPositionedTargetHandleId(defaultSourceSide)),
-      })
-    }
-    if (supportsPositionedHandles) {
-      for (const side of POSITIONED_SOURCE_HANDLE_SIDES) {
-        const handleId = getPositionedSourceHandleId(side)
-        const sharesDefaultPort =
-          side === defaultSourceSide || (shouldShowDefaultHandles && side === defaultTargetSide)
-        if (!connectedSourceHandles?.has(handleId) || sharesDefaultPort) continue
-        ports.push({
-          id: handleId,
-          side,
-          position: 'center',
-          plateau: mainTabLength(side),
-          color: tabFill(handleId) ?? tabFill(getPositionedTargetHandleId(side)),
-        })
-      }
-    }
-    for (const side of POSITIONED_SOURCE_HANDLE_SIDES) {
-      const handleId = getPositionedTargetHandleId(side)
-      const sharesDefaultPort =
-        (shouldShowDefaultHandles && side === defaultTargetSide) ||
-        side === defaultSourceSide ||
-        connectedSourceHandles?.has(getPositionedSourceHandleId(side))
-      if (!connectedTargetHandles?.has(handleId) || sharesDefaultPort) continue
-      ports.push({
-        id: handleId,
-        side,
-        position: 'center',
-        plateau: mainTabLength(side),
-        color: tabFill(handleId),
+        color: tabFill(WORKFLOW_SOURCE_HANDLE_ID),
       })
     }
     if (showErrorRow && errorOutputEnabled) {
@@ -728,8 +676,6 @@ export function WorkflowBlockView({
     return ports
   }, [
     conditionRows,
-    connectedSourceHandles,
-    connectedTargetHandles,
     actionMenuSwellOpen,
     actionMenuWidth,
     defaultSourceSide,
@@ -742,7 +688,6 @@ export function WorkflowBlockView({
     showErrorRow,
     errorOutputEnabled,
     sideTabLength,
-    supportsPositionedHandles,
     type,
   ])
 
@@ -841,14 +786,14 @@ export function WorkflowBlockView({
           <Handle
             type='target'
             position={Position.Left}
-            id='target'
+            id={WORKFLOW_TARGET_HANDLE_ID}
             className={getInvisibleHandleClasses('left')}
             style={{
               ...getHandleStyle('horizontal'),
               ...invisibleHandleSize('left', mainTabLength('left'), MAIN_HANDLE_HIT_LENGTH_PX),
             }}
             data-nodeid={id}
-            data-handleid='target'
+            data-handleid={WORKFLOW_TARGET_HANDLE_ID}
             isConnectableStart={false}
             isConnectableEnd={true}
             isValidConnection={(connection) => {
@@ -1164,64 +1109,25 @@ export function WorkflowBlockView({
         )}
 
         {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
-          <>
-            <Handle
-              type='source'
-              position={Position.Right}
-              id='source'
-              className={getInvisibleHandleClasses('right')}
-              style={{
-                ...getHandleStyle('horizontal'),
-                ...invisibleHandleSize('right', mainTabLength('right'), MAIN_HANDLE_HIT_LENGTH_PX),
-              }}
-              data-nodeid={id}
-              data-handleid='source'
-              isConnectableStart={true}
-              isConnectableEnd={false}
-              isValidConnection={(connection) => {
-                if (connection.target === id) return false
-                return !wouldCreateConnectionCycle(connection.source!, connection.target!)
-              }}
-            />
-            {/*
-              Anchor for outgoing edges created by the cursor swell. Only the
-              right side exists: an output always leaves from the right, so
-              `normalizeCursorSourceHandleId` resolves every drag here no
-              matter which edge it started on. Mounting a left twin would
-              advertise an output on the input port.
-            */}
-            <Handle
-              type='source'
-              position={getReactFlowPosition('right')}
-              id={getPositionedSourceHandleId('right')}
-              className='!pointer-events-none !z-0 !rounded-none !border-none !bg-transparent !opacity-0'
-              style={getCenteredSideHandleStyle('right')}
-              data-nodeid={id}
-              data-handleid={getPositionedSourceHandleId('right')}
-              isConnectable={false}
-              aria-hidden='true'
-            />
-          </>
+          <Handle
+            type='source'
+            position={Position.Right}
+            id={WORKFLOW_SOURCE_HANDLE_ID}
+            className={getInvisibleHandleClasses('right')}
+            style={{
+              ...getHandleStyle('horizontal'),
+              ...invisibleHandleSize('right', mainTabLength('right'), MAIN_HANDLE_HIT_LENGTH_PX),
+            }}
+            data-nodeid={id}
+            data-handleid={WORKFLOW_SOURCE_HANDLE_ID}
+            isConnectableStart={true}
+            isConnectableEnd={false}
+            isValidConnection={(connection) => {
+              if (connection.target === id) return false
+              return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+            }}
+          />
         )}
-
-        {shouldShowDefaultHandles &&
-          POSITIONED_SOURCE_HANDLE_SIDES.map((side) => {
-            const handleId = getPositionedTargetHandleId(side)
-            return (
-              <Handle
-                key={handleId}
-                type='target'
-                position={getReactFlowPosition(side)}
-                id={handleId}
-                className='!pointer-events-none !z-0 !rounded-none !border-none !bg-transparent !opacity-0'
-                style={getCenteredSideHandleStyle(side)}
-                data-nodeid={id}
-                data-handleid={handleId}
-                isConnectable={false}
-                aria-hidden='true'
-              />
-            )
-          })}
 
         {rendersErrorHandle && (
           <Handle
