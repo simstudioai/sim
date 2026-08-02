@@ -424,6 +424,40 @@ export async function claimWorkflowToolExecution(toolCallId: string, executionId
   )
 }
 
+export async function releaseWorkflowToolExecutionClaim(toolCallId: string, executionId: string) {
+  const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsReleaseClaim,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: null,
+          claimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.claimedBy, claimedBy),
+            inArray(copilotAsyncToolCalls.status, [
+              ASYNC_TOOL_STATUS.running,
+              ASYNC_TOOL_STATUS.delivered,
+            ])
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
+}
+
 /**
  * Atomically claims a pending client tool exactly once. Native browser actions
  * use this before crossing the Electron boundary so a replayed renderer event

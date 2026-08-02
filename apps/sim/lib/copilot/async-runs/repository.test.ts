@@ -12,6 +12,7 @@ import {
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
   recordToolPermissionDecision,
+  releaseWorkflowToolExecutionClaim,
   replaceTerminalAsyncToolCallResult,
   upsertAsyncToolCall,
 } from './repository'
@@ -159,6 +160,29 @@ describe('async tool repository single-row semantics', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+  })
+
+  it('releases a matching pre-start workflow claim without changing its lifecycle status', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'delivered',
+        claimedBy: null,
+      },
+    ])
+
+    const result = await releaseWorkflowToolExecutionClaim('workflow-tool', 'execution-1')
+
+    expect(result).toMatchObject({
+      toolCallId: 'workflow-tool',
+      status: 'delivered',
+      claimedBy: null,
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      claimedBy: null,
+      claimedAt: null,
+      updatedAt: expect.any(Date),
+    })
   })
 
   it('detaches a bound workflow waiter without releasing its execution claim', async () => {

@@ -43,6 +43,7 @@ const {
   mockInitializeExecutionStreamMeta,
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
+  mockReleaseWorkflowToolExecutionClaim,
   mockRequireBillingAttributionHeader,
   mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
@@ -67,6 +68,7 @@ const {
   mockInitializeExecutionStreamMeta: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
+  mockReleaseWorkflowToolExecutionClaim: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
 }))
@@ -119,6 +121,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   claimWorkflowToolExecution: mockClaimWorkflowToolExecution,
   getAsyncToolCall: mockGetAsyncToolCall,
   getRunSegment: mockGetRunSegment,
+  releaseWorkflowToolExecutionClaim: mockReleaseWorkflowToolExecutionClaim,
 }))
 
 vi.mock('@/lib/execution/event-buffer', () => ({
@@ -435,6 +438,7 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(200)
     expect(streamCompleted).toBe(false)
     expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
     expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
       executionId: 'execution-123',
       requestId: 'req-12345678',
@@ -466,7 +470,42 @@ describe('workflow execute async route', () => {
     expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
     expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
+  })
+
+  it('releases a bound Copilot workflow claim when preprocessing rejects the run', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'Not admitted', statusCode: 402 },
+    })
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(402)
+    expect(mockReleaseWorkflowToolExecutionClaim).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123'
+    )
+    expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
+  })
+
+  it('retains a bound Copilot workflow claim when preprocessing created a durable error log', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'Not admitted', statusCode: 402 },
+    })
+    mockHasDurableExecutionOwner.mockResolvedValueOnce(true)
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(402)
+    expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
   })
 
   it('binds a workflow execution after its page-hide confirmation detached the waiter', async () => {

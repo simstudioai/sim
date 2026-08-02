@@ -24,6 +24,7 @@ import {
   claimWorkflowToolExecution,
   getAsyncToolCall,
   getRunSegment,
+  releaseWorkflowToolExecutionClaim,
 } from '@/lib/copilot/async-runs/repository'
 import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
@@ -621,6 +622,8 @@ async function handleExecutePost(
   let executionId = ''
   let executionIdClaim: ExecutionIdClaim | null = null
   let executionIdClaimCommitted = false
+  let workflowToolClaimAcquired = false
+  let copilotToolCallId: string | undefined
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -758,13 +761,14 @@ async function handleExecutePost(
       workflowStateOverride,
       deploymentVersionId: admittedDeploymentVersionId,
       executionId: rawBodyExecutionId,
-      copilotToolCallId,
+      copilotToolCallId: parsedCopilotToolCallId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
       parentWorkspaceId,
     } = validation.data
+    copilotToolCallId = parsedCopilotToolCallId
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
@@ -1160,6 +1164,7 @@ async function handleExecutePost(
           { status: 409 }
         )
       }
+      workflowToolClaimAcquired = true
     }
 
     const loggingSession = new LoggingSession(
@@ -2383,6 +2388,18 @@ async function handleExecutePost(
         reqLogger.warn('Unable to verify execution ID ownership; retaining claim', {
           error: toError(error).message,
           executionId,
+        })
+      }
+    }
+
+    if (copilotToolCallId && workflowToolClaimAcquired && !executionIdClaimCommitted) {
+      try {
+        await releaseWorkflowToolExecutionClaim(copilotToolCallId, executionId)
+      } catch (error) {
+        reqLogger.warn('Failed to release pre-start Copilot workflow tool claim', {
+          error: toError(error).message,
+          executionId,
+          copilotToolCallId,
         })
       }
     }
