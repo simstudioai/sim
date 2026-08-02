@@ -107,3 +107,19 @@ export function validateFormSubmission(
   }
   return { valid: true, input }
 }
+
+/**
+ * Shapes per-field submission errors as the `details` array of a 400 body.
+ *
+ * The client's shared `extractValidationIssues` helper only recognises a 400 as
+ * a validation failure when each entry carries an array `path`. Adding it lets
+ * `useSubmitInterfaceForm` suppress its generic toast so the form module renders
+ * the messages inline, while `fieldId` stays the key callers map on.
+ *
+ * One definition for both submit routes — the in-app one and the token-scoped
+ * public one — so a member and an anonymous visitor submitting the same form
+ * cannot receive different wire shapes.
+ */
+export function toFieldErrorDetails(errors: readonly FormSubmissionFieldError[]) {
+  return errors.map((error) => ({ ...error, path: ['values', error.fieldId] }))
+}

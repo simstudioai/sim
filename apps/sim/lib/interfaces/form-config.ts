@@ -11,6 +11,7 @@
  * both sides of the client boundary — see the module note in `constants.ts`.
  */
 
+import { generateId } from '@sim/utils/id'
 import {
   FORM_FIELD_NAME_PATTERN,
   INTERFACE_LAYOUT_LIMITS,
@@ -95,4 +96,26 @@ export function isFormConfigValid(config: FormModuleConfig): boolean {
   return config.fields.every((field) =>
     isFormFieldValid(deriveFormFieldErrors(field, (counts.get(field.name.toLowerCase()) ?? 0) > 1))
   )
+}
+
+/**
+ * Builds the next field with a name no existing field has taken. Field ids are
+ * wire keys for submitted values, so they must be stable and unique.
+ *
+ * One factory for both authoring surfaces — the inspector's field list and the
+ * form module editing itself on the canvas — so adding a field in the panel and
+ * adding one on the canvas cannot mint different fields. That invariant was
+ * previously only promised by a comment on one of two identical copies.
+ */
+export function createFormField(existing: readonly FormField[]): FormField {
+  const taken = new Set(existing.map((field) => field.name.toLowerCase()))
+  let index = existing.length + 1
+  while (taken.has(`field_${index}`)) index += 1
+  return {
+    id: generateId(),
+    name: `field_${index}`,
+    label: `Field ${index}`,
+    type: 'short-text',
+    required: false,
+  }
 }

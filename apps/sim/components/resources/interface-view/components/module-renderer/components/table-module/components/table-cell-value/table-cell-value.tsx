@@ -3,6 +3,7 @@
 import { Checkbox } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { formatDateCellDisplay } from '@/lib/table/dates'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
@@ -67,7 +68,12 @@ function resolveCellKind(value: JsonValue | undefined, column: ColumnDefinition)
     const url = extractUrlInfo(text)
     if (url) return { kind: 'url', text, href: url.href, domain: url.domain }
   }
-  return { kind: 'text', text }
+  /**
+   * Every remaining type resolves through its registry formatter, exactly as the
+   * tables grid does. Without it a currency cell renders `1234.5` here and
+   * `$1,234.50` in the grid, and a select cell renders its raw option id.
+   */
+  return { kind: 'text', text: columnTypeOf(column).formatForDisplay(value, column) }
 }
 
 export interface TableCellValueProps {

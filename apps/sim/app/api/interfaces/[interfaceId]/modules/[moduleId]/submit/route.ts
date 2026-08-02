@@ -8,24 +8,12 @@ import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservati
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { type FormSubmissionFieldError, validateFormSubmission } from '@/lib/interfaces'
+import { toFieldErrorDetails, validateFormSubmission } from '@/lib/interfaces'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { resolveInterfaceAccess } from '@/app/api/interfaces/utils'
 
 const logger = createLogger('InterfaceFormSubmitAPI')
-
-/**
- * Shapes per-field submission errors as validation issues.
- *
- * The client's shared `extractValidationIssues` helper only recognises a 400 as
- * a validation failure when each `details` entry carries an array `path`. Adding
- * it lets `useSubmitInterfaceForm` suppress its generic toast so the form module
- * renders the messages inline, while `fieldId` stays the key callers map on.
- */
-function toFieldErrorDetails(errors: FormSubmissionFieldError[]) {
-  return errors.map((error) => ({ ...error, path: ['values', error.fieldId] }))
-}
 
 /**
  * POST /api/interfaces/[interfaceId]/modules/[moduleId]/submit - Validates a

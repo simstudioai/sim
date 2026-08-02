@@ -3,9 +3,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Chip, ChipInput, cn, FieldDivider } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import { generateId } from '@sim/utils/id'
 import { INTERFACE_LAYOUT_LIMITS } from '@/lib/interfaces/constants'
-import { countFieldNames, isFormConfigValid } from '@/lib/interfaces/form-config'
+import { countFieldNames, createFormField, isFormConfigValid } from '@/lib/interfaces/form-config'
 import type { FormField, FormModuleConfig } from '@/lib/interfaces/types'
 import { InspectorField } from '@/app/workspace/[workspaceId]/interfaces/[interfaceId]/components/inspector-field'
 import { FormFieldRow } from '@/app/workspace/[workspaceId]/interfaces/[interfaceId]/components/module-inspector/components/form-module-fields/components/form-field-row'
@@ -15,23 +14,6 @@ import { reorderList, useDragReorder } from '@/hooks/use-drag-reorder'
 
 /** Applied when the submit label is left empty, so the layout always saves. */
 const DEFAULT_SUBMIT_LABEL = 'Submit'
-
-/**
- * Builds the next field with a name that no existing field has taken. Field
- * ids are wire keys for submitted values, so they must be stable and unique.
- */
-function createFormField(existing: readonly FormField[]): FormField {
-  const taken = new Set(existing.map((field) => field.name.toLowerCase()))
-  let index = existing.length + 1
-  while (taken.has(`field_${index}`)) index += 1
-  return {
-    id: generateId(),
-    name: `field_${index}`,
-    label: `Field ${index}`,
-    type: 'short-text',
-    required: false,
-  }
-}
 
 export interface FormModuleFieldsProps {
   workspaceId: string

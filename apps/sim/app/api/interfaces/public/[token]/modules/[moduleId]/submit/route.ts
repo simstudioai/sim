@@ -11,7 +11,7 @@ import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { type FormSubmissionFieldError, validateFormSubmission } from '@/lib/interfaces'
+import { toFieldErrorDetails, validateFormSubmission } from '@/lib/interfaces'
 import { resolvePublicInterfaceModule } from '@/lib/public-shares/interface-access'
 import { enforcePerIpRateLimit, enforcePerShareRateLimit } from '@/lib/public-shares/rate-limit'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
@@ -25,16 +25,6 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const logger = createLogger('PublicInterfaceFormSubmitAPI')
-
-/**
- * Shapes per-field submission errors as validation issues, byte-identical to the
- * in-app submit route — `FormModule` reads `details[].fieldId` to render errors
- * inline, and the shared client helper only treats a 400 as a validation failure
- * when each entry carries an array `path`.
- */
-function toFieldErrorDetails(errors: FormSubmissionFieldError[]) {
-  return errors.map((error) => ({ ...error, path: ['values', error.fieldId] }))
-}
 
 /**
  * POST /api/interfaces/public/[token]/modules/[moduleId]/submit

@@ -54,6 +54,10 @@ const {
 vi.mock('@/lib/interfaces', () => ({
   getInterfaceById: mockGetInterfaceById,
   validateFormSubmission: mockValidateFormSubmission,
+  // Real implementation: the route's 400 body shape is what this suite asserts,
+  // so stubbing it would make those assertions test the stub.
+  toFieldErrorDetails: (errors: Array<{ fieldId: string }>) =>
+    errors.map((error) => ({ ...error, path: ['values', error.fieldId] })),
   InterfaceConflictError: InterfaceConflictErrorMock,
   InterfaceLayoutError: InterfaceLayoutErrorMock,
   InterfaceStaleWriteError: InterfaceStaleWriteErrorMock,

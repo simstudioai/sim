@@ -3,7 +3,6 @@
 import { useCallback, useState } from 'react'
 import { Chip, cn } from '@sim/emcn'
 import { CircleCheck, FormInput, Plus } from '@sim/emcn/icons'
-import { generateId } from '@sim/utils/id'
 import { ModuleChooser } from '@/components/resources/interface-view/components/module-chooser'
 import { FormFieldControl } from '@/components/resources/interface-view/components/module-renderer/components/form-module/components/form-field-control'
 import { useModuleFormSubmit } from '@/components/resources/interface-view/components/module-renderer/components/form-module/hooks/use-module-form-submit'
@@ -14,7 +13,7 @@ import { useResourceOfKind } from '@/components/resources/resource-provider'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { SubmitInterfaceFormValues } from '@/lib/api/contracts/interfaces'
 import { INTERFACE_LAYOUT_LIMITS } from '@/lib/interfaces/constants'
-import { isFormConfigValid } from '@/lib/interfaces/form-config'
+import { createFormField, isFormConfigValid } from '@/lib/interfaces/form-config'
 import type { FormSubmissionFieldError } from '@/lib/interfaces/form-submission'
 import { validateFormSubmission } from '@/lib/interfaces/form-submission'
 import type {
@@ -48,27 +47,6 @@ function defaultFieldValue(field: FormField): string | boolean {
 function fieldValue(field: FormField, values: FormValues): string | boolean {
   const entered = values[field.id]
   return entered === undefined ? defaultFieldValue(field) : entered
-}
-
-/**
- * Builds the next field with a name no existing field has taken. Field ids are
- * wire keys for submitted values, so they must be stable and unique.
- *
- * Mirrors the inspector's own factory: both authoring surfaces mint the same
- * field, so adding one on the canvas and adding one in the panel cannot
- * disagree.
- */
-function createFormField(existing: readonly FormField[]): FormField {
-  const taken = new Set(existing.map((field) => field.name.toLowerCase()))
-  let index = existing.length + 1
-  while (taken.has(`field_${index}`)) index += 1
-  return {
-    id: generateId(),
-    name: `field_${index}`,
-    label: `Field ${index}`,
-    type: 'short-text',
-    required: false,
-  }
 }
 
 function toFieldErrors(errors: readonly FormSubmissionFieldError[]): FieldErrors {
