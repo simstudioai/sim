@@ -15,6 +15,7 @@ import {
   TABLE_LOCK_FLAGS,
   TABLE_LOCK_KINDS,
   type TableDefinition,
+  type TableLockKind,
   type TableLocks,
 } from '@/lib/table/types'
 
@@ -32,6 +33,8 @@ export interface PerformDeleteTableResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
 }
 
 /**
@@ -54,7 +57,7 @@ export async function performDeleteTable(
     ;({ archived } = await deleteTable(table.id, requestId))
   } catch (error) {
     if (error instanceof TableLockedError) {
-      return { success: false, error: error.message, errorCode: 'locked' }
+      return { success: false, error: error.message, errorCode: 'locked', lock: error.lock }
     }
     if (error instanceof OrchestrationError) {
       return { success: false, error: error.message, errorCode: error.code }
@@ -98,6 +101,8 @@ export interface PerformDeleteTableRowResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
 }
 
 /**
@@ -116,7 +121,7 @@ export async function performDeleteTableRow(
     return { success: true }
   } catch (error) {
     if (error instanceof TableLockedError) {
-      return { success: false, error: error.message, errorCode: 'locked' }
+      return { success: false, error: error.message, errorCode: 'locked', lock: error.lock }
     }
     if (error instanceof OrchestrationError) {
       return { success: false, error: error.message, errorCode: error.code }
@@ -139,12 +144,19 @@ export interface PerformTableMutationResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
   table?: TableDefinition
 }
 
 function classifyTableMutation(error: unknown, requestId: string, tableId: string) {
   if (error instanceof TableLockedError) {
-    return { success: false as const, error: error.message, errorCode: 'locked' as const }
+    return {
+      success: false as const,
+      error: error.message,
+      errorCode: 'locked' as const,
+      lock: error.lock,
+    }
   }
   // `TableConflictError` is an `OrchestrationError('conflict')`, so a duplicate
   // rename reaches 409 through this branch — by class, not by the message

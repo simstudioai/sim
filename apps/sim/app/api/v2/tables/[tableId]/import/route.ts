@@ -20,12 +20,16 @@ import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
   v2Error,
-  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { v2CsvBodyCapError, v2MultipartError, v2TableAccessError } from '@/app/api/v2/tables/utils'
+import {
+  v2CsvBodyCapError,
+  v2MultipartError,
+  v2TableAccessError,
+  v2TableOrchestrationError,
+} from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableImportAPI')
 
@@ -116,14 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Table
     })
 
     if (!outcome.success || !outcome.data) {
-      // Naming the lock is the difference between an actionable 423 and one the
-      // caller has to guess at — there are four flags.
-      if (outcome.errorCode === 'locked') {
-        return v2Error('LOCKED', outcome.error ?? 'Table is locked', {
-          details: { lock: outcome.lock },
-        })
-      }
-      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to import CSV')
+      return v2TableOrchestrationError(outcome, 'Failed to import CSV')
     }
 
     return v2Data(outcome.data, { rateLimit })

@@ -1,4 +1,5 @@
 import type { NextResponse } from 'next/server'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -9,7 +10,7 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { predicateToStorage } from '@/lib/table/select-values'
-import type { Filter } from '@/lib/table/types'
+import type { Filter, TableLockKind } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import {
   CSV_IMPORT_PROXY_BODY_CAP_BYTES,
@@ -17,7 +18,7 @@ import {
   rootErrorMessage,
   rowWriteErrorResponse,
 } from '@/app/api/table/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
+import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**
  * Shared serialization + error helpers for the v2 tables surface. Every v2
@@ -176,6 +177,31 @@ export function v2TableLockError(error: unknown): NextResponse | null {
     return v2Error('LOCKED', error.message, { details: { lock: error.lock } })
   }
   return null
+}
+
+/**
+ * Renders a `lib/table/orchestration` failure in the v2 envelope, naming the
+ * lock when one caused it.
+ *
+ * A lock rejection reaches a route two different ways — thrown and caught at
+ * the boundary ({@link v2TableLockError}), or returned as a classified
+ * `errorCode: 'locked'` outcome — and both must produce the same body. Plain
+ * {@link v2ErrorForOrchestration} cannot, because the `lock` kind lives on the
+ * outcome rather than the code, so every table route that renders an
+ * orchestration result goes through this instead.
+ */
+export function v2TableOrchestrationError(
+  outcome: { errorCode?: OrchestrationErrorCode; error?: string; lock?: TableLockKind },
+  fallback: string
+): NextResponse {
+  if (outcome.errorCode === 'locked') {
+    return v2Error('LOCKED', outcome.error ?? fallback, {
+      // Omitted rather than sent as null when the kind is unknown — a caller
+      // branching on `details.lock` should see absence, not a phantom value.
+      ...(outcome.lock ? { details: { lock: outcome.lock } } : {}),
+    })
+  }
+  return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? fallback)
 }
 
 /**

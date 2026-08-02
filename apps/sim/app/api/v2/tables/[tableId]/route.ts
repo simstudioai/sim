@@ -28,12 +28,16 @@ import {
   v2CaughtOrchestrationError,
   v2Data,
   v2Error,
-  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiTable, v2TableAccessError, v2TableLockError } from '@/app/api/v2/tables/utils'
+import {
+  toApiTable,
+  v2TableAccessError,
+  v2TableLockError,
+  v2TableOrchestrationError,
+} from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableDetailAPI')
 
@@ -184,10 +188,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       if (outcome.success) {
         applied = true
       } else {
-        failure = v2ErrorForOrchestration(
-          outcome.errorCode,
-          outcome.error ?? 'Failed to update table locks'
-        )
+        failure = v2TableOrchestrationError(outcome, 'Failed to update table locks')
       }
     }
 
@@ -202,10 +203,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       if (outcome.success) {
         applied = true
       } else {
-        failure = v2ErrorForOrchestration(
-          outcome.errorCode,
-          outcome.error ?? 'Failed to rename table'
-        )
+        failure = v2TableOrchestrationError(outcome, 'Failed to rename table')
       }
     }
 
@@ -217,16 +215,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         requestId,
         request,
       })
-      if (outcome.success) applied = true
-      // The move re-asserts workspace and active state, so a miss means the
-      // table was archived between `checkAccess` and the write.
-      else
-        failure = v2ErrorForOrchestration(
-          outcome.errorCode,
-          outcome.errorCode === 'not_found'
-            ? 'Table not found'
-            : (outcome.error ?? 'Failed to move table')
+      if (outcome.success) {
+        applied = true
+      } else {
+        // The move re-asserts workspace and active state, so a miss means the
+        // table was archived between `checkAccess` and the write.
+        failure = v2TableOrchestrationError(
+          outcome.errorCode === 'not_found' ? { ...outcome, error: 'Table not found' } : outcome,
+          'Failed to move table'
         )
+      }
     }
 
     // Live-collab: tell open viewers the definition changed so they refetch.
@@ -285,7 +283,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
 
     const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
     if (!outcome.success) {
-      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to delete table')
+      return v2TableOrchestrationError(outcome, 'Failed to delete table')
     }
 
     return v2Data({ id: tableId }, { rateLimit })
