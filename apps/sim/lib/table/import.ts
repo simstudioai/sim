@@ -372,9 +372,19 @@ export function inferSchemaFromCsv(
     seen.add(colName.toLowerCase())
     headerToColumn.set(header, colName)
 
+    const type = inferColumnType(sample.map((r) => r[header]))
     return {
       name: colName,
-      type: inferColumnType(sample.map((r) => r[header])),
+      type,
+      // An inferred date column keeps its times. The pattern that infers `date`
+      // accepts `2024-01-15T14:30`, so the file may genuinely contain them —
+      // and stamping the sidebar's date-only default here would truncate every
+      // one of them on write. Set explicitly rather than left absent so a fresh
+      // column is never in the "predates the key" state.
+      //
+      // Deliberately different from creating a Date column by hand: there the
+      // user sees the toggle and there is no data to lose yet.
+      ...(type === 'date' ? { includeTime: true } : {}),
     } satisfies ColumnDefinition
   })
 

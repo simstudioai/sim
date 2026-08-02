@@ -21,7 +21,7 @@ import {
 } from '@/lib/table/column-types'
 import { metadataMigrationFor } from '@/lib/table/column-types/registry.server'
 import { buildConvertedColumn } from '@/lib/table/columns/service'
-import { coerceValue } from '@/lib/table/import'
+import { coerceValue, inferSchemaFromCsv } from '@/lib/table/import'
 import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import { buildFilterClause } from '@/lib/table/sql'
 import type { ColumnDefinition } from '@/lib/table/types'
@@ -583,6 +583,31 @@ describe('server-side operand canonicalization', () => {
       [emailCol]
     )
     expect(render(clause)).toContain('not an address')
+  })
+})
+
+describe('imported column metadata', () => {
+  it('gives an inferred date column an explicit includeTime that keeps its times', () => {
+    // The pattern that infers `date` accepts `2024-01-15T14:30`, so the file
+    // may genuinely contain times. Stamping the sidebar's date-only default
+    // would truncate every one of them; leaving it ABSENT would put a freshly
+    // created column into the "predates the key" state.
+    const { columns } = inferSchemaFromCsv(
+      ['when'],
+      [{ when: '2024-01-15T14:30' }, { when: '2024-02-20T09:00' }]
+    )
+    expect(columns[0].type).toBe('date')
+    expect(columns[0].includeTime).toBe(true)
+
+    // And the value survives the write path unchanged.
+    const coerced = coerceValue('2024-01-15T14:30', 'date', { column: columns[0] })
+    expect(String(coerced)).toContain('14:30')
+  })
+
+  it('leaves a non-date inferred column without date metadata', () => {
+    const { columns } = inferSchemaFromCsv(['n'], [{ n: '1' }, { n: '2' }])
+    expect(columns[0].type).toBe('number')
+    expect(columns[0].includeTime).toBeUndefined()
   })
 })
 

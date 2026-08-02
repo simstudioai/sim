@@ -20,6 +20,12 @@ import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
+import {
+  columnTypeById,
+  metadataWithoutClears,
+  ownedKeysOf,
+  pickMetadata,
+} from '@/lib/table/column-types'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { tableNotFound } from '@/lib/table/errors'
 import { appendTableEvent } from '@/lib/table/events'
@@ -29,6 +35,7 @@ import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
+  type ColumnTypeMetadata,
   type CreateTableData,
   TABLE_LOCK_FLAGS,
   TABLE_LOCK_KINDS,
@@ -465,7 +472,13 @@ export async function createTable(
 export async function addTableColumnsWithTx(
   trx: DbTransaction,
   table: TableDefinition,
-  columns: { id?: string; name: string; type: string; required?: boolean; unique?: boolean }[],
+  columns: (ColumnTypeMetadata & {
+    id?: string
+    name: string
+    type: string
+    required?: boolean
+    unique?: boolean
+  })[],
   requestId: string
 ): Promise<TableDefinition> {
   if (columns.length === 0) return table
@@ -501,12 +514,21 @@ export async function addTableColumnsWithTx(
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
     // and persistence agree); otherwise mint one.
     const id = column.id ?? generateColumnId()
+    const type = column.type as TableSchema['columns'][number]['type']
     additions.push({
       id,
       name: column.name,
-      type: column.type as TableSchema['columns'][number]['type'],
+      type,
       required: column.required ?? false,
       unique: column.unique ?? false,
+      // Carry the type's own metadata, mirroring `addTableColumn`. Building the
+      // column from these five fields alone dropped everything else the caller
+      // supplied — an imported date column lost its `includeTime` and landed in
+      // the "predates the key" state, where the grid and coercion treat it as a
+      // legacy instant column rather than as what the import decided.
+      // A create has nothing to clear, so resolve any nulls away.
+      ...metadataWithoutClears(pickMetadata(column, ownedKeysOf(type))),
+      ...columnTypeById(type).defaultMetadata?.({ name: column.name, type }),
     })
   }
 
