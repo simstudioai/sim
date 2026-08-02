@@ -6,6 +6,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GeneratedPasswordInput } from '@/components/ui/generated-password-input'
 
+const { mockCopy } = vi.hoisted(() => ({
+  mockCopy: vi.fn(async () => true),
+}))
+
 vi.mock('@sim/emcn', () => ({
   Button: ({
     children,
@@ -34,6 +38,7 @@ vi.mock('@sim/emcn', () => ({
     Trigger: ({ children }: { children?: ReactNode }) => children,
     Content: () => null,
   },
+  useCopyToClipboard: () => ({ copied: false, copy: mockCopy }),
 }))
 
 let container: HTMLDivElement
@@ -43,17 +48,19 @@ interface RenderInputOptions {
   fetchCurrentPassword?: () => Promise<string>
   onChange?: (value: string) => void
   showGenerate?: boolean
+  value?: string
 }
 
 function renderInput({
   fetchCurrentPassword,
   onChange = vi.fn(),
   showGenerate = false,
+  value = '',
 }: RenderInputOptions = {}) {
   act(() => {
     root.render(
       <GeneratedPasswordInput
-        value=''
+        value={value}
         onChange={onChange}
         showGenerate={showGenerate}
         fetchCurrentPassword={fetchCurrentPassword}
@@ -99,7 +106,7 @@ describe('GeneratedPasswordInput', () => {
     expect(passwordInput()).toHaveAttribute('placeholder', '••••••••')
   })
 
-  it('fetches the saved password on reveal and reuses it when toggled', async () => {
+  it('fetches the saved password on reveal', async () => {
     const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
 
     renderInput({ fetchCurrentPassword })
@@ -108,12 +115,37 @@ describe('GeneratedPasswordInput', () => {
     expect(fetchCurrentPassword).toHaveBeenCalledOnce()
     expect(passwordInput()).toHaveAttribute('type', 'text')
     expect(passwordInput()).toHaveValue('saved-secret')
+  })
+
+  it('discards the saved password when hidden and re-fetches on the next reveal', async () => {
+    const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
+
+    renderInput({ fetchCurrentPassword })
+    await act(async () => passwordButton('Show password').click())
 
     act(() => passwordButton('Hide password').click())
+
     expect(passwordInput()).toHaveAttribute('type', 'password')
+    expect(passwordInput()).toHaveValue('')
+    expect(passwordInput()).toHaveAttribute('placeholder', '••••••••')
+    expect(passwordButton('Copy password')).toBeDisabled()
 
     await act(async () => passwordButton('Show password').click())
-    expect(fetchCurrentPassword).toHaveBeenCalledOnce()
+
+    expect(fetchCurrentPassword).toHaveBeenCalledTimes(2)
+    expect(passwordInput()).toHaveValue('saved-secret')
+  })
+
+  it('keeps an edited value when hidden', async () => {
+    const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
+    const onChange = vi.fn()
+
+    renderInput({ fetchCurrentPassword, onChange, value: 'typed-secret' })
+    await act(async () => passwordButton('Show password').click())
+    act(() => passwordButton('Hide password').click())
+
+    expect(fetchCurrentPassword).not.toHaveBeenCalled()
+    expect(passwordInput()).toHaveValue('typed-secret')
   })
 
   it('stays masked when loading the saved password fails', async () => {

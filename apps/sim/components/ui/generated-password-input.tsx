@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Button, ChipInput, Loader, Tooltip } from '@sim/emcn'
+import { useState } from 'react'
+import { Button, ChipInput, Loader, Tooltip, useCopyToClipboard } from '@sim/emcn'
 import { Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { generatePassword } from '@/lib/core/security/encryption'
 
@@ -41,23 +41,12 @@ export function GeneratedPasswordInput({
   fetchCurrentPassword,
 }: GeneratedPasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
-  const [copySuccess, setCopySuccess] = useState(false)
   const [currentPassword, setCurrentPassword] = useState<string | null>(null)
   const [isFetchingCurrent, setIsFetchingCurrent] = useState(false)
-
-  useEffect(() => {
-    if (!copySuccess) return
-    const timer = setTimeout(() => setCopySuccess(false), 2000)
-    return () => clearTimeout(timer)
-  }, [copySuccess])
+  const { copied, copy } = useCopyToClipboard()
 
   const displayValue = currentPassword ?? value
   const displayPlaceholder = fetchCurrentPassword && !displayValue ? MASKED_PASSWORD : placeholder
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(displayValue)
-    setCopySuccess(true)
-  }
 
   const handleChange = (nextValue: string) => {
     setCurrentPassword(null)
@@ -71,6 +60,14 @@ export function GeneratedPasswordInput({
   const toggleShowPassword = async () => {
     if (showPassword) {
       setShowPassword(false)
+      /**
+       * Discard the fetched password instead of masking it. Keeping it would
+       * leave the plaintext in the input's DOM value and keep Copy armed while
+       * the field reads as hidden. A later reveal re-fetches, which also keeps
+       * the audit log at one entry per disclosure. An edited value lives in
+       * `value` and is deliberately untouched.
+       */
+      setCurrentPassword(null)
       return
     }
 
@@ -124,16 +121,16 @@ export function GeneratedPasswordInput({
               <Button
                 type='button'
                 variant='ghost'
-                onClick={copyToClipboard}
+                onClick={() => copy(displayValue)}
                 disabled={!displayValue || disabled}
                 aria-label='Copy password'
                 className='!p-1.5'
               >
-                {copySuccess ? <Check className='size-3' /> : <Clipboard className='size-3' />}
+                {copied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              <span>{copySuccess ? 'Copied' : 'Copy'}</span>
+              <span>{copied ? 'Copied' : 'Copy'}</span>
             </Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>

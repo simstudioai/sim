@@ -126,14 +126,16 @@ describe('Chat Password Reveal API Route', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
-  it('should return 500 when decryption fails', async () => {
-    mockDecryptSecret.mockRejectedValue(new Error('Decryption failed'))
+  it('should return 500 without echoing the decryption error', async () => {
+    mockDecryptSecret.mockRejectedValue(
+      new Error('Invalid encrypted value format. Expected "iv:encrypted:authTag"')
+    )
 
     const response = await callGet()
 
     expect(response.status).toBe(500)
     const data = await response.json()
-    expect(data.error).toBe('Decryption failed')
+    expect(data.error).toBe('Failed to reveal chat password')
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 })

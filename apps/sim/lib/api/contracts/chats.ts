@@ -4,8 +4,22 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const chatAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
 export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
 
+/**
+ * Shared cap for chat deployment passwords. The set path and the deployed-chat
+ * login path must agree: a password long enough to save but too long to submit
+ * would lock every visitor out of the deployment permanently.
+ */
+const MAX_CHAT_PASSWORD_CHARS = 1024
+
+/**
+ * Password accepted when setting or changing a chat deployment's password. The
+ * empty string is allowed and means "keep the stored password"; a whitespace-only
+ * value is rejected because the login form refuses to submit one, which would
+ * strand the deployment behind an unenterable password.
+ */
 export const chatDeploymentPasswordSchema = z
   .string()
+  .max(MAX_CHAT_PASSWORD_CHARS, 'Password is too long')
   .refine(
     (password) => password.length === 0 || password.trim().length > 0,
     'Password cannot contain only whitespace'
@@ -127,7 +141,7 @@ export const deployedChatConfigSchema = z.object({
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 
 export const deployedChatAuthBodySchema = z.object({
-  password: z.string().max(1024, 'Password is too long').optional(),
+  password: z.string().max(MAX_CHAT_PASSWORD_CHARS, 'Password is too long').optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
 })
 export type DeployedChatAuthBody = z.input<typeof deployedChatAuthBodySchema>
@@ -149,7 +163,7 @@ export const deployedChatFileSchema = z.object({
 
 export const deployedChatPostBodySchema = z.object({
   input: z.string().max(MAX_CHAT_INPUT_CHARS, 'Input is too long').optional(),
-  password: z.string().max(1024, 'Password is too long').optional(),
+  password: z.string().max(MAX_CHAT_PASSWORD_CHARS, 'Password is too long').optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
   conversationId: z.string().max(256, 'Conversation ID is too long').optional(),
   files: z

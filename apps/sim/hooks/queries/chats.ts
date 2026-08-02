@@ -385,12 +385,18 @@ interface RevealChatPasswordVariables {
 }
 
 /**
- * Mutation hook that fetches a chat deployment's current password for
- * workspace admins. Modeled as a mutation (despite the GET) so the decrypted
- * password is never retained in the query cache.
+ * Mutation hook that fetches a chat deployment's current password for workspace
+ * admins. Modeled as a mutation (despite the GET) because revealing a secret is
+ * an audited, explicitly-triggered action, not cacheable read state.
+ *
+ * `gcTime: 0` evicts the decrypted password from the mutation cache as soon as
+ * the last observer unmounts, rather than letting it sit there for the default
+ * five minutes after the deploy modal closes. While the modal is open the caller
+ * holds the plaintext anyway, and it discards it when the field is hidden.
  */
 export function useRevealChatPassword() {
   return useMutation({
+    gcTime: 0,
     mutationFn: async ({ chatId }: RevealChatPasswordVariables): Promise<string> => {
       const result = await requestJson(getChatPasswordContract, { params: { id: chatId } })
       return result.password

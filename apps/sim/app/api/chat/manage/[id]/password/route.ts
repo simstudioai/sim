@@ -1,6 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getChatPasswordContract } from '@/lib/api/contracts/chats'
@@ -71,7 +70,12 @@ export const GET = withRouteHandler(
       return NextResponse.json({ password: decrypted }, { headers: PRIVATE_NO_STORE })
     } catch (error) {
       logger.error('Error revealing chat password:', error)
-      return createErrorResponse(getErrorMessage(error, 'Failed to reveal chat password'), 500)
+      /**
+       * Deliberately opaque: the only errors that reach here come from
+       * decryption, whose messages describe the stored ciphertext's shape.
+       * The logged error carries the detail for operators.
+       */
+      return createErrorResponse('Failed to reveal chat password', 500)
     }
   }
 )
