@@ -834,6 +834,19 @@ function buildComparisonClause(
   columnType: ColumnType | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
+
+  // A field with NO schema entry keeps the legacy `::numeric` default. It is
+  // not a text-shaped column — it is an unknown one, and ad-hoc numeric fields
+  // have always compared numerically here. Falling through to the registry's
+  // `string` fallback would silently switch them to LEXICOGRAPHIC ordering,
+  // where `'10' > '5'` is false — a saved filter would start returning a
+  // different row set with no error.
+  if (columnType === undefined) {
+    validateComparisonValue(field, columnType, 'numeric', value)
+    const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::numeric`)
+    return sql`${cell} ${sql.raw(operator)} ${value}`
+  }
+
   const definition = columnTypeById(columnType)
 
   if (!definition.orderable) {
@@ -842,10 +855,10 @@ function buildComparisonClause(
     )
   }
 
-  // `jsonbCast === null` MEANS text comparison is correct — for `string` and
-  // for every other text-shaped type. Reading the registry rather than testing
-  // for `'string'` is what stops a new type falling past this into the cast
-  // below: `(data->>'email')::numeric` errors in Postgres on the first
+  // For a KNOWN type, `jsonbCast === null` means text comparison is correct —
+  // for `string` and for every other text-shaped type. Reading the registry
+  // rather than testing for `'string'` is what stops a new type falling into
+  // the cast below: `(data->>'email')::numeric` errors in Postgres on the first
   // non-numeric row, taking the whole rows query down with it.
   const cast = definition.jsonbCast
   if (cast === null) {

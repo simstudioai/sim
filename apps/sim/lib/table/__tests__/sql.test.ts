@@ -114,16 +114,13 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('::timestamp')
     })
 
-    it('compares an unknown column type as TEXT, never with an invented cast', () => {
-      // An unknown type resolves to `string` (`columnTypeById`'s documented
-      // fallback), and `string` compares as text. The `?? 'numeric'` default
-      // this replaced was reached by every type whose `jsonbCast` is null —
-      // so a range filter on an `email` column emitted
-      // `(data->>'email')::numeric`, which Postgres errors on at the first
-      // non-numeric row and takes the whole rows query down with it.
+    it('falls back to ::numeric for a field with no schema entry', () => {
+      // An UNKNOWN field keeps the legacy numeric default — ad-hoc numeric
+      // fields have always compared numerically, and switching them to
+      // lexicographic ordering would change a saved filter's row set silently.
+      // A known text-shaped type is a different question; see the case below.
       const out = render(buildFilterClause({ score: { $gte: 5 } }, TABLE, NO_COLUMNS))
-      expect(out).toContain(`${TABLE}.data->>'score' >= `)
-      expect(out).not.toContain('::numeric')
+      expect(out).toContain(`(${TABLE}.data->>'score')::numeric >= `)
       expect(out).not.toContain('::timestamp')
     })
 
@@ -381,14 +378,10 @@ describe('SQL Builder', () => {
       ).toThrow(/column "birthDate" \(date\) requires a date string, got number/)
     })
 
-    it('accepts a string on an unknown column, which compares as text', () => {
-      // Previously threw, because an unknown type fell through to a numeric
-      // cast that then demanded a numeric operand. Text comparison has no such
-      // requirement, and refusing a string on a column that renders as text
-      // was the wrong answer.
+    it('throws when $lt on an unknown column (numeric fallback) receives a string', () => {
       expect(() =>
         buildFilterClause({ score: { $lt: 'high' } } as Filter, TABLE, NO_COLUMNS)
-      ).not.toThrow()
+      ).toThrow(/requires a number, got string/)
     })
 
     it('accepts valid number on number column', () => {
