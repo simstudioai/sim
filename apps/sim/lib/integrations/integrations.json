@@ -14676,7 +14676,7 @@
         },
         {
           "name": "Create Bill",
-          "description": "Create a vendor bill without paying it"
+          "description": "Create a vendor bill with optional Purchase Order line links without paying it"
         },
         {
           "name": "Update Bill",

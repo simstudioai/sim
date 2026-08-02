@@ -1613,14 +1613,14 @@ Sparse-update purchase-order header fields using the current sync token
 
 ### `quickbooks_create_bill`
 
-Create a vendor bill without paying it
+Create a vendor bill with optional Purchase Order line links without paying it
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `vendorId` | string | Yes | Bill vendor ID |
-| `lines` | json | Yes | Bounded account-based or item-based expense lines |
+| `lines` | json | Yes | Bounded account-based or item-based expense lines with optional paired Purchase Order and line IDs |
 | `apAccountId` | string | No | Optional accounts-payable account ID |
 | `transactionDate` | string | No | Bill date in YYYY-MM-DD format |
 | `dueDate` | string | No | Bill due date in YYYY-MM-DD format |
@@ -1635,6 +1635,12 @@ Create a vendor bill without paying it
 | `recordId` | string | ID of the created or updated QuickBooks entity |
 | `syncToken` | string | Latest sync token required for a subsequent update |
 | `time` | string | QuickBooks response timestamp |
+| `linkingRequested` | boolean | Whether any Purchase Order line links were requested |
+| `linkingSucceeded` | boolean | Whether QuickBooks returned every requested Purchase Order line link |
+| `linkedLines` | array | Requested Purchase Order line links confirmed by QuickBooks |
+|   ↳ `billLineId` | string | Created Bill line ID carrying the confirmed link |
+| `missingLinks` | array | Requested Purchase Order line links omitted by QuickBooks |
+| `linkingWarning` | string | Warning that the Bill was created without every requested Purchase Order link |
 | `record` | json | Created native QuickBooks Bill |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
 |   ↳ `SyncToken` | string | Current transaction sync token |
