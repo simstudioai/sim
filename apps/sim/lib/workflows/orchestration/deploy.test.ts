@@ -7,6 +7,7 @@ import {
   queueTableRows,
   resetDbChainMock,
   schemaMock,
+  workflowAuthzMockFns,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,9 +98,12 @@ vi.mock('@/lib/workflows/schedules', () => ({
   validateWorkflowSchedules: mockValidateWorkflowSchedules,
 }))
 
+// Resolves to the global @sim/platform-authz/workflow mock, so instanceof matches.
+import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import {
   performActivateVersion,
   performFullDeploy,
+  performFullUndeploy,
   performRevertToVersion,
 } from '@/lib/workflows/orchestration/deploy'
 
@@ -658,5 +662,40 @@ describe('performActivateVersion workspace event emission', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('nope')
     expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('mutation lock on the orchestration entry points', () => {
+  const mockAssertMutable = workflowAuthzMockFns.mockAssertWorkflowMutable
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockAssertMutable.mockRejectedValue(new WorkflowLockedError('Workflow is locked'))
+  })
+
+  it.each([
+    ['performFullDeploy', () => performFullDeploy({ workflowId: 'wf-1', userId: 'user-1' })],
+    ['performFullUndeploy', () => performFullUndeploy({ workflowId: 'wf-1', userId: 'user-1' })],
+    [
+      'performActivateVersion',
+      () => performActivateVersion({ workflowId: 'wf-1', version: 2, userId: 'user-1' }),
+    ],
+  ])('%s returns a lock denial instead of throwing', async (_name, call) => {
+    // Callers like performChatDeploy and the copilot deploy tools consume the
+    // result object; a throw surfaces as a generic 500 instead of a denial.
+    const result = await call()
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('locked')
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('proceeds past the gate when the workflow is mutable', async () => {
+    mockAssertMutable.mockResolvedValue(undefined)
+
+    await performFullUndeploy({ workflowId: 'wf-1', userId: 'user-1' })
+
+    expect(mockAssertMutable).toHaveBeenCalledWith('wf-1')
   })
 })

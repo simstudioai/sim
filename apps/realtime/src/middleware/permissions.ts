@@ -56,17 +56,25 @@ const WRITE_OPERATIONS: string[] = [
   WORKFLOW_OPERATIONS.REPLACE_STATE,
 ]
 
-// Read role can only update positions (for cursor sync, etc.)
-const READ_OPERATIONS: string[] = [
-  BLOCK_OPERATIONS.UPDATE_POSITION,
-  BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
-]
-
-// Define operation permissions based on role
+/**
+ * Operation permissions by role.
+ *
+ * `read` grants NOTHING. Every operation that reaches this gate is durably
+ * persisted — `handlers/operations.ts` follows an allowed check with
+ * `persistWorkflowOperation`, which writes `workflow_blocks` / `workflow` rows —
+ * so granting a read-only member any entry here is a write, not a read.
+ *
+ * This previously listed `updatePosition` + `batchUpdatePositions` as readable
+ * "for cursor sync", which they are not: live cursors ride their own
+ * `cursor-update` event (`handlers/presence.ts`), and the smooth-drag broadcast
+ * is the UNCOMMITTED position path, which returns before persisting and never
+ * consults this table at all. The only thing the grant actually enabled was a
+ * read-only collaborator permanently rewriting block coordinates.
+ */
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: [...ADMIN_ONLY_OPERATIONS, ...WRITE_OPERATIONS],
   write: WRITE_OPERATIONS,
-  read: READ_OPERATIONS,
+  read: [],
 }
 
 // Check if a role allows a specific operation (no DB query, pure logic)

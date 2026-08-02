@@ -196,6 +196,7 @@ describe('Permission Utils', () => {
           isExternal: false,
           joinedAt: '2026-04-22T00:00:00.000Z',
           roleSource: 'explicit',
+          isBilledAccount: false,
         },
       ])
     })
