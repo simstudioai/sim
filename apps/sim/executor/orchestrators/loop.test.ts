@@ -308,6 +308,62 @@ describe('LoopOrchestrator', () => {
     )
   })
 
+  describe('while condition reference interpolation', () => {
+    async function evaluateWhileConditionFor(condition: string, resolved: unknown) {
+      const resolver = { resolveSingleReference: vi.fn().mockResolvedValue(resolved) }
+      const orchestrator = new LoopOrchestrator(
+        { loopConfigs: new Map(), parallelConfigs: new Map(), nodes: new Map() } as any,
+        createState(),
+        resolver as any
+      )
+      const ctx = createContext({
+        iteration: 0,
+        currentIterationOutputs: new Map(),
+        allIterationOutputs: [],
+        loopType: 'while',
+        condition,
+      })
+
+      await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
+
+      return mockExecuteInIsolatedVM.mock.calls[0][0].code as string
+    }
+
+    it('does not let a quote in a resolved value escape into expression position', async () => {
+      const payload = 'z" ) && Boolean( "INJ".length === 3 ) && Boolean( "never'
+
+      const code = await evaluateWhileConditionFor('<start.input> === "never"', payload)
+
+      expect(new Function(code)()).toBe(false)
+      expect(code).toBe(`return Boolean(${JSON.stringify(payload)} === "never")`)
+    })
+
+    it('escapes backslashes and newlines so the condition stays compilable', async () => {
+      const code = await evaluateWhileConditionFor('<start.input> === "x"', 'a\\"\nb')
+
+      expect(() => new Function(code)).not.toThrow()
+      expect(new Function(code)()).toBe(false)
+    })
+
+    it('escapes line separators that are legal in JSON but not in every JS host', async () => {
+      const code = await evaluateWhileConditionFor('<start.input> === "x"', 'a\u2028b\u2029c')
+
+      expect(code).not.toMatch(/[\u2028\u2029]/)
+      expect(new Function(code)()).toBe(false)
+    })
+
+    it.each([
+      ['TRUE', 'return Boolean(true)'],
+      [' false ', 'return Boolean(false)'],
+      [7, 'return Boolean(7)'],
+      [true, 'return Boolean(true)'],
+      [null, 'return Boolean(null)'],
+      [{ a: 1 }, 'return Boolean({"a":1})'],
+    ])('serializes %o as a literal operand', async (resolved, expected) => {
+      expect(await evaluateWhileConditionFor('<start.input>', resolved)).toBe(expected)
+    })
+  })
+
   it('exits doWhile loops when the configured iteration cap is reached', async () => {
     const { orchestrator } = createOrchestrator()
     const ctx = createContext({

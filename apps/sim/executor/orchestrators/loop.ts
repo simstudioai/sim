@@ -38,6 +38,42 @@ const logger = createLogger('LoopOrchestrator')
 
 const LOOP_CONDITION_TIMEOUT_MS = 5000
 
+/**
+ * Serializes a resolved reference value into a JavaScript literal for the loop
+ * condition expression.
+ *
+ * The result is concatenated into source that is compiled and run in the
+ * execution isolate, so every value must be emitted as a self-contained literal.
+ * Interpolating a string without escaping would let a `"` in the resolved data
+ * terminate the literal and continue in expression position.
+ */
+function formatConditionOperand(resolved: unknown): string {
+  if (typeof resolved === 'boolean' || typeof resolved === 'number') {
+    return String(resolved)
+  }
+
+  if (typeof resolved === 'string') {
+    const lower = resolved.toLowerCase().trim()
+    if (lower === 'true' || lower === 'false') {
+      return lower
+    }
+  }
+
+  return toJsLiteral(resolved)
+}
+
+/**
+ * JSON-serializes a value and escapes the code points that are valid inside a
+ * JSON string but historically hazardous inside a JavaScript source literal.
+ */
+function toJsLiteral(value: unknown): string {
+  const serialized = JSON.stringify(value)
+  if (serialized === undefined) {
+    return 'undefined'
+  }
+  return serialized.replace(/\u2028/g, String.raw`\u2028`).replace(/\u2029/g, String.raw`\u2029`)
+}
+
 async function replaceLoopConditionReferences(
   condition: string,
   replacer: (match: string) => Promise<string>
@@ -724,17 +760,7 @@ export class LoopOrchestrator {
           resolvedType: resolved === null ? 'null' : typeof resolved,
         })
         if (resolved !== undefined) {
-          if (typeof resolved === 'boolean' || typeof resolved === 'number') {
-            return String(resolved)
-          }
-          if (typeof resolved === 'string') {
-            const lower = resolved.toLowerCase().trim()
-            if (lower === 'true' || lower === 'false') {
-              return lower
-            }
-            return `"${resolved}"`
-          }
-          return JSON.stringify(resolved)
+          return formatConditionOperand(resolved)
         }
         return match
       })
