@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { member, permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole, ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -14,7 +15,7 @@ import { getSession } from '@/lib/auth'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { withTransactionRetry } from '@/lib/db/transaction'
+import { isRetryableTransactionError, withTransactionRetry } from '@/lib/db/transaction'
 import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -76,10 +77,30 @@ class WorkspaceContextChangedError extends HttpError {
 }
 
 /**
+ * Another writer held the rows for longer than every attempt allowed. Distinct
+ * from the conflicts above: nothing about the request is wrong and the state is
+ * unchanged, so the answer is to retry rather than to reload — and it must not
+ * reach the client as a generic server error, which is what bounding the lock
+ * wait would otherwise have produced.
+ */
+class WorkspaceBusyError extends HttpError {
+  readonly statusCode = 409
+
+  constructor() {
+    super('This workspace is busy right now. Try again in a moment.')
+    this.name = 'WorkspaceBusyError'
+  }
+}
+
+/**
  * Bounds the wait on the row locks below so a stuck holder fails fast
  * (SQLSTATE 55P03) instead of parking a pooled connection indefinitely.
+ *
+ * Kept short because `withTransactionRetry` retries that timeout: the connection
+ * is released between attempts, so three bounded waits contend better than one
+ * long one and never pin a pool slot for more than this.
  */
-const PERMISSIONS_LOCK_TIMEOUT_MS = 5000
+const PERMISSIONS_LOCK_TIMEOUT_MS = 3000
 
 /** Organization owners/admins among `userIds`, empty for a personal workspace. */
 async function loadOrgAdminTargets(
@@ -315,10 +336,11 @@ export const PATCH = withRouteHandler(
     }
 
     /**
-     * Retried on a deadlock: the ordered locks below close this route against
+     * Retried on contention: the ordered locks below close this route against
      * itself, but member removal takes the billed account before the departing
-     * user, so a cross-path cycle remains. The victim of one is asked by the
-     * database to try again, and answering it with a 500 would surface as
+     * user, so a cross-path cycle remains — and the `lock_timeout` above turns a
+     * slow competing writer into an abort of its own. Both are the database
+     * asking for a retry, and answering either with a 500 would surface as
      * "Internal server error" for a click that would have worked.
      */
     const { previousRoles, changedUserIds } = await withTransactionRetry(async (tx) => {
@@ -491,6 +513,20 @@ export const PATCH = withRouteHandler(
         previousRoles: lockedByUserId,
         changedUserIds: new Set(changedUpdates.map((update) => update.userId)),
       }
+    }).catch((error) => {
+      /**
+       * Contention that outlived every attempt. Answering with the driver error
+       * would render as "Internal server error" for a request that is simply
+       * queued behind another writer.
+       */
+      if (isRetryableTransactionError(error)) {
+        logger.warn('Permission update exhausted retries under contention', {
+          workspaceId,
+          code: getPostgresErrorCode(error),
+        })
+        throw new WorkspaceBusyError()
+      }
+      throw error
     })
 
     /**

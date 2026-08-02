@@ -290,18 +290,27 @@ export const POST = withRouteHandler(
       /** A returned id we did not mint means the conflict branch ran. */
       const wasCreated = written?.id === permissionId
 
-      logger.info(`Admin API: Added user ${userId} to workspace ${workspaceId}`, {
-        permissions: permissionLevel,
-        permissionId,
-      })
+      logger.info(
+        wasCreated
+          ? `Admin API: Added user ${userId} to workspace ${workspaceId}`
+          : `Admin API: Updated user ${userId} permissions in workspace ${workspaceId}`,
+        { permissions: permissionLevel, permissionId }
+      )
 
+      /**
+       * The conflict branch amended a membership that already existed, so it is
+       * a role change rather than an addition — recording it as `MEMBER_ADDED`
+       * would put a join that never happened in the workspace's audit trail.
+       */
       recordAudit({
         workspaceId,
         actorId: 'admin-api',
-        action: AuditAction.MEMBER_ADDED,
+        action: wasCreated ? AuditAction.MEMBER_ADDED : AuditAction.MEMBER_ROLE_CHANGED,
         resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
-        description: `Admin API added member to workspace with ${permissionLevel} permissions`,
+        description: wasCreated
+          ? `Admin API added member to workspace with ${permissionLevel} permissions`
+          : `Admin API changed workspace member permissions to ${permissionLevel}`,
         metadata: { targetUserId: userId, permissions: permissionLevel },
         request,
       })

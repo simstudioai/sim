@@ -314,6 +314,29 @@ describe('workspace permissions route', () => {
       expect(dbChainMockFns.set).not.toHaveBeenCalled()
     })
 
+    /**
+     * The `lock_timeout` this route sets makes Postgres abort the transaction
+     * under contention. Retries cover the transient case; when they run out the
+     * caller must still get something actionable, not the driver error rendered
+     * as "Internal server error".
+     */
+    it('answers contention that outlives the retries with a busy conflict', async () => {
+      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
+      dbChainMockFns.transaction.mockRejectedValue(
+        Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+      )
+
+      const response = await PATCH(
+        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
+        routeContext
+      )
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'This workspace is busy right now. Try again in a moment.',
+      })
+    })
+
     it('aborts when the workspace leaves its organization mid-request', async () => {
       queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
       permissionsMockFns.mockGetWorkspaceWithOwner.mockResolvedValue({
