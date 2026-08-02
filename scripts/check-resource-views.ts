@@ -156,6 +156,12 @@ const CANONICAL_UNITS: readonly CanonicalUnit[] = [
     kind: 'interface',
   },
   {
+    barrel: '@/components/resources/table-view',
+    root: 'apps/sim/components/resources/table-view',
+    views: ['TableView'],
+    kind: 'table',
+  },
+  {
     barrel: '@/components/resources/resource-provider',
     root: 'apps/sim/components/resources/resource-provider',
     views: ['ResourceProvider'],

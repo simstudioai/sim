@@ -48,6 +48,7 @@ export {
 } from './select-pill'
 export { TableFind, type TableFindProps } from './table-find'
 export { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
+export { TableView, type TableViewProps } from './table-view'
 export type {
   BlockIconInfo,
   ColumnSourceInfo,

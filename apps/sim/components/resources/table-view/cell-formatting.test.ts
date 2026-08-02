@@ -1,14 +1,16 @@
 /**
  * @vitest-environment node
  *
- * A table rendered inside an interface module must format its cells the same way
- * the tables grid does. Both surfaces resolve through the column-type registry
- * (`columnTypeOf(column).formatForDisplay`), so a currency column reads
- * `$1,234.50` in both places rather than `1234.5` in one of them, and a select
- * column shows its option *name* rather than the stored option id.
+ * Every surface that draws a table resolves its cell text through the
+ * column-type registry, so a currency column reads `$1,234.50` and a select
+ * column shows its option *name* wherever it is mounted — the tables grid, an
+ * embedded panel, or a public share.
  *
- * These assert the formatting contract through the registry rather than through
- * the component, so they stay fast and cannot flake on rendering.
+ * This pins the registry contract `CellContent` depends on. It regressed once:
+ * the interface module carried its own resolver that handled only
+ * boolean/null/json/date/string and let currency and select fall through to
+ * `JSON.stringify`, so a module rendered `1234.5` and `opt_open` where the grid
+ * rendered `$1,234.50` and `Open`.
  */
 import { describe, expect, it } from 'vitest'
 import { columnTypeOf } from '@/lib/table/column-types'
@@ -18,7 +20,7 @@ function column(overrides: Partial<ColumnDefinition> & Pick<ColumnDefinition, 't
   return { id: 'col_1', name: 'col', ...overrides } as ColumnDefinition
 }
 
-describe('interface table module cell formatting', () => {
+describe('table cell display formatting', () => {
   it('formats currency through the registry, not as a bare number', () => {
     const col = column({ type: 'currency', currencyCode: 'USD' })
     const text = columnTypeOf(col).formatForDisplay(1234.5, col)
@@ -56,8 +58,8 @@ describe('interface table module cell formatting', () => {
 
   /**
    * The registry's completeness gate means every column type has a formatter;
-   * this is what lets the module use one fallback branch instead of a per-type
-   * switch that would drift from the grid's.
+   * that is what lets the cell layer use one fallback branch instead of a
+   * per-type switch that would drift from the grid's.
    */
   it('gives every column type a display formatter', () => {
     for (const type of ['string', 'number', 'boolean', 'date', 'json', 'select', 'currency']) {
