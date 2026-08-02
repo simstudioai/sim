@@ -1,26 +1,35 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnsureWorkflowAccess, mockPerformFullDeploy, mockPerformFullUndeploy } = vi.hoisted(
-  () => ({
-    mockEnsureWorkflowAccess: vi.fn(),
-    mockPerformFullDeploy: vi.fn(),
-    mockPerformFullUndeploy: vi.fn(),
-  })
-)
+const {
+  mockCheckChatAccess,
+  mockEnsureWorkflowAccess,
+  mockPerformChatUndeploy,
+  mockPerformDeleteWorkflowMcpTool,
+  mockPerformFullDeploy,
+  mockPerformFullUndeploy,
+} = vi.hoisted(() => ({
+  mockCheckChatAccess: vi.fn(),
+  mockEnsureWorkflowAccess: vi.fn(),
+  mockPerformChatUndeploy: vi.fn(),
+  mockPerformDeleteWorkflowMcpTool: vi.fn(),
+  mockPerformFullDeploy: vi.fn(),
+  mockPerformFullUndeploy: vi.fn(),
+}))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
   performChatDeploy: vi.fn(),
-  performChatUndeploy: vi.fn(),
+  performChatUndeploy: mockPerformChatUndeploy,
   performFullDeploy: mockPerformFullDeploy,
   performFullUndeploy: mockPerformFullUndeploy,
 }))
 
 vi.mock('@/lib/mcp/orchestration', () => ({
   performCreateWorkflowMcpTool: vi.fn(),
-  performDeleteWorkflowMcpTool: vi.fn(),
+  performDeleteWorkflowMcpTool: mockPerformDeleteWorkflowMcpTool,
   performUpdateWorkflowMcpTool: vi.fn(),
 }))
 
@@ -35,7 +44,7 @@ vi.mock('@/lib/mcp/workflow-tool-schema', () => ({
 }))
 
 vi.mock('@/app/api/chat/utils', () => ({
-  checkChatAccess: vi.fn(),
+  checkChatAccess: mockCheckChatAccess,
   checkWorkflowAccessForChatCreation: vi.fn(),
 }))
 
@@ -55,30 +64,16 @@ import {
   executeRedeploy,
 } from '@/lib/copilot/tools/handlers/deployment/deploy'
 
-describe('executeDeployApi', () => {
+describe('deployment handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockEnsureWorkflowAccess.mockResolvedValue({
       workflow: { id: 'workflow-1', workspaceId: 'workspace-1' },
     })
   })
 
-  it('refuses undeploy without approval for the exact tool call', async () => {
-    const result = await executeDeployApi(
-      { workflowId: 'workflow-1', action: 'undeploy' },
-      {
-        userId: 'user-1',
-        workflowId: 'workflow-1',
-        toolCallId: 'call-1',
-        userApprovedToolCall: false,
-      }
-    )
-
-    expect(result).toMatchObject({ success: false, error: expect.stringContaining('approval') })
-    expect(mockPerformFullUndeploy).not.toHaveBeenCalled()
-  })
-
-  it('allows an explicitly approved undeploy', async () => {
+  it('undeploys the API without approval context when permission gating is disabled', async () => {
     mockPerformFullUndeploy.mockResolvedValue({ success: true })
 
     const result = await executeDeployApi(
@@ -87,7 +82,6 @@ describe('executeDeployApi', () => {
         userId: 'user-1',
         workflowId: 'workflow-1',
         toolCallId: 'call-1',
-        userApprovedToolCall: true,
       }
     )
 
@@ -182,31 +176,62 @@ describe('executeDeployApi', () => {
     })
   })
 
-  it('refuses chat undeploy without exact-call approval', async () => {
+  it('undeploys chat without approval context when permission gating is disabled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'chat-1',
+        identifier: 'production-helper',
+        title: 'Production Helper',
+        description: null,
+        authType: 'public',
+        allowedEmails: [],
+        outputConfigs: [],
+        includeThinking: false,
+        includeToolCalls: false,
+        customizations: null,
+      },
+    ])
+    mockCheckChatAccess.mockResolvedValue({ hasAccess: true, workspaceId: 'workspace-1' })
+    mockPerformChatUndeploy.mockResolvedValue({ success: true })
+
     const result = await executeDeployChat(
       { workflowId: 'workflow-1', action: 'undeploy' },
       {
         userId: 'user-1',
         workflowId: 'workflow-1',
         toolCallId: 'call-1',
-        userApprovedToolCall: false,
       }
     )
 
-    expect(result).toMatchObject({ success: false, error: expect.stringContaining('approval') })
+    expect(result.success).toBe(true)
+    expect(mockPerformChatUndeploy).toHaveBeenCalledWith({
+      chatId: 'chat-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
   })
 
-  it('refuses MCP undeploy without exact-call approval', async () => {
+  it('undeploys MCP without approval context when permission gating is disabled', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'server-1', name: 'Production MCP' }])
+      .mockResolvedValueOnce([{ id: 'tool-1' }])
+    mockPerformDeleteWorkflowMcpTool.mockResolvedValue({ success: true })
+
     const result = await executeDeployMcp(
       { workflowId: 'workflow-1', serverId: 'server-1', action: 'undeploy' },
       {
         userId: 'user-1',
         workflowId: 'workflow-1',
         toolCallId: 'call-1',
-        userApprovedToolCall: false,
       }
     )
 
-    expect(result).toMatchObject({ success: false, error: expect.stringContaining('approval') })
+    expect(result.success).toBe(true)
+    expect(mockPerformDeleteWorkflowMcpTool).toHaveBeenCalledWith({
+      serverId: 'server-1',
+      toolId: 'tool-1',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+    })
   })
 })

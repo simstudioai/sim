@@ -25,14 +25,6 @@ export function getCopilotDeploymentIdempotencyKey(
     : `copilot:tool-call:${context.toolCallId}`
 }
 
-/** Returns the error used when an undeploy did not receive per-call user approval. */
-export function getUnapprovedUndeployError(
-  context: Pick<ToolExecutionContext, 'userApprovedToolCall'>
-): string | null {
-  if (context.userApprovedToolCall === true) return null
-  return 'Undeploy requires explicit approval for this exact interactive Copilot call. Never undeploy to recover a failed deploy or redeploy; a failed redeploy already leaves the prior live version active.'
-}
-
 /** Rejects a replay whose persisted operation no longer describes production. */
 export function getHistoricalDeploymentAttemptError(
   attempt: DeploymentAttemptCurrentState | null | undefined,

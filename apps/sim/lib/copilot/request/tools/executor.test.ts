@@ -36,7 +36,7 @@ describe('pendingToolWaitBudgetMs', () => {
 })
 
 describe('buildToolExecutionContext', () => {
-  it('threads logical tool-call identity and server approval into the handler context', () => {
+  it('threads logical tool-call identity into the handler context', () => {
     const executionContext: ExecutionContext = {
       userId: 'user-1',
       workflowId: 'workflow-1',
@@ -48,7 +48,6 @@ describe('buildToolExecutionContext', () => {
         {
           id: 'call-1',
           parentToolCallId: 'parent-1',
-          userApproved: true,
         },
         executionContext
       )
@@ -56,20 +55,6 @@ describe('buildToolExecutionContext', () => {
       runId: 'run-1',
       toolCallId: 'call-1',
       parentToolCallId: 'parent-1',
-      userApprovedToolCall: true,
-    })
-  })
-
-  it('does not inherit approval from the turn-scoped context', () => {
-    const executionContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      userApprovedToolCall: true,
-    }
-
-    expect(buildToolExecutionContext({ id: 'call-2' }, executionContext)).toMatchObject({
-      toolCallId: 'call-2',
-      userApprovedToolCall: false,
     })
   })
 })

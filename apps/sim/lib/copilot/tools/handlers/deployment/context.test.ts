@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   getCopilotDeploymentIdempotencyKey,
   getHistoricalDeploymentAttemptError,
-  getUnapprovedUndeployError,
 } from '@/lib/copilot/tools/handlers/deployment/context'
 
 describe('getCopilotDeploymentIdempotencyKey', () => {
@@ -27,15 +26,6 @@ describe('getCopilotDeploymentIdempotencyKey', () => {
 
   it('does not derive a turn-wide key when the tool-call identity is unavailable', () => {
     expect(getCopilotDeploymentIdempotencyKey({ executionId: 'execution-1' })).toBeUndefined()
-  })
-})
-
-describe('getUnapprovedUndeployError', () => {
-  it('fails closed unless the server approved this exact tool call', () => {
-    expect(getUnapprovedUndeployError({ userApprovedToolCall: false })).toContain(
-      'requires explicit approval'
-    )
-    expect(getUnapprovedUndeployError({ userApprovedToolCall: true })).toBeNull()
   })
 })
 

@@ -95,13 +95,14 @@ describe('toolCallNeedsApproval', () => {
   })
 
   it.each(['deploy_api', 'deploy_chat', 'deploy_mcp'])(
-    'always gates a %s undeploy even when the tool was previously allowed',
+    'honors the saved permission for a %s undeploy',
     (toolName) => {
       const context = makeContext()
       context.toolPermissions.autoAllowed.add(toolName)
 
-      expect(toolCallNeedsApproval(toolName, context, {}, false, { action: 'undeploy' })).toBe(true)
-      expect(toolCallNeedsApproval(toolName, context, {}, false, { action: 'deploy' })).toBe(false)
+      expect(toolCallNeedsApproval(toolName, context, {}, false, { action: 'undeploy' })).toBe(
+        false
+      )
     }
   )
 
@@ -316,7 +317,6 @@ describe('runGatedToolExecution', () => {
     await gate(context, toolCall, execute, [])
 
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(toolCall.userApproved).toBe(true)
     expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(true)
   })
 

@@ -13,8 +13,6 @@ export interface ToolExecutionContext {
   runId?: string
   /** Stable identity of the individual tool call being executed. */
   toolCallId?: string
-  /** True only after the server-side permission gate approved this exact call. */
-  userApprovedToolCall?: boolean
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
   requestMode?: string
