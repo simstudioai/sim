@@ -8,6 +8,7 @@ import {
 } from '@/tools/quickbooks/client'
 import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import type {
+  QuickBooksAccountingTransactionType,
   QuickBooksActiveStatus,
   QuickBooksAddress,
   QuickBooksCustomer,
@@ -28,15 +29,18 @@ export type QuickBooksQueryEntity =
   | 'BillPayment'
   | 'CreditMemo'
   | 'Customer'
+  | 'Deposit'
   | 'Employee'
   | 'Estimate'
   | 'Invoice'
   | 'Item'
+  | 'JournalEntry'
   | 'Payment'
   | 'PurchaseOrder'
   | 'Purchase'
   | 'RefundReceipt'
   | 'SalesReceipt'
+  | 'Transfer'
   | 'Vendor'
   | 'VendorCredit'
 
@@ -121,6 +125,15 @@ export function buildQuickBooksQueryUrl(
   return url
 }
 
+export const QUICKBOOKS_ACCOUNTING_ENTITIES = {
+  deposit: { entity: 'Deposit', resource: 'deposit' },
+  journal_entry: { entity: 'JournalEntry', resource: 'journalentry' },
+  transfer: { entity: 'Transfer', resource: 'transfer' },
+} as const satisfies Record<
+  QuickBooksAccountingTransactionType,
+  { entity: QuickBooksQueryEntity; resource: string }
+>
+
 export function getQuickBooksMasterDataEntity(recordType: QuickBooksMasterDataRecordType) {
   const config = QUICKBOOKS_MASTER_DATA_ENTITIES[recordType]
   if (!config) {
@@ -144,6 +157,18 @@ export function getQuickBooksPurchasingEntity(
   if (!config) {
     throw new Error(
       `Unsupported QuickBooks purchasing transaction type: ${String(transactionType)}`
+    )
+  }
+  return config
+}
+
+export function getQuickBooksAccountingEntity(
+  transactionType: QuickBooksAccountingTransactionType
+) {
+  const config = QUICKBOOKS_ACCOUNTING_ENTITIES[transactionType]
+  if (!config) {
+    throw new Error(
+      `Unsupported QuickBooks accounting transaction type: ${String(transactionType)}`
     )
   }
   return config

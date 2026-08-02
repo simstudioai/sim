@@ -191,6 +191,8 @@ export interface QuickBooksTransaction {
   VendorRef?: QuickBooksReference
   APAccountRef?: QuickBooksReference
   AccountRef?: QuickBooksReference
+  FromAccountRef?: QuickBooksReference
+  ToAccountRef?: QuickBooksReference
   EntityRef?: QuickBooksReference & { type?: string }
   DepositToAccountRef?: QuickBooksReference
   PaymentMethodRef?: QuickBooksReference
@@ -203,10 +205,12 @@ export interface QuickBooksTransaction {
   ExchangeRate?: number
   Line?: Array<Record<string, unknown>>
   LinkedTxn?: Array<{ TxnId?: string; TxnType?: string }>
+  Amount?: number
   TotalAmt?: number
   Balance?: number
   UnappliedAmt?: number
   PrivateNote?: string
+  Adjustment?: boolean
   TxnStatus?: string
   TxnTaxDetail?: Record<string, unknown>
   MetaData?: QuickBooksMetaData
@@ -218,6 +222,7 @@ export type QuickBooksPurchaseOrder = QuickBooksTransaction
 export type QuickBooksBill = QuickBooksTransaction
 export type QuickBooksSalesTransaction = QuickBooksTransaction
 export type QuickBooksPurchasingTransaction = QuickBooksTransaction
+export type QuickBooksAccountingTransaction = QuickBooksTransaction
 
 export interface QuickBooksAuthParams {
   accessToken: string
@@ -277,6 +282,67 @@ export interface QuickBooksReadPurchasingTransactionsParams extends QuickBooksAu
   transactionId?: string
   startPosition?: number
   maxResults?: number
+}
+
+export type QuickBooksAccountingTransactionType = 'journal_entry' | 'deposit' | 'transfer'
+
+export interface QuickBooksReadAccountingTransactionsParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksAccountingTransactionType
+  readMode: QuickBooksMasterDataReadMode
+  transactionId?: string
+  startPosition?: number
+  maxResults?: number
+}
+
+export type QuickBooksJournalPostingType = 'debit' | 'credit'
+export type QuickBooksJournalEntityType = 'customer' | 'vendor' | 'employee'
+
+export interface QuickBooksJournalLineInput {
+  postingType: QuickBooksJournalPostingType
+  amount: number
+  accountId: string
+  description?: string
+  entityType?: QuickBooksJournalEntityType
+  entityId?: string
+}
+
+export interface QuickBooksDepositLineInput {
+  amount: number
+  accountId: string
+  description?: string
+}
+
+export interface QuickBooksCreateJournalEntryParams extends QuickBooksAuthParams {
+  lines: QuickBooksJournalLineInput[]
+  confirmPosting: boolean
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateJournalEntryParams extends QuickBooksAuthParams {
+  journalEntryId: string
+  syncToken: string
+  confirmPosting: boolean
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+}
+
+export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
+  depositAccountId: string
+  lines: QuickBooksDepositLineInput[]
+  transactionDate?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateDepositParams extends QuickBooksAuthParams {
+  depositId: string
+  syncToken: string
+  transactionDate?: string
+  privateNote?: string
 }
 
 export type QuickBooksPurchasingLineType = 'account' | 'item'
@@ -629,6 +695,19 @@ export interface QuickBooksReadPurchasingTransactionsResponse extends ToolRespon
   }
 }
 
+export interface QuickBooksReadAccountingTransactionsResponse extends ToolResponse {
+  output: {
+    transactionType: QuickBooksAccountingTransactionType
+    item?: QuickBooksAccountingTransaction
+    items?: QuickBooksAccountingTransaction[]
+    startPosition?: number
+    maxResults?: number
+    nextStartPosition?: number
+    hasMore?: boolean
+    time: string | null
+  }
+}
+
 export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: string }>
   extends ToolResponse {
   output: {
@@ -655,9 +734,11 @@ export type QuickBooksResponse =
   | QuickBooksReadMasterDataResponse
   | QuickBooksReadSalesTransactionsResponse
   | QuickBooksReadPurchasingTransactionsResponse
+  | QuickBooksReadAccountingTransactionsResponse
   | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
   | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
+  | QuickBooksMutationResponse<QuickBooksAccountingTransaction>
   | QuickBooksVoidResponse
 
 export const QUICKBOOKS_REFERENCE_PROPERTIES: Record<string, OutputProperty> = {
@@ -1120,6 +1201,51 @@ export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, Output
   TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
   Balance: { type: 'number', description: 'Remaining transaction balance', optional: true },
   PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
+  MetaData: {
+    type: 'json',
+    description: 'Transaction creation and update timestamps',
+    optional: true,
+    properties: QUICKBOOKS_METADATA_PROPERTIES,
+  },
+}
+
+export const QUICKBOOKS_ACCOUNTING_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks accounting transaction ID' },
+  SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
+  DocNumber: { type: 'string', description: 'Transaction document number', optional: true },
+  TxnDate: { type: 'string', description: 'Transaction date', optional: true },
+  PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
+  Adjustment: {
+    type: 'boolean',
+    description: 'Whether the journal entry is an adjusting entry',
+    optional: true,
+  },
+  DepositToAccountRef: {
+    type: 'json',
+    description: 'Account receiving a deposit',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  FromAccountRef: {
+    type: 'json',
+    description: 'Transfer source account',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  ToAccountRef: {
+    type: 'json',
+    description: 'Transfer destination account',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  Line: {
+    type: 'array',
+    description: 'Native QuickBooks journal or deposit lines',
+    optional: true,
+    items: { type: 'json' },
+  },
+  Amount: { type: 'number', description: 'Transfer amount', optional: true },
+  TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
   MetaData: {
     type: 'json',
     description: 'Transaction creation and update timestamps',
