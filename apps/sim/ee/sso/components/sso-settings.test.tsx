@@ -58,12 +58,9 @@ vi.mock('@/ee/sso/components/verified-domains-section', () => ({
   VerifiedDomainsSection: () => <div />,
 }))
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions',
-  () => ({
-    saveDiscardActions: () => [],
-  })
-)
+vi.mock('@/components/settings/save-discard-actions', () => ({
+  saveDiscardActions: () => [],
+}))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipLink, toast } from '@sim/emcn'
+import { ChipLink, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
@@ -34,7 +35,7 @@ interface SkillCreateProps {
 
 /**
  * Full-page skill creation, mirroring the skill detail surface: a fixed action
- * bar (Import / Create skill), a heading, and the editable Name / Description /
+ * bar (Import / Discard / Create), a heading, and the editable Name / Description /
  * Content sections. Importing a SKILL.md prefills all three fields in place.
  */
 export function SkillCreate({ workspaceId }: SkillCreateProps) {
@@ -90,10 +91,11 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
     }
   }
 
-  const applyImportedSkill = (data: ParsedSkill) => {
-    setNameDraft(data.name)
-    setDescriptionDraft(data.description)
-    setContentDraft(data.content)
+  /** Applies a full skill shape to all three drafts and remounts the Content editor. */
+  const seedDrafts = (source: Pick<ParsedSkill, 'name' | 'description' | 'content'>) => {
+    setNameDraft(source.name)
+    setDescriptionDraft(source.description)
+    setContentDraft(source.content)
     setErrors({})
     setContentSeed((seed) => seed + 1)
   }
@@ -106,7 +108,7 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
   const handleContentPaste = (text: string): boolean => {
     const parsed = parseSkillMarkdown(text)
     if (!parsed.nameFromFrontmatter) return false
-    applyImportedSkill(parsed)
+    seedDrafts(parsed)
     return true
   }
 
@@ -116,12 +118,18 @@ export function SkillCreate({ workspaceId }: SkillCreateProps) {
     </ChipLink>
   )
 
+  const handleDiscard = () => seedDrafts({ name: '', description: '', content: '' })
+
   const actions = (
     <>
-      <SkillImportButton onImport={applyImportedSkill} disabled={createSkill.isPending} />
-      <Chip variant='primary' onClick={handleCreate} disabled={createSkill.isPending}>
-        {createSkill.isPending ? 'Creating...' : 'Create'}
-      </Chip>
+      <SkillImportButton onImport={seedDrafts} disabled={createSkill.isPending} />
+      <SaveDiscardChips
+        dirty={isDirty}
+        saving={createSkill.isPending}
+        onSave={handleCreate}
+        onDiscard={handleDiscard}
+        creating
+      />
     </>
   )
 
