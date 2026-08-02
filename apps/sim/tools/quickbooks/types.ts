@@ -179,6 +179,25 @@ export interface QuickBooksVendor {
   [key: string]: unknown
 }
 
+export interface QuickBooksLinkedTransaction {
+  TxnId?: string
+  TxnType?: string
+  TxnLineId?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksTransactionLine {
+  Id?: string
+  LineNum?: number
+  Description?: string
+  Amount?: number
+  DetailType?: string
+  LinkedTxn?: QuickBooksLinkedTransaction[]
+  AccountBasedExpenseLineDetail?: Record<string, unknown>
+  ItemBasedExpenseLineDetail?: Record<string, unknown>
+  [key: string]: unknown
+}
+
 export interface QuickBooksTransaction {
   Id: string
   SyncToken?: string
@@ -203,8 +222,8 @@ export interface QuickBooksTransaction {
   CreditCardPayment?: { CCAccountRef?: QuickBooksReference; [key: string]: unknown }
   CurrencyRef?: QuickBooksReference
   ExchangeRate?: number
-  Line?: Array<Record<string, unknown>>
-  LinkedTxn?: Array<{ TxnId?: string; TxnType?: string }>
+  Line?: QuickBooksTransactionLine[]
+  LinkedTxn?: QuickBooksLinkedTransaction[]
   Amount?: number
   TotalAmt?: number
   Balance?: number
@@ -358,6 +377,20 @@ export interface QuickBooksPurchasingLineInput {
   unitPrice?: number
 }
 
+export interface QuickBooksBillLineInput extends QuickBooksPurchasingLineInput {
+  purchaseOrderId?: string
+  purchaseOrderLineId?: string
+}
+
+export interface QuickBooksBillLinkInput {
+  purchaseOrderId: string
+  purchaseOrderLineId: string
+}
+
+export interface QuickBooksLinkedBillLine extends QuickBooksBillLinkInput {
+  billLineId?: string
+}
+
 export interface QuickBooksBillAllocationInput {
   billId: string
   amount: number
@@ -385,7 +418,7 @@ export interface QuickBooksUpdatePurchaseOrderParams extends QuickBooksAuthParam
 
 export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
   vendorId: string
-  lines: QuickBooksPurchasingLineInput[]
+  lines: QuickBooksBillLineInput[]
   apAccountId?: string
   transactionDate?: string
   dueDate?: string
@@ -719,6 +752,17 @@ export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: 
   }
 }
 
+export interface QuickBooksCreateBillResponse
+  extends QuickBooksMutationResponse<QuickBooksPurchasingTransaction> {
+  output: QuickBooksMutationResponse<QuickBooksPurchasingTransaction>['output'] & {
+    linkingRequested: boolean
+    linkingSucceeded: boolean | null
+    linkedLines: QuickBooksLinkedBillLine[]
+    missingLinks: QuickBooksBillLinkInput[]
+    linkingWarning?: string
+  }
+}
+
 export interface QuickBooksVoidResponse extends ToolResponse {
   output: {
     record: QuickBooksSalesTransaction
@@ -739,6 +783,7 @@ export type QuickBooksResponse =
   | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
   | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
+  | QuickBooksCreateBillResponse
   | QuickBooksMutationResponse<QuickBooksAccountingTransaction>
   | QuickBooksVoidResponse
 
@@ -1135,6 +1180,40 @@ export const QUICKBOOKS_SALES_TRANSACTION_PROPERTIES: Record<string, OutputPrope
   },
 }
 
+const QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  TxnId: { type: 'string', description: 'Linked QuickBooks transaction ID', optional: true },
+  TxnType: { type: 'string', description: 'Linked QuickBooks transaction type', optional: true },
+  TxnLineId: {
+    type: 'string',
+    description: 'Linked QuickBooks transaction line ID',
+    optional: true,
+  },
+}
+
+const QUICKBOOKS_PURCHASING_LINE_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks transaction line ID', optional: true },
+  LineNum: { type: 'number', description: 'QuickBooks transaction line number', optional: true },
+  Description: { type: 'string', description: 'Transaction line description', optional: true },
+  Amount: { type: 'number', description: 'Transaction line amount', optional: true },
+  DetailType: { type: 'string', description: 'QuickBooks line detail type', optional: true },
+  LinkedTxn: {
+    type: 'array',
+    description: 'Transactions linked to this QuickBooks line',
+    optional: true,
+    items: { type: 'json', properties: QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES },
+  },
+  AccountBasedExpenseLineDetail: {
+    type: 'json',
+    description: 'Native QuickBooks account-based expense details',
+    optional: true,
+  },
+  ItemBasedExpenseLineDetail: {
+    type: 'json',
+    description: 'Native QuickBooks item-based expense details',
+    optional: true,
+  },
+}
+
 export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
   Id: { type: 'string', description: 'QuickBooks purchasing transaction ID' },
   SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
@@ -1191,13 +1270,13 @@ export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, Output
     type: 'array',
     description: 'Native QuickBooks expense or allocation lines',
     optional: true,
-    items: { type: 'json' },
+    items: { type: 'json', properties: QUICKBOOKS_PURCHASING_LINE_PROPERTIES },
   },
   LinkedTxn: {
     type: 'array',
     description: 'Transactions linked by QuickBooks',
     optional: true,
-    items: { type: 'json' },
+    items: { type: 'json', properties: QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES },
   },
   TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
   Balance: { type: 'number', description: 'Remaining transaction balance', optional: true },
@@ -1266,6 +1345,48 @@ export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
     description: 'QuickBooks response timestamp',
     optional: true,
     nullable: true,
+  },
+}
+
+const QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES: Record<string, OutputProperty> = {
+  purchaseOrderId: { type: 'string', description: 'Requested Purchase Order ID' },
+  purchaseOrderLineId: { type: 'string', description: 'Requested Purchase Order line ID' },
+}
+
+export const QUICKBOOKS_CREATE_BILL_LINK_OUTPUTS: Record<string, OutputProperty> = {
+  linkingRequested: {
+    type: 'boolean',
+    description: 'Whether any Purchase Order line links were requested',
+  },
+  linkingSucceeded: {
+    type: 'boolean',
+    description: 'Whether QuickBooks returned every requested Purchase Order line link',
+    nullable: true,
+  },
+  linkedLines: {
+    type: 'array',
+    description: 'Requested Purchase Order line links confirmed by QuickBooks',
+    items: {
+      type: 'json',
+      properties: {
+        ...QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES,
+        billLineId: {
+          type: 'string',
+          description: 'Created Bill line ID carrying the confirmed link',
+          optional: true,
+        },
+      },
+    },
+  },
+  missingLinks: {
+    type: 'array',
+    description: 'Requested Purchase Order line links omitted by QuickBooks',
+    items: { type: 'json', properties: QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES },
+  },
+  linkingWarning: {
+    type: 'string',
+    description: 'Warning that the Bill was created without every requested Purchase Order link',
+    optional: true,
   },
 }
 

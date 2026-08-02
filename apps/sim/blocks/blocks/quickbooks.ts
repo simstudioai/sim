@@ -8,6 +8,7 @@ import {
 } from '@/tools/quickbooks/accounting_utils'
 import {
   parseQuickBooksBillAllocations,
+  parseQuickBooksBillLines,
   parseQuickBooksPurchasingLines,
 } from '@/tools/quickbooks/purchasing_utils'
 import {
@@ -742,7 +743,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'Expense Lines (JSON)',
       type: 'code',
       language: 'json',
-      placeholder: '[{"lineType":"account","amount":100,"accountId":"7","description":"Supplies"}]',
+      placeholder:
+        '[{"lineType":"account","amount":100,"accountId":"7","description":"Supplies","purchaseOrderId":"123","purchaseOrderLineId":"1"}]',
       condition: {
         field: 'operation',
         value: [
@@ -764,7 +766,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON array of QuickBooks purchasing lines. Use account lines with lineType account, positive amount, accountId, and optional description; or item lines with lineType item, positive amount, itemId, and optional description, positive quantity, and positive unitPrice. When quantity and unitPrice are both present, amount must equal their product. Return ONLY the JSON array - no explanations, no extra text.',
+          'Generate a JSON array of QuickBooks purchasing lines. Use account lines with lineType account, positive amount, accountId, and optional description; or item lines with lineType item, positive amount, itemId, and optional description, positive quantity, and positive unitPrice. When quantity and unitPrice are both present, amount must equal their product. For Create Bill only, a line may include both purchaseOrderId and purchaseOrderLineId to request an explicit Purchase Order line link; always supply both or neither. Return ONLY the JSON array - no explanations, no extra text.',
       },
     },
     {
@@ -1328,7 +1330,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
                 : undefined,
             lines:
               isCreate && (isPurchaseOrder || isBill || isVendorCredit || isPurchase)
-                ? parseQuickBooksPurchasingLines(params.purchasingLines)
+                ? isBill
+                  ? parseQuickBooksBillLines(params.purchasingLines)
+                  : parseQuickBooksPurchasingLines(params.purchasingLines)
                 : undefined,
             totalAmount:
               isCreate && isBillPayment
@@ -1516,7 +1520,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     expenseAccountId: { type: 'string', description: 'Item expense account ID' },
     activeStatus: { type: 'string', description: 'Entity active-status change' },
     lines: { type: 'json', description: 'Bounded item and description sales lines' },
-    purchasingLines: { type: 'json', description: 'Bounded purchasing expense lines' },
+    purchasingLines: {
+      type: 'json',
+      description:
+        'Bounded purchasing expense lines; Create Bill lines may include paired Purchase Order and line IDs',
+    },
     journalLines: { type: 'json', description: 'Bounded balanced journal-entry lines' },
     depositLines: { type: 'json', description: 'Bounded account-based deposit lines' },
     totalAmount: { type: 'number', description: 'Customer or Bill payment total' },
@@ -1638,6 +1646,34 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       description: 'True when QuickBooks successfully voided the transaction',
       condition: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
     },
+    linkingRequested: {
+      type: 'boolean',
+      description: 'Whether Create Bill requested any Purchase Order line links',
+      condition: { field: 'operation', value: 'quickbooks_create_bill' },
+    },
+    linkingSucceeded: {
+      type: 'boolean',
+      description:
+        'Whether QuickBooks returned every requested Purchase Order line link; null when no links were requested',
+      condition: { field: 'operation', value: 'quickbooks_create_bill' },
+    },
+    linkedLines: {
+      type: 'array',
+      description:
+        'Confirmed Purchase Order links as [{purchaseOrderId, purchaseOrderLineId, billLineId}]',
+      condition: { field: 'operation', value: 'quickbooks_create_bill' },
+    },
+    missingLinks: {
+      type: 'array',
+      description:
+        'Requested links omitted by QuickBooks as [{purchaseOrderId, purchaseOrderLineId}]',
+      condition: { field: 'operation', value: 'quickbooks_create_bill' },
+    },
+    linkingWarning: {
+      type: 'string',
+      description: 'Warning that QuickBooks created the Bill without every requested link',
+      condition: { field: 'operation', value: 'quickbooks_create_bill' },
+    },
     time: {
       type: 'string',
       description: 'QuickBooks response timestamp',
@@ -1734,7 +1770,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks bill entry and payment',
       prompt:
-        'Build a controlled workflow that creates a standalone QuickBooks bill from approved expense lines, stores its ID and sync token, and records a separately approved partial or multi-Bill payment.',
+        'Build a controlled workflow that reads an approved Purchase Order by ID, captures its Line IDs, creates a QuickBooks Bill with explicit PO-line mappings, checks linkingSucceeded and missingLinks, and records a separately approved payment only after reviewing the created Bill.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'payments', 'payables'],
@@ -1788,9 +1824,10 @@ export const QuickBooksBlockMeta = {
     },
     {
       name: 'record-quickbooks-payables',
-      description: 'Create standalone bills and record bounded payments to approved Bill IDs.',
+      description:
+        'Create standalone or PO-linked bills and record bounded payments to approved Bill IDs.',
       content:
-        '# Record QuickBooks Payables\n\n## Steps\n1. Validate the vendor, expense lines, and optional A/P account.\n2. Use Create Bill and store the returned ID and sync token.\n3. When payment is separately approved, use Create Bill Payment with bounded Bill allocations whose amounts equal the payment total.\n\n## Output\nReturn the native Bill or BillPayment and identifiers. Never create a payment implicitly.',
+        '# Record QuickBooks Payables\n\n## Steps\n1. Validate the vendor, expense lines, and optional A/P account.\n2. For PO-linked billing, use Read Purchasing Transactions by ID and copy each approved Purchase Order `Line[].Id` into the matching Create Bill line with its PO ID.\n3. Use Create Bill, store its ID and sync token, and inspect `linkingSucceeded` and `missingLinks`; QuickBooks may create the Bill while omitting an invalid or unavailable link.\n4. When payment is separately approved, use Create Bill Payment with bounded Bill allocations whose amounts equal the payment total.\n\n## Output\nAlways return the created Bill ID and linkage result. Never imply that a missing link prevented Bill creation, and never create a payment implicitly.',
     },
     {
       name: 'record-quickbooks-purchases-and-vendor-credits',
