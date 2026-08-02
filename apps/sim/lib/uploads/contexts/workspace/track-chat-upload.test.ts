@@ -412,6 +412,31 @@ describe('trackChatUpload', () => {
       expect(dbChainMockFns.values).not.toHaveBeenCalled()
     })
 
+    /**
+     * The probe is hygiene, not authorization — a provider 5xx must not drop a
+     * legitimate >50MB multipart upload, which is the only path that reaches it.
+     * Only a definitive not-found (`null`) rejects.
+     */
+    it('proceeds when the storage existence probe throws a transient error', async () => {
+      queueOwnershipLookup([])
+      mockHeadObject.mockRejectedValueOnce(new Error('503 SlowDown'))
+
+      const result = await trackChatUpload(
+        WORKSPACE_ID,
+        USER_ID,
+        CHAT_ID,
+        S3_KEY,
+        'image.png',
+        'image/png',
+        1024
+      )
+
+      expect(result).toEqual({ displayName: 'image.png' })
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({ key: S3_KEY, context: 'mothership' })
+      )
+    })
+
     /** Local-storage deployments have no headObject to consult; ownership still gates. */
     it('skips the storage existence probe when cloud storage is not configured', async () => {
       mockHasCloudStorage.mockReturnValue(false)

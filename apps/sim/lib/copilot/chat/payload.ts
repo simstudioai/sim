@@ -338,6 +338,8 @@ export async function buildCopilotRequestPayload(
   // upload routes that issue these keys already require — reaching the chat
   // endpoint with `read` must not confer a file-write capability.
   const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  // `PermissionType` is exactly read | write | admin, so this covers the whole
+  // write-or-better half of the ordering.
   const canWriteWorkspaceFiles =
     params.userPermission === 'write' || params.userPermission === 'admin'
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {

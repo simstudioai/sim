@@ -689,7 +689,21 @@ export async function trackChatUpload(
   const claimable = await resolveClaimableChatUploadRow(workspaceId, userId, s3Key)
 
   if (claimable.kind === 'insert' && hasCloudStorage()) {
-    const head = await headObject(s3Key, 'workspace')
+    // Hygiene only — the format and no-prior-record guards above already carry
+    // authorization, and a binding to a nonexistent object grants nothing
+    // readable. So reject only on a definitive not-found (`null`); a provider
+    // 5xx/throttle throws, and failing the attachment on that would drop a
+    // legitimate >50MB multipart upload (the sole path reaching this branch).
+    let head: Awaited<ReturnType<typeof headObject>> = null
+    try {
+      head = await headObject(s3Key, 'workspace')
+    } catch (error) {
+      logger.warn('Chat upload existence probe failed; proceeding on the ownership guards', {
+        key: s3Key,
+        error: getErrorMessage(error),
+      })
+      head = { size }
+    }
     if (!head) {
       throw new WorkspaceFileKeyOwnershipError(s3Key)
     }
