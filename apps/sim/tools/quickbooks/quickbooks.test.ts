@@ -824,6 +824,25 @@ describe('QuickBooks tool and block boundaries', () => {
     })
   })
 
+  it('omits optional values serialized as null by the editor', () => {
+    const params = QuickBooksBlock.tools.config!.params!({
+      operation: 'quickbooks_create_customer',
+      oauthCredential: 'credential-id',
+      displayName: 'Sanitized Customer',
+      companyName: null,
+      primaryEmail: null,
+      primaryPhone: '',
+    })
+
+    expect(params).toMatchObject({
+      credential: 'credential-id',
+      displayName: 'Sanitized Customer',
+    })
+    expect(params.companyName).toBeUndefined()
+    expect(params.primaryEmail).toBeUndefined()
+    expect(params.primaryPhone).toBeUndefined()
+  })
+
   it('omits unrelated coercion for CompanyInfo and rejects bad operation values', () => {
     expect(
       QuickBooksBlock.tools.config!.params!({

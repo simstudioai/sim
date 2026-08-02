@@ -68,6 +68,7 @@ function parseTriStateBoolean(value: unknown, fieldName: string): boolean | unde
 }
 
 function optionalValue(value: unknown): unknown {
+  if (value == null) return undefined
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }
 
