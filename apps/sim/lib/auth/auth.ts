@@ -2123,8 +2123,18 @@ export const auth = betterAuth({
             const deskBase = deriveZohoDeskBaseFromApiDomain(
               typeof data.api_domain === 'string' ? data.api_domain : undefined
             )
-            const grantedScopes =
+            // Zoho's docs are inconsistent about whether the Desk token response
+            // carries `scope` (the Mail sample has it; the CRM/Creator samples do
+            // not). If it is absent, fall back to the scopes we requested and were
+            // granted by completing the flow - otherwise the stored scope list is
+            // just the domain marker, and the credential picker would show a
+            // permanent "needs update / reconnect" badge on every connection.
+            // Mirrors the existing Box fallback in this file.
+            const reportedScopes =
               typeof data.scope === 'string' ? data.scope.split(/[\s,]+/).filter(Boolean) : []
+            const grantedScopes = reportedScopes.length
+              ? reportedScopes
+              : getCanonicalScopesForProvider('zoho-desk')
             tokens.scopes = [`__zoho_domain__:${deskBase}`, ...grantedScopes]
             return tokens
           },

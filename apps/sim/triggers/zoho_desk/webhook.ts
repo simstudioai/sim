@@ -9,6 +9,7 @@ import type { TriggerConfig } from '@/triggers/types'
 const ZOHO_DESK_EVENT_OPTIONS = [
   { label: 'Ticket Created', id: 'Ticket_Add' },
   { label: 'Ticket Updated', id: 'Ticket_Update' },
+  { label: 'Ticket Deleted', id: 'Ticket_Delete' },
   { label: 'Ticket Comment Added', id: 'Ticket_Comment_Add' },
   { label: 'Ticket Comment Updated', id: 'Ticket_Comment_Update' },
   { label: 'Ticket Thread Added', id: 'Ticket_Thread_Add' },
@@ -128,6 +129,18 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: 'Comma-separated department IDs',
       description: 'Restrict events to these departments. Leave empty for all departments.',
+      condition: {
+        field: 'eventType',
+        value: [
+          'Ticket_Add',
+          'Ticket_Update',
+          'Ticket_Comment_Add',
+          'Ticket_Comment_Update',
+          'Ticket_Thread_Add',
+          'Task_Add',
+          'Task_Update',
+        ],
+      },
       mode: 'trigger',
     },
     {
@@ -170,7 +183,7 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
     payload: {
       type: 'json',
       description:
-        'The full resource that changed (ticket, comment, thread, etc.). For comment/thread events a derived plain-text `contentText` is added alongside the raw `content` + `contentType`.',
+        'The full resource that changed (ticket, comment, thread, etc.). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`.',
     },
     prevState: { type: 'json', description: 'Previous state of the resource (update events only)' },
   },

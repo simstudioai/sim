@@ -70,7 +70,7 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
-|   ↳ `descriptionText` | string | Plain-text rendering of the description with HTML stripped \(Zoho sends ticket descriptions as HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
 |   ↳ `priority` | string | Ticket priority |
@@ -121,7 +121,7 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
-|   ↳ `descriptionText` | string | Plain-text rendering of the description with HTML stripped \(Zoho sends ticket descriptions as HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
 |   ↳ `priority` | string | Ticket priority |
@@ -182,7 +182,7 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `ticketNumber` | string | Human-readable ticket number |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
-|   ↳ `descriptionText` | string | Plain-text rendering of the description with HTML stripped \(Zoho sends ticket descriptions as HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
 |   ↳ `status` | string | Ticket status |
 |   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
 |   ↳ `priority` | string | Ticket priority |
@@ -296,7 +296,7 @@ Add a comment to a Zoho Desk ticket.
 
 ### `zoho_desk_list_threads`
 
-List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default).
+List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
 
 #### Input
 
@@ -330,6 +330,9 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |   ↳ `bcc` | string | BCC email address |
 |   ↳ `replyTo` | string | Reply-to email address |
 |   ↳ `isForward` | boolean | Whether the thread is a forward |
+|   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
+|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
+|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
 |   ↳ `status` | string | Delivery status of an outgoing thread \(SUCCESS/FAILED/DRAFT\) |
 |   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
 |   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
@@ -383,6 +386,9 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |   ↳ `bcc` | string | BCC email address |
 |   ↳ `replyTo` | string | Reply-to email address |
 |   ↳ `isForward` | boolean | Whether the thread is a forward |
+|   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
+|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
+|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
 |   ↳ `status` | string | Delivery status of an outgoing thread \(SUCCESS/FAILED/DRAFT\) |
 |   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
 |   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
@@ -504,6 +510,6 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `eventType` | string | The Zoho Desk event type \(e.g. Ticket_Add\) |
 | `eventTime` | string | Event time in milliseconds since epoch |
 | `orgId` | string | Zoho Desk organization ID |
-| `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). For comment/thread events a derived plain-text `contentText` is added alongside the raw `content` + `contentType`. |
+| `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
 

@@ -13,7 +13,7 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
   id: 'zoho_desk_list_threads',
   name: 'Zoho Desk List Threads',
   description:
-    'List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default).',
+    'List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'zoho-desk' },

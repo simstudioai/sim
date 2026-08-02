@@ -44,6 +44,20 @@ const jwksCache = new Map<string, ReturnType<typeof jose.createRemoteJWKSet>>()
  * Zoho has a handful of data centers; anything beyond this is not legitimate
  * traffic, so evicting oldest-first is safe.
  */
+/**
+ * Events whose subscription filter accepts `departmentIds`. Zoho documents the
+ * rest as taking no filter at all.
+ */
+const DEPARTMENT_FILTERABLE_EVENTS = new Set([
+  'Ticket_Add',
+  'Ticket_Update',
+  'Ticket_Comment_Add',
+  'Ticket_Comment_Update',
+  'Ticket_Thread_Add',
+  'Task_Add',
+  'Task_Update',
+])
+
 const JWKS_CACHE_MAX_ENTRIES = 16
 
 function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
@@ -54,7 +68,13 @@ function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
     const oldest = jwksCache.keys().next()
     if (!oldest.done) jwksCache.delete(oldest.value)
   }
-  const created = jose.createRemoteJWKSet(new URL(`https://${deskHost}/.well-known/jwks.json`))
+  // Zoho fails a delivery that is not answered within 5 seconds and publishes no
+  // retry, so a cold-start JWKS fetch must not consume the whole budget -
+  // jose's default timeoutDuration is 5000ms, exactly the deadline.
+  const created = jose.createRemoteJWKSet(new URL(`https://${deskHost}/.well-known/jwks.json`), {
+    timeoutDuration: 1500,
+    cooldownDuration: 30_000,
+  })
   jwksCache.set(deskHost, created)
   return created
 }
@@ -253,10 +273,22 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(webhookRecord)
 
     const filter: Record<string, unknown> = {}
-    const departmentIds = splitCsv(config.triggerDepartmentIds)
-    if (departmentIds.length > 0) filter.departmentIds = departmentIds
-    if (eventType === 'Ticket_Update') {
+    // Zoho supports `departmentIds` only on the ticket/task-family events; for
+    // Contact_*, Agent_*, Article_* and Task_Delete its docs say "This event does
+    // not support filters. Therefore, pass the value as null in the API request."
+    // Sending it anyway is at best a silent no-op and at worst INVALID_DATA.
+    if (DEPARTMENT_FILTERABLE_EVENTS.has(eventType)) {
+      const departmentIds = splitCsv(config.triggerDepartmentIds)
+      if (departmentIds.length > 0) filter.departmentIds = departmentIds
+    }
+    // `includePrevState` defaults to false and is supported on EVERY *_Update
+    // event, not just tickets - without it Zoho never sends `prevState`, so the
+    // trigger's declared prevState output would be permanently null for contact,
+    // agent, task and article updates.
+    if (eventType.endsWith('_Update')) {
       filter.includePrevState = true
+    }
+    if (eventType === 'Ticket_Update') {
       const fields = splitCsv(config.fields).slice(0, 5)
       if (fields.length > 0) filter.fields = fields
     }
@@ -272,12 +304,16 @@ export const zohoDeskHandler: WebhookProviderHandler = {
         orgId,
         'Content-Type': 'application/json',
       },
-      // Zoho's ignoreSourceId only accepts a genuine Zoho source id, not an
-      // arbitrary UUID (it rejects one with INVALID_DATA), so it is omitted.
+      // ignoreSourceId is omitted. Zoho documents it as taking a UUID, but the
+      // live API rejected a well-formed v4 UUID with INVALID_DATA - the doc and
+      // the implementation disagree, and the field only suppresses echo of our
+      // own writes, which Sim does not need.
       body: JSON.stringify({
         url: notificationUrl,
         name: `sim-${webhookRecord.id}`.slice(0, 50),
-        subscriptions: { [eventType]: filter },
+        // Zoho's own examples pass `null` (not `{}`) for an event with no
+        // filters - `"Contact_Add" : null`. Match the documented form.
+        subscriptions: { [eventType]: Object.keys(filter).length > 0 ? filter : null },
         isEnabled: true,
       }),
       signal: AbortSignal.timeout(15_000),

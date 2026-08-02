@@ -1886,13 +1886,30 @@ export async function refreshOAuthToken(
     // execution retries a refresh that can never succeed. Classify on the body
     // before trusting the status, matching the token-exchange and service-account
     // mint paths, which already do this.
-    if (data && typeof data === 'object' && typeof data.error === 'string' && data.error) {
+    // The `!data.access_token` guard matters because this branch runs for EVERY
+    // provider: without it, a provider that ever returns an informational `error`
+    // alongside a valid token would have all its credentials fail refresh - and
+    // if that string is one of TERMINAL_ERRORS, be marked dead for an hour. No
+    // current provider does that, but the branch should not depend on it. Zoho's
+    // failure bodies carry no token, so the guard costs nothing here.
+    if (
+      data &&
+      typeof data === 'object' &&
+      typeof data.error === 'string' &&
+      data.error &&
+      !data.access_token
+    ) {
       logger.error('Token refresh failed with an error body:', {
         status: response.status,
+        statusText: response.statusText,
         error: data.error,
         errorDescription:
           typeof data.error_description === 'string' ? data.error_description : null,
         providerId,
+        tokenEndpoint: config.tokenEndpoint,
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRefreshToken: !!refreshToken,
       })
       return {
         ok: false,

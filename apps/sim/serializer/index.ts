@@ -60,7 +60,12 @@ function shouldSerializeSubBlock(
   if (isToolInputOnlySubBlock(subBlockConfig)) return false
   if (isSubBlockHidden(subBlockConfig)) return false
 
-  if (subBlockConfig.mode === 'trigger') {
+  // `trigger-advanced` is a trigger-mode field too - the advanced twin of a
+  // `trigger` selector - so it must be excluded from tool-mode serialization for
+  // the same reason. Without this it stays a live, validated tool param: a
+  // trigger's `required` manual field then blocks running an unrelated operation
+  // that does not even render it, and the error names a hidden field.
+  if (subBlockConfig.mode === 'trigger' || subBlockConfig.mode === 'trigger-advanced') {
     if (!isTriggerContext && !isTriggerCategory) return false
   } else if (isTriggerContext && !isTriggerCategory) {
     return false

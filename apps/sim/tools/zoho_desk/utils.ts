@@ -45,6 +45,16 @@ export function deriveZohoContentText(content: unknown, contentType: unknown): s
 }
 
 /**
+ * True when a string carries HTML markup worth stripping - an element tag or a
+ * character entity. Used where Zoho gives no content-type discriminator, so a
+ * genuinely plain body is never run through html-to-text (which would decode
+ * entities and delete tag-shaped text that was never markup).
+ */
+function looksLikeHtml(value: string): boolean {
+  return /<[a-z!/][^>]*>/i.test(value) || /&(?:[a-z]+|#\d+);/i.test(value)
+}
+
+/**
  * Return a shallow copy of a Zoho Desk resource (comment / thread / event
  * payload) augmented with a derived `contentText` field alongside the raw
  * `content` + `contentType`. The raw HTML is never mutated or replaced - some
@@ -56,24 +66,27 @@ export function withDerivedContentText(resource: unknown): unknown {
   const record = resource as Record<string, unknown>
 
   const contentText = deriveZohoContentText(record.content, record.contentType)
-  // Ticket resources carry their body on `description`, not `content`, so without
-  // this a webhook ticket payload reaches the workflow as raw HTML with no
-  // plain-text sibling.
+  // Ticket resources carry their body on `description`, not `content`, and Zoho
+  // ships NO content-type discriminator for it: the Ticket_Add webhook sample
+  // has `"description": "<div>Description</div>"` with no `descriptionContentType`
+  // key, and the ticket GET/PATCH field lists have no content-type sibling.
   //
-  // Unlike comments and threads, a ticket's description has NO content-type
-  // discriminator: Zoho's own Ticket_Add webhook sample ships
-  // `"description": "<div>Description</div>"` with no `descriptionContentType`
-  // key, and the ticket GET/PATCH response field lists have no content-type
-  // sibling either. Gating on one meant the strip never ran and `descriptionText`
-  // was a byte-identical copy of the HTML. Ticket descriptions are HTML by
-  // convention, so convert unconditionally - html-to-text is a near-identity on
-  // genuinely plain text. A `descriptionContentType` is still honored if Zoho
-  // ever starts sending one.
+  // But the shape is not consistently HTML either - Zoho's own REST samples show
+  // plain descriptions ("Hi. There is a sudden delay in the processing of the
+  // orders."), and the webhook path runs this over contact/account/department
+  // payloads whose `description` Zoho documents as plain text. Converting
+  // unconditionally is therefore lossy on the plain case: html-to-text decodes
+  // entities (`&amp;` -> `&`) and deletes anything tag-shaped (`a < b > c`, an
+  // XML snippet). Sniff for markup instead and pass anything without it through
+  // untouched, so neither shape is mangled. An explicit descriptionContentType
+  // still wins if Zoho ever starts sending one.
   const descriptionText =
     typeof record.description === 'string'
       ? typeof record.descriptionContentType === 'string'
         ? deriveZohoContentText(record.description, record.descriptionContentType)
-        : convertZohoHtmlToText(record.description)
+        : looksLikeHtml(record.description)
+          ? convertZohoHtmlToText(record.description)
+          : record.description
       : undefined
 
   if (contentText === undefined && descriptionText === undefined) return record

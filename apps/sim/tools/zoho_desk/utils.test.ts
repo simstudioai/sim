@@ -272,6 +272,30 @@ describe('zoho desk tool utils', () => {
       expect(result.descriptionText).toBe('order is late')
     })
 
+    // Zoho ships BOTH shapes on `description` with no discriminator: HTML on the
+    // webhook payload, plain text in the REST samples. Converting unconditionally
+    // decodes entities and deletes tag-shaped text that was never markup, so a
+    // plain body must pass through byte-for-byte.
+    it('does not mangle plain text that merely looks tag-ish or has entities', () => {
+      const cases = [
+        'a < b > c',
+        'compare a&b; then ship',
+        'use the <not a tag notation',
+        'SELECT * FROM t WHERE x < 5 AND y > 2',
+      ]
+      for (const description of cases) {
+        const result = withDerivedContentText({ description }) as Record<string, unknown>
+        expect(result.descriptionText).toBe(description)
+      }
+    })
+
+    it('still strips a genuinely HTML description', () => {
+      const result = withDerivedContentText({
+        description: '<div>order is <b>late</b></div>',
+      }) as Record<string, unknown>
+      expect(result.descriptionText).toBe('order is late')
+    })
+
     it('still honors an explicit descriptionContentType if Zoho ever sends one', () => {
       const result = withDerivedContentText({
         description: '<b>literal</b>',

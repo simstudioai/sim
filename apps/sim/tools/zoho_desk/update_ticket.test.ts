@@ -43,8 +43,14 @@ describe('zohoDeskUpdateTicketTool request body', () => {
     expect(buildBody(serializedParams)).toEqual({ status: 'Closed' })
   })
 
-  it('drops fields the user cleared to an empty string', () => {
-    expect(buildBody({ ...base, status: 'Closed', subject: '' })).toEqual({ status: 'Closed' })
+  // Zoho documents "" as its clear-a-field idiom (its own PATCH sample carries
+  // `"classification": ""`), so an emptied box must reach the API rather than be
+  // collapsed into "leave unchanged" - otherwise no scalar field is clearable.
+  it('forwards an empty string so a field can be cleared', () => {
+    expect(buildBody({ ...base, status: 'Closed', classification: '' })).toEqual({
+      status: 'Closed',
+      classification: '',
+    })
   })
 
   // The empty-PATCH guard must be reachable from the real serializer shape, not

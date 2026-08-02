@@ -154,8 +154,11 @@ describe('mintZohoDeskServiceAccountToken', () => {
     expect(body.get('grant_type')).toBe('client_credentials')
     expect(body.get('client_id')).toBe('zoho-cid')
     expect(body.get('client_secret')).toBe('zoho-secret')
-    expect(body.get('scope')).toBe(SCOPES.join(','))
+    // Comma-separated, and Desk-only: `aaaserver.profile.READ` belongs to the
+    // interactive OAuth flow's getUserInfo call, which this grant never makes.
+    expect(body.get('scope')).toBe('Desk.tickets.READ,Desk.contacts.READ')
     expect(body.get('scope')).not.toContain(' ')
+    expect(body.get('scope')).not.toContain('aaaserver')
     expect(body.get('soid')).toBe('ZohoDesk.600123456')
     expect(mockGetCanonicalScopesForProvider).toHaveBeenCalledWith('zoho-desk')
   })

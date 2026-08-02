@@ -106,7 +106,7 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
   descriptionText: {
     type: 'string',
     description:
-      'Plain-text rendering of the description with HTML stripped (Zoho sends ticket descriptions as HTML)',
+      'Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim',
     optional: true,
     nullable: true,
   },
@@ -239,6 +239,23 @@ export const ZOHO_DESK_THREAD_PROPERTIES: Record<string, ToolOutputProperty> = {
     nullable: true,
   },
   isForward: { type: 'boolean', description: 'Whether the thread is a forward', optional: true },
+  isContentTruncated: {
+    type: 'boolean',
+    description: 'Whether Zoho truncated the thread content; fetch fullContentURL for the rest',
+    optional: true,
+  },
+  fullContentURL: {
+    type: 'string',
+    description: 'URL returning the untruncated thread content',
+    optional: true,
+    nullable: true,
+  },
+  plainText: {
+    type: 'string',
+    description: "Zoho's own plain-text rendering of the thread, when it supplies one",
+    optional: true,
+    nullable: true,
+  },
   status: {
     type: 'string',
     description: 'Delivery status of an outgoing thread (SUCCESS/FAILED/DRAFT)',

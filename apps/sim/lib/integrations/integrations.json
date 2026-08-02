@@ -21844,7 +21844,7 @@
         },
         {
           "name": "List Threads",
-          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default)."
+          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread."
         },
         {
           "name": "Get Thread",

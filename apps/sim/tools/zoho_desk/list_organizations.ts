@@ -31,9 +31,10 @@ export const zohoDeskListOrganizationsTool: ToolConfig<
   request: {
     // The organizations endpoint is the only Desk call that does not require the
     // orgId header, so it can be listed before an organization is selected.
-    // limit=200: Zoho's listing APIs default to 10 per page, which would
-    // silently truncate an account with more accessible portals than that.
-    url: (params) => `${getZohoDeskApiBase(params)}/organizations?limit=200`,
+    // No query params: Zoho documents none for /organizations and its sample is
+    // a bare GET. Passing an unsupported `limit` risks a 422 on the one call
+    // that bootstraps every other operation. Zoho's default page size applies.
+    url: (params) => `${getZohoDeskApiBase(params)}/organizations`,
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) throw new Error('Zoho Desk access token is required')

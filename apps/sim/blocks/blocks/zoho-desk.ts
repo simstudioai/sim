@@ -174,19 +174,39 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       placeholder: 'New subject',
       condition: { field: 'operation', value: 'update_ticket' },
     },
+    // status/priority are deliberately split per operation rather than shared.
+    // A subBlock keeps its value when the operation changes, and the two uses are
+    // semantically opposite: on list_tickets they are filters (comma-separated,
+    // matching), on update_ticket they are the new value written to the ticket.
+    // Sharing one field meant a filter of "Open,On Hold" could be PATCHed onto a
+    // ticket, and an update value of "Closed" could silently filter a later list.
     {
       id: 'status',
       title: 'Status',
       type: 'short-input',
-      placeholder: 'e.g. Open, Closed',
-      condition: { field: 'operation', value: ['update_ticket', 'list_tickets'] },
+      placeholder: 'e.g. Closed',
+      condition: { field: 'operation', value: 'update_ticket' },
     },
     {
       id: 'priority',
       title: 'Priority',
       type: 'short-input',
       placeholder: 'e.g. High',
-      condition: { field: 'operation', value: ['update_ticket', 'list_tickets'] },
+      condition: { field: 'operation', value: 'update_ticket' },
+    },
+    {
+      id: 'statusFilter',
+      title: 'Status',
+      type: 'short-input',
+      placeholder: 'Filter, e.g. Open,On Hold',
+      condition: { field: 'operation', value: 'list_tickets' },
+    },
+    {
+      id: 'priorityFilter',
+      title: 'Priority',
+      type: 'short-input',
+      placeholder: 'Filter, e.g. High,Urgent',
+      condition: { field: 'operation', value: 'list_tickets' },
     },
     {
       id: 'assigneeId',
@@ -405,6 +425,10 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           limit: rawLimit,
           contentType,
           isPublic,
+          status: rawStatus,
+          priority: rawPriority,
+          statusFilter: rawStatusFilter,
+          priorityFilter: rawPriorityFilter,
           customFields: rawCustomFields,
           departmentIds: rawDepartmentIds,
           ...rest
@@ -459,6 +483,17 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // stale (or half-typed) JSON left behind after switching away from
         // Update Ticket would otherwise fail every unrelated operation with
         // "Invalid JSON provided for custom fields" - on runs that never send it.
+        // Both tools take `status` / `priority`; pick the field belonging to the
+        // selected operation so a stale value from the other one can never leak.
+        const activeStatus = params.operation === 'list_tickets' ? rawStatusFilter : rawStatus
+        const activePriority = params.operation === 'list_tickets' ? rawPriorityFilter : rawPriority
+        if (activeStatus !== undefined && activeStatus !== null && activeStatus !== '') {
+          result.status = activeStatus
+        }
+        if (activePriority !== undefined && activePriority !== null && activePriority !== '') {
+          result.priority = activePriority
+        }
+
         if (params.operation === 'update_ticket' && rawCustomFields !== undefined) {
           if (typeof rawCustomFields === 'string') {
             if (rawCustomFields.trim()) {
@@ -488,7 +523,9 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     contentType: { type: 'string', description: 'Comment content type (plainText/html)' },
     isPublic: { type: 'boolean', description: 'Whether a comment is public' },
     subject: { type: 'string', description: 'Ticket subject' },
-    status: { type: 'string', description: 'Ticket status' },
+    status: { type: 'string', description: 'Ticket status to set' },
+    statusFilter: { type: 'string', description: 'Status filter for listing tickets' },
+    priorityFilter: { type: 'string', description: 'Priority filter for listing tickets' },
     priority: { type: 'string', description: 'Ticket priority' },
     assigneeId: { type: 'string', description: 'Assignee (agent) ID' },
     description: { type: 'string', description: 'Ticket description' },

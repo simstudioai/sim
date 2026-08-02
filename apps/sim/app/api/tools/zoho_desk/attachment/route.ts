@@ -89,6 +89,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    // A 204 (or any non-200 success) carries no body, so arrayBuffer() would
+    // yield zero bytes and the route would report success with an empty file.
+    if (response.status !== 200) {
+      return NextResponse.json(
+        { success: false, error: `Attachment returned no content (HTTP ${response.status})` },
+        { status: 502 }
+      )
+    }
+
     const arrayBuffer = await response.arrayBuffer()
 
     // ToolFileData (consumed by FileToolProcessor) keys the file name as `name`.

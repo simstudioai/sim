@@ -165,7 +165,14 @@ export async function mintZohoDeskServiceAccountToken(
 
   // Zoho requires a comma-separated scope list on this endpoint; a
   // space-separated list is rejected as an invalid scope.
-  const scope = getCanonicalScopesForProvider('zoho-desk').join(',')
+  // Only the Desk.* scopes. `aaaserver.profile.READ` exists for the interactive
+  // OAuth flow's getUserInfo call; this grant never hits the Accounts profile
+  // endpoint (identity is synthesized from orgId, and skipIdentity bypasses it
+  // entirely at execution time). Sending an Accounts-server scope on the Desk
+  // soid grant risks an opaque invalid_scope rejection for no benefit.
+  const scope = getCanonicalScopesForProvider('zoho-desk')
+    .filter((s) => s.startsWith('Desk.'))
+    .join(',')
 
   const res = await fetchProvider(
     `${dataCenter.accountsBase}/oauth/v2/token`,

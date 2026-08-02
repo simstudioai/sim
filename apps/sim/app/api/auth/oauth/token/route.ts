@@ -20,6 +20,7 @@ import {
   resolveOAuthAccountId,
   resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
+import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,6 @@ const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
 // Stop at a comma or whitespace: better-auth persists Zoho's scopes comma-joined
 // (no spaces), so a greedy `\S+` would swallow the whole scope list into the host.
 // The Desk base URL itself never contains a comma or space.
-const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s,]+)/
 
 /**
  * Get an access token for a specific credential
@@ -300,10 +300,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // assume a host. Surface it as apiDomain for tool param injection.
       let apiDomain: string | undefined
       if (credential.providerId === 'zoho-desk' && credential.scope) {
-        const domainMatch = credential.scope.match(ZOHO_DESK_BASE_URL_REGEX)
-        if (domainMatch) {
-          apiDomain = domainMatch[1]
-        }
+        // Use the shared extractor, not a local regex: it also enforces https +
+        // the Zoho apex allowlist. This value is injected into EVERY tool call,
+        // so an unvalidated host here would receive the OAuth token.
+        apiDomain = extractZohoDeskBaseFromScope(credential.scope)
       }
 
       return NextResponse.json(
@@ -424,10 +424,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       // assume a host. Surface it as apiDomain for tool param injection.
       let apiDomain: string | undefined
       if (credential.providerId === 'zoho-desk' && credential.scope) {
-        const domainMatch = credential.scope.match(ZOHO_DESK_BASE_URL_REGEX)
-        if (domainMatch) {
-          apiDomain = domainMatch[1]
-        }
+        // Use the shared extractor, not a local regex: it also enforces https +
+        // the Zoho apex allowlist. This value is injected into EVERY tool call,
+        // so an unvalidated host here would receive the OAuth token.
+        apiDomain = extractZohoDeskBaseFromScope(credential.scope)
       }
 
       return NextResponse.json(

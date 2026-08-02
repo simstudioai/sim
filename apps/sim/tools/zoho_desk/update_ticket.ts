@@ -12,18 +12,24 @@ import {
 /**
  * Drop keys the caller did not set, so a PATCH only carries real edits.
  *
- * Deliberately NOT `filterUndefined`: that helper strips `undefined` only, but
- * an untouched subBlock does not arrive as `undefined` - the workflow serializer
- * initializes every subBlock value to `null` and writes those nulls straight
- * into tool params. A status-only update therefore reached Zoho as
- * `{"subject": null, "status": "Closed"}`, which either fails the PATCH or
- * blanks the ticket's subject. Empty strings are treated the same way: an input
- * the user cleared means "leave unchanged", not "set to empty".
+ * Deliberately NOT `filterUndefined`: that helper strips `undefined` only, but an
+ * untouched subBlock does not arrive as `undefined` - the workflow serializer
+ * initializes every subBlock value to `null` and writes those nulls straight into
+ * tool params. A status-only update therefore reached Zoho as
+ * `{"subject": null, "status": "Closed"}`, which either fails the PATCH or blanks
+ * the ticket's subject.
+ *
+ * An empty string is NOT treated as unset. Zoho documents `""` as its idiom for
+ * clearing a field - its own PATCH sample carries `"classification": ""` and
+ * `"productId": ""` - so collapsing `''` into "leave unchanged" would make
+ * clearing `classification`, `category`, `subCategory`, `resolution` or
+ * `description` impossible through this tool. `null` (never touched) and `''`
+ * (deliberately emptied) are different intents and are kept distinct.
  */
 function omitUnset(fields: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(fields)) {
-    if (value === undefined || value === null || value === '') continue
+    if (value === undefined || value === null) continue
     result[key] = value
   }
   return result
