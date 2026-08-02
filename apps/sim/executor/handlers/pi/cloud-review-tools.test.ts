@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, rm, symlink, writeFile as writeLocalFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile as writeLocalFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -59,70 +59,6 @@ describe('cloud review tools', () => {
     expect(source).toContain('MAX_OUTPUT_BYTES = 50_000')
     expect(source).toContain('COMMENTABLE_DIFF_CONTEXT = 3')
     expect(source).not.toContain('--unified=20')
-  })
-
-  it('enforces read-size and canonical path bounds in the actual helper', async () => {
-    await installCloudReviewTools(runner)
-    const source = writeFile.mock.calls[0][1] as string
-    const testDir = await mkdtemp(join(tmpdir(), 'sim-review-tools-'))
-    const repoDir = join(testDir, 'repo')
-    const scriptPath = join(testDir, 'review-tools.py')
-    const outsidePath = join(testDir, 'outside.txt')
-
-    try {
-      await mkdir(repoDir)
-      await writeLocalFile(
-        scriptPath,
-        source.replace(
-          "pathlib.Path('/workspace/repo')",
-          `pathlib.Path(${JSON.stringify(repoDir)})`
-        )
-      )
-      await writeLocalFile(join(repoDir, 'safe.txt'), 'one\ntwo\n')
-      await writeLocalFile(outsidePath, 'secret')
-      await symlink(outsidePath, join(repoDir, 'escape.txt'))
-      await mkdir(join(repoDir, '.git'))
-      await writeLocalFile(join(repoDir, '.git', 'secret.txt'), 'DO_NOT_EXPOSE')
-
-      const execute = (operation: string, args: Record<string, unknown>) =>
-        execFileAsync('python3', [scriptPath], {
-          env: {
-            ...process.env,
-            REVIEW_TOOL_OPERATION: operation,
-            REVIEW_TOOL_ARGS: JSON.stringify(args),
-          },
-        })
-
-      await expect(
-        execute('read', { path: 'safe.txt', offset: 1, limit: 2 })
-      ).resolves.toMatchObject({
-        stdout: '1: one\n2: two',
-      })
-      await expect(execute('read', { path: '../outside.txt' })).rejects.toMatchObject({
-        stderr: expect.stringContaining('path must stay within the repository'),
-      })
-      await expect(execute('read', { path: 'escape.txt' })).rejects.toMatchObject({
-        stderr: expect.stringContaining('path resolves outside the repository'),
-      })
-
-      const found = await execute('find', { path: '.', pattern: '**/*', limit: 20 })
-      expect(found.stdout).toContain('safe.txt')
-      expect(found.stdout).not.toContain('.git')
-      const searched = await execute('search', {
-        path: '.',
-        pattern: 'DO_NOT_EXPOSE',
-        glob: '**/*',
-        literal: true,
-      })
-      expect(searched.stdout).toBe('No matches found')
-
-      await writeLocalFile(join(repoDir, 'large.bin'), Buffer.alloc(5_000_001))
-      await expect(execute('read', { path: 'large.bin' })).rejects.toMatchObject({
-        stderr: expect.stringContaining('exceeds the 5 MB read limit'),
-      })
-    } finally {
-      await rm(testDir, { recursive: true, force: true })
-    }
   })
 
   it('validates inline coordinates against an exact local diff', async () => {

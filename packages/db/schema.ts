@@ -1988,14 +1988,14 @@ export const workspaceFileCollabState = pgTable('workspace_file_collab_state', {
 
 /**
  * Public share links for workspace resources. Polymorphic on `resourceType` so a
- * single mechanism serves files now and folders later. One row per resource
- * (disable/re-enable flips `isActive` and keeps the same token).
+ * single mechanism serves files and interfaces today, and folders later. One row
+ * per resource (disable/re-enable flips `isActive` and keeps the same token).
  */
 export const publicShare = pgTable(
   'public_share',
   {
     id: text('id').primaryKey(),
-    resourceType: text('resource_type').notNull(), // 'file' | 'folder' (folder reserved for future)
+    resourceType: text('resource_type').notNull(), // 'file' | 'interface' | 'folder' (folder reserved for future)
     resourceId: text('resource_id').notNull(),
     workspaceId: text('workspace_id')
       .notNull()

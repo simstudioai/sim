@@ -1,9 +1,9 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { ChipChevronDown } from '../chip/chip-chevron'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -90,6 +90,8 @@ export interface ChipSelectProps {
   'aria-required'?: boolean
   /** Marks the trigger's current value as invalid. */
   'aria-invalid'?: boolean
+  /** Marks the field invalid; swaps the trigger border to the error token. */
+  error?: boolean
   /**
    * Forwarded to the underlying `DropdownMenu`'s Radix `modal` prop
    * (default `true`, matching Radix). Set `false` when an `onChange` handler
@@ -147,6 +149,7 @@ export function ChipSelect({
   'aria-describedby': ariaDescribedby,
   'aria-required': ariaRequired,
   'aria-invalid': ariaInvalid,
+  error,
   modal,
 }: ChipSelectProps) {
   const [query, setQuery] = React.useState('')
@@ -252,6 +255,7 @@ export function ChipSelect({
           className={cn(
             chipVariants({ variant: 'filled', flush: true, fullWidth }),
             TRIGGER_BORDER_CLASS,
+            error && 'border-[var(--text-error)]',
             fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
             className
           )}
@@ -259,12 +263,7 @@ export function ChipSelect({
           <span className='min-w-0 truncate text-[var(--text-body)]'>
             {displayLabel ?? triggerLabel}
           </span>
-          <span
-            aria-hidden
-            className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
-          >
-            <ChevronDown className='h-[6px] w-[10px]' />
-          </span>
+          <ChipChevronDown />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

@@ -9,9 +9,10 @@ import {
   useState,
 } from 'react'
 import type { VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown } from '../../icons'
+import { Check } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { ChipChevronDown } from '../chip/chip-chevron'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,6 +93,8 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
   'aria-invalid'?: boolean
   /** Id for the trigger button. Needed to reference it from `aria-labelledby`. */
   id?: string
+  /** Marks the field invalid; swaps the trigger border to the error token. */
+  error?: boolean
 }
 
 /**
@@ -195,6 +198,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       'aria-required': ariaRequired,
       'aria-invalid': ariaInvalid,
       id,
+      error,
     } = props
 
     const isMultiple = props.multiple === true
@@ -246,17 +250,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     const isPlaceholder = !isMultiple && selectedValues.length === 0
 
     const iconClass = cn('size-[16px] flex-shrink-0', !isInverse && 'text-[var(--text-icon)]')
-    /**
-     * The chevron glyph stays at its conventional subtle size, but is rendered
-     * inside a `size-[16px]` slot so its bounding box matches `leftIcon`'s. The
-     * chip's `gap-2` then produces visually equal spacing on both sides of the
-     * label — without this, the smaller glyph's bounding box would let the
-     * chevron read as glued to the text relative to the leading icon.
-     */
-    const chevronSlotClass = cn(
-      'inline-flex size-[16px] flex-shrink-0 items-center justify-center',
-      !isInverse && 'text-[var(--text-icon)]'
-    )
     /**
      * `flex-1` is always applied so the chevron is pushed flush against the
      * trailing edge whenever the trigger gets stretched — by `fullWidth`, by a
@@ -323,6 +316,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             className={cn(
               chipVariants({ variant, active, fullWidth, flush }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
+              error && 'border border-[var(--text-error)]',
               className
             )}
           >
@@ -332,9 +326,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             >
               {displayLabel}
             </span>
-            <span aria-hidden className={chevronSlotClass}>
-              <ChevronDown className='h-[6px] w-[10px]' />
-            </span>
+            <ChipChevronDown className={isInverse ? 'text-current' : undefined} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent

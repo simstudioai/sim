@@ -236,7 +236,7 @@ export const ChatInput: React.FC<{
             }}
             className={cn(
               'relative z-10 cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2',
-              isDragOver && 'border-purple-500'
+              isDragOver && 'border-[var(--text-muted)]'
             )}
             onDragEnter={(e) => {
               e.preventDefault()

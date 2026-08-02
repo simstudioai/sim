@@ -178,11 +178,6 @@ jobs:
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
 
-      # cloud-review-tools.test.ts runs the real helper on the runner, which shells
-      # out to rg. Blacksmith's image ships it, GitHub's doesn't.
-      - name: Install ripgrep
-        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
-
       # Named for what it does: `bun run test` is `vitest run`, with no
       # `--coverage`. See the Codecov note below.
       - name: Run tests

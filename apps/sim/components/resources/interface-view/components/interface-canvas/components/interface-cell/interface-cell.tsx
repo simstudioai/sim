@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, type DragEvent, useState } from 'react'
-import { Button, Chip, chipContentGap, chipContentIconClass, cn } from '@sim/emcn'
+import { Chip, chipContentGap, chipContentIconClass, chipContentLabelClass, cn } from '@sim/emcn'
 import { GripVertical, Plus, X } from '@sim/emcn/icons'
 import { ModuleChooser } from '@/components/resources/interface-view/components/module-chooser'
 import { ModuleRenderer } from '@/components/resources/interface-view/components/module-renderer'
@@ -220,9 +220,7 @@ export function InterfaceCell({
           className={cn('flex min-w-0 flex-1 items-center text-left', chipContentGap)}
         >
           <Icon className={chipContentIconClass} />
-          <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-small'>
-            {meta.label}
-          </span>
+          <span className={cn(chipContentLabelClass, 'flex-1 text-small')}>{meta.label}</span>
         </button>
         {canEdit && (
           <GripVertical
@@ -234,15 +232,13 @@ export function InterfaceCell({
           />
         )}
         {canEdit && (
-          <Button
-            variant='ghost'
-            size='sm'
+          <Chip
+            flush
+            leftIcon={X}
             onClick={onRemove}
             aria-label={`Remove ${meta.label} module`}
-            className='!p-1 size-7 shrink-0 cursor-pointer opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
-          >
-            <X className='size-[14px]' />
-          </Button>
+            className='shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
+          />
         )}
       </div>
       {/**

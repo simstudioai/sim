@@ -31,7 +31,6 @@ export type ShareableResourceType = Extract<ShareResourceType, 'file' | 'interfa
  */
 export const shareKeys = {
   all: ['publicShares'] as const,
-  lists: () => [...shareKeys.all, 'list'] as const,
   details: () => [...shareKeys.all, 'detail'] as const,
   detail: (resourceType: ShareResourceType, scopeId: string, resourceId: string) =>
     [...shareKeys.details(), resourceType, scopeId, resourceId] as const,

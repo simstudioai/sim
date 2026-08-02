@@ -62,12 +62,12 @@ import { Tooltip } from '../tooltip/tooltip'
  *   the container, and content beyond `max-h` scrolls vertically.
  */
 const tagInputVariants = cva(
-  `flex w-full cursor-text flex-wrap gap-2 overflow-y-auto px-2 ${chipFieldSurfaceClass}`,
+  `flex w-full cursor-text flex-wrap gap-2 overflow-y-auto px-2 focus-within:outline-none ${chipFieldSurfaceClass}`,
   {
     variants: {
       variant: {
-        default: 'min-h-[30px] items-center py-1 focus-within:outline-none',
-        block: 'min-h-[112px] content-start items-start py-2 focus-within:outline-none',
+        default: 'min-h-[30px] items-center py-1',
+        block: 'min-h-[112px] content-start items-start py-2',
       },
     },
     defaultVariants: {

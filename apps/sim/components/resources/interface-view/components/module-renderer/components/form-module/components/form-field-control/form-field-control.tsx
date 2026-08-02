@@ -239,6 +239,7 @@ export function FormFieldControl({
           fullWidth
           dropdownWidth='trigger'
           disabled={disabled}
+          error={Boolean(error)}
           aria-label={field.label}
           {...aria}
         />
