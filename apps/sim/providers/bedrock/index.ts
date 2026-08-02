@@ -17,6 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { buildBedrockMessageContent } from '@/providers/attachments'
@@ -124,6 +125,15 @@ export const bedrockProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     const region = request.bedrockRegion || 'us-east-1'
+
+    // The AWS SDK interpolates the region into the Bedrock endpoint hostname, so an
+    // unvalidated value can redirect the signed request to an attacker-chosen host.
+    const regionValidation = validateAwsRegion(region, 'bedrockRegion')
+    if (!regionValidation.isValid) {
+      logger.warn('Blocked invalid Bedrock region', { error: regionValidation.error })
+      throw new Error(`Invalid Bedrock region: ${regionValidation.error}`)
+    }
+
     const bedrockModelId = getBedrockInferenceProfileId(request.model, region)
 
     logger.info('Bedrock request', {
