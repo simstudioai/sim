@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCheckRateLimit,
   mockResolveWorkspaceAccess,
-  mockListWorkspaceFiles,
+  mockQueryWorkspaceFiles,
   mockUploadWorkspaceFile,
   mockGetWorkspaceFile,
   mockReadFormDataWithLimit,
@@ -18,7 +18,7 @@ const {
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
-  mockListWorkspaceFiles: vi.fn(),
+  mockQueryWorkspaceFiles: vi.fn(),
   mockUploadWorkspaceFile: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockReadFormDataWithLimit: vi.fn(),
@@ -35,7 +35,8 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: mockListWorkspaceFiles,
+  queryWorkspaceFiles: mockQueryWorkspaceFiles,
+  workspaceFileCursorKeyCount: () => 2,
   uploadWorkspaceFile: mockUploadWorkspaceFile,
   getWorkspaceFile: mockGetWorkspaceFile,
   FileConflictError: class FileConflictError extends Error {},
@@ -94,6 +95,17 @@ function buildRecord(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** What the route forwards for a bare `?workspaceId=` list. */
+const DEFAULT_LIST_ARGS = {
+  scope: 'active',
+  folderId: undefined,
+  search: undefined,
+  sortBy: 'uploadedAt',
+  sortOrder: 'asc',
+  limit: 100,
+  after: undefined,
+}
+
 const callList = (query: string) =>
   GET(new NextRequest(`http://localhost:3000/api/v2/files?${query}`))
 
@@ -111,7 +123,7 @@ describe('GET /api/v2/files', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockListWorkspaceFiles.mockResolvedValue([buildRecord()])
+    mockQueryWorkspaceFiles.mockResolvedValue({ files: [buildRecord()], nextKeys: null })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -123,20 +135,20 @@ describe('GET /api/v2/files', () => {
 
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
   })
 
   it('400s when workspaceId is missing', async () => {
     const res = await callList('limit=10')
     expect(res.status).toBe(400)
     expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
   })
 
   it('400s on a scope outside the enum', async () => {
     const res = await callList(`workspaceId=${WS}&scope=everything`)
     expect(res.status).toBe(400)
-    expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
   })
 
   it('surfaces an access-denied failure in the v2 error envelope', async () => {
@@ -147,7 +159,7 @@ describe('GET /api/v2/files', () => {
     })
     const res = await callList(`workspaceId=${WS}`)
     expect(res.status).toBe(403)
-    expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
   })
 
   it('returns the rate-limit response when denied', async () => {
@@ -158,9 +170,10 @@ describe('GET /api/v2/files', () => {
   })
 
   it('returns the public file shape including folder and updatedAt', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([
-      buildRecord({ folderId: FOLDER_ID, folderPath: 'Reports/Q1' }),
-    ])
+    mockQueryWorkspaceFiles.mockResolvedValue({
+      files: [buildRecord({ folderId: FOLDER_ID, folderPath: 'Reports/Q1' })],
+      nextKeys: null,
+    })
 
     const res = await callList(`workspaceId=${WS}`)
     const body = await res.json()
@@ -181,21 +194,106 @@ describe('GET /api/v2/files', () => {
         updatedAt: '2024-01-02T00:00:00.000Z',
       },
     ])
-    expect(mockListWorkspaceFiles).toHaveBeenCalledWith(WS, { scope: 'active' })
+    expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, DEFAULT_LIST_ARGS)
   })
 
   it('defaults to the active scope and passes archived through', async () => {
     await callList(`workspaceId=${WS}`)
-    expect(mockListWorkspaceFiles).toHaveBeenCalledWith(WS, { scope: 'active' })
+    expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, DEFAULT_LIST_ARGS)
 
     const archived = buildRecord({ id: 'wf_gone', name: 'gone.csv' })
-    mockListWorkspaceFiles.mockResolvedValue([archived])
+    mockQueryWorkspaceFiles.mockResolvedValue({ files: [archived], nextKeys: null })
 
     const res = await callList(`workspaceId=${WS}&scope=archived`)
     const body = await res.json()
 
-    expect(mockListWorkspaceFiles).toHaveBeenLastCalledWith(WS, { scope: 'archived' })
+    expect(mockQueryWorkspaceFiles).toHaveBeenLastCalledWith(WS, {
+      ...DEFAULT_LIST_ARGS,
+      scope: 'archived',
+    })
     expect(body.data.map((f: { id: string }) => f.id)).toEqual(['wf_gone'])
+  })
+
+  it('forwards search, folder, and sort into the query rather than filtering the result', async () => {
+    await callList(
+      `workspaceId=${WS}&search=report&folderId=${FOLDER_ID}&sortBy=name&sortOrder=desc`
+    )
+
+    expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, {
+      ...DEFAULT_LIST_ARGS,
+      folderId: FOLDER_ID,
+      search: 'report',
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+  })
+
+  it('400s on a sort field outside the enum instead of passing it toward the query', async () => {
+    const res = await callList(`workspaceId=${WS}&sortBy=name;DROP TABLE workspace_files`)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
+  })
+
+  it('400s on an empty search rather than treating it as unsearched', async () => {
+    const res = await callList(`workspaceId=${WS}&search=`)
+
+    expect(res.status).toBe(400)
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
+  })
+
+  it('emits a cursor stamped with the sort and resumes from its keys', async () => {
+    mockQueryWorkspaceFiles.mockResolvedValue({
+      files: [buildRecord()],
+      nextKeys: ['data.csv', 'wf_1'],
+    })
+
+    const first = await callList(`workspaceId=${WS}&sortBy=name`)
+    const { nextCursor } = await first.json()
+    expect(nextCursor).not.toBeNull()
+
+    await callList(`workspaceId=${WS}&sortBy=name&cursor=${encodeURIComponent(nextCursor)}`)
+
+    expect(mockQueryWorkspaceFiles).toHaveBeenLastCalledWith(WS, {
+      ...DEFAULT_LIST_ARGS,
+      sortBy: 'name',
+      after: ['data.csv', 'wf_1'],
+    })
+  })
+
+  it('400s when a cursor is replayed under a different sort', async () => {
+    mockQueryWorkspaceFiles.mockResolvedValue({
+      files: [buildRecord()],
+      nextKeys: ['data.csv', 'wf_1'],
+    })
+
+    const first = await callList(`workspaceId=${WS}&sortBy=name`)
+    const { nextCursor } = await first.json()
+    mockQueryWorkspaceFiles.mockClear()
+
+    const res = await callList(
+      `workspaceId=${WS}&sortBy=size&cursor=${encodeURIComponent(nextCursor)}`
+    )
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toMatch(/cursor does not match/i)
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
+  })
+
+  it('400s on a malformed cursor instead of silently restarting from page one', async () => {
+    const res = await callList(`workspaceId=${WS}&cursor=not-a-cursor`)
+
+    expect(res.status).toBe(400)
+    expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
+  })
+
+  it('terminates pagination when the query reports no further keys', async () => {
+    mockQueryWorkspaceFiles.mockResolvedValue({ files: [buildRecord()], nextKeys: null })
+
+    const res = await callList(`workspaceId=${WS}&search=data`)
+
+    expect((await res.json()).nextCursor).toBeNull()
   })
 })
 

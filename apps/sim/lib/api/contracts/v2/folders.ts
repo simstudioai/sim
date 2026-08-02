@@ -7,7 +7,12 @@ import {
 } from '@/lib/api/contracts/folders'
 import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 folder contracts.
@@ -73,9 +78,25 @@ export const v2FolderScopedQuerySchema = z.object({
 })
 export type V2FolderScopedQuery = z.output<typeof v2FolderScopedQuerySchema>
 
+/**
+ * Sortable folder fields. `position` is the tree's manual arrangement (the
+ * `sort_order` column), kept as the default so a bare list still comes back in
+ * the order the workspace arranged it.
+ */
+export const v2FolderSortFields = ['position', 'name', 'createdAt', 'updatedAt'] as const
+
+export type V2FolderSortBy = (typeof v2FolderSortFields)[number]
+
+/**
+ * List query. `search` narrows to folders whose name matches; the result stays
+ * a flat list either way, so a matching folder is returned without its
+ * ancestors — reconstruct a tree from `parentId` only on an unsearched list.
+ */
 export const v2ListFoldersQuerySchema = v2FolderScopedQuerySchema.extend({
   /** `active` (default) lists live folders; `archived` lists Recently Deleted. */
   scope: folderScopeSchema.default('active'),
+  search: v2SearchSchema,
+  ...v2SortFields(v2FolderSortFields, { sortBy: 'position', sortOrder: 'asc' }),
 })
 export type V2ListFoldersQuery = z.output<typeof v2ListFoldersQuerySchema>
 

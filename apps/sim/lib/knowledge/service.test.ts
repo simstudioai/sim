@@ -82,7 +82,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
 
     await expect(
       updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    ).rejects.not.toBeInstanceOf(KnowledgeBasePermissionError)
+    ).resolves.not.toThrow()
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 

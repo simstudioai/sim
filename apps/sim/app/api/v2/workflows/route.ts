@@ -3,17 +3,30 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { type V2WorkflowListItem, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
+import {
+  type V2WorkflowListItem,
+  type V2WorkflowSortBy,
+  v2ListWorkflowsContract,
+} from '@/lib/api/contracts/v2/workflows'
+import {
+  cursorDate,
+  type KeysetSort,
+  keysetAfter,
+  listOrderBy,
+  searchFilter,
+} from '@/lib/api/list-query'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
-  decodeCursor,
-  encodeCursor,
+  cursorSortKey,
+  decodeSortedCursor,
+  encodeSortedCursor,
   v2CursorList,
+  v2CursorSortError,
   v2Error,
   v2RateLimitError,
   v2ValidationError,
@@ -25,12 +38,56 @@ const logger = createLogger('V2WorkflowsAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** Keyset cursor for the `(sortOrder, createdAt, id)` ordering. */
-interface WorkflowListCursor {
-  sortOrder: number
-  createdAt: string
+type WorkflowRow = {
   id: string
+  name: string
+  sortOrder: number
+  runCount: number
+  createdAt: Date
+  updatedAt: Date
 }
+
+/**
+ * The keysets behind the sortable workflow fields. `satisfies` makes the map
+ * total over the contract enum, so a new sortable field cannot ship without an
+ * ordering. Every key column is `NOT NULL` and each keyset ends in `id`, which
+ * is what keeps a page boundary inside a run of equal values stable.
+ *
+ * `position` keeps its historical three-part ordering: workflows share a
+ * `sortOrder` freely, and dropping `createdAt` from the tiebreak would reshuffle
+ * every workspace's default list.
+ */
+const WORKFLOW_SORTS = {
+  position: {
+    keys: [workflow.sortOrder, workflow.createdAt, workflow.id],
+    encode: (row) => [row.sortOrder, cursorDate.encode(row.createdAt), row.id],
+    decode: ([sortOrder, createdAt, id]) => [
+      Number(sortOrder),
+      cursorDate.decode(createdAt),
+      String(id),
+    ],
+  },
+  name: {
+    keys: [workflow.name, workflow.id],
+    encode: (row) => [row.name, row.id],
+    decode: ([name, id]) => [String(name), String(id)],
+  },
+  createdAt: {
+    keys: [workflow.createdAt, workflow.id],
+    encode: (row) => [cursorDate.encode(row.createdAt), row.id],
+    decode: ([createdAt, id]) => [cursorDate.decode(createdAt), String(id)],
+  },
+  updatedAt: {
+    keys: [workflow.updatedAt, workflow.id],
+    encode: (row) => [cursorDate.encode(row.updatedAt), row.id],
+    decode: ([updatedAt, id]) => [cursorDate.decode(updatedAt), String(id)],
+  },
+  runCount: {
+    keys: [workflow.runCount, workflow.id],
+    encode: (row) => [row.runCount, row.id],
+    decode: ([runCount, id]) => [Number(runCount), String(id)],
+  },
+} satisfies Record<V2WorkflowSortBy, KeysetSort<WorkflowRow>>
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -59,36 +116,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const conditions = [eq(workflow.workspaceId, params.workspaceId), isNull(workflow.archivedAt)]
+    const sortKey = cursorSortKey(params.sortBy, params.sortOrder)
+    const sort: KeysetSort<WorkflowRow> = WORKFLOW_SORTS[params.sortBy]
+    const decoded = decodeSortedCursor(params.cursor, sortKey, sort.keys.length)
+    if (decoded.status === 'invalid') return v2CursorSortError()
 
-    if (params.folderId) {
-      conditions.push(eq(workflow.folderId, params.folderId))
-    }
-
-    if (params.deployedOnly) {
-      conditions.push(eq(workflow.isDeployed, true))
-    }
-
-    if (params.cursor) {
-      const cursorData = decodeCursor<WorkflowListCursor>(params.cursor)
-      if (cursorData) {
-        const cursorCondition = or(
-          gt(workflow.sortOrder, cursorData.sortOrder),
-          and(
-            eq(workflow.sortOrder, cursorData.sortOrder),
-            gt(workflow.createdAt, new Date(cursorData.createdAt))
-          ),
-          and(
-            eq(workflow.sortOrder, cursorData.sortOrder),
-            eq(workflow.createdAt, new Date(cursorData.createdAt)),
-            gt(workflow.id, cursorData.id)
-          )
-        )
-        if (cursorCondition) {
-          conditions.push(cursorCondition)
-        }
-      }
-    }
+    const conditions = [
+      eq(workflow.workspaceId, params.workspaceId),
+      isNull(workflow.archivedAt),
+      params.folderId ? eq(workflow.folderId, params.folderId) : undefined,
+      params.deployedOnly ? eq(workflow.isDeployed, true) : undefined,
+      searchFilter(workflow.name, params.search),
+      decoded.status === 'ok'
+        ? keysetAfter(sort.keys, sort.decode(decoded.keys), params.sortOrder)
+        : undefined,
+    ]
 
     const rows = await db
       .select({
@@ -107,21 +149,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
       .from(workflow)
       .where(and(...conditions))
-      .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
+      .orderBy(...listOrderBy(sort.keys, params.sortOrder))
       .limit(params.limit + 1)
 
     const hasMore = rows.length > params.limit
     const data = rows.slice(0, params.limit)
 
-    let nextCursor: string | null = null
-    if (hasMore && data.length > 0) {
-      const last = data[data.length - 1]
-      nextCursor = encodeCursor({
-        sortOrder: last.sortOrder,
-        createdAt: last.createdAt.toISOString(),
-        id: last.id,
-      })
-    }
+    const last = data.at(-1)
+    const nextCursor = hasMore && last ? encodeSortedCursor(sortKey, sort.encode(last)) : null
 
     const formatted: V2WorkflowListItem[] = data.map((w) => ({
       id: w.id,

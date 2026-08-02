@@ -47,12 +47,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, resourceType, scope } = parsed.data.query
+    const { workspaceId, resourceType, scope, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const folders = await listFoldersForWorkspace(workspaceId, scope, resourceType)
+    const folders = await listFoldersForWorkspace(workspaceId, scope, resourceType, {
+      search,
+      sortBy,
+      sortOrder,
+    })
 
     // One workspace's tree for one resource type is bounded → a single full page.
     return v2CursorList(folders.map(toV2FolderFromApi), null, { rateLimit })

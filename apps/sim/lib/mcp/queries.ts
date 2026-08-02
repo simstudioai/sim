@@ -1,6 +1,9 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, type Column, eq, isNull } from 'drizzle-orm'
+import type { V2McpServerSortBy } from '@/lib/api/contracts/v2/mcp-servers'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 
 /**
  * Workspace-scoped MCP server reads. The lifecycle functions in
@@ -11,14 +14,36 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 export type McpServerRow = typeof mcpServers.$inferSelect
 
 /** Live (non-soft-deleted) MCP servers in a workspace, newest first. */
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `id` so servers sharing a name or a
+ * timestamp still come back in a stable order.
+ */
+const MCP_SERVER_SORTS = {
+  name: [mcpServers.name, mcpServers.id],
+  createdAt: [mcpServers.createdAt, mcpServers.id],
+  updatedAt: [mcpServers.updatedAt, mcpServers.id],
+} satisfies Record<V2McpServerSortBy, readonly Column[]>
+
 export async function listWorkspaceMcpServers(params: {
   workspaceId: string
+  /** Case-insensitive substring match on the server name. */
+  search?: string
+  sortBy?: V2McpServerSortBy
+  sortOrder?: V2SortOrder
 }): Promise<McpServerRow[]> {
+  const { sortBy = 'createdAt', sortOrder = 'desc' } = params
   return db
     .select()
     .from(mcpServers)
-    .where(and(eq(mcpServers.workspaceId, params.workspaceId), isNull(mcpServers.deletedAt)))
-    .orderBy(desc(mcpServers.createdAt))
+    .where(
+      and(
+        eq(mcpServers.workspaceId, params.workspaceId),
+        isNull(mcpServers.deletedAt),
+        searchFilter(mcpServers.name, params.search)
+      )
+    )
+    .orderBy(...listOrderBy(MCP_SERVER_SORTS[sortBy], sortOrder))
 }
 
 /** A single live MCP server, or null when it does not exist in this workspace. */

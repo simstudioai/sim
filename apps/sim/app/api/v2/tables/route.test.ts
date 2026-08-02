@@ -136,4 +136,29 @@ describe('GET /api/v2/tables', () => {
     expect(res.status).toBe(429)
     expect((await res.json()).error.code).toBe('RATE_LIMITED')
   })
+  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
+    const res = await callList(`workspaceId=workspace-1&sortBy=name);--`)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+  })
+
+  it('400s on a sort direction outside the enum', async () => {
+    const res = await callList(`workspaceId=workspace-1&sortOrder=sideways`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('400s on an empty search rather than treating it as unsearched', async () => {
+    const res = await callList(`workspaceId=workspace-1&search=`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('forwards search and sort into the query and still terminates pagination', async () => {
+    const res = await callList(`workspaceId=workspace-1&search=report&sortBy=name&sortOrder=asc`)
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).nextCursor).toBeNull()
+  })
 })

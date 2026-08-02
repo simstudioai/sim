@@ -9,8 +9,18 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
+import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import {
+  type CursorKey,
+  cursorDate,
+  type KeysetSort,
+  keysetAfter,
+  listOrderBy,
+  searchFilter,
+} from '@/lib/api/list-query'
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
@@ -775,6 +785,33 @@ export async function getWorkspaceFileByName(
   return mapSingleWorkspaceFileRecord(files[0], workspaceId)
 }
 
+/** Workspace-file rows for one scope: live, Recently Deleted, or both. */
+function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileScope) {
+  const base = [
+    eq(workspaceFiles.workspaceId, workspaceId),
+    eq(workspaceFiles.context, 'workspace'),
+  ]
+  if (scope === 'all') return and(...base)
+  return scope === 'archived'
+    ? and(...base, isNotNull(workspaceFiles.deletedAt))
+    : and(...base, isNull(workspaceFiles.deletedAt))
+}
+
+/** Resolves `folderPath` for a page of rows, reading the folder tree only if any row needs it. */
+async function hydrateWorkspaceFilePaths(
+  files: (typeof workspaceFiles.$inferSelect)[],
+  workspaceId: string,
+  options?: { folders?: WorkspaceFileFolderRecord[]; hydrateFolderPaths?: boolean }
+): Promise<WorkspaceFileRecord[]> {
+  const needsFolderPaths =
+    files.some((file) => file.folderId) && (options?.hydrateFolderPaths ?? true)
+  const folders = needsFolderPaths
+    ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
+    : []
+  const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
+  return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+}
+
 /**
  * List all files for a workspace
  */
@@ -783,42 +820,118 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
+    const { scope = 'active' } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
-      .where(
-        scope === 'all'
-          ? and(
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace')
-            )
-          : scope === 'archived'
-            ? and(
-                eq(workspaceFiles.workspaceId, workspaceId),
-                eq(workspaceFiles.context, 'workspace'),
-                sql`${workspaceFiles.deletedAt} IS NOT NULL`
-              )
-            : and(
-                eq(workspaceFiles.workspaceId, workspaceId),
-                eq(workspaceFiles.context, 'workspace'),
-                isNull(workspaceFiles.deletedAt)
-              )
-      )
+      .where(workspaceFileScopeCondition(workspaceId, scope))
       .orderBy(workspaceFiles.uploadedAt)
 
-    const needsFolderPaths = files.some((file) => file.folderId) && hydrateFolderPaths
-    const folders = needsFolderPaths
-      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
-      : []
-    const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
-
-    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+    return hydrateWorkspaceFilePaths(files, workspaceId, options)
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     if (options?.throwOnError) throw error
     return []
   }
+}
+
+/**
+ * The keysets behind {@link queryWorkspaceFiles}' sortable fields. `satisfies`
+ * makes this total over the contract enum: a new sortable field in the contract
+ * fails to compile until it has a keyset here, rather than silently falling
+ * through to an unordered scan.
+ *
+ * Every key column is `NOT NULL`, and `id` closes each keyset so a page
+ * boundary inside a run of equal names/sizes/timestamps is still stable.
+ */
+const WORKSPACE_FILE_SORTS = {
+  name: {
+    keys: [workspaceFiles.originalName, workspaceFiles.id],
+    encode: (row) => [row.name, row.id],
+    decode: ([name, id]) => [String(name), String(id)],
+  },
+  size: {
+    keys: [workspaceFiles.size, workspaceFiles.id],
+    encode: (row) => [row.size, row.id],
+    decode: ([size, id]) => [Number(size), String(id)],
+  },
+  uploadedAt: {
+    keys: [workspaceFiles.uploadedAt, workspaceFiles.id],
+    encode: (row) => [cursorDate.encode(row.uploadedAt), row.id],
+    decode: ([uploadedAt, id]) => [cursorDate.decode(uploadedAt), String(id)],
+  },
+  updatedAt: {
+    keys: [workspaceFiles.updatedAt, workspaceFiles.id],
+    encode: (row) => [cursorDate.encode(row.updatedAt), row.id],
+    decode: ([updatedAt, id]) => [cursorDate.decode(updatedAt), String(id)],
+  },
+} satisfies Record<V2FileSortBy, KeysetSort<WorkspaceFileRecord>>
+
+/**
+ * How many keyset values a cursor for `sortBy` carries. The route checks the
+ * decoded cursor against this before handing it back, so a truncated cursor is
+ * a 400 rather than a comparison against `undefined`.
+ */
+export function workspaceFileCursorKeyCount(sortBy: V2FileSortBy): number {
+  return WORKSPACE_FILE_SORTS[sortBy].keys.length
+}
+
+export interface QueryWorkspaceFilesOptions {
+  scope?: WorkspaceFileScope
+  /** Restrict to one file folder. */
+  folderId?: string
+  /** Case-insensitive substring match on the file name. */
+  search?: string
+  sortBy: V2FileSortBy
+  sortOrder: V2SortOrder
+  limit: number
+  /** Keyset values from a cursor, in the sort's key order. */
+  after?: CursorKey[]
+}
+
+export interface QueryWorkspaceFilesResult {
+  files: WorkspaceFileRecord[]
+  /** Keyset values to resume from, or `null` when this page is the last one. */
+  nextKeys: CursorKey[] | null
+}
+
+/**
+ * One filtered, sorted, bounded page of a workspace's files.
+ *
+ * Distinct from {@link listWorkspaceFiles}, which materializes the whole scope
+ * for callers that genuinely need it. Here the filter, the ordering, and the
+ * slice are all in the query: a name search must not become "read every row,
+ * then discard almost all of them in JS".
+ *
+ * Throws rather than returning a short page — a swallowed storage error here is
+ * indistinguishable from "no more results" and would silently end pagination.
+ */
+export async function queryWorkspaceFiles(
+  workspaceId: string,
+  options: QueryWorkspaceFilesOptions
+): Promise<QueryWorkspaceFilesResult> {
+  const { scope = 'active', folderId, search, sortBy, sortOrder, limit, after } = options
+  const sort: KeysetSort<WorkspaceFileRecord> = WORKSPACE_FILE_SORTS[sortBy]
+
+  const conditions = [
+    workspaceFileScopeCondition(workspaceId, scope),
+    folderId ? eq(workspaceFiles.folderId, folderId) : undefined,
+    searchFilter(workspaceFiles.originalName, search),
+    after ? keysetAfter(sort.keys, sort.decode(after), sortOrder) : undefined,
+  ]
+
+  const rows = await db
+    .select()
+    .from(workspaceFiles)
+    .where(and(...conditions))
+    .orderBy(...listOrderBy(sort.keys, sortOrder))
+    .limit(limit + 1)
+
+  const hasMore = rows.length > limit
+  const files = await hydrateWorkspaceFilePaths(rows.slice(0, limit), workspaceId)
+  const last = files.at(-1)
+
+  return { files, nextKeys: hasMore && last ? sort.encode(last) : null }
 }
 
 /**
