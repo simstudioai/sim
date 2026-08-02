@@ -224,6 +224,38 @@ describe('mothership private trace provenance transport', () => {
     )
   })
 
+  it('keeps headless secret policy server-only', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(
+      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(payload).not.toHaveProperty('secretScope')
+        expect(payload).not.toHaveProperty('mountedSecrets')
+        expect(options).toMatchObject({
+          secretActorUserId: 'user-1',
+          secretMountPolicy: {
+            secretScope: 'selected',
+            mountedSecrets: ['API_KEY'],
+          },
+        })
+        return successResult()
+      }
+    )
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          ...requestBody,
+          secretScope: 'selected',
+          mountedSecrets: ['API_KEY'],
+        },
+        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('keeps execution functional and fails trace provenance closed when catalog setup fails', async () => {
     mockGetPersonalAndWorkspaceEnv.mockRejectedValueOnce(new Error('catalog unavailable'))
     mockRunHeadlessCopilotLifecycle.mockImplementation(
@@ -296,9 +328,7 @@ describe('mothership private trace provenance transport', () => {
   it('returns encrypted provenance on a marker-gated successful request', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        expect(options.environmentContext?.decryptedEnvVars).toEqual({
-          API_KEY: 'secret-value',
-        })
+        expect(options.environmentContext).not.toHaveProperty('decryptedEnvVars')
         expect(options.environmentContext?.resolvedSecretTraceRegistry).toBeDefined()
         expect(options.resolvedSecretTraceRegistry).toBeUndefined()
         activateSecret(options)

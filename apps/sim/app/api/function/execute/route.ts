@@ -55,6 +55,7 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
+import { createCodeEnvVarPattern } from '@/executor/utils/code-secret-references'
 import {
   createEnvVarPattern,
   createReferencePattern,
@@ -1595,7 +1596,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (lang === CodeLanguage.Shell) {
       // For shell, env vars are injected as OS env vars via shellEnvs.
       // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
-      resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (_match, name) => {
+      resolvedCode = code.replace(createCodeEnvVarPattern(lang), (_match, name) => {
         if (Object.hasOwn(envVars, name)) {
           routeContext?.resolvedSecretNames.add(name)
         }

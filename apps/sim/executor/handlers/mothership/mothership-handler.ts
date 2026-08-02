@@ -5,6 +5,7 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
@@ -397,6 +398,10 @@ export class MothershipBlockHandler implements BlockHandler {
     const chatId = providedConversationId || generateId()
     const messageId = generateId()
     const requestId = generateId()
+    const secretMountPolicy = normalizeSecretMountPolicy({
+      secretScope: inputs.secretScope,
+      mountedSecrets: inputs.mountedSecrets,
+    })
     const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
     const mcpTools = Array.isArray(inputs.tools)
       ? inputs.tools.filter(
@@ -442,6 +447,8 @@ export class MothershipBlockHandler implements BlockHandler {
       chatId,
       messageId,
       requestId,
+      secretScope: secretMountPolicy.secretScope,
+      mountedSecrets: secretMountPolicy.mountedSecrets,
       ...(fileAttachments && { fileAttachments }),
       ...(mcpTools.length > 0 ? { mcpTools } : {}),
       ...(skillContexts.length > 0 ? { contexts: skillContexts } : {}),

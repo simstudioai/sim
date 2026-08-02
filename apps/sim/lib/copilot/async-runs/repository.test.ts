@@ -8,7 +8,9 @@ import {
   claimCompletedAsyncToolCall,
   claimPendingAsyncToolCall,
   completeAsyncToolCall,
-  markAsyncToolDelivered,
+  detachAsyncToolCall,
+  replaceTerminalAsyncToolCallResult,
+  upsertAsyncToolCall,
 } from './repository'
 
 describe('async tool repository single-row semantics', () => {
@@ -17,27 +19,48 @@ describe('async tool repository single-row semantics', () => {
     resetDbChainMock()
   })
 
-  it('does not overwrite a delivered row on late completion', async () => {
-    const deliveredRow = {
+  it('atomically completes a live row', async () => {
+    const completedRow = {
       toolCallId: 'tool-1',
-      status: 'delivered',
+      status: 'completed',
       result: { ok: true },
       error: null,
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([deliveredRow])
+    dbChainMockFns.returning.mockResolvedValueOnce([completedRow])
 
     const result = await completeAsyncToolCall({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: { ok: false },
+      result: { ok: true },
       error: null,
     })
 
-    expect(result).toEqual(deliveredRow)
-    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+    expect(result).toEqual(completedRow)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'completed',
+        result: { ok: true },
+        completedAt: expect.any(Date),
+      })
+    )
+    expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
-  it('marks a row delivered and clears the claim fields', async () => {
+  it('returns null when another terminal transition already won', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await completeAsyncToolCall({
+      toolCallId: 'tool-1',
+      status: 'failed',
+      result: null,
+      error: 'late error',
+    })
+
+    expect(result).toBeNull()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('atomically detaches a live background call and clears the claim fields', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
         toolCallId: 'tool-1',
@@ -45,7 +68,7 @@ describe('async tool repository single-row semantics', () => {
       },
     ])
 
-    await markAsyncToolDelivered('tool-1')
+    await detachAsyncToolCall('tool-1')
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -54,6 +77,7 @@ describe('async tool repository single-row semantics', () => {
         claimedAt: null,
       })
     )
+    expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
   it('claims only completed rows for delivery handoff', async () => {
@@ -102,5 +126,56 @@ describe('async tool repository single-row semantics', () => {
         claimedAt: expect.any(Date),
       })
     )
+  })
+
+  it('replaces only terminal payload fields after trusted projection', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'completed',
+        result: { output: '{{SECRET}}' },
+      },
+    ])
+
+    const result = await replaceTerminalAsyncToolCallResult({
+      toolCallId: 'workflow-tool',
+      status: 'completed',
+      result: { output: '{{SECRET}}' },
+      error: null,
+    })
+
+    expect(result).toMatchObject({
+      toolCallId: 'workflow-tool',
+      status: 'completed',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: 'completed',
+      result: { output: '{{SECRET}}' },
+      error: null,
+      updatedAt: expect.any(Date),
+    })
+    expect(dbChainMockFns.where).toHaveBeenCalled()
+  })
+
+  it('keeps the first finalized pending call identity immutable', async () => {
+    const pendingRow = {
+      runId: 'run-1',
+      toolCallId: 'tool-1',
+      toolName: 'function_execute',
+      args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
+      status: 'pending',
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([pendingRow])
+
+    const result = await upsertAsyncToolCall({
+      runId: 'run-1',
+      toolCallId: 'tool-1',
+      toolName: 'function_execute',
+      args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
+      status: 'pending',
+    })
+
+    expect(result).toEqual(pendingRow)
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
 })

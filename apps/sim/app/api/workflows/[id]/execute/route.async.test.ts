@@ -9,6 +9,7 @@ import {
   executionPreprocessingMockFns,
   hybridAuthMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   queueTableRows,
   requestUtilsMockFns,
   resetDbChainMock,
@@ -32,8 +33,13 @@ const {
   mockExecuteWorkflowCore,
   mockGenerateId,
   mockGetWorkspaceBillingSettings,
+  mockGetAsyncToolCall,
+  mockGetRunSegment,
+  mockCreateExecutionEventWriter,
+  mockFlushExecutionStreamReplayBuffer,
   mockHandlePostExecutionPauseState,
   mockHasDurableExecutionOwner,
+  mockInitializeExecutionStreamMeta,
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockRequireBillingAttributionHeader,
@@ -50,8 +56,13 @@ const {
   mockExecuteWorkflowCore: vi.fn(),
   mockGenerateId: vi.fn(() => 'execution-123'),
   mockGetWorkspaceBillingSettings: vi.fn(),
+  mockGetAsyncToolCall: vi.fn(),
+  mockGetRunSegment: vi.fn(),
+  mockCreateExecutionEventWriter: vi.fn(),
+  mockFlushExecutionStreamReplayBuffer: vi.fn(),
   mockHandlePostExecutionPauseState: vi.fn(),
   mockHasDurableExecutionOwner: vi.fn(),
+  mockInitializeExecutionStreamMeta: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
@@ -100,6 +111,18 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
   claimExecutionId: mockClaimExecutionId,
   hasDurableExecutionOwner: mockHasDurableExecutionOwner,
   releaseExecutionIdClaim: mockReleaseExecutionIdClaim,
+}))
+
+vi.mock('@/lib/copilot/async-runs/repository', () => ({
+  getAsyncToolCall: mockGetAsyncToolCall,
+  getRunSegment: mockGetRunSegment,
+}))
+
+vi.mock('@/lib/execution/event-buffer', () => ({
+  createExecutionEventWriter: mockCreateExecutionEventWriter,
+  flushExecutionStreamReplayBuffer: mockFlushExecutionStreamReplayBuffer,
+  initializeExecutionStreamMeta: mockInitializeExecutionStreamMeta,
+  LIVE_ONLY_EXECUTION_EVENT_TYPES: new Set(),
 }))
 
 vi.mock('@/lib/execution/payloads/store', () => ({
@@ -170,6 +193,24 @@ function createSessionReplayRequest(executionId: string): NextRequest {
     {
       'Content-Type': 'application/json',
       'X-Execution-Mode': 'async',
+    }
+  )
+}
+
+function createBoundCopilotExecutionRequest(overrides: Record<string, unknown> = {}): NextRequest {
+  return createMockRequest(
+    'POST',
+    {
+      input: { hello: 'world' },
+      stream: true,
+      isClientSession: true,
+      triggerType: 'copilot',
+      copilotToolCallId: 'copilot-tool-1',
+      ...overrides,
+    },
+    {
+      'Content-Type': 'application/json',
+      Cookie: 'session=value',
     }
   )
 }
@@ -290,6 +331,18 @@ describe('workflow execute async route', () => {
       token: `token-${executionId}`,
     }))
     mockHasDurableExecutionOwner.mockResolvedValue(false)
+    mockGetAsyncToolCall.mockReset().mockResolvedValue({
+      toolCallId: 'copilot-tool-1',
+      runId: 'copilot-run-1',
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+      status: 'running',
+    })
+    mockGetRunSegment.mockReset().mockResolvedValue({
+      id: 'copilot-run-1',
+      userId: 'session-user-1',
+      workflowId: 'workflow-1',
+    })
 
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-12345678')
     workflowsUtilsMockFns.mockWorkflowHasResponseBlock.mockReturnValue(false)
@@ -328,7 +381,7 @@ describe('workflow execute async route', () => {
     })
     workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockResolvedValue(null)
     workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
-    mockExecuteWorkflowCore.mockResolvedValue({
+    mockExecuteWorkflowCore.mockReset().mockResolvedValue({
       success: true,
       status: 'completed',
       output: { ok: true },
@@ -339,6 +392,140 @@ describe('workflow execute async route', () => {
       },
     })
     mockHandlePostExecutionPauseState.mockResolvedValue(undefined)
+    mockInitializeExecutionStreamMeta.mockReset().mockResolvedValue(true)
+    mockFlushExecutionStreamReplayBuffer.mockReset().mockResolvedValue(true)
+    mockCreateExecutionEventWriter.mockReset().mockReturnValue({
+      write: vi.fn(async (event: unknown) => ({ event, eventId: '1' })),
+      writeTerminal: vi.fn(async (event: unknown) => ({ event, eventId: '2' })),
+      close: vi.fn().mockResolvedValue(undefined),
+    })
+    loggingSessionMockFns.mockWaitForPostExecution.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('binds a Copilot workflow tool only to its server log and waits before terminal SSE', async () => {
+    let releasePostExecution: (() => void) | undefined
+    loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releasePostExecution = resolve
+        })
+    )
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+    const bodyPromise = response.text()
+
+    await vi.waitFor(() => {
+      expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalledTimes(1)
+    })
+    let streamCompleted = false
+    void bodyPromise.then(() => {
+      streamCompleted = true
+    })
+    await Promise.resolve()
+
+    expect(response.status).toBe(200)
+    expect(streamCompleted).toBe(false)
+    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
+      executionId: 'execution-123',
+      requestId: 'req-12345678',
+      source: 'workflow',
+      workflowId: 'workflow-1',
+      triggerType: 'copilot',
+      copilotToolCallId: 'copilot-tool-1',
+    })
+    const executionArgs = mockExecuteWorkflowCore.mock.calls[0][0]
+    expect(executionArgs).not.toHaveProperty('copilotToolCallId')
+    expect(executionArgs.snapshot.metadata).not.toHaveProperty('copilotToolCallId')
+
+    releasePostExecution?.()
+    const body = await bodyPromise
+    expect(body).toContain('execution:completed')
+  })
+
+  it.each([
+    [
+      'terminal tool row',
+      {
+        toolCallId: 'copilot-tool-1',
+        runId: 'copilot-run-1',
+        toolName: 'run_workflow',
+        args: { workflowId: 'workflow-1' },
+        status: 'completed',
+      },
+      { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+    ],
+    [
+      'different workflow target',
+      {
+        toolCallId: 'copilot-tool-1',
+        runId: 'copilot-run-1',
+        toolName: 'run_workflow',
+        args: { workflowId: 'workflow-2' },
+        status: 'running',
+      },
+      { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+    ],
+    [
+      'different execution actor',
+      {
+        toolCallId: 'copilot-tool-1',
+        runId: 'copilot-run-1',
+        toolName: 'run_workflow',
+        args: { workflowId: 'workflow-1' },
+        status: 'running',
+      },
+      { id: 'copilot-run-1', userId: 'other-user', workflowId: 'workflow-1' },
+    ],
+  ])('rejects a Copilot binding owned by a %s', async (_caseName, toolCall, run) => {
+    mockGetAsyncToolCall.mockResolvedValueOnce(toolCall)
+    mockGetRunSegment.mockResolvedValueOnce(run)
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
+  })
+
+  it('rejects Copilot workflow bindings outside the interactive SSE surface', async () => {
+    const response = await POST(createBoundCopilotExecutionRequest({ stream: false }), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(mockGetAsyncToolCall).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'cancelled',
+      {
+        success: false,
+        status: 'cancelled',
+        output: {},
+        logs: [],
+        metadata: { duration: 1 },
+      },
+    ],
+    ['error', new Error('execution failed')],
+  ])('waits for bound post-execution work on %s terminal paths', async (_caseName, outcome) => {
+    if (outcome instanceof Error) {
+      mockExecuteWorkflowCore.mockRejectedValueOnce(outcome)
+    } else {
+      mockExecuteWorkflowCore.mockResolvedValueOnce(outcome)
+    }
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+    await response.text()
+
+    expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalledTimes(1)
   })
 
   it('reuses raw workflow input by execution ID without returning it to the client', async () => {

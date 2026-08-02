@@ -1,4 +1,6 @@
+import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
@@ -11,9 +13,9 @@ import {
 } from '@/lib/copilot/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
+  detachAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,
-  upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
 import { CopilotConfirmOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -27,69 +29,70 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import {
+  retainSealedClientToolContext,
+  sealClientToolCompletion,
+} from '@/lib/copilot/request/tools/client-completion-seal.server'
+import {
+  createStructuralWorkflowToolCompletionData,
+  getWorkflowToolCompletionMessage,
+  isWorkflowToolName,
+  resolveWorkflowToolTargetId,
+} from '@/lib/copilot/tools/workflow-tools'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotConfirmAPI')
 
-/**
- * Persist terminal durable tool status, then publish a wakeup event.
- *
- * `background` remains a live detach signal in the current browser workflow
- * runtime, so it should not rewrite the durable async row.
- */
+function getClientToolCompletionMessage(status: AsyncConfirmationStatus): string {
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.success) return 'Tool completed'
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) return 'Tool is running in background'
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled) return 'Tool cancelled'
+  return 'Tool failed'
+}
+
+/** Atomically finalize or detach a client tool before publishing its wakeup event. */
 async function updateToolCallStatus(
   existing: NonNullable<Awaited<ReturnType<typeof getAsyncToolCall>>>,
   status: AsyncConfirmationStatus,
   message?: string,
-  data?: AsyncCompletionData
+  data?: AsyncCompletionData,
+  executionId?: string
 ): Promise<boolean> {
   const toolCallId = existing.toolCallId
-  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-    publishToolConfirmation({
-      toolCallId,
-      status,
-      message: message || undefined,
-      timestamp: new Date().toISOString(),
-      data,
-    })
-    return true
-  }
-  const durableStatus =
-    status === 'success'
-      ? ASYNC_TOOL_STATUS.completed
-      : status === 'cancelled'
-        ? ASYNC_TOOL_STATUS.cancelled
-        : status === 'error'
-          ? ASYNC_TOOL_STATUS.failed
-          : ASYNC_TOOL_STATUS.pending
   try {
-    if (
-      durableStatus === ASYNC_TOOL_STATUS.completed ||
-      durableStatus === ASYNC_TOOL_STATUS.failed ||
-      durableStatus === ASYNC_TOOL_STATUS.cancelled
-    ) {
-      await completeAsyncToolCall({
+    if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+      const detached = await detachAsyncToolCall(toolCallId)
+      if (!detached) return false
+      publishToolConfirmation({
         toolCallId,
-        status: durableStatus,
-        result: data ?? null,
-        error: status === 'success' ? null : message || status,
+        status,
+        message: message || undefined,
+        timestamp: new Date().toISOString(),
+        data,
+        ...(executionId ? { executionId } : {}),
       })
-    } else if (existing.runId) {
-      await upsertAsyncToolCall({
-        runId: existing.runId,
-        checkpointId: existing.checkpointId ?? null,
-        toolCallId,
-        toolName: existing.toolName || 'client_tool',
-        args: (existing.args as Record<string, unknown> | null) ?? {},
-        status: durableStatus,
-      })
+      return true
     }
+    const durableStatus =
+      status === ASYNC_TOOL_CONFIRMATION_STATUS.success
+        ? ASYNC_TOOL_STATUS.completed
+        : status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
+          ? ASYNC_TOOL_STATUS.cancelled
+          : ASYNC_TOOL_STATUS.failed
+    const completed = await completeAsyncToolCall({
+      toolCallId,
+      status: durableStatus,
+      result: data ?? null,
+      error: status === 'success' ? null : message || status,
+    })
+    if (!completed) return false
     publishToolConfirmation({
       toolCallId,
       status,
       message: message || undefined,
       timestamp: new Date().toISOString(),
       data,
+      ...(executionId ? { executionId } : {}),
     })
     return true
   } catch (error) {
@@ -140,7 +143,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           }
         )
         if (!parsed.success) return parsed.response
-        const { toolCallId, status, message, data } = parsed.data.body
+        const { toolCallId, executionId, status, message, data } = parsed.data.body
         span.setAttributes({
           [TraceAttr.ToolCallId]: toolCallId,
           [TraceAttr.ToolConfirmationStatus]: status,
@@ -178,7 +181,44 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        const updated = await updateToolCallStatus(existing, status, message, data)
+        if (
+          (isBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)) &&
+          existing.status !== ASYNC_TOOL_STATUS.running
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Running client tool call not found')
+        }
+
+        const isWorkflowTool = isWorkflowToolName(existing.toolName || '')
+        const workflowId = isWorkflowTool
+          ? resolveWorkflowToolTargetId(existing.args, run.workflowId)
+          : undefined
+        const projected = isWorkflowTool
+          ? {
+              message: getWorkflowToolCompletionMessage(status),
+              data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
+            }
+          : {
+              message: getClientToolCompletionMessage(status),
+              data: {
+                ...retainSealedClientToolContext(existing.result),
+                ...(await sealClientToolCompletion({
+                  toolCallId,
+                  runId: existing.runId,
+                  userId: authenticatedUserId,
+                  ...(message !== undefined ? { message } : {}),
+                  ...(data !== undefined ? { data } : {}),
+                })),
+              },
+            }
+
+        const updated = await updateToolCallStatus(
+          existing,
+          status,
+          projected.message,
+          projected.data,
+          isWorkflowTool ? executionId : undefined
+        )
 
         if (!updated) {
           logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
@@ -186,7 +226,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             toolCallId,
             status,
             internalStatus: status,
-            message,
+            message: projected.message,
           })
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
           // DB write failed — 500, not 400. 400 is a client-shape error.
@@ -196,7 +236,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
         span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Delivered)
         return NextResponse.json({
           success: true,
-          message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
+          message: projected.message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
           toolCallId,
           status,
         })

@@ -22,6 +22,7 @@ import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/co
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/copilot/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -166,7 +167,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
       userMetadata,
+      secretScope,
+      mountedSecrets,
     } = validation.data.body
+    const secretMountPolicy = normalizeSecretMountPolicy({ secretScope, mountedSecrets })
 
     /**
      * Bind actor attribution to the authenticated identity. The executor mints
@@ -374,6 +378,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
         billingAttribution,
+        ...(userPermission ? { userPermission } : {}),
+        secretActorUserId: userId,
+        secretMountPolicy,
         environmentContext,
         ...(!environmentContext && resolvedSecretTraceRegistry
           ? { resolvedSecretTraceRegistry }

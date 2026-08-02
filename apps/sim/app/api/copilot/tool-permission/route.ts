@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -21,12 +22,14 @@ import {
 } from '@/lib/copilot/persistence/tool-permission/auto-allow'
 import {
   authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { getToolSecretMountNames } from '@/lib/copilot/tools/secret-mount'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -36,6 +39,10 @@ interface DecisionResult {
   toolCallId: string
   decision: ToolPermissionDecision
   applied: boolean
+}
+
+interface RejectedDecision {
+  rejection: 'permission-feature-disabled' | 'persistent-secret-permission'
 }
 
 /**
@@ -49,7 +56,7 @@ async function applyDecision(
   toolCallId: string,
   decision: ToolPermissionDecision,
   userId: string
-): Promise<DecisionResult | null> {
+): Promise<DecisionResult | RejectedDecision | null> {
   const existing = await getAsyncToolCall(toolCallId).catch((err) => {
     logger.warn('Failed to fetch async tool call', { toolCallId, error: getErrorMessage(err) })
     return null
@@ -64,6 +71,19 @@ async function applyDecision(
     return null
   })
   if (!run || run.userId !== userId) return null
+
+  const args = isRecordLike(existing.args) ? existing.args : undefined
+  const mountsSecrets = getToolSecretMountNames(existing.toolName, args).length > 0
+  if (!isCopilotToolPermissionsEnabled && !mountsSecrets) {
+    return { rejection: 'permission-feature-disabled' }
+  }
+  if (
+    mountsSecrets &&
+    (decision === TOOL_PERMISSION_DECISION.allow_chat ||
+      decision === TOOL_PERMISSION_DECISION.always_allow)
+  ) {
+    return { rejection: 'persistent-secret-permission' }
+  }
 
   const claimed = await recordToolPermissionDecision(toolCallId, decision)
   if (!claimed) {
@@ -117,13 +137,6 @@ export const POST = withRouteHandler((req: NextRequest) => {
     { [TraceAttr.RequestId]: tracker.requestId },
     async (span) => {
       try {
-        // Nothing can legitimately be awaiting a decision while the feature is
-        // off, so close the endpoint rather than letting it write decisions
-        // onto rows no orchestrator is waiting on.
-        if (!isCopilotToolPermissionsEnabled) {
-          return createNotFoundResponse('Tool permissions are not enabled')
-        }
-
         const { userId: authenticatedUserId, isAuthenticated } =
           await authenticateCopilotRequestSessionOnly()
 
@@ -154,6 +167,12 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const results: DecisionResult[] = []
         for (const { toolCallId, decision } of decisions) {
           const result = await applyDecision(toolCallId, decision, authenticatedUserId)
+          if (result && 'rejection' in result) {
+            if (result.rejection === 'permission-feature-disabled') {
+              return createNotFoundResponse('Tool permissions are not enabled')
+            }
+            return createBadRequestResponse('Secret-bearing code calls can only be allowed once')
+          }
           if (result) results.push(result)
         }
 

@@ -10,7 +10,7 @@ describe('prepareCopilotEnvironmentContext', () => {
     resetEnvironmentUtilsMock()
   })
 
-  it('builds runtime env and secret provenance from one workspace-over-personal snapshot', async () => {
+  it('keeps decrypted values only in the inert provenance registry', async () => {
     environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {
         SHARED_SECRET: 'personal-encrypted',
@@ -34,11 +34,7 @@ describe('prepareCopilotEnvironmentContext', () => {
 
     const context = await prepareCopilotEnvironmentContext('user-1', 'workspace-1')
 
-    expect(context.decryptedEnvVars).toEqual({
-      SHARED_SECRET: 'workspace-value',
-      PERSONAL_ONLY: 'personal-only-value',
-      WORKSPACE_ONLY: 'workspace-only-value',
-    })
+    expect(context).not.toHaveProperty('decryptedEnvVars')
     expect(context.resolvedSecretTraceRegistry.isComplete()).toBe(true)
     expect(
       context.resolvedSecretTraceRegistry.recordResolved('SHARED_SECRET', 'workspace-value')

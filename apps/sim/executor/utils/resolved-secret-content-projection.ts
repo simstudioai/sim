@@ -34,6 +34,11 @@ interface ProjectionState {
   maxBytes: number
 }
 
+export interface ResolvedSecretContentProjectionOptions {
+  /** Values already materialized and verified by a boundary-specific projector. */
+  isOpaqueSafeObject?: (value: object) => boolean
+}
+
 export type ResolvedSecretContentProjection = { safe: true; value: unknown } | { safe: false }
 
 class ResolvedSecretContentProjectionError extends Error {
@@ -309,6 +314,7 @@ function sanitizeContent(
   value: unknown,
   matcher: ResolvedSecretMatcher,
   state: ProjectionState,
+  options: ResolvedSecretContentProjectionOptions,
   depth = 0
 ): unknown {
   visitNode(state, depth)
@@ -333,7 +339,11 @@ function sanitizeContent(
     return sanitized
   }
   if (value === undefined) return value
-  if (typeof value !== 'object' || (!Array.isArray(value) && !isPlainRecord(value))) {
+  if (typeof value !== 'object') {
+    throw new ResolvedSecretContentProjectionError('Unsupported secret-bearing content value')
+  }
+  if (options.isOpaqueSafeObject?.(value)) return value
+  if (!Array.isArray(value) && !isPlainRecord(value)) {
     throw new ResolvedSecretContentProjectionError('Unsupported secret-bearing content value')
   }
   if (
@@ -357,7 +367,7 @@ function sanitizeContent(
       }
       const sanitized = new Array<unknown>(value.length)
       for (const [index, item] of arrayDataEntries(value)) {
-        sanitized[index] = sanitizeContent(item, matcher, state, depth + 1)
+        sanitized[index] = sanitizeContent(item, matcher, state, options, depth + 1)
       }
       return sanitized
     }
@@ -378,7 +388,7 @@ function sanitizeContent(
       }
       sanitizedKeys.add(sanitizedKey)
       Object.defineProperty(sanitized, sanitizedKey, {
-        value: sanitizeContent(item, matcher, state, depth + 1),
+        value: sanitizeContent(item, matcher, state, options, depth + 1),
         enumerable: true,
         configurable: true,
         writable: true,
@@ -393,17 +403,23 @@ function sanitizeContent(
 export function projectResolvedSecretContent(
   value: unknown,
   matcher: ResolvedSecretMatcher,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   try {
     return {
       safe: true,
-      value: sanitizeContent(value, matcher, {
-        nodes: 0,
-        ancestors: new WeakSet<object>(),
-        outputBytes: 0,
-        maxBytes,
-      }),
+      value: sanitizeContent(
+        value,
+        matcher,
+        {
+          nodes: 0,
+          ancestors: new WeakSet<object>(),
+          outputBytes: 0,
+          maxBytes,
+        },
+        options
+      ),
     }
   } catch {
     return { safe: false }

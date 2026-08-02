@@ -53,7 +53,7 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
-import { projectFunctionResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -559,8 +559,7 @@ async function executeToolAndReportInner(
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      const copilotResult = projectFunctionResultForCopilot(
-        toolCall.name,
+      const copilotResult = projectToolResultForCopilot(
         result,
         execContext.resolvedSecretTraceRegistry
       )
@@ -661,8 +660,7 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    const copilotResult = projectFunctionResultForCopilot(
-      toolCall.name,
+    const copilotResult = projectToolResultForCopilot(
       result,
       execContext.resolvedSecretTraceRegistry
     )
@@ -772,6 +770,7 @@ async function executeToolAndReportInner(
         toolCall.name,
         toolCall.params,
         result,
+        copilotResult,
         execContext.chatId,
         options?.onEvent,
         () => abortRequested(context, execContext, options)
@@ -788,8 +787,7 @@ async function executeToolAndReportInner(
     })
   } catch (error) {
     const thrownMessage = toError(error).message
-    const copilotError = projectFunctionResultForCopilot(
-      toolCall.name,
+    const copilotError = projectToolResultForCopilot(
       { success: false, error: thrownMessage },
       execContext.resolvedSecretTraceRegistry
     )

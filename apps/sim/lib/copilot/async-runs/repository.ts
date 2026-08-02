@@ -18,6 +18,7 @@ import { markSpanForError } from '@/lib/copilot/request/otel'
 import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
+  type AsyncTerminalStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
 } from './lifecycle'
@@ -193,6 +194,7 @@ export async function getRunSegment(runId: string) {
           id: copilotRuns.id,
           userId: copilotRuns.userId,
           status: copilotRuns.status,
+          workflowId: copilotRuns.workflowId,
           // Needed to scope an "allow for this chat" decision to its chat.
           chatId: copilotRuns.chatId,
         })
@@ -243,6 +245,7 @@ export async function upsertAsyncToolCall(input: {
   toolName: string
   args?: Record<string, unknown>
   status?: CopilotAsyncToolStatus
+  sealedContext?: AsyncCompletionData
 }) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
@@ -257,6 +260,9 @@ export async function upsertAsyncToolCall(input: {
     async () => {
       const existing = await getAsyncToolCall(input.toolCallId)
       const incomingStatus = input.status ?? 'pending'
+      if (existing?.status === 'pending' && incomingStatus === 'pending') {
+        return existing
+      }
       if (
         existing &&
         (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) &&
@@ -282,6 +288,7 @@ export async function upsertAsyncToolCall(input: {
 
       const now = new Date()
       const args = sanitizeValueForJsonb(input.args ?? {})
+      const sealedContext = sanitizeValueForJsonb(input.sealedContext)
       const [row] = await db
         .insert(copilotAsyncToolCalls)
         .values({
@@ -291,6 +298,7 @@ export async function upsertAsyncToolCall(input: {
           toolName: input.toolName,
           args,
           status: incomingStatus,
+          ...(sealedContext !== undefined ? { result: sealedContext } : {}),
           updatedAt: now,
         })
         .onConflictDoUpdate({
@@ -301,6 +309,7 @@ export async function upsertAsyncToolCall(input: {
             toolName: input.toolName,
             args,
             status: incomingStatus,
+            ...(sealedContext !== undefined ? { result: sealedContext } : {}),
             updatedAt: now,
           },
         })
@@ -337,7 +346,8 @@ async function markAsyncToolStatus(
     result?: AsyncCompletionData | null
     error?: string | null
     completedAt?: Date | null
-  } = {}
+  } = {},
+  expectedStatuses?: CopilotAsyncToolStatus[]
 ) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -370,7 +380,14 @@ async function markAsyncToolStatus(
           completedAt: updates.completedAt,
           updatedAt: new Date(),
         })
-        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        .where(
+          expectedStatuses
+            ? and(
+                eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+                inArray(copilotAsyncToolCalls.status, expectedStatuses)
+              )
+            : eq(copilotAsyncToolCalls.toolCallId, toolCallId)
+        )
         .returning()
 
       return row ?? null
@@ -425,27 +442,83 @@ export async function completeAsyncToolCall(input: {
   result?: AsyncCompletionData | null
   error?: string | null
 }) {
-  const existing = await getAsyncToolCall(input.toolCallId)
+  return markAsyncToolStatus(
+    input.toolCallId,
+    input.status,
+    {
+      claimedBy: null,
+      claimedAt: null,
+      result: input.result ?? null,
+      error: input.error ?? null,
+      completedAt: new Date(),
+    },
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+  )
+}
 
-  if (!existing) {
-    logger.warn('completeAsyncToolCall called before pending row existed', {
-      toolCallId: input.toolCallId,
-      status: input.status,
-    })
-    return null
-  }
+/**
+ * Atomically detaches a live client tool after the browser reports that it is
+ * continuing in the background. Whichever terminal or detach transition wins
+ * is the only result eligible for publication.
+ */
+export async function detachAsyncToolCall(toolCallId: string) {
+  return markAsyncToolStatus(
+    toolCallId,
+    ASYNC_TOOL_STATUS.delivered,
+    {
+      claimedBy: null,
+      claimedAt: null,
+    },
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+  )
+}
 
-  if (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) {
-    return existing
-  }
+/**
+ * Replaces an already-terminal async tool call from a trusted producer.
+ *
+ * Client workflow confirmations are persisted structurally first. The live
+ * Copilot waiter uses this guarded update only after it has restored and
+ * projected the server-owned workflow result.
+ */
+export async function replaceTerminalAsyncToolCallResult(input: {
+  toolCallId: string
+  status: AsyncTerminalStatus
+  result: AsyncCompletionData | null
+  error: string | null
+}) {
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: input.toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: input.status,
+      [TraceAttr.CopilotAsyncToolHasError]: !!input.error,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: input.status,
+          result: sanitizeValueForJsonb(input.result),
+          error: input.error,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+            inArray(copilotAsyncToolCalls.status, [
+              ASYNC_TOOL_STATUS.completed,
+              ASYNC_TOOL_STATUS.failed,
+              ASYNC_TOOL_STATUS.cancelled,
+            ])
+          )
+        )
+        .returning()
 
-  return markAsyncToolStatus(input.toolCallId, input.status, {
-    claimedBy: null,
-    claimedAt: null,
-    result: input.result ?? null,
-    error: input.error ?? null,
-    completedAt: new Date(),
-  })
+      return row ?? null
+    }
+  )
 }
 
 /**
@@ -487,13 +560,6 @@ export async function recordToolPermissionDecision(
       return row ?? null
     }
   )
-}
-
-export async function markAsyncToolDelivered(toolCallId: string) {
-  return markAsyncToolStatus(toolCallId, ASYNC_TOOL_STATUS.delivered, {
-    claimedBy: null,
-    claimedAt: null,
-  })
 }
 
 async function listAsyncToolCallsForRun(runId: string) {

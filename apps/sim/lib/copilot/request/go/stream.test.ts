@@ -109,7 +109,11 @@ function createStreamingContext(): StreamingContext {
     errors: [],
     activeFileIntents: new Map(),
     trace: new TraceCollector(),
-    toolPermissions: { enabled: false, autoAllowed: new Set() },
+    toolPermissions: {
+      enabled: false,
+      promptSurfaceAvailable: false,
+      autoAllowed: new Set(),
+    },
   }
 }
 

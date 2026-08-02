@@ -1,5 +1,5 @@
-import { omit } from '@sim/utils/object'
-import { FunctionExecute, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
+import { isPlainRecord, omit } from '@sim/utils/object'
+import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
   containsResolvedSecret,
@@ -10,22 +10,56 @@ import {
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-export const FUNCTION_RESULT_OMITTED_ERROR = 'Function result omitted'
-
-function isFunctionSandboxTool(toolName: string): boolean {
-  return toolName === FunctionExecute.id || toolName === RunCode.id
-}
+export const TOOL_RESULT_OMITTED_ERROR = 'Tool result omitted'
 
 function omitContent(result: ToolExecutionResult): ToolExecutionResult {
-  return omit(result, ['output', 'error'])
+  return omit(result, ['output', 'error', 'resources'])
+}
+
+function resourceContent(resources: MothershipResource[]): Array<{ title: string; path?: string }> {
+  return resources.map((resource) => ({
+    title: resource.title,
+    ...(resource.path !== undefined ? { path: resource.path } : {}),
+  }))
+}
+
+function restoreProjectedResources(
+  resources: MothershipResource[],
+  projectedContent: unknown
+): MothershipResource[] | undefined {
+  if (!Array.isArray(projectedContent) || projectedContent.length !== resources.length) {
+    return undefined
+  }
+
+  const projectedResources: MothershipResource[] = []
+  for (let index = 0; index < resources.length; index += 1) {
+    const content = projectedContent[index]
+    if (
+      !isPlainRecord(content) ||
+      typeof content.title !== 'string' ||
+      (content.path !== undefined && typeof content.path !== 'string')
+    ) {
+      return undefined
+    }
+
+    const resource = resources[index]
+    projectedResources.push({
+      type: resource.type,
+      id: resource.id,
+      title: content.title,
+      ...(content.path !== undefined ? { path: content.path } : {}),
+    })
+  }
+
+  return projectedResources
 }
 
 /** Returns a nonempty control error that cannot contain any active literal. */
 function createSafeControlError(matcher: ResolvedSecretMatcher | undefined): string {
-  if (!matcher) return FUNCTION_RESULT_OMITTED_ERROR
+  if (!matcher) return TOOL_RESULT_OMITTED_ERROR
 
   try {
-    const projected = sanitizeResolvedSecretString(FUNCTION_RESULT_OMITTED_ERROR, matcher)
+    const projected = sanitizeResolvedSecretString(TOOL_RESULT_OMITTED_ERROR, matcher)
     if (projected.length > 0 && !containsResolvedSecret(projected, matcher)) return projected
   } catch {}
 
@@ -50,15 +84,13 @@ function omittedResult(
 }
 
 /**
- * Projects only the Function sandbox content that can cross into Copilot.
- * Runtime output remains local and unchanged for post-processing and resource side effects.
+ * Projects terminal tool content before it can cross back into Copilot.
+ * Runtime output remains unchanged for raw post-processing and context updates.
  */
-export function projectFunctionResultForCopilot(
-  toolName: string,
+export function projectToolResultForCopilot(
   result: ToolExecutionResult,
   registry: ResolvedSecretTraceRegistry | undefined
 ): ToolExecutionResult {
-  if (!isFunctionSandboxTool(toolName)) return result
   if (!registry?.isComplete()) return omittedResult(result, undefined)
 
   let matcher: ResolvedSecretMatcher | undefined
@@ -69,6 +101,7 @@ export function projectFunctionResultForCopilot(
     const content: Record<string, unknown> = {}
     if (Object.hasOwn(result, 'output')) content.output = result.output
     if (Object.hasOwn(result, 'error')) content.error = result.error
+    if (result.resources !== undefined) content.resources = resourceContent(result.resources)
     const projection = projectResolvedSecretContent(content, matcher)
     if (!projection.safe || !projection.value || typeof projection.value !== 'object') {
       return omittedResult(result, matcher)
@@ -80,6 +113,11 @@ export function projectFunctionResultForCopilot(
     if (Object.hasOwn(projectedContent, 'error')) {
       projected.error = String(projectedContent.error)
     }
+    if (result.resources !== undefined) {
+      const resources = restoreProjectedResources(result.resources, projectedContent.resources)
+      if (!resources) return omittedResult(result, matcher)
+      projected.resources = resources
+    }
     if (!projected.success && !projected.error) {
       projected.error = createSafeControlError(matcher)
     }
@@ -87,4 +125,15 @@ export function projectFunctionResultForCopilot(
   } catch {
     return omittedResult(result, matcher)
   }
+}
+
+/** Projects an error before post-processing can attach it to application logs or OTel events. */
+export function projectToolErrorMessageForCopilot(
+  error: string,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string {
+  return (
+    projectToolResultForCopilot({ success: false, error }, registry).error ??
+    TOOL_RESULT_OMITTED_ERROR
+  )
 }

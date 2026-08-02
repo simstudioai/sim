@@ -32,7 +32,11 @@ function makeContext(): StreamingContext {
     wasAborted: false,
     errors: [],
     trace: new TraceCollector(),
-    toolPermissions: { enabled: false, autoAllowed: new Set() },
+    toolPermissions: {
+      enabled: false,
+      promptSurfaceAvailable: false,
+      autoAllowed: new Set(),
+    },
   }
 }
 

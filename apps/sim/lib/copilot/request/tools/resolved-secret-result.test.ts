@@ -2,10 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { FunctionExecute, Read, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
+import { FunctionExecute, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
-  FUNCTION_RESULT_OMITTED_ERROR,
-  projectFunctionResultForCopilot,
+  projectToolResultForCopilot,
+  TOOL_RESULT_OMITTED_ERROR,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -19,7 +19,7 @@ function createRegistry(): ResolvedSecretTraceRegistry {
   ])
 }
 
-describe('projectFunctionResultForCopilot', () => {
+describe('projectToolResultForCopilot', () => {
   it.each([FunctionExecute.id, RunCode.id])(
     'projects active exact and embedded secrets for %s without mutating runtime output',
     (toolName) => {
@@ -35,7 +35,7 @@ describe('projectFunctionResultForCopilot', () => {
       }
       const runtimeSnapshot = structuredClone(runtimeResult)
 
-      expect(projectFunctionResultForCopilot(toolName, runtimeResult, registry)).toEqual({
+      expect(projectToolResultForCopilot(runtimeResult, registry)).toEqual({
         success: true,
         output: {
           result: '{{SECRET}}',
@@ -52,8 +52,7 @@ describe('projectFunctionResultForCopilot', () => {
     registry.recordResolved('SECRET', 'secret-value')
 
     expect(
-      projectFunctionResultForCopilot(
-        FunctionExecute.id,
+      projectToolResultForCopilot(
         {
           success: false,
           output: { stdout: 'printed secret-value' },
@@ -73,8 +72,7 @@ describe('projectFunctionResultForCopilot', () => {
     registry.recordResolved('SECRET', 'secret-value')
 
     expect(
-      projectFunctionResultForCopilot(
-        FunctionExecute.id,
+      projectToolResultForCopilot(
         {
           success: true,
           output: { 'prefix-secret-value': 'safe' },
@@ -87,8 +85,7 @@ describe('projectFunctionResultForCopilot', () => {
     })
 
     expect(
-      projectFunctionResultForCopilot(
-        FunctionExecute.id,
+      projectToolResultForCopilot(
         {
           success: true,
           output: { 'secret-value': 'first', '{{SECRET}}': 'second' },
@@ -110,13 +107,9 @@ describe('projectFunctionResultForCopilot', () => {
     registry.recordResolved('BRACE', '{')
     registry.recordResolved('JOINED', 'ac')
 
-    expect(
-      projectFunctionResultForCopilot(
-        FunctionExecute.id,
-        { success: true, output: 'aBc' },
-        registry
-      )
-    ).toEqual({ success: true })
+    expect(projectToolResultForCopilot({ success: true, output: 'aBc' }, registry)).toEqual({
+      success: true,
+    })
   })
 
   it('keeps the control error safe from active one-character values', () => {
@@ -125,8 +118,7 @@ describe('projectFunctionResultForCopilot', () => {
     ])
     registry.recordResolved('F_SECRET', 'F')
 
-    const projected = projectFunctionResultForCopilot(
-      FunctionExecute.id,
+    const projected = projectToolResultForCopilot(
       {
         success: false,
         output: { F: 'first', '': 'second' },
@@ -147,11 +139,7 @@ describe('projectFunctionResultForCopilot', () => {
     const encoded = Buffer.from('secret-value').toString('base64')
 
     expect(
-      projectFunctionResultForCopilot(
-        FunctionExecute.id,
-        { success: true, output: { result: encoded } },
-        registry
-      )
+      projectToolResultForCopilot({ success: true, output: { result: encoded } }, registry)
     ).toEqual({ success: true, output: { result: encoded } })
   })
 
@@ -162,7 +150,7 @@ describe('projectFunctionResultForCopilot', () => {
       output: { result: 'secret-value', stdout: '' },
     }
 
-    expect(projectFunctionResultForCopilot(FunctionExecute.id, result, registry)).toEqual(result)
+    expect(projectToolResultForCopilot(result, registry)).toEqual(result)
   })
 
   it.each([
@@ -177,8 +165,7 @@ describe('projectFunctionResultForCopilot', () => {
     ],
   ])('fails closed for %s provenance without changing structural fields', (_label, registry) => {
     expect(
-      projectFunctionResultForCopilot(
-        FunctionExecute.id,
+      projectToolResultForCopilot(
         {
           success: false,
           output: { result: 'possibly-secret' },
@@ -189,16 +176,44 @@ describe('projectFunctionResultForCopilot', () => {
       )
     ).toEqual({
       success: false,
-      error: FUNCTION_RESULT_OMITTED_ERROR,
-      resources: [{ type: 'file', id: 'file-1', title: 'report.txt' }],
+      error: TOOL_RESULT_OMITTED_ERROR,
     })
   })
 
-  it('does not project unrelated tool results', () => {
+  it('projects Copilot-visible resource metadata without changing the runtime result', () => {
+    const registry = createRegistry()
+    registry.recordResolved('SECRET', 'secret-value')
+    const result = {
+      success: true,
+      resources: [{ type: 'file' as const, id: 'file-secret-value', title: 'secret-value.txt' }],
+    }
+
+    expect(projectToolResultForCopilot(result, registry)).toEqual({
+      success: true,
+      resources: [{ type: 'file', id: 'file-secret-value', title: '{{SECRET}}.txt' }],
+    })
+    expect(result.resources[0]).toEqual({
+      type: 'file',
+      id: 'file-secret-value',
+      title: 'secret-value.txt',
+    })
+  })
+
+  it('projects every tool result once provenance is active', () => {
     const registry = createRegistry()
     registry.recordResolved('SECRET', 'secret-value')
     const result = { success: true, output: 'secret-value' }
 
-    expect(projectFunctionResultForCopilot(Read.id, result, registry)).toBe(result)
+    expect(projectToolResultForCopilot(result, registry)).toEqual({
+      success: true,
+      output: '{{SECRET}}',
+    })
+    expect(result).toEqual({ success: true, output: 'secret-value' })
+  })
+
+  it('omits every tool result when no trusted provenance registry exists', () => {
+    expect(
+      projectToolResultForCopilot({ success: true, output: 'possibly-secret' }, undefined)
+    ).toEqual({ success: true })
   })
 })

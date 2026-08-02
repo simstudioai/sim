@@ -33,7 +33,11 @@ import type { StreamEvent, ToolCallState } from '@/lib/copilot/request/types'
 
 function makeContext() {
   const context = createStreamingContext({ runId: 'run-1' })
-  context.toolPermissions = { enabled: true, autoAllowed: new Set() }
+  context.toolPermissions = {
+    enabled: true,
+    promptSurfaceAvailable: true,
+    autoAllowed: new Set(),
+  }
   context.trace = new TraceCollector()
   return context
 }
@@ -91,6 +95,18 @@ describe('toolCallNeedsApproval', () => {
     expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
   })
 
+  it('ignores saved auto-allow for a secret-bearing code call', () => {
+    const context = makeContext()
+    context.toolPermissions.autoAllowed.add('function_execute')
+
+    expect(
+      toolCallNeedsApproval('function_execute', context, {}, false, {
+        language: 'javascript',
+        code: 'return {{API_KEY}}',
+      })
+    ).toBe(true)
+  })
+
   it('never gates a non-interactive run, which has nobody to answer the prompt', () => {
     expect(
       toolCallNeedsApproval('terminal', makeContext(), { interactive: false }, false, runCall)
@@ -101,6 +117,18 @@ describe('toolCallNeedsApproval', () => {
     const context = makeContext()
     context.toolPermissions.enabled = false
     expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
+  })
+
+  it('still gates secret-bearing code when the permission surface is disabled', () => {
+    const context = makeContext()
+    context.toolPermissions.enabled = false
+
+    expect(
+      toolCallNeedsApproval('function_execute', context, {}, false, {
+        language: 'javascript',
+        code: 'return {{API_KEY}}',
+      })
+    ).toBe(true)
   })
 
   it('gates a resolved integration operation off the frame Go stamped', () => {
@@ -280,6 +308,27 @@ describe('runGatedToolExecution', () => {
     expect(execute).toHaveBeenCalledTimes(1)
     expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(true)
   })
+
+  it.each(['allow_chat', 'always_allow'] as const)(
+    'refuses a persisted %s decision for a secret-bearing code call',
+    async (decision) => {
+      const context = makeContext()
+      const toolCall = makeToolCall()
+      toolCall.name = 'function_execute'
+      toolCall.params = { language: 'javascript', code: 'return {{API_KEY}}' }
+      const execute = vi.fn().mockResolvedValue({ status: 'success' })
+      waitForToolPermissionDecision.mockResolvedValue({ toolCallId: 'call-1', decision })
+
+      const signal = await gate(context, toolCall, execute, [])
+
+      expect(execute).not.toHaveBeenCalled()
+      expect(signal.status).toBe('success')
+      expect(toolCall.result?.output).toMatchObject({
+        reason: 'secret_permission_requires_one_time_allow',
+      })
+      expect(context.toolPermissions.autoAllowed.has('function_execute')).toBe(false)
+    }
+  )
 
   it('does not suppress later prompts for a one-off allow', async () => {
     const context = makeContext()

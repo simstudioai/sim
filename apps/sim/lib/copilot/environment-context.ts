@@ -5,10 +5,7 @@ import {
 } from '@/lib/environment/utils'
 import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-export type CopilotEnvironmentContext = Pick<
-  ExecutionContext,
-  'decryptedEnvVars' | 'resolvedSecretTraceRegistry'
->
+export type CopilotEnvironmentContext = Pick<ExecutionContext, 'resolvedSecretTraceRegistry'>
 
 export async function createCopilotEnvironmentContext(
   userId: string,
@@ -25,10 +22,6 @@ export async function createCopilotEnvironmentContext(
   })
 
   return {
-    decryptedEnvVars: {
-      ...environment.personalDecrypted,
-      ...environment.workspaceDecrypted,
-    },
     resolvedSecretTraceRegistry,
   }
 }

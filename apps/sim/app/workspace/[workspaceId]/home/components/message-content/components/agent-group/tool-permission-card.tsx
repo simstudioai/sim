@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   ChevronDown,
   Chip,
+  ChipTag,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,6 +17,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
+import { getToolSecretMountNames } from '@/lib/copilot/tools/secret-mount'
 import { generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
@@ -128,6 +130,8 @@ export function ToolPermissionCard({
   )
 
   const preview = argsPreview(params)
+  const mountedSecretNames = getToolSecretMountNames(toolName, params)
+  const mountsSecrets = mountedSecretNames.length > 0
   const busy = submitting !== null || isSubmitted
 
   if (expired) {
@@ -169,25 +173,38 @@ export function ToolPermissionCard({
         <Chip variant='primary' disabled={busy} onClick={() => void submit('allow', [toolCallId])}>
           Allow
         </Chip>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip variant='border' rightIcon={ChevronDown} disabled={busy}>
-              Don't ask again
-            </Chip>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
-            <DropdownMenuItem onSelect={() => void submit('allow_chat', [toolCallId])}>
-              For this chat
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void submit('always_allow', [toolCallId])}>
-              For every chat
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!mountsSecrets && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Chip variant='border' rightIcon={ChevronDown} disabled={busy}>
+                Don't ask again
+              </Chip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start'>
+              <DropdownMenuItem onSelect={() => void submit('allow_chat', [toolCallId])}>
+                For this chat
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void submit('always_allow', [toolCallId])}>
+                For every chat
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Chip disabled={busy} onClick={() => void submit('skip', [toolCallId])}>
           Skip
         </Chip>
       </div>
+
+      {mountsSecrets && (
+        <div className='flex flex-wrap items-center gap-1 pl-[22px]'>
+          <span className='mr-1 text-[var(--text-tertiary)] text-xs'>Secrets</span>
+          {mountedSecretNames.map((name) => (
+            <ChipTag key={name} variant='mono'>
+              {`{{${name}}}`}
+            </ChipTag>
+          ))}
+        </div>
+      )}
 
       {showBulkActions && (
         <div className='flex flex-wrap items-center pl-[22px]'>

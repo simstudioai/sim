@@ -226,6 +226,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       endsAt,
       startDate,
       contexts,
+      secretScope,
+      mountedSecrets,
     } = parsed.data.body
 
     const permission = await verifyWorkspaceMembership(session.user.id, workspaceId)
@@ -248,6 +250,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       endsAt,
       startDate,
       contexts,
+      secretScope,
+      mountedSecrets,
       request: req,
     })
     if (!result.success || !result.schedule) {

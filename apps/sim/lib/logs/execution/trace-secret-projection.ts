@@ -22,8 +22,8 @@ import type { IterationToolCall, ProviderTimingSegment } from '@/executor/types'
 import {
   containsResolvedSecret,
   createResolvedSecretMatcher,
+  projectResolvedSecretContent,
   type ResolvedSecretMatcher,
-  sanitizeResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -94,11 +94,6 @@ interface AsyncSemaphore {
 interface TraversalState {
   nodes: number
   ancestors: WeakSet<object>
-}
-
-interface SanitizationTraversalState extends TraversalState {
-  outputBytes: number
-  maxBytes: number
 }
 
 interface PlaintextInvariantContext {
@@ -385,87 +380,6 @@ function getLargeValueCandidate(value: unknown): LargeValueCandidate | undefined
   return value as LargeArrayManifest
 }
 
-function sanitizeInlineValue(
-  value: unknown,
-  matcher: ResolvedSecretMatcher,
-  safeLargeValues: WeakSet<object>,
-  state: SanitizationTraversalState,
-  depth = 0
-): unknown {
-  visitNode(state, depth)
-  if (typeof value === 'string') {
-    const sanitized = sanitizeResolvedSecretString(
-      value,
-      matcher,
-      state.maxBytes - state.outputBytes
-    )
-    state.outputBytes += Buffer.byteLength(sanitized, 'utf8')
-    return sanitized
-  }
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
-    const rendered = String(value)
-    if (!containsResolvedSecret(rendered, matcher)) return value
-    const sanitized = sanitizeResolvedSecretString(
-      rendered,
-      matcher,
-      state.maxBytes - state.outputBytes
-    )
-    state.outputBytes += Buffer.byteLength(sanitized, 'utf8')
-    return sanitized
-  }
-  if (value === undefined) return value
-  if (typeof value !== 'object') {
-    throw new TraceSecretProjectionError('Unsupported trace content value')
-  }
-  const largeValue = getLargeValueCandidate(value)
-  if (largeValue) {
-    if (!safeLargeValues.has(value as object)) {
-      throw new TraceSecretProjectionError('Trace content contains an unverified large value')
-    }
-    return value
-  }
-  if (!Array.isArray(value) && !isPlainRecord(value)) {
-    throw new TraceSecretProjectionError('Unsupported trace content object')
-  }
-
-  enterObject(value, state)
-  try {
-    if (Array.isArray(value)) {
-      assertArrayFitsTraversal(value, state)
-      const sanitized = new Array<unknown>(value.length)
-      for (const [index, item] of arrayDataEntries(value)) {
-        sanitized[index] = sanitizeInlineValue(item, matcher, safeLargeValues, state, depth + 1)
-      }
-      return sanitized
-    }
-
-    const prototype = Object.getPrototypeOf(value)
-    const sanitized = Object.create(prototype) as Record<string, unknown>
-    const sanitizedKeys = new Set<string>()
-    for (const [key, item] of enumerableDataEntries(value)) {
-      const sanitizedKey = sanitizeResolvedSecretString(
-        key,
-        matcher,
-        state.maxBytes - state.outputBytes
-      )
-      state.outputBytes += Buffer.byteLength(sanitizedKey, 'utf8')
-      if (sanitizedKeys.has(sanitizedKey)) {
-        throw new TraceSecretProjectionError('Secret replacement caused an object-key collision')
-      }
-      sanitizedKeys.add(sanitizedKey)
-      Object.defineProperty(sanitized, sanitizedKey, {
-        value: sanitizeInlineValue(item, matcher, safeLargeValues, state, depth + 1),
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      })
-    }
-    return sanitized
-  } finally {
-    leaveObject(value, state)
-  }
-}
-
 function collectLargeValues(
   value: unknown,
   refs: object[],
@@ -646,12 +560,13 @@ async function sanitizeMaterializedValue(
   withinRefWorker = false
 ): Promise<unknown> {
   const withSafeRefs = await replaceLargeValues(value, context, path, withinRefWorker)
-  return sanitizeInlineValue(withSafeRefs, context.matcher, context.safeLargeValues, {
-    nodes: 0,
-    ancestors: new WeakSet<object>(),
-    outputBytes: 0,
-    maxBytes,
+  const projection = projectResolvedSecretContent(withSafeRefs, context.matcher, maxBytes, {
+    isOpaqueSafeObject: (candidate) => context.safeLargeValues.has(candidate),
   })
+  if (!projection.safe) {
+    throw new TraceSecretProjectionError('Trace content could not be sanitized')
+  }
+  return projection.value
 }
 
 async function storeSanitizedLargeValue(

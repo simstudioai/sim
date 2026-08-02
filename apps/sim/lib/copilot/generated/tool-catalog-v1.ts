@@ -1768,7 +1768,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
       },
       inputs: {
         type: 'object',
@@ -1900,7 +1900,14 @@ export const FunctionExecute: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   requiresApproval: true,
-  capabilities: ['file_input', 'directory_input', 'file_output', 'table_input', 'table_output'],
+  capabilities: [
+    'file_input',
+    'directory_input',
+    'file_output',
+    'table_input',
+    'table_output',
+    'secret_mount',
+  ],
 }
 
 export const GenerateApiKey: ToolCatalogEntry = {
@@ -3766,7 +3773,7 @@ export const RunCode: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
       },
       inputs: {
         type: 'object',
@@ -3846,7 +3853,7 @@ export const RunCode: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   requiresApproval: true,
-  capabilities: ['file_input', 'directory_input', 'table_input'],
+  capabilities: ['file_input', 'directory_input', 'table_input', 'secret_mount'],
 }
 
 export const RunFromBlock: ToolCatalogEntry = {

@@ -816,6 +816,34 @@ describe('Function Execute API Route', () => {
       expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
+    it('does not report a reference when validation rejects before code resolution', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return {{API_KEY}}',
+            envVars: { API_KEY: 'secret-value' },
+            outputs: {
+              files: Array.from({ length: 21 }, (_, index) => ({
+                path: `files/output-${index}.json`,
+                sandboxPath: `/home/user/output-${index}.json`,
+              })),
+            },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('Too many sandbox output files requested')
+      expect(data.__resolvedSecretNames).toEqual([])
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    })
+
     it('reports only successful references sourced from scoped environment variables', async () => {
       const envResponse = await POST(
         createMockRequest(

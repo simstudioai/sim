@@ -1246,6 +1246,7 @@ export async function executeTool(
 
   // Hoisted so the outer catch can attribute a thrown failure to the chosen key.
   let hostedKeyForMetrics: { provider: string; tool: string; key: string } | undefined
+  let completePendingSecretActivation: (() => void) | undefined
 
   try {
     let tool: ToolConfig | undefined
@@ -1270,6 +1271,10 @@ export async function executeTool(
             (normalizedToolId === 'function_execute' || toolKind === 'custom')
           ? RESOLVED_SECRET_NAMES_METADATA_V1
           : undefined
+
+    if (resolvedSecretTraceRegistry && (privateToolMetadataType || toolKind === 'mcp')) {
+      completePendingSecretActivation = resolvedSecretTraceRegistry.beginPendingActivation()
+    }
 
     // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
     // denylist is enforced alongside the existing mcp/custom/skill gates.
@@ -1773,6 +1778,8 @@ export async function executeTool(
         duration,
       },
     }
+  } finally {
+    completePendingSecretActivation?.()
   }
 }
 
