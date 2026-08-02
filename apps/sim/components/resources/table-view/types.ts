@@ -51,3 +51,20 @@ export interface RemoteTableSelection {
   userName: string
   cell: NonNullable<TableCellSelection>
 }
+
+/**
+ * Reason the inline editor completed, used to determine navigation after save
+ */
+export type SaveReason = 'enter' | 'tab' | 'shift-tab' | 'blur'
+
+/**
+ * Tracks which cell is currently being edited inline. `columnKey` distinguishes
+ * fanned-out workflow visual columns (which share the same `columnName`) — set
+ * when the interaction targets a specific visual column (e.g. expanded view),
+ * omitted for plain cells.
+ */
+export interface EditingCell {
+  rowId: string
+  columnName: string
+  columnKey?: string
+}

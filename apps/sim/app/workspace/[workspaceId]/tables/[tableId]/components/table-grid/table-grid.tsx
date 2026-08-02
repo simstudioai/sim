@@ -10,6 +10,41 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import type { EditingCell, SaveReason } from '@/components/resources/table-view'
+import {
+  ADD_COL_WIDTH,
+  AddRowButton,
+  buildHeaderGroups,
+  type CellCoord,
+  COL_WIDTH,
+  ColumnHeaderMenu,
+  checkboxColLayout,
+  classifyExecStatusMix,
+  cleanCellValue,
+  collectRowSnapshots,
+  computeNormalizedSelection,
+  DataRow,
+  type DisplayColumn,
+  type ExecStatusMix,
+  expandToDisplayColumns,
+  isCellInSelection,
+  moveCell,
+  RemoteSelectionOverlay,
+  type RemoteTableSelection,
+  ROW_SELECTION_ALL,
+  ROW_SELECTION_NONE,
+  type RowSelection,
+  rowSelectionCoversAll,
+  rowSelectionIncludes,
+  rowSelectionIsEmpty,
+  rowSelectionMaterialize,
+  SELECTION_TINT_BG,
+  SelectAllCheckbox,
+  generateColumnName as sharedGenerateColumnName,
+  TableColGroup,
+  TableFind,
+  WorkflowGroupMetaCell,
+} from '@/components/resources/table-view'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -44,39 +79,12 @@ import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
-import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
+import type { QueryOptions } from '../../types'
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover, InlineEditor } from './cells'
-import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
-import { DataRow } from './data-row'
-import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
-import { RemoteSelectionOverlay } from './remote-selection-overlay'
-import { TableFind } from './table-find'
-import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
-import type { DisplayColumn, RemoteTableSelection } from './types'
-import {
-  buildHeaderGroups,
-  type CellCoord,
-  checkboxColLayout,
-  classifyExecStatusMix,
-  collectRowSnapshots,
-  computeNormalizedSelection,
-  type ExecStatusMix,
-  expandToDisplayColumns,
-  isCellInSelection,
-  moveCell,
-  ROW_SELECTION_ALL,
-  ROW_SELECTION_NONE,
-  type RowSelection,
-  rowSelectionCoversAll,
-  rowSelectionIncludes,
-  rowSelectionIsEmpty,
-  rowSelectionMaterialize,
-} from './utils'
 
 const logger = createLogger('TableView')
 

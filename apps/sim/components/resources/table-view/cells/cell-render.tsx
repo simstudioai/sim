@@ -8,9 +8,9 @@ import { StatusBadge } from '@/components/execution-status'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
-import { storageToDisplay } from '../../../utils'
-import { resolveSelectOptions, SelectPill } from '../../select-field'
+import { resolveSelectOptions, SelectPill } from '../select-pill'
 import type { DisplayColumn } from '../types'
+import { storageToDisplay } from '../values'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 
 export type CellRenderKind =

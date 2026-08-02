@@ -8,6 +8,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import {
+  COLUMN_SIDEBAR_WIDTH,
+  columnTypeIcon,
+  generateColumnName,
+} from '@/components/resources/table-view'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -71,8 +76,6 @@ import {
   type WorkflowConfig,
   WorkflowSidebar,
 } from './components'
-import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
-import { columnTypeIcon } from './components/table-grid/headers'
 import { useTable, useTableEventStream, useTableRoom } from './hooks'
 import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
@@ -82,7 +85,6 @@ import {
   tableDetailUrlKeys,
 } from './search-params'
 import type { QueryOptions } from './types'
-import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
 

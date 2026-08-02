@@ -12,9 +12,9 @@
  * `resolveSimResourceKind`; these tests are what keep it there.
  */
 import { describe, expect, it } from 'vitest'
+import type { DisplayColumn } from '@/components/resources/table-view'
+import { resolveCellRender } from '@/components/resources/table-view'
 import type { RowExecutionMetadata } from '@/lib/table'
-import { resolveCellRender } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/cell-render'
-import type { DisplayColumn } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
 
 const WORKSPACE_ID = 'ws_00000000'
 

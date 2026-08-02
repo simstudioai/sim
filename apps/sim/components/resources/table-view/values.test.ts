@@ -9,7 +9,7 @@ import {
   formatValueForInput,
   localPartsToDateValue,
   storageToDisplay,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/utils'
+} from '@/components/resources/table-view'
 
 describe('dateValueToLocalParts / localPartsToDateValue', () => {
   it('splits calendar dates without a time part and round-trips', () => {

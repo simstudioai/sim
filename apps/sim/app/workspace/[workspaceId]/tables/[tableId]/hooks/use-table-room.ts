@@ -24,7 +24,7 @@ const JOIN_RETRY_BASE_MS = 1000
 const SELECTION_EMIT_THROTTLE_MS = 50
 
 /** The `table:presence-update` broadcast name, derived from the room type. */
-import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
+import type { RemoteTableSelection } from '@/components/resources/table-view'
 
 const TABLE_PRESENCE_UPDATE_EVENT = presenceEventName(ROOM_TYPES.TABLE)
 

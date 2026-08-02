@@ -17,18 +17,18 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
-import { columnTypeOf } from '@/lib/table/column-types'
-import { resolveCurrencyCode } from '@/lib/table/currency'
-import { useTimezone } from '@/hooks/queries/general-settings'
-import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import {
   cleanCellValue,
   dateValueToLocalParts,
   formatValueForInput,
   localPartsToDateValue,
   todayLocalCalendarDate,
-} from '../../utils'
+} from '@/components/resources/table-view'
+import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { resolveCurrencyCode } from '@/lib/table/currency'
+import { useTimezone } from '@/hooks/queries/general-settings'
+import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import { SelectValueEditor } from '../select-field'
 
 const logger = createLogger('RowModal')

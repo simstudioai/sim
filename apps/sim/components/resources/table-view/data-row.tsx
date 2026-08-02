@@ -6,7 +6,6 @@ import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
-import type { SaveReason } from '../../types'
 import { CellContent } from './cells'
 import {
   CELL,
@@ -15,7 +14,7 @@ import {
   SELECTION_OVERLAY,
   SELECTION_TINT_BG,
 } from './constants'
-import type { DisplayColumn } from './types'
+import type { DisplayColumn, SaveReason } from './types'
 import { type NormalizedSelection, resolveCellExec } from './utils'
 
 export interface DataRowProps {

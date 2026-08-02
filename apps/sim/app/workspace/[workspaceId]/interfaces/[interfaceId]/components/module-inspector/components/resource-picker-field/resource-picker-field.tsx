@@ -5,7 +5,7 @@ import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import {
   MODULE_RESOURCE_COPY,
   type ModuleResourceKind,
-} from '@/components/resources/interface-view/module-resource-copy'
+} from '@/components/resources/interface-view'
 import { InspectorField } from '@/app/workspace/[workspaceId]/interfaces/[interfaceId]/components/inspector-field'
 
 /** The minimal shape a pickable workspace resource exposes. */

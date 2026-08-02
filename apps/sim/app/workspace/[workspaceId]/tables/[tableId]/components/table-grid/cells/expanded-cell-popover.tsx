@@ -3,17 +3,16 @@
 import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@sim/emcn'
-import type { TableRow as TableRowType } from '@/lib/table'
-import { columnTypeOf } from '@/lib/table/column-types'
-import { useTimezone } from '@/hooks/queries/general-settings'
-import type { EditingCell, SaveReason } from '../../../types'
+import type { DisplayColumn, EditingCell, SaveReason } from '@/components/resources/table-view'
 import {
   cleanCellValue,
   displayToStorage,
   formatValueForInput,
   storageToDisplay,
-} from '../../../utils'
-import type { DisplayColumn } from '../types'
+} from '@/components/resources/table-view'
+import type { TableRow as TableRowType } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { useTimezone } from '@/hooks/queries/general-settings'
 
 interface ExpandedCellPopoverProps {
   expandedCell: EditingCell | null
