@@ -3,41 +3,15 @@
 import { useMemo } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { ModuleChooser } from '@/components/resources/interface-view/components/module-chooser'
+import {
+  MODULE_RESOURCE_COPY,
+  type ModuleResourceKind,
+} from '@/components/resources/interface-view/module-resource-copy'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-/** The workspace resources a module can be bound to from inside the module. */
-export type ModuleResourceKind = 'workflow' | 'table' | 'file'
-
-interface ResourceCopy {
-  /** Chooser header, in the same slot the module-type stack titles itself. */
-  title: string
-  placeholder: string
-  searchPlaceholder: string
-  emptyMessage: string
-}
-
-const RESOURCE_COPY: Record<ModuleResourceKind, ResourceCopy> = {
-  workflow: {
-    title: 'Workflow',
-    placeholder: 'Select a workflow',
-    searchPlaceholder: 'Search workflows...',
-    emptyMessage: 'No workflows in this workspace',
-  },
-  table: {
-    title: 'Table',
-    placeholder: 'Select a table',
-    searchPlaceholder: 'Search tables...',
-    emptyMessage: 'No tables in this workspace',
-  },
-  file: {
-    title: 'File',
-    placeholder: 'Select a file',
-    searchPlaceholder: 'Search files...',
-    emptyMessage: 'No files in this workspace',
-  },
-}
+export type { ModuleResourceKind }
 
 /** The minimal shape every pickable workspace resource exposes. */
 interface PickableResource {
@@ -58,7 +32,7 @@ interface PickerProps {
  * declared exactly once.
  */
 function Picker({ kind, items, isLoading, onSelect }: PickerProps) {
-  const copy = RESOURCE_COPY[kind]
+  const copy = MODULE_RESOURCE_COPY[kind]
   const options = useMemo<ComboboxOption[]>(
     () => (items ?? []).map((item) => ({ label: item.name, value: item.id })),
     [items]

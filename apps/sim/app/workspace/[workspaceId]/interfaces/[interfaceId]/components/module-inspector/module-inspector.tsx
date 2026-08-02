@@ -246,11 +246,7 @@ function FileModuleFields({
   const files = useWorkspaceFiles(workspaceId)
   return (
     <ResourcePickerField
-      title='File'
-      missingMessage='This file is no longer in the workspace.'
-      placeholder='Select a file'
-      searchPlaceholder='Search files...'
-      emptyMessage='No files in this workspace'
+      kind='file'
       items={files.data}
       isLoading={files.isLoading}
       value={value.fileId}

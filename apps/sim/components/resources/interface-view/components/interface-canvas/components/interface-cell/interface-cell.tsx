@@ -30,9 +30,10 @@ export interface InterfaceCellProps {
   /** Top-left corner of the area this element covers — its drop target. */
   cell: InterfaceGridCell
   /**
-   * Grid placement, carried as the `--cell-row` / `--cell-col` custom
-   * properties the classes below consume. An occupied cell spans its module's
-   * whole rectangle; a vacant one is always a single square.
+   * Grid placement from `modulePlacementStyle`, carried as the `--module-row` /
+   * `--module-col` custom properties the classes below consume. An occupied
+   * cell spans its module's whole rectangle; a vacant one is always a single
+   * square.
    */
   style: CSSProperties
   /** null = empty cell → dashed placeholder resting as a `+`. */
@@ -106,7 +107,7 @@ export function InterfaceCell({
         onDragOver={onDragOver}
         onDrop={handleDrop}
         className={cn(
-          'relative flex min-h-0 items-center justify-center rounded-lg border border-[var(--border)] border-dashed transition-colors [grid-column:var(--cell-col)] [grid-row:var(--cell-row)]',
+          'relative flex min-h-0 items-center justify-center rounded-lg border border-[var(--border)] border-dashed transition-colors [grid-column:var(--module-col)] [grid-row:var(--module-row)]',
           canEdit &&
             !isChoosing &&
             'hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]',
@@ -185,7 +186,7 @@ export function InterfaceCell({
       onDragOver={onDragOver}
       onDrop={handleDrop}
       className={cn(
-        'group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-[var(--bg)] [grid-column:var(--cell-col)] [grid-row:var(--cell-row)]',
+        'group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-[var(--bg)] [grid-column:var(--module-col)] [grid-row:var(--module-row)]',
         selected ? SELECTION_BORDER_CLASS : 'border-[var(--border)]',
         isDragTarget && `${SELECTION_BORDER_CLASS} border-dashed`,
         isDragging && 'opacity-50'

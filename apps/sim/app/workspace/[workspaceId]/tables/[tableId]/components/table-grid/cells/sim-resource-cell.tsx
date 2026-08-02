@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/components/chat/context-mention-icon'
-import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessageContext } from '@/components/chat/types'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'

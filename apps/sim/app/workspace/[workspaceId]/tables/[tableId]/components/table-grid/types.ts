@@ -1,4 +1,5 @@
 import type React from 'react'
+import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import type { ColumnDefinition } from '@/lib/table'
 
 export interface BlockIconInfo {
@@ -34,4 +35,19 @@ export interface DisplayColumn extends ColumnDefinition {
   headerLabel: string
   /** True when this is the leftmost sibling of its group (or non-grouped). */
   isGroupStart: boolean
+}
+
+/**
+ * A remote viewer's current cell selection, ready to render as a presence overlay.
+ *
+ * Declared beside the grid's own view types rather than in the presence hook: the
+ * overlay that draws it is presentational, while the hook that produces it holds an
+ * authenticated socket session. Keeping the type here lets the overlay stay free of
+ * any dependency on the hook.
+ */
+export interface RemoteTableSelection {
+  socketId: string
+  userId: string
+  userName: string
+  cell: NonNullable<TableCellSelection>
 }

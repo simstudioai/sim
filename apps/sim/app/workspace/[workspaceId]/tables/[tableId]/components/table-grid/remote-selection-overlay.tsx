@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getUserColor, withAlpha } from '@/lib/workspaces/colors'
-import {
-  isCellInSelection,
-  type NormalizedSelection,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils'
-import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
+import type { RemoteTableSelection } from './types'
+import { isCellInSelection, type NormalizedSelection } from './utils'
 
 /** A measured remote selection, positioned in the grid content wrapper's space. */
 interface SelectionBox {

@@ -1,8 +1,14 @@
 'use client'
 
-import { type CSSProperties, type DragEvent, useMemo, useState } from 'react'
+import { type DragEvent, useMemo, useState } from 'react'
 import { InterfaceCell } from '@/components/resources/interface-view/components/interface-canvas/components/interface-cell'
 import { InterfacePreviewGrid } from '@/components/resources/interface-view/components/interface-preview-grid'
+import {
+  INTERFACE_GRID_CLASS,
+  INTERFACE_SCROLL_WELL_CLASS,
+  interfaceGridStyle,
+  modulePlacementStyle,
+} from '@/components/resources/interface-view/module-chrome'
 import { DEFAULT_MODULE_SPAN } from '@/lib/interfaces/constants'
 import { cellKey, freeCells } from '@/lib/interfaces/geometry'
 import type {
@@ -13,19 +19,6 @@ import type {
   InterfaceModuleType,
   InterfacePlacement,
 } from '@/lib/interfaces/types'
-
-const CANVAS_ROOT_CLASS = 'relative min-w-0 flex-1 overflow-auto p-4'
-
-const GRID_CLASS =
-  'grid h-full min-h-0 gap-2 [grid-template-columns:repeat(var(--interface-cols),minmax(0,1fr))] [grid-template-rows:repeat(var(--interface-rows),minmax(0,1fr))]'
-
-/** Grid-area custom properties for one authored placement. */
-function placementStyle(placement: InterfacePlacement): CSSProperties {
-  return {
-    '--cell-row': `${placement.row + 1} / span ${placement.rowSpan}`,
-    '--cell-col': `${placement.col + 1} / span ${placement.colSpan}`,
-  } as CSSProperties
-}
 
 export interface InterfaceCanvasProps {
   layout: InterfaceLayout
@@ -135,7 +128,7 @@ export function InterfaceCanvas({
       <InterfaceCell
         key={module ? module.id : cellKey(cell)}
         cell={cell}
-        style={placementStyle(placement)}
+        style={modulePlacementStyle(placement)}
         module={module}
         selected={module !== null && module.id === selectedModuleId}
         canEdit={canEdit}
@@ -161,16 +154,8 @@ export function InterfaceCanvas({
   }
 
   return (
-    <div className={CANVAS_ROOT_CLASS}>
-      <div
-        style={
-          {
-            '--interface-cols': layout.grid.cols,
-            '--interface-rows': layout.grid.rows,
-          } as CSSProperties
-        }
-        className={GRID_CLASS}
-      >
+    <div className={INTERFACE_SCROLL_WELL_CLASS}>
+      <div style={interfaceGridStyle(layout.grid)} className={INTERFACE_GRID_CLASS}>
         {layout.modules.map((module) => renderCell(module.placement, module))}
         {vacant.map((cell) => renderCell({ ...cell, ...DEFAULT_MODULE_SPAN }, null))}
       </div>

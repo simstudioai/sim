@@ -84,11 +84,7 @@ export function FormModuleFields({
   return (
     <div className='flex flex-col'>
       <ResourcePickerField
-        title='Workflow'
-        missingMessage='This workflow is no longer in the workspace.'
-        placeholder='Select a workflow'
-        searchPlaceholder='Search workflows...'
-        emptyMessage='No workflows in this workspace'
+        kind='workflow'
         items={workflows.data}
         isLoading={workflows.isLoading}
         value={value.workflowId}

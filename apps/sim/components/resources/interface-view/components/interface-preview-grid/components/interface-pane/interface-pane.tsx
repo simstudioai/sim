@@ -7,11 +7,12 @@ import type { InterfaceModule } from '@/lib/interfaces'
 export interface InterfacePaneProps {
   module: InterfaceModule
   /**
-   * Collapsed grid placement from `collapseLayout`, carried as the
-   * `--pane-row` / `--pane-col` custom properties the classes below consume.
-   * Custom properties rather than `gridRow`/`gridColumn` directly: an inline
-   * `style` outranks every media query, so a literal placement could not be
-   * dropped for the stacked phone layout.
+   * Collapsed grid placement from `collapseLayout`, built by
+   * `modulePlacementStyle` and carried as the `--module-row` / `--module-col`
+   * custom properties the classes below consume. Custom properties rather than
+   * `gridRow`/`gridColumn` directly: an inline `style` outranks every media
+   * query, so a literal placement could not be dropped for the stacked phone
+   * layout.
    */
   style: CSSProperties
   /** Whether this surface is live for the viewer — the interactive modules need it to run. */
@@ -36,7 +37,7 @@ export function InterfacePane({ module, style, canRun }: InterfacePaneProps) {
   return (
     <div
       style={style}
-      className='flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] [grid-column:var(--pane-col)] [grid-row:var(--pane-row)] max-sm:min-h-[70dvh] max-sm:[grid-column:auto] max-sm:[grid-row:auto]'
+      className='flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] [grid-column:var(--module-col)] [grid-row:var(--module-row)] max-sm:min-h-[70dvh] max-sm:[grid-column:auto] max-sm:[grid-row:auto]'
     >
       <div className='min-h-0 flex-1 overflow-auto'>
         <ModuleRenderer module={module} mode='preview' canRun={canRun} />

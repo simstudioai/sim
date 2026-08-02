@@ -27,11 +27,7 @@ export function TableModuleFields({
 
   return (
     <ResourcePickerField
-      title='Table'
-      missingMessage='This table is no longer in the workspace.'
-      placeholder='Select a table'
-      searchPlaceholder='Search tables...'
-      emptyMessage='No tables in this workspace'
+      kind='table'
       items={tables.data}
       isLoading={tables.isLoading}
       value={value.tableId}

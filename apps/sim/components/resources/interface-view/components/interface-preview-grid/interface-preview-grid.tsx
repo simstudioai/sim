@@ -1,8 +1,15 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { cn } from '@sim/emcn'
 import { Panels } from '@sim/emcn/icons'
 import { InterfacePane } from '@/components/resources/interface-view/components/interface-preview-grid/components/interface-pane'
+import {
+  INTERFACE_GRID_CLASS,
+  INTERFACE_GRID_STACK_SM_CLASS,
+  INTERFACE_SCROLL_WELL_CLASS,
+  interfaceGridStyle,
+  modulePlacementStyle,
+} from '@/components/resources/interface-view/module-chrome'
 import { ResourceEmptyState } from '@/components/resources/resource-empty-state'
 import { collapseLayout } from '@/lib/interfaces/geometry'
 import type { InterfaceLayout } from '@/lib/interfaces/types'
@@ -36,33 +43,23 @@ export function InterfacePreviewGrid({ layout, canRun }: InterfacePreviewGridPro
 
   if (preview.modules.length === 0) {
     return (
-      <div className='relative min-w-0 flex-1 overflow-auto p-4'>
+      <div className={INTERFACE_SCROLL_WELL_CLASS}>
         <ResourceEmptyState icon={Panels} description='This interface has no modules yet.' />
       </div>
     )
   }
 
   return (
-    <div className='relative min-w-0 flex-1 overflow-auto p-4'>
+    <div className={INTERFACE_SCROLL_WELL_CLASS}>
       <div
-        style={
-          {
-            '--interface-cols': preview.grid.cols,
-            '--interface-rows': preview.grid.rows,
-          } as CSSProperties
-        }
-        className='grid h-full min-h-0 gap-2 [grid-template-columns:repeat(var(--interface-cols),minmax(0,1fr))] [grid-template-rows:repeat(var(--interface-rows),minmax(0,1fr))] max-sm:h-auto max-sm:[grid-template-columns:minmax(0,1fr)] max-sm:[grid-template-rows:none]'
+        style={interfaceGridStyle(preview.grid)}
+        className={cn(INTERFACE_GRID_CLASS, INTERFACE_GRID_STACK_SM_CLASS)}
       >
         {preview.modules.map(({ module, placement }) => (
           <InterfacePane
             key={module.id}
             module={module}
-            style={
-              {
-                '--pane-row': `${placement.row + 1} / span ${placement.rowSpan}`,
-                '--pane-col': `${placement.col + 1} / span ${placement.colSpan}`,
-              } as CSSProperties
-            }
+            style={modulePlacementStyle(placement)}
             canRun={canRun}
           />
         ))}

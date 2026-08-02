@@ -58,7 +58,7 @@ function render(layout: InterfaceLayout, mode: InterfaceMode, canEdit = true) {
 /**
  * `${moduleId}@${row}|${col}` — the placement each pane actually got.
  *
- * Read off the `--pane-row` / `--pane-col` custom properties rather than
+ * Read off the `--module-row` / `--module-col` custom properties rather than
  * `style.gridRow` / `style.gridColumn`: an inline `style` outranks every media
  * query, so the placement has to travel as variables for the phone layout to be
  * able to drop it.
@@ -66,8 +66,8 @@ function render(layout: InterfaceLayout, mode: InterfaceMode, canEdit = true) {
 function placements(): string[] {
   return [...container.querySelectorAll('[data-testid="module"]')].map((node) => {
     const pane = node.parentElement?.parentElement as HTMLElement
-    const row = pane.style.getPropertyValue('--pane-row')
-    const col = pane.style.getPropertyValue('--pane-col')
+    const row = pane.style.getPropertyValue('--module-row')
+    const col = pane.style.getPropertyValue('--module-col')
     return `${node.getAttribute('data-module-id')}@${row}|${col}`
   })
 }
@@ -145,7 +145,7 @@ describe('InterfaceCanvas — preview mode', () => {
     expect(grid.style.gridTemplateRows).toBe('')
     expect(grid.style.gridTemplateColumns).toBe('')
 
-    const pane = container.querySelector('[style*="--pane-row"]') as HTMLElement
+    const pane = container.querySelector('[style*="--module-row"]') as HTMLElement
     expect(pane.style.gridRow).toBe('')
     expect(pane.style.gridColumn).toBe('')
   })
@@ -154,7 +154,7 @@ describe('InterfaceCanvas — preview mode', () => {
     render(layout, 'preview')
 
     expect(previewGrid().className).toContain('max-sm:[grid-template-columns:minmax(0,1fr)]')
-    const pane = container.querySelector('[style*="--pane-row"]') as HTMLElement
+    const pane = container.querySelector('[style*="--module-row"]') as HTMLElement
     expect(pane.className).toContain('max-sm:[grid-column:auto]')
     expect(pane.className).toContain('max-sm:[grid-row:auto]')
   })

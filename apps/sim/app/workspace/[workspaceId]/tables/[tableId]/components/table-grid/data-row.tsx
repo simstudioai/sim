@@ -7,7 +7,7 @@ import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { SaveReason } from '../../types'
-import { CellContent } from './cells'
+import { CellContent, InlineEditor } from './cells'
 import {
   CELL,
   CELL_CHECKBOX,
@@ -376,9 +376,21 @@ export const DataRow = React.memo(function DataRow({
                 )}
                 column={column}
                 isEditing={isEditing}
-                initialCharacter={isEditing ? initialCharacter : undefined}
-                onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
-                onCancel={onCancel}
+                editor={
+                  isEditing ? (
+                    <InlineEditor
+                      value={
+                        pendingCellValue && column.key in pendingCellValue
+                          ? pendingCellValue[column.key]
+                          : row.data[column.key]
+                      }
+                      column={column}
+                      initialCharacter={initialCharacter ?? undefined}
+                      onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
+                      onCancel={onCancel}
+                    />
+                  ) : undefined
+                }
                 waitingOnLabels={
                   column.workflowGroupId
                     ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)

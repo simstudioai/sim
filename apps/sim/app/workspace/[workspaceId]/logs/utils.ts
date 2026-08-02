@@ -18,63 +18,6 @@ export const LOG_COLUMNS = {
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 
-export type LogStatus =
-  | 'error'
-  | 'pending'
-  | 'running'
-  | 'redacting'
-  | 'info'
-  | 'cancelled'
-  | 'cancelling'
-
-/**
- * Maps raw status string to LogStatus for display.
- * @param status - Raw status from API
- * @returns Normalized LogStatus value
- */
-export function getDisplayStatus(status: string | null | undefined): LogStatus {
-  switch (status) {
-    case 'running':
-      return 'running'
-    case 'redacting':
-      return 'redacting'
-    case 'pending':
-      return 'pending'
-    case 'cancelling':
-      return 'cancelling'
-    case 'cancelled':
-      return 'cancelled'
-    case 'failed':
-      return 'error'
-    default:
-      return 'info'
-  }
-}
-
-export const STATUS_CONFIG: Record<
-  LogStatus,
-  {
-    variant: React.ComponentProps<typeof Badge>['variant']
-    label: string
-    color: string
-    /** Whether this status appears as a filter option. Intermediary states (e.g. cancelling) are excluded. */
-    filterable: boolean
-  }
-> = {
-  error: { variant: 'red', label: 'Error', color: 'var(--text-error)', filterable: true },
-  pending: { variant: 'amber', label: 'Pending', color: '#f59e0b', filterable: true },
-  running: { variant: 'amber', label: 'Running', color: '#f59e0b', filterable: true },
-  redacting: { variant: 'amber', label: 'Redacting', color: '#f59e0b', filterable: false },
-  cancelling: { variant: 'amber', label: 'Cancelling...', color: '#f59e0b', filterable: false },
-  cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316', filterable: true },
-  info: {
-    variant: 'gray',
-    label: 'Info',
-    color: 'var(--terminal-status-info-color)',
-    filterable: true,
-  },
-}
-
 const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
   manual: 'gray-secondary',
   api: 'blue',
@@ -87,24 +30,6 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   workflow: 'blue-secondary',
   form: 'teal',
   custom_block: 'blue-secondary',
-}
-
-interface StatusBadgeProps {
-  status: LogStatus
-}
-
-/**
- * Renders a colored badge indicating log execution status.
- * @param props - Component props containing the status
- * @returns A Badge with dot indicator and status label
- */
-export function StatusBadge({ status }: StatusBadgeProps) {
-  const config = STATUS_CONFIG[status]
-  return React.createElement(
-    Badge,
-    { variant: config.variant, dot: true, size: 'sm' },
-    config.label
-  )
 }
 
 interface TriggerBadgeProps {
