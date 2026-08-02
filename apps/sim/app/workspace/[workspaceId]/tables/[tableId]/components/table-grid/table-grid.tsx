@@ -50,7 +50,7 @@ import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
-import { ExpandedCellPopover } from './cells'
+import { ExpandedCellPopover, InlineEditor } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
@@ -3684,6 +3684,29 @@ export function TableGrid({
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
   /**
+   * The inline editing surface for a cell. Built here rather than inside `DataRow`
+   * because it is the write path: it closes over the pending-update state and the
+   * save/cancel handlers that own the mutation. A read-only surface passes no
+   * `renderCellEditor` at all and therefore renders — and bundles — no editor.
+   */
+  const renderCellEditor = useCallback(
+    ({ row, column }: { row: TableRowType; column: DisplayColumn }) => (
+      <InlineEditor
+        value={
+          pendingUpdate && pendingUpdate.rowId === row.id && column.key in pendingUpdate.data
+            ? pendingUpdate.data[column.key]
+            : row.data[column.key]
+        }
+        column={column}
+        initialCharacter={initialCharacter ?? undefined}
+        onSave={(value, reason) => handleInlineSave(row.id, column.key, value, reason)}
+        onCancel={handleInlineCancel}
+      />
+    ),
+    [pendingUpdate, initialCharacter, handleInlineSave, handleInlineCancel]
+  )
+
+  /**
    * Row ids for the current multi-row selection. Drives "Run N selected rows"
    * in the workflow-group run menu — `null` when there's no multi-selection so
    * the menu collapses to "Run all rows".
@@ -4287,6 +4310,7 @@ export function TableGrid({
                                 onDoubleClick={handleCellDoubleClick}
                                 onSave={handleInlineSave}
                                 onCancel={handleInlineCancel}
+                                renderCellEditor={renderCellEditor}
                                 onContextMenu={handleRowContextMenu}
                                 onCellMouseDown={handleCellMouseDown}
                                 onCellMouseEnter={handleCellMouseEnter}

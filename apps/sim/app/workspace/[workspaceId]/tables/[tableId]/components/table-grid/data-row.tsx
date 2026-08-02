@@ -1,13 +1,13 @@
 'use client'
 
-import React from 'react'
+import React, { type ReactNode } from 'react'
 import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn'
 import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { SaveReason } from '../../types'
-import { CellContent, InlineEditor } from './cells'
+import { CellContent } from './cells'
 import {
   CELL,
   CELL_CHECKBOX,
@@ -21,9 +21,17 @@ import { type NormalizedSelection, resolveCellExec } from './utils'
 export interface DataRowProps {
   row: TableRowType
   columns: DisplayColumn[]
-  /** Current workspace id — forwarded to cells so in-workspace resource URLs
-   *  render as tagged-resource chips. */
-  workspaceId: string
+  /**
+   * Current workspace id — forwarded to cells so in-workspace resource URLs render
+   * as tagged-resource chips. Optional: a surface with no workspace identity (an
+   * anonymous share) omits it and those chips are never emitted.
+   */
+  workspaceId?: string
+  /**
+   * Builds the inline editing surface for a cell. Supplied by the host that owns
+   * the write path, so a read-only surface renders — and bundles — no editor.
+   */
+  renderCellEditor?: (cell: { row: TableRowType; column: DisplayColumn }) => ReactNode
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -111,6 +119,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.pendingCellValue !== next.pendingCellValue ||
     prev.onClick !== next.onClick ||
     prev.onDoubleClick !== next.onDoubleClick ||
+    prev.renderCellEditor !== next.renderCellEditor ||
     prev.onSave !== next.onSave ||
     prev.onCancel !== next.onCancel ||
     prev.onContextMenu !== next.onContextMenu ||
@@ -156,6 +165,7 @@ export const DataRow = React.memo(function DataRow({
   editingColumnName,
   initialCharacter,
   pendingCellValue,
+  renderCellEditor,
   normalizedSelection,
   isRowChecked,
   onClick,
@@ -376,21 +386,7 @@ export const DataRow = React.memo(function DataRow({
                 )}
                 column={column}
                 isEditing={isEditing}
-                editor={
-                  isEditing ? (
-                    <InlineEditor
-                      value={
-                        pendingCellValue && column.key in pendingCellValue
-                          ? pendingCellValue[column.key]
-                          : row.data[column.key]
-                      }
-                      column={column}
-                      initialCharacter={initialCharacter ?? undefined}
-                      onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
-                      onCancel={onCancel}
-                    />
-                  ) : undefined
-                }
+                editor={isEditing ? renderCellEditor?.({ row, column }) : undefined}
                 waitingOnLabels={
                   column.workflowGroupId
                     ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
