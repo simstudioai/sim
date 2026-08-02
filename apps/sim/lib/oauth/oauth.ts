@@ -1108,6 +1108,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description:
           'Manage Zoho Desk tickets, comments, threads, and contacts. Requires a Zoho account in the US data center.',
         providerId: 'zoho-desk',
+        serviceAccountProviderId: 'zoho-desk-service-account',
         icon: ZohoDeskIcon,
         baseProviderIcon: ZohoDeskIcon,
         // Kept to exactly what the tools and the webhook trigger exercise:

@@ -4,17 +4,22 @@ import {
   type ClientCredentialAccountProviderId,
   isClientCredentialAccountProviderId,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
+import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
 
 /** Raw fields a client-credential minter receives (already trimmed). */
 export interface ClientCredentialAccountFields {
   clientId: string
   clientSecret: string
-  /** Provider-specific org identifier (Zoom Account ID, Box Enterprise ID, Salesforce My Domain host). */
+  /**
+   * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
+   * Salesforce My Domain host, Zoho Desk organization ID).
+   */
   orgId: string
 }
 
@@ -40,6 +45,12 @@ export interface ClientCredentialAccountMintResult {
    * `instance_url`), forwarded to tools alongside the token.
    */
   instanceUrl?: string
+  /**
+   * Data-center-scoped REST API base the minted token must be used against
+   * (Zoho Desk), forwarded to tools as their `apiDomain` param. Distinct from
+   * {@link instanceUrl} because the two reach different tool params.
+   */
+  apiDomain?: string
   /** Scopes granted to the app, when the provider reports them. */
   grantedScopes?: string[]
   identity?: ClientCredentialAccountIdentity
@@ -74,6 +85,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [ZOOM_SERVICE_ACCOUNT_PROVIDER_ID]: mintZoomServiceAccountToken,
   [BOX_SERVICE_ACCOUNT_PROVIDER_ID]: mintBoxServiceAccountToken,
   [SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID]: mintSalesforceServiceAccountToken,
+  [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: mintZohoDeskServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

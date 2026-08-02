@@ -54,11 +54,13 @@ export interface ClientCredentialAccountDescriptor {
 export const ZOOM_SERVICE_ACCOUNT_PROVIDER_ID = 'zoom-service-account' as const
 export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
+export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof BOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Allowed My Domain host shapes: one org label (optionally with a
@@ -84,6 +86,35 @@ export function normalizeSalesforceMyDomainHost(rawHost: string): string {
     .replace(/[/?#].*$/, '')
     .toLowerCase()
 }
+
+/**
+ * Zoho's `soid` token parameter is documented only as the syntax
+ * `{servicename}.{zsoid}` with a single Zoho CRM example
+ * (`ZohoCRM.600*****434`). Two things are NOT confirmed by Zoho's own docs:
+ *
+ * 1. that the Desk service name is literally `ZohoDesk` (inferred from the
+ *    documented syntax and corroborated only by community posts), and
+ * 2. that `zsoid` is the same value as the Desk `orgId` sent in the `orgId`
+ *    request header, rather than a distinct Zoho ServiceOrg id.
+ *
+ * Both need live verification against a real Zoho Desk org before this flow is
+ * relied on. The normalization is therefore deliberately permissive: a value
+ * that already carries a `{servicename}.` prefix (any dot) is passed through
+ * untouched, so an operator who learns the correct prefix or id can paste the
+ * full `soid` and bypass the inference entirely. A bare id is prefixed with
+ * `ZohoDesk.`.
+ *
+ * Shared by the connect modal's format hint and the server-side minter so both
+ * judge the same normalized value.
+ */
+export function normalizeZohoDeskSoid(rawOrgId: string): string {
+  const trimmed = rawOrgId.trim()
+  if (!trimmed || trimmed.includes('.')) return trimmed
+  return `ZohoDesk.${trimmed}`
+}
+
+/** A normalized `soid`: a service-name prefix plus a numeric Zoho org id. */
+export const ZOHO_DESK_SOID_REGEX = /^[A-Za-z]+\.\d+$/
 
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
@@ -178,6 +209,38 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/salesforce-service-account',
     helpText:
       'The Connected App must have "Enable Client Credentials Flow" checked with a "Run As" integration user set under Edit Policies — every call executes with that user\'s permissions, and deactivating or freezing the user stops all runs.',
+  },
+  [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Zoho Desk',
+    connectNoun: 'Self Client',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: "Client ID from the Self Client's Client Secret tab",
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'orgId',
+        label: 'Organization ID',
+        placeholder: '600123456',
+        secret: false,
+        hintPattern: ZOHO_DESK_SOID_REGEX,
+        hintNormalize: normalizeZohoDeskSoid,
+        hintMessage:
+          'Paste the numeric Zoho Desk organization ID from Setup → Developer Space → API, or the full ZohoDesk.<orgId> value.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
+    helpText:
+      'Create the Self Client in the Zoho API Console, add the Zoho Desk scopes, and use the organization ID from Setup → Developer Space → API. Only Zoho accounts in the US data center (accounts.zoho.com) are supported, and Zoho Desk triggers still require an OAuth connection.',
   },
 }
 

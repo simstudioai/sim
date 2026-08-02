@@ -186,6 +186,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             cloudId: result.cloudId,
             domain: result.domain,
             instanceUrl: result.instanceUrl,
+            apiDomain: result.apiDomain,
             authStyle: result.authStyle,
           },
           { status: 200 }

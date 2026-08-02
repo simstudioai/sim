@@ -1,9 +1,6 @@
 import { htmlToText } from 'html-to-text'
-import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
+import { DEFAULT_ZOHO_DESK_BASE, isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import type { ZohoDeskBaseParams } from '@/tools/zoho_desk/types'
-
-/** Default Zoho Desk REST host when no data-center-specific base was persisted. */
-const DEFAULT_ZOHO_DESK_BASE = 'https://desk.zoho.com'
 
 /**
  * Convert Zoho Desk rich-text HTML (comment / thread / ticket bodies) to
