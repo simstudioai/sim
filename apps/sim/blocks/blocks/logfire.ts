@@ -292,7 +292,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           host: params.host,
         }
 
-        const window = {
+        const timeWindow = {
           minTimestamp: params.minTimestamp,
           maxTimestamp: params.maxTimestamp,
           limit: toNumber(params.limit),
@@ -302,7 +302,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           case 'logfire_query':
             return {
               ...baseParams,
-              ...window,
+              ...timeWindow,
               sql: params.sql,
               timezone: params.timezone,
               environment: params.environment,
@@ -311,7 +311,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           case 'logfire_get_trace':
             return {
               ...baseParams,
-              ...window,
+              ...timeWindow,
               traceId: params.traceId,
             }
 
@@ -321,7 +321,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           default:
             return {
               ...baseParams,
-              ...window,
+              ...timeWindow,
               query: params.query,
               service: params.service,
               spanName: params.spanName,
@@ -387,6 +387,17 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
     projectName: {
       type: 'string',
       description: 'Project the read token belongs to',
+      condition: { field: 'operation', value: 'logfire_get_token_info' },
+    },
+    expiresAt: {
+      type: 'string',
+      description: 'When the read token expires. Null when it never expires.',
+      condition: { field: 'operation', value: 'logfire_get_token_info' },
+    },
+    spendingCapReachedAt: {
+      type: 'string',
+      description:
+        "When the organization's spending cap was reached, which stops queries. Null when it has not been reached.",
       condition: { field: 'operation', value: 'logfire_get_token_info' },
     },
   },

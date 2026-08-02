@@ -95,7 +95,7 @@ Search Logfire spans and logs using structured filters for message text, service
 |   ↳ `level` | string | Severity name, such as info, warn, or error |
 |   ↳ `message` | string | Human-readable message |
 |   ↳ `spanName` | string | Template label for similar records |
-|   ↳ `kind` | string | Record kind: span, log, or span_event |
+|   ↳ `kind` | string | Record kind: span, log, span_event, or pending_span |
 |   ↳ `serviceName` | string | Service that emitted the record |
 |   ↳ `deploymentEnvironment` | string | Deployment environment of the record |
 |   ↳ `traceId` | string | Trace this record belongs to |
@@ -134,7 +134,7 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 |   ↳ `level` | string | Severity name, such as info, warn, or error |
 |   ↳ `message` | string | Human-readable message |
 |   ↳ `spanName` | string | Template label for similar records |
-|   ↳ `kind` | string | Record kind: span, log, or span_event |
+|   ↳ `kind` | string | Record kind: span, log, span_event, or pending_span |
 |   ↳ `serviceName` | string | Service that emitted the record |
 |   ↳ `deploymentEnvironment` | string | Deployment environment of the record |
 |   ↳ `traceId` | string | Trace this record belongs to |
@@ -164,5 +164,7 @@ Resolve which Logfire organization and project a read token belongs to. Useful f
 | --------- | ---- | ----------- |
 | `organizationName` | string | Logfire organization the read token belongs to |
 | `projectName` | string | Logfire project the read token belongs to |
+| `expiresAt` | string | When the read token expires. Null when it never expires. |
+| `spendingCapReachedAt` | string | When the organization's spending cap was reached, which stops queries. Null when it has not been reached. |
 
 
