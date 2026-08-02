@@ -86,7 +86,10 @@ export interface ZohoDeskResponse extends ToolResponse {
 export const ZOHO_DESK_ATTACHMENT_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'Attachment ID' },
   name: { type: 'string', description: 'File name', optional: true },
-  size: { type: 'string', description: 'File size in bytes', optional: true },
+  // Zoho documents this as KB, but serializes it as a string and its samples are
+  // not self-consistent about the unit — report it as Zoho gives it rather than
+  // asserting a unit we would be guessing at.
+  size: { type: 'string', description: 'File size as reported by Zoho', optional: true },
   href: { type: 'string', description: 'Download href', optional: true },
 }
 
@@ -103,7 +106,7 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
   descriptionText: {
     type: 'string',
     description:
-      'Plain-text rendering of the description; HTML stripped when Zoho marks it HTML, otherwise mirrors description',
+      'Plain-text rendering of the description with HTML stripped (Zoho sends ticket descriptions as HTML)',
     optional: true,
     nullable: true,
   },

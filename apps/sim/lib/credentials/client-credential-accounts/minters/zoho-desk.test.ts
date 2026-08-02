@@ -235,16 +235,18 @@ describe('mintZohoDeskServiceAccountToken', () => {
     }
   )
 
-  it('falls back to the US data center for an unrecognized value instead of erroring', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
-
-    const result = await mintZohoDeskServiceAccountToken(
-      { ...FIELDS, dataCenter: 'jp' },
-      { skipIdentity: true }
-    )
-
-    mintBody(TOKEN_URL)
-    expect(result.apiDomain).toBe('https://desk.zoho.com')
+  // A typed-but-unrecognized region must NOT quietly resolve to US and then fail
+  // against Zoho as an opaque invalid_client — the operator would have no way to
+  // tell a wrong region from wrong credentials. Blank still means US (see above).
+  it('rejects an unrecognized data center instead of silently using US', async () => {
+    await expect(
+      mintZohoDeskServiceAccountToken({ ...FIELDS, dataCenter: 'jp' })
+    ).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      status: 400,
+      logDetail: expect.objectContaining({ step: 'data_center_validation', dataCenter: 'jp' }),
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('records the resolved data center in the stored metadata', async () => {

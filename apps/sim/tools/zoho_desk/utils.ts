@@ -56,11 +56,25 @@ export function withDerivedContentText(resource: unknown): unknown {
   const record = resource as Record<string, unknown>
 
   const contentText = deriveZohoContentText(record.content, record.contentType)
-  // Ticket resources carry their body on `description` rather than `content`, so
-  // a webhook's ticket payload would otherwise reach the workflow as raw HTML
-  // with no plain-text sibling - unlike get_ticket, which derives one. Mirror
-  // that here so trigger and tool outputs agree.
-  const descriptionText = deriveZohoContentText(record.description, record.descriptionContentType)
+  // Ticket resources carry their body on `description`, not `content`, so without
+  // this a webhook ticket payload reaches the workflow as raw HTML with no
+  // plain-text sibling.
+  //
+  // Unlike comments and threads, a ticket's description has NO content-type
+  // discriminator: Zoho's own Ticket_Add webhook sample ships
+  // `"description": "<div>Description</div>"` with no `descriptionContentType`
+  // key, and the ticket GET/PATCH response field lists have no content-type
+  // sibling either. Gating on one meant the strip never ran and `descriptionText`
+  // was a byte-identical copy of the HTML. Ticket descriptions are HTML by
+  // convention, so convert unconditionally - html-to-text is a near-identity on
+  // genuinely plain text. A `descriptionContentType` is still honored if Zoho
+  // ever starts sending one.
+  const descriptionText =
+    typeof record.description === 'string'
+      ? typeof record.descriptionContentType === 'string'
+        ? deriveZohoContentText(record.description, record.descriptionContentType)
+        : convertZohoHtmlToText(record.description)
+      : undefined
 
   if (contentText === undefined && descriptionText === undefined) return record
   return {

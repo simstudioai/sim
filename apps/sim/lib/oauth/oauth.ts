@@ -1874,6 +1874,31 @@ export async function refreshOAuthToken(
 
     const data = await response.json()
 
+    // Some providers - Zoho notably - report OAuth failures in the JSON body with
+    // HTTP 200 rather than a 4xx (e.g. `{"error":"invalid_client"}` for a revoked
+    // refresh token). Without this the `!accessToken` guard below returns a
+    // failure with no `errorCode`, so `isTerminalRefreshError` cannot recognize a
+    // terminal condition, the credential is never marked dead, and every later
+    // execution retries a refresh that can never succeed. Classify on the body
+    // before trusting the status, matching the token-exchange and service-account
+    // mint paths, which already do this.
+    if (data && typeof data === 'object' && typeof data.error === 'string' && data.error) {
+      logger.error('Token refresh failed with an error body:', {
+        status: response.status,
+        error: data.error,
+        errorDescription:
+          typeof data.error_description === 'string' ? data.error_description : null,
+        providerId,
+      })
+      return {
+        ok: false,
+        errorCode: data.error,
+        message: `Failed to refresh token: ${data.error}${
+          typeof data.error_description === 'string' ? ` - ${data.error_description}` : ''
+        }`,
+      }
+    }
+
     if (data && typeof data === 'object' && data.ok === false) {
       logger.error('Token refresh failed:', {
         status: response.status,
@@ -1904,7 +1929,12 @@ export async function refreshOAuthToken(
     const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {
-      logger.warn('No access token found in refresh response', { providerId, response: data })
+      // Never log `data` itself here - on a partial success it carries live
+      // tokens. The error-body branch above already surfaces the diagnosable case.
+      logger.warn('No access token found in refresh response', {
+        providerId,
+        responseKeys: Object.keys(data ?? {}),
+      })
       return { ok: false, message: 'No access token in refresh response' }
     }
 

@@ -251,20 +251,33 @@ describe('zoho desk tool utils', () => {
       expect(withDerivedContentText('str')).toBe('str')
     })
 
-    // Ticket resources carry their body on `description`, not `content`, so a
-    // webhook ticket payload would otherwise reach the workflow as raw HTML with
-    // no plain-text sibling — unlike get_ticket, which derives one.
-    it('derives descriptionText for ticket-shaped resources', () => {
-      const ticket = {
-        id: '5',
-        subject: 'Delay',
-        description: '<div>order is late</div>',
-        descriptionContentType: 'html',
-      }
+    // Zoho ships ticket descriptions as HTML with NO content-type key — this is
+    // the exact shape from Zoho's own Ticket_Add webhook sample. Gating the strip
+    // on a `descriptionContentType` that never arrives made descriptionText a
+    // byte-identical copy of the markup, so this case must stay unfabricated: no
+    // descriptionContentType key anywhere in the fixture.
+    it('strips HTML from a ticket description that carries no content-type key', () => {
+      const ticket = { id: '5', subject: 'Delay', description: '<div>order is late</div>' }
       const result = withDerivedContentText(ticket) as Record<string, unknown>
       expect(result.description).toBe('<div>order is late</div>')
       expect(result.descriptionText).toBe('order is late')
       expect('contentText' in result).toBe(false)
+    })
+
+    it('leaves a plain-text ticket description readable', () => {
+      const result = withDerivedContentText({
+        id: '7',
+        description: 'order is late',
+      }) as Record<string, unknown>
+      expect(result.descriptionText).toBe('order is late')
+    })
+
+    it('still honors an explicit descriptionContentType if Zoho ever sends one', () => {
+      const result = withDerivedContentText({
+        description: '<b>literal</b>',
+        descriptionContentType: 'plainText',
+      }) as Record<string, unknown>
+      expect(result.descriptionText).toBe('<b>literal</b>')
     })
 
     it('derives both fields when a resource carries content and description', () => {
@@ -272,7 +285,6 @@ describe('zoho desk tool utils', () => {
         content: '<b>c</b>',
         contentType: 'text/html',
         description: '<b>d</b>',
-        descriptionContentType: 'html',
       }) as Record<string, unknown>
       expect(result.contentText).toBe('c')
       expect(result.descriptionText).toBe('d')

@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import {
+  normalizeZohoDeskDataCenter,
   normalizeZohoDeskSoid,
   resolveZohoDeskDataCenter,
+  ZOHO_DESK_DATA_CENTER_IDS,
+  ZOHO_DESK_DATA_CENTER_REGEX,
   ZOHO_DESK_SOID_REGEX,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type {
@@ -144,7 +147,21 @@ export async function mintZohoDeskServiceAccountToken(
     })
   }
 
-  const dataCenter = resolveZohoDeskDataCenter(fields.dataCenter)
+  // A blank data center legitimately means "US" (the pre-field default), but a
+  // value that was typed and not recognized must not silently resolve to US and
+  // then fail against Zoho as an opaque `invalid_client`. Reject it here, next to
+  // the soid check, so the connect modal names the real problem. This runs on
+  // every execution-time re-mint too, where there is no UI to show a format hint.
+  const rawDataCenter = normalizeZohoDeskDataCenter(fields.dataCenter ?? '')
+  if (rawDataCenter && !ZOHO_DESK_DATA_CENTER_REGEX.test(rawDataCenter)) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'data_center_validation',
+      dataCenter: rawDataCenter,
+      reason: `unrecognized data center; expected one of ${ZOHO_DESK_DATA_CENTER_IDS.join(', ')} (or blank for us)`,
+    })
+  }
+
+  const dataCenter = resolveZohoDeskDataCenter(rawDataCenter)
 
   // Zoho requires a comma-separated scope list on this endpoint; a
   // space-separated list is rejected as an invalid scope.

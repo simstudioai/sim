@@ -33,13 +33,30 @@ const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s,]+)/
  * verification within Zoho's 5-second delivery deadline.
  */
 const jwksCache = new Map<string, ReturnType<typeof jose.createRemoteJWKSet>>()
+
+/**
+ * Bound on distinct Desk hosts held in {@link jwksCache}. The host is derived
+ * from `providerConfig.apiDomain`, which `SYSTEM_MANAGED_FIELDS` protects from
+ * *diffing* but not from being written by a workspace member. `safeZohoDeskBase`
+ * already clamps it to a Zoho apex so no key material is ever fetched off-Zoho,
+ * but any `*.zoho.com` label still passes - so without a cap, repeated writes
+ * plus webhook hits could grow one JWKS instance (and its key cache) per label.
+ * Zoho has a handful of data centers; anything beyond this is not legitimate
+ * traffic, so evicting oldest-first is safe.
+ */
+const JWKS_CACHE_MAX_ENTRIES = 16
+
 function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
-  let set = jwksCache.get(deskHost)
-  if (!set) {
-    set = jose.createRemoteJWKSet(new URL(`https://${deskHost}/.well-known/jwks.json`))
-    jwksCache.set(deskHost, set)
+  const set = jwksCache.get(deskHost)
+  if (set) return set
+
+  if (jwksCache.size >= JWKS_CACHE_MAX_ENTRIES) {
+    const oldest = jwksCache.keys().next()
+    if (!oldest.done) jwksCache.delete(oldest.value)
   }
-  return set
+  const created = jose.createRemoteJWKSet(new URL(`https://${deskHost}/.well-known/jwks.json`))
+  jwksCache.set(deskHost, created)
+  return created
 }
 
 /**
