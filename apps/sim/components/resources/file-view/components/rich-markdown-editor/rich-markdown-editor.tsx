@@ -19,7 +19,7 @@ import { useEditableFileContent } from '@/components/resources/file-view/hooks/u
 import { useResourceOfKind } from '@/components/resources/resource-provider'
 import { useSession } from '@/lib/auth/auth-client'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
-import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
+import { isUntitledName } from '@/lib/uploads/utils/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { type FileViewRecord, fileImageSrc, fileWorkspaceId } from '@/resources/file-source'

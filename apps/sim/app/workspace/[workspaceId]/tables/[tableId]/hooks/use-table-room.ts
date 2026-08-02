@@ -12,7 +12,7 @@ import {
   type TablePresenceUser,
 } from '@sim/realtime-protocol/table-presence'
 import { generateShortId } from '@sim/utils/id'
-import type { PresenceAvatarUser } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import type { PresenceAvatarUser } from '@/components/presence'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 const logger = createLogger('TableRoom')

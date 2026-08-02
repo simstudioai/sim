@@ -51,6 +51,12 @@ import {
   isVideoFileType,
 } from '@/lib/uploads/utils/file-utils'
 import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  uniqueMarkdownName,
+} from '@/lib/uploads/utils/untitled-title'
+import {
   isSupportedExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
@@ -94,12 +100,6 @@ import {
   filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
-import {
-  DEFAULT_UNTITLED_NAME,
-  deriveMarkdownFileName,
-  isUntitledName,
-  uniqueMarkdownName,
-} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'

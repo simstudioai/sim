@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
-import type { PresenceAvatarUser } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import type { PresenceAvatarUser } from '@/components/presence'
 
 const EMPTY_OTHERS: PresenceAvatarUser[] = []
 const noop = () => {}

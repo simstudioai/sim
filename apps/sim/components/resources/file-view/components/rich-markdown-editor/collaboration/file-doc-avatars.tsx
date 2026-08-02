@@ -1,6 +1,6 @@
 'use client'
 
-import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import { PresenceAvatars } from '@/components/presence'
 import { useFileDocOthers } from './file-doc-room-context'
 
 /**
