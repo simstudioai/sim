@@ -11,6 +11,7 @@ import {
   type DeployedChatAuthBody,
   type DeployedChatConfig,
   deleteChatContract,
+  getChatPasswordContract,
   getDeployedChatConfigContract,
   requestChatEmailOtpContract,
   type UpdateChatBody,
@@ -375,6 +376,27 @@ export function useDeleteChat() {
     },
     onError: (error) => {
       logger.error('Failed to delete chat', { error })
+    },
+  })
+}
+
+interface RevealChatPasswordVariables {
+  chatId: string
+}
+
+/**
+ * Mutation hook that fetches a chat deployment's current password for
+ * workspace admins. Modeled as a mutation (despite the GET) so the decrypted
+ * password is never retained in the query cache.
+ */
+export function useRevealChatPassword() {
+  return useMutation({
+    mutationFn: async ({ chatId }: RevealChatPasswordVariables): Promise<string> => {
+      const result = await requestJson(getChatPasswordContract, { params: { id: chatId } })
+      return result.password
+    },
+    onError: (error) => {
+      logger.error('Failed to reveal chat password', { error })
     },
   })
 }

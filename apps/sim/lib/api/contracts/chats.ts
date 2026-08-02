@@ -86,6 +86,11 @@ export const deleteChatResponseSchema = z.object({
   message: z.string(),
 })
 
+export const chatPasswordResponseSchema = z.object({
+  password: z.string(),
+})
+export type ChatPasswordResponse = z.output<typeof chatPasswordResponseSchema>
+
 export const deployedChatConfigSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -290,5 +295,19 @@ export const deleteChatContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: deleteChatResponseSchema,
+  },
+})
+
+/**
+ * Admin-only reveal of a chat deployment's current password. The route
+ * decrypts the stored password after re-verifying workspace admin access.
+ */
+export const getChatPasswordContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/chat/manage/[id]/password',
+  params: chatIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: chatPasswordResponseSchema,
   },
 })

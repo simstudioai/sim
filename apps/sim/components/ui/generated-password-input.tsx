@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, ChipInput, Tooltip } from '@sim/emcn'
+import { Button, ChipInput, Loader, Tooltip } from '@sim/emcn'
 import { Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { generatePassword } from '@/lib/core/security/encryption'
+
+const MASKED_PASSWORD = '••••••••'
 
 interface GeneratedPasswordInputProps {
   value: string
@@ -15,6 +17,11 @@ interface GeneratedPasswordInputProps {
   required?: boolean
   autoComplete?: string
   error?: boolean
+  /**
+   * Resolves the currently saved password when the Show toggle is clicked.
+   * While hidden, an empty field displays a masked placeholder.
+   */
+  fetchCurrentPassword?: () => Promise<string>
 }
 
 /**
@@ -31,9 +38,12 @@ export function GeneratedPasswordInput({
   required = false,
   autoComplete = 'new-password',
   error = false,
+  fetchCurrentPassword,
 }: GeneratedPasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState<string | null>(null)
+  const [isFetchingCurrent, setIsFetchingCurrent] = useState(false)
 
   useEffect(() => {
     if (!copySuccess) return
@@ -41,17 +51,50 @@ export function GeneratedPasswordInput({
     return () => clearTimeout(timer)
   }, [copySuccess])
 
+  const displayValue = currentPassword ?? value
+  const displayPlaceholder = fetchCurrentPassword && !displayValue ? MASKED_PASSWORD : placeholder
+
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(value)
+    navigator.clipboard.writeText(displayValue)
     setCopySuccess(true)
+  }
+
+  const handleChange = (nextValue: string) => {
+    setCurrentPassword(null)
+    onChange(nextValue)
+  }
+
+  const handleGeneratePassword = () => {
+    handleChange(generatePassword(24))
+    setShowPassword(true)
+  }
+
+  const toggleShowPassword = async () => {
+    if (showPassword) {
+      setShowPassword(false)
+      return
+    }
+
+    if (!displayValue && fetchCurrentPassword) {
+      setIsFetchingCurrent(true)
+      try {
+        setCurrentPassword(await fetchCurrentPassword())
+      } catch {
+        return
+      } finally {
+        setIsFetchingCurrent(false)
+      }
+    }
+
+    setShowPassword(true)
   }
 
   return (
     <ChipInput
       type={showPassword ? 'text' : 'password'}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
+      placeholder={displayPlaceholder}
+      value={displayValue}
+      onChange={(e) => handleChange(e.target.value)}
       disabled={disabled}
       required={required}
       autoComplete={autoComplete}
@@ -64,7 +107,7 @@ export function GeneratedPasswordInput({
                 <Button
                   type='button'
                   variant='ghost'
-                  onClick={() => onChange(generatePassword(24))}
+                  onClick={handleGeneratePassword}
                   disabled={disabled}
                   aria-label='Generate password'
                   className='!p-1.5'
@@ -83,7 +126,7 @@ export function GeneratedPasswordInput({
                 type='button'
                 variant='ghost'
                 onClick={copyToClipboard}
-                disabled={!value || disabled}
+                disabled={!displayValue || disabled}
                 aria-label='Copy password'
                 className='!p-1.5'
               >
@@ -99,12 +142,18 @@ export function GeneratedPasswordInput({
               <Button
                 type='button'
                 variant='ghost'
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={disabled}
+                onClick={toggleShowPassword}
+                disabled={disabled || isFetchingCurrent}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 className='!p-1.5'
               >
-                {showPassword ? <EyeOff className='size-3' /> : <Eye className='size-3' />}
+                {isFetchingCurrent ? (
+                  <Loader className='size-3' animate />
+                ) : showPassword ? (
+                  <EyeOff className='size-3' />
+                ) : (
+                  <Eye className='size-3' />
+                )}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>

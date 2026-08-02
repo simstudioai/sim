@@ -19,6 +19,14 @@ export function isPasswordRequired(
   return authType === 'password' && !existingPassword && !password.trim()
 }
 
+export function shouldConfirmPasswordChange(
+  hasExistingChat: boolean,
+  authType: AuthType,
+  password: string
+): boolean {
+  return hasExistingChat && authType === 'password' && password.length > 0
+}
+
 export function getPasswordPlaceholder(existingPassword: boolean): string {
   return existingPassword ? 'Enter new password to change' : 'Enter password'
 }

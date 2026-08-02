@@ -4,6 +4,7 @@ import {
   getPasswordPlaceholder,
   hasExistingPassword,
   isPasswordRequired,
+  shouldConfirmPasswordChange,
 } from './utils'
 
 describe.concurrent('chat password state', () => {
@@ -28,5 +29,12 @@ describe.concurrent('chat password state', () => {
     expect(getPasswordHelperText(true)).toBe('Leave empty to keep the current password')
     expect(getPasswordPlaceholder(false)).toBe('Enter password')
     expect(getPasswordHelperText(false)).toBe('This password will be required to access your chat')
+  })
+
+  it('confirms a password change only for an existing password deployment with a new value', () => {
+    expect(shouldConfirmPasswordChange(true, 'password', 'new-password')).toBe(true)
+    expect(shouldConfirmPasswordChange(true, 'password', '')).toBe(false)
+    expect(shouldConfirmPasswordChange(true, 'public', 'new-password')).toBe(false)
+    expect(shouldConfirmPasswordChange(false, 'password', 'new-password')).toBe(false)
   })
 })
