@@ -16,7 +16,7 @@ const logger = createLogger('ZohoDeskAgentsAPI')
 
 /**
  * `GET /api/v1/agents` is index-paginated exactly like `/departments`: `from` is
- * a 0-based offset and `limit` caps at 200 (default 10). A short page means the
+ * an index offset and `limit` caps at 200 (default 10). A short page means the
  * list is exhausted. The page cap bounds the drain so a provider that keeps
  * returning full pages cannot loop forever.
  */
@@ -70,6 +70,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const headers = buildZohoDeskHeaders({ accessToken, orgId })
   const agents: Array<{ id: string; name: string }> = []
+  // Zoho's docs disagree on whether `from` is 0- or 1-based (pagination section
+  // says "range 0-4999, default 0"; listing examples read as 1-based). Deduping
+  // by id is correct under both, so the drain never yields a repeated agent.
+  const seenIds = new Set<string>()
 
   try {
     for (let page = 0; page < MAX_AGENT_PAGES; page++) {
@@ -120,7 +124,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const pageItems = Array.isArray(body.data) ? (body.data as ZohoAgent[]) : []
       for (const agent of pageItems) {
         if (agent.id === undefined || agent.id === null) continue
-        agents.push({ id: String(agent.id), name: getAgentLabel(agent) })
+        const id = String(agent.id)
+        if (seenIds.has(id)) continue
+        seenIds.add(id)
+        agents.push({ id, name: getAgentLabel(agent) })
       }
 
       if (pageItems.length < AGENT_PAGE_SIZE) break

@@ -5,6 +5,7 @@ import { zohoDeskGetAttachmentContract } from '@/lib/api/contracts/tools/zoho-de
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import {
@@ -18,7 +19,25 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ZohoDeskAttachmentAPI')
 
-const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
+/**
+ * Ceiling on a downloaded attachment.
+ *
+ * This route returns the file base64-encoded inside its JSON body, and the
+ * executor reads an internal tool response through `readToolResponseBody`, which
+ * caps at `MAX_TOOL_RESPONSE_BODY_BYTES` (10 MB). Base64 inflates by 4/3, so the
+ * largest attachment that can actually survive the round trip is ~7.5 MB of raw
+ * bytes. A larger ceiling here is not merely useless - it is actively harmful:
+ * the route would download, encode, and serialize the whole file (peaking around
+ * 250 MB of live allocation for a 50 MB attachment, with nothing limiting
+ * concurrent downloads) only for the executor to reject the oversized body
+ * afterwards. Capping at the reachable size makes the transport limit enforce
+ * itself early, while the bytes are still being streamed.
+ *
+ * Raising this requires uploading in the route and returning a file reference
+ * instead of inline base64, the way the WhatsApp media and Typeform file routes
+ * do - not a bigger number here.
+ */
+const MAX_ATTACHMENT_BYTES = 7 * 1024 * 1024
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -91,6 +110,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
+    // An oversized attachment is a client-visible limit, not a server fault -
+    // surface it as 413 with the actual ceiling, mirroring the WhatsApp media
+    // route, instead of collapsing it into a generic 500.
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn('Zoho Desk attachment exceeds the download limit', {
+        maxBytes: MAX_ATTACHMENT_BYTES,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Attachment exceeds the ${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB download limit`,
+        },
+        { status: 413 }
+      )
+    }
     logger.error('Error downloading Zoho Desk attachment', { error: getErrorMessage(error) })
     return NextResponse.json(
       { success: false, error: getErrorMessage(error, 'Failed to download attachment') },

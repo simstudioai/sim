@@ -67,11 +67,18 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       // `triggerDepartmentIds` below). An organization is the portal the whole
       // block talks to and means exactly the same thing in either mode, so one
       // shared value is the correct behavior — switching the block between tool
-      // and trigger mode keeps the portal the user already picked. The platform
-      // supports this explicitly: `buildCanonicalIndex` refuses to let a
-      // `trigger`-mode subblock overwrite a basicId claimed by a non-trigger
-      // one, and `blocks.test.ts` blesses basic/trigger id sharing as "valid
-      // pattern 2".
+      // and trigger mode keeps the portal the user already picked.
+      //
+      // The platform supports it: `buildCanonicalIndex` dedupes the repeated id
+      // and refuses to let a `trigger`-mode subblock overwrite a basicId claimed
+      // by a non-trigger one, and `isSubBlockVisibleForTriggerMode` renders only
+      // the active mode's twin, so the field never appears twice.
+      //
+      // A distinct id here would be actively worse, not merely inconsistent: a
+      // separate `triggerManualOrgId` would put two entries in this group's
+      // `advancedIds`, and `getCanonicalValues` returns the first non-empty one
+      // in array order — so a stale tool-mode `manualOrgId` could silently
+      // supply the trigger's organization.
       id: 'orgId',
       title: 'Organization',
       type: 'project-selector',
@@ -112,7 +119,7 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      // Deliberately distinct from the block's tool-mode `departmentIds` filter.
+      // NOTE: distinct from the block's tool-mode `departmentIds` filter.
       // `block.subBlocks` is keyed by id, so a shared id would let a value typed
       // as a list_tickets filter silently become the webhook's department filter
       // (and vice versa) when the block is switched between tool and trigger mode.

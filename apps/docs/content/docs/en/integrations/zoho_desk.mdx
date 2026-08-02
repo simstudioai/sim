@@ -491,6 +491,7 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | This trigger creates and manages a webhook subscription in your Zoho Desk account. |
 | `orgId` | project-selector | Yes | The Zoho Desk organization \(portal\) to subscribe in. |
+| `manualOrgId` | string | Yes | Type an organization ID instead of picking one from the list. |
 | `eventType` | string | Yes | Event |
 | `triggerDepartmentIds` | string | No | Restrict events to these departments. Leave empty for all departments. |
 | `fields` | string | No | For Ticket Updated: only fire when one of these fields changes \(max 5\). Previous values are included in the payload. |

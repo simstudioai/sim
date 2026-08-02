@@ -41,6 +41,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   let organizationsUrl: URL
   try {
     organizationsUrl = assertZohoUrl(`${apiBase}/organizations`)
+    // Zoho's listing APIs default to a page size of 10. Without an explicit
+    // limit, an account with more than ten accessible portals would silently get
+    // a truncated dropdown - and because every other selector and every tool
+    // call is gated on orgId, a missing portal is unreachable except through the
+    // advanced manual field. 200 is the documented per-page ceiling on the
+    // sibling listing endpoints and is far above any real portal count, so this
+    // needs no drain loop.
+    organizationsUrl.searchParams.set('limit', '200')
   } catch {
     return NextResponse.json({ error: 'Credential resolved to a non-Zoho host' }, { status: 400 })
   }

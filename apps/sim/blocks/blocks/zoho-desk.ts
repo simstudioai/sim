@@ -180,7 +180,6 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       type: 'short-input',
       placeholder: 'e.g. Open, Closed',
       condition: { field: 'operation', value: ['update_ticket', 'list_tickets'] },
-      mode: 'advanced',
     },
     {
       id: 'priority',
@@ -188,7 +187,6 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       type: 'short-input',
       placeholder: 'e.g. High',
       condition: { field: 'operation', value: ['update_ticket', 'list_tickets'] },
-      mode: 'advanced',
     },
     {
       id: 'assigneeId',
@@ -297,7 +295,8 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate a JSON object of Zoho Desk custom field API names to values.',
+        prompt:
+          'Generate a JSON object mapping Zoho Desk custom field API names (they start with cf_) to values. Return ONLY the JSON object - no explanations, no extra text.',
         generationType: 'json-object',
       },
     },

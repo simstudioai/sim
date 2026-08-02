@@ -15,10 +15,21 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('ZohoDeskDepartmentsAPI')
 
 /**
- * `GET /api/v1/departments` is index-paginated: `from` is a 0-based offset and
- * `limit` caps at 200 (default 10). A short page means the list is exhausted.
+ * `GET /api/v1/departments` is index-paginated with `limit` capped at 200
+ * (default 10). A short page means the list is exhausted.
+ *
+ * Zoho's docs contradict themselves on whether `from` is 0- or 1-based: the
+ * pagination section documents "range 0-4999, default 0", while the listing
+ * examples read "from=5 and limit=50 retrieves records 5 to 54" (1-based). Under
+ * the 1-based reading, stepping by exactly PAGE_SIZE re-fetches the boundary
+ * record. Rather than guess a base we cannot confirm without a live tenant, the
+ * accumulator dedupes by id, which is correct under BOTH readings — the worst
+ * case is one redundant record per page boundary, never a duplicate entry or a
+ * skipped one.
+ *
  * The page cap bounds the drain so a provider that keeps returning full pages
- * cannot loop forever — 20 x 200 covers any realistic Desk portal.
+ * cannot loop forever — 20 x 200 covers any realistic Desk portal and keeps the
+ * maximum `from` inside Zoho's documented 4999 ceiling.
  */
 const DEPARTMENT_PAGE_SIZE = 200
 const MAX_DEPARTMENT_PAGES = 20
@@ -47,6 +58,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const headers = buildZohoDeskHeaders({ accessToken, orgId })
   const departments: Array<{ id: string; name: string }> = []
+  const seenIds = new Set<string>()
 
   try {
     for (let page = 0; page < MAX_DEPARTMENT_PAGES; page++) {
@@ -96,8 +108,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const pageItems = Array.isArray(body.data) ? (body.data as ZohoDepartment[]) : []
       for (const department of pageItems) {
         if (department.id === undefined || department.id === null) continue
+        const id = String(department.id)
+        // Dedupe: see the pagination note above — a 1-based `from` would repeat
+        // the boundary record on every page after the first.
+        if (seenIds.has(id)) continue
+        seenIds.add(id)
         departments.push({
-          id: String(department.id),
+          id,
           name: department.name || department.nameInCustomerPortal || String(department.id),
         })
       }
