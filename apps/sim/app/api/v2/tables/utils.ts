@@ -166,9 +166,15 @@ export function v2TableAccessError(result: { ok: false; status: 404 | 403 }): Ne
  * Maps a delete/write rejected by a table lock to the v2 `LOCKED` envelope,
  * mirroring v1's {@link tableLockErrorResponse}. Returns `null` for anything
  * else so the caller falls through to its own classification.
+ *
+ * `details.lock` names the flag that rejected the write. A table carries four
+ * independent locks, so "locked" on its own does not tell a caller which one to
+ * clear — every 423 on the surface reports it.
  */
 export function v2TableLockError(error: unknown): NextResponse | null {
-  if (error instanceof TableLockedError) return v2Error('LOCKED', error.message)
+  if (error instanceof TableLockedError) {
+    return v2Error('LOCKED', error.message, { details: { lock: error.lock } })
+  }
   return null
 }
 

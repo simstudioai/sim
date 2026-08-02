@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
+import type { NextRequest, NextResponse } from 'next/server'
 import {
   v2DeleteTableContract,
   v2GetTableContract,
@@ -127,6 +127,11 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
+    // ── Validate every field BEFORE the first write ──
+    // The three operations are separate transactions, so a rejection
+    // discovered partway through would leave the earlier ones persisted while
+    // the response reports failure. Everything a request can be rejected for
+    // is therefore checked up front: a rejected PATCH changes nothing.
     if (validated.locks !== undefined) {
       // Only a lock transitioning off→on needs the feature; comparing against
       // the stored state is what lets a caller submitting the full flag set
@@ -151,7 +156,24 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       if (!adminResult.ok) {
         return v2Error('FORBIDDEN', 'Admin access required to change table locks')
       }
+    }
 
+    if (validated.folderId != null) {
+      // Scoped to `resourceType: 'table'` so a folder id from another resource's
+      // tree can't file the table somewhere Tables never lists.
+      if (!(await findActiveFolder(validated.folderId, table.workspaceId, 'table'))) {
+        return v2Error('NOT_FOUND', 'Folder not found in this workspace')
+      }
+    }
+
+    // ── Apply ──
+    // `applied` tracks whether anything reached the database, so a failure
+    // partway through still signals open clients. Skipping the signal there
+    // would leave every viewer rendering state that has already changed.
+    let applied = false
+    let failure: NextResponse | null = null
+
+    if (validated.locks !== undefined) {
       const outcome = await performUpdateTableLocks({
         tableId,
         partial: validated.locks,
@@ -159,15 +181,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         requestId,
         request,
       })
-      if (!outcome.success) {
-        return v2ErrorForOrchestration(
+      if (outcome.success) {
+        applied = true
+      } else {
+        failure = v2ErrorForOrchestration(
           outcome.errorCode,
           outcome.error ?? 'Failed to update table locks'
         )
       }
     }
 
-    if (validated.name !== undefined) {
+    if (!failure && validated.name !== undefined) {
       const outcome = await performRenameTable({
         table,
         newName: validated.name,
@@ -175,20 +199,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         requestId,
         request,
       })
-      if (!outcome.success) {
-        return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to rename table')
+      if (outcome.success) {
+        applied = true
+      } else {
+        failure = v2ErrorForOrchestration(
+          outcome.errorCode,
+          outcome.error ?? 'Failed to rename table'
+        )
       }
     }
 
-    if (validated.folderId !== undefined) {
-      // Scoped to `resourceType: 'table'` so a folder id from another resource's
-      // tree can't file the table somewhere Tables never lists.
-      if (
-        validated.folderId !== null &&
-        !(await findActiveFolder(validated.folderId, table.workspaceId, 'table'))
-      ) {
-        return v2Error('NOT_FOUND', 'Folder not found in this workspace')
-      }
+    if (!failure && validated.folderId !== undefined) {
       const outcome = await performMoveTableToFolder({
         table,
         folderId: validated.folderId,
@@ -196,20 +217,21 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         requestId,
         request,
       })
-      if (!outcome.success) {
-        // The move re-asserts workspace and active state, so a miss means the
-        // table was archived between `checkAccess` and the write.
-        return v2ErrorForOrchestration(
+      if (outcome.success) applied = true
+      // The move re-asserts workspace and active state, so a miss means the
+      // table was archived between `checkAccess` and the write.
+      else
+        failure = v2ErrorForOrchestration(
           outcome.errorCode,
           outcome.errorCode === 'not_found'
             ? 'Table not found'
             : (outcome.error ?? 'Failed to move table')
         )
-      }
     }
 
     // Live-collab: tell open viewers the definition changed so they refetch.
-    signalTableSchemaChanged(tableId)
+    if (applied) signalTableSchemaChanged(tableId)
+    if (failure) return failure
 
     // Re-read so the response reflects every applied change at once.
     const updated = await getTableById(tableId)

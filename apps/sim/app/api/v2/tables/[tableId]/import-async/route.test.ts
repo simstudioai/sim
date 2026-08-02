@@ -19,7 +19,6 @@ const {
   mockAssertRowInsert,
   mockAssertRowDelete,
   mockGateError,
-  TableLockedError,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceScope: vi.fn(),
@@ -30,7 +29,6 @@ const {
   mockAssertRowInsert: vi.fn(),
   mockAssertRowDelete: vi.fn(),
   mockGateError: vi.fn(),
-  TableLockedError: class TableLockedError extends Error {},
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -43,25 +41,18 @@ vi.mock('@/app/api/table/utils', async (importOriginal) => ({
   checkAccess: mockCheckAccess,
 }))
 
-vi.mock('@/app/api/v2/tables/utils', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  v2TableLockError: (error: unknown) =>
-    error instanceof TableLockedError
-      ? new Response(JSON.stringify({ error: { code: 'LOCKED', message: error.message } }), {
-          status: 423,
-        })
-      : null,
-}))
-
 vi.mock('@/lib/table/jobs/service', () => ({
   markTableJobRunning: mockMarkTableJobRunning,
   releaseJobClaim: mockReleaseJobClaim,
 }))
-vi.mock('@/lib/table/mutation-locks', () => ({
+// Only the assert helpers are stubbed — `TableLockedError` stays real so the
+// route's `v2TableLockError` recognizes it by `instanceof` and reports the lock
+// kind, exactly as it would in production.
+vi.mock('@/lib/table/mutation-locks', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   assertRowInsert: mockAssertRowInsert,
   assertRowDelete: mockAssertRowDelete,
   assertSchemaMutable: vi.fn(),
-  TableLockedError,
 }))
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: vi.fn() }))
 vi.mock('@/lib/core/utils/background', () => ({ runDetached: mockRunDetached }))
@@ -71,6 +62,7 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mockGateError }))
 
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/v2/tables/[tableId]/import-async/route'
 
 const TABLE = { id: 'table-1', workspaceId: 'ws-1', schema: { columns: [] }, archivedAt: null }
@@ -134,15 +126,20 @@ describe('POST /api/v2/tables/[tableId]/import-async', () => {
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
   })
 
-  it('asserts the insert lock BEFORE claiming the slot, so a locked table never holds it', async () => {
+  it('asserts the insert lock BEFORE claiming the slot, and names the lock in the 423', async () => {
     mockAssertRowInsert.mockImplementation(() => {
-      throw new TableLockedError('Inserts are locked for this table')
+      throw new TableLockedError('insert')
     })
 
     const res = await callPost(BODY)
 
     expect(res.status).toBe(423)
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+    // A table has four independent locks, so "LOCKED" alone doesn't tell the
+    // caller which one to clear.
+    const body = await res.json()
+    expect(body.error.code).toBe('LOCKED')
+    expect(body.error.details).toEqual({ lock: 'insert' })
   })
 
   it('asserts the delete lock too when the mode replaces rows', async () => {

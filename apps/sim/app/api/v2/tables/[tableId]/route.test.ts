@@ -22,6 +22,7 @@ const {
   mockFindActiveFolder,
   mockIsFeatureEnabled,
   mockGateError,
+  mockSignalSchemaChanged,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceScope: vi.fn(),
@@ -35,6 +36,7 @@ const {
   mockFindActiveFolder: vi.fn(),
   mockIsFeatureEnabled: vi.fn(),
   mockGateError: vi.fn(),
+  mockSignalSchemaChanged: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -63,7 +65,9 @@ vi.mock('@/lib/table', () => ({
   buildIdByName: vi.fn(),
 }))
 
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: vi.fn() }))
+vi.mock('@/lib/table/events', () => ({
+  signalTableSchemaChanged: mockSignalSchemaChanged,
+}))
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -218,6 +222,55 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
 
     expect(res.status).toBe(404)
     expect(mockPerformMoveTableToFolder).not.toHaveBeenCalled()
+  })
+
+  it('rejects a bad folder without applying the rename that came with it', async () => {
+    // The three operations are separate transactions, so validation has to run
+    // before the first write — otherwise a rejected PATCH still renames.
+    mockFindActiveFolder.mockResolvedValue(null)
+
+    const res = await callPatch({
+      workspaceId: 'ws-1',
+      name: 'Renamed',
+      folderId: 'folder-elsewhere',
+    })
+
+    expect(res.status).toBe(404)
+    expect(mockPerformRenameTable).not.toHaveBeenCalled()
+    expect(mockPerformUpdateTableLocks).not.toHaveBeenCalled()
+    expect(mockSignalSchemaChanged).not.toHaveBeenCalled()
+  })
+
+  it('rejects a lock change from a non-admin without applying the rename beside it', async () => {
+    mockCheckAccess.mockImplementation(async (_tableId, _userId, level) =>
+      level === 'admin' ? { ok: false, status: 403 } : { ok: true, table: TABLE }
+    )
+
+    const res = await callPatch({
+      workspaceId: 'ws-1',
+      name: 'Renamed',
+      locks: { deleteLocked: true },
+    })
+
+    expect(res.status).toBe(403)
+    expect(mockPerformRenameTable).not.toHaveBeenCalled()
+  })
+
+  it('still signals collaborators when a later operation fails after an earlier one landed', async () => {
+    // A mid-write fault can't be rolled back across three transactions, so the
+    // clients must at least be told to refetch what did apply.
+    mockPerformRenameTable.mockResolvedValue({ success: true })
+    mockPerformMoveTableToFolder.mockResolvedValue({
+      success: false,
+      errorCode: 'not_found',
+      error: 'gone',
+    })
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderId: 'folder-1' })
+
+    expect(res.status).toBe(404)
+    expect(mockPerformRenameTable).toHaveBeenCalled()
+    expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
   })
 
   it('rejects a lock change from a write-level caller', async () => {
