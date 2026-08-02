@@ -447,6 +447,31 @@ Ollama URL
 {{- end }}
 
 {{/*
+Whether the app may believe x-forwarded-for / x-real-ip.
+
+Derived from ingress.enabled rather than defaulted to "true": every rule about
+which forwarded hop to read presumes a proxy wrote one of them. With the ingress
+off, the Service is reached directly (ClusterIP port-forward, LoadBalancer,
+NodePort) and the header is authored entirely by the caller — trusting it would
+let anyone rotate it for a fresh per-IP rate-limit bucket per request. An
+explicit app.env.TRUST_PROXY_HEADERS always wins, for edges the chart cannot see
+(a Gateway API listener, a service mesh, an external LB that appends).
+*/}}
+{{- define "sim.trustProxyHeaders" -}}
+{{- $explicit := toString ((default (dict) .Values.app.env).TRUST_PROXY_HEADERS) -}}
+{{- /*
+  Compare the STRINGIFIED value, never the raw one: an explicit `false` is falsy
+  in Go templates, so `if $explicit` would silently discard the one override
+  that turns trust off and fall through to the ingress default.
+*/ -}}
+{{- if or (eq $explicit "") (eq $explicit "<nil>") -}}
+{{- ternary "true" "false" .Values.ingress.enabled -}}
+{{- else -}}
+{{- $explicit -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 PII (Presidio) service URL
 */}}
 {{- define "sim.piiUrl" -}}

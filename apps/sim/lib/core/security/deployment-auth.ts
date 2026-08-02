@@ -148,9 +148,17 @@ export async function validateDeploymentAuth(
       }
 
       const resourceKey = `${cookiePrefix}-password:resource:${resource.id}`
+      /**
+       * `failClosed` because this is the only bound on distributed guessing at
+       * the secret: failing open would silently remove it during exactly the
+       * storage outage an attacker could wait for. The cost is bounded — the
+       * bucket store is Redis or the app database, and if the database is down
+       * the deployment is unreachable anyway.
+       */
       const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
         resourceKey,
-        PASSWORD_RESOURCE_RATE_LIMIT
+        PASSWORD_RESOURCE_RATE_LIMIT,
+        { failClosed: true }
       )
       if (!resourceRateLimit.allowed) {
         logger.warn(

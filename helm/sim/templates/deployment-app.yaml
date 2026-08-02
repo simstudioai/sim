@@ -91,6 +91,8 @@ spec:
               value: {{ include "sim.ollamaUrl" . | quote }}
             - name: PII_URL
               value: {{ include "sim.piiUrl" . | quote }}
+            - name: TRUST_PROXY_HEADERS
+              value: {{ include "sim.trustProxyHeaders" . | quote }}
             {{- /*
               Skip envDefaults keys that the user has explicitly overridden in app.env
               with a non-empty value. K8s `env` takes precedence over `envFrom`, so an

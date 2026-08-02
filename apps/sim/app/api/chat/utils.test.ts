@@ -253,9 +253,33 @@ describe('Chat API Utils', () => {
       expect(result.authorized).toBe(false)
       expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
         'chat-password:resource:chat-id',
-        expect.objectContaining({ maxTokens: 500 })
+        expect.objectContaining({ maxTokens: 500 }),
+        { failClosed: true }
       )
       expect(mockResetRateLimitBucket).not.toHaveBeenCalled()
+    })
+
+    it('checks the per-resource ceiling fail-closed so an outage cannot lift it', async () => {
+      // It is the only bound on distributed guessing at the secret; failing open
+      // would silently remove it during exactly the outage an attacker waits for.
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      const mockRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      await validateChatAuth('request-id', deployment, mockRequest, {
+        password: 'correct-password',
+      })
+
+      const resourceCall = mockCheckRateLimitDirect.mock.calls.find((call: unknown[]) =>
+        String(call[0]).includes(':resource:')
+      )
+      expect(resourceCall?.[2]).toEqual({ failClosed: true })
     })
 
     it('rejects guesses once the per-resource counter is exhausted, without decrypting', async () => {
