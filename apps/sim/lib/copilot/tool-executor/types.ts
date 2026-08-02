@@ -11,6 +11,8 @@ export interface ToolExecutionContext {
   messageId?: string
   executionId?: string
   runId?: string
+  /** Stable identity of the individual tool call being executed. */
+  toolCallId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
   requestMode?: string

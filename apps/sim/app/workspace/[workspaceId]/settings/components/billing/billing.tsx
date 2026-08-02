@@ -102,9 +102,15 @@ interface BillingProps {
   scope: 'account' | 'organization'
   organizationId?: string
   creditUsageHref?: string
+  governingWorkspaceName?: string
 }
 
-export function Billing({ scope, organizationId, creditUsageHref }: BillingProps) {
+export function Billing({
+  scope,
+  organizationId,
+  creditUsageHref,
+  governingWorkspaceName,
+}: BillingProps) {
   const router = useRouter()
   const isOrganizationScope = scope === 'organization'
 
@@ -447,9 +453,16 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const explorePlansLabel = isOrganizationScope
     ? 'Explore organization plans'
     : 'Explore personal plans'
+  const subscriptionOwner = isOrganizationScope
+    ? `${organizationBilling?.organizationName ?? 'The organization'}’s subscription`
+    : 'Your personal subscription'
+  const settingsDescription =
+    governingWorkspaceName && subscription.isPaid
+      ? `${subscriptionOwner} governs ${governingWorkspaceName}.`
+      : undefined
 
   return (
-    <SettingsPanel>
+    <SettingsPanel description={settingsDescription}>
       <div className='flex items-center justify-between gap-3'>
         <div className='flex items-center gap-2.5'>
           <div className='size-9 flex-shrink-0'>

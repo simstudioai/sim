@@ -94,6 +94,18 @@ describe('toolCallNeedsApproval', () => {
     expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
   })
 
+  it.each(['deploy_api', 'deploy_chat', 'deploy_mcp'])(
+    'honors the saved permission for a %s undeploy',
+    (toolName) => {
+      const context = makeContext()
+      context.toolPermissions.autoAllowed.add(toolName)
+
+      expect(toolCallNeedsApproval(toolName, context, {}, false, { action: 'undeploy' })).toBe(
+        false
+      )
+    }
+  )
+
   it('applies the normal saved permission to code with a secret reference', () => {
     const context = makeContext()
     context.toolPermissions.autoAllowed.add('function_execute')

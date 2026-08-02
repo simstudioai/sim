@@ -35,6 +35,8 @@ export interface ChatDeployPayload {
   /** When true, public SSE may expose tool lifecycle if the client opts into agent-events-v1. */
   includeToolCalls?: boolean
   workspaceId?: string | null
+  /** Stable identity for the underlying workflow deployment operation. */
+  idempotencyKey?: string
 }
 
 export interface PerformChatDeployResult {
@@ -114,9 +116,17 @@ export async function performChatDeploy(
       userId,
       versionDescription: params.versionDescription,
       versionName: params.versionName,
+      idempotencyKey: params.idempotencyKey,
     })
     if (!deployResult.success) {
       return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
+    }
+    if (deployResult.latestDeploymentAttempt?.isCurrent === false) {
+      return {
+        success: false,
+        error:
+          'The workflow deployment attempt is historical and no longer describes production. Retry chat deployment as a new tool call.',
+      }
     }
     if (deployResult.latestDeploymentAttempt?.status !== 'active') {
       return {
@@ -124,6 +134,12 @@ export async function performChatDeploy(
         error:
           deployResult.warnings?.[0] ??
           'Workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+      }
+    }
+    if (!deployResult.activeDeployment) {
+      return {
+        success: false,
+        error: 'Workflow deployment reported active without a live deployment version.',
       }
     }
   }

@@ -89,4 +89,24 @@ describe('performChatDeploy password guards', () => {
       error: 'Password is required when using password protection',
     })
   })
+
+  it('does not create a chat from a historical active deployment attempt', async () => {
+    mockGetWorkflowDeploymentSummary.mockResolvedValue({
+      activeDeployment: null,
+      latestDeploymentAttempt: { status: 'active', isCurrent: false },
+      warnings: [],
+    })
+    mockPerformFullDeploy.mockResolvedValue({
+      success: true,
+      activeDeployment: null,
+      latestDeploymentAttempt: { status: 'active', isCurrent: false },
+    })
+
+    const result = await performChatDeploy(basePayload)
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('historical'),
+    })
+  })
 })
