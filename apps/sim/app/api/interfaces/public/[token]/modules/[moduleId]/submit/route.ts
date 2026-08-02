@@ -182,7 +182,6 @@ export const POST = withRouteHandler(
         success: true,
         data: {
           executionId: run.metadata?.executionId ?? executionId,
-          output: run.output,
         },
       })
     } finally {

@@ -32,9 +32,13 @@ export interface ModuleInspectorProps {
  * workflow editor's right panel and the table detail sidebars.
  *
  * The `<aside>` never closes and never animates — it is a flex sibling of the
- * canvas fixed at the workflow panel's resting width (`PANEL_WIDTH.DEFAULT`,
- * inlined because Tailwind cannot read a value from JavaScript), so selecting a
- * module swaps the panel body rather than sliding a surface in. Persistence is
+ * canvas fixed at the workflow panel's resting width (`PANEL_WIDTH.DEFAULT`), so
+ * selecting a module swaps the panel body rather than sliding a surface in.
+ *
+ * Deliberately the literal and not `--panel-width`: that token carries the user's
+ * *resized* workflow-panel width at runtime, and this panel has no resize handle
+ * of its own, so binding to it would let a drag on another page silently
+ * relayout this one. Persistence is
  * automatic: every edit is mirrored up
  * through `onConfigChange`, which the page debounces, so the panel carries no
  * Save/Cancel footer.

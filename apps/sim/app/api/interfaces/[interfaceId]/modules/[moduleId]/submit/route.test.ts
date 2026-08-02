@@ -19,7 +19,10 @@ const {
   mockValidateFormSubmission,
   InterfaceConflictErrorMock,
   InterfaceLayoutErrorMock,
+  InterfaceNotArchivedErrorMock,
+  InterfaceNotFoundErrorMock,
   InterfaceStaleWriteErrorMock,
+  InterfaceWorkspaceArchivedErrorMock,
   InvalidModuleReferenceErrorMock,
 } = vi.hoisted(() => {
   class InterfaceConflictErrorMock extends Error {
@@ -39,6 +42,16 @@ const {
   class InvalidModuleReferenceErrorMock extends Error {
     readonly code = 'INVALID_MODULE_REFERENCE' as const
   }
+  /**
+   * Not thrown anywhere in this suite, and still stubbed. `@/app/api/interfaces/utils`
+   * — which the route imports — narrows on all three with `instanceof`, so omitting
+   * one from the factory leaves it `undefined` and turns that narrowing into a
+   * TypeError the moment this route maps a domain error. Cheaper to keep the
+   * factory complete than to rediscover that as a 500.
+   */
+  class InterfaceNotFoundErrorMock extends Error {}
+  class InterfaceNotArchivedErrorMock extends Error {}
+  class InterfaceWorkspaceArchivedErrorMock extends Error {}
   return {
     mockExecuteWorkflow: vi.fn(),
     mockGetInterfaceById: vi.fn(),
@@ -46,7 +59,10 @@ const {
     mockValidateFormSubmission: vi.fn(),
     InterfaceConflictErrorMock,
     InterfaceLayoutErrorMock,
+    InterfaceNotArchivedErrorMock,
+    InterfaceNotFoundErrorMock,
     InterfaceStaleWriteErrorMock,
+    InterfaceWorkspaceArchivedErrorMock,
     InvalidModuleReferenceErrorMock,
   }
 })
@@ -61,6 +77,9 @@ vi.mock('@/lib/interfaces', () => ({
   InterfaceConflictError: InterfaceConflictErrorMock,
   InterfaceLayoutError: InterfaceLayoutErrorMock,
   InterfaceStaleWriteError: InterfaceStaleWriteErrorMock,
+  InterfaceNotFoundError: InterfaceNotFoundErrorMock,
+  InterfaceNotArchivedError: InterfaceNotArchivedErrorMock,
+  InterfaceWorkspaceArchivedError: InterfaceWorkspaceArchivedErrorMock,
   InvalidModuleReferenceError: InvalidModuleReferenceErrorMock,
 }))
 
@@ -73,7 +92,10 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
 }))
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => ({
+  captureServerEvent: vi.fn(),
+  getPostHogClient: vi.fn(() => null),
+}))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

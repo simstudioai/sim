@@ -39,9 +39,6 @@ export interface ChipPasswordInputProps
   onGenerate?: () => string
 }
 
-const ADORNMENT_BUTTON_CLASS = chipAdornmentButtonClass
-const ADORNMENT_ICON_CLASS = chipAdornmentIconClass
-
 interface AdornmentButtonProps {
   label: string
   /**
@@ -72,7 +69,7 @@ function AdornmentButton({
         <Button
           type='button'
           variant='quiet'
-          className={ADORNMENT_BUTTON_CLASS}
+          className={chipAdornmentButtonClass}
           onClick={onClick}
           disabled={disabled}
           aria-label={ariaLabel ?? label}
@@ -108,7 +105,7 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
                 disabled={disabled}
                 onClick={() => onChange(onGenerate())}
               >
-                <RefreshCw className={ADORNMENT_ICON_CLASS} />
+                <RefreshCw className={chipAdornmentIconClass} />
               </AdornmentButton>
             ) : null}
             <AdornmentButton
@@ -120,9 +117,9 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
               onClick={() => copy(value)}
             >
               {copied ? (
-                <Check className={ADORNMENT_ICON_CLASS} />
+                <Check className={chipAdornmentIconClass} />
               ) : (
-                <Duplicate className={ADORNMENT_ICON_CLASS} />
+                <Duplicate className={chipAdornmentIconClass} />
               )}
             </AdornmentButton>
             <AdornmentButton
@@ -132,9 +129,9 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
               onClick={() => setRevealed((previous) => !previous)}
             >
               {revealed ? (
-                <EyeOff className={ADORNMENT_ICON_CLASS} />
+                <EyeOff className={chipAdornmentIconClass} />
               ) : (
-                <Eye className={ADORNMENT_ICON_CLASS} />
+                <Eye className={chipAdornmentIconClass} />
               )}
             </AdornmentButton>
           </div>

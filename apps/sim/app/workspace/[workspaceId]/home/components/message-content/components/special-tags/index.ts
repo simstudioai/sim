@@ -31,7 +31,6 @@ export {
 } from '@/components/chat/special-tags/parse'
 export {
   CredentialDisplay,
-  PendingTagIndicator,
   SpecialTags,
   WorkspaceResourceDisplay,
 } from './special-tags'

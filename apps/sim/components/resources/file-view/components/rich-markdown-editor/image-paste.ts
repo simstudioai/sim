@@ -55,7 +55,7 @@ export function toSameOriginPath(src: string, origin = runtimeOrigin()): string 
 }
 
 /**
- * True for the *display-layer* inline route `fileImageSrc` (see `../file-scope.ts`)
+ * True for the *display-layer* inline route `fileImageSrc` (in `@/resources/file-source`)
  * rewrites an embed to — workspace-scoped `/api/workspaces/{workspaceId}/files/inline?key=…`/`?fileId=…`
  * or public-share-scoped `/api/files/public/{token}/inline?key=…`/`?fileId=…`. This is the shape
  * actually rendered into `<img src>`, and so what a same-page copy's `text/html` clipboard payload

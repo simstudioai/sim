@@ -62,12 +62,21 @@ export function CellContent({
     currentWorkspaceId: workspaceId,
   })
 
+  /**
+   * `isEditing` alone is not enough to dim the underlying cell. `CellRender`
+   * hides most kinds while editing because an editor is covering them — so a
+   * host that reports editing without supplying one would render a cell that is
+   * neither readable nor editable. Deriving both from the editor's presence
+   * makes that state unreachable rather than merely unused.
+   */
+  const showingEditor = isEditing && Boolean(editor)
+
   return (
     <>
-      {isEditing && editor && (
+      {showingEditor && (
         <div className='absolute inset-0 z-10 flex items-center px-0'>{editor}</div>
       )}
-      <CellRender kind={kind} isEditing={isEditing} />
+      <CellRender kind={kind} isEditing={showingEditor} />
     </>
   )
 }

@@ -6,11 +6,16 @@
  * column shows its option *name* wherever it is mounted — the tables grid, an
  * embedded panel, or a public share.
  *
- * This pins the registry contract `CellContent` depends on. It regressed once:
- * the interface module carried its own resolver that handled only
- * boolean/null/json/date/string and let currency and select fall through to
- * `JSON.stringify`, so a module rendered `1234.5` and `opt_open` where the grid
- * rendered `$1,234.50` and `Open`.
+ * This pins the registry contract, which is what stops a second surface from
+ * growing its own resolver. It regressed once exactly that way: the interface
+ * module carried a resolver handling only boolean/null/json/date/string and let
+ * currency and select fall through to `JSON.stringify`, so a module rendered
+ * `1234.5` and `opt_open` where the grid rendered `$1,234.50` and `Open`.
+ *
+ * Note the two halves reach the screen differently. Currency is the direct
+ * dependency — `resolveCellRender` calls `formatForDisplay` for it. Select is
+ * not: it resolves to the `select` kind and renders as pills, so these cases
+ * pin the id→name semantics `SelectPill` must agree with, not its render path.
  */
 import { describe, expect, it } from 'vitest'
 import { columnTypeOf } from '@/lib/table/column-types'

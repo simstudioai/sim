@@ -110,7 +110,16 @@ export const PATCH = withRouteHandler(
        */
       const layoutSharesRequest = body.name !== undefined || body.description !== undefined
       if (body.layout !== undefined && layoutSharesRequest) {
-        await validateLayout(access.definition.workspaceId, body.layout)
+        /**
+         * Passed the committed layout as `previous` for the same reason
+         * `updateInterfaceLayout` does: references already stored are
+         * grandfathered, so an interface whose table was archived stays
+         * renameable. Without it this pre-flight is stricter than the write it
+         * is guarding, and renaming would 400 on a layout the write would have
+         * accepted. It is only a fail-fast — the authoritative check still runs
+         * inside the transaction against a `FOR UPDATE` re-read.
+         */
+        await validateLayout(access.definition.workspaceId, body.layout, access.definition.layout)
       }
 
       let result: InterfaceDefinition = access.definition

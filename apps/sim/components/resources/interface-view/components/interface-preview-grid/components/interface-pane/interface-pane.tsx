@@ -37,7 +37,7 @@ export function InterfacePane({ module, style, canRun }: InterfacePaneProps) {
   return (
     <div
       style={style}
-      className='flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] [grid-column:var(--module-col)] [grid-row:var(--module-row)] max-sm:min-h-[70dvh] max-sm:[grid-column:auto] max-sm:[grid-row:auto]'
+      className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] [grid-column:var(--module-col)] [grid-row:var(--module-row)] max-sm:min-h-[70dvh] max-sm:[grid-column:auto] max-sm:[grid-row:auto]'
     >
       <div className='min-h-0 flex-1 overflow-auto'>
         <ModuleRenderer module={module} mode='preview' canRun={canRun} />

@@ -105,11 +105,19 @@ export const PUT = withRouteHandler(
       // master on/off and the per-auth-type allow-list); disabling is always
       // allowed so users can still un-share after the policy is turned on.
       if (isActive) {
+        // Validate the auth type that will ACTUALLY be persisted. upsertResourceShare
+        // falls back to the existing share's authType when none is passed, so a bare
+        // re-enable must be checked against that stored mode — not 'public' — or a
+        // now-disallowed password/email/sso share could be silently reactivated, and
+        // a still-permitted one could be falsely rejected by a group that only bars
+        // 'public'.
+        const existingShare = await getShareForResource('interface', interfaceId)
+        const effectiveAuthType = authType ?? existingShare?.authType ?? 'public'
         try {
           await validatePublicInterfaceSharing(
             session.user.id,
             definition.workspaceId,
-            authType ?? 'public'
+            effectiveAuthType
           )
         } catch (error) {
           if (error instanceof PublicInterfaceSharingNotAllowedError) {

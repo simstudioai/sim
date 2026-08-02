@@ -27,7 +27,6 @@ import type {
   WorkspaceResourceTagData,
   WorkspaceResourceTagType,
 } from '@/components/chat/special-tags/parse'
-import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -122,22 +121,6 @@ export function SpecialTags({
     default:
       return null
   }
-}
-
-interface PendingTagIndicatorProps {
-  /** Activity phrase next to the loader; crossfades on change. */
-  label: string
-}
-
-/**
- * Renders the turn-level activity shimmer.
- */
-export function PendingTagIndicator({ label }: PendingTagIndicatorProps) {
-  return (
-    <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' label={label} labelRatio={0.7} />
-    </div>
-  )
 }
 
 interface OptionsDisplayProps {

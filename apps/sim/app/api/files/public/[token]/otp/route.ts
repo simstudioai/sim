@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -164,7 +165,7 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (storedOTP !== otp) {
+      if (!safeCompare(storedOTP, otp)) {
         const result = await incrementOTPAttempts('file', resolved.share.id, email, storedValue)
         if (result === 'locked') {
           return NextResponse.json(

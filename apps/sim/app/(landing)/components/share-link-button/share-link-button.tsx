@@ -54,15 +54,15 @@ export function ShareLinkButton({ title, kind }: ShareLinkButtonProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onSelect={() => copy(window.location.href)}>
-          <Duplicate className='size-4' />
+          <Duplicate />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => openShare(buildXShareUrl(composePost('@simdotai')))}>
-          <XIcon className='size-4' />
+          <XIcon />
           Post on X
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => openShare(buildLinkedInPostUrl(composePost('Sim')))}>
-          <LinkedInIcon className='size-4' />
+          <LinkedInIcon />
           Post on LinkedIn
         </DropdownMenuItem>
       </DropdownMenuContent>

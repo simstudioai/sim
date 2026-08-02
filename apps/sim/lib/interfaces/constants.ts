@@ -123,6 +123,15 @@ export function isReservedFormFieldName(name: string): boolean {
  * Per-type empty config factories. Each returns a fresh object so callers can
  * mutate their copy without touching the next module's defaults.
  */
+/**
+ * The label a form module's submit button carries until an author renames it.
+ *
+ * Named rather than inlined because the inspector renders it as the field's
+ * placeholder and writes it back on clear — so it has to be the same string the
+ * server persists, or a cleared field would silently disagree with the default.
+ */
+export const DEFAULT_FORM_SUBMIT_LABEL = 'Submit'
+
 export const DEFAULT_MODULE_CONFIGS = {
   chat: (): ChatModuleConfig => ({
     workflowId: null,
@@ -132,7 +141,11 @@ export const DEFAULT_MODULE_CONFIGS = {
   }),
   table: (): TableModuleConfig => ({ tableId: null }),
   file: (): FileModuleConfig => ({ fileId: null }),
-  form: (): FormModuleConfig => ({ workflowId: null, fields: [], submitLabel: 'Submit' }),
+  form: (): FormModuleConfig => ({
+    workflowId: null,
+    fields: [],
+    submitLabel: DEFAULT_FORM_SUBMIT_LABEL,
+  }),
 } as const
 
 /**

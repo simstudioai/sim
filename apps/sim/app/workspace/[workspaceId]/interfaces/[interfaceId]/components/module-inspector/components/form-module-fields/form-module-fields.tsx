@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Chip, ChipInput, cn, FieldDivider } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import { INTERFACE_LAYOUT_LIMITS } from '@/lib/interfaces/constants'
+import { DEFAULT_FORM_SUBMIT_LABEL, INTERFACE_LAYOUT_LIMITS } from '@/lib/interfaces/constants'
 import { countFieldNames, createFormField, isFormConfigValid } from '@/lib/interfaces/form-config'
 import type { FormField, FormModuleConfig } from '@/lib/interfaces/types'
 import { InspectorField } from '@/app/workspace/[workspaceId]/interfaces/[interfaceId]/components/inspector-field'
@@ -13,7 +13,6 @@ import { useWorkflows } from '@/hooks/queries/workflows'
 import { reorderList, useDragReorder } from '@/hooks/use-drag-reorder'
 
 /** Applied when the submit label is left empty, so the layout always saves. */
-const DEFAULT_SUBMIT_LABEL = 'Submit'
 
 export interface FormModuleFieldsProps {
   workspaceId: string
@@ -101,10 +100,10 @@ export function FormModuleFields({
             onChange={(event) => updateConfig({ submitLabel: event.target.value })}
             onBlur={() => {
               if (value.submitLabel.trim().length === 0) {
-                updateConfig({ submitLabel: DEFAULT_SUBMIT_LABEL })
+                updateConfig({ submitLabel: DEFAULT_FORM_SUBMIT_LABEL })
               }
             }}
-            placeholder={DEFAULT_SUBMIT_LABEL}
+            placeholder={DEFAULT_FORM_SUBMIT_LABEL}
             maxLength={INTERFACE_LAYOUT_LIMITS.MAX_SUBMIT_LABEL_LENGTH}
             error={Boolean(submitLabelError)}
             disabled={disabled}

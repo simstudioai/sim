@@ -118,11 +118,18 @@ export function useUpsertResourceShare() {
       queryClient.setQueryData(shareKeys.detail(resourceType, workspaceId, resourceId), data.share)
     },
     /**
-     * The file row's share badge is reconciled on both outcomes: a partial
-     * failure — share written, response lost — would otherwise leave the badge
-     * stale until something else happened to invalidate the list.
+     * Both the share record and the file row's share badge are reconciled on
+     * failure: a partial failure — share written, response lost — would
+     * otherwise leave the modal showing a pre-save record and the badge stale
+     * until something else happened to invalidate them. On success `onSuccess`
+     * already adopted the server's record, so only the list needs refreshing.
      */
-    onSettled: (_data, _error, { resourceType, workspaceId }) => {
+    onSettled: (_data, error, { resourceType, workspaceId, resourceId }) => {
+      if (error) {
+        queryClient.invalidateQueries({
+          queryKey: shareKeys.detail(resourceType, workspaceId, resourceId),
+        })
+      }
       if (resourceType === 'file') {
         queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
       }

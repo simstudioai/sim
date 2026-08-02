@@ -18,7 +18,19 @@ const LOADING_ROW_KEYS = ['row-1', 'row-2', 'row-3', 'row-4', 'row-5'] as const
 
 export interface TableViewProps {
   source: ResourceSource<'table'>
+  /**
+   * Declared and deliberately unread. This view has no write or run path in any
+   * scope, so there is nothing for a grant to unlock — but the axis stays on the
+   * signature because it is the contract every canonical unit is mounted
+   * through, and because the day this grows an editor the capability must come
+   * from here rather than from a consumer inventing a flag.
+   */
   grants: ResourceGrants
+  /**
+   * Declared and deliberately unread, for the same reason. This view writes no
+   * URL state and holds no router, which is what makes it safe in all three
+   * hosts; the prop records that rather than leaving it implicit.
+   */
   host: ResourceHost
 }
 

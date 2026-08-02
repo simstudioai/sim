@@ -20,8 +20,8 @@ import {
 import type { FormField, FormModuleConfig } from '@/lib/interfaces/types'
 
 /**
- * Client mirror of the rules `collectFormFieldErrors` and the boundary contract
- * enforce, so the builder surfaces a violation inline instead of persisting a
+ * Client mirror of the rules `formFieldSchema` (in `@/lib/interfaces/schema.ts`)
+ * enforces at the boundary, so the builder surfaces a violation inline instead of persisting a
  * layout the PATCH will reject.
  *
  * Shared by the row that renders the messages and the section that decides

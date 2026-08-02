@@ -117,9 +117,18 @@ export type AddModuleData =
   | { type: 'file'; placement: InterfacePlacement; config?: FileModuleConfig }
   | { type: 'form'; placement: InterfacePlacement; config?: FormModuleConfig }
 
-type WorkspaceInterfaceRow = typeof workspaceInterface.$inferSelect
+export type WorkspaceInterfaceRow = typeof workspaceInterface.$inferSelect
 
-function toDefinition(row: WorkspaceInterfaceRow): InterfaceDefinition {
+/**
+ * The one row -> {@link InterfaceDefinition} mapping.
+ *
+ * Exported because the public-share token resolve needs it too: that path joins
+ * the interface into its own single query rather than calling back through this
+ * service, but it must produce the identical shape. TypeScript enforces
+ * completeness, so a new definition field cannot silently go missing on either
+ * side — but only while there is one mapper to enforce it on.
+ */
+export function toDefinition(row: WorkspaceInterfaceRow): InterfaceDefinition {
   return {
     id: row.id,
     workspaceId: row.workspaceId,

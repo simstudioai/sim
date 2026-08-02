@@ -9,7 +9,8 @@ import type {
   ShareResourceType,
 } from '@/lib/api/contracts/public-shares'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import type { InterfaceDefinition, InterfaceLayout } from '@/lib/interfaces/types'
+import { toDefinition as toInterfaceDefinition } from '@/lib/interfaces/service'
+import type { InterfaceDefinition } from '@/lib/interfaces/types'
 import { buildShareUrl } from '@/lib/public-shares/urls'
 
 const logger = createLogger('PublicShareManager')
@@ -265,27 +266,6 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
     file: row.file,
     workspaceName: row.workspaceName,
     ownerName: row.ownerName,
-  }
-}
-
-type WorkspaceInterfaceRow = typeof workspaceInterface.$inferSelect
-
-/**
- * Mirrors the interface service's private row mapper so the token resolve stays
- * a single query. TypeScript enforces completeness, so a new
- * {@link InterfaceDefinition} field cannot silently go missing here.
- */
-function toInterfaceDefinition(row: WorkspaceInterfaceRow): InterfaceDefinition {
-  return {
-    id: row.id,
-    workspaceId: row.workspaceId,
-    name: row.name,
-    description: row.description,
-    layout: row.layout as InterfaceLayout,
-    createdBy: row.createdBy,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
   }
 }
 

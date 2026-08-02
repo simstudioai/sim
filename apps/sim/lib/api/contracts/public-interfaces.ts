@@ -196,12 +196,22 @@ export const submitPublicInterfaceFormBodySchema = submitInterfaceFormBodySchema
 
 export type SubmitPublicInterfaceFormBody = z.input<typeof submitPublicInterfaceFormBodySchema>
 
+/**
+ * Deliberately narrower than the in-app response, which carries the run's
+ * `output`. A form module has no output selection — unlike a chat module, whose
+ * `outputConfigs` is what lets that surface stream a chosen field — so there is
+ * nothing here to redact *against*, and returning the raw output would hand an
+ * anonymous visitor the final block's entire result. For an agent block that
+ * includes `toolCalls.list`: the literal arguments sent to every tool and the
+ * literal response that came back.
+ *
+ * Nothing consumes it either — `useModuleFormSubmit` reads only the mutation's
+ * pending/success/error state — so this withholds a leak at no cost.
+ */
 const submitPublicInterfaceFormResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
     executionId: z.string(),
-    // untyped-response: workflow execution output is user-defined
-    output: z.unknown(),
   }),
 })
 

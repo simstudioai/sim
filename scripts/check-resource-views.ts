@@ -284,8 +284,8 @@ const BANNED_AXIS_PROPS = new Set([
 
 /**
  * Components whose NAME announces a per-consumer fork of a resource surface.
- * `EmbeddedTableActions`, `MiniTablePanel` — each is a place a consumer
- * re-solved a problem the resource should solve once.
+ * `EmbeddedWorkflow`, `EmbeddedFolder` — each is a place a consumer re-solved a
+ * problem the resource should solve once.
  *
  * `Public*` is deliberately absent: `PublicFileView` / `PublicInterfaceView` are
  * the share pages' own shells, and they construct the axes and mount the

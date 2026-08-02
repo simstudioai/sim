@@ -3,11 +3,6 @@ import { useId } from 'react'
 import { cn, Label } from '@sim/emcn'
 
 /**
- * Ids and ARIA wiring a field mints for its control. Spread onto the control
- * element so the label, the error/hint line, and the input stay associated
- * without the consumer minting ids of its own.
- */
-/**
  * The workflow editor's subblock label row, verbatim. `justify-between` looks
  * idle on a field with nothing but a label in it, and is kept anyway: it is
  * the editor's own row, and matching it verbatim is what keeps the two panels
@@ -25,6 +20,11 @@ const LABEL_ROW_CLASS = 'flex items-center justify-between gap-1.5 pl-0.5'
  */
 const FLUSH_LABEL_ROW_CLASS = 'flex items-center justify-between gap-1.5 pl-2'
 
+/**
+ * Ids and ARIA wiring a field mints for its control. Spread onto the control
+ * element so the label, the error/hint line, and the input stay associated
+ * without the consumer minting ids of its own.
+ */
 export interface InspectorFieldControl {
   id: string
   'aria-required': true | undefined

@@ -299,7 +299,10 @@ describe('PATCH /api/interfaces/[interfaceId]', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Table "tbl-1" was not found in this workspace',
     })
-    expect(mockValidateLayout).toHaveBeenCalledWith('ws-1', EMPTY_LAYOUT)
+    // The committed layout is passed as `previous` so the pre-flight grandfathers
+    // exactly what the write does — otherwise a rename would 400 on a reference
+    // (an archived table, say) that `updateInterfaceLayout` would have accepted.
+    expect(mockValidateLayout).toHaveBeenCalledWith('ws-1', EMPTY_LAYOUT, buildDefinition().layout)
     expect(mockRenameInterface).not.toHaveBeenCalled()
     expect(mockUpdateInterfaceLayout).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()

@@ -23,15 +23,6 @@ export function tableWorkspaceId(source: ResourceSource<'table'>): string | null
 }
 
 /**
- * The table this source addresses, or `null` for a share — where the id is
- * deliberately absent from the client entirely and the server derives it from
- * the stored grant on every request.
- */
-export function tableResourceId(source: ResourceSource<'table'>): string | null {
-  return source.via === 'workspace' ? source.resourceId : null
-}
-
-/**
  * The schema a shared table renders from.
  *
  * Read from the seed the share page already proved server-side rather than

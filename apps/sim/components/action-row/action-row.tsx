@@ -35,7 +35,7 @@ export function ActionRow({
         divider && 'border-t'
       )}
     >
-      <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' style={iconStyle} />
+      <Icon className='size-[16px] shrink-0 text-[var(--text-icon)]' style={iconStyle} />
       <span className='flex-1 truncate text-[var(--text-body)] text-sm'>{label}</span>
       <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
     </button>

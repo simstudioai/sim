@@ -8,8 +8,8 @@ import { Badge } from '@sim/emcn'
  * draw the same badge: the logs list, a log's detail panel, and the tables grid's
  * workflow-output cells. The logs module additionally imports `getBlock` from the
  * block registry, so a table cell reaching there for a six-line badge pulled the
- * whole registry into the grid's module graph — see `.claude/rules/` on the
- * tool-registry boundary. Nothing in this file imports anything but `Badge`.
+ * whole registry into the grid's module graph. Nothing in this file imports
+ * anything but `Badge`.
  */
 export type LogStatus =
   | 'error'
@@ -20,12 +20,7 @@ export type LogStatus =
   | 'cancelled'
   | 'cancelling'
 
-/**
- * Maps a raw status string to the {@link LogStatus} used for display.
- *
- * @param status - Raw status from the API
- * @returns Normalized {@link LogStatus} value
- */
+/** Maps a raw status string to the {@link LogStatus} used for display. */
 export function getDisplayStatus(status: string | null | undefined): LogStatus {
   switch (status) {
     case 'running':
@@ -73,12 +68,7 @@ interface StatusBadgeProps {
   status: LogStatus
 }
 
-/**
- * Renders a colored badge indicating execution status.
- *
- * @param props - Component props containing the status
- * @returns A Badge with dot indicator and status label
- */
+/** Renders a colored badge indicating execution status. */
 export function StatusBadge({ status }: StatusBadgeProps) {
   const config = STATUS_CONFIG[status]
   return React.createElement(

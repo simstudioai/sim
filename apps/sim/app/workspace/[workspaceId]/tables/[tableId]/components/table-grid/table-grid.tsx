@@ -4305,9 +4305,6 @@ export function TableGrid({
                                 editingColumnName={
                                   editingCell?.rowId === row.id ? editingCell.columnName : null
                                 }
-                                initialCharacter={
-                                  editingCell?.rowId === row.id ? initialCharacter : null
-                                }
                                 pendingCellValue={
                                   pendingUpdate && pendingUpdate.rowId === row.id
                                     ? pendingUpdate.data
@@ -4316,8 +4313,6 @@ export function TableGrid({
                                 normalizedSelection={normalizedSelection}
                                 onClick={handleCellClick}
                                 onDoubleClick={handleCellDoubleClick}
-                                onSave={handleInlineSave}
-                                onCancel={handleInlineCancel}
                                 renderCellEditor={renderCellEditor}
                                 onContextMenu={handleRowContextMenu}
                                 onCellMouseDown={handleCellMouseDown}

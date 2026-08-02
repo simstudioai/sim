@@ -14,7 +14,7 @@ import {
   SELECTION_OVERLAY,
   SELECTION_TINT_BG,
 } from './constants'
-import type { DisplayColumn, SaveReason } from './types'
+import type { DisplayColumn } from './types'
 import { type NormalizedSelection, resolveCellExec } from './utils'
 
 export interface DataRowProps {
@@ -34,13 +34,10 @@ export interface DataRowProps {
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
-  initialCharacter: string | null
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => void
   onDoubleClick: (rowId: string, columnName: string, columnKey: string) => void
-  onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
-  onCancel: () => void
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
@@ -118,9 +115,6 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.pendingCellValue !== next.pendingCellValue ||
     prev.onClick !== next.onClick ||
     prev.onDoubleClick !== next.onDoubleClick ||
-    prev.renderCellEditor !== next.renderCellEditor ||
-    prev.onSave !== next.onSave ||
-    prev.onCancel !== next.onCancel ||
     prev.onContextMenu !== next.onContextMenu ||
     prev.onCellMouseDown !== next.onCellMouseDown ||
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
@@ -140,9 +134,21 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
   ) {
     return false
   }
+
+  /**
+   * `renderCellEditor` is only ever read under `isEditing`, and `isEditing`
+   * requires this row's `editingColumnName` — so a row that is not editing does
+   * not care that the callback's identity changed.
+   *
+   * The gate is load-bearing, not a micro-optimisation: the callback closes over
+   * the grid's pending-update and initial-character state, so it is rebuilt on
+   * every keystroke that opens an editor and on every in-flight save. Comparing
+   * it unconditionally would re-render every mounted row on each of those,
+   * where exactly one row needs to.
+   */
   if (
     (prev.editingColumnName !== null || next.editingColumnName !== null) &&
-    prev.initialCharacter !== next.initialCharacter
+    prev.renderCellEditor !== next.renderCellEditor
   ) {
     return false
   }
@@ -162,15 +168,12 @@ export const DataRow = React.memo(function DataRow({
   rowIndex,
   isFirstRow,
   editingColumnName,
-  initialCharacter,
   pendingCellValue,
   renderCellEditor,
   normalizedSelection,
   isRowChecked,
   onClick,
   onDoubleClick,
-  onSave,
-  onCancel,
   onContextMenu,
   onCellMouseDown,
   onCellMouseEnter,
