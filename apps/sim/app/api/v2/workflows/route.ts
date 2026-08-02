@@ -1,7 +1,12 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
+import {
+  assertFolderInWorkspace,
+  assertFolderMutable,
+  FolderLockedError,
+  FolderNotFoundError,
+} from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
@@ -180,6 +185,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
+    /**
+     * Ownership before lock state: `assertFolderMutable` walks the folder's
+     * ancestor chain without filtering on workspace, so checking it first would
+     * let a caller distinguish a locked folder in someone else's workspace
+     * (423) from one that simply does not exist (400).
+     */
+    if (folderId) await assertFolderInWorkspace(folderId, workspaceId)
     await assertFolderMutable(folderId ?? null)
 
     const result = await performCreateWorkflow({
@@ -212,6 +224,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return v2Data(item, { rateLimit, status: 201 })
   } catch (error) {
+    if (error instanceof FolderNotFoundError) return v2Error('BAD_REQUEST', error.message)
     if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
 
     logger.error(`[${requestId}] Workflow create error`, {

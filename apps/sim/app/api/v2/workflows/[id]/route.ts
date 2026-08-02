@@ -2,9 +2,11 @@ import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
+  assertFolderInWorkspace,
   assertFolderMutable,
   assertWorkflowMutable,
   FolderLockedError,
+  FolderNotFoundError,
   getActiveWorkflowRecord,
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
@@ -140,6 +142,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     )
     if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
+    /**
+     * Ownership before lock state: `assertFolderMutable` walks the folder's
+     * ancestor chain without filtering on workspace, so checking it first would
+     * let a caller distinguish a locked folder in someone else's workspace
+     * (423) from one that simply does not exist (400).
+     */
+    if (folderId) await assertFolderInWorkspace(folderId, workflowData.workspaceId)
     await assertWorkflowMutable(id)
     if (folderId !== undefined) await assertFolderMutable(folderId)
 
@@ -180,6 +189,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
 
     return v2Data(item, { rateLimit })
   } catch (error) {
+    if (error instanceof FolderNotFoundError) return v2Error('BAD_REQUEST', error.message)
     if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
       return v2Error('LOCKED', error.message)
     }

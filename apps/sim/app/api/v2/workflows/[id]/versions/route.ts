@@ -64,10 +64,20 @@ export const GET = withRouteHandler(
       const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
       if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
+      /**
+       * A cursor that decodes to anything other than a version number is
+       * rejected rather than ignored: comparing every row against a missing
+       * `version` yields an empty page with `nextCursor: null`, which reads to
+       * the caller as a clean end-of-list while versions are still pending.
+       */
+      const after = cursor ? decodeCursor<WorkflowVersionCursor>(cursor) : null
+      if (cursor && (!after || !Number.isInteger(after.version) || after.version < 1)) {
+        return v2Error('BAD_REQUEST', 'Invalid cursor')
+      }
+
       const { versions: rows } = await listWorkflowVersions(id)
 
-      const cursorData = cursor ? decodeCursor<WorkflowVersionCursor>(cursor) : null
-      const remaining = cursorData ? rows.filter((row) => row.version < cursorData.version) : rows
+      const remaining = after ? rows.filter((row) => row.version < after.version) : rows
 
       const hasMore = remaining.length > limit
       const page = remaining.slice(0, limit)

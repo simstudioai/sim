@@ -17,8 +17,10 @@ const {
   mockPerformDeleteWorkflow,
   mockAssertWorkflowMutable,
   mockAssertFolderMutable,
+  mockAssertFolderInWorkspace,
   WorkflowLockedErrorMock,
   FolderLockedErrorMock,
+  FolderNotFoundErrorMock,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
@@ -27,11 +29,15 @@ const {
   mockPerformDeleteWorkflow: vi.fn(),
   mockAssertWorkflowMutable: vi.fn(),
   mockAssertFolderMutable: vi.fn(),
+  mockAssertFolderInWorkspace: vi.fn(),
   WorkflowLockedErrorMock: class WorkflowLockedError extends Error {
     status = 423
   },
   FolderLockedErrorMock: class FolderLockedError extends Error {
     status = 423
+  },
+  FolderNotFoundErrorMock: class FolderNotFoundError extends Error {
+    status = 400
   },
 }))
 
@@ -49,8 +55,10 @@ vi.mock('@sim/platform-authz/workflow', () => ({
   getActiveWorkflowRecord: mockGetActiveWorkflowRecord,
   assertWorkflowMutable: mockAssertWorkflowMutable,
   assertFolderMutable: mockAssertFolderMutable,
+  assertFolderInWorkspace: mockAssertFolderInWorkspace,
   WorkflowLockedError: WorkflowLockedErrorMock,
   FolderLockedError: FolderLockedErrorMock,
+  FolderNotFoundError: FolderNotFoundErrorMock,
 }))
 
 vi.mock('@/lib/workflows/input-format', () => ({
@@ -139,6 +147,7 @@ describe('PATCH /api/v2/workflows/[id]', () => {
     mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
     mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mockAssertFolderMutable.mockResolvedValue(undefined)
+    mockAssertFolderInWorkspace.mockResolvedValue(undefined)
     mockPerformUpdateWorkflow.mockResolvedValue({ success: true, workflow: UPDATED })
   })
 
@@ -194,6 +203,40 @@ describe('PATCH /api/v2/workflows/[id]', () => {
     const res = await callPatch({ folderId: 'fld-1' })
     expect(res.status).toBe(423)
     expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('400s a folder outside the workspace without ever reading its lock state', async () => {
+    mockAssertFolderInWorkspace.mockRejectedValue(
+      new FolderNotFoundErrorMock('Target folder not found')
+    )
+    const res = await callPatch({ folderId: 'fld-other-workspace' })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    // Containment runs first, so a locked foreign folder cannot be told apart
+    // from a nonexistent one by its status code.
+    expect(mockAssertFolderMutable).not.toHaveBeenCalled()
+    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('checks folder containment against the workflow workspace before mutability', async () => {
+    const order: string[] = []
+    mockAssertFolderInWorkspace.mockImplementation(async () => {
+      order.push('containment')
+    })
+    mockAssertFolderMutable.mockImplementation(async () => {
+      order.push('mutability')
+    })
+
+    await callPatch({ folderId: 'fld-1' })
+
+    expect(order).toEqual(['containment', 'mutability'])
+    expect(mockAssertFolderInWorkspace).toHaveBeenCalledWith('fld-1', 'workspace-1')
+  })
+
+  it('skips the containment check on a rename that does not move the workflow', async () => {
+    await callPatch({ name: 'Support Agent v2' })
+    expect(mockAssertFolderInWorkspace).not.toHaveBeenCalled()
   })
 
   it('409s when the target name is taken in the destination folder', async () => {

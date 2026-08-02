@@ -13,14 +13,20 @@ const {
   mockResolveWorkspaceAccess,
   mockPerformCreateWorkflow,
   mockAssertFolderMutable,
+  mockAssertFolderInWorkspace,
   FolderLockedErrorMock,
+  FolderNotFoundErrorMock,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockPerformCreateWorkflow: vi.fn(),
   mockAssertFolderMutable: vi.fn(),
+  mockAssertFolderInWorkspace: vi.fn(),
   FolderLockedErrorMock: class FolderLockedError extends Error {
     status = 423
+  },
+  FolderNotFoundErrorMock: class FolderNotFoundError extends Error {
+    status = 400
   },
 }))
 
@@ -35,7 +41,9 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 
 vi.mock('@sim/platform-authz/workflow', () => ({
   assertFolderMutable: mockAssertFolderMutable,
+  assertFolderInWorkspace: mockAssertFolderInWorkspace,
   FolderLockedError: FolderLockedErrorMock,
+  FolderNotFoundError: FolderNotFoundErrorMock,
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
@@ -98,6 +106,7 @@ describe('POST /api/v2/workflows', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockAssertFolderMutable.mockResolvedValue(undefined)
+    mockAssertFolderInWorkspace.mockResolvedValue(undefined)
     mockPerformCreateWorkflow.mockResolvedValue({ success: true, workflow: CREATED })
   })
 
@@ -155,6 +164,41 @@ describe('POST /api/v2/workflows', () => {
     expect(res.status).toBe(423)
     expect((await res.json()).error.code).toBe('LOCKED')
     expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('400s a folder outside the workspace without ever reading its lock state', async () => {
+    mockAssertFolderInWorkspace.mockRejectedValue(
+      new FolderNotFoundErrorMock('Target folder not found')
+    )
+    const res = await callPost({ ...VALID_BODY, folderId: 'fld-other-workspace' })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    // Containment runs first, so a locked foreign folder cannot be told apart
+    // from a nonexistent one by its status code.
+    expect(mockAssertFolderMutable).not.toHaveBeenCalled()
+    expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('checks folder containment before mutability', async () => {
+    const order: string[] = []
+    mockAssertFolderInWorkspace.mockImplementation(async () => {
+      order.push('containment')
+    })
+    mockAssertFolderMutable.mockImplementation(async () => {
+      order.push('mutability')
+    })
+
+    await callPost({ ...VALID_BODY, folderId: 'fld-1' })
+
+    expect(order).toEqual(['containment', 'mutability'])
+    expect(mockAssertFolderInWorkspace).toHaveBeenCalledWith('fld-1', 'workspace-1')
+  })
+
+  it('skips the containment check when no folder is supplied', async () => {
+    await callPost(VALID_BODY)
+    expect(mockAssertFolderInWorkspace).not.toHaveBeenCalled()
+    expect(mockAssertFolderMutable).toHaveBeenCalledWith(null)
   })
 
   it('409s when the name is already taken in the target folder', async () => {

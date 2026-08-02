@@ -160,6 +160,23 @@ describe('GET /api/v2/workflows/[id]/versions', () => {
     expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1')
   })
 
+  it('400s a structurally invalid cursor instead of silently truncating the list', async () => {
+    // Decodes to valid JSON with no numeric `version` — the shape that would
+    // otherwise filter every row out and report a clean end-of-list.
+    const bogus = Buffer.from(JSON.stringify({ offset: 2 })).toString('base64')
+    const res = await callGet(`?cursor=${encodeURIComponent(bogus)}`)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
+  })
+
+  it('400s a cursor that is not decodable at all', async () => {
+    const res = await callGet('?cursor=not-a-cursor')
+    expect(res.status).toBe(400)
+    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
+  })
+
   it('pages with a version-keyed cursor', async () => {
     const first = await callGet('?limit=2')
     const firstBody = await first.json()
