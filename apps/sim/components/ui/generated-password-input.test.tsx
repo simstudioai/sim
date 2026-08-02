@@ -134,7 +134,7 @@ describe('GeneratedPasswordInput', () => {
     expect(passwordInput()).not.toHaveAttribute('placeholder', '••••••••')
   })
 
-  it('reveals a generated password without fetching the saved password', () => {
+  it('keeps a generated password hidden when the field is hidden', () => {
     const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
     const onChange = vi.fn()
     renderInput({ fetchCurrentPassword, onChange, showGenerate: true })
@@ -142,6 +142,18 @@ describe('GeneratedPasswordInput', () => {
     act(() => passwordButton('Generate password').click())
 
     expect(fetchCurrentPassword).not.toHaveBeenCalled()
+    expect(passwordInput()).toHaveAttribute('type', 'password')
+    expect(onChange).toHaveBeenCalledWith(expect.stringMatching(/^.{24}$/))
+  })
+
+  it('keeps a generated password visible when the field is visible', async () => {
+    const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
+    const onChange = vi.fn()
+    renderInput({ fetchCurrentPassword, onChange, showGenerate: true })
+
+    await act(async () => passwordButton('Show password').click())
+    act(() => passwordButton('Generate password').click())
+
     expect(passwordInput()).toHaveAttribute('type', 'text')
     expect(onChange).toHaveBeenCalledWith(expect.stringMatching(/^.{24}$/))
   })

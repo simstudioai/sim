@@ -66,7 +66,6 @@ export function GeneratedPasswordInput({
 
   const handleGeneratePassword = () => {
     handleChange(generatePassword(24))
-    setShowPassword(true)
   }
 
   const toggleShowPassword = async () => {
