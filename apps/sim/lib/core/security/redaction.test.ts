@@ -198,6 +198,16 @@ describe('redactSensitiveValues', () => {
     expect(result).not.toContain('key123456')
   })
 
+  it.concurrent('should redact dotted and parenthesized sensitive fields', () => {
+    const result = redactSensitiveValues(
+      `stripe.api_key: "stripe-secret" (password: 'password-value') service.SyncToken: "3"`
+    )
+
+    expect(result).toBe(
+      `stripe.api_key: "${REDACTED_MARKER}" (password: '${REDACTED_MARKER}') service.SyncToken: "3"`
+    )
+  })
+
   it.concurrent('should redact equals-style sensitive fields', () => {
     const result = redactSensitiveValues(
       `password="password-value" token='token-value' api_key="api-key-value" SyncToken="3"`
